@@ -9,6 +9,7 @@ pub mod jobs;
 pub mod mesh;
 pub mod reactor;
 pub mod study;
+pub mod sweep;
 pub mod transport;
 
 use faris_model::{LoadedScenario, Penetration, Reference, ScenarioError};

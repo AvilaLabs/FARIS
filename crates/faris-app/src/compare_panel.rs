@@ -459,6 +459,7 @@ pub fn compare_view(
     history: &HistoryPanel,
     port: &TransportPanel,
     control: Option<&TransportPanel>,
+    after: &mut dyn FnMut(&mut egui::Ui),
 ) {
     // cells[port 0 / control 1][reference 0 / breeder 1]
     let cells: Vec<Vec<Cell>> = [Some(port), control]
@@ -593,6 +594,8 @@ pub fn compare_view(
             });
             ui.small("Bars start at zero. Net electricity differs by a few percent between arrangements; the swap count is the large effect. Both are conditional on authored assumptions.");
             ui.add_space(8.0);
+            ui.separator();
+            after(ui);
         });
 }
 

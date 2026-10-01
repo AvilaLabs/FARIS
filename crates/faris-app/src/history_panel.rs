@@ -309,6 +309,15 @@ impl HistoryPanel {
     pub fn is_stale(&self) -> bool {
         self.edited
     }
+    /// Name of the selected operating-assumption preset, for conditional labels.
+    pub fn preset_label(&self) -> &str {
+        self.presets
+            .get(self.preset_index)
+            .map_or("the loaded operating assumptions", |preset| {
+                preset.name.as_str()
+            })
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }
