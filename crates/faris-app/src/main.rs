@@ -1,7 +1,6 @@
 mod archive_panel;
 mod badge;
 mod camera;
-#[allow(dead_code)] // Presented by the Compare step once wired in.
 mod compare_panel;
 mod history_panel;
 mod interface_check;
@@ -1175,11 +1174,16 @@ impl FarisApp {
             .id_salt("compare-view")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                self.transport.comparison(ui);
-                if let Some((_, panel)) = &self.paired {
-                    ui.separator();
-                    panel.comparison(ui);
-                }
+                // The displayed scenario swaps with its matched control; the
+                // compare view always receives the port case first.
+                let paired = self.paired.as_ref().map(|(_, panel)| panel);
+                let (port, control) = match paired {
+                    Some(other) if self.manifest.penetration.is_none() => {
+                        (other, Some(&self.transport))
+                    }
+                    _ => (&self.transport, paired),
+                };
+                compare_panel::compare_view(ui, &self.history, port, control);
             });
     }
 }
@@ -1389,12 +1393,12 @@ impl eframe::App for FarisApp {
                 .size_range(120.0..=compare_max_height)
                 .show(ui, |ui| self.compare_view(ui));
         } else {
-            let timeline_max_height = (ui.available_height() * 0.45).clamp(85.0, 360.0);
+            let timeline_max_height = (ui.available_height() * 0.55).clamp(85.0, 640.0);
             let show_history = self.history.assumptions.is_some();
             egui::Panel::bottom("timeline")
                 .resizable(true)
                 .default_size(
-                    (if show_history { 270.0_f32 } else { 110.0 }).min(timeline_max_height),
+                    (if show_history { 400.0_f32 } else { 110.0 }).min(timeline_max_height),
                 )
                 .size_range(85.0..=timeline_max_height)
                 .show(ui, |ui| {

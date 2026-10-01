@@ -265,60 +265,6 @@ impl TransportPanel {
                 .map(|t| (t.integrated_mean, t.integrated_standard_error)),
         }
     }
-
-    pub fn comparison(&self, ui: &mut egui::Ui) {
-        ui.strong(if self.scenario.scenario.penetration.is_some() {
-            "Finite penetration · cold-data surrogate"
-        } else {
-            "Feature-free control · cold-data surrogate"
-        });
-        egui::Grid::new(("transport-comparison", &self.scenario.source_sha256))
-            .striped(true)
-            .show(ui, |ui| {
-                for heading in [
-                    "Arrangement",
-                    "Breeder H3 / source ± SE",
-                    "Magnet mean flux / m² / s",
-                    "Total nuclear heat / MW",
-                    "Histories · seed",
-                ] {
-                    ui.strong(heading);
-                }
-                ui.end_row();
-                for variant in &self.scenario.scenario.variants {
-                    ui.label(&variant.label);
-                    let record = self.record(&variant.id);
-                    let summary = self.summary(&variant.id);
-                    if let Some((mean, se)) = summary.breeder_h3_per_source {
-                        ui.monospace(format!("{mean:.4} ± {se:.4}"));
-                    } else {
-                        ui.weak("Not calculated");
-                    }
-                    if let Some((mean, se)) = summary.magnet_flux {
-                        if mean == 0.0 && se == 0.0 {
-                            ui.weak("No sampled tracks; upper bound unavailable");
-                        } else {
-                            ui.monospace(format!("{mean:.3e} ± {se:.2e}"))
-                                .on_hover_text(format!("Relative sampling SE: {:.1}%. Volume uncertainty and model/data uncertainty are separate.", 100.0 * se / mean));
-                        }
-                    } else {
-                        ui.weak("Not calculated");
-                    }
-                    if let Some((mean, se)) = summary.nuclear_heat_w {
-                        ui.monospace(format!("{:.2} ± {:.2}", mean / 1e6, se / 1e6));
-                    } else {ui.weak("Unavailable");}
-                    ui.label(record.map_or_else(
-                        || "—".into(),
-                        |r| {
-                            format!("{} · {}",u64::from(r.sampling.batches)
-                                * u64::from(r.sampling.particles_per_batch),r.sampling.seed)
-                        },
-                    ));
-                    ui.end_row();
-                }
-            });
-        ui.small("Uncertainties are Monte Carlo standard errors. No engineering ranking or qualified bound is inferred.");
-    }
     pub fn readiness(&self, variant: &str) -> &'static str {
         if self.cases.contains_key(variant)
             && [
@@ -708,7 +654,7 @@ impl TransportPanel {
         };
         ui.horizontal_wrapped(|ui| {
             ui.small(format!("{label} · log₁₀, fixed across arrangements"));
-            ui.small("ⓘ").on_hover_text(note);
+            ui.small("(details)").on_hover_text(note);
         });
         let decades = (upper - lower) as usize;
         let bar_width = 360.0_f32.min(ui.available_width().max(120.0));

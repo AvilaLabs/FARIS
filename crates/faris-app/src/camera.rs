@@ -18,8 +18,8 @@ impl Default for Camera {
         Self {
             yaw: -1.0,
             pitch: 0.3,
-            distance: 11.0,
-            target: [3.0, 0.0, -0.8],
+            distance: 13.0,
+            target: [2.2, 0.0, -0.6],
         }
     }
 }
