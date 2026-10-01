@@ -1,0 +1,63 @@
+{
+  "schema_version": "faris-demo-review-launch/v0.1",
+  "launched_at_utc": "2026-10-01T11:49:17.415623+00:00",
+  "launcher_pid": 2881365,
+  "command": [
+    "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/launch.sh",
+    "--initial-year",
+    "0.25",
+    "--field-view",
+    "materials",
+    "--runs-directory",
+    "/home/connoravila/Documents/Avila-Labs/project-faris/runs/demo-native",
+    "--python",
+    "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/python",
+    "--openmc",
+    "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/openmc",
+    "--audit",
+    "/home/connoravila/Documents/Avila-Labs/project-faris/references/openmc-library-audit.json",
+    "--cross-sections",
+    "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/combined-fendl32-endfbvii1/cross_sections.xml"
+  ],
+  "log_path": "runs/demo-native/final-review-session.log",
+  "temporary_root": "runs/demo-native-temporary",
+  "package_index_sha256": "dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+  "native_app_sha256": "2bc7a57c859e9ce4fd592190697a0363a6acf778fa6b7ed6aba8ea0a25a2a931",
+  "environment_overrides": {
+    "WAYLAND_DISPLAY": "",
+    "WAYLAND_SOCKET": "",
+    "WINIT_X11_SCALE_FACTOR": "1",
+    "TMPDIR": "/home/connoravila/Documents/Avila-Labs/project-faris/runs/demo-native-temporary"
+  },
+  "auto_exit_flags_present": false,
+  "scope": "Persistent local graphical review session, same final delivered binary and recorded four-case launcher; external local solver/data configured with recorded bundles retaining their bound physics inputs.",
+  "observed_at_utc": "2026-10-01T11:51:07+00:00",
+  "persistent_session_observation": {
+    "launcher_pid": 2881365,
+    "app_pid": 2881376,
+    "app_parent_pid": 2881365,
+    "launcher_status": "Ss",
+    "app_status": "Sl",
+    "app_elapsed_at_check": "00:01:49",
+    "check": "Host ps limited to the two owned PIDs; launcher and app alive after detached launch."
+  },
+  "window_observation": {
+    "title": "FARIS \u00b7 Avila Labs",
+    "x11_window_id": "0xe00004",
+    "client_pixels": [
+      1440,
+      900
+    ],
+    "source": "Targeted capture of the single identified FARIS window; actual unmodified application pixels.",
+    "local_capture": "runs/demo-native/final-review-window.png",
+    "capture_sha256": "949ba35529dd05bc4823ee2fa63c55c007073d661dd34f61eba68ecfd318fe89",
+    "displayed": "Corrected finite-port/reference materials, calculated 0.24914-year snapshot, all four history curves, configured transport preflight, Core attribution, and inspector responses."
+  },
+  "launch_log_snapshot": [
+    "Pinned local executables revalidated; hashes establish identity, not authenticity.",
+    "FARIS graphics: AdapterInfo { name: \"Intel(R) Graphics (ADL-N)\", vendor: 32902, device: 18128, device_type: IntegratedGpu, device_pci_bus_id: \"0000:00:02.0\", driver: \"Intel open-source Mesa driver\", driver_info: \"Mesa 26.0.8-1ubuntu0.3\", backend: Vulkan, subgroup_min_size: 8, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }",
+    "FARIS first UI frame: 3.163 s after process setup began",
+    "FARIS demo: materialized 803549595 bytes of Core evidence in 6.298 s; the private temporary copy remains until the app exits."
+  ],
+  "observation_limit": "Records the process/window state at the stated check time; no guarantee about subsequent user actions, desktop session lifetime, or external process termination."
+}
