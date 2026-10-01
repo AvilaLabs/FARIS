@@ -66,8 +66,8 @@ fn hash_file(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
 }
 
 #[cfg(unix)]
-struct InterruptGuard {
-    cancellation: Cancellation,
+pub(crate) struct InterruptGuard {
+    pub(crate) cancellation: Cancellation,
     registrations: Vec<signal_hook::SigId>,
 }
 
@@ -81,7 +81,7 @@ impl Drop for InterruptGuard {
 }
 
 #[cfg(unix)]
-fn interrupt_cancellation() -> Result<InterruptGuard, Box<dyn std::error::Error>> {
+pub(crate) fn interrupt_cancellation() -> Result<InterruptGuard, Box<dyn std::error::Error>> {
     use signal_hook::consts::{SIGINT, SIGTERM};
     let cancellation = Cancellation::default();
     let mut guard = InterruptGuard {

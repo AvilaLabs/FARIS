@@ -13,7 +13,7 @@
 - Keep authored assumptions, literature inputs, measurements, solver results,
   and model extrapolations distinguishable. Record units and normalization at
   adapter boundaries. Input hashes establish identity, not scientific correctness.
-- Avila Core integration is not implemented. Its generated Compile study and
+- Avila Core generation and external compilation are implemented. The complete
   evidence experience is required for the finished demo; the simulation remains
   independently usable. Use a few coarse stages and reusable/generated packaging;
   do not require hand-authored contracts for every component or time step.

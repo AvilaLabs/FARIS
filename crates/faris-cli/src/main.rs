@@ -4,6 +4,7 @@ use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
 mod control;
+mod study;
 mod transport;
 
 #[derive(Parser)]
@@ -40,6 +41,11 @@ enum Command {
         #[command(subcommand)]
         command: transport::TransportCommand,
     },
+    /// Generate and semantically compile a declared Core study; no solver runs.
+    Study {
+        #[command(subcommand)]
+        command: study::StudyCommand,
+    },
 }
 
 fn main() -> std::process::ExitCode {
@@ -47,7 +53,16 @@ fn main() -> std::process::ExitCode {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("faris: {error}");
-            std::process::ExitCode::from(2)
+            std::process::ExitCode::from(
+                if error
+                    .downcast_ref::<study::CoreCompilationRejected>()
+                    .is_some()
+                {
+                    1
+                } else {
+                    2
+                },
+            )
         }
     }
 }
@@ -55,6 +70,7 @@ fn main() -> std::process::ExitCode {
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
     match arguments.command {
         Command::Control { command } => control::run(command)?,
+        Command::Study { command } => study::run(command)?,
         Command::Transport { command } => transport::run(command)?,
         Command::Validate { scenario } => {
             let loaded = LoadedScenario::load(&scenario)?;

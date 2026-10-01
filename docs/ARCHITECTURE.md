@@ -89,4 +89,6 @@ Use a few coarse execution stages and reusable/generated packaging. Keep the
 simulation and its ordinary CLI usable without Core. A small Powered by Avila Core
 attribution accompanies actual compiler progress/results. See
 [the Core integration plan](../integrations/avila-core/README.md) and
-[the demo roadmap](DEMO_ROADMAP.md). This scaffold contains no Core package or receipts.
+[the demo roadmap](DEMO_ROADMAP.md). Generated contracts and external semantic
+compiler reports are implemented; stage execution/evidence binding remains
+pending. See [the implemented compile flow](CORE_STUDIES.md).

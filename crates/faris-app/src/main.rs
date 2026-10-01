@@ -1,4 +1,5 @@
 mod camera;
+mod study_panel;
 mod viewport;
 
 use camera::{Camera, triangle_hit};
@@ -20,6 +21,12 @@ struct Arguments {
     /// Capture this application's window to PNG and exit (development check).
     #[arg(long)]
     capture: Option<PathBuf>,
+    /// External Avila Core executable used by Compile study.
+    #[arg(long)]
+    core: Option<PathBuf>,
+    /// Directory for generated study records.
+    #[arg(long, default_value = "runs")]
+    runs_directory: PathBuf,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,7 +61,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
-            Ok(Box::new(FarisApp::new(manifest, args.capture)?))
+            Ok(Box::new(FarisApp::new(
+                manifest,
+                args.capture,
+                args.core,
+                args.runs_directory,
+            )?))
         }),
     )?;
     Ok(())
@@ -80,12 +92,15 @@ struct FarisApp {
     capture: Option<PathBuf>,
     frames: usize,
     started: Instant,
+    study: study_panel::StudyPanel,
 }
 
 impl FarisApp {
     fn new(
         manifest: DemoManifest,
         capture: Option<PathBuf>,
+        core: Option<PathBuf>,
+        runs_directory: PathBuf,
     ) -> Result<Self, faris_engine::mesh::MeshError> {
         let mut app = Self {
             selected: manifest.variants[0].components
@@ -106,6 +121,7 @@ impl FarisApp {
             capture,
             frames: 0,
             started: Instant::now(),
+            study: study_panel::StudyPanel::new(core, runs_directory),
         };
         app.rebuild()?;
         Ok(app)
@@ -222,6 +238,7 @@ impl FarisApp {
 impl eframe::App for FarisApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.study.poll(&ctx);
         let before = (
             self.variant,
             self.cutaway,
@@ -235,9 +252,10 @@ impl eframe::App for FarisApp {
                 ui.separator();
                 ui.label("Scene");
                 ui.separator();
-                ui.label("Geometry workspace");
+                ui.label("Research workspace");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.weak("0.0.1 · Scaffold");
+                    self.study
+                        .header(ui, &self.manifest, &self.manifest.variants[self.variant].id);
                 });
             });
         });
@@ -307,10 +325,8 @@ impl eframe::App for FarisApp {
                 });
                 ui.add_space(16.0);
                 ui.separator();
-                ui.strong("Calculations");
-                ui.label("Neutron transport: pending");
-                ui.label("Activation: pending");
-                ui.label("Plant lifetime: pending");
+                self.study
+                    .controls(ui, &self.manifest.variants[self.variant].id);
                 ui.add_space(8.0);
                 ui.add_enabled(false, egui::Button::new("Run scenario"))
                     .on_disabled_hover_text(

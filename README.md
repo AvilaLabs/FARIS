@@ -29,12 +29,15 @@ Blender's workspace layout.
 - An independently specified absorber-sphere control that actually runs OpenMC,
   with identified raw inputs/statepoints and scoped numerical comparisons.
 - A scientific baseline, benchmark route, and local tool/data readiness audit.
+- Typed material, source, and nuclear-data inputs bound to exact scenario bytes.
+- Generated study dependencies, actual external Avila Core compilation, saved
+  compiler reports, and a native Compile study button with cancellation.
 
 **The desktop remains a geometry scaffold.** Reactor transport, activation,
 ageing, fuel inventory, maintenance, and power production are not implemented. Their result
 records say `NOT_EVALUATED`; the app leaves their values empty. Component
 colors identify layers and do not represent calculated physical fields.
-Material definitions are deliberately unassigned. The idealized circular
+The bundled starting scenario has unassigned materials. The idealized circular
 tori and magnet envelope do not reproduce the published ARC engineering design.
 
 ## Run the desktop
@@ -61,6 +64,11 @@ The desktop needs a graphical session and compatible graphics drivers.
 Linux source builds may need `pkg-config`, `libxkbcommon-dev`, and
 `libwayland-dev` from the system package manager. Windows and macOS builds
 require their usual Rust native linker/toolchain setup.
+
+Select analyses in the left panel and use **Compile study** in the upper right.
+Choose an external Core executable in compiler settings or pass `--core`.
+Compilation, run readiness, and scientific assessment are separate. See
+[generated Core studies](docs/CORE_STUDIES.md) for the CLI and recorded evidence.
 
 ## Use the CLI
 

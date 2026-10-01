@@ -11,8 +11,11 @@ OpenMC/FENDL inputs and unresolved provenance/temperature coverage. Strict
 transport schemas and Rust normalization are implemented, with a bounded
 external runner and a real [OpenMC numerical control](NUMERICAL_CONTROLS.md).
 These increments do not complete M1, M2 or M3. Reactor materials/source choices,
-experimental benchmark reproduction, the production adapter, generated Core
-studies, and desktop job/results integration still need implementation.
+experimental benchmark reproduction, the production adapter, and desktop
+transport/results integration still need implementation. Generated Core studies,
+real semantic compilation in the CLI/native app, and explicit typed physics
+inputs are now implemented. These are partial M2 deliverables; Core execution
+and evidence/qualification binding remain pending.
 
 ## The result we are building
 

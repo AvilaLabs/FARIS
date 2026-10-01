@@ -1,5 +1,6 @@
 //! Scenario semantics and validation. Display labels never imply material properties.
 
+pub mod physics;
 pub mod transport;
 
 use serde::{Deserialize, Serialize};
@@ -66,7 +67,7 @@ pub struct Layer {
     pub color: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Reference {
     pub id: String,

@@ -3,6 +3,7 @@
 
 pub mod jobs;
 pub mod mesh;
+pub mod study;
 pub mod transport;
 
 use faris_model::{LoadedScenario, Reference, ScenarioError};
@@ -119,7 +120,7 @@ pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioE
         ),
         (
             "avila_core",
-            "Optional Core integration has not been implemented.",
+            "No Core compilation or scientific assessment is bound to this geometry export.",
         ),
     ]
     .into_iter()
