@@ -28,11 +28,18 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import validate_recorded_bundle
+from recorded_archives import (create_archive, MAX_PATH_COMPONENTS,
+                               MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES)
 
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
 ANALYSES = "breeding,shielding,fuel-history,electricity"
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
+MAX_TREE_BYTES = 512 * 1024 * 1024
+MAX_TREE_FILES = 2048
+MAX_TREE_MEMBERS = 4096
+MAX_EXPANDED_PACKAGE_BYTES = 1536 * 1024 * 1024
+MAX_EXPANDED_PACKAGE_FILES = 8192
 SUPPORT_SOURCE_FILES = (
     "docs/COLD_REFERENCE.md",
     "docs/DEMO_INPUT_SPEC.md",
@@ -350,6 +357,27 @@ def add_sensitivity(faris: Path, branch: Path, scenario: Path, run_path: Path,
             "point_count": expected_points}
 
 
+def archive_tree(staging: Path, branch: Path, variant_id: str,
+                 kind: str, source: Path) -> dict[str, object]:
+    archives = branch / "archives"
+    archives.mkdir(exist_ok=True)
+    stem = f"{variant_id}-{kind}"
+    archive_path = archives / f"{stem}.tar.gz"
+    manifest_path = archives / f"{stem}.manifest.json"
+    manifest = create_archive(source, archive_path, manifest_path)
+    return {
+        "path": archive_path.relative_to(staging).as_posix(),
+        "sha256": sha256(archive_path),
+        "bytes": archive_path.stat().st_size,
+        "manifest_path": manifest_path.relative_to(staging).as_posix(),
+        "manifest_sha256": sha256(manifest_path),
+        "expanded_bytes": manifest["expanded_bytes"],
+        "file_count": manifest["file_count"],
+        "archive_member_count": manifest["archive_member_count"],
+        "directory_count": manifest["directory_count"],
+    }
+
+
 def add_history_comparison(faris: Path, branch: Path, scenario: Path,
                            left_run: Path, right_run: Path, assumptions: Path,
                            scenario_sha: str) -> dict:
@@ -473,7 +501,8 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
     scripts_dir = staging / "scripts"
     scripts_dir.mkdir()
     for name in ("verify_recorded_demo.py", "recorded_bundle_contract.py",
-                 "port_geometry_contract.py", "verify_binary_manifest.py"):
+                 "port_geometry_contract.py", "verify_binary_manifest.py",
+                 "recorded_archives.py", "launch_recorded_demo.py"):
         source = Path(__file__).with_name(name)
         shutil.copyfile(source, scripts_dir / name)
 
@@ -549,18 +578,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 python3 "$root/scripts/verify_binary_manifest.py" "$root"
-exec "$root/bin/faris-app" \\
-  --core "$root/bin/avila-core" \\
-  --bundle "$root/port/bundles/reference.transport-bundle.json" \\
-  --bundle "$root/port/bundles/breeder-emphasis.transport-bundle.json" \\
-  --control-scenario "$root/control/scenario.json" \\
-  --control-bundle "$root/control/bundles/reference.transport-bundle.json" \\
-  --control-bundle "$root/control/bundles/breeder-emphasis.transport-bundle.json" \\
-  --assumptions "$root/operating-assumptions.json" \\
-  --saved-study "$root/saved-study-port-reference.json" \\
-  --saved-study "$root/saved-study-port-breeder-emphasis.json" \\
-  --saved-study "$root/saved-study-control-reference.json" \\
-  --saved-study "$root/saved-study-control-breeder-emphasis.json" "$@"
+exec python3 "$root/scripts/launch_recorded_demo.py" "$root" "$@"
 """
     launch_path = staging / "launch.sh"
     launch_path.write_text(launch, encoding="utf-8")
@@ -687,6 +705,15 @@ def install_support(staging: Path, campaign_reports: list[tuple[str, Path]]) -> 
 
 
 def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> None:
+    expanded_bytes = sum(int(arrangement[key]["expanded_bytes"])
+                         for pair in pairs for arrangement in pair["arrangements"]
+                         for key in ("case_archive", "workspace_archive"))
+    expanded_files = sum(int(arrangement[key]["file_count"])
+                         for pair in pairs for arrangement in pair["arrangements"]
+                         for key in ("case_archive", "workspace_archive"))
+    compressed_archive_bytes = sum(int(arrangement[key]["bytes"])
+                                   for pair in pairs for arrangement in pair["arrangements"]
+                                   for key in ("case_archive", "workspace_archive"))
     lines = [
         "# FARIS recorded coupled-transport demo",
         "",
@@ -721,11 +748,12 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> Non
         "",
         "## Offline launch and verification",
         "",
-        "Run `./launch.sh` to open the four recorded cases. Run `./verify.sh` to rehash all files, relocate/reopen the Core evidence, and check rejection of a separate tampered copy.",
+        "Run `./launch.sh` to open the four recorded cases. The launcher verifies indexed bytes, expands case/workspace archives into a mode-0700 private temporary directory, and keeps that copy until the app exits. Run `./verify.sh` to relocate the compressed package, expand the archives, revalidate saved Core evidence and export reports, and check rejection of a separate tampered copy.",
+        "Before launch, the temporary filesystem must have the indexed expanded byte total, one filesystem block per indexed implicit directory, and 64 MiB free. Before `verify.sh`, it must have the relocated compressed package plus those expanded bytes, one largest one-case export copy, directory blocks, and 64 MiB free; the verifier checks this. A later tamper negative control needs a third compressed copy only after expanded scratch is released. No files are expanded inside the read-only distribution.",
         "The bundled Linux executables are read-only and hash-pinned, not signed. Their hashes establish byte identity, not authenticity.",
         "",
         "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
-        "Package caps: 64 MiB per file, 2,048 indexed files, and 512 MiB total indexed payload. The package index reports the measured final file count and byte total.",
+        f"The eight Core case/workspace archives occupy {compressed_archive_bytes} compressed bytes and expand to {expanded_bytes} bytes across {expanded_files} files. Expansion reproduces the original files byte-for-byte. The full package's indexed compressed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 512 MiB total. Each expanded case or workspace is capped at 512 MiB, 2,048 files, 4,096 archive members, and 1,024 implicit directories; aggregate expansion is capped at 1.5 GiB, 8,192 files, 8,192 archive members, and 8,192 implicit directories. Paths are limited to 64 components. Each expanded file remains capped at 64 MiB.",
         "",
     ])
     destination = staging / "README.md"
@@ -814,16 +842,25 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         inspection_path = branch / "inspections" / f"{variant_id}.saved-case-inspection.json"
         inspection_path.parent.mkdir(exist_ok=True)
         inspection_path.write_text(json.dumps(saved_inspection, indent=2, sort_keys=True) + "\n")
-        export_dir = branch / "core-exports" / variant_id
-        export_result = run_json([str(core), "export", str(case), "--source-root",
-                                  f"case={case}", "--out", str(export_dir)])
-        if (export_result.get("schema_version") != "avila.core/export-report/v0.1-draft"
-                or export_result.get("status") != "exported"
-                or export_result.get("case_id") != evidence.get("expected_case_id")):
-            raise RuntimeError(f"Core export did not verify the completed case {pair_id}/{variant_id}")
-        exported_report = export_dir / "export-report.json"
-        if not exported_report.is_file() or json.loads(exported_report.read_text()) != export_result:
-            raise RuntimeError(f"Core export report did not match its published copy: {exported_report}")
+        # Core export duplicates the complete case tree byte-for-byte. Validate
+        # the export in a temporary directory, but retain only its report: the
+        # canonical case below is already the portable export payload.
+        with tempfile.TemporaryDirectory(prefix="faris-core-export-") as temporary:
+            export_dir = Path(temporary) / "export"
+            export_result = run_json([str(core), "export", str(case), "--source-root",
+                                      f"case={case}", "--out", str(export_dir)])
+            if (export_result.get("schema_version") != "avila.core/export-report/v0.1-draft"
+                    or export_result.get("status") != "exported"
+                    or export_result.get("case_id") != evidence.get("expected_case_id")):
+                raise RuntimeError(f"Core export did not verify the completed case {pair_id}/{variant_id}")
+            temporary_report = export_dir / "export-report.json"
+            if (not temporary_report.is_file()
+                    or json.loads(temporary_report.read_text()) != export_result):
+                raise RuntimeError(f"Core export report did not match its published copy: {temporary_report}")
+            export_report_data = temporary_report.read_bytes()
+        export_report = branch / "core-exports" / variant_id / "export-report.json"
+        export_report.parent.mkdir(parents=True, exist_ok=True)
+        export_report.write_bytes(export_report_data)
         recorded_bundle = case / "inputs" / "recorded.json"
         if not recorded_bundle.is_file():
             raise RuntimeError(f"prepared Core case lacks portable transport bundle: {recorded_bundle}")
@@ -845,13 +882,19 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             faris, branch, scenario_path, run_path, assumptions,
             sensitivity_grid, scenario_sha, variant_id)
         sensitivity_summaries.append(sensitivity_identity)
+        case_report_sha = sha256(execution_report)
+        case_archive = archive_tree(staging, branch, variant_id, "case", case)
+        workspace_archive = archive_tree(staging, branch, variant_id, "workspace", workspace)
         descriptor_path = staging / f"saved-study-{pair_id}-{variant_id}.json"
         descriptor = {
-            "case_directory": case.relative_to(staging).as_posix(),
-            "execution_report": execution_report.relative_to(staging).as_posix(),
-            "execution_workspace": workspace.relative_to(staging).as_posix(),
+            "schema_version": "faris-saved-study-archive/v0.1",
+            "case_archive": case_archive,
+            "workspace_archive": workspace_archive,
+            "execution_report_member": "execution-report.json",
         }
         descriptor_path.write_text(json.dumps(descriptor, indent=2) + "\n", encoding="utf-8")
+        shutil.rmtree(case)
+        shutil.rmtree(workspace)
         run_summaries.append({
             "variant_id": variant_id,
             "run_record_sha256": sha256(run_path),
@@ -862,16 +905,18 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             "mesh_nonzero_flux_bin_count": inspected.get("mesh_nonzero_flux_bin_count"),
             "offline_field_and_spectrum_identity": bundle_summary,
             "source_record_name": "run.json",
-            "core_execution_report": execution_report.relative_to(staging).as_posix(),
-            "core_execution_report_sha256": sha256(execution_report),
+            "core_execution_report_member": "execution-report.json",
+            "core_execution_report_sha256": case_report_sha,
             "saved_case_inspection": inspection_path.relative_to(staging).as_posix(),
             "saved_case_inspection_sha256": sha256(inspection_path),
             "core_requirement_verdicts": verdict_states,
-            "core_export_directory": export_dir.relative_to(staging).as_posix(),
+            "core_export_report": export_report.relative_to(staging).as_posix(),
             "core_export_sha256": export_result.get("export_sha256"),
-            "core_export_report_sha256": sha256(exported_report),
+            "core_export_report_sha256": sha256(export_report),
             "saved_study_descriptor": descriptor_path.relative_to(staging).as_posix(),
             "saved_study_descriptor_sha256": sha256(descriptor_path),
+            "case_archive": case_archive,
+            "workspace_archive": workspace_archive,
             "transport_bundle": bundle_path.relative_to(staging).as_posix(),
             "transport_bundle_sha256": sha256(bundle_path),
             "port_volume_report": volume_identity,
@@ -1009,8 +1054,24 @@ def main() -> None:
                                      event_assumptions, sensitivity_grid, volume_reports))
         write_package_readme(staging, branches, support_manifest)
         indexed_files = scan_package(staging)
+        expanded_total = sum(
+            int(arrangement[key]["expanded_bytes"])
+            for pair in branches for arrangement in pair["arrangements"]
+            for key in ("case_archive", "workspace_archive"))
+        expanded_file_count = sum(
+            int(arrangement[key]["file_count"])
+            for pair in branches for arrangement in pair["arrangements"]
+            for key in ("case_archive", "workspace_archive"))
+        expanded_directory_count = sum(
+            int(arrangement[key]["directory_count"])
+            for pair in branches for arrangement in pair["arrangements"]
+            for key in ("case_archive", "workspace_archive"))
+        if (expanded_total > MAX_EXPANDED_PACKAGE_BYTES
+                or expanded_file_count > MAX_EXPANDED_PACKAGE_FILES
+                or expanded_directory_count > MAX_EXPANDED_DIRECTORIES):
+            raise RuntimeError("case/workspace archives exceed the expanded bytes/files/directories bounds")
         index = {
-            "schema_version": "faris-recorded-demo-package/v0.3",
+            "schema_version": "faris-recorded-demo-package/v0.4",
             "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
             "faris_cli_sha256": sha256(faris),
             "faris_app_sha256": sha256(app),
@@ -1029,6 +1090,26 @@ def main() -> None:
             },
             "package_file_count": len(indexed_files),
             "package_bytes": sum(item["bytes"] for item in indexed_files),
+            "expanded_case_workspace_bytes": expanded_total,
+            "expanded_case_workspace_file_count": expanded_file_count,
+            "expanded_case_workspace_member_count": sum(
+                int(arrangement[key]["archive_member_count"])
+                for pair in branches for arrangement in pair["arrangements"]
+                for key in ("case_archive", "workspace_archive")),
+            "expanded_case_workspace_directory_count": expanded_directory_count,
+            "compressed_case_workspace_archive_bytes": sum(
+                int(arrangement[key]["bytes"])
+                for pair in branches for arrangement in pair["arrangements"]
+                for key in ("case_archive", "workspace_archive")),
+            "expanded_size_cap_bytes": MAX_EXPANDED_PACKAGE_BYTES,
+            "expanded_file_count_cap": MAX_EXPANDED_PACKAGE_FILES,
+            "expanded_archive_member_count_cap": MAX_EXPANDED_PACKAGE_FILES,
+            "expanded_directory_count_cap": MAX_EXPANDED_DIRECTORIES,
+            "per_tree_expanded_size_cap_bytes": MAX_TREE_BYTES,
+            "per_tree_file_count_cap": MAX_TREE_FILES,
+            "per_tree_archive_member_count_cap": MAX_TREE_MEMBERS,
+            "per_tree_directory_count_cap": MAX_TREE_DIRECTORIES,
+            "archive_path_component_count_cap": MAX_PATH_COMPONENTS,
             "scenario_pairs": branches,
             "files": indexed_files,
             "index_digest_scope": "package-index.json and package-index.sha256 are excluded from files to avoid a self-referential digest.",

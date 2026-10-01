@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 from pathlib import Path, PurePosixPath
 import shutil
@@ -19,6 +20,10 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import validate_recorded_bundle
+from recorded_archives import (extract_indexed_trees, MAX_EXPANDED_BYTES, MAX_MEMBERS,
+                               MAX_TREE_BYTES, MAX_TREE_FILES, MAX_TREE_MEMBERS,
+                               MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES,
+                               MAX_PATH_COMPONENTS, count_implicit_directories)
 
 INDEX = "package-index.json"
 CHECKSUM = "package-index.sha256"
@@ -68,7 +73,7 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     if checksum_path.read_text(encoding="ascii") != expected_line:
         raise ValueError("package-index.sha256 does not match package-index.json")
     index = json.loads(index_path.read_text(encoding="utf-8"))
-    if index.get("schema_version") != "faris-recorded-demo-package/v0.3":
+    if index.get("schema_version") != "faris-recorded-demo-package/v0.4":
         raise ValueError("unsupported recorded demo package schema")
     if index.get("status") != "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED":
         raise ValueError("package status does not preserve the required NOT_EVALUATED scope")
@@ -147,6 +152,70 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     if (index.get("package_file_count") != len(files)
             or index.get("package_bytes") != total_bytes):
         raise ValueError("package index total file count/byte measurement is incorrect")
+    if (index.get("expanded_size_cap_bytes") != MAX_EXPANDED_BYTES
+            or index.get("expanded_file_count_cap") != MAX_MEMBERS
+            or index.get("expanded_archive_member_count_cap") != MAX_MEMBERS
+            or index.get("expanded_directory_count_cap") != MAX_EXPANDED_DIRECTORIES
+            or index.get("per_tree_expanded_size_cap_bytes") != MAX_TREE_BYTES
+            or index.get("per_tree_file_count_cap") != MAX_TREE_FILES
+            or index.get("per_tree_archive_member_count_cap") != MAX_TREE_MEMBERS
+            or index.get("per_tree_directory_count_cap") != MAX_TREE_DIRECTORIES
+            or index.get("archive_path_component_count_cap") != MAX_PATH_COMPONENTS):
+        raise ValueError("package expansion caps differ from the bounded extractor")
+    expanded_bytes = 0
+    expanded_files = 0
+    expanded_members = 0
+    expanded_directories = 0
+    compressed_archives = 0
+    for pair in index.get("scenario_pairs", []):
+        for arrangement in pair.get("arrangements", []):
+            descriptor_path = safe_package_path(root, arrangement.get("saved_study_descriptor"))
+            if digest(descriptor_path) != arrangement.get("saved_study_descriptor_sha256"):
+                raise ValueError("saved-study archive descriptor digest mismatch")
+            descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+            if (descriptor.get("schema_version") != "faris-saved-study-archive/v0.1"
+                    or descriptor.get("execution_report_member") != "execution-report.json"):
+                raise ValueError("saved-study archive descriptor is malformed")
+            for kind in ("case", "workspace"):
+                archive = arrangement.get(f"{kind}_archive")
+                if not isinstance(archive, dict) or descriptor.get(f"{kind}_archive") != archive:
+                    raise ValueError(f"{kind} archive descriptor mismatch")
+                archive_path = safe_package_path(root, archive.get("path"))
+                manifest_path = safe_package_path(root, archive.get("manifest_path"))
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if (digest(archive_path) != archive.get("sha256")
+                        or digest(manifest_path) != archive.get("manifest_sha256")
+                        or archive_path.stat().st_size != archive.get("bytes")
+                        or manifest.get("archive_sha256") != archive.get("sha256")
+                        or manifest.get("archive_bytes") != archive.get("bytes")
+                        or manifest.get("expanded_bytes") != archive.get("expanded_bytes")
+                        or manifest.get("file_count") != archive.get("file_count")
+                        or manifest.get("archive_member_count") != archive.get("archive_member_count")
+                        or manifest.get("directory_count") != archive.get("directory_count")
+                        or manifest.get("directory_count") != count_implicit_directories(manifest.get("members"))):
+                    raise ValueError(f"{kind} archive manifest identity/size mismatch")
+                caps = (("bytes", MAX_FILE_BYTES), ("expanded_bytes", MAX_TREE_BYTES),
+                        ("file_count", MAX_TREE_FILES),
+                        ("archive_member_count", MAX_TREE_MEMBERS),
+                        ("directory_count", MAX_TREE_DIRECTORIES))
+                if any(not isinstance(archive.get(key), int) or isinstance(archive.get(key), bool)
+                       or archive[key] < 0 or archive[key] > maximum
+                       for key, maximum in caps):
+                    raise ValueError(f"{kind} archive exceeds individual Core tree caps")
+                expanded_bytes += int(archive.get("expanded_bytes", -1))
+                expanded_files += int(archive.get("file_count", -1))
+                expanded_members += int(archive.get("archive_member_count", -1))
+                expanded_directories += int(archive.get("directory_count", -1))
+                compressed_archives += int(archive.get("bytes", -1))
+    if (expanded_bytes > MAX_EXPANDED_BYTES or expanded_files > MAX_MEMBERS
+            or expanded_members > MAX_MEMBERS or expanded_directories > MAX_EXPANDED_DIRECTORIES
+            or index.get("expanded_case_workspace_bytes") != expanded_bytes
+            or index.get("expanded_case_workspace_file_count") != expanded_files
+            or expanded_members > MAX_MEMBERS
+            or index.get("expanded_case_workspace_member_count") != expanded_members
+            or index.get("expanded_case_workspace_directory_count") != expanded_directories
+            or index.get("compressed_case_workspace_archive_bytes") != compressed_archives):
+        raise ValueError("expanded case/workspace totals exceed or differ from their declared limits")
     actual = set()
     tree_entries = 0
     for path in root.rglob("*"):
@@ -190,7 +259,8 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     return index, inventory
 
 
-def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dict[str, str]]:
+def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
+                  core: Path, extracted: dict[tuple[str, str], tuple[Path, Path]]) -> list[dict[str, str]]:
     root = package.resolve(strict=True)
     event_ref = index.get("event_assumptions")
     grid_ref = index.get("sensitivity_grid")
@@ -246,18 +316,20 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dic
             if digest(descriptor_path) != arrangement.get("saved_study_descriptor_sha256"):
                 raise ValueError(f"saved-study descriptor digest mismatch: {descriptor_rel}")
             descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-            if set(descriptor) != {"case_directory", "execution_report", "execution_workspace"}:
-                raise ValueError(f"unsupported saved-study descriptor schema: {descriptor_rel}")
-            expected_case = f"{pair_id}/cases/{variant}"
-            expected_report = arrangement.get("core_execution_report")
-            expected_workspace = f"{pair_id}/core-workspaces/{variant}"
-            if (descriptor.get("case_directory") != expected_case
-                    or descriptor.get("execution_report") != expected_report
-                    or descriptor.get("execution_workspace") != expected_workspace):
-                raise ValueError(f"saved-study descriptor paths differ from indexed case for {pair_id}/{variant}")
-            case = safe_package_path(root, descriptor["case_directory"], must_be_file=False)
-            report = safe_package_path(root, descriptor["execution_report"])
-            workspace = safe_package_path(root, descriptor["execution_workspace"], must_be_file=False)
+            if (set(descriptor) != {"schema_version", "case_archive", "workspace_archive",
+                                   "execution_report_member"}
+                    or descriptor.get("schema_version") != "faris-saved-study-archive/v0.1"):
+                raise ValueError(f"unsupported saved-study archive descriptor: {descriptor_rel}")
+            if (descriptor.get("case_archive") != arrangement.get("case_archive")
+                    or descriptor.get("workspace_archive") != arrangement.get("workspace_archive")
+                    or descriptor.get("execution_report_member") != "execution-report.json"):
+                raise ValueError(f"saved-study archive paths differ from indexed case for {pair_id}/{variant}")
+            case, workspace = extracted[(pair_id, variant)]
+            report = case / "execution-report.json"
+            if (not report.is_file()
+                    or digest(report) != arrangement.get("core_execution_report_sha256")
+                    or arrangement.get("core_execution_report_member") != "execution-report.json"):
+                raise ValueError(f"extracted Core execution report is missing or changed for {pair_id}/{variant}")
             output = subprocess.run(
                 [str(faris), "evidence", "inspect", "--case", str(case),
                  "--report", str(report), "--workspace", str(workspace)],
@@ -288,6 +360,29 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dic
                     or not fresh.get("steps")
                     or fresh.get("verified_receipt_count") != len(fresh["steps"])):
                 raise ValueError(f"relocated Core evidence did not revalidate for {pair_id}/{variant}")
+            export_report_rel = arrangement.get("core_export_report")
+            export_report_path = safe_package_path(root, export_report_rel)
+            if digest(export_report_path) != arrangement.get("core_export_report_sha256"):
+                raise ValueError(f"Core export report digest mismatch for {pair_id}/{variant}")
+            stored_export_report = json.loads(export_report_path.read_text(encoding="utf-8"))
+            with tempfile.TemporaryDirectory(prefix="faris-export-recheck-") as temporary:
+                export_dir = Path(temporary) / "export"
+                export = subprocess.run(
+                    [str(core), "export", str(case), "--source-root", f"case={case}",
+                     "--out", str(export_dir)],
+                    check=False, capture_output=True, text=True, timeout=180,
+                )
+                if export.returncode != 0:
+                    raise ValueError(f"Core export recheck failed for {pair_id}/{variant}: {export.stderr[-2000:]}")
+                try:
+                    reconstructed_export = json.loads(export.stdout)
+                    written_export = json.loads((export_dir / "export-report.json").read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError) as exc:
+                    raise ValueError(f"Core export recheck returned invalid report for {pair_id}/{variant}") from exc
+            if (reconstructed_export != stored_export_report
+                    or written_export != stored_export_report
+                    or stored_export_report.get("export_sha256") != arrangement.get("core_export_sha256")):
+                raise ValueError(f"Core export report no longer reconstructs from canonical case for {pair_id}/{variant}")
             verdicts = fresh.get("requirement_verdicts", [])
             if (arrangement.get("scientific_qualification") != "NOT_EVALUATED"
                     or not verdicts
@@ -444,12 +539,31 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dic
 
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, _ = verify_index(package, faris, core)
-    inspected = inspect_cases(package, index, faris)
+    expanded = int(index["expanded_case_workspace_bytes"])
+    directory_count = int(index["expanded_case_workspace_directory_count"])
+    largest_case = max(int(item["case_archive"]["expanded_bytes"])
+                       for pair in index["scenario_pairs"] for item in pair["arrangements"])
+    temporary_parent = Path(tempfile.gettempdir())
+    block_bytes = max(4096, os.statvfs(temporary_parent).f_frsize)
+    required_scratch = expanded + largest_case + (directory_count + 16) * block_bytes + 64 * 1024 * 1024
+    free = shutil.disk_usage(temporary_parent).free
+    if free < required_scratch:
+        raise ValueError(f"verification needs {required_scratch} bytes free for expansion and one Core export; have {free}")
+    with tempfile.TemporaryDirectory(prefix="faris-package-extract-") as temporary:
+        extracted = extract_indexed_trees(package.resolve(strict=True), index, Path(temporary) / "materialized")
+        inspected = inspect_cases(package, index, faris, core, extracted)
     return {"package_index_sha256": digest(package / INDEX), "indexed_file_count": len(index["files"]),
-            "inspected_saved_case_count": len(inspected), "saved_cases": inspected}
+            "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
+            "expanded_case_workspace_bytes": expanded,
+            "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED"}
 
 
 def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> dict[str, str]:
+    package_bytes = sum(item["bytes"] for item in json.loads(
+        (source / INDEX).read_text(encoding="utf-8"))["files"])
+    free = shutil.disk_usage(Path(tempfile.gettempdir())).free
+    if free < package_bytes + 64 * 1024 * 1024:
+        raise ValueError("tamper control lacks scratch space for a relocated package copy")
     with tempfile.TemporaryDirectory(prefix="faris-package-tamper-test-") as temporary:
         target = Path(temporary) / "tampered-package"
         shutil.copytree(source, target, symlinks=True)
@@ -493,6 +607,17 @@ def main() -> int:
     relocated = requested_relocated.parent.resolve(strict=True) / requested_relocated.name
     if relocated == source or source in relocated.parents or relocated in source.parents:
         raise SystemExit("relocated-copy must be outside and distinct from the source package")
+    source_index, _ = verify_index(source, args.faris.resolve(strict=True), args.core.resolve(strict=True))
+    package_bytes = source_index["package_bytes"]
+    expanded_bytes = source_index["expanded_case_workspace_bytes"]
+    directory_count = source_index["expanded_case_workspace_directory_count"]
+    largest_case = max(int(item["case_archive"]["expanded_bytes"])
+                       for pair in source_index["scenario_pairs"] for item in pair["arrangements"])
+    free = shutil.disk_usage(relocated.parent).free
+    block_bytes = max(4096, os.statvfs(relocated.parent).f_frsize)
+    required_scratch = package_bytes + expanded_bytes + largest_case + (directory_count + 16) * block_bytes + 64 * 1024 * 1024
+    if free < required_scratch:
+        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for compressed copy, expanded trees, and Core export; have {free}")
     shutil.copytree(source, relocated, symlinks=True)
     try:
         result = verify_package(relocated, args.faris.resolve(strict=True), args.core.resolve(strict=True))

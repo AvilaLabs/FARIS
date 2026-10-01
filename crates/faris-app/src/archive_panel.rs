@@ -4,11 +4,14 @@ use eframe::egui;
 use faris_engine::{
     case_archive::{SavedCaseInspection, inspect_saved_case},
     history::HistoryResult,
+    jobs::Cancellation,
 };
 use serde::Deserialize;
 use std::{
+    io::Read,
     path::{Component, Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
+    time::{Duration, Instant},
 };
 
 #[derive(Deserialize)]
@@ -22,11 +25,13 @@ struct Locations {
 struct Pending {
     handle: std::thread::JoinHandle<()>,
     receiver: Receiver<Vec<Result<SavedCaseInspection, String>>>,
+    cancellation: Cancellation,
 }
 
 #[derive(Default)]
 pub struct ArchivePanel {
     queued_descriptors: Vec<PathBuf>,
+    ready_marker: Option<PathBuf>,
     pending: Option<Pending>,
     saved: Vec<SavedCaseInspection>,
     selected: usize,
@@ -38,11 +43,19 @@ pub struct ArchivePanel {
 }
 
 impl ArchivePanel {
-    pub fn queue_descriptors(&mut self, paths: Vec<PathBuf>) -> Result<(), String> {
+    pub fn queue_descriptors(
+        &mut self,
+        paths: Vec<PathBuf>,
+        ready_marker: Option<PathBuf>,
+    ) -> Result<(), String> {
         if paths.len() > 16 {
             return Err("At most 16 saved study descriptors can be opened together".into());
         }
+        if paths.is_empty() && ready_marker.is_some() {
+            return Err("A delivery marker requires at least one saved study".into());
+        }
         self.queued_descriptors = paths;
+        self.ready_marker = ready_marker;
         Ok(())
     }
 
@@ -77,10 +90,23 @@ impl ArchivePanel {
     pub fn poll(&mut self, ctx: &egui::Context) {
         if self.pending.is_none() && !self.queued_descriptors.is_empty() {
             let descriptors = std::mem::take(&mut self.queued_descriptors);
-            self.start(ctx.clone(), move || {
+            let marker = self.ready_marker.take();
+            self.start(ctx.clone(), move |cancellation| {
+                if let Some(path) = marker
+                    && let Err(error) =
+                        wait_for_materialization(&path, &cancellation, Duration::from_secs(60))
+                {
+                    return vec![Err(error)];
+                }
                 descriptors
                     .iter()
-                    .map(|path| load_descriptor(path).and_then(inspect))
+                    .map(|path| {
+                        if cancellation.is_cancelled() {
+                            return Err("Saved-study reopening cancelled".into());
+                        }
+                        // Delivery readiness alone never establishes evidence.
+                        load_descriptor(path).and_then(inspect)
+                    })
                     .collect()
             });
         }
@@ -89,7 +115,10 @@ impl ArchivePanel {
         };
         let results = match pending.receiver.try_recv() {
             Ok(value) => value,
-            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Empty) => {
+                ctx.request_repaint_after(Duration::from_millis(100));
+                return;
+            }
             Err(TryRecvError::Disconnected) => {
                 vec![Err("Saved-study worker ended without results".into())]
             }
@@ -118,21 +147,38 @@ impl ArchivePanel {
     fn start(
         &mut self,
         ctx: egui::Context,
-        work: impl FnOnce() -> Vec<Result<SavedCaseInspection, String>> + Send + 'static,
+        work: impl FnOnce(Cancellation) -> Vec<Result<SavedCaseInspection, String>> + Send + 'static,
     ) {
         let (sender, receiver) = mpsc::channel();
+        let cancellation = Cancellation::default();
+        let worker_cancellation = cancellation.clone();
         match std::thread::Builder::new()
             .name("faris-reopen-saved-study".into())
             .spawn(move || {
-                let _ = sender.send(work());
+                let _ = sender.send(work(worker_cancellation));
                 ctx.request_repaint();
             }) {
-            Ok(handle) => self.pending = Some(Pending { handle, receiver }),
+            Ok(handle) => {
+                self.pending = Some(Pending {
+                    handle,
+                    receiver,
+                    cancellation,
+                });
+            }
             Err(error) => self.errors.push(error.to_string()),
         }
     }
 
     pub fn controls(&mut self, ui: &mut egui::Ui, current_scenario: &str, current_variant: &str) {
+        if self.is_loading() {
+            ui.small("Preparing/checking saved study evidence…");
+        }
+        if !self.errors.is_empty() {
+            ui.colored_label(
+                egui::Color32::LIGHT_RED,
+                "Saved study unavailable · expand for diagnostics",
+            );
+        }
         ui.collapsing("Reopen saved study", |ui| {
             for (label, value) in [
                 ("Case directory", &mut self.case_directory),
@@ -155,7 +201,7 @@ impl ArchivePanel {
                     execution_report: self.execution_report.clone().into(),
                     execution_workspace: self.execution_workspace.clone().into(),
                 };
-                self.start(ui.ctx().clone(), move || vec![inspect(locations)]);
+                self.start(ui.ctx().clone(), move |_| vec![inspect(locations)]);
             }
             if self.is_loading() {
                 ui.small("Checking saved inputs, outputs, contract and receipts…");
@@ -259,10 +305,161 @@ fn load_descriptor(path: &Path) -> Result<Locations, String> {
     Ok(locations)
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Materialization {
+    schema_version: String,
+    status: String,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+/// The launcher owns this small completion signal in a private directory.
+/// Its success permits inspection; the case/receipt hashes remain authoritative.
+fn wait_for_materialization(
+    path: &Path,
+    cancellation: &Cancellation,
+    timeout: Duration,
+) -> Result<(), String> {
+    let started = Instant::now();
+    loop {
+        if cancellation.is_cancelled() {
+            return Err("Saved-study materialization wait cancelled".into());
+        }
+        match std::fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.len() > 4096 {
+                    return Err(
+                        "Saved-study delivery marker must be a regular file no larger than 4 KiB"
+                            .into(),
+                    );
+                }
+                let mut bytes = Vec::new();
+                std::fs::File::open(path)
+                    .map_err(|error| format!("Cannot open saved-study delivery marker: {error}"))?
+                    .take(4097)
+                    .read_to_end(&mut bytes)
+                    .map_err(|error| format!("Cannot read saved-study delivery marker: {error}"))?;
+                if bytes.len() > 4096 {
+                    return Err("Saved-study delivery marker grew beyond 4 KiB".into());
+                }
+                let marker: Materialization = serde_json::from_slice(&bytes)
+                    .map_err(|error| format!("Invalid saved-study delivery marker: {error}"))?;
+                if marker.schema_version != "faris-recorded-materialization/v0.1"
+                    || marker
+                        .error
+                        .as_ref()
+                        .is_some_and(|error| error.len() > 1024)
+                {
+                    return Err(
+                        "Unsupported saved-study delivery marker or oversized diagnostic".into(),
+                    );
+                }
+                return match (marker.status.as_str(), marker.error) {
+                    ("COMPLETE", None) => Ok(()),
+                    ("FAILED", Some(error)) if !error.trim().is_empty() => {
+                        Err(format!("Saved-study materialization failed: {error}"))
+                    }
+                    _ => Err("Invalid saved-study delivery state".into()),
+                };
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("Cannot check saved-study delivery marker: {error}")),
+        }
+        let remaining = timeout.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
+            return Err("Saved-study materialization did not finish within the 60-second delivery budget. Transport exploration remains available.".into());
+        }
+        std::thread::sleep(remaining.min(Duration::from_millis(20)));
+    }
+}
+
 impl Drop for ArchivePanel {
     fn drop(&mut self) {
         if let Some(pending) = self.pending.take() {
+            pending.cancellation.cancel();
             let _ = pending.handle.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod delivery_tests {
+    use super::*;
+
+    #[test]
+    fn failed_or_invalid_delivery_never_opens_a_saved_case() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("materialization.json");
+        for (value, message) in [
+            (
+                r#"{"schema_version":"faris-recorded-materialization/v0.1","status":"FAILED","error":"archive hash mismatch"}"#,
+                "archive hash mismatch",
+            ),
+            (
+                r#"{"schema_version":"faris-recorded-materialization/v0.1","status":"COMPLETE","error":"partial output"}"#,
+                "Invalid saved-study delivery state",
+            ),
+            (
+                r#"{"schema_version":"unknown","status":"COMPLETE"}"#,
+                "Unsupported",
+            ),
+        ] {
+            std::fs::write(&marker, value).unwrap();
+            let error =
+                wait_for_materialization(&marker, &Cancellation::default(), Duration::from_secs(1))
+                    .unwrap_err();
+            assert!(error.contains(message), "{error}");
+        }
+        std::fs::write(&marker, vec![b' '; 4097]).unwrap();
+        assert!(
+            wait_for_materialization(&marker, &Cancellation::default(), Duration::from_secs(1))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn delivery_wait_cancels_without_the_marker_and_times_out() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("pending.json");
+        let cancellation = Cancellation::default();
+        let worker_cancel = cancellation.clone();
+        let worker_marker = marker.clone();
+        let worker = std::thread::spawn(move || {
+            wait_for_materialization(&worker_marker, &worker_cancel, Duration::from_secs(60))
+        });
+        std::thread::sleep(Duration::from_millis(10));
+        let started = Instant::now();
+        cancellation.cancel();
+        assert!(worker.join().unwrap().unwrap_err().contains("cancelled"));
+        assert!(started.elapsed() < Duration::from_millis(200));
+        let started = Instant::now();
+        assert!(
+            wait_for_materialization(&marker, &Cancellation::default(), Duration::from_millis(10))
+                .is_err()
+        );
+        assert!(started.elapsed() < Duration::from_millis(200));
+    }
+
+    #[test]
+    fn complete_delivery_still_requires_actual_case_verification() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("complete.json");
+        std::fs::write(
+            &marker,
+            r#"{"schema_version":"faris-recorded-materialization/v0.1","status":"COMPLETE"}"#,
+        )
+        .unwrap();
+        wait_for_materialization(&marker, &Cancellation::default(), Duration::from_secs(1))
+            .unwrap();
+        let result = inspect(Locations {
+            case_directory: temp.path().join("missing-case"),
+            execution_report: temp.path().join("missing-report.json"),
+            execution_workspace: temp.path().join("missing-workspace"),
+        });
+        assert!(
+            result.is_err(),
+            "Delivery readiness must not invent Core evidence"
+        );
     }
 }

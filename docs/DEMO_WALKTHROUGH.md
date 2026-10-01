@@ -263,8 +263,20 @@ the run record. It also produces two paired history comparisons, four event-
 control histories, and four 27-point sensitivity records from the selected
 release CLI and exact fresh run records. Their provenance binds the scenario,
 run record, raw tally artifact, assumptions, and grid. The index reports total
-file count and bytes and the verifier enforces the 512 MiB / 2,048-file package
-caps. These deterministic history probes are authored scenario studies, not
+file count and bytes and the verifier enforces the 512 MiB / 2,048-file delivered
+package caps. Case/workspace trees are gzip archives with exact per-file hashes
+and a separate 1.5 GiB / 8,192-file aggregate expanded budget, plus a 64 MiB
+per-file ceiling. These are delivery disk budgets, separate from each native
+case's 512 MiB bound and the fresh solver job limits above. The launcher verifies
+the index and extracts only preflighted regular files to a private temporary
+directory that lasts until the app exits. Extraction runs in the background;
+the validated transport scene opens while saved Core evidence remains pending.
+Evidence becomes available only after extraction and actual receipt inspection.
+Path depth and implicit-directory counts are bounded, and free-space checks
+include directory blocks. The launcher reports extraction time separately;
+startup acceptance measures the first useful scene from launcher invocation.
+These deterministic history
+probes are authored scenario studies, not
 probability distributions or lifetime uncertainty bounds.
 
 The local Linux distribution includes hash-pinned, read-only copies of the

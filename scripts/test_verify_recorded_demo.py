@@ -1,6 +1,7 @@
 import importlib.util
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -236,12 +237,6 @@ def make_package(root: Path, faris: Path, core: Path,
             write(case / "case.marker", "case material\n")
             write(workspace / "receipt.json", "receipt material\n")
             write(report, "report material\n")
-            descriptor_rel = f"saved-study-{pair}-{variant}.json"
-            descriptor = {"case_directory": str(case.relative_to(root)),
-                          "execution_report": str(report.relative_to(root)),
-                          "execution_workspace": str(workspace.relative_to(root))}
-            descriptor_path = root / descriptor_rel
-            write(descriptor_path, json.dumps(descriptor, indent=2) + "\n")
             inspection = {
                 "schema_version": "faris-saved-case-inspection/v0.2",
                 "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
@@ -260,9 +255,30 @@ def make_package(root: Path, faris: Path, core: Path,
             }
             inspection_rel = f"{pair}/inspections/{variant}.json"
             write(root / inspection_rel, json.dumps(inspection, indent=2, sort_keys=True) + "\n")
+            export_report_rel = f"{pair}/core-exports/{variant}/export-report.json"
+            export_report = {
+                "schema_version": "avila.core/export-report/v0.1-draft",
+                "status": "exported", "case_id": f"{pair}-{variant}-case",
+                "export_sha256": "sha256:" + hashlib.sha256(
+                    (case / "case.marker").read_bytes()).hexdigest(),
+            }
+            write(root / export_report_rel, json.dumps(export_report) + "\n")
+            case_archive = PACKAGE.archive_tree(root, root / pair, variant, "case", case)
+            workspace_archive = PACKAGE.archive_tree(root, root / pair, variant, "workspace", workspace)
+            descriptor_rel = f"saved-study-{pair}-{variant}.json"
+            descriptor = {"schema_version": "faris-saved-study-archive/v0.1",
+                          "case_archive": case_archive, "workspace_archive": workspace_archive,
+                          "execution_report_member": "execution-report.json"}
+            descriptor_path = root / descriptor_rel
+            write(descriptor_path, json.dumps(descriptor, indent=2) + "\n")
+            shutil.rmtree(case)
+            shutil.rmtree(workspace)
             arrangement = {
                 "variant_id": variant,
-                "core_execution_report": str(report.relative_to(root)),
+                "core_execution_report_member": "execution-report.json",
+                "core_execution_report_sha256": "sha256:" + hashlib.sha256(b"report material\n").hexdigest(),
+                "case_archive": case_archive,
+                "workspace_archive": workspace_archive,
                 "run_record_sha256": run_record_hash,
                 "raw_artifact_sha256": artifact_sha,
                 "transport_bundle": bundle_rel,
@@ -275,6 +291,9 @@ def make_package(root: Path, faris: Path, core: Path,
                 "saved_study_descriptor_sha256": VERIFY.digest(descriptor_path),
                 "saved_case_inspection": inspection_rel,
                 "saved_case_inspection_sha256": VERIFY.digest(root / inspection_rel),
+                "core_export_report": export_report_rel,
+                "core_export_report_sha256": VERIFY.digest(root / export_report_rel),
+                "core_export_sha256": export_report["export_sha256"],
             }
             if pair == "port":
                 scenario_sha_raw = scenario_sha
@@ -375,7 +394,23 @@ def make_package(root: Path, faris: Path, core: Path,
                       "event_histories": events,
                       "sensitivity_studies": sensitivities})
     app = root.parent / "faris-app-test"
-    write(app, "#!/bin/sh\nprintf 'faris-app 0.0.1\\n'\n")
+    write(app, "#!/usr/bin/env python3\nimport json,os,sys,time\nfrom pathlib import Path\n"
+               "if '--version' in sys.argv: print('faris-app 0.0.1'); raise SystemExit(0)\n"
+               "if os.environ.get('FARIS_TEST_EXIT_EARLY'): raise SystemExit(int(os.environ['FARIS_TEST_EXIT_EARLY']))\n"
+               "args=sys.argv[1:]; ds=[]\n"
+               "marker=Path(args[args.index('--saved-study-ready-marker')+1]); deadline=time.monotonic()+10\n"
+               "while not marker.exists() and time.monotonic()<deadline: time.sleep(.01)\n"
+               "assert marker.is_file(); readiness=json.loads(marker.read_text())\n"
+               "assert readiness['schema_version']=='faris-recorded-materialization/v0.1'\n"
+               "if os.environ.get('FARIS_TEST_EXPECT_FAILED'):\n"
+               " assert readiness['status']=='FAILED' and len(readiness.get('error','').encode())<=1024; raise SystemExit(9)\n"
+               "assert readiness['status']=='COMPLETE'\n"
+               "for i,item in enumerate(args[:-1]):\n"
+               " if item=='--saved-study':\n"
+               "  p=Path(args[i+1]); d=json.loads(p.read_text()); base=p.parent; c=(base/d['case_directory']).resolve(); w=(base/d['execution_workspace']).resolve()\n"
+               "  assert (c/'case.marker').is_file() and (w/'receipt.json').is_file()\n"
+               "  ds.append({'descriptor':str(p),'exists_during_launch':True})\n"
+               "log=os.environ.get('FARIS_TEST_ARGS'); Path(log).write_text(json.dumps({'saved':ds,'args':args,'core':args[args.index('--core')+1]})) if log else None\n")
     app.chmod(0o755)
     runtime = PACKAGE.install_local_runtime(
         root, faris, app, core, core_source_repo, core_source_revision,
@@ -385,7 +420,10 @@ def make_package(root: Path, faris: Path, core: Path,
                                       "raw_path": "/tmp/private/run.json"}) + "\n")
     support = PACKAGE.install_support(root, [("fixture-campaign", campaign_source)])
     (root / "README.md").write_text("Fixture demo package.\n")
-    index = {"schema_version": "faris-recorded-demo-package/v0.3",
+    expanded_records = [arrangement[key]
+                        for pair in pairs for arrangement in pair["arrangements"]
+                        for key in ("case_archive", "workspace_archive")]
+    index = {"schema_version": "faris-recorded-demo-package/v0.4",
              "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
              "faris_cli_sha256": VERIFY.digest(faris),
              "faris_app_sha256": VERIFY.digest(app),
@@ -398,6 +436,20 @@ def make_package(root: Path, faris: Path, core: Path,
              "sensitivity_grid": {"path": "inputs/sensitivity-grid.json",
                                   "sha256": VERIFY.digest(root / "inputs/sensitivity-grid.json"),
                                   "points_per_run": 27},
+             "expanded_case_workspace_bytes": sum(item["expanded_bytes"] for item in expanded_records),
+             "expanded_case_workspace_file_count": sum(item["file_count"] for item in expanded_records),
+             "expanded_case_workspace_member_count": sum(item["archive_member_count"] for item in expanded_records),
+             "expanded_case_workspace_directory_count": sum(item["directory_count"] for item in expanded_records),
+             "compressed_case_workspace_archive_bytes": sum(item["bytes"] for item in expanded_records),
+             "expanded_size_cap_bytes": 1536 * 1024 * 1024,
+             "expanded_file_count_cap": 8192,
+             "expanded_archive_member_count_cap": 8192,
+             "expanded_directory_count_cap": 8192,
+             "per_tree_expanded_size_cap_bytes": 512 * 1024 * 1024,
+             "per_tree_file_count_cap": 2048,
+             "per_tree_archive_member_count_cap": 4096,
+             "per_tree_directory_count_cap": 1024,
+             "archive_path_component_count_cap": 64,
              "scenario_pairs": pairs}
     inventory = []
     for path in sorted(root.rglob("*")):
@@ -422,7 +474,15 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         write(self.faris, "#!/usr/bin/env python3\nimport hashlib,json,sys\nfrom pathlib import Path\nif '--version' in sys.argv: print('faris 0.0.1'); raise SystemExit(0)\ncase=Path(sys.argv[sys.argv.index('--case')+1])\npair=case.parents[1].name\nscenario=case.parents[1]/'scenario.json'\nh=hashlib.sha256(scenario.read_bytes()).hexdigest()\nvariant=case.name\nprint(json.dumps({'schema_version':'faris-saved-case-inspection/v0.2','record_integrity':'UNSIGNED_IDENTITY_REVALIDATED','scenario_sha256':'sha256:'+h,'variant_id':variant,'case_id':pair+'-'+variant+'-case','execution_status':'executed','binding_status':'verified','compiler_id':'avila.core/compiler-rust@0.1.0','semantic_profile':'avila.core/semantic/0.2-draft','compiler_executable_sha256':'sha256:'+'b'*64,'core_executable_sha256':'sha256:'+'b'*64,'requirement_verdicts':[{'status':'not_evaluated'}],'steps':[{'step_id':'transport'}],'verified_receipt_count':1}))\n")
         self.faris.chmod(0o755)
         self.core = self.root / "core-test"
-        write(self.core, "#!/bin/sh\nprintf 'avila-core 0.1.0\\n'\n")
+        write(self.core, "#!/usr/bin/env python3\nimport hashlib,json,sys\nfrom pathlib import Path\n"
+                         "if '--version' in sys.argv: print('avila-core 0.1.0'); raise SystemExit(0)\n"
+                         "case=Path(sys.argv[2]); out=Path(sys.argv[sys.argv.index('--out')+1])\n"
+                         "pair=case.parents[1].name; variant=case.name\n"
+                         "report={'schema_version':'avila.core/export-report/v0.1-draft',"
+                         "'status':'exported','case_id':pair+'-'+variant+'-case',"
+                         "'export_sha256':'sha256:'+hashlib.sha256((case/'case.marker').read_bytes()).hexdigest()}\n"
+                         "out.mkdir(parents=True); (out/'export-report.json').write_text(json.dumps(report)+'\\n')\n"
+                         "print(json.dumps(report))\n")
         self.core.chmod(0o755)
         self.core_source_repo = self.root / "core-source"
         self.core_source_repo.mkdir()
@@ -466,6 +526,79 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertNotIn("/tmp/private/run.json", json.dumps(campaign))
         result = VERIFY.verify_package(relocated, self.faris, self.core)
         self.assertEqual(result["inspected_saved_case_count"], 4)
+
+    def test_launcher_keeps_private_materialization_alive_for_app_and_cleans_it(self):
+        log = self.root / "app-arguments.json"
+        environment = dict(os.environ, FARIS_TEST_ARGS=str(log))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
+             str(self.package)], env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(log.read_text())
+        self.assertEqual(len(data["saved"]), 4)
+        self.assertTrue(data["core"].endswith("bin/avila-core"))
+        self.assertIn("--saved-study-ready-marker", data["args"])
+        for item in data["saved"]:
+            self.assertTrue(item["exists_during_launch"])
+            self.assertFalse(Path(item["descriptor"]).exists())
+        self.assertIn("materialized", result.stderr)
+
+    def test_launcher_cancels_materialization_and_cleans_when_app_exits(self):
+        environment = dict(os.environ, FARIS_TEST_EXIT_EARLY="7")
+        before = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
+             str(self.package)], env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 7, result.stderr)
+        after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
+        self.assertEqual(after, before)
+
+    def test_launcher_publishes_failed_marker_and_cleans_on_bad_archive(self):
+        bad_package = self.root / "bad-archive-package"
+        shutil.copytree(self.package, bad_package)
+        index_path = bad_package / "package-index.json"
+        index = json.loads(index_path.read_text())
+        arrangement = index["scenario_pairs"][0]["arrangements"][0]
+        archive = arrangement["case_archive"]
+        archive_path = bad_package / archive["path"]
+        archive_path.write_bytes(b"not a gzip archive")
+        archive["bytes"] = archive_path.stat().st_size
+        archive["sha256"] = VERIFY.digest(archive_path)
+        manifest_path = bad_package / archive["manifest_path"]
+        manifest = json.loads(manifest_path.read_text())
+        manifest["archive_bytes"] = archive["bytes"]
+        manifest["archive_sha256"] = archive["sha256"]
+        write(manifest_path, json.dumps(manifest, sort_keys=True) + "\n")
+        archive["manifest_sha256"] = VERIFY.digest(manifest_path)
+        descriptor_path = bad_package / arrangement["saved_study_descriptor"]
+        saved_descriptor = json.loads(descriptor_path.read_text())
+        saved_descriptor["case_archive"] = archive
+        write(descriptor_path, json.dumps(saved_descriptor, indent=2, sort_keys=True) + "\n")
+        arrangement["saved_study_descriptor_sha256"] = VERIFY.digest(descriptor_path)
+        for item in index["files"]:
+            path = bad_package / item["path"]
+            item["bytes"] = path.stat().st_size
+            item["sha256"] = VERIFY.digest(path)
+        index["package_bytes"] = sum(item["bytes"] for item in index["files"])
+        index["compressed_case_workspace_archive_bytes"] = sum(
+            item[f"{kind}_archive"]["bytes"]
+            for pair in index["scenario_pairs"] for item in pair["arrangements"]
+            for kind in ("case", "workspace"))
+        write(index_path, json.dumps(index, indent=2, sort_keys=True) + "\n")
+        write(bad_package / "package-index.sha256",
+              f"{VERIFY.digest(index_path)}  package-index.json\n")
+        environment = dict(os.environ, FARIS_TEST_EXPECT_FAILED="1")
+        before = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
+             str(bad_package)], env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 9, result.stderr)
+        self.assertIn("materialization failed", result.stderr)
+        after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
+        self.assertEqual(after, before)
 
     def test_tampered_copy_is_rejected_without_changing_source(self):
         original_hash = VERIFY.digest(self.package / "package-index.json")

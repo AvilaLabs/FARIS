@@ -85,6 +85,10 @@ struct Arguments {
     /// case_directory, execution_report and execution_workspace paths. Repeatable.
     #[arg(long)]
     saved_study: Vec<PathBuf>,
+    /// Wait in the saved-evidence worker for bounded archive materialization.
+    /// Transport exploration stays available; this marker verifies no Core claims.
+    #[arg(long, requires = "saved_study")]
+    saved_study_ready_marker: Option<PathBuf>,
     #[arg(long)]
     python: Option<PathBuf>,
     #[arg(long)]
@@ -224,7 +228,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.interface_check = interface_check;
             app.study
                 .archive
-                .queue_descriptors(args.saved_study)
+                .queue_descriptors(args.saved_study, args.saved_study_ready_marker)
                 .map_err(std::io::Error::other)?;
             app.benchmark = args.benchmark_seconds.map(|duration| Benchmark {
                 duration,
@@ -553,8 +557,12 @@ impl FarisApp {
                             * (self.transport.slice + mesh.dimensions[1] * index(2));
                     if let Some(response) = self.transport.mesh_response(&record.variant_id, bin) {
                         self.message = format!(
-                            "Bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. Scientific qualification NOT_EVALUATED.",
-                            response.mean, response.standard_error
+                            "{} · {} · Y slice {} · bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. Qualification NOT_EVALUATED.",
+                            self.manifest.scenario_id,
+                            record.variant_id,
+                            self.transport.slice,
+                            response.mean,
+                            response.standard_error
                         );
                     }
                 }
