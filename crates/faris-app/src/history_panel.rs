@@ -318,6 +318,29 @@ impl HistoryPanel {
             })
     }
 
+    /// Select a preset by name and recalculate; false when no such preset exists.
+    pub fn select_preset(&mut self, name: &str) -> bool {
+        match self.presets.iter().position(|preset| preset.name == name) {
+            Some(index) => {
+                self.preset_index = index;
+                self.apply_preset(index);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn apply_preset(&mut self, index: usize) {
+        self.assumptions = Some(self.presets[index].assumptions.clone());
+        self.edited = true;
+        self.requested = true;
+        self.debounce = None;
+        self.validation = None;
+        if let Some(pending) = &self.pending {
+            pending.cancellation.cancel();
+        }
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -554,14 +577,7 @@ impl HistoryPanel {
                 .response
                 .on_hover_text(&self.presets[self.preset_index].note);
             if self.preset_index != old_index {
-                self.assumptions = Some(self.presets[self.preset_index].assumptions.clone());
-                self.edited = true;
-                self.requested = true;
-                self.debounce = None;
-                self.validation = None;
-                if let Some(pending) = &self.pending {
-                    pending.cancellation.cancel();
-                }
+                self.apply_preset(self.preset_index);
             }
             if self.presets[self.preset_index]
                 .name

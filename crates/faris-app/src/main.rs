@@ -1190,6 +1190,23 @@ impl FarisApp {
     }
 
     fn evidence_step(&mut self, ui: &mut egui::Ui) {
+        // Saved Core receipts bind the assumptions they were executed with
+        // (the loaded file). Offer that set explicitly instead of silently
+        // showing receipts beside histories they do not cover.
+        if self.study.archive.has_saved() && self.history.preset_label() != "Loaded assumptions" {
+            ui.horizontal_wrapped(|ui| {
+                badge::badge(
+                    ui,
+                    badge::Kind::Partial,
+                    "receipts cover the loaded assumptions",
+                    "The saved Core receipts were executed with the loaded operating assumptions. The current preset differs, so its histories are not covered by those receipts. Switch to see the covered histories, or run the bound study stages to cover the current preset.",
+                );
+                if ui.button("Use the covered assumptions").clicked() {
+                    self.history.select_preset("Loaded assumptions");
+                }
+            });
+            ui.add_space(8.0);
+        }
         let variant = &self.manifest.variants[self.variant].id;
         self.study.controls(
             ui,

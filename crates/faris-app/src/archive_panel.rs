@@ -60,6 +60,10 @@ impl ArchivePanel {
         Ok(())
     }
 
+    pub fn has_saved(&self) -> bool {
+        !self.saved.is_empty()
+    }
+
     pub fn is_loading(&self) -> bool {
         self.pending.is_some() || !self.queued_descriptors.is_empty()
     }
@@ -187,7 +191,8 @@ impl ArchivePanel {
                 );
             });
         }
-        egui::CollapsingHeader::new("Reopen saved study").default_open(!self.saved.is_empty()).show(ui, |ui| {
+        // Keyed by the saved count so the section opens once background reopening finishes.
+        egui::CollapsingHeader::new("Reopen saved study").id_salt(("reopen-saved-study", self.saved.len())).default_open(!self.saved.is_empty()).show(ui, |ui| {
             for (label, value) in [
                 ("Case directory", &mut self.case_directory),
                 ("Saved execution report", &mut self.execution_report),
