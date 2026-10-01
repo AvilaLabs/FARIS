@@ -2,6 +2,8 @@ mod archive_panel;
 #[allow(dead_code)] // Shared widget; unused variants are kept for consistent status vocabulary.
 mod badge;
 mod camera;
+#[allow(dead_code)] // Presented by the Compare step once wired in.
+mod compare_panel;
 mod history_panel;
 mod interface_check;
 mod study_panel;

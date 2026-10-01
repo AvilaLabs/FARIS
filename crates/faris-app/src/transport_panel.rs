@@ -25,6 +25,19 @@ pub enum FieldView {
     ComponentFluence,
 }
 
+/// Per-arrangement transport numbers as (mean, standard error).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct TransportSummary {
+    /// Breeder-only H3 births per source neutron.
+    pub breeder_h3_per_source: Option<(f64, f64)>,
+    /// Whole-model H3 production per source neutron.
+    pub total_h3_per_source: Option<(f64, f64)>,
+    /// Magnet-envelope mean neutron flux, n/m²/s.
+    pub magnet_flux: Option<(f64, f64)>,
+    /// Whole-model total nuclear heating, W.
+    pub nuclear_heat_w: Option<(f64, f64)>,
+}
+
 pub struct TransportConfiguration {
     pub python: Option<PathBuf>,
     pub openmc: Option<PathBuf>,
@@ -211,6 +224,34 @@ impl TransportPanel {
             .any(|record| record.normalized.is_some())
     }
 
+    /// Recorded, already-normalized transport quantities for one arrangement.
+    /// Values are mean and one Monte Carlo standard error; nothing is computed
+    /// beyond the per-source-neutron normalization.
+    pub fn summary(&self, variant: &str) -> TransportSummary {
+        let rate = self
+            .record(variant)
+            .and_then(|r| r.normalized.as_ref())
+            .map(|n| n.source_neutron_rate_per_s);
+        let per_source = |id: &str| {
+            let tally = self.response(variant, id)?;
+            let rate = rate?;
+            Some((
+                tally.integrated_mean / rate,
+                tally.integrated_standard_error / rate,
+            ))
+        };
+        TransportSummary {
+            breeder_h3_per_source: per_source("blanket-tritium"),
+            total_h3_per_source: per_source("total-tritium-production"),
+            magnet_flux: self
+                .response(variant, "magnets-flux")
+                .map(|t| (t.mean, t.standard_error)),
+            nuclear_heat_w: self
+                .response(variant, "heating-total-whole-model")
+                .map(|t| (t.integrated_mean, t.integrated_standard_error)),
+        }
+    }
+
     pub fn comparison(&self, ui: &mut egui::Ui) {
         ui.strong(if self.scenario.scenario.penetration.is_some() {
             "Finite penetration · cold-data surrogate"
@@ -233,31 +274,24 @@ impl TransportPanel {
                 for variant in &self.scenario.scenario.variants {
                     ui.label(&variant.label);
                     let record = self.record(&variant.id);
-                    if let Some(breeder) = self.response(&variant.id, "blanket-tritium") {
-                        let rate = record
-                            .and_then(|r| r.normalized.as_ref())
-                            .expect("normalized record")
-                            .source_neutron_rate_per_s;
-                        ui.monospace(format!(
-                            "{:.4} ± {:.4}",
-                            breeder.integrated_mean / rate,
-                            breeder.integrated_standard_error / rate
-                        ));
+                    let summary = self.summary(&variant.id);
+                    if let Some((mean, se)) = summary.breeder_h3_per_source {
+                        ui.monospace(format!("{mean:.4} ± {se:.4}"));
                     } else {
                         ui.weak("Not calculated");
                     }
-                    if let Some(flux) = self.response(&variant.id, "magnets-flux") {
-                        if flux.mean == 0.0 && flux.standard_error == 0.0 {
+                    if let Some((mean, se)) = summary.magnet_flux {
+                        if mean == 0.0 && se == 0.0 {
                             ui.weak("No sampled tracks; upper bound unavailable");
                         } else {
-                            ui.monospace(format!("{:.3e} ± {:.2e}", flux.mean, flux.standard_error))
-                                .on_hover_text(format!("Relative sampling SE: {:.1}%. Volume uncertainty and model/data uncertainty are separate.", 100.0 * flux.standard_error / flux.mean));
+                            ui.monospace(format!("{mean:.3e} ± {se:.2e}"))
+                                .on_hover_text(format!("Relative sampling SE: {:.1}%. Volume uncertainty and model/data uncertainty are separate.", 100.0 * se / mean));
                         }
                     } else {
                         ui.weak("Not calculated");
                     }
-                    if let Some(heat) = self.response(&variant.id, "heating-total-whole-model") {
-                        ui.monospace(format!("{:.2} ± {:.2}", heat.integrated_mean / 1e6, heat.integrated_standard_error / 1e6));
+                    if let Some((mean, se)) = summary.nuclear_heat_w {
+                        ui.monospace(format!("{:.2} ± {:.2}", mean / 1e6, se / 1e6));
                     } else {ui.weak("Unavailable");}
                     ui.label(record.map_or_else(
                         || "—".into(),
