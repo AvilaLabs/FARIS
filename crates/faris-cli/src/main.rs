@@ -4,6 +4,8 @@ use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
 mod control;
+mod evidence;
+mod history;
 mod reactor;
 mod study;
 mod transport;
@@ -21,6 +23,16 @@ struct Arguments {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Calculate or validate the shared Rust operating-history ledger.
+    History {
+        #[command(subcommand)]
+        command: history::HistoryCommand,
+    },
+    /// Package and execute identified simulation evidence with real Avila Core.
+    Evidence {
+        #[command(subcommand)]
+        command: evidence::EvidenceCommand,
+    },
     /// Validate a scenario without running physics.
     Validate { scenario: PathBuf },
     /// Export geometry metadata and explicit evaluation status.
@@ -75,6 +87,8 @@ fn main() -> std::process::ExitCode {
 
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
     match arguments.command {
+        Command::History { command } => history::run(command)?,
+        Command::Evidence { command } => evidence::run(command)?,
         Command::Control { command } => control::run(command)?,
         Command::Reactor { command } => reactor::run(command)?,
         Command::Study { command } => study::run(command)?,

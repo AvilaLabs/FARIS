@@ -1,0 +1,74 @@
+{
+  "status": "RUN_AND_BINDING_SUCCEEDED; NUMERICAL_LEDGER_AUDIT_PASSED; PHYSICAL_ENERGY_CLOSURE_NOT_EVALUATED",
+  "scope": "30,000-history coupled smoke only; superseded for production statistics by pending 1M coupled cases; no engineering qualification",
+  "source_run": {
+    "path": "/tmp/faris-coupled-strict-spectra-30k-c/run.json",
+    "run_json_sha256": "ea7b3a4e196e45f5ddc28b014e1762f3b4a2f1a0e45f2df1ac6aed96cb352302",
+    "execution_status": "SUCCEEDED",
+    "scientific_qualification": "NOT_EVALUATED",
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "raw_artifact_sha256": "9a66019183efa919a9cb95c16e4f5eaa8c050cb118549edeb8b733dea7dd1438",
+    "solver": {
+      "name": "OpenMC",
+      "version": "0.15.3",
+      "digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51"
+    },
+    "nuclear_data": {
+      "name": "Local FENDL-3.2 neutron and ENDF/B-VII.1 photon inventory; provenance per component audit",
+      "version": "FENDL-3.2 neutron + ENDF/B-VII.1 photon",
+      "digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db"
+    },
+    "sampling": {
+      "batches": 30,
+      "particles_per_batch": 1000,
+      "seed": 80117033,
+      "threads": 1
+    }
+  },
+  "history": {
+    "assumptions_sha256": "b5e633127ab9329cca9cb6fa6ea2f1bb530d49c30a27222f5f683971baf439dc",
+    "history_sha256": "b6d7cc8e678d65d3888797109fb5986467fdb1c2b269e6941e97ac098c6f34c6",
+    "input_rates_sha256": "0bc7551dc82aa355c078853af69b822a5f44831a336cff52a1f71ed714de2f78",
+    "control_script_sha256": "f42c9ae6a5752c23906a7617605b70d6a058c3562437e3e730f635563cbbc5ef",
+    "outcome": "horizon_completed",
+    "snapshots": 11004,
+    "events": 63
+  },
+  "binding_audit": {
+    "status": "PASS",
+    "source_run_execution": "SUCCEEDED",
+    "raw_artifact_sha256": "9a66019183efa919a9cb95c16e4f5eaa8c050cb118549edeb8b733dea7dd1438",
+    "component_flux_bindings_checked": 6,
+    "whole_model_heat_estimator": "collision",
+    "whole_model_heat_W": 535211995.87432015,
+    "whole_model_heat_standard_error_W": 1889860.939381727,
+    "particle_scope_mean_sum_W": "535211995.87428358152",
+    "particle_scope_mean_relative_difference": "6.83252249237461112878954841377397140069119575E-14",
+    "standard_errors_not_summed": true,
+    "note": "zero component flux means remain sampled estimates, not proof of zero true flux"
+  },
+  "energy_ledger_audit": {
+    "status": "PASS",
+    "neutron_heat_input_W": "535211995.87432015",
+    "recovered_neutron_heat_MWh": "3559974.464797959573106966638649",
+    "recovered_alpha_heat_MWh": "771601.76874155629281890325872670421276620",
+    "gross_electricity_MWh": "1732630.493415806346370347958950281685106480",
+    "auxiliary_electricity_MWh": "1721381.91136970144444444444444444444444444444",
+    "net_electricity_MWh": "11248.58204610490192590351450583724066203556",
+    "meaning": "conditional ledger arithmetic only; no heat-cycle or engineering qualification"
+  },
+  "independent_mass_balance": {
+    "max_decimal_residual_kg": "9.874E-13",
+    "engine_tolerance_kg": 5.310945684872032e-09,
+    "max_engine_residual_kg": 9.869882688917642e-13
+  },
+  "diagnostic_not_a_closure_verdict": {
+    "declared_DT_fusion_power_MW": 525.0,
+    "primary_neutron_birth_power_MW": 420.5965909090909,
+    "charged_particle_birth_power_MW": 104.40340909090908,
+    "whole_model_heating_mean_W": 535211995.87432015,
+    "whole_model_heating_standard_error_W": 1889860.939381727,
+    "meaning": "No simple comparison of deposited heating against fusion power is an energy-closure test. The OpenMC neutron heating score includes reaction Q through KERMA and the photon score tracks direct photon deposition. A physical closure must account consistently for material nuclear reaction Q, transported/escaped particle energy, source neutron and separately authored alpha birth energy. This control does not compute that full balance; status remains NOT_EVALUATED."
+  },
+  "limitation": "Gross and net electric quantities are arithmetic outputs of authored alpha deposition, heating recovery, conversion-efficiency, and auxiliary assumptions. They are not a plant thermal cycle or qualified net electric output. The apparent heating-power difference must not be called excess energy; nuclear reaction Q terms are not separately balanced."
+}

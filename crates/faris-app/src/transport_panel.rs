@@ -20,6 +20,8 @@ pub enum FieldView {
     Materials,
     ComponentFlux,
     FluxSlice,
+    NuclearHeating,
+    ComponentFluence,
 }
 
 pub struct TransportConfiguration {
@@ -29,6 +31,7 @@ pub struct TransportConfiguration {
     pub cross_sections: Option<PathBuf>,
     pub physics: Vec<PathBuf>,
     pub runs: Vec<PathBuf>,
+    pub bundles: Vec<PathBuf>,
     pub runs_directory: PathBuf,
 }
 
@@ -44,6 +47,7 @@ pub struct TransportPanel {
     cases: BTreeMap<String, PhysicsCase>,
     records: BTreeMap<String, ReactorRun>,
     locations: BTreeMap<String, PathBuf>,
+    _replay_directories: Vec<tempfile::TempDir>,
     python: String,
     openmc: String,
     audit: String,
@@ -72,16 +76,41 @@ impl TransportPanel {
         }
         let mut records = BTreeMap::new();
         let mut locations = BTreeMap::new();
+        let mut replay_directories = Vec::new();
         for path in config.runs {
             let record = load_reactor_run(&path, &scenario).map_err(|e| e.to_string())?;
             locations.insert(record.variant_id.clone(), path);
             records.insert(record.variant_id.clone(), record);
+        }
+        for path in config.bundles {
+            let bundle: faris_engine::core_evidence::RecordedTransportBundle =
+                serde_json::from_slice(
+                    &faris_engine::reactor::read_json_bytes(&path).map_err(|e| e.to_string())?,
+                )
+                .map_err(|e| e.to_string())?;
+            let directory = bundle.materialize().map_err(|e| e.to_string())?;
+            let record = load_reactor_run(&directory.path().join("run.json"), &scenario)
+                .map_err(|e| e.to_string())?;
+            if records.contains_key(&record.variant_id) {
+                return Err("Duplicate transport record for an arrangement.".into());
+            }
+            let input: serde_json::Value =
+                serde_json::from_str(&bundle.files["input.json"]).map_err(|e| e.to_string())?;
+            let case: PhysicsCase =
+                serde_json::from_value(input["physics"].clone()).map_err(|e| e.to_string())?;
+            case.validate_against(&scenario)
+                .map_err(|e| e.to_string())?;
+            cases.entry(case.variant_id.clone()).or_insert(case);
+            locations.insert(record.variant_id.clone(), directory.path().join("run.json"));
+            records.insert(record.variant_id.clone(), record);
+            replay_directories.push(directory);
         }
         Ok(Self {
             scenario,
             cases,
             records,
             locations,
+            _replay_directories: replay_directories,
             python: path_text(config.python),
             openmc: path_text(config.openmc),
             audit: path_text(config.audit),
@@ -101,6 +130,12 @@ impl TransportPanel {
     }
     pub fn record(&self, variant: &str) -> Option<&ReactorRun> {
         self.records.get(variant)
+    }
+    pub fn records(&self) -> &BTreeMap<String, ReactorRun> {
+        &self.records
+    }
+    pub fn location(&self, variant: &str) -> Option<&std::path::Path> {
+        self.locations.get(variant).map(PathBuf::as_path)
     }
     pub fn response(&self, variant: &str, id: &str) -> Option<&NormalizedTally> {
         self.record(variant)?
@@ -335,6 +370,10 @@ impl TransportPanel {
                         faris_engine::jobs::ExecutionStatus::Cancelled => "cancelled",
                         faris_engine::jobs::ExecutionStatus::TimedOut => "timed out",
                         faris_engine::jobs::ExecutionStatus::OutputLimit => "log limit reached",
+                        faris_engine::jobs::ExecutionStatus::ArtifactLimit =>
+                            "artifact limit reached",
+                        faris_engine::jobs::ExecutionStatus::FileSizeLimit =>
+                            "single-file limit reached",
                     })
             ));
             ui.small(format!(
@@ -374,7 +413,7 @@ impl TransportPanel {
         ui.small("Cold-data surrogate. Scientific qualification: NOT_EVALUATED.");
     }
 
-    pub fn viewport_controls(&mut self, ui: &mut egui::Ui, variant: &str) {
+    pub fn viewport_controls(&mut self, ui: &mut egui::Ui, variant: &str, has_history: bool) {
         if self.record(variant).is_none_or(|r| r.normalized.is_none()) {
             self.view = FieldView::Materials;
             return;
@@ -384,6 +423,8 @@ impl TransportPanel {
                 FieldView::Materials => "Materials",
                 FieldView::ComponentFlux => "Mean component flux",
                 FieldView::FluxSlice => "Spatial neutron flux",
+                FieldView::NuclearHeating => "Nuclear heat deposition",
+                FieldView::ComponentFluence => "Accumulated component fluence",
             })
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut self.view, FieldView::Materials, "Materials");
@@ -393,10 +434,103 @@ impl TransportPanel {
                     "Mean component flux",
                 );
                 ui.selectable_value(&mut self.view, FieldView::FluxSlice, "Spatial neutron flux");
+                let heat = self
+                    .response(variant, "heating-total-whole-model")
+                    .is_some();
+                ui.add_enabled_ui(heat, |ui| {
+                    ui.selectable_value(
+                        &mut self.view,
+                        FieldView::NuclearHeating,
+                        "Nuclear heat deposition",
+                    );
+                });
+                ui.add_enabled_ui(has_history, |ui| {
+                    ui.selectable_value(
+                        &mut self.view,
+                        FieldView::ComponentFluence,
+                        "Accumulated component fluence",
+                    );
+                });
             });
         if self.view == FieldView::FluxSlice {
-            ui.add(egui::Slider::new(&mut self.slice, 0..=7).text("Y slice"));
+            let last_slice = self
+                .record(variant)
+                .map_or(0, |r| r.mesh.dimensions[1].saturating_sub(1));
+            ui.add(egui::Slider::new(&mut self.slice, 0..=last_slice).text("Y slice"));
         }
+    }
+
+    pub fn field_legend(&self, ui: &mut egui::Ui) {
+        let (lower, upper, label) = match self.view {
+            FieldView::Materials => return,
+            FieldView::ComponentFlux | FieldView::FluxSlice => (10.0, 20.0, "neutrons/m²/s"),
+            FieldView::NuclearHeating => (0.0, 8.0, "W/m³"),
+            FieldView::ComponentFluence => (18.0, 28.0, "neutrons/m²"),
+        };
+        ui.horizontal(|ui| {
+            ui.small(format!("≤10^{lower:.0}"));
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(150.0, 8.0), egui::Sense::hover());
+            for i in 0..75 {
+                let color = scalar_color(
+                    10.0_f64.powf(lower + (upper - lower) * i as f64 / 74.0),
+                    0.0,
+                    lower,
+                    upper,
+                );
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        egui::pos2(rect.left() + rect.width() * i as f32 / 75.0, rect.top()),
+                        egui::pos2(
+                            rect.left() + rect.width() * (i + 1) as f32 / 75.0,
+                            rect.bottom(),
+                        ),
+                    ),
+                    0.0,
+                    egui::Color32::from_rgb(
+                        (color[0] * 255.0) as u8,
+                        (color[1] * 255.0) as u8,
+                        (color[2] * 255.0) as u8,
+                    ),
+                );
+            }
+            ui.small(format!(
+                "≥10^{upper:.0} {label} · log₁₀, fixed across arrangements"
+            ));
+        });
+        ui.small(if self.view==FieldView::ComponentFluence {"Gray = zero accumulated exposure · magenta = unavailable. Conditional point history; uncertainty is not propagated."}else{"Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."});
+    }
+
+    pub fn spectra(&self, ui: &mut egui::Ui, variant: &str, component: &str) {
+        let Some(record) = self.record(variant) else {
+            return;
+        };
+        let Some(spectra) = &record.normalized_spectra else {
+            return;
+        };
+        ui.collapsing("Energy-group spectra",|ui|{
+            for spectrum in spectra.iter().filter(|s|s.component_id==component) {
+                ui.strong(format!("{} group flux",spectrum.particle));
+                let (rect,_)=ui.allocate_exact_size(egui::vec2(ui.available_width(),100.0),egui::Sense::hover());
+                ui.painter().rect_filled(rect,2.0,egui::Color32::from_rgb(26,28,32));
+                let maximum=spectrum.mean_per_square_metre_second.iter().copied().fold(0.0,f64::max);
+                if maximum<=0.0 {ui.weak("No sampled nonzero group scores; no upper bound is inferred.");continue;}
+                let ymax=maximum.log10().ceil(); let ymin=ymax-8.0;
+                let xminimum=spectrum.energy_edges_ev.iter().copied().find(|e|*e>0.0).unwrap_or(1e-5).log10();
+                let xmax=spectrum.energy_edges_ev.last().expect("validated energy edges").log10();
+                let map_x=|e:f64|rect.left()+((e.max(10.0_f64.powf(xminimum)).log10()-xminimum)/(xmax-xminimum)) as f32*rect.width();
+                let map_y=|v:f64|rect.bottom()-((v.max(10.0_f64.powf(ymin)).log10()-ymin)/(ymax-ymin)).clamp(0.0,1.0) as f32*rect.height();
+                let color=if spectrum.particle=="neutron"{egui::Color32::from_rgb(108,183,238)}else{egui::Color32::from_rgb(234,164,83)};
+                for (i,value) in spectrum.mean_per_square_metre_second.iter().enumerate() {
+                    let left=map_x(spectrum.energy_edges_ev[i]);let right=map_x(spectrum.energy_edges_ev[i+1]);
+                    ui.painter().line_segment([egui::pos2(left,map_y(*value)),egui::pos2(right,map_y(*value))],egui::Stroke::new(1.5,color));
+                    let error=spectrum.standard_error_per_square_metre_second[i];let x=(left+right)*0.5;
+                    ui.painter().line_segment([egui::pos2(x,map_y(value-error)),egui::pos2(x,map_y(value+error))],egui::Stroke::new(1.0,color.gamma_multiply(0.65)));
+                }
+                ui.small(format!("Energy: 10^{xminimum:.1}–10^{xmax:.1} eV (log). Flux: 10^{ymin:.0}–10^{ymax:.0} {}/m²/s per group (log).",spectrum.particle));
+                ui.small("Whiskers: ±1 Monte Carlo SE, clipped at display floor. First group includes zero energy; these are group integrals, not differential flux or heat spectra.");
+            }
+            ui.small(format!("Sidecar: {}",record.transport_spectra_sha256.as_deref().unwrap_or("unavailable")));
+        });
     }
 }
 impl Drop for TransportPanel {
@@ -413,10 +547,19 @@ impl Drop for TransportPanel {
 /// Fixed physical scale across arrangements. Low-precision bins are desaturated;
 /// sampled zero remains gray, with no inferred upper bound or zero-flux claim.
 pub fn flux_color(mean: f64, standard_error: f64) -> [f32; 3] {
+    scalar_color(mean, standard_error, 10.0, 20.0)
+}
+
+pub fn scalar_color(
+    mean: f64,
+    standard_error: f64,
+    lower_log10: f64,
+    upper_log10: f64,
+) -> [f32; 3] {
     if mean <= 0.0 {
         return [0.18; 3];
     }
-    let t = ((mean.log10() - 10.0) / 10.0).clamp(0.0, 1.0) as f32;
+    let t = ((mean.log10() - lower_log10) / (upper_log10 - lower_log10)).clamp(0.0, 1.0) as f32;
     let mut color = [
         (2.0 * t - 0.6).clamp(0.0, 1.0),
         (1.0 - (2.0 * t - 1.0).abs()).clamp(0.0, 1.0),

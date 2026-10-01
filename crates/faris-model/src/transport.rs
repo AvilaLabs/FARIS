@@ -5,8 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const TRANSPORT_REQUEST_VERSION: &str = "faris-transport-request/v0.1";
-pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.1";
+pub const TRANSPORT_REQUEST_VERSION: &str = "faris-transport-request/v0.2";
+pub const TRANSPORT_REQUEST_LEGACY_VERSION: &str = "faris-transport-request/v0.1";
+pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.2";
+pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.1";
 pub const MAX_TRANSPORT_RESPONSES: usize = 4096;
 pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
@@ -65,7 +67,26 @@ pub enum ScoreDefinition {
     },
     Heating {
         convention: HeatingConvention,
+        #[serde(default = "default_heating_particle_scope")]
+        particle_scope: HeatingParticleScope,
     },
+}
+
+/// Which incident particle histories contribute to an OpenMC `heating` tally.
+/// `Total` is directly tallied without a particle filter so it retains the
+/// estimator's actual standard error and any within-history covariance.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HeatingParticleScope {
+    Total,
+    Neutron,
+    Photon,
+    Electron,
+    Positron,
+}
+
+fn default_heating_particle_scope() -> HeatingParticleScope {
+    HeatingParticleScope::Total
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -100,7 +121,9 @@ pub enum HeatingConvention {
 impl TransportRequest {
     pub fn validate_against(&self, scenario: &crate::LoadedScenario) -> Result<(), String> {
         let s = &scenario.scenario;
-        if self.schema_version != TRANSPORT_REQUEST_VERSION {
+        if self.schema_version != TRANSPORT_REQUEST_VERSION
+            && self.schema_version != TRANSPORT_REQUEST_LEGACY_VERSION
+        {
             return Err("unsupported transport request schema_version".into());
         }
         if self.scenario_id != s.id || self.scenario_sha256 != scenario.source_sha256 {
@@ -148,6 +171,11 @@ impl TransportRequest {
                 ResponseDomain::Mesh { mesh_id, .. } => nonempty(mesh_id, "mesh_id")?,
             }
             match &r.score {
+                ScoreDefinition::Heating { .. }
+                    if self.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION =>
+                {
+                    return Err("legacy v0.1 requests cannot declare coupled heating".into());
+                }
                 ScoreDefinition::ReactionRate { reaction } => {
                     if !is_openmc_reaction_score(reaction) {
                         return Err(format!(
@@ -160,6 +188,13 @@ impl TransportRequest {
                 {
                     return Err("particle and OpenMC particle-production score disagree".into());
                 }
+                ScoreDefinition::Heating {
+                    convention: HeatingConvention::HeatingLocal,
+                    ..
+                } => return Err(
+                    "heating-local is unavailable for this data inventory; request coupled heating"
+                        .into(),
+                ),
                 _ => (),
             }
         }
@@ -288,6 +323,7 @@ mod tests {
                 },
                 score: ScoreDefinition::Heating {
                     convention: HeatingConvention::HeatingLocal,
+                    particle_scope: HeatingParticleScope::Total,
                 },
             }],
         };
@@ -296,6 +332,11 @@ mod tests {
     #[test]
     fn exact_scenario_binding_and_domains_are_enforced() {
         let (mut r, s) = request();
+        assert!(r.validate_against(&s).is_err());
+        r.responses[0].score = ScoreDefinition::Heating {
+            convention: HeatingConvention::Heating,
+            particle_scope: HeatingParticleScope::Total,
+        };
         r.validate_against(&s).unwrap();
         r.scenario_sha256.push('0');
         assert!(r.validate_against(&s).is_err());

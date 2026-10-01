@@ -30,8 +30,9 @@ execution, input, or report errors.
 
 Breeding and shielding require transport and normalization. Fuel history adds
 the operating-history stage; electricity adds history and net-energy accounting.
-The planner declares those dependencies even while their adapters are absent.
-Compilation does not assert that those stages are executable. The scientific
+The planner declares those dependencies and the evidence builder supplies the
+coarse Rust adapters. Compilation does not assert that their inputs or
+executables are available. The scientific
 qualification policy is required, so a declared metric cannot acquire a
 qualified scientific verdict just because its contract compiles.
 
@@ -44,8 +45,10 @@ Verification used the actual compiler: the default breeding/shielding study
 compiled, and a deliberately malformed exact-number limit was rejected with
 `CORE-S1102` at `/requirements/0/limit/value`. These checks establish compiler
 integration only. No reactor prediction, stage execution receipt, or scientific
-qualification is supplied by compilation. Evidence execution and qualification
-binding remain later demo work.
+qualification is supplied by compilation. Evidence execution is now implemented
+through `faris evidence prepare` and `faris evidence run`; see
+[the stage boundaries and numeric policy](../integrations/avila-core/README.md).
+Scientific qualification remains unresolved.
 
 Shielding declares a magnet-region mean-neutron-flux output with units
 `neutrons/m²/s`. It has no invented acceptance threshold. The current Core

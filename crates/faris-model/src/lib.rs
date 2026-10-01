@@ -1,5 +1,6 @@
 //! Scenario semantics and validation. Display labels never imply material properties.
 
+pub mod history;
 pub mod physics;
 pub mod transport;
 
@@ -27,10 +28,36 @@ pub struct Scenario {
     pub title: String,
     pub description: String,
     pub geometry: Geometry,
+    #[serde(default)]
+    pub penetration: Option<Penetration>,
     pub operating_plan: OperatingPlan,
     pub variants: Vec<Variant>,
     pub references: Vec<Reference>,
     pub assumptions: Vec<String>,
+}
+
+/// Physical feature shared by every allocation in this scenario.
+/// Bounds are an axis-aligned rectangular prism in the global right-handed
+/// coordinate frame, with XYZ coordinates and metres.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Penetration {
+    OutboardRectangularPrism {
+        id: String,
+        bounds_m: AxisAlignedBounds3,
+        fill_material_id: String,
+        /// Exact affected component IDs in each variant's radial layer order.
+        affected_component_ids: Vec<String>,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AxisAlignedBounds3 {
+    /// `[x, y, z]` minimum coordinates in the global frame, metres.
+    pub minimum_xyz_m: [f64; 3],
+    /// `[x, y, z]` maximum coordinates in the global frame, metres.
+    pub maximum_xyz_m: [f64; 3],
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -241,6 +268,80 @@ impl Scenario {
             }
             identity = Some(current);
         }
+        if let Some(penetration) = &self.penetration {
+            let Penetration::OutboardRectangularPrism {
+                id,
+                bounds_m,
+                fill_material_id,
+                affected_component_ids,
+            } = penetration;
+            text(id, "penetration.id")?;
+            text(fill_material_id, "penetration.fill_material_id")?;
+            if !self.variants[0]
+                .layers
+                .iter()
+                .any(|layer| layer.material_id == fill_material_id.as_str())
+            {
+                return Err(invalid(
+                    "penetration.fill_material_id must use a material assigned in the scenario so its physics definition is explicit",
+                ));
+            }
+            if affected_component_ids.is_empty() || affected_component_ids.len() > 64 {
+                return Err(invalid(
+                    "penetration.affected_component_ids must contain 1 to 64 IDs",
+                ));
+            }
+            let minimum = bounds_m.minimum_xyz_m;
+            let maximum = bounds_m.maximum_xyz_m;
+            if !minimum
+                .into_iter()
+                .chain(maximum)
+                .all(|value| value.is_finite() && value.abs() <= 20_000.0)
+                || !(0..3).all(|axis| minimum[axis] < maximum[axis])
+            {
+                return Err(invalid(
+                    "penetration bounds must be finite and strictly increasing in XYZ",
+                ));
+            }
+            let g = &self.geometry;
+            let plasma_outer = g.plasma_minor_radius_m;
+            let model_outer = plasma_outer + g.plasma_to_first_wall_gap_m + g.radial_build_m;
+            if minimum[0] <= g.major_radius_m
+                || minimum[0] - g.major_radius_m <= plasma_outer
+                || minimum[1] > 0.0
+                || maximum[1] < 0.0
+                || minimum[2] > 0.0
+                || maximum[2] < 0.0
+                || maximum[0] <= g.major_radius_m + model_outer
+            {
+                return Err(invalid(
+                    "outboard penetration must clear source support, straddle Y=Z=0, and extend beyond the outer radial envelope",
+                ));
+            }
+            let dx_min = minimum[0] - g.major_radius_m;
+            let far_y = minimum[1].abs().max(maximum[1].abs());
+            let far_z = minimum[2].abs().max(maximum[2].abs());
+            let dx_max =
+                ((maximum[0].hypot(far_z) - g.major_radius_m).powi(2) + far_y.powi(2)).sqrt();
+            for variant in &self.variants {
+                let mut inner = g.plasma_minor_radius_m + g.plasma_to_first_wall_gap_m;
+                let mut expected = Vec::new();
+                for layer in &variant.layers {
+                    let outer = inner + layer.thickness_m;
+                    if dx_min < outer && dx_max > inner {
+                        expected.push(layer.id.as_str());
+                    }
+                    inner = outer;
+                }
+                let actual: Vec<_> = affected_component_ids.iter().map(String::as_str).collect();
+                if actual != expected {
+                    return Err(invalid(format!(
+                        "penetration affected_component_ids must exactly match intersected components in radial order for variant {}",
+                        variant.id
+                    )));
+                }
+            }
+        }
         for reference in &self.references {
             for (value, name) in [
                 (&reference.id, "reference.id"),
@@ -263,12 +364,34 @@ mod tests {
     use super::*;
 
     const CASE: &[u8] = include_bytes!("../../../scenarios/arc-inspired/scenario.json");
+    const PORT_CASE: &[u8] =
+        include_bytes!("../../../scenarios/arc-inspired/cold-reference-port.scenario.json");
 
     #[test]
     fn loads_two_comparable_variants() {
         let loaded = LoadedScenario::from_bytes(CASE).unwrap();
         assert_eq!(loaded.scenario.variants.len(), 2);
         assert_eq!(loaded.source_sha256.len(), 64);
+    }
+
+    #[test]
+    fn validates_shared_finite_port_and_exact_component_order() {
+        let loaded = LoadedScenario::from_bytes(PORT_CASE).unwrap();
+        assert!(matches!(
+            loaded.scenario.penetration,
+            Some(Penetration::OutboardRectangularPrism { .. })
+        ));
+        for malformed in [
+            serde_json::json!({"kind":"outboard_rectangular_prism","id":"p","bounds_m":{"minimum_xyz_m":[4.34,-0.15,-0.15],"maximum_xyz_m":[5.59,0.15,0.15]},"fill_material_id":"void","affected_component_ids":["blanket","first-wall","shield","vessel","magnet-gap","magnets"]}),
+            serde_json::json!({"kind":"outboard_rectangular_prism","id":"p","bounds_m":{"minimum_xyz_m":[4.34,-0.15,-0.15],"maximum_xyz_m":[4.34,0.15,0.15]},"fill_material_id":"void","affected_component_ids":["first-wall","blanket","shield","vessel","magnet-gap","magnets"]}),
+            serde_json::json!({"kind":"outboard_rectangular_prism","id":"p","bounds_m":{"minimum_xyz_m":[4.34,0.01,-0.15],"maximum_xyz_m":[5.59,0.15,0.15]},"fill_material_id":"void","affected_component_ids":["first-wall","blanket","shield","vessel","magnet-gap","magnets"]}),
+            serde_json::json!({"kind":"outboard_rectangular_prism","id":"p","bounds_m":{"minimum_xyz_m":[4.29,-0.15,-0.15],"maximum_xyz_m":[5.59,0.15,0.15]},"fill_material_id":"void","affected_component_ids":["first-wall","blanket","shield","vessel","magnet-gap","magnets"]}),
+            serde_json::json!({"kind":"outboard_rectangular_prism","id":"p","bounds_m":{"minimum_xyz_m":[4.34,-0.15,-0.15],"maximum_xyz_m":[5.59,0.15,0.15]},"fill_material_id":"unassigned-port-fill","affected_component_ids":["first-wall","blanket","shield","vessel","magnet-gap","magnets"]}),
+        ] {
+            let mut value: serde_json::Value = serde_json::from_slice(PORT_CASE).unwrap();
+            value["penetration"] = malformed;
+            assert!(LoadedScenario::from_bytes(&serde_json::to_vec(&value).unwrap()).is_err());
+        }
     }
 
     #[test]

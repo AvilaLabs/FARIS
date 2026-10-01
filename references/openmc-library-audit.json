@@ -5,7 +5,7 @@
   },
   "cross_sections_xml": {
     "filename": "cross_sections.xml",
-    "sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674"
+    "sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b"
   },
   "neutron_library": {
     "Be9": {
@@ -45,182 +45,6 @@
       },
       "sha256": "9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9",
       "size_bytes": 2840040,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Cr50": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Cr50",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Cr50.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 530,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 131
-      },
-      "sha256": "5b22adbebe5065853841991b2eeaace1ceaa5d08537d22d55ebeae42fee01a1f",
-      "size_bytes": 15115296,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Cr52": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Cr52",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Cr52.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 486,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 104
-      },
-      "sha256": "1cb746d92f99bb65ce153c21c0e59b4b386e828c716c10a3493b358012434f6f",
-      "size_bytes": 13109872,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Cr53": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Cr53",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Cr53.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 195,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 75
-      },
-      "sha256": "ecc399b243ccf1834c2428dfd12592ae03ce08de25ebc5754fcfc7cf623ffce7",
-      "size_bytes": 10212248,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Cr54": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Cr54",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Cr54.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 295,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 104
-      },
-      "sha256": "c5833fc9a53ec4016b6f1f9e174880f5835e73e92ed2daaf2d40e0bdc82aa4c5",
-      "size_bytes": 12222248,
       "temperatures": [
         "294K"
       ],
@@ -736,226 +560,6 @@
         293.59430848016336
       ]
     },
-    "Ni58": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Ni58",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Ni58.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 286,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 16
-      },
-      "sha256": "94dd52702fd57cbd2f4279c66eeebeeaa69e47f317a7f3a848673ce84670f108",
-      "size_bytes": 6634328,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Ni60": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Ni60",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Ni60.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 192,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 19
-      },
-      "sha256": "efb083521d722970ee54cf07be04c764d30ec677c579a34ddd34d0dcc28db8b2",
-      "size_bytes": 5924336,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Ni61": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Ni61",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Ni61.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 114,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 15
-      },
-      "sha256": "20fa1e41b51b5c960a8d80d9e36cf4368ca7f1b12e8b89306137a2d54282fbde",
-      "size_bytes": 2484792,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Ni62": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Ni62",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Ni62.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 108,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 12
-      },
-      "sha256": "1287925770a94c2c553ec2d9c193484ba7a636aaf1731ef5322b0bd0f396f0b4",
-      "size_bytes": 2324696,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
-    "Ni64": {
-      "error": null,
-      "h3_production_route": null,
-      "library_entry_present": true,
-      "nuclide_name_in_hdf5": "Ni64",
-      "reactions": {
-        "301": {
-          "label": "heating",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "444": {
-          "label": "damage-energy",
-          "present": true,
-          "redundant": true,
-          "temperature_groups": [
-            "294K"
-          ]
-        },
-        "901": {
-          "present": false
-        }
-      },
-      "readable_by_h5py": true,
-      "readable_by_openmc_data_api": true,
-      "relative_path": "neutron/Ni64.h5",
-      "secondary_photon_products": {
-        "note": "Parsed secondary photon product records from this neutron HDF5 file; coupled transport capability still requires an actual OpenMC run and response check.",
-        "photon_product_records": 44,
-        "products_without_energy_or_angle_distribution": 0,
-        "reactions_with_photon_products": 10
-      },
-      "sha256": "b7f7f1fca2a808d5cdd7ffd952e3f9e6a79407e9991d16cc9ec576f0a3acf66e",
-      "size_bytes": 1733248,
-      "temperatures": [
-        "294K"
-      ],
-      "temperatures_k": [
-        293.59430848016336
-      ]
-    },
     "Ti46": {
       "error": null,
       "h3_production_route": null,
@@ -1402,111 +1006,137 @@
   },
   "photon_atomic_library": {
     "Be": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 2,
+      "atomic_relaxation_transition_shell_count": 0,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 2,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/Be.h5",
-      "sha256": "c3e077bc6dd24765c9365d3301bb1e3cc18dfb29a50cc3ad56eaa79c935a14b8",
-      "size_bytes": 137880,
+      "sha256": "3b409a84f9990af784a4c55501ca3d895f6987c11fbcea8b63b04dd07560ed0c",
+      "size_bytes": 137968,
       "top_level_groups": [
         "Be"
       ]
     },
-    "Cr": {
-      "error": null,
-      "library_entry_present": true,
-      "readable_by_h5py": true,
-      "relative_path": "photon/Cr.h5",
-      "sha256": "6a51e5a8b39e136d4b63af9101ac5d709c72ad2a591ee62269d4556979b547ee",
-      "size_bytes": 285896,
-      "top_level_groups": [
-        "Cr"
-      ]
-    },
     "Cu": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 10,
+      "atomic_relaxation_transition_shell_count": 7,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 10,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/Cu.h5",
-      "sha256": "8c6a97519d44a7c4f1bde130bad81aeb930c3d0bd351652a77abaa16f3397bac",
-      "size_bytes": 280368,
+      "sha256": "395ab30f4ae0c9355665d67247c6414b902cfc0b4fb5b35ff92cafd20d66658d",
+      "size_bytes": 287696,
       "top_level_groups": [
         "Cu"
       ]
     },
     "F": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 4,
+      "atomic_relaxation_transition_shell_count": 1,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 4,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/F.h5",
-      "sha256": "630f750a6b6cda255829a6b2384ea6255341d36dcecba69434ce6475b22716da",
-      "size_bytes": 168240,
+      "sha256": "88456408959ef502c3a8ebcfffb1e1a1e863c855be8260124d367665fbb196a9",
+      "size_bytes": 170928,
       "top_level_groups": [
         "F"
       ]
     },
     "Fe": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 10,
+      "atomic_relaxation_transition_shell_count": 7,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 10,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/Fe.h5",
-      "sha256": "0602314939c0fdb5a19754e93f1294756e767f88454185c6cbc1144c4aba207d",
-      "size_bytes": 292352,
+      "sha256": "d002ede63442cbf95160e8116100684cb08889b83f83d4a64ec3ff7bb8d71359",
+      "size_bytes": 299536,
       "top_level_groups": [
         "Fe"
       ]
     },
     "H": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 1,
+      "atomic_relaxation_transition_shell_count": 0,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 1,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/H.h5",
-      "sha256": "58b6f37c5ad8721a8fe7a3f857b8a489f9f60991f3930d937e4229f0005abc02",
-      "size_bytes": 116712,
+      "sha256": "ef96dc1ea9880195e2df0a72e4185f5db38758c4c8ef3acb3e1671ea0d157d52",
+      "size_bytes": 116648,
       "top_level_groups": [
         "H"
       ]
     },
     "Li": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 2,
+      "atomic_relaxation_transition_shell_count": 0,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 2,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/Li.h5",
-      "sha256": "27c6634b88e49a48dcb856f13479ebfd4a01788b1187222c4b56e07f85b402e8",
-      "size_bytes": 139272,
+      "sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04",
+      "size_bytes": 139360,
       "top_level_groups": [
         "Li"
       ]
     },
-    "Ni": {
-      "error": null,
-      "library_entry_present": true,
-      "readable_by_h5py": true,
-      "relative_path": "photon/Ni.h5",
-      "sha256": "81fdfc75ad06662c232dadf9e3ced03b71ba2c529dda0be00bb19ea515ee87a2",
-      "size_bytes": 289064,
-      "top_level_groups": [
-        "Ni"
-      ]
-    },
     "Ti": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 10,
+      "atomic_relaxation_transition_shell_count": 7,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 10,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/Ti.h5",
-      "sha256": "406f59f08c502ff73aebaa682a58bb605649ef755c1b68c8c8d8dd70937e31c6",
-      "size_bytes": 295240,
+      "sha256": "89b80f3711ab00e91ebbfbb8c86ec09983e5831943b26767ed9b6deca81038ac",
+      "size_bytes": 302264,
       "top_level_groups": [
         "Ti"
       ]
     },
     "W": {
+      "atomic_relaxation_object_present": true,
+      "atomic_relaxation_populated": true,
+      "atomic_relaxation_shell_count": 22,
+      "atomic_relaxation_transition_shell_count": 17,
       "error": null,
       "library_entry_present": true,
+      "photoelectric_shell_count": 22,
       "readable_by_h5py": true,
+      "readable_by_openmc_data_api": true,
       "relative_path": "photon/W.h5",
-      "sha256": "27f011724c4f9f33c1477d1379cb7a167a560d1b7ec6a9d8825b93b050153f7c",
-      "size_bytes": 487680,
+      "sha256": "76364fb3da0de1defe9fafe4d6f95949624fb3950c7bc694419b42d99ca3bc5a",
+      "size_bytes": 546208,
       "top_level_groups": [
         "W"
       ]
@@ -1518,7 +1148,7 @@
     "redistribution_license_or_permission": null,
     "upstream_release_assertion": "FENDL-3.2 HDF5 (local directory naming and cross_sections.xml; not authenticated against an acquisition receipt in this audit)"
   },
-  "purpose": "Read-only targeted identity, HDF5 readability, temperature, reaction-score and secondary-photon inventory. Not a transport result, benchmark, or nuclear-data qualification.",
+  "purpose": "Read-only targeted identity, HDF5/API readability, temperature, reaction-score, secondary-photon, and populated atomic-relaxation inventory. Not a transport result, benchmark, or nuclear-data qualification.",
   "schema": "faris.openmc-library-audit/1.0.0",
   "summary": {
     "Li6_Li7_MT205_data_present": true,
@@ -1529,12 +1159,10 @@
     "all_target_nuclides_have_MT901": false,
     "all_target_nuclides_have_secondary_photon_product_records": true,
     "all_target_photon_atomic_files_readable": true,
+    "all_target_photon_atomic_relaxation_populated": true,
+    "all_target_photon_files_readable_by_openmc_data_api": true,
     "requested_neutron_nuclides": [
       "Be9",
-      "Cr50",
-      "Cr52",
-      "Cr53",
-      "Cr54",
       "Cu63",
       "Cu65",
       "F19",
@@ -1546,11 +1174,6 @@
       "H2",
       "Li6",
       "Li7",
-      "Ni58",
-      "Ni60",
-      "Ni61",
-      "Ni62",
-      "Ni64",
       "Ti46",
       "Ti47",
       "Ti48",

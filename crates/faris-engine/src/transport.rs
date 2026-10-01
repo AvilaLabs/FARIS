@@ -1,7 +1,8 @@
 //! Checked normalization for fixed-source transport artifacts.
 
 use faris_model::transport::{
-    ResponseDomain, ScoreDefinition, TRANSPORT_ARTIFACT_VERSION, TransportRequest,
+    ResponseDomain, ScoreDefinition, TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
+    TRANSPORT_REQUEST_LEGACY_VERSION, TransportRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -35,6 +36,10 @@ pub struct ToolIdentity {
 pub struct DomainVolume {
     pub domain: ResponseDomain,
     pub value: f64,
+    /// One standard error for a stochastic volume estimate; zero for exact
+    /// analytic torus/bin volume controls.
+    #[serde(default)]
+    pub standard_error: f64,
     pub unit: VolumeUnit,
 }
 
@@ -108,6 +113,196 @@ pub struct NormalizedTally {
     pub integrated_standard_error: f64,
     pub integrated_unit: PhysicalUnit,
     pub volume_m3: f64,
+    #[serde(default)]
+    pub volume_standard_error_m3: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RawTransportSpectra {
+    pub schema_version: String,
+    pub request: TransportRequest,
+    pub scenario_sha256: String,
+    pub variant_id: String,
+    pub input_sha256: String,
+    pub solver: ToolIdentity,
+    pub nuclear_data: ToolIdentity,
+    pub histories: u64,
+    pub spectra: Vec<RawEnergySpectrum>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RawEnergySpectrum {
+    pub component_id: String,
+    pub particle: String,
+    pub estimator: TallyEstimator,
+    pub unit: String,
+    pub energy_edges_ev: Vec<f64>,
+    pub mean_cm_per_source_per_bin: Vec<f64>,
+    pub standard_error_cm_per_source_per_bin: Vec<f64>,
+    pub volume_cm3: f64,
+    pub volume_standard_error_cm3: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct NormalizedEnergySpectrum {
+    pub component_id: String,
+    pub particle: String,
+    pub estimator: TallyEstimator,
+    pub energy_edges_ev: Vec<f64>,
+    /// Per-energy-group particle flux; Monte Carlo uncertainty only.
+    pub mean_per_square_metre_second: Vec<f64>,
+    pub standard_error_per_square_metre_second: Vec<f64>,
+    pub normalization_volume_m3: f64,
+    pub volume_standard_error_m3: f64,
+}
+
+pub fn normalize_spectra(
+    raw: &RawTransportSpectra,
+    artifact: &TransportArtifact,
+    normalized: &NormalizedTransportResult,
+    expected_request: &TransportRequest,
+    expected_input_sha256: &str,
+) -> Result<Vec<NormalizedEnergySpectrum>, TransportError> {
+    let fail = |s: &str| TransportError::Invalid(s.into());
+    if raw.schema_version != "faris-transport-spectra/v0.1"
+        || raw.request != *expected_request
+        || raw.scenario_sha256 != expected_request.scenario_sha256
+        || raw.variant_id != expected_request.variant_id
+        || raw.input_sha256 != expected_input_sha256
+        || raw.solver != normalized.solver
+        || raw.nuclear_data != normalized.nuclear_data
+        || raw.histories != normalized.histories
+    {
+        return Err(fail(
+            "spectra identity differs from requested transport run",
+        ));
+    }
+    let mut output = Vec::new();
+    let mut seen = BTreeSet::new();
+    for s in &raw.spectra {
+        if !seen.insert((s.component_id.as_str(), s.particle.as_str()))
+            || !matches!(s.particle.as_str(), "neutron" | "photon")
+            || s.unit != "cm_per_source_per_energy_bin"
+            || s.estimator != TallyEstimator::Tracklength
+            || s.energy_edges_ev.len() < 2
+            || s.energy_edges_ev.first() != Some(&0.0)
+            || s.energy_edges_ev.last().is_none_or(|e| *e < 1.0e9)
+            || s.energy_edges_ev.windows(2).any(|w| w[0] >= w[1])
+            || s.mean_cm_per_source_per_bin.len() + 1 != s.energy_edges_ev.len()
+            || s.standard_error_cm_per_source_per_bin.len() != s.mean_cm_per_source_per_bin.len()
+            || !s.volume_cm3.is_finite()
+            || s.volume_cm3 <= 0.0
+            || !s.volume_standard_error_cm3.is_finite()
+            || s.volume_standard_error_cm3 < 0.0
+            || s.mean_cm_per_source_per_bin
+                .iter()
+                .any(|x| !x.is_finite() || *x < 0.0)
+            || s.standard_error_cm_per_source_per_bin
+                .iter()
+                .any(|x| !x.is_finite() || *x < 0.0)
+        {
+            return Err(fail("invalid or incomplete full-energy spectrum"));
+        }
+        let response = normalized
+            .results
+            .iter()
+            .find(|r| r.response_id == format!("{}-flux", s.component_id));
+        let expected_flux =
+            response.ok_or_else(|| fail("spectrum lacks component flux response"))?;
+        let domain = ResponseDomain::Component {
+            component_id: s.component_id.clone(),
+        };
+        let artifact_volume = artifact
+            .volumes
+            .iter()
+            .find(|v| v.domain == domain)
+            .ok_or_else(|| fail("spectrum lacks component volume"))?;
+        let expected_volume_cm3 = match artifact_volume.unit {
+            VolumeUnit::CubicCentimetre => artifact_volume.value,
+            VolumeUnit::CubicMetre => artifact_volume.value * 1.0e6,
+        };
+        let expected_volume_se_cm3 = match artifact_volume.unit {
+            VolumeUnit::CubicCentimetre => artifact_volume.standard_error,
+            VolumeUnit::CubicMetre => artifact_volume.standard_error * 1.0e6,
+        };
+        if (s.volume_cm3 - expected_volume_cm3).abs() > 1.0e-10 * expected_volume_cm3.max(1.0)
+            || (s.volume_standard_error_cm3 - expected_volume_se_cm3).abs()
+                > 1.0e-10 * expected_volume_se_cm3.max(1.0)
+        {
+            return Err(fail(
+                "spectrum normalization volume differs from transport artifact",
+            ));
+        }
+        if s.particle == "neutron" {
+            let flux_tally = artifact
+                .tallies
+                .iter()
+                .find(|t| t.response_id == expected_flux.response_id)
+                .ok_or_else(|| fail("spectrum lacks raw component flux tally"))?;
+            let bin_sum: f64 = s.mean_cm_per_source_per_bin.iter().sum();
+            let scale = flux_tally.mean.abs().max(1.0e-30);
+            if (bin_sum - flux_tally.mean).abs() > 1.0e-8 * scale {
+                return Err(fail(
+                    "full-range neutron spectrum does not sum to integrated component flux",
+                ));
+            }
+        }
+        let volume_m3 = s.volume_cm3 * 1.0e-6;
+        let factor = normalized.source_neutron_rate_per_s * 0.01 / volume_m3;
+        output.push(NormalizedEnergySpectrum {
+            component_id: s.component_id.clone(),
+            particle: s.particle.clone(),
+            estimator: s.estimator,
+            energy_edges_ev: s.energy_edges_ev.clone(),
+            mean_per_square_metre_second: s
+                .mean_cm_per_source_per_bin
+                .iter()
+                .map(|x| x * factor)
+                .collect(),
+            standard_error_per_square_metre_second: s
+                .standard_error_cm_per_source_per_bin
+                .iter()
+                .map(|x| x * factor)
+                .collect(),
+            normalization_volume_m3: volume_m3,
+            volume_standard_error_m3: s.volume_standard_error_cm3 * 1.0e-6,
+        });
+    }
+    let components: BTreeSet<_> = expected_request
+        .responses
+        .iter()
+        .filter_map(|r| {
+            if matches!(r.score, ScoreDefinition::Flux)
+                && let ResponseDomain::Component { component_id } = &r.domain
+            {
+                return Some(component_id.as_str());
+            }
+            None
+        })
+        .collect();
+    let photons_expected = expected_request
+        .responses
+        .iter()
+        .any(|r| matches!(r.score, ScoreDefinition::Heating { .. }));
+    let expected_pairs: BTreeSet<_> = components
+        .iter()
+        .flat_map(|c| {
+            let mut v = vec![(*c, "neutron")];
+            if photons_expected {
+                v.push((*c, "photon"));
+            }
+            v
+        })
+        .collect();
+    if seen != expected_pairs {
+        return Err(fail(
+            "spectra sidecar does not contain exactly the requested component/particle families",
+        ));
+    }
+    Ok(output)
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -151,7 +346,11 @@ pub fn normalize_transport_artifact(
     expected
         .validate_against(scenario)
         .map_err(TransportError::Invalid)?;
-    if artifact.schema_version != TRANSPORT_ARTIFACT_VERSION || &artifact.request != expected {
+    let version_pair_matches = (artifact.schema_version == TRANSPORT_ARTIFACT_VERSION
+        && expected.schema_version == faris_model::transport::TRANSPORT_REQUEST_VERSION)
+        || (artifact.schema_version == TRANSPORT_ARTIFACT_LEGACY_VERSION
+            && expected.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION);
+    if !version_pair_matches || &artifact.request != expected {
         return Err(fail(
             "artifact schema or echoed request identity/definitions do not match",
         ));
@@ -179,23 +378,27 @@ pub fn normalize_transport_artifact(
 
     let mut volumes = Vec::new();
     for v in &artifact.volumes {
-        if !v.value.is_finite() || v.value <= 0.0 {
+        if !v.value.is_finite()
+            || v.value <= 0.0
+            || !v.standard_error.is_finite()
+            || v.standard_error < 0.0
+        {
             return Err(fail("all domain volumes must be finite and positive"));
         }
         if volumes
             .iter()
-            .any(|(d, _): &(ResponseDomain, f64)| d == &v.domain)
+            .any(|(d, _, _): &(ResponseDomain, f64, f64)| d == &v.domain)
         {
             return Err(fail("duplicate domain volume"));
         }
-        let m3 = match v.unit {
-            VolumeUnit::CubicMetre => v.value,
-            VolumeUnit::CubicCentimetre => v.value * 1.0e-6,
+        let (m3, se_m3) = match v.unit {
+            VolumeUnit::CubicMetre => (v.value, v.standard_error),
+            VolumeUnit::CubicCentimetre => (v.value * 1.0e-6, v.standard_error * 1.0e-6),
         };
-        if !m3.is_finite() || m3 <= 0.0 {
+        if !m3.is_finite() || m3 <= 0.0 || !se_m3.is_finite() {
             return Err(fail("volume conversion invalid"));
         }
-        volumes.push((v.domain.clone(), m3));
+        volumes.push((v.domain.clone(), m3, se_m3));
     }
     let definitions = &expected.responses;
     if artifact.tallies.len() != definitions.len() {
@@ -206,7 +409,7 @@ pub fn normalize_transport_artifact(
     if volumes.len() > definitions.len()
         || volumes
             .iter()
-            .any(|(domain, _)| !definitions.iter().any(|d| &d.domain == domain))
+            .any(|(domain, _, _)| !definitions.iter().any(|d| &d.domain == domain))
     {
         return Err(fail("artifact contains missing or unused domain volumes"));
     }
@@ -225,13 +428,14 @@ pub fn normalize_transport_artifact(
             return Err(fail("missing or duplicate response tally"));
         }
         let t = matches[0];
+        let signed_score = matches!(def.score, ScoreDefinition::Heating { .. });
         if !t.mean.is_finite()
-            || t.mean < 0.0
+            || (!signed_score && t.mean < 0.0)
             || !t.standard_error.is_finite()
             || t.standard_error < 0.0
         {
             return Err(fail(
-                "tally mean and standard error must be finite and nonnegative",
+                "tally mean must be finite (heating may be signed) and standard error finite/nonnegative",
             ));
         }
         let (integrated_unit, average_unit, integrated_scale) = match (&def.score, t.unit) {
@@ -257,10 +461,10 @@ pub fn normalize_transport_artifact(
             ),
             _ => return Err(fail("raw tally unit is inconsistent with requested score")),
         };
-        let volume = volumes
+        let (volume, volume_se) = volumes
             .iter()
-            .find(|(d, _)| d == &def.domain)
-            .map(|(_, v)| *v)
+            .find(|(d, _, _)| d == &def.domain)
+            .map(|(_, v, se)| (*v, *se))
             .ok_or_else(|| fail("missing positive volume for response domain"))?;
         // OpenMC flux is volume integrated in cm/source; convert integrated cm to
         // metres, multiply by source/s, then divide by m³. Other supported scores
@@ -269,7 +473,11 @@ pub fn normalize_transport_artifact(
         let integrated_mean = t.mean * integrated_scale;
         let integrated_se = t.standard_error * integrated_scale;
         let mean = integrated_mean / divisor;
-        let se = integrated_se / divisor;
+        // Geometry and transport estimates use separate random streams, so
+        // their standard errors are propagated as independent quantities.
+        let se = ((integrated_se / divisor).powi(2)
+            + (integrated_mean * volume_se / divisor.powi(2)).powi(2))
+        .sqrt();
         if !integrated_scale.is_finite()
             || integrated_scale <= 0.0
             || !integrated_mean.is_finite()
@@ -291,6 +499,7 @@ pub fn normalize_transport_artifact(
             integrated_standard_error: integrated_se,
             integrated_unit,
             volume_m3: volume,
+            volume_standard_error_m3: volume_se,
         });
     }
     Ok(NormalizedTransportResult {
@@ -365,7 +574,8 @@ mod tests {
                     component_id: scenario.scenario.variants[0].layers[1].id.clone(),
                 },
                 score: ScoreDefinition::Heating {
-                    convention: HeatingConvention::HeatingLocal,
+                    convention: HeatingConvention::Heating,
+                    particle_scope: HeatingParticleScope::Total,
                 },
             }],
         };
@@ -390,11 +600,12 @@ mod tests {
                 } else {
                     2.0e6
                 },
+                standard_error: 0.0,
                 unit: volume,
             }],
             tallies: vec![RawTally {
                 response_id: "heat".into(),
-                estimator: TallyEstimator::Tracklength,
+                estimator: TallyEstimator::Collision,
                 unit: RawTallyUnit::EvPerSource,
                 mean: 2.0,
                 standard_error: 0.1,
@@ -413,6 +624,17 @@ mod tests {
         let cm = normalize_transport_artifact(&r, &a, &s).unwrap();
         assert_eq!(out.results[0].mean, cm.results[0].mean);
         assert_eq!(out.results[0].standard_error, cm.results[0].standard_error);
+    }
+
+    #[test]
+    fn heating_response_preserves_signed_collision_energy_balance() {
+        let (request, mut artifact, scenario) = fixture(VolumeUnit::CubicMetre);
+        artifact.tallies[0].mean = -2.0;
+        artifact.tallies[0].standard_error = 0.25;
+        let normalized = normalize_transport_artifact(&request, &artifact, &scenario).unwrap();
+        assert!(normalized.results[0].integrated_mean < 0.0);
+        assert!(normalized.results[0].mean < 0.0);
+        assert!(normalized.results[0].integrated_standard_error > 0.0);
     }
 
     #[test]
@@ -449,6 +671,7 @@ mod tests {
                 domain: mesh.clone(),
                 score: ScoreDefinition::Heating {
                     convention: HeatingConvention::Heating,
+                    particle_scope: HeatingParticleScope::Total,
                 },
             },
         ];
@@ -457,16 +680,19 @@ mod tests {
             DomainVolume {
                 domain: ResponseDomain::WholeModel,
                 value: 2.0,
+                standard_error: 0.0,
                 unit: VolumeUnit::CubicMetre,
             },
             DomainVolume {
                 domain: component,
                 value: 2.0,
+                standard_error: 0.0,
                 unit: VolumeUnit::CubicMetre,
             },
             DomainVolume {
                 domain: mesh,
                 value: 2.0,
+                standard_error: 0.0,
                 unit: VolumeUnit::CubicMetre,
             },
         ];
@@ -494,7 +720,7 @@ mod tests {
             },
             RawTally {
                 response_id: "heat".into(),
-                estimator: TallyEstimator::Tracklength,
+                estimator: TallyEstimator::Collision,
                 unit: RawTallyUnit::EvPerSource,
                 mean: 4.0,
                 standard_error: 0.4,
@@ -571,6 +797,7 @@ mod tests {
                 bin: 0,
             },
             value: 1.0,
+            standard_error: 0.0,
             unit: VolumeUnit::CubicMetre,
         });
         assert!(normalize_transport_artifact(&r, &a, &s).is_err());

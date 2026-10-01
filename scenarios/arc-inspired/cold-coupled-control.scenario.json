@@ -1,0 +1,160 @@
+{
+  "schema_version": "faris-scenario/v0.1",
+  "id": "arc-cold-coupled-control-001",
+  "title": "Cold-data coupled-transport control",
+  "description": "Feature-free cold-data numerical control paired with the finite-port case; not an ARC reproduction or operational model.",
+  "geometry": {
+    "major_radius_m": 3.3,
+    "plasma_minor_radius_m": 1.0,
+    "plasma_to_first_wall_gap_m": 0.08,
+    "radial_build_m": 1.2
+  },
+  "operating_plan": {
+    "fusion_power_mw": 525.0,
+    "horizon_years": 30.0
+  },
+  "variants": [
+    {
+      "id": "reference",
+      "label": "Reference allocation",
+      "layers": [
+        {
+          "id": "first-wall",
+          "label": "First wall",
+          "material_id": "tungsten-natural",
+          "thickness_m": 0.03,
+          "color": "#D88D56"
+        },
+        {
+          "id": "blanket",
+          "label": "Breeding blanket",
+          "material_id": "flibe-cold-solid",
+          "thickness_m": 0.45,
+          "color": "#59A5A0"
+        },
+        {
+          "id": "shield",
+          "label": "Neutron shield",
+          "material_id": "ti-hydride-shield-surrogate",
+          "thickness_m": 0.45,
+          "color": "#8196B4"
+        },
+        {
+          "id": "vessel",
+          "label": "Vacuum vessel",
+          "material_id": "pure-iron-surrogate",
+          "thickness_m": 0.05,
+          "color": "#A6AFBD"
+        },
+        {
+          "id": "magnet-gap",
+          "label": "Magnet clearance",
+          "material_id": "void",
+          "thickness_m": 0.06,
+          "color": "#DCE3ED"
+        },
+        {
+          "id": "magnets",
+          "label": "Magnet envelope",
+          "material_id": "copper-magnet-response-surrogate",
+          "thickness_m": 0.16,
+          "color": "#6859B8"
+        }
+      ]
+    },
+    {
+      "id": "breeder-emphasis",
+      "label": "More breeder, less shield",
+      "layers": [
+        {
+          "id": "first-wall",
+          "label": "First wall",
+          "material_id": "tungsten-natural",
+          "thickness_m": 0.03,
+          "color": "#D88D56"
+        },
+        {
+          "id": "blanket",
+          "label": "Breeding blanket",
+          "material_id": "flibe-cold-solid",
+          "thickness_m": 0.55,
+          "color": "#59A5A0"
+        },
+        {
+          "id": "shield",
+          "label": "Neutron shield",
+          "material_id": "ti-hydride-shield-surrogate",
+          "thickness_m": 0.35,
+          "color": "#8196B4"
+        },
+        {
+          "id": "vessel",
+          "label": "Vacuum vessel",
+          "material_id": "pure-iron-surrogate",
+          "thickness_m": 0.05,
+          "color": "#A6AFBD"
+        },
+        {
+          "id": "magnet-gap",
+          "label": "Magnet clearance",
+          "material_id": "void",
+          "thickness_m": 0.06,
+          "color": "#DCE3ED"
+        },
+        {
+          "id": "magnets",
+          "label": "Magnet envelope",
+          "material_id": "copper-magnet-response-surrogate",
+          "thickness_m": 0.16,
+          "color": "#6859B8"
+        }
+      ]
+    }
+  ],
+  "references": [
+    {
+      "id": "arc-2015",
+      "title": "ARC conceptual design",
+      "url": "https://arxiv.org/abs/1409.3540",
+      "use": "Concept inspiration only; this scenario does not reproduce ARC geometry or performance."
+    },
+    {
+      "id": "arc-exhaust-2018",
+      "title": "Conceptual design study for heat exhaust management in ARC",
+      "url": "https://arxiv.org/abs/1809.10555",
+      "use": "Nominal 3.3 m major radius and 525 MW fusion power; other dimensions are authored demo assumptions."
+    },
+    {
+      "id": "solid-flibe-density",
+      "title": "Solid structure of Li2BeF4 from room temperature to melting",
+      "url": "https://doi.org/10.1107/S1600576725000548",
+      "use": "Solid-state density precedent on Li7-rich salt; 90%-Li6 density is reweighted model assumption."
+    },
+    {
+      "id": "nist-density",
+      "title": "NIST elemental density references",
+      "url": "https://www.nist.gov/document/srd71usersguidev1-2pdf",
+      "use": "Room-temperature elemental reference densities only."
+    },
+    {
+      "id": "ti-hydride-density",
+      "title": "Cold compaction behavior of unsaturated titanium hydride powders",
+      "url": "https://doi.org/10.3390/met13020360",
+      "use": "Theoretical crystalline TiH2 density, not powder-bed bulk density."
+    },
+    {
+      "id": "fendl",
+      "title": "FENDL evaluated nuclear data library",
+      "url": "https://www-nds.iaea.org/fendl/",
+      "use": "Potential data source family; local cache provenance and license unresolved."
+    }
+  ],
+  "assumptions": [
+    "Circular concentric toroidal shells are an authored idealization; CAD supports, coil packs, divertor, coolant channels and structural reinforcement are not represented.",
+    "The 1.0 m plasma minor radius, radial layer thicknesses, clearance, 30-year exposure horizon and operating point are authored scaffold assumptions, not ARC as-built dimensions.",
+    "A finite axis-aligned 0.30 m by 0.30 m outboard void prism is explicitly modeled through the radial build. The transport worker estimates removed component volumes by independent OpenMC geometry sampling; its uncertainty is sampling uncertainty, not a rigorous geometric bound.",
+    "Materials are cold-data numerical surrogates: physical material temperatures are unspecified; data target 293.6 K resolves to the available approximately 293.595 K data. This does not model hot FLiBe or qualify temperature extrapolation.",
+    "Natural tungsten, reweighted 90%-Li6 Li2BeF4, crystalline-density TiH2, pure-Fe vessel surrogate and elemental copper magnet envelope are authored material representations, not certified industrial assays or components.",
+    "OpenMC transport responses are conditional on the stated source, geometry, materials, nuclear data and run artifact. Breeding, heating, spectra, exposure, service limits, component life and electricity are calculated only where the corresponding result artifact reports them; no result by itself qualifies a reactor design."
+  ]
+}

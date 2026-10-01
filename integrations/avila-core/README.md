@@ -1,66 +1,85 @@
 # Avila Core study integration
 
-Status: planned. This is not a valid Core case package and contains no receipts.
+FARIS generates and compiles a reusable study contract, then can execute four
+coarse Rust stages through Core's controlled runner. The native upper-right
+**Compile study** button invokes the real compiler. The separate **Run bound
+study stages** control prepares a case, executes it, and retains Core's actual
+receipts, artifact checks, claims replay and scoped requirement verdicts.
 
-The finished demo includes a native **Compile study** experience. FARIS is the
-domain interface: the user edits the reactor scenario, selects analyses, supplies
-assumptions and assessment criteria, and inspects generated dependencies. FARIS
-materializes the Core contract and compatible registry/bindings from a reusable
-demo study template. Ordinary use requires no hand-authored Core JSON.
+The checked implementation is Avila Core 0.1.0 with
+`avila.core/semantic/0.2-draft`; recorded runs pin executable bytes, declarations
+and the compiled snapshot. Core is an external tool. The Rust simulation engine
+and ordinary transport/history CLI remain independently usable.
 
-The detailed implementation requirements are `K01`–`K12` and `U07`–`U09` in
-[the demo roadmap](../../docs/DEMO_ROADMAP.md).
+## Stage boundary
 
-## Flow and boundaries
+| Stage | Actual operation | Bound inputs |
+| --- | --- | --- |
+| transport | Revalidate a previously executed OpenMC record and its normalization inputs | Exact scenario, physics, nuclear-data audit and portable recorded transport |
+| normalize | Replay shared Rust normalization and extract declared responses | Verified transport, scenario and physics |
+| history | Run the deterministic fuel/decay/processing/exposure/maintenance ledger | Verified normalized transport, scenario and explicit operating assumptions |
+| energy | Replay that history and check its signed electrical ledger | Recorded history and scenario |
 
-```text
-scenario + analysis selections + assumptions + assessment criteria
-    ↓ FARIS dependency expansion and study materialization
-generated contract + registry snapshot + applicable template material
-    ↓ genuine Avila Core compilation
-compiled study or structured findings
-    ↓ separate artifact/executable/data readiness checks
-bounded execution / verified reuse → bound evidence → scoped assessments
+The transport stage verifies prior OpenMC execution; it does not rerun OpenMC
+under Core. **Run fresh transport** remains an explicit FARIS operation with
+installed solver and nuclear data. Recorded transport includes raw tallies,
+spectra, worker source, input/audit bytes and local execution records; nuclear
+data and OpenMC statepoints remain external identified artifacts.
+
+Core's verified execution means the declared workflow completed. A compiled
+contract or verified receipt does not qualify reactor physics. The physical
+breeding requirement requires scientific qualification and a supported bounded
+claim; the current nominal response remains **NOT_EVALUATED**. Monte Carlo
+standard errors are retained in Rust artifacts and are not silently converted
+into confidence bounds. Fixture PASS/FAIL/INCONCLUSIVE states test software
+semantics and are never presented as reactor verdicts.
+
+## CLI use
+
+```bash
+cargo build -p faris-cli --locked --jobs 1
+target/debug/faris study generate \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --variant reference --analysis breeding,shielding,fuel-history,electricity \
+  --output runs/full-study
+target/debug/faris evidence prepare --run /path/to/verified/run.json \
+  --study runs/full-study/study.json \
+  --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
+  --core /path/to/avila-core --output runs/full-case
+target/debug/faris evidence run --case runs/full-case \
+  --core /path/to/avila-core --workspace runs/full-execution \
+  --output runs/full-evidence.json
 ```
 
-Domain dependency expansion belongs to FARIS. Core checks the declared inputs,
-types, units, slots, parameters, purposes, claim models, policies, and requirements.
-Successful compilation is not a statement that missing scientific data exists,
-an executable is available, or an engineering requirement has passed.
+Output directories must be fresh. The builder computes expected outputs through
+the shared Rust engine, and Core's bound CLI recomputes them. All stage IDs,
+compiled identity, receipts, successful execution, artifact reproduction and
+exact claims replay are required for FARIS to report a completed workflow.
+Interrupted/rejected work preserves diagnostics. A new CLI build requires a
+newly prepared case because its executable digest changes.
 
-Pin the implemented Core version and semantic profile before selecting the
-binding. The current local compiler has `compile_documents` for a contract and
-registry, and `compile_documents_with_material` for declared bound material.
-Native library integration or a versioned worker/CLI boundary must consume the
-real structured outcome and preserve diagnostic identities. No invocation is
-implemented in this scaffold.
+## Numeric policy and packaging
 
-Conversion from FARIS scenario quantities to Core's authoritative decimal/unit
-representations needs an explicit tested policy. Presentation rounding cannot
-change criteria or verdicts. Study edits produce a new identity and mark displayed
-older results as belonging to their original study.
+Authoritative Rust numerical payloads travel as exact JSON strings, with
+round-trip f64 parsing. Extracted Core quantities use shortest round-trip decimal
+strings expanded to canonical decimal notation. This preserves numerical
+meaning; it does not assert that a calculated physical quantity is exact.
+Core treats these nominal quantities as unquantified. Display rounding is not
+used in generation, comparisons or criteria.
 
-## Coarse stages and standalone execution
+Raw tally files remain bounded at 16 MiB, recorded transport at 32 MiB of file
+content, and history stage envelopes at 64 MiB. Linux jobs enforce inherited
+address-space/per-file limits plus monitored aggregate artifact limits, wall
+time, captured logs and owned process-group cancellation. These bounds are for
+trusted scientific tools and are not a hostile-executable sandbox.
 
-Candidate stages are geometry/material preparation, transport/normalization,
-and coupled operating-history/comparison. Use templates and generated packaging
-for repeated declarations rather than a contract per component or time step.
-The generated workflow must bind actual input/output/executable identities and
-receipts before presenting a result as Core-backed.
+The packaging script generates the same four-stage family for both arrangements
+and matched controls. Ordinary use needs no handwritten Core contract or
+per-component declaration. The maintained integration is a reusable template,
+one adapter builder and exact boundary checks; upgrades must recheck the pinned
+Core profile. See [the acceptance record](../../docs/DEMO_ACCEPTANCE.md) for the
+current verification and remaining scientific/release evidence.
 
-Core should preserve identifiable inputs, stages, assumptions, and scoped results
-without changing their scientific meaning. Measure setup and maintenance effort
-alongside reproducibility benefits. The Rust engine and CLI remain independently
-usable; importing Core into the simulation kernel is not required.
-
-## Compile attribution
-
-Place **Powered by Avila Core** beside the compile progress and resulting
-compiler report, near the upper-right study controls. Use a small existing Core
-mark with a restrained pulse/spinner during real work, then a quiet static
-attribution after success or rejection. A tooltip identifies the Core version
-and semantic profile. Provide reduced motion and a text-only fallback.
-
-Fast compilation displays its result immediately. The mark attributes the
-compiler; it is not a certification or engineering approval badge. It appears
-when Core is actually invoked and is not added to the present geometry scaffold.
+The small **Powered by Avila Core** attribution accompanies the actual compile
+experience, with a version/profile tooltip and a reduced-motion setting. It
+attributes the compiler and does not certify the reactor.

@@ -1,0 +1,334 @@
+{
+  "schema": "faris-local-nuclear-data-provenance/v1",
+  "not_for_git": true,
+  "data_root": "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/combined-fendl32-endfbvii1",
+  "cross_sections_xml": {
+    "relative_path": "cross_sections.xml",
+    "sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "bytes": 2044
+  },
+  "photon_data": {
+    "evaluation": "ENDF/B-VII.1 photoatomic and atomic relaxation sublibraries",
+    "source_publisher": "National Nuclear Data Center (NNDC), Brookhaven National Laboratory",
+    "archive_acquisition": [
+      {
+        "filename": "ENDF-B-VII.1-photoat.zip",
+        "official_url": "https://www.nndc.bnl.gov/endf-b7.1/zips/ENDF-B-VII.1-photoat.zip",
+        "bytes": 7827568,
+        "official_nndc_md5_expected": "5192f94e61f0b385cf536f448ffab4a4",
+        "md5_observed": "5192f94e61f0b385cf536f448ffab4a4",
+        "sha256_observed": "562419767eca909d32669650dee8b3ab99f88e8b8da9ce2afc0c06e974113a9f",
+        "official_md5_match": true
+      },
+      {
+        "filename": "ENDF-B-VII.1-atomic_relax.zip",
+        "official_url": "https://www.nndc.bnl.gov/endf-b7.1/zips/ENDF-B-VII.1-atomic_relax.zip",
+        "bytes": 1628707,
+        "official_nndc_md5_expected": "fddb6035e7f2b6931e51a58fc754bd10",
+        "md5_observed": "fddb6035e7f2b6931e51a58fc754bd10",
+        "sha256_observed": "c5786a958338252293c57064c2ba58119d876f7a06dc878641542ff0d872792d",
+        "official_md5_match": true
+      }
+    ],
+    "converter": "OpenMC Python API 0.15.3 openmc.data.IncidentPhoton.from_endf(photoatomic_path, relaxation_path), then export_to_hdf5(path, mode=\"w\")",
+    "validation": "Re-opened each HDF5 using IncidentPhoton.from_hdf5; recorded relaxation maps; H, Li, Be have nonempty binding energies and zero transitions as expected from available evaluation records; Z>=9 maps include transitions.",
+    "files": [
+      {
+        "element": "H",
+        "relative_path": "photon/H.h5",
+        "bytes": 116648,
+        "sha256": "ef96dc1ea9880195e2df0a72e4185f5db38758c4c8ef3acb3e1671ea0d157d52",
+        "atomic_relaxation_binding_subshells": 1,
+        "atomic_relaxation_transition_subshells": 0,
+        "transition_entries": 0
+      },
+      {
+        "element": "Li",
+        "relative_path": "photon/Li.h5",
+        "bytes": 139360,
+        "sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04",
+        "atomic_relaxation_binding_subshells": 2,
+        "atomic_relaxation_transition_subshells": 0,
+        "transition_entries": 0
+      },
+      {
+        "element": "Be",
+        "relative_path": "photon/Be.h5",
+        "bytes": 137968,
+        "sha256": "3b409a84f9990af784a4c55501ca3d895f6987c11fbcea8b63b04dd07560ed0c",
+        "atomic_relaxation_binding_subshells": 2,
+        "atomic_relaxation_transition_subshells": 0,
+        "transition_entries": 0
+      },
+      {
+        "element": "F",
+        "relative_path": "photon/F.h5",
+        "bytes": 170928,
+        "sha256": "88456408959ef502c3a8ebcfffb1e1a1e863c855be8260124d367665fbb196a9",
+        "atomic_relaxation_binding_subshells": 4,
+        "atomic_relaxation_transition_subshells": 1,
+        "transition_entries": 8
+      },
+      {
+        "element": "Ti",
+        "relative_path": "photon/Ti.h5",
+        "bytes": 302264,
+        "sha256": "89b80f3711ab00e91ebbfbb8c86ec09983e5831943b26767ed9b6deca81038ac",
+        "atomic_relaxation_binding_subshells": 10,
+        "atomic_relaxation_transition_subshells": 7,
+        "transition_entries": 159
+      },
+      {
+        "element": "Fe",
+        "relative_path": "photon/Fe.h5",
+        "bytes": 299536,
+        "sha256": "d002ede63442cbf95160e8116100684cb08889b83f83d4a64ec3ff7bb8d71359",
+        "atomic_relaxation_binding_subshells": 10,
+        "atomic_relaxation_transition_subshells": 7,
+        "transition_entries": 164
+      },
+      {
+        "element": "Cu",
+        "relative_path": "photon/Cu.h5",
+        "bytes": 287696,
+        "sha256": "395ab30f4ae0c9355665d67247c6414b902cfc0b4fb5b35ff92cafd20d66658d",
+        "atomic_relaxation_binding_subshells": 10,
+        "atomic_relaxation_transition_subshells": 7,
+        "transition_entries": 166
+      },
+      {
+        "element": "W",
+        "relative_path": "photon/W.h5",
+        "bytes": 546208,
+        "sha256": "76364fb3da0de1defe9fafe4d6f95949624fb3950c7bc694419b42d99ca3bc5a",
+        "atomic_relaxation_binding_subshells": 22,
+        "atomic_relaxation_transition_subshells": 17,
+        "transition_entries": 1575
+      }
+    ]
+  },
+  "neutron_data": {
+    "evaluation": "FENDL-3.2 HDF5, unchanged from existing audited source",
+    "source_root": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5",
+    "hardlinked_files": [
+      {
+        "relative_path": "neutron/Be9.h5",
+        "bytes": 2840040,
+        "sha256": "9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Be9.h5",
+        "source_sha256": "9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Cu63.h5",
+        "bytes": 5544728,
+        "sha256": "d820c6aadc32aafd3dd0d6b0152b47488f089e6b3fd020627664c0d9518ca9a6",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Cu63.h5",
+        "source_sha256": "d820c6aadc32aafd3dd0d6b0152b47488f089e6b3fd020627664c0d9518ca9a6",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Cu65.h5",
+        "bytes": 5111712,
+        "sha256": "ab3f675628090f45869f101b3b41f1f7d9f5460931fd96eeea2adcd0f8dee1da",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Cu65.h5",
+        "source_sha256": "ab3f675628090f45869f101b3b41f1f7d9f5460931fd96eeea2adcd0f8dee1da",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/F19.h5",
+        "bytes": 4390344,
+        "sha256": "6fa9f0b30487886660b8edc5705d0c426694225c8d0cc992ec7360cd3068f814",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/F19.h5",
+        "source_sha256": "6fa9f0b30487886660b8edc5705d0c426694225c8d0cc992ec7360cd3068f814",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Fe54.h5",
+        "bytes": 19916768,
+        "sha256": "abc528ee420a3210600b1479a0903ee2afb8dfcf3e9d57c4789919db3812c13e",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Fe54.h5",
+        "source_sha256": "abc528ee420a3210600b1479a0903ee2afb8dfcf3e9d57c4789919db3812c13e",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Fe56.h5",
+        "bytes": 29793576,
+        "sha256": "2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Fe56.h5",
+        "source_sha256": "2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Fe57.h5",
+        "bytes": 15606464,
+        "sha256": "a53b71466fdc4e54673d46ff09be21222fbdd2e323638ace133b26d0c9ba18f1",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Fe57.h5",
+        "source_sha256": "a53b71466fdc4e54673d46ff09be21222fbdd2e323638ace133b26d0c9ba18f1",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Fe58.h5",
+        "bytes": 3577616,
+        "sha256": "b91c20113f8b8d650a15cb6cf965845b4f6811b770f2739fffab0375e6db2750",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Fe58.h5",
+        "source_sha256": "b91c20113f8b8d650a15cb6cf965845b4f6811b770f2739fffab0375e6db2750",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/H1.h5",
+        "bytes": 95456,
+        "sha256": "2bf2db322a188e5c435675cd732dd36b10b995e8cc6e7d6bd55d6aaf712f9b4d",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/H1.h5",
+        "source_sha256": "2bf2db322a188e5c435675cd732dd36b10b995e8cc6e7d6bd55d6aaf712f9b4d",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/H2.h5",
+        "bytes": 98312,
+        "sha256": "57b09c44bfd8a696e46e864dce689afa380555c3a35841c1da92dbc009ce5890",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/H2.h5",
+        "source_sha256": "57b09c44bfd8a696e46e864dce689afa380555c3a35841c1da92dbc009ce5890",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Li6.h5",
+        "bytes": 941944,
+        "sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Li6.h5",
+        "source_sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Li7.h5",
+        "bytes": 883896,
+        "sha256": "f261968904018a39f45f4fecc2d803ac3eae6f6f73cf3ec90756f52d669dce3f",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Li7.h5",
+        "source_sha256": "f261968904018a39f45f4fecc2d803ac3eae6f6f73cf3ec90756f52d669dce3f",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Ti46.h5",
+        "bytes": 3905192,
+        "sha256": "15b133f092ef7a4c3fc7f2a3eac9eb84f88d7bb654e297b72e1539eb9f1e3e97",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Ti46.h5",
+        "source_sha256": "15b133f092ef7a4c3fc7f2a3eac9eb84f88d7bb654e297b72e1539eb9f1e3e97",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Ti47.h5",
+        "bytes": 3820344,
+        "sha256": "d07521b91122995fdbb15e696ebd60b239b958c952228b029de5e29e0a863c27",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Ti47.h5",
+        "source_sha256": "d07521b91122995fdbb15e696ebd60b239b958c952228b029de5e29e0a863c27",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Ti48.h5",
+        "bytes": 4221848,
+        "sha256": "b8d9e45186e6c6c68d9a1ede56241da34b44b17f4cc9ce617c4b03bf2d7ad9e1",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Ti48.h5",
+        "source_sha256": "b8d9e45186e6c6c68d9a1ede56241da34b44b17f4cc9ce617c4b03bf2d7ad9e1",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Ti49.h5",
+        "bytes": 3625288,
+        "sha256": "15d8a11a4fb4d23e91edcf9a636dc6a967e06e4525ce84b5c22a840b240cad50",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Ti49.h5",
+        "source_sha256": "15d8a11a4fb4d23e91edcf9a636dc6a967e06e4525ce84b5c22a840b240cad50",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/Ti50.h5",
+        "bytes": 2959464,
+        "sha256": "9ce3687eab95d64bfd2aa8eca7a73cbd4cbf61da9534c3d49bce22da47b80e90",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/Ti50.h5",
+        "source_sha256": "9ce3687eab95d64bfd2aa8eca7a73cbd4cbf61da9534c3d49bce22da47b80e90",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/W180.h5",
+        "bytes": 11369552,
+        "sha256": "8c9956abbfd3ee3c73d8e365ade84f15bfb50fc1ff2cf77376664cc0ddf69cc8",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/W180.h5",
+        "source_sha256": "8c9956abbfd3ee3c73d8e365ade84f15bfb50fc1ff2cf77376664cc0ddf69cc8",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/W182.h5",
+        "bytes": 13411208,
+        "sha256": "a9ed604c3d3fb2af18853fc84099b5d0168fe7daefc4fbf5e559ab29f10858c7",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/W182.h5",
+        "source_sha256": "a9ed604c3d3fb2af18853fc84099b5d0168fe7daefc4fbf5e559ab29f10858c7",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/W183.h5",
+        "bytes": 13894472,
+        "sha256": "081faaf8dc723014ac3f554b4ed48c0149d2db959660a32f6b9c349a1b7d7275",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/W183.h5",
+        "source_sha256": "081faaf8dc723014ac3f554b4ed48c0149d2db959660a32f6b9c349a1b7d7275",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/W184.h5",
+        "bytes": 10149064,
+        "sha256": "e46f1e4d8a6da833aa2cfff6776ec96ab95f31b35eb04e94cb9f65578acfbafe",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/W184.h5",
+        "source_sha256": "e46f1e4d8a6da833aa2cfff6776ec96ab95f31b35eb04e94cb9f65578acfbafe",
+        "byte_identical_hardlink": true
+      },
+      {
+        "relative_path": "neutron/W186.h5",
+        "bytes": 12898848,
+        "sha256": "9ce5829d0228ac2c5e8a2f6cc8b88ab00fbad029a163db9cf1eb9cf4100c3e3f",
+        "source_fendl_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/neutron/W186.h5",
+        "source_sha256": "9ce5829d0228ac2c5e8a2f6cc8b88ab00fbad029a163db9cf1eb9cf4100c3e3f",
+        "byte_identical_hardlink": true
+      }
+    ]
+  },
+  "coverage": {
+    "neutron_nuclides": [
+      "Be9",
+      "Cu63",
+      "Cu65",
+      "F19",
+      "Fe54",
+      "Fe56",
+      "Fe57",
+      "Fe58",
+      "H1",
+      "H2",
+      "Li6",
+      "Li7",
+      "Ti46",
+      "Ti47",
+      "Ti48",
+      "Ti49",
+      "Ti50",
+      "W180",
+      "W182",
+      "W183",
+      "W184",
+      "W186"
+    ],
+    "photoatomic_elements": [
+      "H",
+      "Li",
+      "Be",
+      "F",
+      "Ti",
+      "Fe",
+      "Cu",
+      "W"
+    ]
+  },
+  "license_and_reuse": "The NNDC download page and supplied ZIPs state no explicit license. These files remain local in the Git-ignored data/raw directory; do not redistribute absent rights confirmation. Preserve NNDC/ENDF-B-VII.1 attribution. The OpenMC Python conversion library is installed separately and is not bundled here.",
+  "primary_references": [
+    "https://openmc.org/data/",
+    "https://docs.openmc.org/en/latest/usersguide/data.html",
+    "https://www.nndc.bnl.gov/endf-b7.1/download.html"
+  ]
+}

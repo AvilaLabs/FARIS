@@ -1,13 +1,16 @@
 //! Shared geometry, checked transport normalization and bounded external jobs.
-//! Reactor transport and operating-history adapters remain unimplemented.
 
+pub mod comparison;
+pub mod core_evidence;
+pub mod geometry;
+pub mod history;
 pub mod jobs;
 pub mod mesh;
 pub mod reactor;
 pub mod study;
 pub mod transport;
 
-use faris_model::{LoadedScenario, Reference, ScenarioError};
+use faris_model::{LoadedScenario, Penetration, Reference, ScenarioError};
 use serde::Serialize;
 use std::{collections::BTreeMap, f64::consts::PI};
 
@@ -44,9 +47,18 @@ pub struct DemoManifest {
     pub fusion_power_mw: f64,
     pub horizon_years: f64,
     pub variants: Vec<VariantGeometry>,
+    pub penetration: Option<Penetration>,
+    pub geometry_volume_status: GeometryVolumeStatus,
     pub references: Vec<Reference>,
     pub assumptions: Vec<String>,
     pub evaluations: BTreeMap<String, Evaluation>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GeometryVolumeStatus {
+    ExactAnalyticFullTorus,
+    PenetrationEstimateNotIndependentlyValidated,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -66,6 +78,10 @@ pub struct ComponentGeometry {
     pub inner_minor_radius_m: f64,
     pub outer_minor_radius_m: f64,
     pub full_torus_volume_m3: f64,
+    /// Physical region volume. Absent for a penetrated region until an
+    /// independent volume calculation validates its post-cut volume.
+    pub effective_volume_m3: Option<f64>,
+    pub penetration_intersection_estimate: Option<geometry::NumericalVolumeEstimate>,
 }
 
 pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioError> {
@@ -83,6 +99,21 @@ pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioE
                 .iter()
                 .map(|layer| {
                     let outer = inner + layer.thickness_m;
+                    let full_torus_volume_m3 = 2.0
+                        * PI.powi(2)
+                        * geometry.major_radius_m
+                        * (outer.powi(2) - inner.powi(2));
+                    let penetration_intersection_estimate =
+                        scenario.penetration.as_ref().map(|p| {
+                            let Penetration::OutboardRectangularPrism { bounds_m, .. } = p;
+                            crate::geometry::estimate_torus_shell_box_intersection(
+                                geometry.major_radius_m,
+                                inner,
+                                outer,
+                                &bounds_m.minimum_xyz_m,
+                                &bounds_m.maximum_xyz_m,
+                            )
+                        });
                     let component = ComponentGeometry {
                         id: layer.id.clone(),
                         label: layer.label.clone(),
@@ -91,10 +122,12 @@ pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioE
                         thickness_m: layer.thickness_m,
                         inner_minor_radius_m: inner,
                         outer_minor_radius_m: outer,
-                        full_torus_volume_m3: 2.0
-                            * PI.powi(2)
-                            * geometry.major_radius_m
-                            * (outer.powi(2) - inner.powi(2)),
+                        full_torus_volume_m3,
+                        effective_volume_m3: scenario
+                            .penetration
+                            .is_none()
+                            .then_some(full_torus_volume_m3),
+                        penetration_intersection_estimate,
                     };
                     inner = outer;
                     component
@@ -151,6 +184,12 @@ pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioE
         fusion_power_mw: scenario.operating_plan.fusion_power_mw,
         horizon_years: scenario.operating_plan.horizon_years,
         variants,
+        penetration: scenario.penetration.clone(),
+        geometry_volume_status: if scenario.penetration.is_some() {
+            GeometryVolumeStatus::PenetrationEstimateNotIndependentlyValidated
+        } else {
+            GeometryVolumeStatus::ExactAnalyticFullTorus
+        },
         references: scenario.references.clone(),
         assumptions: scenario.assumptions.clone(),
         evaluations,
@@ -169,6 +208,31 @@ mod tests {
             .unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn port_manifest_never_reuses_unperforated_volume_as_effective() {
+        let loaded = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-reference-port.scenario.json"
+        ))
+        .unwrap();
+        let result = build_manifest(&loaded).unwrap();
+        assert_eq!(
+            result.geometry_volume_status,
+            GeometryVolumeStatus::PenetrationEstimateNotIndependentlyValidated
+        );
+        assert!(result.penetration.is_some());
+        for variant in &result.variants {
+            assert!(variant.components.iter().all(|component| {
+                component.effective_volume_m3.is_none()
+                    && component
+                        .penetration_intersection_estimate
+                        .as_ref()
+                        .is_some_and(|estimate| {
+                            estimate.volume_m3 > 0.0 && !estimate.independently_validated
+                        })
+            }));
+        }
     }
 
     #[test]

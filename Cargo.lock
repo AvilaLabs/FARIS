@@ -791,6 +791,9 @@ dependencies = [
  "faris-engine",
  "faris-model",
  "image",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

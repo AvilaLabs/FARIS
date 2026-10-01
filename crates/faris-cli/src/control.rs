@@ -124,7 +124,6 @@ pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
     // Execute the reviewed worker bundled with this Rust build. Copying it into
     // the run also preserves the exact source used by the control.
     const WORKER: &[u8] = include_bytes!("../../../controls/pure_absorber_sphere.py");
-    let cwd = std::env::current_dir()?.canonicalize()?;
     let output = std::path::absolute(output)?;
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
@@ -159,7 +158,7 @@ pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
     let spec = JobSpec {
         program: python.clone(),
         arguments,
-        working_directory: cwd,
+        working_directory: output.clone(),
         environment: vec![
             ("PATH".into(), path),
             ("OMP_NUM_THREADS".into(), "1".into()),
@@ -169,6 +168,8 @@ pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
         ],
         timeout: Duration::from_secs(timeout_seconds),
         capture_limit_bytes: 1024 * 1024,
+        artifact_roots: vec![output.clone()],
+        resource_limits: faris_engine::jobs::ResourceLimits::default(),
     };
     let started_unix_seconds = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let interrupts = interrupt_cancellation()?;

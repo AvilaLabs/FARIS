@@ -187,6 +187,7 @@ pub enum NuclearDataCapability {
     ContinuousEnergyNeutronTransport,
     Heating,
     PhotonTransport,
+    AtomicRelaxation,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -198,6 +199,9 @@ pub enum ReadinessCode {
     MissingNuclideData,
     MissingDataTemperature,
     MissingNeutronTransportCapability,
+    MissingHeatingCapability,
+    MissingPhotonTransportCapability,
+    MissingAtomicRelaxationCapability,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -475,6 +479,43 @@ impl PhysicsCase {
                     Some(assignment.material_id.clone()),
                     "No inventory file declares continuous-energy neutron transport capability.",
                 ));
+            }
+            for (capability, code, label) in [
+                (
+                    NuclearDataCapability::Heating,
+                    ReadinessCode::MissingHeatingCapability,
+                    "MT=301 heating",
+                ),
+                (
+                    NuclearDataCapability::PhotonTransport,
+                    ReadinessCode::MissingPhotonTransportCapability,
+                    "photon transport",
+                ),
+                (
+                    NuclearDataCapability::AtomicRelaxation,
+                    ReadinessCode::MissingAtomicRelaxationCapability,
+                    "populated atomic-relaxation cascades",
+                ),
+            ] {
+                let missing: Vec<_> = nuclides
+                    .iter()
+                    .filter(|n| {
+                        !files.iter().any(|f| {
+                            f.capabilities.contains(&capability) && f.nuclides.contains(&n.nuclide)
+                        })
+                    })
+                    .map(|n| n.nuclide.as_str())
+                    .collect();
+                if !missing.is_empty() {
+                    diagnostics.push(diagnostic(
+                        code,
+                        Some(assignment.material_id.clone()),
+                        format!(
+                            "No selected file declares {label} data for: {}.",
+                            missing.join(", ")
+                        ),
+                    ));
+                }
             }
             let missing_nuclides: Vec<_> = nuclides
                 .iter()
@@ -917,7 +958,12 @@ mod tests {
             size_bytes: 64,
             temperatures_k,
             nuclides: nuclides.into_iter().map(str::to_owned).collect(),
-            capabilities: vec![NuclearDataCapability::ContinuousEnergyNeutronTransport],
+            capabilities: vec![
+                NuclearDataCapability::ContinuousEnergyNeutronTransport,
+                NuclearDataCapability::Heating,
+                NuclearDataCapability::PhotonTransport,
+                NuclearDataCapability::AtomicRelaxation,
+            ],
         }
     }
     fn inventory(files: Vec<NuclearDataFile>) -> NuclearDataSelection {
@@ -991,6 +1037,20 @@ mod tests {
                 .iter()
                 .any(|d| d.code == ReadinessCode::MissingDataTemperature
                     && d.subject_id.as_deref() == Some("magnet-unassigned"))
+        );
+        let mut neutron_only = data_file(vec!["Fe56", "Li6", "Nb93"], vec![600.0, 293.6]);
+        neutron_only.capabilities = vec![NuclearDataCapability::ContinuousEnergyNeutronTransport];
+        c.nuclear_data = inventory(vec![neutron_only]);
+        let diagnostics = c.readiness_diagnostics(&loaded).unwrap();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == ReadinessCode::MissingHeatingCapability)
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == ReadinessCode::MissingPhotonTransportCapability)
         );
     }
 

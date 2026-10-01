@@ -1,5 +1,7 @@
 use eframe::egui;
 
+pub const VERTICAL_FOV_RADIANS: f32 = 45.0_f32.to_radians();
+
 #[derive(Clone, Copy)]
 pub struct Camera {
     pub yaw: f32,
@@ -19,10 +21,25 @@ impl Default for Camera {
 
 impl Camera {
     pub fn basis(&self) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3]) {
+        let yaw = if self.yaw.is_finite() {
+            self.yaw
+        } else {
+            -0.65
+        };
+        let pitch = if self.pitch.is_finite() {
+            self.pitch.clamp(-1.35, 1.35)
+        } else {
+            0.5
+        };
+        let distance = if self.distance.is_finite() {
+            self.distance.clamp(6.0, 40.0)
+        } else {
+            15.0
+        };
         let eye = [
-            self.distance * self.pitch.cos() * self.yaw.cos(),
-            self.distance * self.pitch.sin(),
-            self.distance * self.pitch.cos() * self.yaw.sin(),
+            distance * pitch.cos() * yaw.cos(),
+            distance * pitch.sin(),
+            distance * pitch.cos() * yaw.sin(),
         ];
         let forward = normalize(scale(eye, -1.0));
         let right = normalize(cross(forward, [0.0, 1.0, 0.0]));
@@ -32,10 +49,12 @@ impl Camera {
 
     pub fn ray(&self, rect: egui::Rect, point: egui::Pos2) -> ([f32; 3], [f32; 3]) {
         let (eye, right, up, forward) = self.basis();
-        let x = 2.0 * (point.x - rect.left()) / rect.width() - 1.0;
-        let y = 1.0 - 2.0 * (point.y - rect.top()) / rect.height();
-        let tangent = (45.0_f32.to_radians() * 0.5).tan();
-        let horizontal = scale(right, x * tangent * rect.width() / rect.height());
+        let width = rect.width().max(f32::EPSILON);
+        let height = rect.height().max(f32::EPSILON);
+        let x = 2.0 * (point.x - rect.left()) / width - 1.0;
+        let y = 1.0 - 2.0 * (point.y - rect.top()) / height;
+        let tangent = (VERTICAL_FOV_RADIANS * 0.5).tan();
+        let horizontal = scale(right, x * tangent * width / height);
         let vertical = scale(up, y * tangent);
         (eye, normalize(add(add(forward, horizontal), vertical)))
     }
@@ -109,5 +128,22 @@ mod tests {
         );
         assert!(triangle_hit([0.0, 0.0, 2.0], [0.0, 0.0, 1.0], triangle).is_none());
         assert!(triangle_hit([3.0, 0.0, 2.0], [0.0, 0.0, -1.0], triangle).is_none());
+    }
+
+    #[test]
+    fn camera_basis_stays_orthonormal_at_extreme_inputs() {
+        let camera = Camera {
+            yaw: f32::INFINITY,
+            pitch: 90.0,
+            distance: f32::NAN,
+        };
+        let (_, right, up, forward) = camera.basis();
+        for vector in [right, up, forward] {
+            assert!(vector.iter().all(|x| x.is_finite()));
+            assert!((dot(vector, vector) - 1.0).abs() < 1e-5);
+        }
+        assert!(dot(right, up).abs() < 1e-5);
+        assert!(dot(right, forward).abs() < 1e-5);
+        assert!(dot(up, forward).abs() < 1e-5);
     }
 }

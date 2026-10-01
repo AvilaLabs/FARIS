@@ -1,4 +1,5 @@
 mod camera;
+mod history_panel;
 mod study_panel;
 mod transport_panel;
 mod viewport;
@@ -8,10 +9,16 @@ use clap::Parser;
 use eframe::egui;
 use faris_engine::{
     DemoManifest, build_manifest,
-    mesh::{CUTAWAY_SWEEP, MeshVertex, torus_shell},
+    mesh::{CUTAWAY_SWEEP, MeshVertex, torus_shell, torus_shell_with_prism_cut},
 };
 use faris_model::LoadedScenario;
-use std::{collections::BTreeSet, f32::consts::TAU, path::PathBuf, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    f32::consts::TAU,
+    path::PathBuf,
+    sync::Arc,
+    time::Instant,
+};
 
 #[derive(Parser)]
 #[command(about = "FARIS native desktop workspace", version)]
@@ -22,6 +29,12 @@ struct Arguments {
     /// Capture this application's window to PNG and exit (development check).
     #[arg(long)]
     capture: Option<PathBuf>,
+    /// Measure native frame throughput and exit. Includes startup separately.
+    #[arg(long, value_parser = clap::value_parser!(f64))]
+    benchmark_seconds: Option<f64>,
+    /// Exercise camera orbit and calculated-history scrubbing during measurement.
+    #[arg(long, requires = "benchmark_seconds")]
+    benchmark_motion: bool,
     /// External Avila Core executable used by Compile study.
     #[arg(long)]
     core: Option<PathBuf>,
@@ -34,6 +47,21 @@ struct Arguments {
     /// Load a verified local run.json; repeat to compare arrangements.
     #[arg(long)]
     run: Vec<PathBuf>,
+    /// Portable identified recorded-transport bundle; repeat for both arrangements.
+    #[arg(long)]
+    bundle: Vec<PathBuf>,
+    /// Matched feature-free scenario to compare against the penetration.
+    #[arg(long)]
+    control_scenario: Option<PathBuf>,
+    #[arg(long)]
+    control_physics: Vec<PathBuf>,
+    #[arg(long)]
+    control_run: Vec<PathBuf>,
+    #[arg(long)]
+    control_bundle: Vec<PathBuf>,
+    /// Identified fuel, maintenance, service-limit and energy assumptions.
+    #[arg(long)]
+    assumptions: Option<PathBuf>,
     #[arg(long)]
     python: Option<PathBuf>,
     #[arg(long)]
@@ -49,14 +77,48 @@ struct Arguments {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Arguments::parse();
+    if args
+        .benchmark_seconds
+        .is_some_and(|s| !s.is_finite() || !(2.0..=120.0).contains(&s))
+    {
+        return Err("benchmark duration must be finite and in 2..=120 seconds".into());
+    }
+    let launch_started = Instant::now();
     let loaded = if let Some(path) = args.scenario {
         LoadedScenario::load(&path)?
+    } else if let Some(path) = args.bundle.first() {
+        scenario_from_bundle(path)?
     } else {
         LoadedScenario::from_bytes(include_bytes!(
             "../../../scenarios/arc-inspired/scenario.json"
         ))?
     };
     let manifest = build_manifest(&loaded)?;
+    let control = if args.control_scenario.is_some() || !args.control_bundle.is_empty() {
+        let scenario = if let Some(path) = &args.control_scenario {
+            LoadedScenario::load(path)?
+        } else {
+            scenario_from_bundle(&args.control_bundle[0])?
+        };
+        let control_manifest = build_manifest(&scenario)?;
+        let panel = transport_panel::TransportPanel::new(
+            scenario,
+            transport_panel::TransportConfiguration {
+                python: args.python.clone(),
+                openmc: args.openmc.clone(),
+                audit: args.audit.clone(),
+                cross_sections: args.cross_sections.clone(),
+                physics: args.control_physics,
+                runs: args.control_run,
+                bundles: args.control_bundle,
+                runs_directory: args.runs_directory.clone(),
+            },
+        )
+        .map_err(std::io::Error::other)?;
+        Some((control_manifest, panel))
+    } else {
+        None
+    };
     let mut transport = transport_panel::TransportPanel::new(
         loaded,
         transport_panel::TransportConfiguration {
@@ -66,11 +128,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cross_sections: args.cross_sections,
             physics: args.physics,
             runs: args.run,
+            bundles: args.bundle,
             runs_directory: args.runs_directory.clone(),
         },
     )
     .map_err(std::io::Error::other)?;
     transport.view = args.field_view;
+    let history =
+        history_panel::HistoryPanel::new(args.assumptions).map_err(std::io::Error::other)?;
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         depth_buffer: 32,
@@ -89,25 +154,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .as_ref()
                 .ok_or("wgpu is required for the 3D viewport")?;
             viewport::initialize(state);
+            eprintln!("FARIS graphics: {:?}", state.adapter.get_info());
             let mut visuals = egui::Visuals::dark();
             visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
-            Ok(Box::new(FarisApp::new(
+            let mut app = FarisApp::new(
                 manifest,
                 args.capture,
                 args.core,
                 args.runs_directory,
                 transport,
-            )?))
+                control,
+                history,
+            )?;
+            app.started = launch_started;
+            app.benchmark = args.benchmark_seconds.map(|duration| Benchmark {
+                duration,
+                motion: args.benchmark_motion,
+                launch_started,
+                ready_at: None,
+                frame_times: Vec::new(),
+            });
+            Ok(Box::new(app))
         }),
     )?;
     Ok(())
 }
 
+fn scenario_from_bundle(
+    path: &std::path::Path,
+) -> Result<LoadedScenario, Box<dyn std::error::Error>> {
+    let bundle: faris_engine::core_evidence::RecordedTransportBundle = serde_json::from_slice(
+        &faris_engine::reactor::read_json_bytes(path)
+            .map_err(|e| std::io::Error::other(e.to_string()))?,
+    )?;
+    bundle
+        .validate()
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    Ok(LoadedScenario::from_bytes(
+        bundle.files["scenario.json"].as_bytes(),
+    )?)
+}
+
 struct ComponentMesh {
     id: String,
-    vertices: Vec<MeshVertex>,
+    vertices: Arc<[MeshVertex]>,
+}
+
+struct Benchmark {
+    duration: f64,
+    motion: bool,
+    launch_started: Instant,
+    ready_at: Option<Instant>,
+    frame_times: Vec<Instant>,
 }
 
 struct FarisApp {
@@ -123,10 +223,16 @@ struct FarisApp {
     revision: u64,
     message: String,
     capture: Option<PathBuf>,
+    capture_requested: bool,
     frames: usize,
     started: Instant,
     study: study_panel::StudyPanel,
     transport: transport_panel::TransportPanel,
+    paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
+    history: history_panel::HistoryPanel,
+    show_history: bool,
+    benchmark: Option<Benchmark>,
+    geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
 }
 
 impl FarisApp {
@@ -136,7 +242,10 @@ impl FarisApp {
         core: Option<PathBuf>,
         runs_directory: PathBuf,
         transport: transport_panel::TransportPanel,
+        paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
+        history: history_panel::HistoryPanel,
     ) -> Result<Self, faris_engine::mesh::MeshError> {
+        let show_history = history.assumptions.is_some();
         let mut app = Self {
             selected: manifest.variants[0].components
                 [1.min(manifest.variants[0].components.len() - 1)]
@@ -154,14 +263,26 @@ impl FarisApp {
             message: "Geometry preview ready. Transport and lifetime calculations are pending."
                 .into(),
             capture,
+            capture_requested: false,
             frames: 0,
             started: Instant::now(),
             study: study_panel::StudyPanel::new(core, runs_directory),
             transport,
+            paired,
+            history,
+            show_history,
+            benchmark: None,
+            geometry_cache: BTreeMap::new(),
         };
         if app.transport.has_results() {
             app.message="Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.".into();
         }
+        app.study.selection.fuel_history = show_history;
+        app.study.selection.electricity = show_history
+            && app
+                .transport
+                .response(&app.manifest.variants[0].id, "heating-total-whole-model")
+                .is_some();
         if app.transport.view == transport_panel::FieldView::FluxSlice {
             app.camera.distance = 20.0;
         }
@@ -226,12 +347,54 @@ impl FarisApp {
             if component.material_id == "void" || self.hidden.contains(&component.id) {
                 continue;
             }
-            let mesh = torus_shell(
-                self.manifest.major_radius_m as f32,
-                component.inner_minor_radius_m as f32,
-                component.outer_minor_radius_m as f32,
-                sweep,
-            )?;
+            let cache_key = format!(
+                "{}::{}::{}::{}",
+                self.manifest.source_sha256,
+                self.manifest.variants[self.variant].id,
+                self.cutaway,
+                component.id
+            );
+            let mesh = if let Some(mesh) = self.geometry_cache.get(&cache_key) {
+                mesh.clone()
+            } else {
+                let generated = if let Some(faris_model::Penetration::OutboardRectangularPrism {
+                    bounds_m,
+                    affected_component_ids,
+                    ..
+                }) = &self.manifest.penetration
+                    && affected_component_ids.contains(&component.id)
+                {
+                    torus_shell_with_prism_cut(
+                        self.manifest.major_radius_m as f32,
+                        component.inner_minor_radius_m as f32,
+                        component.outer_minor_radius_m as f32,
+                        sweep,
+                        bounds_m.minimum_xyz_m.map(|x| x as f32),
+                        bounds_m.maximum_xyz_m.map(|x| x as f32),
+                    )?
+                } else {
+                    torus_shell(
+                        self.manifest.major_radius_m as f32,
+                        component.inner_minor_radius_m as f32,
+                        component.outer_minor_radius_m as f32,
+                        sweep,
+                    )?
+                };
+                // Cache finite scenario tessellations; selection/color edits need no geometry work.
+                let cache_bytes: usize = self
+                    .geometry_cache
+                    .values()
+                    .map(|m| m.len() * std::mem::size_of::<MeshVertex>())
+                    .sum();
+                if cache_bytes + generated.len() * std::mem::size_of::<MeshVertex>()
+                    > 128 * 1024 * 1024
+                {
+                    self.geometry_cache.clear();
+                }
+                let mesh: Arc<[MeshVertex]> = generated.into();
+                self.geometry_cache.insert(cache_key, mesh.clone());
+                mesh
+            };
             let mut color = [0.0; 3];
             for (channel, value) in color.iter_mut().enumerate() {
                 *value = u8::from_str_radix(&component.color[1 + channel * 2..3 + channel * 2], 16)
@@ -248,6 +411,30 @@ impl FarisApp {
                 )
             {
                 color = transport_panel::flux_color(response.mean, response.standard_error);
+            }
+            if self.transport.view == transport_panel::FieldView::NuclearHeating {
+                color = self
+                    .transport
+                    .response(
+                        &self.manifest.variants[self.variant].id,
+                        &format!("heating-total-{}", component.id),
+                    )
+                    .map_or([0.75, 0.10, 0.65], |r| {
+                        transport_panel::scalar_color(r.mean, r.standard_error, 0.0, 8.0)
+                    });
+            }
+            if self.transport.view == transport_panel::FieldView::ComponentFluence {
+                color = self
+                    .history
+                    .snapshot(
+                        &self.manifest.source_sha256,
+                        &self.manifest.variants[self.variant].id,
+                        self.year * faris_engine::history::JULIAN_YEAR_SECONDS,
+                    )
+                    .and_then(|s| s.component_fluence_n_m2.get(&component.id))
+                    .map_or([0.75, 0.10, 0.65], |v| {
+                        transport_panel::scalar_color(*v, 0.0, 18.0, 28.0)
+                    });
             }
             vertices.extend(mesh.iter().map(|vertex| viewport::Vertex {
                 position: vertex.position,
@@ -336,8 +523,12 @@ impl FarisApp {
         let Some(path) = &self.capture else {
             return;
         };
-        self.frames += 1;
-        if self.frames == 8 {
+        if self.frames >= 8
+            && !self.capture_requested
+            && !self.history.is_pending()
+            && self.started.elapsed().as_secs_f64() >= 1.0
+        {
+            self.capture_requested = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let screenshot = ctx.input(|input| {
@@ -379,9 +570,98 @@ impl FarisApp {
 impl eframe::App for FarisApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if self.frames == 0 {
+            eprintln!(
+                "FARIS first UI frame: {:.3} s after process setup began",
+                self.started.elapsed().as_secs_f64()
+            );
+        }
+        self.frames += 1;
+        if let Some(b) = &mut self.benchmark {
+            let now = Instant::now();
+            // Warm up GPU and let the first history finish before sampling throughput.
+            if b.ready_at.is_none()
+                && now.duration_since(b.launch_started).as_secs_f64() >= 2.0
+                && !self.history.is_pending()
+            {
+                b.ready_at = Some(now);
+            }
+            if let Some(ready_at) = b.ready_at {
+                b.frame_times.push(now);
+                let elapsed = now.duration_since(ready_at).as_secs_f64();
+                if b.motion {
+                    self.camera.yaw = (elapsed * 0.45) as f32;
+                    self.year = (elapsed / b.duration) * self.manifest.horizon_years;
+                }
+                if elapsed >= b.duration {
+                    let mut intervals: Vec<f64> = b
+                        .frame_times
+                        .windows(2)
+                        .map(|w| w[1].duration_since(w[0]).as_secs_f64())
+                        .collect();
+                    intervals.sort_by(f64::total_cmp);
+                    let p95 = intervals
+                        .get((intervals.len() * 95 / 100).min(intervals.len().saturating_sub(1)))
+                        .copied()
+                        .unwrap_or_default();
+                    eprintln!(
+                        "{}",
+                        serde_json::json!({"schema_version":"faris-native-frame-benchmark/v0.1", "measurement":"egui frame throughput; not GPU presentation FPS", "first_measured_frame_seconds": ready_at.duration_since(b.launch_started).as_secs_f64(), "elapsed_seconds":elapsed,"interval_count":intervals.len(),"mean_frames_per_second":intervals.len() as f64/elapsed,"p95_frame_interval_ms":p95*1000.0,"orbit_and_scrub":b.motion,"viewport_points":[1440,900]})
+                    );
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
         self.study.poll(&ctx);
+        self.history.poll(&ctx);
         let field_before = self.transport.render_key();
         self.transport.poll(&ctx);
+        let mut history_inputs: Vec<_> = self
+            .transport
+            .records()
+            .values()
+            .filter(|r| r.normalized.is_some())
+            .map(|r| {
+                (
+                    r,
+                    self.manifest.fusion_power_mw,
+                    format!(
+                        "{} · {}",
+                        r.variant_id,
+                        if self.manifest.penetration.is_some() {
+                            "penetration"
+                        } else {
+                            "control"
+                        }
+                    ),
+                )
+            })
+            .collect();
+        if let Some((manifest, panel)) = &self.paired {
+            history_inputs.extend(
+                panel
+                    .records()
+                    .values()
+                    .filter(|r| r.normalized.is_some())
+                    .map(|r| {
+                        (
+                            r,
+                            manifest.fusion_power_mw,
+                            format!(
+                                "{} · {}",
+                                r.variant_id,
+                                if manifest.penetration.is_some() {
+                                    "penetration"
+                                } else {
+                                    "control"
+                                }
+                            ),
+                        )
+                    }),
+            );
+        }
+        self.history.update_inputs(&ctx, &history_inputs);
         if field_before.0 != self.transport.render_key().0 {
             self.message="Transport worker finished. Inspect execution status and recorded numerical results; scientific qualification NOT_EVALUATED.".into();
         }
@@ -390,6 +670,7 @@ impl eframe::App for FarisApp {
             self.cutaway,
             self.selected.clone(),
             self.hidden.clone(),
+            self.year.to_bits(),
         );
         egui::Panel::top("menu").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -410,9 +691,23 @@ impl eframe::App for FarisApp {
         });
         egui::Panel::bottom("timeline")
             .resizable(true)
-            .default_size(110.0)
-            .size_range(85.0..=240.0)
+            .default_size(if self.show_history { 220.0 } else { 110.0 })
+            .size_range(85.0..=360.0)
             .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.show_history, true, "Operating history");
+                    ui.selectable_value(&mut self.show_history, false, "Transport comparison");
+                });
+                if self.show_history {
+                    self.history.timeline(
+                        ui,
+                        &self.manifest.source_sha256,
+                        &self.manifest.variants[self.variant].id,
+                        &mut self.year,
+                        self.manifest.horizon_years,
+                    );
+                    return;
+                }
                 if self.transport.has_results() {
                     self.transport.comparison(ui);
                     return;
@@ -448,6 +743,18 @@ impl eframe::App for FarisApp {
                     ui.weak("ARC-inspired · idealized geometry");
                     ui.add_space(12.0);
                     ui.strong("Arrangement");
+                    if self.paired.is_some() {
+                        let is_control=self.manifest.penetration.is_none();
+                        ui.label(if is_control {"Feature-free control"} else {"Finite outboard penetration"});
+                        if ui.button(if is_control {"Show penetration"} else {"Show matched control"}).clicked()
+                            && let Some((manifest,panel))=&mut self.paired {
+                            std::mem::swap(&mut self.manifest,manifest);
+                            std::mem::swap(&mut self.transport,panel);
+                            self.transport.view=panel.view;
+                            self.message="Switched physical scenario. Recorded results retain their distinct scenario identities.".into();
+                            self.rebuild().unwrap_or_else(|error|self.message=error.to_string());
+                        }
+                    }
                     for (index, variant) in self.manifest.variants.iter().enumerate() {
                         ui.selectable_value(&mut self.variant, index, &variant.label);
                     }
@@ -479,11 +786,15 @@ impl eframe::App for FarisApp {
                     self.study.controls(
                         ui,
                         &self.manifest.variants[self.variant].id,
+                        &self.manifest.source_sha256,
                         self.transport
                             .readiness(&self.manifest.variants[self.variant].id),
                     );
                     self.transport
                         .controls(ui, &self.manifest.variants[self.variant].id);
+                    self.history.controls(ui);
+                    self.history.sensitivity_controls(ui,&self.manifest.source_sha256,&self.manifest.variants[self.variant].id);
+                    self.study.evidence_controls(ui,&self.manifest,&self.manifest.variants[self.variant].id,self.transport.location(&self.manifest.variants[self.variant].id),self.history.assumptions.as_ref());
                     ui.add_space(16.0);
                     ui.collapsing("Sources and assumptions", |ui| {
                         for reference in &self.manifest.references {
@@ -501,6 +812,7 @@ impl eframe::App for FarisApp {
             .default_size(285.0)
             .size_range(230.0..=400.0)
             .show(ui, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.heading("Outliner");
                 ui.add_space(8.0);
                 let variant = &self.manifest.variants[self.variant];
@@ -542,7 +854,7 @@ impl eframe::App for FarisApp {
                             ("Thickness", format!("{:.3} m", component.thickness_m)),
                             ("Inner radius", format!("{:.3} m", component.inner_minor_radius_m)),
                             ("Outer radius", format!("{:.3} m", component.outer_minor_radius_m)),
-                            ("Full-torus volume", format!("{:.2} m³", component.full_torus_volume_m3)),
+                            ("Unperforated reference volume", format!("{:.2} m³", component.full_torus_volume_m3)),
                         ] {
                             ui.label(label);
                             ui.label(value);
@@ -567,12 +879,19 @@ impl eframe::App for FarisApp {
                         ui.label(format!("Mean neutron flux: {:.3e} neutrons/m²/s",response.mean));
                         ui.small(format!("Standard error: {:.2e} neutrons/m²/s",response.standard_error));
                         ui.small("Component volume average. Sampling uncertainty only.");
+                        ui.small(format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
                     } else {ui.label("Mean neutron flux  —");}
-                    ui.label("Nuclear heating  —");
+                    if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
+                        ui.label(format!("Nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
+                        ui.small(format!("Sampling SE: {:.3} MW · coupled neutron/photon", heating.integrated_standard_error / 1e6));
+                    } else { ui.label("Nuclear heating  —"); }
                     ui.label("Service limit  —");
+                    self.history.inspector(ui,&self.manifest.source_sha256,&variant.id,&component.id,self.year*faris_engine::history::JULIAN_YEAR_SECONDS);
+                    self.transport.spectra(ui,&variant.id,&component.id);
                     ui.add_space(10.0);
-                    ui.weak(match self.transport.view {transport_panel::FieldView::Materials=>"Display colors identify components.",_=>"Calculated flux: blue to red, fixed log scale 10¹⁰–10²⁰ neutrons/m²/s. Gray/desaturated bins have zero samples or >30% relative standard error."});
+                    ui.weak(match self.transport.view {transport_panel::FieldView::Materials=>"Display colors identify components.",transport_panel::FieldView::NuclearHeating=>"Directly tallied total nuclear heating; component averages, not temperatures.",transport_panel::FieldView::ComponentFluence=>"Calculated component-average neutron fluence follows the timeline, including local resets on replacement.",_=>"Calculated flux uses a fixed scale across arrangements; inspect sampling precision before comparing."});
                 }
+                });
             });
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(egui::Color32::from_rgb(47, 50, 57)))
@@ -588,9 +907,11 @@ impl eframe::App for FarisApp {
                     ui.weak("Drag to orbit · scroll to zoom · click to select");
                 });
                 ui.horizontal(|ui| {
-                    self.transport.viewport_controls(ui,&self.manifest.variants[self.variant].id);
-                    if self.transport.view!=transport_panel::FieldView::Materials {ui.weak(if self.transport.view==transport_panel::FieldView::FluxSlice {"Sampling uncertainty only · click a spatial bin to inspect"} else {"Sampling uncertainty only · component volume averages"});}
+                    let has_history=self.history.result(&self.manifest.source_sha256,&self.manifest.variants[self.variant].id).is_some();
+                    self.transport.viewport_controls(ui,&self.manifest.variants[self.variant].id,has_history);
+                    if self.transport.view!=transport_panel::FieldView::Materials {ui.weak(match self.transport.view {transport_panel::FieldView::FluxSlice=>"Sampling uncertainty only · click a spatial bin to inspect",transport_panel::FieldView::ComponentFluence=>"Conditional history · component mean · uncertainty not propagated",_=>"Sampling uncertainty only · component volume averages"});}
                 });
+                self.transport.field_legend(ui);
                 let (rect, response) =
                     ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
                 if response.dragged() {
@@ -614,6 +935,7 @@ impl eframe::App for FarisApp {
                         self.cutaway,
                         self.selected.clone(),
                         self.hidden.clone(),
+                        if self.transport.view==transport_panel::FieldView::ComponentFluence{self.year.to_bits()}else{before.4},
                     )
                     || field_before != self.transport.render_key())
                     && let Err(error) = self.rebuild()
@@ -625,20 +947,23 @@ impl eframe::App for FarisApp {
                     self.camera,
                     self.vertices.clone(),
                     self.revision,
+                    self.transport.view != transport_panel::FieldView::Materials,
                 ));
                 ui.painter().text(
                     rect.left_bottom() + egui::vec2(16.0, -16.0),
                     egui::Align2::LEFT_BOTTOM,
                     match self.transport.view {
                         transport_panel::FieldView::Materials => {
-                            "Y ↑    Metres    Material identities"
+                            "X red · Y green · Z blue · metre grid · material identities"
                         }
                         transport_panel::FieldView::ComponentFlux => {
-                            "Component-average neutron flux · neutrons/m²/s · unqualified model"
+                            "Reference-power component mean flux · neutrons/m²/s · stationary cold model"
                         }
                         transport_panel::FieldView::FluxSlice => {
-                            "Cartesian bin-average neutron flux · neutrons/m²/s · full voxel volumes"
+                            "Reference-power bin mean flux · neutrons/m²/s · full voxel volumes"
                         }
+                        transport_panel::FieldView::NuclearHeating => "Reference-power nuclear heat deposition · W/m³ · coupled transport",
+                        transport_panel::FieldView::ComponentFluence => "Snapshot accumulated neutron fluence · neutrons/m² · component mean",
                     },
                     egui::FontId::monospace(12.0),
                     egui::Color32::from_gray(180),

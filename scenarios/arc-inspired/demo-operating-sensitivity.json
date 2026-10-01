@@ -1,0 +1,6 @@
+{
+  "recovery_fraction_levels": [0.9, 0.95, 0.99],
+  "delay_multipliers": [0.5, 1.0, 2.0],
+  "service_limit_multipliers": [0.5, 1.0, 2.0],
+  "rationale": "Predeclared bounded design-space probes around the authored operating demonstration scenario; these values are not probability distributions, confidence intervals, validated physical uncertainty, or recommended set points. Every case is a full event-aware history rerun with the same transport driving-rate realization."
+}

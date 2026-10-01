@@ -186,12 +186,18 @@ def _decode(value: Any) -> str | None:
     return str(value)
 
 
-def audit_photon(path: Path, h5py: Any) -> dict[str, Any]:
+def audit_photon(path: Path, h5py: Any, openmc: Any) -> dict[str, Any]:
     result: dict[str, Any] = {
         "relative_path": None,
         "sha256": None,
         "size_bytes": None,
         "readable_by_h5py": False,
+        "readable_by_openmc_data_api": False,
+        "atomic_relaxation_object_present": False,
+        "atomic_relaxation_populated": False,
+        "atomic_relaxation_shell_count": 0,
+        "photoelectric_shell_count": 0,
+        "atomic_relaxation_transition_shell_count": 0,
         "top_level_groups": [],
         "error": None,
     }
@@ -201,6 +207,26 @@ def audit_photon(path: Path, h5py: Any) -> dict[str, Any]:
         with h5py.File(path, "r") as library:
             result["top_level_groups"] = sorted(library.keys())
             result["readable_by_h5py"] = True
+        data = openmc.data.IncidentPhoton.from_hdf5(str(path))
+        result["readable_by_openmc_data_api"] = bool(data.reactions)
+        relaxation = data.atomic_relaxation
+        result["atomic_relaxation_object_present"] = relaxation is not None
+        result["atomic_relaxation_shell_count"] = len(relaxation.binding_energy) if relaxation else 0
+        with h5py.File(path, "r") as library:
+            photoelectric_shells = set(library[data.name]["subshells"].keys())
+        result["photoelectric_shell_count"] = len(photoelectric_shells)
+        result["atomic_relaxation_transition_shell_count"] = len(relaxation.transitions) if relaxation else 0
+        # Low-Z elements legitimately have no radiative/Auger transitions, but
+        # still require binding-energy and electron-count records for each
+        # photoelectric shell so OpenMC can build a valid shell map.
+        result["atomic_relaxation_populated"] = bool(
+            relaxation is not None
+            and photoelectric_shells
+            and photoelectric_shells <= set(relaxation.binding_energy)
+            and photoelectric_shells <= set(relaxation.num_electrons)
+        )
+        if not result["readable_by_openmc_data_api"]:
+            result["error"] = "OpenMC photon API returned no interaction reactions"
     except Exception as error:
         result["error"] = f"{type(error).__name__}: {error}"
     return result
@@ -245,7 +271,7 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
             photon_inventory[element] = {"library_entry_present": False}
             continue
         path = data_root / relpath
-        details = audit_photon(path, h5py) if path.is_file() else {
+        details = audit_photon(path, h5py, openmc) if path.is_file() else {
             "readable_by_h5py": False,
             "error": "referenced file missing",
         }
@@ -262,7 +288,7 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
     )
     return {
         "schema": "faris.openmc-library-audit/1.0.0",
-        "purpose": "Read-only targeted identity, HDF5 readability, temperature, reaction-score and secondary-photon inventory. Not a transport result, benchmark, or nuclear-data qualification.",
+        "purpose": "Read-only targeted identity, HDF5/API readability, temperature, reaction-score, secondary-photon, and populated atomic-relaxation inventory. Not a transport result, benchmark, or nuclear-data qualification.",
         "openmc": {"version": openmc.__version__},
         "cross_sections_xml": {
             "sha256": sha256_file(cross_sections),
@@ -281,6 +307,8 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
             "Li6_Li7_MT205_data_present": all((inventory.get(n, {}).get("h3_production_route") or {}).get("data_present", False) for n in ("Li6", "Li7")),
             "target_neutron_temperature_groups": target_temps,
             "all_target_photon_atomic_files_readable": all(v.get("readable_by_h5py", False) for v in photon_inventory.values()),
+            "all_target_photon_files_readable_by_openmc_data_api": all(v.get("readable_by_openmc_data_api", False) for v in photon_inventory.values()),
+            "all_target_photon_atomic_relaxation_populated": all(v.get("atomic_relaxation_populated", False) for v in photon_inventory.values()),
             "all_target_nuclides_have_secondary_photon_product_records": all((v.get("secondary_photon_products") or {}).get("photon_product_records", 0) > 0 for v in inventory.values()),
             "thermal_scattering_library_entries_present": bool(thermal_files),
         },

@@ -2,7 +2,9 @@
 //!
 //! Call from a worker, never the UI thread. On Unix each job owns a process
 //! group; cancellation terminates that group, including ordinary solver children.
-//! This is not a sandbox for hostile executables and does not limit RAM or disk.
+//! Linux `prlimit` applies inherited address-space and single-file limits. The
+//! runner samples owned artifact roots and terminates on aggregate limits. This
+//! is a resource-bounded execution wrapper, not a sandbox for hostile programs.
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -19,6 +21,43 @@ use std::{
 };
 
 pub const MAX_CAPTURE_BYTES: usize = 4 * 1024 * 1024;
+pub const ARTIFACT_SCAN_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Default per-job ceilings; callers may request lower limits, never higher.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceLimits {
+    pub address_space_bytes: u64,
+    pub single_file_bytes: u64,
+    pub artifact_total_bytes: u64,
+    pub artifact_file_count: u64,
+}
+
+impl ResourceLimits {
+    pub const DEFAULT: Self = Self {
+        address_space_bytes: 4 * 1024 * 1024 * 1024,
+        single_file_bytes: 256 * 1024 * 1024,
+        artifact_total_bytes: 512 * 1024 * 1024,
+        artifact_file_count: 2048,
+    };
+
+    fn valid(self) -> bool {
+        self.address_space_bytes > 0
+            && self.address_space_bytes <= Self::DEFAULT.address_space_bytes
+            && self.single_file_bytes > 0
+            && self.single_file_bytes <= Self::DEFAULT.single_file_bytes
+            && self.artifact_total_bytes > 0
+            && self.artifact_total_bytes <= Self::DEFAULT.artifact_total_bytes
+            && self.artifact_file_count > 0
+            && self.artifact_file_count <= Self::DEFAULT.artifact_file_count
+    }
+}
+
+impl Default for ResourceLimits {
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct JobSpec {
@@ -30,6 +69,10 @@ pub struct JobSpec {
     pub timeout: Duration,
     /// Limit for each stream; exceeding either terminates the job.
     pub capture_limit_bytes: usize,
+    /// Additional output locations outside the working directory.
+    pub artifact_roots: Vec<PathBuf>,
+    /// Requested ceilings, bounded above by the implementation defaults.
+    pub resource_limits: ResourceLimits,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -56,6 +99,8 @@ pub enum ExecutionStatus {
     Cancelled,
     TimedOut,
     OutputLimit,
+    ArtifactLimit,
+    FileSizeLimit,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -69,6 +114,15 @@ pub struct JobResult {
     /// Captured text is lossy UTF-8; original solver artifacts remain separate.
     pub stdout_truncated: bool,
     pub stderr_truncated: bool,
+    /// Defaults on older serialized records that predate resource reporting.
+    #[serde(default)]
+    pub resource_limits: ResourceLimits,
+    #[serde(default)]
+    pub artifact_files_observed: u64,
+    #[serde(default)]
+    pub artifact_bytes_observed: u64,
+    #[serde(default)]
+    pub largest_artifact_file_bytes_observed: u64,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +139,71 @@ pub enum JobError {
 struct Capture {
     bytes: Vec<u8>,
     truncated: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ArtifactUsage {
+    files: u64,
+    bytes: u64,
+    largest_file_bytes: u64,
+    exceeded_scan_bound: bool,
+}
+
+fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactUsage, JobError> {
+    use std::{collections::HashSet, fs};
+    let mut seen_roots = HashSet::new();
+    let mut pending = Vec::new();
+    for root in roots {
+        if root.exists() {
+            let canonical = root.canonicalize()?;
+            if !seen_roots
+                .iter()
+                .any(|outer: &PathBuf| canonical.starts_with(outer))
+            {
+                seen_roots.insert(canonical.clone());
+                pending.push(canonical);
+            }
+        }
+    }
+    let mut usage = ArtifactUsage::default();
+    let mut entries_scanned = 0_u64;
+    let maximum_entries = limits.artifact_file_count.saturating_mul(8).max(4096);
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(directory)? {
+            entries_scanned = entries_scanned.saturating_add(1);
+            if entries_scanned > maximum_entries {
+                usage.exceeded_scan_bound = true;
+                return Ok(usage);
+            }
+            let entry = entry?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)?;
+            let kind = metadata.file_type();
+            if kind.is_symlink() {
+                // Exclude external nuclear-data links and never recurse through
+                // symlinks into arbitrary user directories.
+                continue;
+            }
+            if kind.is_dir() {
+                pending.push(path);
+                if pending.len() as u64 > limits.artifact_file_count {
+                    usage.exceeded_scan_bound = true;
+                    return Ok(usage);
+                }
+            } else if kind.is_file() {
+                usage.files = usage.files.saturating_add(1);
+                usage.bytes = usage.bytes.saturating_add(metadata.len());
+                usage.largest_file_bytes = usage.largest_file_bytes.max(metadata.len());
+                if usage.files > limits.artifact_file_count
+                    || usage.bytes > limits.artifact_total_bytes
+                    || usage.largest_file_bytes > limits.single_file_bytes
+                {
+                    return Ok(usage);
+                }
+            }
+        }
+    }
+    Ok(usage)
 }
 
 fn capture(mut stream: impl Read, limit: usize, exceeded: Arc<AtomicBool>) -> IoResult<Capture> {
@@ -107,14 +226,14 @@ fn capture(mut stream: impl Read, limit: usize, exceeded: Arc<AtomicBool>) -> Io
 }
 
 /// Execute synchronously on the calling worker with bounded wall time and logs.
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult, JobError> {
     use nix::{
         errno::Errno,
         sys::signal::{Signal, killpg},
         unistd::Pid,
     };
-    use std::os::unix::process::CommandExt;
+    use std::os::unix::process::{CommandExt, ExitStatusExt};
 
     if !spec.program.is_absolute() || !spec.program.is_file() {
         return Err(JobError::Invalid(
@@ -134,6 +253,46 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
             "each log limit must be in 1..=4194304 bytes",
         ));
     }
+    if !spec.resource_limits.valid() {
+        return Err(JobError::Invalid(
+            "resource limits must be positive and no greater than the runner defaults",
+        ));
+    }
+    if spec.artifact_roots.len() > 16 {
+        return Err(JobError::Invalid(
+            "at most 16 artifact roots may be configured",
+        ));
+    }
+    let mut artifact_roots = vec![spec.working_directory.clone()];
+    for root in &spec.artifact_roots {
+        if !root.is_absolute() {
+            return Err(JobError::Invalid("artifact roots must be absolute paths"));
+        }
+        std::fs::create_dir_all(root)?;
+        if !root.is_dir() {
+            return Err(JobError::Invalid("artifact roots must be directories"));
+        }
+        artifact_roots.push(root.clone());
+    }
+    let initial_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
+    if initial_usage.exceeded_scan_bound
+        || initial_usage.files > spec.resource_limits.artifact_file_count
+        || initial_usage.bytes > spec.resource_limits.artifact_total_bytes
+        || initial_usage.largest_file_bytes > spec.resource_limits.single_file_bytes
+    {
+        return Err(JobError::Invalid(
+            "existing artifact roots already exceed configured limits",
+        ));
+    }
+    let prlimit = [
+        PathBuf::from("/usr/bin/prlimit"),
+        PathBuf::from("/bin/prlimit"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
+    .ok_or(JobError::Invalid(
+        "Linux prlimit utility is required for bounded execution",
+    ))?;
     let start = Instant::now();
     if cancellation.is_cancelled() {
         return Ok(JobResult {
@@ -144,9 +303,20 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
             stderr: String::new(),
             stdout_truncated: false,
             stderr_truncated: false,
+            resource_limits: spec.resource_limits,
+            artifact_files_observed: initial_usage.files,
+            artifact_bytes_observed: initial_usage.bytes,
+            largest_artifact_file_bytes_observed: initial_usage.largest_file_bytes,
         });
     }
-    let mut child = Command::new(&spec.program)
+    let mut child = Command::new(prlimit)
+        .arg(format!("--as={}", spec.resource_limits.address_space_bytes))
+        .arg(format!(
+            "--fsize={}",
+            spec.resource_limits.single_file_bytes
+        ))
+        .arg("--")
+        .arg(&spec.program)
         .args(&spec.arguments)
         .current_dir(&spec.working_directory)
         .env_clear()
@@ -168,6 +338,8 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
     let out_reader = thread::spawn(move || capture(stdout, limit, out_flag));
     let err_reader = thread::spawn(move || capture(stderr, limit, err_flag));
 
+    let mut observed_usage: ArtifactUsage;
+    let mut next_artifact_scan = Instant::now();
     let outcome = loop {
         if cancellation.is_cancelled() {
             break Ok((ExecutionStatus::Cancelled, None));
@@ -178,10 +350,28 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
         if start.elapsed() >= spec.timeout {
             break Ok((ExecutionStatus::TimedOut, None));
         }
+        if Instant::now() >= next_artifact_scan {
+            observed_usage = match artifact_usage(&artifact_roots, spec.resource_limits) {
+                Ok(usage) => usage,
+                Err(error) => break Err(error),
+            };
+            if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
+                break Ok((ExecutionStatus::FileSizeLimit, None));
+            }
+            if observed_usage.exceeded_scan_bound
+                || observed_usage.files > spec.resource_limits.artifact_file_count
+                || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
+            {
+                break Ok((ExecutionStatus::ArtifactLimit, None));
+            }
+            next_artifact_scan = Instant::now() + ARTIFACT_SCAN_INTERVAL;
+        }
         match child.try_wait() {
             Ok(Some(status)) => {
                 break Ok((
-                    if status.success() {
+                    if status.signal() == Some(Signal::SIGXFSZ as i32) {
+                        ExecutionStatus::FileSizeLimit
+                    } else if status.success() {
                         ExecutionStatus::Succeeded
                     } else {
                         ExecutionStatus::Failed
@@ -190,7 +380,7 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
                 ));
             }
             Ok(None) => thread::sleep(Duration::from_millis(10)),
-            Err(error) => break Err(error),
+            Err(error) => break Err(JobError::Io(error)),
         }
     };
     // Close pipes held by descendant processes even when the direct child exits.
@@ -205,6 +395,18 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
     cleanup?;
     let (mut execution_status, exit_code) = outcome?;
     let waited = waited?;
+    // Catch short-lived bursts that may finish between watchdog polls. A
+    // completed job that crossed either aggregate ceiling is never succeeded.
+    observed_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
+    if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
+        execution_status = ExecutionStatus::FileSizeLimit;
+    } else if observed_usage.exceeded_scan_bound
+        || observed_usage.files > spec.resource_limits.artifact_file_count
+        || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
+        || observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes
+    {
+        execution_status = ExecutionStatus::ArtifactLimit;
+    }
     // A short-lived process may exit before the reader detects oversized output.
     if matches!(
         execution_status,
@@ -221,18 +423,22 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
         stderr: String::from_utf8_lossy(&err.bytes).into_owned(),
         stdout_truncated: out.truncated,
         stderr_truncated: err.truncated,
+        resource_limits: spec.resource_limits,
+        artifact_files_observed: observed_usage.files,
+        artifact_bytes_observed: observed_usage.bytes,
+        largest_artifact_file_bytes_observed: observed_usage.largest_file_bytes,
     })
 }
 
-/// Full descendant cancellation is currently implemented for Unix only.
-#[cfg(not(unix))]
+/// Resource-enforced execution currently requires Linux's trusted `prlimit`.
+#[cfg(not(target_os = "linux"))]
 pub fn run_job(_spec: &JobSpec, _cancellation: &Cancellation) -> Result<JobResult, JobError> {
     Err(JobError::Invalid(
-        "external job execution requires the Unix process-group adapter",
+        "bounded external job execution currently requires Linux prlimit",
     ))
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
     fn shell(script: &str) -> (tempfile::TempDir, JobSpec) {
@@ -244,6 +450,8 @@ mod tests {
             environment: vec![],
             timeout: Duration::from_secs(3),
             capture_limit_bytes: 1024,
+            artifact_roots: vec![],
+            resource_limits: ResourceLimits::default(),
         };
         (dir, spec)
     }
@@ -296,5 +504,93 @@ mod tests {
             ExecutionStatus::Cancelled
         );
         assert!(!dir.path().join("should-not-exist").exists());
+    }
+
+    #[test]
+    fn inherited_address_space_limit_bounds_child_allocation() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut spec = shell("true").1;
+        spec.program = PathBuf::from("/usr/bin/python3");
+        spec.arguments = vec!["-c".into(), "bytearray(5 * 1024**3)".into()];
+        spec.working_directory = dir.path().to_owned();
+        spec.timeout = Duration::from_secs(10);
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Failed);
+        assert!(result.exit_code.is_some_and(|code| code != 0));
+        assert_eq!(
+            result.resource_limits.address_space_bytes,
+            4 * 1024 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn oversized_single_file_is_killed_by_inherited_file_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut spec = shell("true").1;
+        spec.program = PathBuf::from("/usr/bin/dd");
+        spec.arguments = vec![
+            "if=/dev/zero".into(),
+            "of=oversized.bin".into(),
+            "bs=4096".into(),
+            "count=32".into(),
+            "status=none".into(),
+        ];
+        spec.working_directory = dir.path().to_owned();
+        spec.resource_limits.single_file_bytes = 64 * 1024;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::FileSizeLimit);
+        assert_eq!(
+            std::fs::metadata(dir.path().join("oversized.bin"))
+                .unwrap()
+                .len(),
+            64 * 1024
+        );
+        assert_eq!(result.artifact_files_observed, 1);
+        assert_eq!(result.artifact_bytes_observed, 64 * 1024);
+    }
+
+    #[test]
+    fn aggregate_artifact_bytes_are_checked_even_for_short_jobs() {
+        let (dir, mut spec) = shell(
+            "dd if=/dev/zero of=a bs=4096 count=8 status=none; dd if=/dev/zero of=b bs=4096 count=8 status=none",
+        );
+        spec.resource_limits.artifact_total_bytes = 48 * 1024;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::ArtifactLimit);
+        assert!(result.artifact_bytes_observed > result.resource_limits.artifact_total_bytes);
+        assert_eq!(result.artifact_files_observed, 2);
+        assert!(dir.path().join("a").exists());
+        assert!(dir.path().join("b").exists());
+    }
+
+    #[test]
+    fn aggregate_artifact_file_count_includes_explicit_external_roots() {
+        let (dir, mut spec) = shell("mkdir -p extra; touch a b; touch extra/c extra/d");
+        let extra = dir.path().join("extra");
+        spec.artifact_roots = vec![extra];
+        spec.resource_limits.artifact_file_count = 3;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::ArtifactLimit);
+        assert_eq!(result.artifact_files_observed, 4);
+    }
+
+    #[test]
+    fn artifact_scanner_does_not_follow_external_symlinks() {
+        let (dir, mut spec) = shell("touch local; ln -s /tmp external-link");
+        spec.artifact_roots = vec![dir.path().to_owned()];
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(result.artifact_files_observed, 1);
+    }
+
+    #[test]
+    fn legacy_job_results_default_resource_metadata() {
+        let result: JobResult = serde_json::from_str(
+            r#"{"execution_status":"SUCCEEDED","exit_code":0,"elapsed_seconds":1.0,"stdout":"","stderr":"","stdout_truncated":false,"stderr_truncated":false}"#,
+        )
+        .unwrap();
+        assert_eq!(result.resource_limits, ResourceLimits::default());
+        assert_eq!(result.artifact_files_observed, 0);
+        assert_eq!(result.artifact_bytes_observed, 0);
     }
 }

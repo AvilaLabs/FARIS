@@ -1,0 +1,311 @@
+{
+  "schema_version": "faris-operating-history-verification/v0.1",
+  "status": "NUMERICAL_MASS_AND_CONDITIONAL_ENERGY_LEDGER_CONTROLS_VERIFIED; PHYSICAL_ENERGY_CLOSURE_AND_ENGINEERING_QUALIFICATION_NOT_EVALUATED",
+  "solver": {
+    "name": "OpenMC",
+    "version": "0.15.3",
+    "digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51"
+  },
+  "nuclear_data": {
+    "name": "Local FENDL HDF5 inventory; release provenance not authenticated",
+    "version": "3.2 (local assertion)",
+    "digest": "sha256:893558d0ca509245c4a73e33f269d10f69fa5f2510f7f002741b30ee365ea445"
+  },
+  "sampling": {
+    "batches": 100,
+    "particles_per_batch": 10000,
+    "total_histories": 1000000,
+    "reference_seed": 123456789,
+    "breeder_seed": 987654321,
+    "threads": 1,
+    "note": "Saved independent seed streams; pairing is descriptive and does not assume covariance."
+  },
+  "source_run_identities": {
+    "reference_run": {
+      "path": "runs/cold-reference-1m-001/run.json",
+      "sha256": "bc4248d25523645f186485081061fceb27cde94b13c0c0f67b222ea6005d6bf2"
+    },
+    "breeder_run": {
+      "path": "runs/cold-breeder-1m-001/run.json",
+      "sha256": "f80bd2b29be4dba77c4f7e494592f5ddfe14f0d163379d9dbcf2fd7869aa360a"
+    },
+    "base_assumptions": {
+      "path": "scenarios/arc-inspired/demo-operating-assumptions.json",
+      "sha256": "b5e633127ab9329cca9cb6fa6ea2f1bb530d49c30a27222f5f683971baf439dc"
+    },
+    "event_assumptions": {
+      "path": "scenarios/arc-inspired/demo-event-assumptions.json",
+      "sha256": "9fdc7c7024a9e5cc2a628db0e6a3451038ab6475e8fe36d176763898f9ed6dd1"
+    },
+    "sensitivity_grid": {
+      "path": "scenarios/arc-inspired/demo-operating-sensitivity.json",
+      "sha256": "0bbeb1f835c3d6940befdb7470a81ad33a68766f745c21f85ed6071dc28bb53c"
+    }
+  },
+  "raw_transport_artifact_sha256": {
+    "reference": "2420ec3c8ebba9486013dedd26ae579a8fc25505590271e082d0e2bcca247389",
+    "breeder_emphasis": "f625662ecd59c62ef0544cf4a4d80c69f98d4cefd1a72712508a1e8e91c1c822"
+  },
+  "histories": {
+    "reference": {
+      "outcome": "horizon_completed",
+      "snapshots": 11004,
+      "events": 63,
+      "final_time_s": 946728000.0,
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "breeder_h3_per_source_neutron": 0.8648593829734164,
+      "breeder_h3_standard_error": 0.0010435386849760215,
+      "blanket_flux_n_m2_s": 8.98732203981091e+17,
+      "magnet_flux_n_m2_s": 13728521755576.117,
+      "whole_model_neutron_deposited_heat": null,
+      "final_available_kg": 0.11020019144077378,
+      "cumulative_produced_kg": 20.769551942746094,
+      "cumulative_burned_kg": 24.01494665102608,
+      "cumulative_processing_loss_kg": 1.038317645676951,
+      "cumulative_decay_kg": 0.6060874546013979,
+      "full_power_years": 0.8161197477051202,
+      "fusion_energy_mwh": 3755905.49690112,
+      "net_electricity_mwh": null,
+      "blanket_fluence_n_m2": 2.3146650686911925e+25,
+      "magnet_fluence_n_m2": 3.535750650932272e+20,
+      "blanket_replacements": 0,
+      "max_abs_mass_balance_residual_kg": 8.950618024528012e-13,
+      "mass_balance_tolerance_kg": 5.1428903694050524e-09,
+      "event_kinds": {
+        "fuel_unavailable": 1,
+        "operation_started": 1,
+        "operation_stopped": 1,
+        "planned_outage_ended": 30,
+        "planned_outage_started": 30
+      }
+    },
+    "breeder_emphasis": {
+      "outcome": "horizon_completed",
+      "snapshots": 11004,
+      "events": 63,
+      "final_time_s": 946728000.0,
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "breeder_h3_per_source_neutron": 0.8675012939502785,
+      "breeder_h3_standard_error": 0.0009964854456508611,
+      "blanket_flux_n_m2_s": 7.125213220892522e+17,
+      "magnet_flux_n_m2_s": 13309982688007.371,
+      "whole_model_neutron_deposited_heat": null,
+      "final_available_kg": 0.11035848182999618,
+      "cumulative_produced_kg": 21.119468759906635,
+      "cumulative_burned_kg": 24.345172632234803,
+      "cumulative_processing_loss_kg": 1.0558107917389605,
+      "cumulative_decay_kg": 0.6081268541020498,
+      "full_power_years": 0.8273420897067928,
+      "fusion_energy_mwh": 3807552.3981441157,
+      "net_electricity_mwh": null,
+      "blanket_fluence_n_m2": 1.860316984216955e+25,
+      "magnet_fluence_n_m2": 3.4750941602043075e+20,
+      "blanket_replacements": 0,
+      "max_abs_mass_balance_residual_kg": 8.276712648580542e-13,
+      "mass_balance_tolerance_kg": 5.212857903798245e-09,
+      "event_kinds": {
+        "fuel_unavailable": 1,
+        "operation_started": 1,
+        "operation_stopped": 1,
+        "planned_outage_ended": 30,
+        "planned_outage_started": 30
+      }
+    },
+    "event_reference": {
+      "outcome": "permanent_component_limit",
+      "snapshots": 11045,
+      "events": 241,
+      "final_time_s": 946728000.0,
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "breeder_h3_per_source_neutron": 0.8648593829734164,
+      "breeder_h3_standard_error": 0.0010435386849760215,
+      "blanket_flux_n_m2_s": 8.98732203981091e+17,
+      "magnet_flux_n_m2_s": 13728521755576.117,
+      "whole_model_neutron_deposited_heat": null,
+      "final_available_kg": 4.794448495280744,
+      "cumulative_produced_kg": 234.9662517889294,
+      "cumulative_burned_kg": 271.68145066667125,
+      "cumulative_processing_loss_kg": 11.74650305618448,
+      "cumulative_decay_kg": 46.743849570136156,
+      "full_power_years": 9.23277491290198,
+      "fusion_energy_mwh": 42490615.06541018,
+      "net_electricity_mwh": null,
+      "blanket_fluence_n_m2": 1.8584054371411987e+24,
+      "magnet_fluence_n_m2": 4e+21,
+      "blanket_replacements": 26,
+      "max_abs_mass_balance_residual_kg": 6.56889653782855e-10,
+      "mass_balance_tolerance_kg": 6.651380550819212e-08,
+      "event_kinds": {
+        "operation_started": 33,
+        "operation_stopped": 33,
+        "planned_outage_ended": 48,
+        "planned_outage_started": 48,
+        "replacement_completed": 26,
+        "replacement_started": 26,
+        "service_limit_reached": 27
+      }
+    },
+    "event_breeder_emphasis": {
+      "outcome": "permanent_component_limit",
+      "snapshots": 11046,
+      "events": 238,
+      "final_time_s": 946728000.0,
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "breeder_h3_per_source_neutron": 0.8675012939502785,
+      "breeder_h3_standard_error": 0.0009964854456508611,
+      "blanket_flux_n_m2_s": 7.125213220892522e+17,
+      "magnet_flux_n_m2_s": 13309982688007.371,
+      "whole_model_neutron_deposited_heat": null,
+      "final_available_kg": 4.571691923066772,
+      "cumulative_produced_kg": 243.09521165508562,
+      "cumulative_burned_kg": 280.2246098654828,
+      "cumulative_processing_loss_kg": 12.15288844636027,
+      "cumulative_decay_kg": 46.14602141927714,
+      "full_power_years": 9.523104141247272,
+      "fusion_energy_mwh": 43826753.723639295,
+      "net_electricity_mwh": null,
+      "blanket_fluence_n_m2": 4.1314046129069687e+24,
+      "magnet_fluence_n_m2": 4e+21,
+      "blanket_replacements": 21,
+      "max_abs_mass_balance_residual_kg": 8.986944521893747e-10,
+      "mass_balance_tolerance_kg": 6.81618731386206e-08,
+      "event_kinds": {
+        "operation_started": 36,
+        "operation_stopped": 36,
+        "planned_outage_ended": 51,
+        "planned_outage_started": 51,
+        "replacement_completed": 21,
+        "replacement_started": 21,
+        "service_limit_reached": 22
+      }
+    }
+  },
+  "paired_difference_breeder_minus_reference": {
+    "produced_tritium_kg": 0.34991681716054046,
+    "burned_tritium_kg": 0.3302259812087236,
+    "full_power_seconds": 354150.17995198444,
+    "qualification": "descriptive deterministic conditional point comparison; different seeds; no covariance/inferential statement"
+  },
+  "refinement": {
+    "coarse_step_s": 3600,
+    "fine_step_s": 1800,
+    "coarse_result": "/tmp/faris-history-reference.json",
+    "fine_result": "/tmp/faris-history-reference-halfstep.json",
+    "criterion": "relative aggregate <=1e-4; final available stock and decay <=1e-4 kg; identical event-kind sequence; maximum event-time shift <= coarse integration step (3600 s)",
+    "acceptance": "PASS",
+    "relative_change_production": 1.782344662280823e-05,
+    "relative_change_full_power_time": 1.7823446623690724e-05,
+    "absolute_change_final_stock_kg": 1.485076825864795e-05,
+    "absolute_change_decay_kg": 6.149974932112556e-05,
+    "maximum_event_time_change_s": 459.0389564409852,
+    "maximum_absolute_mass_balance_residual_coarse_kg": 8.950618024528012e-13,
+    "maximum_absolute_mass_balance_residual_fine_kg": 5.351413756571333e-13,
+    "control_script": "controls/check_history.py"
+  },
+  "sensitivity": {
+    "artifact": "references/operating-history-sensitivity-reference-1m.json",
+    "sha256": "65f3de238ed48c7ccaec8229e56cc404383f822b5f7269ae1973db0f158fac88",
+    "points": 27,
+    "all_outcomes": {
+      "horizon_completed": 27
+    },
+    "full_power_years_by_recovery_fraction": {
+      "0.9": {
+        "minimum": 0.6558221153542532,
+        "maximum": 0.6658921319678736
+      },
+      "0.95": {
+        "minimum": 0.811683408405121,
+        "maximum": 0.8223946174899471
+      },
+      "0.99": {
+        "minimum": 0.9997446367131894,
+        "maximum": 1.0119749724984222
+      }
+    },
+    "service_limit_factor_effect": "none in this baseline sweep because even 0.5x blanket threshold is not reached before fuel starvation; sensitivity is informative about its inactivity under baseline assumptions only"
+  },
+  "energy_status": "Baseline 1M histories lacked whole-model heat; coupled 30k smoke has a successfully bound heat response and passes conditional ledger arithmetic. Physical source-to-heating closure and engineering qualification remain NOT_EVALUATED.",
+  "independent_control": "controls/check_history.py uses Decimal and independently checked 11,004 reference-history states; max residual 8.93e-13 kg, tolerance 5.14e-9 kg; source-rate production/burn checks PASS",
+  "limits": [
+    "authored inventory, reserve, restart, delay, recovery, outage, service ceilings and energy coefficients are numerical scenario controls only",
+    "energy-integrated component-average flux ceiling is not a damage or material allowable",
+    "transport standard errors remain sampling uncertainty only and are not propagated through nonlinear history; physical/model uncertainty is unqualified",
+    "no blanket self-sufficiency or net-power conclusion follows"
+  ],
+  "comparison_artifact": {
+    "path": "references/operating-history-comparison-reference-1m.json",
+    "sha256": "0eaa93223a8c6483116250775b39598e3ca1ed6969ee3a3da335e4eabf398924",
+    "size_bytes": 57365,
+    "qualification": "descriptive deterministic conditional comparison; distinct seeds; no covariance/inferential conclusion",
+    "controlled_difference": "blanket lithium enrichment and neutron multiplier differ; distinct seeds, descriptive comparison only"
+  },
+  "event_demonstrations": {
+    "reference": {
+      "outcome": "permanent_component_limit",
+      "snapshot_count": 11045,
+      "event_count": 241,
+      "event_kinds": {
+        "planned_outage_started": 48,
+        "planned_outage_ended": 48,
+        "operation_started": 33,
+        "service_limit_reached": 27,
+        "replacement_started": 26,
+        "operation_stopped": 33,
+        "replacement_completed": 26
+      },
+      "final_time_s": 946728000.0,
+      "full_power_years": 9.23277491290198,
+      "available_tritium_kg": 4.794448495280744,
+      "produced_kg": 234.9662517889294,
+      "burned_kg": 271.68145066667125,
+      "processing_loss_kg": 11.74650305618448,
+      "decay_kg": 46.743849570136156,
+      "blanket_fluence_n_m2": 1.8584054371411987e+24,
+      "magnet_fluence_n_m2": 4e+21,
+      "blanket_replacements": 26,
+      "energy_outputs": "unavailable because source run has no whole-model heating response",
+      "input_assumptions_sha256": "9fdc7c7024a9e5cc2a628db0e6a3451038ab6475e8fe36d176763898f9ed6dd1"
+    },
+    "breeder_emphasis": {
+      "outcome": "permanent_component_limit",
+      "snapshot_count": 11046,
+      "event_count": 238,
+      "event_kinds": {
+        "planned_outage_started": 51,
+        "planned_outage_ended": 51,
+        "operation_started": 36,
+        "service_limit_reached": 22,
+        "replacement_started": 21,
+        "operation_stopped": 36,
+        "replacement_completed": 21
+      },
+      "final_time_s": 946728000.0,
+      "full_power_years": 9.523104141247272,
+      "available_tritium_kg": 4.571691923066772,
+      "produced_kg": 243.09521165508562,
+      "burned_kg": 280.2246098654828,
+      "processing_loss_kg": 12.15288844636027,
+      "decay_kg": 46.14602141927714,
+      "blanket_fluence_n_m2": 4.1314046129069687e+24,
+      "magnet_fluence_n_m2": 4e+21,
+      "blanket_replacements": 21,
+      "energy_outputs": "unavailable because source run has no whole-model heating response",
+      "input_assumptions_sha256": "9fdc7c7024a9e5cc2a628db0e6a3451038ab6475e8fe36d176763898f9ed6dd1"
+    },
+    "interpretation": "Numerical software-control threshold exercise only: authored blanket triggers cause local replacement, then authored magnet trigger permanently stops the machine. Values are not qualified material limits or lifetime predictions."
+  },
+  "coupled_smoke_30k": {
+    "artifact": "references/operating-history-coupled-smoke-30k.json",
+    "sha256": "1a5b4b89f1d5f77f01242d9458df9310305c87173d85aefbca91cb5e802d45fe",
+    "status": "RUN_AND_BINDING_SUCCEEDED; NUMERICAL_LEDGER_AUDIT_PASSED; PHYSICAL_ENERGY_CLOSURE_NOT_EVALUATED",
+    "heating_W": 535211995.87432015,
+    "heating_standard_error_W": 1889860.939381727,
+    "declared_fusion_power_W": 525000000.0,
+    "energy_closure": "NOT_EVALUATED: OpenMC heating includes reaction-energy Q; no complete nuclear reaction and escaping-particle energy balance"
+  }
+}

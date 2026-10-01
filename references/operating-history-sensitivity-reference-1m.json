@@ -1,0 +1,1608 @@
+{
+  "schema_version": "faris-history-sensitivity/v0.1",
+  "rationale": "Predeclared bounded design-space probes around the authored operating demonstration scenario; these values are not probability distributions, confidence intervals, validated physical uncertainty, or recommended set points. Every case is a full event-aware history rerun with the same transport driving-rate realization.",
+  "base_assumptions": {
+    "schema_version": "faris-operating-history/v0.1",
+    "horizon_s": 946728000.0,
+    "maximum_step_s": 3600.0,
+    "snapshot_interval_s": 86400.0,
+    "initial_available_tritium_kg": 5.0,
+    "initial_in_process_tritium_kg": 0.0,
+    "initial_in_process_release_s": 0.0,
+    "startup_reserve_kg": 0.5,
+    "restart_inventory_kg": 0.6,
+    "recovery_fraction": 0.95,
+    "processing_delay_s": 86400.0,
+    "operation": [
+      {
+        "start_s": 0.0,
+        "end_s": 946728000.0,
+        "power_fraction": 1.0
+      }
+    ],
+    "planned_outages": [
+      {
+        "start_s": 0.0,
+        "end_s": 2592000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 31557600.0,
+        "end_s": 34149600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 63115200.0,
+        "end_s": 65707200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 94672800.0,
+        "end_s": 97264800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 126230400.0,
+        "end_s": 128822400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 157788000.0,
+        "end_s": 160380000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 189345600.0,
+        "end_s": 191937600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 220903200.0,
+        "end_s": 223495200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 252460800.0,
+        "end_s": 255052800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 284018400.0,
+        "end_s": 286610400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 315576000.0,
+        "end_s": 318168000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 347133600.0,
+        "end_s": 349725600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 378691200.0,
+        "end_s": 381283200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 410248800.0,
+        "end_s": 412840800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 441806400.0,
+        "end_s": 444398400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 473364000.0,
+        "end_s": 475956000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 504921600.0,
+        "end_s": 507513600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 536479200.0,
+        "end_s": 539071200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 568036800.0,
+        "end_s": 570628800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 599594400.0,
+        "end_s": 602186400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 631152000.0,
+        "end_s": 633744000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 662709600.0,
+        "end_s": 665301600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 694267200.0,
+        "end_s": 696859200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 725824800.0,
+        "end_s": 728416800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 757382400.0,
+        "end_s": 759974400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 788940000.0,
+        "end_s": 791532000.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 820497600.0,
+        "end_s": 823089600.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 852055200.0,
+        "end_s": 854647200.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 883612800.0,
+        "end_s": 886204800.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "start_s": 915170400.0,
+        "end_s": 917762400.0,
+        "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      }
+    ],
+    "imports": [],
+    "service_limits": [
+      {
+        "component_id": "blanket",
+        "class": "replaceable",
+        "response_id": "blanket-flux",
+        "metric": "energy_integrated_component_average_neutron_flux",
+        "unit": "neutrons/m²",
+        "limit": 1e+26,
+        "replacement_duration_s": 5184000.0,
+        "provenance": "Authored numerical trip threshold for scenario behavior only; not a material damage limit, fast-neutron fluence, code allowable, or empirical lifetime."
+      },
+      {
+        "component_id": "magnets",
+        "class": "permanent",
+        "response_id": "magnets-flux",
+        "metric": "energy_integrated_component_average_neutron_flux",
+        "unit": "neutrons/m²",
+        "limit": 1e+25,
+        "replacement_duration_s": null,
+        "provenance": "Authored numerical permanent-stop threshold for scenario behavior only; no engineering or safety qualification."
+      }
+    ],
+    "energy": {
+      "alpha_deposition_fraction": 1.0,
+      "thermal_to_electric_efficiency": 0.4,
+      "neutron_heat_recovery_fraction": 0.9,
+      "auxiliary_power_mw_while_operating": 60.0,
+      "auxiliary_power_mw_while_off": 5.0,
+      "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model neutron/photon heat recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically."
+    },
+    "provenance": "Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years."
+  },
+  "driving_rates": {
+    "reference_fusion_power_mw": 525.0,
+    "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+    "neutron_source_rate_per_s": 1.8618137864158527e+20,
+    "total_reaction_energy_ev": 17600000.0,
+    "primary_neutron_energy_ev": 14100000.0,
+    "breeder_h3_per_source_neutron": {
+      "mean": 0.8648593829734164,
+      "standard_error": 0.0010435386849760215,
+      "unit": "particles/source_neutron",
+      "response_id": "blanket-tritium"
+    },
+    "component_average_flux_n_m2_s": {
+      "blanket": {
+        "mean": 8.98732203981091e+17,
+        "standard_error": 924009064761644.8,
+        "unit": "neutrons/m²/s",
+        "response_id": "blanket-flux"
+      },
+      "first-wall": {
+        "mean": 5.135654622061885e+19,
+        "standard_error": 3.2222412084994896e+16,
+        "unit": "neutrons/m²/s",
+        "response_id": "first-wall-flux"
+      },
+      "magnet-gap": {
+        "mean": 13101295905301.83,
+        "standard_error": 5337769415791.09,
+        "unit": "neutrons/m²/s",
+        "response_id": "magnet-gap-flux"
+      },
+      "magnets": {
+        "mean": 13728521755576.117,
+        "standard_error": 7123726330434.011,
+        "unit": "neutrons/m²/s",
+        "response_id": "magnets-flux"
+      },
+      "shield": {
+        "mean": 1567424934966788.8,
+        "standard_error": 27835836726351.44,
+        "unit": "neutrons/m²/s",
+        "response_id": "shield-flux"
+      },
+      "vessel": {
+        "mean": 15536265569105.035,
+        "standard_error": 6951429397894.519,
+        "unit": "neutrons/m²/s",
+        "response_id": "vessel-flux"
+      }
+    },
+    "neutron_deposited_heat_w": null,
+    "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+    "transport_artifact_sha256": "2420ec3c8ebba9486013dedd26ae579a8fc25505590271e082d0e2bcca247389",
+    "solver_digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+    "nuclear_data_digest": "sha256:893558d0ca509245c4a73e33f269d10f69fa5f2510f7f002741b30ee365ea445"
+  },
+  "grid": {
+    "recovery_fraction_levels": [
+      0.9,
+      0.95,
+      0.99
+    ],
+    "delay_multipliers": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "service_limit_multipliers": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "rationale": "Predeclared bounded design-space probes around the authored operating demonstration scenario; these values are not probability distributions, confidence intervals, validated physical uncertainty, or recommended set points. Every case is a full event-aware history rerun with the same transport driving-rate realization."
+  },
+  "points": [
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10253465239980573,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.94638717181213,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.594384365178904,
+        "cumulative_processing_loss_kg": 1.6945082038327854,
+        "cumulative_decay_kg": 0.5549599504000591,
+        "cumulative_full_power_seconds": 21013957.543789368,
+        "cumulative_fusion_energy_mwh": 3064535.475135915,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.888592037769482e+25,
+          "first-wall": 1.0792042818757527e+27,
+          "magnet-gap": 2.7531007592263015e+20,
+          "magnets": 2.8849057331066366e+20,
+          "shield": 3.293780103646917e+22,
+          "vessel": 3.26478425058212e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.74651437545981e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 5.788702850395566e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10253465239980573,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.94638717181213,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.594384365178904,
+        "cumulative_processing_loss_kg": 1.6945082038327854,
+        "cumulative_decay_kg": 0.5549599504000591,
+        "cumulative_full_power_seconds": 21013957.543789368,
+        "cumulative_fusion_energy_mwh": 3064535.475135915,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.888592037769482e+25,
+          "first-wall": 1.0792042818757527e+27,
+          "magnet-gap": 2.7531007592263015e+20,
+          "magnets": 2.8849057331066366e+20,
+          "shield": 3.293780103646917e+22,
+          "vessel": 3.26478425058212e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.74651437545981e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 5.788702850395566e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10253465239980573,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.94638717181213,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.594384365178904,
+        "cumulative_processing_loss_kg": 1.6945082038327854,
+        "cumulative_decay_kg": 0.5549599504000591,
+        "cumulative_full_power_seconds": 21013957.543789368,
+        "cumulative_fusion_energy_mwh": 3064535.475135915,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.888592037769482e+25,
+          "first-wall": 1.0792042818757527e+27,
+          "magnet-gap": 2.7531007592263015e+20,
+          "magnets": 2.8849057331066366e+20,
+          "shield": 3.293780103646917e+22,
+          "vessel": 3.26478425058212e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.74651437545981e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 5.788702850395566e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10865294067114863,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.822575049913606,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.45122569183086,
+        "cumulative_processing_loss_kg": 1.681998395362787,
+        "cumulative_decay_kg": 0.5806980220484558,
+        "cumulative_full_power_seconds": 20860427.316573214,
+        "cumulative_fusion_energy_mwh": 3042145.6503335843,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8747937818211086e+25,
+          "first-wall": 1.0713194996654545e+27,
+          "magnet-gap": 2.7329863098546268e+20,
+          "magnets": 2.863828302461909e+20,
+          "shield": 3.2697153930059194e+22,
+          "vessel": 3.2409313867529336e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -3.540501225529624e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 3.574918139293004e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10865294067114863,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.822575049913606,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.45122569183086,
+        "cumulative_processing_loss_kg": 1.681998395362787,
+        "cumulative_decay_kg": 0.5806980220484558,
+        "cumulative_full_power_seconds": 20860427.316573214,
+        "cumulative_fusion_energy_mwh": 3042145.6503335843,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8747937818211086e+25,
+          "first-wall": 1.0713194996654545e+27,
+          "magnet-gap": 2.7329863098546268e+20,
+          "magnets": 2.863828302461909e+20,
+          "shield": 3.2697153930059194e+22,
+          "vessel": 3.2409313867529336e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -3.540501225529624e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 3.574918139293004e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10865294067114863,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.822575049913606,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.45122569183086,
+        "cumulative_processing_loss_kg": 1.681998395362787,
+        "cumulative_decay_kg": 0.5806980220484558,
+        "cumulative_full_power_seconds": 20860427.316573214,
+        "cumulative_fusion_energy_mwh": 3042145.6503335843,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8747937818211086e+25,
+          "first-wall": 1.0713194996654545e+27,
+          "magnet-gap": 2.7329863098546268e+20,
+          "magnets": 2.863828302461909e+20,
+          "shield": 3.2697153930059194e+22,
+          "vessel": 3.2409313867529336e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -3.540501225529624e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 3.574918139293004e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11519547854633015,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.690113832379843,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.29806643826744,
+        "cumulative_processing_loss_kg": 1.6684972840408971,
+        "cumulative_decay_kg": 0.6083546315246703,
+        "cumulative_full_power_seconds": 20696171.98750338,
+        "cumulative_fusion_energy_mwh": 3018191.748177545,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8600316264300675e+25,
+          "first-wall": 1.0628839132660973e+27,
+          "magnet-gap": 2.7114667331529776e+20,
+          "magnets": 2.841278473875854e+20,
+          "shield": 3.2439696031573896e+22,
+          "vessel": 3.215412242617276e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.059286323216838e-13
+      },
+      "event_count": 67,
+      "maximum_absolute_mass_balance_residual_kg": 5.074829445561591e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11519547854633015,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.690113832379843,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.29806643826744,
+        "cumulative_processing_loss_kg": 1.6684972840408971,
+        "cumulative_decay_kg": 0.6083546315246703,
+        "cumulative_full_power_seconds": 20696171.98750338,
+        "cumulative_fusion_energy_mwh": 3018191.748177545,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8600316264300675e+25,
+          "first-wall": 1.0628839132660973e+27,
+          "magnet-gap": 2.7114667331529776e+20,
+          "magnets": 2.841278473875854e+20,
+          "shield": 3.2439696031573896e+22,
+          "vessel": 3.215412242617276e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.059286323216838e-13
+      },
+      "event_count": 67,
+      "maximum_absolute_mass_balance_residual_kg": 5.074829445561591e-13
+    },
+    {
+      "recovery_fraction": 0.9,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11519547854633015,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 16.690113832379843,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 19.29806643826744,
+        "cumulative_processing_loss_kg": 1.6684972840408971,
+        "cumulative_decay_kg": 0.6083546315246703,
+        "cumulative_full_power_seconds": 20696171.98750338,
+        "cumulative_fusion_energy_mwh": 3018191.748177545,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 1.8600316264300675e+25,
+          "first-wall": 1.0628839132660973e+27,
+          "magnet-gap": 2.7114667331529776e+20,
+          "magnets": 2.841278473875854e+20,
+          "shield": 3.2439696031573896e+22,
+          "vessel": 3.215412242617276e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.059286323216838e-13
+      },
+      "event_count": 67,
+      "maximum_absolute_mass_balance_residual_kg": 5.074829445561591e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10379275037095347,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.929242030256137,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.199589485057842,
+        "cumulative_processing_loss_kg": 1.0463815077723813,
+        "cumulative_decay_kg": 0.57947828705355,
+        "cumulative_full_power_seconds": 25952800.380900756,
+        "cumulative_fusion_energy_mwh": 3784783.3888813313,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.332461748580835e+25,
+          "first-wall": 1.3328461923162376e+27,
+          "magnet-gap": 3.400153173614026e+20,
+          "magnets": 3.562935846473155e+20,
+          "shield": 4.067906644923968e+22,
+          "vessel": 4.03209598979645e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -1.410649375088724e-12
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 1.411315508903499e-12
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10379275037095347,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.929242030256137,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.199589485057842,
+        "cumulative_processing_loss_kg": 1.0463815077723813,
+        "cumulative_decay_kg": 0.57947828705355,
+        "cumulative_full_power_seconds": 25952800.380900756,
+        "cumulative_fusion_energy_mwh": 3784783.3888813313,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.332461748580835e+25,
+          "first-wall": 1.3328461923162376e+27,
+          "magnet-gap": 3.400153173614026e+20,
+          "magnets": 3.562935846473155e+20,
+          "shield": 4.067906644923968e+22,
+          "vessel": 4.03209598979645e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -1.410649375088724e-12
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 1.411315508903499e-12
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10379275037095347,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.929242030256137,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.199589485057842,
+        "cumulative_processing_loss_kg": 1.0463815077723813,
+        "cumulative_decay_kg": 0.57947828705355,
+        "cumulative_full_power_seconds": 25952800.380900756,
+        "cumulative_fusion_energy_mwh": 3784783.3888813313,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.332461748580835e+25,
+          "first-wall": 1.3328461923162376e+27,
+          "magnet-gap": 3.400153173614026e+20,
+          "magnets": 3.562935846473155e+20,
+          "shield": 4.067906644923968e+22,
+          "vessel": 4.03209598979645e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -1.410649375088724e-12
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 1.411315508903499e-12
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11020019144077378,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.769551942746094,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.01494665102608,
+        "cumulative_processing_loss_kg": 1.038317645676951,
+        "cumulative_decay_kg": 0.6060874546013979,
+        "cumulative_full_power_seconds": 25754780.5501791,
+        "cumulative_fusion_energy_mwh": 3755905.49690112,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3146650686911925e+25,
+          "first-wall": 1.3226765777271776e+27,
+          "magnet-gap": 3.3742100096400517e+20,
+          "magnets": 3.535750650932272e+20,
+          "shield": 4.036868522894819e+22,
+          "vessel": 4.0013311030160176e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -8.910649995641506e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 8.950618024528012e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11020019144077378,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.769551942746094,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.01494665102608,
+        "cumulative_processing_loss_kg": 1.038317645676951,
+        "cumulative_decay_kg": 0.6060874546013979,
+        "cumulative_full_power_seconds": 25754780.5501791,
+        "cumulative_fusion_energy_mwh": 3755905.49690112,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3146650686911925e+25,
+          "first-wall": 1.3226765777271776e+27,
+          "magnet-gap": 3.3742100096400517e+20,
+          "magnets": 3.535750650932272e+20,
+          "shield": 4.036868522894819e+22,
+          "vessel": 4.0013311030160176e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -8.910649995641506e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 8.950618024528012e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11020019144077378,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.769551942746094,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 24.01494665102608,
+        "cumulative_processing_loss_kg": 1.038317645676951,
+        "cumulative_decay_kg": 0.6060874546013979,
+        "cumulative_full_power_seconds": 25754780.5501791,
+        "cumulative_fusion_energy_mwh": 3755905.49690112,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3146650686911925e+25,
+          "first-wall": 1.3226765777271776e+27,
+          "magnet-gap": 3.3742100096400517e+20,
+          "magnets": 3.535750650932272e+20,
+          "shield": 4.036868522894819e+22,
+          "vessel": 4.0013311030160176e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -8.910649995641506e-13
+      },
+      "event_count": 63,
+      "maximum_absolute_mass_balance_residual_kg": 8.950618024528012e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11472586357868023,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.656650888965295,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 23.884403980155845,
+        "cumulative_processing_loss_kg": 1.0325144049872408,
+        "cumulative_decay_kg": 0.6250066402428617,
+        "cumulative_full_power_seconds": 25614780.329085447,
+        "cumulative_fusion_energy_mwh": 3735488.7979916004,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3020827979650414e+25,
+          "first-wall": 1.3154866499016927e+27,
+          "magnet-gap": 3.3558681664064985e+20,
+          "magnets": 3.516530690121542e+20,
+          "shield": 4.014924539150568e+22,
+          "vessel": 3.9795802968696173e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -6.669109708923315e-13
+      },
+      "event_count": 71,
+      "maximum_absolute_mass_balance_residual_kg": 7.066014440226809e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11472586357868023,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.656650888965295,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 23.884403980155845,
+        "cumulative_processing_loss_kg": 1.0325144049872408,
+        "cumulative_decay_kg": 0.6250066402428617,
+        "cumulative_full_power_seconds": 25614780.329085447,
+        "cumulative_fusion_energy_mwh": 3735488.7979916004,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3020827979650414e+25,
+          "first-wall": 1.3154866499016927e+27,
+          "magnet-gap": 3.3558681664064985e+20,
+          "magnets": 3.516530690121542e+20,
+          "shield": 4.014924539150568e+22,
+          "vessel": 3.9795802968696173e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -6.669109708923315e-13
+      },
+      "event_count": 71,
+      "maximum_absolute_mass_balance_residual_kg": 7.066014440226809e-13
+    },
+    {
+      "recovery_fraction": 0.95,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11472586357868023,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 20.656650888965295,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 23.884403980155845,
+        "cumulative_processing_loss_kg": 1.0325144049872408,
+        "cumulative_decay_kg": 0.6250066402428617,
+        "cumulative_full_power_seconds": 25614780.329085447,
+        "cumulative_fusion_energy_mwh": 3735488.7979916004,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.3020827979650414e+25,
+          "first-wall": 1.3154866499016927e+27,
+          "magnet-gap": 3.3558681664064985e+20,
+          "magnets": 3.516530690121542e+20,
+          "shield": 4.014924539150568e+22,
+          "vessel": 3.9795802968696173e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -6.669109708923315e-13
+      },
+      "event_count": 71,
+      "maximum_absolute_mass_balance_residual_kg": 7.066014440226809e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10570149886774391,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.753900472531093,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.778136168204945,
+        "cumulative_processing_loss_kg": 0.2575191702452397,
+        "cumulative_decay_kg": 0.6125436352109865,
+        "cumulative_full_power_seconds": 31935501.392116208,
+        "cumulative_fusion_energy_mwh": 4657260.619683593,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8701463551377976e+25,
+          "first-wall": 1.6400970533228653e+27,
+          "magnet-gap": 4.183964536222885e+20,
+          "magnets": 4.384272256368975e+20,
+          "shield": 5.005650119266961e+22,
+          "vessel": 4.9615843071043515e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -2.176703262080082e-12
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 2.180811087271195e-12
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10570149886774391,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.753900472531093,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.778136168204945,
+        "cumulative_processing_loss_kg": 0.2575191702452397,
+        "cumulative_decay_kg": 0.6125436352109865,
+        "cumulative_full_power_seconds": 31935501.392116208,
+        "cumulative_fusion_energy_mwh": 4657260.619683593,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8701463551377976e+25,
+          "first-wall": 1.6400970533228653e+27,
+          "magnet-gap": 4.183964536222885e+20,
+          "magnets": 4.384272256368975e+20,
+          "shield": 5.005650119266961e+22,
+          "vessel": 4.9615843071043515e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -2.176703262080082e-12
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 2.180811087271195e-12
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 0.5,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.10570149886774391,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.753900472531093,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.778136168204945,
+        "cumulative_processing_loss_kg": 0.2575191702452397,
+        "cumulative_decay_kg": 0.6125436352109865,
+        "cumulative_full_power_seconds": 31935501.392116208,
+        "cumulative_fusion_energy_mwh": 4657260.619683593,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8701463551377976e+25,
+          "first-wall": 1.6400970533228653e+27,
+          "magnet-gap": 4.183964536222885e+20,
+          "magnets": 4.384272256368975e+20,
+          "shield": 5.005650119266961e+22,
+          "vessel": 4.9615843071043515e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -2.176703262080082e-12
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 2.180811087271195e-12
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11261524000436796,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.54336742604106,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.53470579023163,
+        "cumulative_processing_loss_kg": 0.25539433110141335,
+        "cumulative_decay_kg": 0.6406520647028588,
+        "cumulative_full_power_seconds": 31674434.979809348,
+        "cumulative_fusion_energy_mwh": 4619188.434555518,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.846683475925956e+25,
+          "first-wall": 1.626689584052589e+27,
+          "magnet-gap": 4.1497614530371846e+20,
+          "magnets": 4.348431697159022e+20,
+          "shield": 4.9647299188337634e+22,
+          "vessel": 4.921024335976709e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -7.895906151134113e-13
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 9.654776977896518e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11261524000436796,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.54336742604106,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.53470579023163,
+        "cumulative_processing_loss_kg": 0.25539433110141335,
+        "cumulative_decay_kg": 0.6406520647028588,
+        "cumulative_full_power_seconds": 31674434.979809348,
+        "cumulative_fusion_energy_mwh": 4619188.434555518,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.846683475925956e+25,
+          "first-wall": 1.626689584052589e+27,
+          "magnet-gap": 4.1497614530371846e+20,
+          "magnets": 4.348431697159022e+20,
+          "shield": 4.9647299188337634e+22,
+          "vessel": 4.921024335976709e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -7.895906151134113e-13
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 9.654776977896518e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 1.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11261524000436796,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.54336742604106,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.53470579023163,
+        "cumulative_processing_loss_kg": 0.25539433110141335,
+        "cumulative_decay_kg": 0.6406520647028588,
+        "cumulative_full_power_seconds": 31674434.979809348,
+        "cumulative_fusion_energy_mwh": 4619188.434555518,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.846683475925956e+25,
+          "first-wall": 1.626689584052589e+27,
+          "magnet-gap": 4.1497614530371846e+20,
+          "magnets": 4.348431697159022e+20,
+          "shield": 4.9647299188337634e+22,
+          "vessel": 4.921024335976709e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -7.895906151134113e-13
+      },
+      "event_count": 65,
+      "maximum_absolute_mass_balance_residual_kg": 9.654776977896518e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 0.5,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11591681628865534,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.44264885157348,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.418249200351227,
+        "cumulative_processing_loss_kg": 0.2543481184969347,
+        "cumulative_decay_kg": 0.6541347164361435,
+        "cumulative_full_power_seconds": 31549541.347540144,
+        "cumulative_fusion_energy_mwh": 4600974.779849571,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8354588829866537e+25,
+          "first-wall": 1.620275478454312e+27,
+          "magnet-gap": 4.133398768706838e+20,
+          "magnets": 4.3312856476816055e+20,
+          "shield": 4.945153779490146e+22,
+          "vessel": 4.901620529588575e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.189182417097982e-13
+      },
+      "event_count": 77,
+      "maximum_absolute_mass_balance_residual_kg": 9.18265463667467e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 1.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11591681628865534,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.44264885157348,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.418249200351227,
+        "cumulative_processing_loss_kg": 0.2543481184969347,
+        "cumulative_decay_kg": 0.6541347164361435,
+        "cumulative_full_power_seconds": 31549541.347540144,
+        "cumulative_fusion_energy_mwh": 4600974.779849571,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8354588829866537e+25,
+          "first-wall": 1.620275478454312e+27,
+          "magnet-gap": 4.133398768706838e+20,
+          "magnets": 4.3312856476816055e+20,
+          "shield": 4.945153779490146e+22,
+          "vessel": 4.901620529588575e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.189182417097982e-13
+      },
+      "event_count": 77,
+      "maximum_absolute_mass_balance_residual_kg": 9.18265463667467e-13
+    },
+    {
+      "recovery_fraction": 0.99,
+      "delay_multiplier": 2.0,
+      "service_limit_multiplier": 2.0,
+      "outcome": "horizon_completed",
+      "final_snapshot": {
+        "time_s": 946728000.0,
+        "operating": false,
+        "power_fraction": 0.0,
+        "available_tritium_kg": 0.11591681628865534,
+        "in_process_tritium_kg": -0.0,
+        "cumulative_production_kg": 25.44264885157348,
+        "cumulative_import_kg": 0.0,
+        "cumulative_burn_kg": 29.418249200351227,
+        "cumulative_processing_loss_kg": 0.2543481184969347,
+        "cumulative_decay_kg": 0.6541347164361435,
+        "cumulative_full_power_seconds": 31549541.347540144,
+        "cumulative_fusion_energy_mwh": 4600974.779849571,
+        "instantaneous_neutron_recovered_heat_mw": null,
+        "instantaneous_alpha_recovered_heat_mw": null,
+        "instantaneous_gross_electricity_mw": null,
+        "instantaneous_auxiliary_electricity_mw": null,
+        "instantaneous_net_electricity_mw": null,
+        "cumulative_neutron_recovered_heat_mwh": null,
+        "cumulative_alpha_recovered_heat_mwh": null,
+        "cumulative_gross_electricity_mwh": null,
+        "cumulative_auxiliary_electricity_mwh": null,
+        "cumulative_net_electricity_mwh": null,
+        "component_fluence_n_m2": {
+          "blanket": 2.8354588829866537e+25,
+          "first-wall": 1.620275478454312e+27,
+          "magnet-gap": 4.133398768706838e+20,
+          "magnets": 4.3312856476816055e+20,
+          "shield": 4.945153779490146e+22,
+          "vessel": 4.901620529588575e+20
+        },
+        "component_replacements": {
+          "blanket": 0,
+          "first-wall": 0,
+          "magnet-gap": 0,
+          "magnets": 0,
+          "shield": 0,
+          "vessel": 0
+        },
+        "mass_balance_residual_kg": -5.189182417097982e-13
+      },
+      "event_count": 77,
+      "maximum_absolute_mass_balance_residual_kg": 9.18265463667467e-13
+    }
+  ],
+  "note": "Every point reruns the complete deterministic history. Levels are conditional user-authored scenarios, not random samples or uncertainty bounds; no transport covariance is inferred."
+}

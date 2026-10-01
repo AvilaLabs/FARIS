@@ -114,6 +114,8 @@ pub fn generate_study(
         role("faris.scenario", None),
         role("faris.physics", None),
         role("faris.nuclear-data", None),
+        role("faris.recorded-transport", None),
+        role("faris.operating-assumptions", None),
         role("faris.raw-transport", None),
         role("faris.normalized-transport", None),
         role("faris.history", None),
@@ -145,9 +147,9 @@ pub fn generate_study(
         ));
     }
     let capabilities = vec![
-        json!({"capability_type":reference("faris.openmc-transport"),"owner":"avila-labs.faris",
-            "reproducibility":{"determinism":"seeded_stochastic"},
-            "inputs":[input("scenario","faris.scenario"),input("physics","faris.physics"),input("nuclear-data","faris.nuclear-data")],
+        json!({"capability_type":reference("faris.verify-transport"),"owner":"avila-labs.faris",
+            "reproducibility":{"determinism":"deterministic"},
+            "inputs":[input("scenario","faris.scenario"),input("physics","faris.physics"),input("nuclear-data","faris.nuclear-data"),input("recorded","faris.recorded-transport")],
             "outputs":[output("raw","faris.raw-transport",false)]}),
         json!({"capability_type":reference("faris.normalize-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
@@ -155,7 +157,7 @@ pub fn generate_study(
             "outputs":normalize_outputs}),
         json!({"capability_type":reference("faris.operating-history"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
-            "inputs":[input("rates","faris.normalized-transport"),input("scenario","faris.scenario")],
+            "inputs":[input("rates","faris.normalized-transport"),input("scenario","faris.scenario"),input("assumptions","faris.operating-assumptions")],
             "outputs":[output("history","faris.history",false)]}),
         json!({"capability_type":reference("faris.net-energy"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
@@ -177,15 +179,14 @@ pub fn generate_study(
             "description":"Comparison conditional on authored geometry/material/source/history inputs; not a qualified reactor claim."}],
         "roles":roles,"capability_types":capabilities});
     let mut workflow = vec![
-        json!({"step_id":"transport","capability_type":reference("faris.openmc-transport"),
-            "bindings":[binding("scenario",authored("scenario")),binding("physics",authored("physics")),binding("nuclear-data",authored("nuclear-data"))],
-            "reproducibility":{"seed":"123456789"}}),
+        json!({"step_id":"transport","capability_type":reference("faris.verify-transport"),
+            "bindings":[binding("scenario",authored("scenario")),binding("physics",authored("physics")),binding("nuclear-data",authored("nuclear-data")),binding("recorded",authored("recorded"))]}),
         json!({"step_id":"normalize","capability_type":reference("faris.normalize-transport"),
             "bindings":[binding("raw",produced("transport","raw")),binding("scenario",authored("scenario")),binding("physics",authored("physics"))]}),
     ];
     if history {
         workflow.push(json!({"step_id":"history","capability_type":reference("faris.operating-history"),
-        "bindings":[binding("rates",produced("normalize","normalized")),binding("scenario",authored("scenario"))]}));
+        "bindings":[binding("rates",produced("normalize","normalized")),binding("scenario",authored("scenario")),binding("assumptions",authored("assumptions"))]}));
     }
     if selection.electricity {
         workflow.push(json!({"step_id":"energy","capability_type":reference("faris.net-energy"),
@@ -214,18 +215,25 @@ pub fn generate_study(
     if selection.electricity {
         requested_responses.push("net-energy response".to_owned());
     }
+    let mut inputs = vec![
+        json!({"input_id":"scenario","role":reference("faris.scenario"),"media_type":"application/json","claim_model":{"model":"unquantified"}}),
+        json!({"input_id":"physics","role":reference("faris.physics"),"media_type":"application/json","claim_model":{"model":"unquantified"}}),
+        json!({"input_id":"nuclear-data","role":reference("faris.nuclear-data"),"media_type":"application/json","claim_model":{"model":"unquantified"}}),
+        json!({"input_id":"recorded","role":reference("faris.recorded-transport"),"media_type":"application/json","claim_model":{"model":"unquantified"}}),
+    ];
+    if history {
+        inputs.push(json!({"input_id":"assumptions","role":reference("faris.operating-assumptions"),"media_type":"application/json","claim_model":{"model":"unquantified"}}));
+    }
     let contract = json!({"schema_version":"avila.core/evidence-contract/v0.2-draft",
         "semantic_profile":"avila.core/semantic/0.2-draft","contract_id":format!("faris.{}.{}",manifest.scenario_id,variant_id),
         "revision":1,"status":"draft",
         "question":format!("How do the selected blanket/shield allocation and declared operating assumptions affect {}?", requested_responses.join(" and ")),
         "assumptions":manifest.assumptions,"execution_policy":{"require_qualification":true},
-        "inputs":[{"input_id":"scenario","role":reference("faris.scenario"),"media_type":"application/json","claim_model":{"model":"unquantified"}},
-            {"input_id":"physics","role":reference("faris.physics"),"media_type":"application/json","claim_model":{"model":"unquantified"}},
-            {"input_id":"nuclear-data","role":reference("faris.nuclear-data"),"media_type":"application/json","claim_model":{"model":"unquantified"}}],
+        "inputs":inputs,
         "workflow":workflow,"requirements":requirements});
     Ok(GeneratedStudy {schema_version:"faris-generated-study/v0.1".into(),scenario_sha256:manifest.source_sha256.clone(),variant_id:variant_id.into(),
         selection:selection.clone(),stages,contract,registry,
-        notice:"Generated declarations do not establish available inputs, executable stages, scientific qualification or requirement verdicts.".into()})
+        notice:"The transport stage verifies an identified prior OpenMC run; fresh solver execution remains an explicit FARIS operation. Generated declarations do not establish scientific qualification or requirement verdicts.".into()})
 }
 
 #[derive(Debug, Serialize)]
@@ -359,6 +367,8 @@ fn compile_study_inner(
         environment: vec![],
         timeout: Duration::from_secs(30),
         capture_limit_bytes: 4 * 1024 * 1024,
+        artifact_roots: vec![],
+        resource_limits: crate::jobs::ResourceLimits::default(),
     };
     let pre_execution_sha256 = executable_digest(&executable)?;
     if pre_execution_sha256 != executable_sha256 {

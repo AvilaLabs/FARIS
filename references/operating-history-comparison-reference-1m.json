@@ -1,0 +1,1638 @@
+{
+  "schema_version": "faris-history-comparison/v0.1",
+  "left_label": "reference",
+  "right_label": "breeder",
+  "controlled_difference": "blanket lithium enrichment and neutron multiplier differ; distinct seeds, descriptive comparison only",
+  "dependence_note": "Both deterministic histories use the same authored assumptions. Transport Monte Carlo responses may share histories and their covariance is not inferred here; differences are descriptive point estimates, not uncertainty-qualified effects.",
+  "left": {
+    "outcome": "horizon_completed",
+    "assumptions": {
+      "schema_version": "faris-operating-history/v0.1",
+      "horizon_s": 946728000.0,
+      "maximum_step_s": 3600.0,
+      "snapshot_interval_s": 86400.0,
+      "initial_available_tritium_kg": 5.0,
+      "initial_in_process_tritium_kg": 0.0,
+      "initial_in_process_release_s": 0.0,
+      "startup_reserve_kg": 0.5,
+      "restart_inventory_kg": 0.6,
+      "recovery_fraction": 0.95,
+      "processing_delay_s": 86400.0,
+      "operation": [
+        {
+          "start_s": 0.0,
+          "end_s": 946728000.0,
+          "power_fraction": 1.0
+        }
+      ],
+      "planned_outages": [
+        {
+          "start_s": 0.0,
+          "end_s": 2592000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 31557600.0,
+          "end_s": 34149600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 63115200.0,
+          "end_s": 65707200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 94672800.0,
+          "end_s": 97264800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 126230400.0,
+          "end_s": 128822400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 157788000.0,
+          "end_s": 160380000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 189345600.0,
+          "end_s": 191937600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 220903200.0,
+          "end_s": 223495200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 252460800.0,
+          "end_s": 255052800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 284018400.0,
+          "end_s": 286610400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 315576000.0,
+          "end_s": 318168000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 347133600.0,
+          "end_s": 349725600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 378691200.0,
+          "end_s": 381283200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 410248800.0,
+          "end_s": 412840800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 441806400.0,
+          "end_s": 444398400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 473364000.0,
+          "end_s": 475956000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 504921600.0,
+          "end_s": 507513600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 536479200.0,
+          "end_s": 539071200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 568036800.0,
+          "end_s": 570628800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 599594400.0,
+          "end_s": 602186400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 631152000.0,
+          "end_s": 633744000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 662709600.0,
+          "end_s": 665301600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 694267200.0,
+          "end_s": 696859200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 725824800.0,
+          "end_s": 728416800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 757382400.0,
+          "end_s": 759974400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 788940000.0,
+          "end_s": 791532000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 820497600.0,
+          "end_s": 823089600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 852055200.0,
+          "end_s": 854647200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 883612800.0,
+          "end_s": 886204800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 915170400.0,
+          "end_s": 917762400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        }
+      ],
+      "imports": [],
+      "service_limits": [
+        {
+          "component_id": "blanket",
+          "class": "replaceable",
+          "response_id": "blanket-flux",
+          "metric": "energy_integrated_component_average_neutron_flux",
+          "unit": "neutrons/m\u00b2",
+          "limit": 1e+26,
+          "replacement_duration_s": 5184000.0,
+          "provenance": "Authored numerical trip threshold for scenario behavior only; not a material damage limit, fast-neutron fluence, code allowable, or empirical lifetime."
+        },
+        {
+          "component_id": "magnets",
+          "class": "permanent",
+          "response_id": "magnets-flux",
+          "metric": "energy_integrated_component_average_neutron_flux",
+          "unit": "neutrons/m\u00b2",
+          "limit": 1e+25,
+          "replacement_duration_s": null,
+          "provenance": "Authored numerical permanent-stop threshold for scenario behavior only; no engineering or safety qualification."
+        }
+      ],
+      "energy": {
+        "alpha_deposition_fraction": 1.0,
+        "thermal_to_electric_efficiency": 0.4,
+        "neutron_heat_recovery_fraction": 0.9,
+        "auxiliary_power_mw_while_operating": 60.0,
+        "auxiliary_power_mw_while_off": 5.0,
+        "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model neutron/photon heat recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically."
+      },
+      "provenance": "Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years."
+    },
+    "driving_rates": {
+      "reference_fusion_power_mw": 525.0,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "neutron_source_rate_per_s": 1.8618137864158527e+20,
+      "total_reaction_energy_ev": 17600000.0,
+      "primary_neutron_energy_ev": 14100000.0,
+      "breeder_h3_per_source_neutron": {
+        "mean": 0.8648593829734164,
+        "standard_error": 0.0010435386849760215,
+        "unit": "particles/source_neutron",
+        "response_id": "blanket-tritium"
+      },
+      "component_average_flux_n_m2_s": {
+        "blanket": {
+          "mean": 8.98732203981091e+17,
+          "standard_error": 924009064761644.8,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "blanket-flux"
+        },
+        "first-wall": {
+          "mean": 5.135654622061885e+19,
+          "standard_error": 3.2222412084994896e+16,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "first-wall-flux"
+        },
+        "magnet-gap": {
+          "mean": 13101295905301.83,
+          "standard_error": 5337769415791.09,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "magnet-gap-flux"
+        },
+        "magnets": {
+          "mean": 13728521755576.117,
+          "standard_error": 7123726330434.011,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "magnets-flux"
+        },
+        "shield": {
+          "mean": 1567424934966788.8,
+          "standard_error": 27835836726351.44,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "shield-flux"
+        },
+        "vessel": {
+          "mean": 15536265569105.035,
+          "standard_error": 6951429397894.519,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "vessel-flux"
+        }
+      },
+      "neutron_deposited_heat_w": null,
+      "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+      "transport_artifact_sha256": "2420ec3c8ebba9486013dedd26ae579a8fc25505590271e082d0e2bcca247389",
+      "solver_digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "nuclear_data_digest": "sha256:893558d0ca509245c4a73e33f269d10f69fa5f2510f7f002741b30ee365ea445"
+    },
+    "events": [
+      {
+        "time_s": 0.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 2592000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 2592000.0,
+        "order": 1,
+        "kind": "operation_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source on under declared calendar, inventory, outage, and limit state"
+      },
+      {
+        "time_s": 28346780.5501791,
+        "order": 0,
+        "kind": "fuel_unavailable",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "usable inventory is at or below the declared startup reserve"
+      },
+      {
+        "time_s": 28346780.5501791,
+        "order": 1,
+        "kind": "operation_stopped",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source off under declared calendar, inventory, outage, or limit state"
+      },
+      {
+        "time_s": 31557600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 34149600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 63115200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 65707200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 94672800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 97264800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 126230400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 128822400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 157788000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 160380000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 189345600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 191937600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 220903200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 223495200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 252460800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 255052800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 284018400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 286610400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 315576000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 318168000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 347133600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 349725600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 378691200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 381283200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 410248800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 412840800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 441806400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 444398400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 473364000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 475956000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 504921600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 507513600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 536479200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 539071200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 568036800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 570628800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 599594400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 602186400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 631152000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 633744000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 662709600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 665301600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 694267200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 696859200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 725824800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 728416800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 757382400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 759974400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 788940000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 791532000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 820497600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 823089600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 852055200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 854647200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 883612800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 886204800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 915170400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 917762400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      }
+    ],
+    "final_snapshot": {
+      "time_s": 946728000.0,
+      "operating": false,
+      "power_fraction": 0.0,
+      "available_tritium_kg": 0.11020019144077378,
+      "in_process_tritium_kg": -0.0,
+      "cumulative_production_kg": 20.769551942746094,
+      "cumulative_import_kg": 0.0,
+      "cumulative_burn_kg": 24.01494665102608,
+      "cumulative_processing_loss_kg": 1.038317645676951,
+      "cumulative_decay_kg": 0.6060874546013979,
+      "cumulative_full_power_seconds": 25754780.5501791,
+      "cumulative_fusion_energy_mwh": 3755905.49690112,
+      "instantaneous_neutron_recovered_heat_mw": null,
+      "instantaneous_alpha_recovered_heat_mw": null,
+      "instantaneous_gross_electricity_mw": null,
+      "instantaneous_auxiliary_electricity_mw": null,
+      "instantaneous_net_electricity_mw": null,
+      "cumulative_neutron_recovered_heat_mwh": null,
+      "cumulative_alpha_recovered_heat_mwh": null,
+      "cumulative_gross_electricity_mwh": null,
+      "cumulative_auxiliary_electricity_mwh": null,
+      "cumulative_net_electricity_mwh": null,
+      "component_fluence_n_m2": {
+        "blanket": 2.3146650686911925e+25,
+        "first-wall": 1.3226765777271776e+27,
+        "magnet-gap": 3.3742100096400517e+20,
+        "magnets": 3.535750650932272e+20,
+        "shield": 4.036868522894819e+22,
+        "vessel": 4.0013311030160176e+20
+      },
+      "component_replacements": {
+        "blanket": 0,
+        "first-wall": 0,
+        "magnet-gap": 0,
+        "magnets": 0,
+        "shield": 0,
+        "vessel": 0
+      },
+      "mass_balance_residual_kg": -8.910649995641506e-13
+    },
+    "energy_unavailable_reason": "net electricity requires explicit alpha deposition, OpenMC neutron-deposited heat, thermal conversion efficiency, and operating/off auxiliary loads; unavailable terms remain absent",
+    "notice": "Conditional deterministic history from the exact recorded transport driving rates and authored assumptions. Monte Carlo standard errors and assumption/model uncertainty are retained as provenance but not propagated into a qualified bound. No service-life or net-electricity claim is qualified."
+  },
+  "right": {
+    "outcome": "horizon_completed",
+    "assumptions": {
+      "schema_version": "faris-operating-history/v0.1",
+      "horizon_s": 946728000.0,
+      "maximum_step_s": 3600.0,
+      "snapshot_interval_s": 86400.0,
+      "initial_available_tritium_kg": 5.0,
+      "initial_in_process_tritium_kg": 0.0,
+      "initial_in_process_release_s": 0.0,
+      "startup_reserve_kg": 0.5,
+      "restart_inventory_kg": 0.6,
+      "recovery_fraction": 0.95,
+      "processing_delay_s": 86400.0,
+      "operation": [
+        {
+          "start_s": 0.0,
+          "end_s": 946728000.0,
+          "power_fraction": 1.0
+        }
+      ],
+      "planned_outages": [
+        {
+          "start_s": 0.0,
+          "end_s": 2592000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 31557600.0,
+          "end_s": 34149600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 63115200.0,
+          "end_s": 65707200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 94672800.0,
+          "end_s": 97264800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 126230400.0,
+          "end_s": 128822400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 157788000.0,
+          "end_s": 160380000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 189345600.0,
+          "end_s": 191937600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 220903200.0,
+          "end_s": 223495200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 252460800.0,
+          "end_s": 255052800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 284018400.0,
+          "end_s": 286610400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 315576000.0,
+          "end_s": 318168000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 347133600.0,
+          "end_s": 349725600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 378691200.0,
+          "end_s": 381283200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 410248800.0,
+          "end_s": 412840800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 441806400.0,
+          "end_s": 444398400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 473364000.0,
+          "end_s": 475956000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 504921600.0,
+          "end_s": 507513600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 536479200.0,
+          "end_s": 539071200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 568036800.0,
+          "end_s": 570628800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 599594400.0,
+          "end_s": 602186400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 631152000.0,
+          "end_s": 633744000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 662709600.0,
+          "end_s": 665301600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 694267200.0,
+          "end_s": 696859200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 725824800.0,
+          "end_s": 728416800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 757382400.0,
+          "end_s": 759974400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 788940000.0,
+          "end_s": 791532000.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 820497600.0,
+          "end_s": 823089600.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 852055200.0,
+          "end_s": 854647200.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 883612800.0,
+          "end_s": 886204800.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        },
+        {
+          "start_s": 915170400.0,
+          "end_s": 917762400.0,
+          "reason": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+        }
+      ],
+      "imports": [],
+      "service_limits": [
+        {
+          "component_id": "blanket",
+          "class": "replaceable",
+          "response_id": "blanket-flux",
+          "metric": "energy_integrated_component_average_neutron_flux",
+          "unit": "neutrons/m\u00b2",
+          "limit": 1e+26,
+          "replacement_duration_s": 5184000.0,
+          "provenance": "Authored numerical trip threshold for scenario behavior only; not a material damage limit, fast-neutron fluence, code allowable, or empirical lifetime."
+        },
+        {
+          "component_id": "magnets",
+          "class": "permanent",
+          "response_id": "magnets-flux",
+          "metric": "energy_integrated_component_average_neutron_flux",
+          "unit": "neutrons/m\u00b2",
+          "limit": 1e+25,
+          "replacement_duration_s": null,
+          "provenance": "Authored numerical permanent-stop threshold for scenario behavior only; no engineering or safety qualification."
+        }
+      ],
+      "energy": {
+        "alpha_deposition_fraction": 1.0,
+        "thermal_to_electric_efficiency": 0.4,
+        "neutron_heat_recovery_fraction": 0.9,
+        "auxiliary_power_mw_while_operating": 60.0,
+        "auxiliary_power_mw_while_off": 5.0,
+        "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model neutron/photon heat recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically."
+      },
+      "provenance": "Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years."
+    },
+    "driving_rates": {
+      "reference_fusion_power_mw": 525.0,
+      "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+      "neutron_source_rate_per_s": 1.8618137864158527e+20,
+      "total_reaction_energy_ev": 17600000.0,
+      "primary_neutron_energy_ev": 14100000.0,
+      "breeder_h3_per_source_neutron": {
+        "mean": 0.8675012939502785,
+        "standard_error": 0.0009964854456508611,
+        "unit": "particles/source_neutron",
+        "response_id": "blanket-tritium"
+      },
+      "component_average_flux_n_m2_s": {
+        "blanket": {
+          "mean": 7.125213220892522e+17,
+          "standard_error": 729071916334352.8,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "blanket-flux"
+        },
+        "first-wall": {
+          "mean": 5.135108331276449e+19,
+          "standard_error": 3.5229505530834764e+16,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "first-wall-flux"
+        },
+        "magnet-gap": {
+          "mean": 17164457689766.584,
+          "standard_error": 13576907455307.977,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "magnet-gap-flux"
+        },
+        "magnets": {
+          "mean": 13309982688007.371,
+          "standard_error": 7115496785134.665,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "magnets-flux"
+        },
+        "shield": {
+          "mean": 730937498989441.2,
+          "standard_error": 20986063549306.36,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "shield-flux"
+        },
+        "vessel": {
+          "mean": 7479633837135.714,
+          "standard_error": 3870499564524.6826,
+          "unit": "neutrons/m\u00b2/s",
+          "response_id": "vessel-flux"
+        }
+      },
+      "neutron_deposited_heat_w": null,
+      "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+      "transport_artifact_sha256": "f625662ecd59c62ef0544cf4a4d80c69f98d4cefd1a72712508a1e8e91c1c822",
+      "solver_digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "nuclear_data_digest": "sha256:893558d0ca509245c4a73e33f269d10f69fa5f2510f7f002741b30ee365ea445"
+    },
+    "events": [
+      {
+        "time_s": 0.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 2592000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 2592000.0,
+        "order": 1,
+        "kind": "operation_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source on under declared calendar, inventory, outage, and limit state"
+      },
+      {
+        "time_s": 28700930.730131086,
+        "order": 0,
+        "kind": "fuel_unavailable",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "usable inventory is at or below the declared startup reserve"
+      },
+      {
+        "time_s": 28700930.730131086,
+        "order": 1,
+        "kind": "operation_stopped",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source off under declared calendar, inventory, outage, or limit state"
+      },
+      {
+        "time_s": 31557600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 34149600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 63115200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 65707200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 94672800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 97264800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 126230400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 128822400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 157788000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 160380000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 189345600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 191937600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 220903200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 223495200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 252460800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 255052800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 284018400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 286610400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 315576000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 318168000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 347133600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 349725600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 378691200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 381283200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 410248800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 412840800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 441806400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 444398400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 473364000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 475956000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 504921600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 507513600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 536479200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 539071200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 568036800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 570628800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 599594400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 602186400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 631152000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 633744000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 662709600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 665301600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 694267200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 696859200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 725824800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 728416800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 757382400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 759974400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 788940000.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 791532000.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 820497600.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 823089600.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 852055200.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 854647200.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 883612800.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 886204800.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      },
+      {
+        "time_s": 915170400.0,
+        "order": 0,
+        "kind": "planned_outage_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "authored illustrative annual maintenance outage; not an empirically estimated availability"
+      },
+      {
+        "time_s": 917762400.0,
+        "order": 0,
+        "kind": "planned_outage_ended",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "replacement outage"
+      }
+    ],
+    "final_snapshot": {
+      "time_s": 946728000.0,
+      "operating": false,
+      "power_fraction": 0.0,
+      "available_tritium_kg": 0.11035848182999618,
+      "in_process_tritium_kg": -0.0,
+      "cumulative_production_kg": 21.119468759906635,
+      "cumulative_import_kg": 0.0,
+      "cumulative_burn_kg": 24.345172632234803,
+      "cumulative_processing_loss_kg": 1.0558107917389605,
+      "cumulative_decay_kg": 0.6081268541020498,
+      "cumulative_full_power_seconds": 26108930.730131086,
+      "cumulative_fusion_energy_mwh": 3807552.3981441157,
+      "instantaneous_neutron_recovered_heat_mw": null,
+      "instantaneous_alpha_recovered_heat_mw": null,
+      "instantaneous_gross_electricity_mw": null,
+      "instantaneous_auxiliary_electricity_mw": null,
+      "instantaneous_net_electricity_mw": null,
+      "cumulative_neutron_recovered_heat_mwh": null,
+      "cumulative_alpha_recovered_heat_mwh": null,
+      "cumulative_gross_electricity_mwh": null,
+      "cumulative_auxiliary_electricity_mwh": null,
+      "cumulative_net_electricity_mwh": null,
+      "component_fluence_n_m2": {
+        "blanket": 1.860316984216955e+25,
+        "first-wall": 1.3407218771301563e+27,
+        "magnet-gap": 4.481456368423876e+20,
+        "magnets": 3.4750941602043075e+20,
+        "shield": 1.9083996529170584e+22,
+        "vessel": 1.9528524174052124e+20
+      },
+      "component_replacements": {
+        "blanket": 0,
+        "first-wall": 0,
+        "magnet-gap": 0,
+        "magnets": 0,
+        "shield": 0,
+        "vessel": 0
+      },
+      "mass_balance_residual_kg": -8.272271756482041e-13
+    },
+    "energy_unavailable_reason": "net electricity requires explicit alpha deposition, OpenMC neutron-deposited heat, thermal conversion efficiency, and operating/off auxiliary loads; unavailable terms remain absent",
+    "notice": "Conditional deterministic history from the exact recorded transport driving rates and authored assumptions. Monte Carlo standard errors and assumption/model uncertainty are retained as provenance but not propagated into a qualified bound. No service-life or net-electricity claim is qualified."
+  },
+  "differences": {
+    "produced_tritium_kg_right_minus_left": 0.34991681716054046,
+    "burned_tritium_kg_right_minus_left": 0.3302259812087236,
+    "full_power_seconds_right_minus_left": 354150.17995198444,
+    "net_electricity_mwh_right_minus_left": null
+  },
+  "interpretation": "Conditional paired code-to-code/model comparison only. No empirical qualification, service-life claim, or inferential significance is implied."
+}

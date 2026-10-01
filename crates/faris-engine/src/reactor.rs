@@ -3,8 +3,11 @@
 
 use crate::{
     DemoManifest, build_manifest,
-    jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, run_job},
-    transport::{NormalizedTransportResult, TransportArtifact, normalize_transport_artifact},
+    jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, ResourceLimits, run_job},
+    transport::{
+        NormalizedEnergySpectrum, NormalizedTransportResult, RawTransportSpectra,
+        TransportArtifact, normalize_spectra, normalize_transport_artifact,
+    },
 };
 use faris_model::{
     LoadedScenario,
@@ -13,7 +16,8 @@ use faris_model::{
         ScientificScope,
     },
     transport::{
-        ProducedParticle, ResponseDefinition, ResponseDomain, ScoreDefinition,
+        HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDefinition,
+        ResponseDomain, ScoreDefinition, TRANSPORT_REQUEST_LEGACY_VERSION,
         TRANSPORT_REQUEST_VERSION, TransportRequest,
     },
 };
@@ -141,6 +145,10 @@ pub struct ReactorRun {
     pub import_error: Option<String>,
     pub raw_artifact_sha256: Option<String>,
     pub normalized: Option<NormalizedTransportResult>,
+    #[serde(default)]
+    pub transport_spectra_sha256: Option<String>,
+    #[serde(default)]
+    pub normalized_spectra: Option<Vec<NormalizedEnergySpectrum>>,
     pub scientific_qualification: String,
     pub notice: String,
 }
@@ -244,12 +252,15 @@ pub fn bind_audited_library(
         })
         .collect();
     let mut files = Vec::new();
-    for nuclide in needed {
+    for nuclide in &needed {
         let entry = &audit["neutron_library"][&nuclide];
         if entry["readable_by_openmc_data_api"] != true
             || entry["nuclide_name_in_hdf5"].as_str() != Some(nuclide.as_str())
         {
             return Err(format!("missing or unreadable audited neutron data for {nuclide}").into());
+        }
+        if entry["reactions"]["301"]["present"] != true {
+            return Err(format!("missing MT=301 heating coefficients for {nuclide}").into());
         }
         let relative_path = entry["relative_path"]
             .as_str()
@@ -282,15 +293,75 @@ pub fn bind_audited_library(
             sha256: format!("sha256:{sha256}"),
             size_bytes,
             temperatures_k,
-            nuclides: vec![nuclide],
-            capabilities: vec![NuclearDataCapability::ContinuousEnergyNeutronTransport],
+            nuclides: vec![nuclide.clone()],
+            capabilities: vec![
+                NuclearDataCapability::ContinuousEnergyNeutronTransport,
+                NuclearDataCapability::Heating,
+            ],
+        });
+    }
+    let mut elements: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for nuclide in &needed {
+        let element: String = nuclide
+            .chars()
+            .take_while(|c| c.is_ascii_alphabetic())
+            .collect();
+        if element.is_empty() {
+            return Err(format!("cannot determine photon-data element for {nuclide}").into());
+        }
+        elements.entry(element).or_default().push(nuclide.clone());
+    }
+    for (element, isotopes) in elements {
+        let entry = &audit["photon_atomic_library"][&element];
+        if entry["library_entry_present"] != true || entry["readable_by_h5py"] != true {
+            return Err(
+                format!("missing or unreadable audited photon atomic data for {element}").into(),
+            );
+        }
+        let relative_path = entry["relative_path"]
+            .as_str()
+            .ok_or("photon audit relative path missing")?;
+        let relative = Path::new(relative_path);
+        if relative
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err("photon data path must be safe and relative".into());
+        }
+        let path = root.join(relative).canonicalize()?;
+        if !path.starts_with(root) {
+            return Err("photon data path escapes library root".into());
+        }
+        let size_bytes = entry["size_bytes"]
+            .as_u64()
+            .ok_or("photon audit file size missing")?;
+        let sha256 = entry["sha256"]
+            .as_str()
+            .ok_or("photon audit file hash missing")?
+            .to_owned();
+        if path.metadata()?.len() != size_bytes || hash_file(&path)? != sha256 {
+            return Err(format!("photon data file differs from audit: {element}").into());
+        }
+        let mut photon_capabilities = vec![NuclearDataCapability::PhotonTransport];
+        if entry["atomic_relaxation_populated"] == true {
+            photon_capabilities.push(NuclearDataCapability::AtomicRelaxation);
+        }
+        files.push(NuclearDataFile {
+            file_id: format!("photon-{element}"),
+            relative_path: relative_path.into(),
+            sha256: format!("sha256:{sha256}"),
+            size_bytes,
+            temperatures_k: Vec::new(),
+            nuclides: isotopes,
+            capabilities: photon_capabilities,
         });
     }
     let mut bound = physics.clone();
     bound.nuclear_data = NuclearDataSelection::Inventory {
-        id: "local-audited-fendl-3.2".into(),
-        name: "Local FENDL HDF5 inventory; release provenance not authenticated".into(),
-        version: "3.2 (local assertion)".into(),
+        id: "local-hybrid-fendl32-endfbvii1".into(),
+        name: "Local FENDL-3.2 neutron and ENDF/B-VII.1 photon inventory; provenance per component audit".into(),
+        version: "FENDL-3.2 neutron + ENDF/B-VII.1 photon".into(),
         files,
     };
     let diagnostics = bound.readiness_diagnostics(scenario)?;
@@ -335,6 +406,22 @@ pub fn request_for_case(
             score: "H3-production".into(),
         },
     }];
+    for (suffix, scope) in [
+        ("total", HeatingParticleScope::Total),
+        ("neutron", HeatingParticleScope::Neutron),
+        ("photon", HeatingParticleScope::Photon),
+        ("electron", HeatingParticleScope::Electron),
+        ("positron", HeatingParticleScope::Positron),
+    ] {
+        responses.push(ResponseDefinition {
+            id: format!("heating-{suffix}-whole-model"),
+            domain: ResponseDomain::WholeModel,
+            score: ScoreDefinition::Heating {
+                convention: HeatingConvention::Heating,
+                particle_scope: scope,
+            },
+        });
+    }
     for component in &variant.components {
         let domain = ResponseDomain::Component {
             component_id: component.id.clone(),
@@ -347,12 +434,28 @@ pub fn request_for_case(
         if component.material_id != "void" {
             responses.push(ResponseDefinition {
                 id: format!("{}-tritium", component.id),
-                domain,
+                domain: domain.clone(),
                 score: ScoreDefinition::ParticleProduction {
                     particle: ProducedParticle::Tritium,
                     score: "H3-production".into(),
                 },
             });
+            for (suffix, scope) in [
+                ("total", HeatingParticleScope::Total),
+                ("neutron", HeatingParticleScope::Neutron),
+                ("photon", HeatingParticleScope::Photon),
+                ("electron", HeatingParticleScope::Electron),
+                ("positron", HeatingParticleScope::Positron),
+            ] {
+                responses.push(ResponseDefinition {
+                    id: format!("heating-{suffix}-{}", component.id),
+                    domain: domain.clone(),
+                    score: ScoreDefinition::Heating {
+                        convention: HeatingConvention::Heating,
+                        particle_scope: scope,
+                    },
+                });
+            }
         }
     }
     for bin in 0..mesh.bins() {
@@ -378,6 +481,19 @@ pub fn request_for_case(
     Ok((request, mesh))
 }
 
+fn legacy_request_for_case(
+    scenario: &LoadedScenario,
+    physics: &PhysicsCase,
+) -> Result<(TransportRequest, FieldMesh), ReactorError> {
+    let (mut request, mesh) = request_for_case(scenario, physics)?;
+    request.schema_version = TRANSPORT_REQUEST_LEGACY_VERSION.into();
+    request
+        .responses
+        .retain(|response| !matches!(response.score, ScoreDefinition::Heating { .. }));
+    request.validate_against(scenario)?;
+    Ok((request, mesh))
+}
+
 fn check_geometric_volumes(
     result: &NormalizedTransportResult,
     scenario: &LoadedScenario,
@@ -394,18 +510,32 @@ fn check_geometric_volumes(
         .last()
         .ok_or("empty variant")?
         .outer_minor_radius_m;
+    let penetration = scenario.scenario.penetration.as_ref();
     for response in &result.results {
         let expected = match &response.domain {
             ResponseDomain::WholeModel => {
                 2.0 * std::f64::consts::PI.powi(2) * manifest.major_radius_m * outer.powi(2)
             }
             ResponseDomain::Component { component_id } => {
-                variant
+                let component = variant
                     .components
                     .iter()
                     .find(|c| &c.id == component_id)
-                    .ok_or("unknown component volume")?
-                    .full_torus_volume_m3
+                    .ok_or("unknown component volume")?;
+                if let Some(penetration) = penetration {
+                    let faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. } =
+                        penetration;
+                    let intersection = crate::geometry::estimate_torus_shell_box_intersection(
+                        scenario.scenario.geometry.major_radius_m,
+                        component.inner_minor_radius_m,
+                        component.outer_minor_radius_m,
+                        &bounds_m.minimum_xyz_m,
+                        &bounds_m.maximum_xyz_m,
+                    );
+                    component.full_torus_volume_m3 - intersection.volume_m3
+                } else {
+                    component.full_torus_volume_m3
+                }
             }
             ResponseDomain::Mesh { mesh_id, bin }
                 if mesh_id == &mesh.id && *bin < mesh.bins() as u64 =>
@@ -414,7 +544,30 @@ fn check_geometric_volumes(
             }
             _ => return Err("unknown field volume".into()),
         };
-        if (response.volume_m3 - expected).abs() > 1.0e-10 * expected {
+        let tolerance = if let (Some(penetration), ResponseDomain::Component { component_id }) =
+            (penetration, &response.domain)
+        {
+            let faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. } = penetration;
+            let component = variant
+                .components
+                .iter()
+                .find(|c| &c.id == component_id)
+                .ok_or("unknown component volume")?;
+            let intersection = crate::geometry::estimate_torus_shell_box_intersection(
+                scenario.scenario.geometry.major_radius_m,
+                component.inner_minor_radius_m,
+                component.outer_minor_radius_m,
+                &bounds_m.minimum_xyz_m,
+                &bounds_m.maximum_xyz_m,
+            );
+            (3.0 * response
+                .volume_standard_error_m3
+                .hypot(intersection.refinement_delta_m3))
+            .max(1.0e-8)
+        } else {
+            1.0e-10 * expected
+        };
+        if (response.volume_m3 - expected).abs() > tolerance {
             return Err(format!(
                 "adapter volume differs from geometry for {}",
                 response.response_id
@@ -503,8 +656,10 @@ pub fn run_reactor(
         environment,
         timeout: job.timeout,
         capture_limit_bytes: 4 * 1024 * 1024,
+        artifact_roots: vec![],
+        resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh,execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Numerical cold-data surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. No heating, actual coil lifetime or operating-reactor prediction is established.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh,execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -534,13 +689,29 @@ pub fn run_reactor(
                 return Err("executable changed during execution".into());
             }
             let normalized = normalize_transport_artifact(&request, &artifact, job.scenario)?;
+            let spectra_bytes = read_json_bytes(&output.join("solver/transport-spectra.json"))?;
+            let spectra: RawTransportSpectra = serde_json::from_slice(&spectra_bytes)?;
+            let normalized_spectra = normalize_spectra(
+                &spectra,
+                &artifact,
+                &normalized,
+                &request,
+                &digest(&input_bytes),
+            )?;
             check_geometric_volumes(&normalized, job.scenario, &record.mesh)?;
-            Ok((digest(&raw_bytes), normalized))
+            Ok((
+                digest(&raw_bytes),
+                normalized,
+                digest(&spectra_bytes),
+                normalized_spectra,
+            ))
         })();
         match import {
-            Ok((digest, normalized)) => {
+            Ok((digest, normalized, spectra_digest, normalized_spectra)) => {
                 record.raw_artifact_sha256 = Some(digest);
                 record.normalized = Some(normalized);
+                record.transport_spectra_sha256 = Some(spectra_digest);
+                record.normalized_spectra = Some(normalized_spectra);
             }
             Err(error) => record.import_error = Some(error.to_string()),
         }
@@ -573,7 +744,12 @@ pub fn load_reactor_run(
     }
     let input: Value = serde_json::from_slice(&input_bytes)?;
     let physics: PhysicsCase = serde_json::from_value(input["physics"].clone())?;
-    let (request, mesh) = request_for_case(scenario, &physics)?;
+    let input_request: TransportRequest = serde_json::from_value(input["request"].clone())?;
+    let (request, mesh) = if input_request.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION {
+        legacy_request_for_case(scenario, &physics)?
+    } else {
+        request_for_case(scenario, &physics)?
+    };
     if digest(&serde_json::to_vec(&physics)?) != record.physics_sha256
         || serde_json::from_value::<SamplingPlan>(input["sampling"].clone())? != record.sampling
         || !record
@@ -583,7 +759,7 @@ pub fn load_reactor_run(
         || mesh != record.mesh
         || physics.variant_id != record.variant_id
         || physics.scientific_scope != record.scientific_scope
-        || serde_json::from_value::<TransportRequest>(input["request"].clone())? != request
+        || input_request != request
     {
         return Err("recorded case, mesh or response definitions differ".into());
     }
@@ -608,9 +784,58 @@ pub fn load_reactor_run(
         return Err("recorded solver/data/sampling identity differs".into());
     }
     let normalized = normalize_transport_artifact(&request, &artifact, scenario)?;
+    let normalized_spectra = if request.schema_version == TRANSPORT_REQUEST_VERSION {
+        let spectra_bytes = read_json_bytes(&parent.join("solver/transport-spectra.json"))?;
+        if record.transport_spectra_sha256.as_deref() != Some(digest(&spectra_bytes).as_str()) {
+            return Err("recorded spectra digest differs".into());
+        }
+        let spectra: RawTransportSpectra = serde_json::from_slice(&spectra_bytes)?;
+        Some(normalize_spectra(
+            &spectra,
+            &artifact,
+            &normalized,
+            &request,
+            &record.input_sha256,
+        )?)
+    } else {
+        None
+    };
     check_geometric_volumes(&normalized, scenario, &mesh)?;
     if record.normalized.as_ref() != Some(&normalized) {
-        return Err("recorded normalization differs from checked arithmetic".into());
+        let saved = serde_json::to_value(&record.normalized)?;
+        let checked = serde_json::to_value(&normalized)?;
+        let differing_fields: Vec<_> = saved
+            .as_object()
+            .into_iter()
+            .flat_map(|object| object.keys())
+            .filter(|key| saved[*key] != checked[*key])
+            .cloned()
+            .collect();
+        let differing_results: Vec<_> = saved["results"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .zip(checked["results"].as_array().into_iter().flatten())
+            .filter(|(a, b)| a != b)
+            .take(3)
+            .map(|(a, b)| {
+                format!(
+                    "{} saved_unit={} checked_unit={}",
+                    a["response_id"].as_str().unwrap_or("?"),
+                    a["unit"],
+                    b["unit"]
+                )
+            })
+            .collect();
+        return Err(format!(
+            "recorded normalization differs from checked arithmetic in fields: {}; first response mismatches: {}",
+            differing_fields.join(", "),
+            differing_results.join("; ")
+        )
+        .into());
+    }
+    if record.normalized_spectra != normalized_spectra {
+        return Err("recorded spectra normalization differs from checked sidecar".into());
     }
     Ok(record)
 }

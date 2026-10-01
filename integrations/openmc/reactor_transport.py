@@ -14,6 +14,7 @@ import math
 import os
 from pathlib import Path
 import re
+import random
 import subprocess
 import sys
 import threading
@@ -21,11 +22,15 @@ import time
 import xml.etree.ElementTree as ET
 
 SCHEMA = "faris-openmc-input/v0.1"
-ARTIFACT_SCHEMA = "faris-transport-artifact/v0.1"
+ARTIFACT_SCHEMA = "faris-transport-artifact/v0.2"
 TEMP_TOLERANCE_K = 0.1
 OPENMC_LABEL_TOLERANCE_K = 1.0
-SPECTRUM_EDGES_EV = [1.0e-5, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7, 1.41e7, 2.0e7]
+# Full transport energy coverage for the authored source and its secondary
+# photons; the spectrum-bin sum is checked against integrated neutron flux.
+SPECTRUM_EDGES_EV = [0.0, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7, 1.41e7, 2.0e7, 1.0e9]
 MAX_SOLVER_LOG_BYTES = 4 * 1024 * 1024
+INTEGRATED_RSE_REVIEW_GOAL = 0.05
+LOCAL_RSE_REVIEW_GOAL = 0.10
 
 
 def sha256(path: Path) -> str:
@@ -39,6 +44,57 @@ def sha256(path: Path) -> str:
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def sampling_precision_report(request: dict, tallies: list[dict], volumes: list[dict]) -> dict:
+    """Report predeclared exploratory precision goals, never a physics verdict."""
+    by_id = {t["response_id"]: t for t in tallies}
+    volume_by_domain = {json.dumps(v["domain"], sort_keys=True): v for v in volumes}
+    checks = []
+
+    def add(response_id: str, goal: float, quantity: str, include_volume_error: bool) -> None:
+        tally = by_id.get(response_id)
+        if tally is None:
+            return
+        score = request["responses"]
+        definition = next(r for r in score if r["id"] == response_id)
+        mean = float(tally["mean"])
+        se = float(tally["standard_error"])
+        relative = None if mean == 0.0 else se / abs(mean)
+        if include_volume_error and mean > 0.0:
+            volume = volume_by_domain[json.dumps(definition["domain"], sort_keys=True)]
+            relative = math.hypot(relative or 0.0, float(volume["standard_error"]) / float(volume["value"]))
+        checks.append({
+            "response_id": response_id,
+            "quantity": quantity,
+            "target_relative_standard_error": goal,
+            "observed_relative_standard_error": relative,
+            "met": relative is not None and relative <= goal,
+        })
+
+    by_definition = {r["id"]: r for r in request["responses"]}
+    for response_id, definition in by_definition.items():
+        score = definition["score"]
+        domain = definition["domain"]
+        if response_id == "total-tritium-production":
+            add(response_id, INTEGRATED_RSE_REVIEW_GOAL, "whole-model tritium production", False)
+        elif score["kind"] == "heating" and score["particle_scope"] == "total":
+            if domain["kind"] == "whole_model":
+                add(response_id, INTEGRATED_RSE_REVIEW_GOAL, "whole-model deposited heating", False)
+            elif domain["kind"] == "component":
+                add(response_id, INTEGRATED_RSE_REVIEW_GOAL, "integrated component deposited heating", False)
+                add(response_id, LOCAL_RSE_REVIEW_GOAL, "volume-averaged component deposited heating", True)
+        elif score["kind"] == "flux" and (domain["kind"] == "mesh" or domain.get("component_id") == "magnets"):
+            add(response_id, LOCAL_RSE_REVIEW_GOAL, "magnet or mesh neutron flux", True)
+    return {
+        "plan_id": "faris-exploratory-precision-goals/v0.1",
+        "purpose": "numerical sampling review only; not a physics or design acceptance test",
+        "estimator": "one-standard-error relative to the response mean; zero means have undefined RSE and fail the check",
+        "integrated_goal": INTEGRATED_RSE_REVIEW_GOAL,
+        "local_goal": LOCAL_RSE_REVIEW_GOAL,
+        "checks": checks,
+        "all_goals_met": bool(checks) and all(item["met"] for item in checks),
+    }
 
 
 def read_input(path: Path) -> dict:
@@ -146,23 +202,30 @@ def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log
     }
 
 
-def check_data_identity(physics: dict, xml_path: Path, openmc) -> tuple[str, list[str], dict[str, float], float]:
+def check_data_identity(physics: dict, xml_path: Path, openmc, coupled_heating_required: bool) -> tuple[str, list[str], dict[str, float], float, dict[str, str], dict[str, object]]:
     require(xml_path.is_file(), f"cross_sections XML does not exist: {xml_path}")
     xml_hash = sha256(xml_path)
     selection = physics["nuclear_data"]
     root = ET.parse(xml_path).getroot()
     neutron = {}
+    photon = {}
     for library in root.findall("library"):
         if library.get("type") == "neutron":
             for nuclide in library.get("materials", "").split():
                 neutron[nuclide] = library.get("path")
+        elif library.get("type") == "photon":
+            for element in library.get("materials", "").split():
+                photon[element] = library.get("path")
     recipes = [m["recipe"] for m in physics["materials"] if m["recipe"]["kind"] == "nuclide_mixture"]
     required = sorted({n["nuclide"] for recipe in recipes for n in recipe["nuclides"]})
     actual_temps = {}
     runtime_labels = set()
+    photon_hashes = {}
+    photon_physics = {"atomic_relaxation_available": None, "atomic_relaxation_enabled": False, "electron_treatment": None}
     if selection.get("state") == "inventory":
         data_root = xml_path.parent
         declared = {}
+        declared_photon = {}
         for item in selection.get("files", []):
             p = (data_root / item["relative_path"]).resolve()
             require(p.is_relative_to(data_root.resolve()), "nuclear-data path escaped selected library root")
@@ -170,13 +233,22 @@ def check_data_identity(physics: dict, xml_path: Path, openmc) -> tuple[str, lis
             require(p.stat().st_size == item["size_bytes"], f"nuclear-data size changed: {item['file_id']}")
             require(item["sha256"] == f"sha256:{sha256(p)}", f"nuclear-data hash changed: {item['file_id']}")
             for nuc in item["nuclides"]:
-                declared[nuc] = (item, p)
+                if "continuous_energy_neutron_transport" in item["capabilities"]:
+                    declared[nuc] = (item, p)
+                if "photon_transport" in item["capabilities"]:
+                    element = re.match(r"[A-Z][a-z]?", nuc)
+                    require(element is not None, f"invalid photon-element isotope name: {nuc}")
+                    declared_photon[element.group(0)] = (item, p)
         for nuclide in required:
             require(nuclide in declared, f"selected nuclear-data inventory omits {nuclide}")
             item, file_path = declared[nuclide]
             require(nuclide in neutron, f"cross_sections XML has no neutron entry for {nuclide}")
             require(item["relative_path"] == neutron[nuclide], f"XML/data-inventory path mismatch for {nuclide}")
+            if coupled_heating_required:
+                require("heating" in item["capabilities"], f"MT=301 heating capability is not declared for {nuclide}")
             data = openmc.data.IncidentNeutron.from_hdf5(str(file_path))
+            if coupled_heating_required:
+                require(301 in data.reactions, f"MT=301 heating coefficients missing for {nuclide}")
             stored_temperatures = [float(kT) / openmc.data.K_BOLTZMANN for kT in data.kTs]
             require(len(stored_temperatures) == len(item["temperatures_k"]), f"audited temperature count changed for {nuclide}")
             require(all(any(abs(a-b) <= 1.0e-8 for b in item["temperatures_k"]) for a in stored_temperatures), f"audited stored temperatures changed for {nuclide}")
@@ -188,7 +260,48 @@ def check_data_identity(physics: dict, xml_path: Path, openmc) -> tuple[str, lis
             file_path = (xml_path.parent / neutron[nuclide]).resolve(strict=True)
             data = openmc.data.IncidentNeutron.from_hdf5(str(file_path))
             actual_temps[nuclide] = min(float(kT) / openmc.data.K_BOLTZMANN for kT in data.kTs)
+            if coupled_heating_required:
+                require(301 in data.reactions, f"MT=301 heating coefficients missing for {nuclide}")
             runtime_labels.update(data.temperatures)
+    used_elements = sorted({re.match(r"[A-Z][a-z]?", nuclide).group(0) for nuclide in required}) if coupled_heating_required else []
+    for element in used_elements:
+        require(element in photon, f"cross_sections XML has no photon atomic data entry for {element}")
+        if selection.get("state") == "inventory":
+            require(element in declared_photon, f"selected nuclear-data inventory omits photon data for {element}")
+            item, file_path = declared_photon[element]
+            require(item["relative_path"] == photon[element], f"photon XML/data-inventory path mismatch for {element}")
+            require(not coupled_heating_required or "atomic_relaxation" in item["capabilities"], f"atomic-relaxation shell map capability is not declared for {element}")
+        else:
+            file_path = (xml_path.parent / photon[element]).resolve(strict=True)
+        data = openmc.data.IncidentPhoton.from_hdf5(str(file_path))
+        require(data.name == element and bool(data.reactions), f"photon data unreadable/incomplete for {element}")
+        relaxation = data.atomic_relaxation
+        # Require binding-energy and electron-count records for every
+        # photoelectric shell. Low-Z elements can legitimately have no
+        # relaxation transitions; an empty object/map for every shell is
+        # the unsafe condition that crashed with the FENDL photon files.
+        import h5py
+        with h5py.File(file_path, "r") as library:
+            shells = set(library[element]["subshells"].keys())
+        populated = bool(
+            relaxation is not None
+            and shells
+            and shells <= set(relaxation.binding_energy)
+            and shells <= set(relaxation.num_electrons)
+        )
+        require(populated, f"atomic-relaxation binding/electron shell map incomplete for {element}")
+        photon_physics.setdefault("atomic_relaxation_available_by_element", {})[element] = {
+            "shell_map_complete": populated,
+            "photoelectric_shell_count": len(shells),
+            "atomic_relaxation_shell_count": len(relaxation.binding_energy) if relaxation else 0,
+            "transition_shell_count": len(relaxation.transitions) if relaxation else 0,
+        }
+        photon_hashes[element] = sha256(file_path)
+        if coupled_heating_required:
+            populated_flags = [item["shell_map_complete"] for item in photon_physics["atomic_relaxation_available_by_element"].values()]
+            photon_physics["atomic_relaxation_available"] = bool(populated_flags) and all(populated_flags)
+            photon_physics["atomic_relaxation_enabled"] = photon_physics["atomic_relaxation_available"]
+            photon_physics["electron_treatment"] = "led"
     require(len(runtime_labels) == 1, "this adapter requires a common labeled neutron-data temperature across its recipes")
     label = next(iter(runtime_labels))
     match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)K", label)
@@ -201,10 +314,10 @@ def check_data_identity(physics: dict, xml_path: Path, openmc) -> tuple[str, lis
         for nuclide in (n["nuclide"] for n in recipe["nuclides"]):
             require(abs(actual_temps[nuclide] - target) <= TEMP_TOLERANCE_K, f"{nuclide} stored numeric temperature is outside {TEMP_TOLERANCE_K} K of requested {target}")
     require(abs(runtime_temp - min(actual_temps.values())) < 1.0, "rounded OpenMC data label is inconsistent with exact stored temperatures")
-    return xml_hash, required, actual_temps, runtime_temp
+    return xml_hash, required, actual_temps, runtime_temp, photon_hashes, photon_physics
 
 
-def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
+def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photon_physics: dict):
     manifest = inp["manifest"]
     physics = inp["physics"]
     request = inp["request"]
@@ -250,6 +363,19 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
     plasma_surface = openmc.YTorus(a=R * scale, b=plasma_minor * scale, c=plasma_minor * scale)
     require("void" in materials, "explicit void material required for plasma and clearance")
     plasma = openmc.Cell(name="plasma-source-domain", fill=materials["void"], region=-plasma_surface)
+    penetration = manifest.get("penetration")
+    port_region = None
+    if penetration is not None:
+        require(penetration.get("kind") == "outboard_rectangular_prism", "unsupported penetration geometry kind")
+        bounds = penetration["bounds_m"]
+        minimum = [float(v) for v in bounds["minimum_xyz_m"]]
+        maximum = [float(v) for v in bounds["maximum_xyz_m"]]
+        require(len(minimum) == len(maximum) == 3 and all(math.isfinite(minimum[i]) and math.isfinite(maximum[i]) and minimum[i] < maximum[i] for i in range(3)), "invalid rectangular penetration bounds")
+        require(minimum[0] > R + plasma_minor, "penetration intersects the idealized plasma source volume")
+        xlo, ylo_box, zlo = (openmc.XPlane(x0=minimum[0] * scale), openmc.YPlane(y0=minimum[1] * scale), openmc.ZPlane(z0=minimum[2] * scale))
+        xhi, yhi_box, zhi = (openmc.XPlane(x0=maximum[0] * scale), openmc.YPlane(y0=maximum[1] * scale), openmc.ZPlane(z0=maximum[2] * scale))
+        port_region = +xlo & -xhi & +ylo_box & -yhi_box & +zlo & -zhi
+        require(penetration["fill_material_id"] in materials, "penetration fill material is absent")
     surfaces = []
     cells = [plasma]
     component_cells = {}
@@ -266,7 +392,10 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
         surf = openmc.YTorus(a=R * scale, b=outer * scale, c=outer * scale)
         surfaces.append(surf)
         inner_surface = plasma_surface if len(surfaces) == 1 else surfaces[-2]
-        cell = openmc.Cell(name=rid, fill=materials[component["material_id"]], region=+inner_surface & -surf)
+        region = +inner_surface & -surf
+        if penetration is not None and rid in penetration["affected_component_ids"]:
+            region &= ~port_region
+        cell = openmc.Cell(name=rid, fill=materials[component["material_id"]], region=region)
         cells.append(cell)
         component_cells[rid] = cell
         component_filters[rid] = openmc.CellFilter(cell)
@@ -274,10 +403,64 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
     require(outer_minor < R, "outer torus minor radius must remain below major radius")
     outer_surface = surfaces[-1]
     outer_surface.boundary_type = "vacuum"
+    if penetration is not None:
+        port_cell = openmc.Cell(
+            name=penetration["id"],
+            fill=materials[penetration["fill_material_id"]],
+            region=port_region & +plasma_surface & -outer_surface,
+        )
+        cells.append(port_cell)
     outside = openmc.Cell(name="outside-torus-void", fill=materials["void"], region=+outer_surface)
     cells.append(outside)
     root = openmc.Universe(cells=cells)
     geometry = openmc.Geometry(root)
+
+    penetration_volume_audit = None
+    component_volume_cm3 = {}
+    component_volume_se_cm3 = {component_id: 0.0 for component_id in component_cells}
+    penetration = manifest.get("penetration")
+    if penetration is not None:
+        bounds = penetration["bounds_m"]
+        minimum = [float(v) for v in bounds["minimum_xyz_m"]]
+        maximum = [float(v) for v in bounds["maximum_xyz_m"]]
+        require(len(minimum) == len(maximum) == 3 and all(minimum[i] < maximum[i] for i in range(3)), "invalid rectangular penetration bounds")
+        samples = int(inp.get("penetration_volume_samples", 1_000_000))
+        require(100_000 <= samples <= 20_000_000, "penetration volume sampling must be 100k..20M points")
+        rng = random.Random(int(inp.get("penetration_volume_seed", 913_731_507)))
+        box_volume_m3 = math.prod(maximum[i] - minimum[i] for i in range(3))
+        inside = {component_id: 0 for component_id in component_cells}
+        for _ in range(samples):
+            point = [100.0 * rng.uniform(minimum[i], maximum[i]) for i in range(3)]
+            found = geometry.find(point)
+            cell = found[-1] if isinstance(found, (list, tuple)) else found
+            if cell is not None and cell.name in inside:
+                inside[cell.name] += 1
+        for component_id in penetration["affected_component_ids"]:
+            require(component_id in component_cells, f"penetration lists unknown component: {component_id}")
+            p = inside[component_id] / samples
+            estimate_m3 = box_volume_m3 * p
+            error_m3 = box_volume_m3 * math.sqrt(p * (1.0 - p) / samples)
+            full = next(c for c in variant["components"] if c["id"] == component_id)["full_torus_volume_m3"]
+            component_volume_cm3[component_id] = (full - estimate_m3) * 1.0e6
+            require(component_volume_cm3[component_id] > 0, f"penetration removed all of component {component_id}")
+            component_volume_se_cm3[component_id] = error_m3 * 1.0e6
+        penetration_volume_audit = {
+            "scenario_sha256": request["scenario_sha256"],
+            "variant_id": physics["variant_id"],
+            "method": "independent_uniform_point_classification_in_port_box_using_OpenMC_Python_Geometry.find",
+            "seed": int(inp.get("penetration_volume_seed", 913_731_507)),
+            "samples": samples,
+            "box_volume_m3": box_volume_m3,
+            "intersection_estimates_m3": {key: box_volume_m3 * count / samples for key, count in inside.items()},
+            "intersection_standard_errors_m3": {key: box_volume_m3 * math.sqrt((count / samples) * (1.0 - count / samples) / samples) for key, count in inside.items()},
+            "cell_counts": inside,
+            "fractional_volume_standard_errors_are_binomial": True,
+            "independent_of_Rust_midpoint_quadrature": True,
+            "not_a_physical_validation": True,
+        }
+    else:
+        for c in variant["components"]:
+            component_volume_cm3[c["id"]] = float(c["full_torus_volume_m3"]) * 1.0e6
 
     low = -(R + outer_minor) * scale
     high = (R + outer_minor) * scale
@@ -294,20 +477,34 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
     settings.batches = int(sampling["batches"])
     settings.particles = int(sampling["particles_per_batch"])
     settings.seed = int(sampling["seed"])
-    settings.photon_transport = False
+    coupled_heating_required = any(r["score"]["kind"] == "heating" for r in request["responses"])
+    settings.photon_transport = coupled_heating_required
+    # If photoatomic data lacks relaxation transitions, explicitly omit the
+    # fluorescence/Auger cascade rather than allow OpenMC 0.15.3 to index an
+    # empty shell map. This approximation is recorded in the worker receipt.
+    settings.atomic_relaxation = bool(photon_physics.get("atomic_relaxation_enabled", False))
+    settings.electron_treatment = "led"
     settings.source = source
     # HDF kT is checked against the requested target at 0.1 K. OpenMC 0.15.3
     # resolves continuous-energy tables through rounded labels (e.g. 294K),
     # so this separate 1 K window only admits that label rounding at runtime.
     settings.temperature = {"default": data_runtime_temperature, "method": "nearest", "tolerance": OPENMC_LABEL_TOLERANCE_K}
 
+    particle_filters = {
+        "neutron": openmc.ParticleFilter("neutron"),
+        "photon": openmc.ParticleFilter("photon"),
+        "electron": openmc.ParticleFilter("electron"),
+        "positron": openmc.ParticleFilter("positron"),
+    }
     spectrum_tallies = {}
-    for component_id, cell in component_cells.items():
-        spectrum = openmc.Tally(name=f"spectrum-{component_id}")
-        spectrum.filters = [component_filters[component_id], openmc.EnergyFilter(SPECTRUM_EDGES_EV)]
-        spectrum.scores = ["flux"]
-        spectrum.estimator = "tracklength"
-        spectrum_tallies[component_id] = spectrum
+    spectrum_energy_filter = openmc.EnergyFilter(SPECTRUM_EDGES_EV)
+    for component_id in component_cells:
+        for particle in (("neutron", "photon") if coupled_heating_required else ("neutron",)):
+            spectrum = openmc.Tally(name=f"spectrum-{particle}-{component_id}")
+            spectrum.filters = [component_filters[component_id], particle_filters[particle], spectrum_energy_filter]
+            spectrum.scores = ["flux"]
+            spectrum.estimator = "tracklength"
+            spectrum_tallies[(component_id, particle)] = spectrum
     tallies = openmc.Tallies(list(spectrum_tallies.values()))
     response_by_tally = {}
     for index, response in enumerate(request["responses"], start=1):
@@ -327,14 +524,33 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
             raise ValueError(f"unsupported response domain {domain['kind']}")
         kind = score["kind"]
         if kind == "flux":
+            tally.filters.append(particle_filters["neutron"])
             tally.scores = ["flux"]
         elif kind == "reaction_rate":
+            tally.filters.append(particle_filters["neutron"])
             tally.scores = [score["reaction"]]
         elif kind == "particle_production":
+            tally.filters.append(particle_filters["neutron"])
             tally.scores = [score["score"]]
+        elif kind == "heating":
+            require(score.get("convention") == "heating", "only coupled OpenMC heating is available; heating-local/MT=901 is unsupported")
+            scope = score.get("particle_scope")
+            if scope == "neutron":
+                tally.filters.append(particle_filters["neutron"])
+            elif scope == "photon":
+                tally.filters.append(particle_filters["photon"])
+            elif scope == "electron":
+                tally.filters.append(particle_filters["electron"])
+            elif scope == "positron":
+                tally.filters.append(particle_filters["positron"])
+            elif scope != "total":
+                raise ValueError(f"unsupported heating particle scope: {scope}")
+            tally.scores = ["heating"]
+            tally.estimator = "collision"
         else:
             raise ValueError(f"unsupported or unavailable score kind: {kind}")
-        tally.estimator = "tracklength"
+        if kind != "heating":
+            tally.estimator = "tracklength"
         tallies.append(tally)
         response_by_tally[tally.name] = response
 
@@ -375,7 +591,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
             "assertion": "PASS",
         }
         mesh_tally = openmc.Tally(name="spatial-neutron-flux")
-        mesh_tally.filters = [openmc.MeshFilter(mesh), openmc.ParticleFilter("neutron")]
+        mesh_tally.filters = [openmc.MeshFilter(mesh), particle_filters["neutron"]]
         mesh_tally.scores = ["flux"]
         mesh_tally.estimator = "tracklength"
         tallies.append(mesh_tally)
@@ -389,7 +605,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
     volumes_cm3 = {}
     for c in variant["components"]:
         a, b = c["inner_minor_radius_m"], c["outer_minor_radius_m"]
-        volumes_cm3[c["id"]] = 2.0 * math.pi**2 * R * (b*b-a*a) * 1.0e6
+        volumes_cm3[c["id"]] = component_volume_cm3[c["id"]]
         expected_m3 = 2.0 * math.pi**2 * R * (b*b-a*a)
         require(math.isclose(float(c["full_torus_volume_m3"]), expected_m3, rel_tol=1.0e-12, abs_tol=1.0e-12), f"manifest torus volume mismatch for {c['id']}")
     whole_minor = plasma_minor + gap + sum(float(c["thickness_m"]) for c in variant["components"])
@@ -398,7 +614,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float):
     if mesh_meta:
         widths = [(mesh_meta["upper_right_m"][i]-mesh_meta["lower_left_m"][i])/mesh_meta["dimensions"][i] for i in range(3)]
         mesh_bin_volume_cm3 = math.prod(widths)*1.0e6
-    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit
+    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit
 
 
 def main() -> int:
@@ -414,8 +630,10 @@ def main() -> int:
     statepoint_identity = None
     exported_xml_hashes = {}
     mesh_index_audit = None
+    penetration_volume_audit = None
     try:
         inp = read_input(args.input.expanduser().resolve(strict=True))
+        request = inp["request"]
         exe = Path(inp["openmc_executable"]).expanduser().resolve(strict=True)
         xml = Path(inp["cross_sections"]).expanduser().resolve(strict=True)
         require(os.access(exe, os.X_OK), "OpenMC executable is not executable")
@@ -423,10 +641,11 @@ def main() -> int:
         require(data_digest.startswith("sha256:") and len(data_digest) == 71, "nuclear_data_digest must be a sha256-prefixed 64-hex digest")
         import openmc
         require(openmc.__version__ == "0.15.3", f"expected OpenMC 0.15.3, got {openmc.__version__}")
-        xml_hash, required_nuclides, actual_data_temps, runtime_data_temperature = check_data_identity(inp["physics"], xml, openmc)
+        coupled_heating_required = any(r["score"]["kind"] == "heating" for r in inp["request"]["responses"])
+        xml_hash, required_nuclides, actual_data_temps, runtime_data_temperature, photon_data_hashes, photon_physics = check_data_identity(inp["physics"], xml, openmc, coupled_heating_required)
         # Set only the path; all scored quantities remain raw, per source neutron.
         os.environ["OPENMC_CROSS_SECTIONS"] = str(xml)
-        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit = compose(inp, out, openmc, runtime_data_temperature)
+        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, component_volume_se_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit = compose(inp, out, openmc, runtime_data_temperature, photon_physics)
         exported_xml = sorted(out.glob("*.xml"))
         require(exported_xml, "OpenMC model export produced no XML inputs")
         exported_xml_hashes = {path.name: sha256(path) for path in exported_xml}
@@ -456,12 +675,14 @@ def main() -> int:
             raw_tallies = []
             for name, response in response_by_tally.items():
                 tally = sp.get_tally(name=name)
-                require(tally.estimator == "tracklength", f"response {response['id']} estimator is not explicitly tracklength")
+                expected_estimator = "collision" if response["score"]["kind"] == "heating" else "tracklength"
+                require(tally.estimator == expected_estimator, f"response {response['id']} estimator is {tally.estimator!r}; expected {expected_estimator!r}")
                 means = tally.mean.ravel()
                 errors = tally.std_dev.ravel()
                 require(len(means) == 1 and len(errors) == 1, f"response {response['id']} did not produce one scalar")
                 mean, se = float(means[0]), float(errors[0])
-                require(math.isfinite(mean) and mean >= 0 and math.isfinite(se) and se >= 0, f"response {response['id']} is non-finite/negative")
+                signed_heating = response["score"]["kind"] == "heating"
+                require(math.isfinite(mean) and (signed_heating or mean >= 0) and math.isfinite(se) and se >= 0, f"response {response['id']} has an invalid mean or standard error")
                 domain = response["domain"]
                 if domain["kind"] == "component":
                     volume = volumes_cm3[domain["component_id"]]
@@ -470,7 +691,7 @@ def main() -> int:
                 else:
                     raise ValueError("unsupported response domain")
                 score = response["score"]["kind"]
-                unit = "cm_per_source" if score == "flux" else ("particles_per_source" if score == "particle_production" else "events_per_source")
+                unit = "ev_per_source" if score == "heating" else ("cm_per_source" if score == "flux" else ("particles_per_source" if score == "particle_production" else "events_per_source"))
                 raw_tallies.append({"response_id": response["id"], "estimator": tally.estimator, "unit": unit, "mean": mean, "standard_error": se})
             if mesh_tally is not None:
                 tally = sp.get_tally(name=mesh_tally.name)
@@ -483,32 +704,43 @@ def main() -> int:
                     require(math.isfinite(mean) and mean >= 0 and math.isfinite(se) and se >= 0, f"mesh bin {bin_id} non-finite/negative")
                     raw_tallies.append({"response_id": response["id"], "estimator": tally.estimator, "unit": "cm_per_source", "mean": mean, "standard_error": se})
             spectra = []
-            for component_id, expected_tally in spectrum_tallies.items():
+            for (component_id, particle), expected_tally in spectrum_tallies.items():
                 tally = sp.get_tally(name=expected_tally.name)
-                require(tally.estimator == "tracklength", f"spectrum estimator is not explicitly tracklength for {component_id}")
+                require(tally.estimator == "tracklength", f"spectrum estimator is not explicitly tracklength for {particle}/{component_id}")
                 means = tally.mean.ravel()
                 errors = tally.std_dev.ravel()
-                require(len(means) == len(SPECTRUM_EDGES_EV) - 1, f"spectrum bin count mismatch for {component_id}")
-                spectra.append({"component_id": component_id, "score": "flux", "unit": "cm_per_source_per_energy_bin", "estimator": tally.estimator, "energy_edges_eV": SPECTRUM_EDGES_EV, "mean": [float(x) for x in means], "standard_error": [float(x) for x in errors], "volume_cm3": volumes_cm3[component_id]})
+                require(len(means) == len(SPECTRUM_EDGES_EV) - 1, f"spectrum bin count mismatch for {particle}/{component_id}")
+                require(all(math.isfinite(float(x)) and float(x) >= 0 for x in means), f"spectrum mean invalid for {particle}/{component_id}")
+                require(all(math.isfinite(float(x)) and float(x) >= 0 for x in errors), f"spectrum standard error invalid for {particle}/{component_id}")
+                spectra.append({"component_id": component_id, "particle": particle, "estimator": tally.estimator, "unit": "cm_per_source_per_energy_bin", "energy_edges_ev": SPECTRUM_EDGES_EV, "mean_cm_per_source_per_bin": [float(x) for x in means], "standard_error_cm_per_source_per_bin": [float(x) for x in errors], "volume_cm3": volumes_cm3[component_id], "volume_standard_error_cm3": component_volume_se_cm3[component_id]})
+                if particle == "neutron":
+                    flux_response = next((r for r in request["responses"] if r["id"] == f"{component_id}-flux"), None)
+                    require(flux_response is not None, f"missing integrated flux response for {component_id}")
+                    flux_raw = next(t for t in raw_tallies if t["response_id"] == flux_response["id"])
+                    require(abs(sum(float(x) for x in means) - flux_raw["mean"]) <= 1.0e-8 * max(abs(flux_raw["mean"]), 1.0e-30), f"full-range neutron spectrum does not sum to integrated flux for {component_id}")
             volumes = []
             for response in inp["request"]["responses"]:
                 d = response["domain"]
                 if d["kind"] == "component":
                     v = volumes_cm3[d["component_id"]]
+                    se = component_volume_se_cm3[d["component_id"]]
                 elif d["kind"] == "whole_model":
                     v = whole_cm3
+                    se = 0.0
                 elif d["kind"] == "mesh":
                     v = mesh_bin_cm3
+                    se = 0.0
                 else:
                     raise ValueError(f"unsupported volume domain: {d['kind']}")
                 if not any(item["domain"] == d for item in volumes):
-                    volumes.append({"domain": d, "value": v, "unit": "cubic_centimetre"})
+                    volumes.append({"domain": d, "value": v, "standard_error": se, "unit": "cubic_centimetre"})
             artifact = {"schema_version": ARTIFACT_SCHEMA, "request": inp["request"], "solver": {"name": "OpenMC", "version": openmc.__version__, "digest": f"sha256:{sha256(exe)}"}, "nuclear_data": {"name": inp["physics"].get("nuclear_data", {}).get("name", "external cross_sections.xml"), "version": inp["physics"].get("nuclear_data", {}).get("version", "unselected-local-library"), "digest": data_digest}, "histories": int(sp.n_realizations)*int(inp["sampling"]["particles_per_batch"]), "volumes": volumes, "tallies": raw_tallies}
             (out / "transport-artifact.json").write_text(json.dumps(artifact, indent=2, sort_keys=True)+"\n", encoding="utf-8")
-            (out / "transport-spectra.json").write_text(json.dumps({"schema":"faris-openmc-spectra/v0.1","scientific_status":"NOT_EVALUATED","note":"Auxiliary OpenMC cell-filtered volume-integrated flux spectra, per source neutron; no absolute source normalization.","components":spectra}, indent=2)+"\n", encoding="utf-8")
+            (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:
@@ -519,6 +751,8 @@ def main() -> int:
             record["export_xml_sha256"] = exported_xml_hashes
         if mesh_index_audit is not None:
             record["mesh_index_audit"] = mesh_index_audit
+        if penetration_volume_audit is not None:
+            record["penetration_volume_audit"] = penetration_volume_audit
         (out / "worker-result.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")
         raise
     (out / "worker-result.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")

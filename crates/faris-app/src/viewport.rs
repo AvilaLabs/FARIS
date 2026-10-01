@@ -1,4 +1,4 @@
-use crate::camera::Camera;
+use crate::camera::{Camera, VERTICAL_FOV_RADIANS};
 use eframe::{egui, egui_wgpu, wgpu};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
@@ -19,6 +19,7 @@ struct Uniform {
     up: [f32; 4],
     forward: [f32; 4],
     projection: [f32; 4],
+    display: [f32; 4],
 }
 
 struct Resources {
@@ -27,6 +28,8 @@ struct Resources {
     camera_bind_group: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,
     vertex_count: u32,
+    context_buffer: wgpu::Buffer,
+    context_count: u32,
     revision: u64,
 }
 
@@ -46,7 +49,7 @@ pub fn initialize(state: &egui_wgpu::RenderState) {
         label: Some("FARIS camera layout"),
         entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
+            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
@@ -112,12 +115,20 @@ pub fn initialize(state: &egui_wgpu::RenderState) {
         usage: wgpu::BufferUsages::VERTEX,
         mapped_at_creation: false,
     });
+    let context_vertices = world_reference_geometry(-2.5, 6.0);
+    let context_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("FARIS world grid and orientation axes"),
+        contents: bytemuck::cast_slice(&context_vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
     state.renderer.write().callback_resources.insert(Resources {
         pipeline,
         camera_buffer,
         camera_bind_group,
         vertex_buffer,
         vertex_count: 0,
+        context_buffer,
+        context_count: context_vertices.len() as u32,
         revision: u64::MAX,
     });
 }
@@ -127,6 +138,7 @@ pub fn paint(
     camera: Camera,
     vertices: Arc<[Vertex]>,
     revision: u64,
+    flat_color: bool,
 ) -> egui::PaintCallback {
     let (eye, right, up, forward) = camera.basis();
     let extend = |v: [f32; 3]| [v[0], v[1], v[2], 0.0];
@@ -142,10 +154,11 @@ pub fn paint(
                 forward: extend(forward),
                 projection: [
                     rect.width() / rect.height().max(1.0),
-                    (45.0_f32.to_radians() * 0.5).tan(),
+                    (VERTICAL_FOV_RADIANS * 0.5).tan(),
                     0.1,
                     100.0,
                 ],
+                display: [if flat_color { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
             },
         },
     )
@@ -179,6 +192,15 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
                     });
             }
             resources.vertex_count = self.vertices.len() as u32;
+            let (grid_y, extent) = world_reference_bounds(&self.vertices);
+            let context_vertices = world_reference_geometry(grid_y, extent);
+            resources.context_buffer =
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("FARIS world grid and orientation axes"),
+                    contents: bytemuck::cast_slice(&context_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+            resources.context_count = context_vertices.len() as u32;
             resources.revision = self.revision;
         }
         queue.write_buffer(
@@ -203,7 +225,199 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         }
         pass.set_pipeline(&resources.pipeline);
         pass.set_bind_group(0, &resources.camera_bind_group, &[]);
+        pass.set_vertex_buffer(0, resources.context_buffer.slice(..));
+        pass.draw(0..resources.context_count, 0..1);
         pass.set_vertex_buffer(0, resources.vertex_buffer.slice(..));
         pass.draw(0..resources.vertex_count, 0..1);
+    }
+}
+
+/// Static world reference in metres: a one-metre grid below the modeled torus
+/// and RGB positive X/Y/Z axes. Geometry is drawn first and depth-tested against
+/// the actual component meshes, so it cannot paint through the vessel.
+fn world_reference_geometry(grid_y: f32, half_extent: f32) -> Vec<Vertex> {
+    let half_extent = half_extent.clamp(4.0, 1000.0);
+    let mut vertices = Vec::new();
+    let grid = [0.20, 0.24, 0.29];
+    let step = if half_extent > 50.0 {
+        10.0
+    } else if half_extent > 20.0 {
+        5.0
+    } else {
+        1.0
+    };
+    let count = (half_extent / step).floor() as i32;
+    for tick in -count..=count {
+        let v = tick as f32 * step;
+        add_ribbon(
+            &mut vertices,
+            [v, grid_y, -half_extent],
+            [v, grid_y, half_extent],
+            if tick == 0 { 0.012 } else { 0.006 },
+            grid,
+        );
+        add_ribbon(
+            &mut vertices,
+            [-half_extent, grid_y, v],
+            [half_extent, grid_y, v],
+            if tick == 0 { 0.012 } else { 0.006 },
+            grid,
+        );
+    }
+    // Standard additive RGB axis convention: X red, Y green, Z blue.
+    add_ribbon(
+        &mut vertices,
+        [0.0, 0.0, 0.0],
+        [half_extent, 0.0, 0.0],
+        0.025,
+        [0.90, 0.28, 0.25],
+    );
+    add_ribbon(
+        &mut vertices,
+        [0.0, 0.0, 0.0],
+        [0.0, half_extent, 0.0],
+        0.025,
+        [0.35, 0.84, 0.45],
+    );
+    add_ribbon(
+        &mut vertices,
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, half_extent],
+        0.025,
+        [0.30, 0.56, 0.98],
+    );
+    vertices
+}
+
+fn world_reference_bounds(vertices: &[Vertex]) -> (f32, f32) {
+    if vertices.is_empty() {
+        return (-2.5, 6.0);
+    }
+    let mut minimum_y = f32::INFINITY;
+    let mut horizontal_extent = 0.0_f32;
+    for vertex in vertices {
+        let p = vertex.position;
+        if !p.into_iter().all(f32::is_finite) {
+            continue;
+        }
+        minimum_y = minimum_y.min(p[1]);
+        horizontal_extent = horizontal_extent.max(p[0].abs()).max(p[2].abs());
+    }
+    if !minimum_y.is_finite() {
+        return (-2.5, 6.0);
+    }
+    let extent = (horizontal_extent.ceil() + 1.0).clamp(4.0, 1000.0);
+    (minimum_y - 0.2, extent)
+}
+
+fn add_ribbon(
+    out: &mut Vec<Vertex>,
+    start: [f32; 3],
+    end: [f32; 3],
+    half_width: f32,
+    color: [f32; 3],
+) {
+    let delta = [end[0] - start[0], end[1] - start[1], end[2] - start[2]];
+    let length = (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]).sqrt();
+    if !length.is_finite() || length <= f32::EPSILON || !half_width.is_finite() || half_width <= 0.0
+    {
+        return;
+    }
+    let tangent = [delta[0] / length, delta[1] / length, delta[2] / length];
+    // Pick the least-parallel world axis to obtain a stable perpendicular.
+    let reference = if tangent[1].abs() < 0.8 {
+        [0.0, 1.0, 0.0]
+    } else {
+        [1.0, 0.0, 0.0]
+    };
+    let across = [
+        tangent[1] * reference[2] - tangent[2] * reference[1],
+        tangent[2] * reference[0] - tangent[0] * reference[2],
+        tangent[0] * reference[1] - tangent[1] * reference[0],
+    ];
+    let magnitude = (across[0] * across[0] + across[1] * across[1] + across[2] * across[2]).sqrt();
+    let offset = across.map(|x| x / magnitude * half_width);
+    let points = [
+        [
+            start[0] - offset[0],
+            start[1] - offset[1],
+            start[2] - offset[2],
+        ],
+        [
+            start[0] + offset[0],
+            start[1] + offset[1],
+            start[2] + offset[2],
+        ],
+        [end[0] + offset[0], end[1] + offset[1], end[2] + offset[2]],
+        [end[0] - offset[0], end[1] - offset[1], end[2] - offset[2]],
+    ];
+    let normal = [0.37139067, 0.74278134, -0.557086];
+    for index in [0, 1, 2, 0, 2, 3] {
+        out.push(Vertex {
+            position: points[index],
+            normal,
+            color,
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn world_reference_is_finite_and_contains_all_positive_axes() {
+        let vertices = world_reference_geometry(-2.5, 6.0);
+        assert_eq!(vertices.len() % 3, 0);
+        assert!(vertices.iter().all(|v| {
+            v.position
+                .into_iter()
+                .chain(v.normal)
+                .chain(v.color)
+                .all(f32::is_finite)
+        }));
+        assert!(
+            vertices
+                .iter()
+                .any(|v| v.position[0] > 5.9 && v.color[0] > 0.8)
+        );
+        assert!(
+            vertices
+                .iter()
+                .any(|v| v.position[1] > 5.9 && v.color[1] > 0.8)
+        );
+        assert!(
+            vertices
+                .iter()
+                .any(|v| v.position[2] > 5.9 && v.color[2] > 0.9)
+        );
+    }
+
+    #[test]
+    fn ribbons_ignore_degenerate_segments() {
+        let mut vertices = Vec::new();
+        add_ribbon(&mut vertices, [1.0; 3], [1.0; 3], 0.1, [1.0; 3]);
+        add_ribbon(&mut vertices, [0.0; 3], [1.0, 0.0, 0.0], f32::NAN, [1.0; 3]);
+        assert!(vertices.is_empty());
+    }
+
+    #[test]
+    fn world_reference_tracks_the_rendered_scene_bounds() {
+        let mesh = [
+            Vertex {
+                position: [-7.3, -3.1, 5.2],
+                normal: [0.0; 3],
+                color: [0.0; 3],
+            },
+            Vertex {
+                position: [7.3, 2.0, -5.2],
+                normal: [0.0; 3],
+                color: [0.0; 3],
+            },
+        ];
+        let (floor, extent) = world_reference_bounds(&mesh);
+        assert_eq!(floor, -3.3);
+        assert_eq!(extent, 9.0);
+        assert_eq!(world_reference_bounds(&[]), (-2.5, 6.0));
     }
 }
