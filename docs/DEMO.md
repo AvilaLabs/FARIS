@@ -9,7 +9,7 @@ Its conclusion is whatever the calculations support, including an unresolved
 comparison. A predetermined winner is not a requirement.
 
 The complete demo-only implementation plan, detailed requirements, dependencies,
-and acceptance walkthrough are in [ROADMAP.md](ROADMAP.md). The current
+and acceptance walkthrough are in [DEMO_ROADMAP.md](DEMO_ROADMAP.md). The current
 geometry scaffold does not meet that functional-demo definition.
 
 ## Starting scenario

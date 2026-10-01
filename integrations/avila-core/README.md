@@ -9,7 +9,7 @@ materializes the Core contract and compatible registry/bindings from a reusable
 demo study template. Ordinary use requires no hand-authored Core JSON.
 
 The detailed implementation requirements are `K01`–`K12` and `U07`–`U09` in
-[the demo roadmap](../../docs/ROADMAP.md).
+[the demo roadmap](../../docs/DEMO_ROADMAP.md).
 
 ## Flow and boundaries
 

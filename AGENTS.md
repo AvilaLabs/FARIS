@@ -17,7 +17,8 @@
   evidence experience is required for the finished demo; the simulation remains
   independently usable. Use a few coarse stages and reusable/generated packaging;
   do not require hand-authored contracts for every component or time step.
-- Follow `docs/ROADMAP.md` for the functional demo boundary. Show the small
+- Follow `docs/DEMO_ROADMAP.md` for the functional demo boundary; `docs/ROADMAP.md`
+  covers the full project. Show the small
   Powered by Avila Core attribution with actual Core compilation attempts;
   preserve the distinction between compilation, run readiness, and verdicts.
 - Prefer small, useful increments. Avoid introducing process documents or

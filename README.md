@@ -102,7 +102,8 @@ development artifacts, not simulation evidence.
 | `scenarios/arc-inspired/scenario.json` | The single editable demo scenario |
 | `docs/DEMO.md` | Demo question, requirements, and completion criteria |
 | `docs/ARCHITECTURE.md` | Rust boundaries, units, adapter and evidence design |
-| `docs/ROADMAP.md` | Comprehensive demo-only roadmap: dependencies, detailed requirements, and acceptance walkthrough |
+| `docs/ROADMAP.md` | Long-term project direction and development phases |
+| `docs/DEMO_ROADMAP.md` | Comprehensive demo-only roadmap: dependencies, detailed requirements, and acceptance walkthrough |
 | `docs/TOOLING.md` | Open-source tools and planned integration roles |
 | `integrations/` | Adapter plans; no active solver or Core integration yet |
 | `runs/` | Ignored generated records and captures |
