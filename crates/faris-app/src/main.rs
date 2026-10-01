@@ -1398,7 +1398,7 @@ impl eframe::App for FarisApp {
             egui::Panel::bottom("timeline")
                 .resizable(true)
                 .default_size(
-                    (if show_history { 400.0_f32 } else { 110.0 }).min(timeline_max_height),
+                    (if show_history { 330.0_f32 } else { 110.0 }).min(timeline_max_height),
                 )
                 .size_range(85.0..=timeline_max_height)
                 .show(ui, |ui| {

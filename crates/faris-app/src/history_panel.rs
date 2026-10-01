@@ -1395,7 +1395,7 @@ impl HistoryPanel {
                     ui.horizontal(|ui| {
                         ui.colored_label(color, if s.port { "—" } else { "- -" });
                         ui.label(arrangement_label(s.port, s.breeder));
-                        ui.monospace(value.map_or("—".to_string(), |v| plot.format(v)));
+                        ui.strong(value.map_or("—".to_string(), |v| plot.format(v)));
                     });
                     let spans = self
                         .cache
@@ -1628,7 +1628,7 @@ fn row_header(ui: &mut egui::Ui, label: &str, value: &str, edited: bool) -> bool
     let mut revert = false;
     ui.horizontal_wrapped(|ui| {
         ui.label(label);
-        ui.monospace(value);
+        ui.label(egui::RichText::new(value).strong());
         if edited {
             badge::badge(
                 ui,
