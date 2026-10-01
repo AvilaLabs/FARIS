@@ -31,6 +31,15 @@ pub enum TransportCommand {
         #[arg(long)]
         output: PathBuf,
     },
+    /// Package one completed run.json and its bound files into a portable bundle.
+    Pack {
+        /// A run.json beside its scenario, input, audit, adapter and tally files.
+        #[arg(long)]
+        run: PathBuf,
+        /// New bundle path; an existing file is never overwritten.
+        #[arg(long)]
+        output: PathBuf,
+    },
 }
 
 pub fn read_bounded(path: &Path) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
@@ -73,7 +82,28 @@ pub fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+fn pack(run: &Path, output: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let bundle = faris_engine::core_evidence::pack_transport(run).map_err(|e| e.to_string())?;
+    let (_, record) = bundle.verify().map_err(|e| e.to_string())?;
+    let mut bytes = serde_json::to_vec_pretty(&bundle)?;
+    bytes.push(b'\n');
+    if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    faris_engine::core_evidence::write_new(output, &bytes).map_err(|e| e.to_string())?;
+    println!(
+        "Packed {} ({} files) to {}. Verified; scientific qualification: NOT_EVALUATED.",
+        record.variant_id,
+        bundle.files.len(),
+        output.display()
+    );
+    Ok(())
+}
+
 pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> {
+    if let TransportCommand::Pack { run, output } = &command {
+        return pack(run, output);
+    }
     let (scenario_path, request_path, artifact_output) = match command {
         TransportCommand::ValidateRequest { scenario, request } => (scenario, request, None),
         TransportCommand::Normalize {
@@ -82,6 +112,7 @@ pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> 
             artifact,
             output,
         } => (scenario, request, Some((artifact, output))),
+        TransportCommand::Pack { .. } => unreachable!("handled above"),
     };
     let scenario = LoadedScenario::from_bytes(&read_bounded(&scenario_path)?)?;
     let request_bytes = read_bounded(&request_path)?;
@@ -124,6 +155,29 @@ pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn pack_help_names_run_and_output() {
+        let error = match crate::Arguments::try_parse_from(["faris", "transport", "pack", "--help"])
+        {
+            Ok(_) => panic!("--help should stop argument parsing"),
+            Err(error) => error,
+        };
+        let help = error.to_string();
+        for option in ["--run", "--output"] {
+            assert!(help.contains(option), "missing {option} in help: {help}");
+        }
+    }
+
+    #[test]
+    fn pack_refuses_a_missing_run_and_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("bundle.json");
+        assert!(pack(&dir.path().join("run.json"), &output).is_err());
+        assert!(!output.exists());
+    }
+
     #[test]
     fn publishes_a_complete_record_without_overwriting_existing_evidence() {
         let dir = tempfile::tempdir().unwrap();

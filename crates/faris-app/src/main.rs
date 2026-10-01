@@ -4,6 +4,7 @@ mod camera;
 mod history_panel;
 mod interface_check;
 mod study_panel;
+mod sweep_panel;
 mod transport_panel;
 mod viewport;
 
@@ -70,6 +71,9 @@ struct Arguments {
     /// Portable identified recorded-transport bundle; repeat for both arrangements.
     #[arg(long)]
     bundle: Vec<PathBuf>,
+    /// Recorded-transport bundle for the allocation sweep; repeat once per allocation.
+    #[arg(long)]
+    sweep_bundle: Vec<PathBuf>,
     /// Matched feature-free scenario to compare against the penetration.
     #[arg(long)]
     control_scenario: Option<PathBuf>,
@@ -260,6 +264,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
             cc.egui_ctx.set_zoom_factor(args.interface_scale);
+            let sweep = (!args.sweep_bundle.is_empty()).then(|| {
+                let (paths, runs) = (args.sweep_bundle.clone(), args.runs_directory.clone());
+                sweep_panel::SweepPanel::load_in_background(&cc.egui_ctx, move || {
+                    load_sweep(&paths, &runs)
+                })
+            });
             let mut app = FarisApp::new(
                 manifest,
                 args.capture,
@@ -269,6 +279,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 control,
                 history,
             )?;
+            app.sweep = sweep;
             app.started = launch_started;
             app.year = args.initial_year;
             app.step = args.step;
@@ -289,6 +300,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
     Ok(())
+}
+
+/// Load the sweep's bundles through the ordinary transport record validation.
+fn load_sweep(
+    paths: &[PathBuf],
+    runs_directory: &std::path::Path,
+) -> Result<(transport_panel::TransportPanel, LoadedScenario), String> {
+    let scenario = scenario_from_bundle(&paths[0]).map_err(|e| e.to_string())?;
+    let panel = transport_panel::TransportPanel::new(
+        scenario.clone(),
+        transport_panel::TransportConfiguration {
+            python: None,
+            openmc: None,
+            audit: None,
+            cross_sections: None,
+            physics: Vec::new(),
+            runs: Vec::new(),
+            bundles: paths.to_vec(),
+            runs_directory: runs_directory.to_path_buf(),
+        },
+    )?;
+    Ok((panel, scenario))
 }
 
 fn scenario_from_bundle(
@@ -368,6 +401,7 @@ struct FarisApp {
     transport: transport_panel::TransportPanel,
     paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
     history: history_panel::HistoryPanel,
+    sweep: Option<sweep_panel::SweepPanel>,
     step: Step,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
@@ -409,6 +443,7 @@ impl FarisApp {
             transport,
             paired,
             history,
+            sweep: None,
             step: Step::Design,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
@@ -673,6 +708,7 @@ impl FarisApp {
         if self.frames >= 8
             && !self.capture_requested
             && !self.history.is_pending()
+            && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
             && self.interface_check.as_ref().is_none_or(|c| c.finished())
             && self.started.elapsed().as_secs_f64() >= 1.0
@@ -710,6 +746,9 @@ impl FarisApp {
         } else if self.started.elapsed().as_secs()
             > if self.interface_check.is_some() {
                 170
+            } else if self.sweep.is_some() {
+                // Seven 16 MiB bundles validate slowly in unoptimized builds.
+                400
             } else {
                 100
             }
@@ -1147,6 +1186,10 @@ impl FarisApp {
                     ui.separator();
                     panel.comparison(ui);
                 }
+                if let Some(sweep) = &mut self.sweep {
+                    ui.separator();
+                    sweep.view(ui, "the selected operating assumptions");
+                }
             });
     }
 }
@@ -1276,6 +1319,9 @@ impl eframe::App for FarisApp {
         }
         if !self.study.archive.is_loading() {
             self.history.update_inputs(&ctx, &history_inputs);
+        }
+        if let Some(sweep) = &mut self.sweep {
+            sweep.update(&ctx, self.history.assumptions.as_ref());
         }
         if field_before.0 != self.transport.render_key().0 {
             self.message="Transport worker finished. Inspect execution status and recorded numerical results; scientific qualification NOT_EVALUATED.".into();

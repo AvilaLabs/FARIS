@@ -21,11 +21,37 @@ from recorded_archives import extract_indexed_trees
 from verify_recorded_demo import verify_index
 
 
+def split_app_override(arguments: list[str]) -> tuple[str | None, list[str]]:
+    """Remove a development `--app PATH` from the arguments passed to the GUI."""
+    override = None
+    remaining: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--app" or argument.startswith("--app="):
+            if override is not None:
+                raise ValueError("--app must be supplied only once")
+            if argument == "--app":
+                if index + 1 >= len(arguments) or arguments[index + 1].startswith("--"):
+                    raise ValueError("--app requires a path value")
+                override = arguments[index + 1]
+                index += 2
+            else:
+                override = argument.split("=", 1)[1]
+                index += 1
+            if not override:
+                raise ValueError("--app requires a path value")
+            continue
+        remaining.append(argument)
+        index += 1
+    return override, remaining
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         raise ValueError("usage: launch_recorded_demo.py PACKAGE_ROOT [APP_ARGUMENTS...]")
     root = Path(sys.argv[1]).resolve(strict=True)
-    app_arguments = sys.argv[2:]
+    app_override, app_arguments = split_app_override(sys.argv[2:])
     runs_override = None
     index = 0
     while index < len(app_arguments):
@@ -61,6 +87,12 @@ def main() -> int:
         raise ValueError("--runs-directory must resolve outside the read-only distribution")
     faris, core, app = (root / "bin/faris", root / "bin/avila-core", root / "bin/faris-app")
     index, _ = verify_index(root, faris, core)
+    if app_override is not None:
+        app = Path(app_override).resolve(strict=True)
+        if not app.is_file() or not os.access(app, os.X_OK):
+            raise ValueError("--app must name an executable file")
+        print("FARIS demo launcher: development app binary: not covered by the package index "
+              f"({app})", file=sys.stderr, flush=True)
     expanded_bytes = index.get("expanded_case_workspace_bytes")
     directory_count = index.get("expanded_case_workspace_directory_count")
     if (not isinstance(expanded_bytes, int) or expanded_bytes < 0
