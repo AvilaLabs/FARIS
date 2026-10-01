@@ -171,7 +171,7 @@ pub const STOPS: [Stop; 12] = [
     },
     Stop {
         title: "That's the tour",
-        body: "Replay it any time from Tour in the top bar.",
+        body: "File saves the whole study as one .faris file that reopens exactly as you left it. Export writes a two-page PDF brief, the data as CSV and the charts, stamped with that file's hash. Replay this tour any time from Tour in the top bar.",
         anchor: Some("tour-button"),
         step: Some(Step::Design),
         view: Some(FieldView::Materials),

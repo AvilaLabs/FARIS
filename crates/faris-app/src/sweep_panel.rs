@@ -334,6 +334,23 @@ impl SweepPanel {
         ctx.request_repaint();
     }
 
+    /// The sweep as the export needs it, once its records are loaded and the
+    /// histories are current. Summaries are empty while they are not.
+    pub fn export_data(&self) -> Option<faris_report::SweepInput> {
+        if self.loading.is_some() || self.points.is_empty() {
+            return None;
+        }
+        let current = self.histories_ready() && self.pending.is_none() && self.seen_key.is_none();
+        Some(faris_report::SweepInput {
+            points: self.points.clone(),
+            summaries: if current {
+                self.summaries.clone()
+            } else {
+                Vec::new()
+            },
+        })
+    }
+
     fn histories_ready(&self) -> bool {
         self.summaries.len() == self.points.len() && !self.summaries.is_empty()
     }

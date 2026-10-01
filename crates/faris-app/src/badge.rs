@@ -6,6 +6,7 @@
 //! Never use a badge to hide a FAIL or to imply a PASS that was not evaluated.
 
 use eframe::egui;
+use faris_engine::brief::StatusKind;
 
 /// What kind of statement a value or result is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,30 +30,28 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub fn color(self) -> egui::Color32 {
+    /// The engine's status kind, which owns the colours and labels shared with
+    /// the exported summary.
+    fn status(self) -> StatusKind {
         match self {
-            Kind::Calculated => egui::Color32::from_rgb(96, 165, 250),
-            Kind::Checked => egui::Color32::from_rgb(74, 196, 140),
-            Kind::Authored => egui::Color32::from_rgb(196, 160, 250),
-            Kind::Literature => egui::Color32::from_rgb(110, 200, 210),
-            Kind::Conditional => egui::Color32::from_rgb(170, 176, 190),
-            Kind::Partial => egui::Color32::from_rgb(232, 178, 92),
-            Kind::NotEvaluated => egui::Color32::from_rgb(140, 146, 160),
-            Kind::Failed => egui::Color32::from_rgb(240, 110, 110),
+            Kind::Calculated => StatusKind::Calculated,
+            Kind::Checked => StatusKind::Checked,
+            Kind::Authored => StatusKind::Authored,
+            Kind::Literature => StatusKind::Literature,
+            Kind::Conditional => StatusKind::Conditional,
+            Kind::Partial => StatusKind::Partial,
+            Kind::NotEvaluated => StatusKind::NotEvaluated,
+            Kind::Failed => StatusKind::Failed,
         }
     }
 
+    pub fn color(self) -> egui::Color32 {
+        let [r, g, b] = self.status().rgb();
+        egui::Color32::from_rgb(r, g, b)
+    }
+
     pub fn default_label(self) -> &'static str {
-        match self {
-            Kind::Calculated => "calculated",
-            Kind::Checked => "checked",
-            Kind::Authored => "authored",
-            Kind::Literature => "literature",
-            Kind::Conditional => "conditional",
-            Kind::Partial => "partial",
-            Kind::NotEvaluated => "not evaluated",
-            Kind::Failed => "failed",
-        }
+        self.status().label()
     }
 }
 

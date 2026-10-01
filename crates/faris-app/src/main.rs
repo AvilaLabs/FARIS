@@ -2,6 +2,7 @@ mod archive_panel;
 mod badge;
 mod camera;
 mod compare_panel;
+mod export_panel;
 mod history_panel;
 mod interface_check;
 mod study_file;
@@ -58,6 +59,10 @@ struct Arguments {
     /// Exercise camera orbit and calculated-history scrubbing during measurement.
     #[arg(long, requires = "benchmark_seconds")]
     benchmark_motion: bool,
+    /// Development check: export the study into this existing folder once the
+    /// histories are ready, then continue with --capture or exit.
+    #[arg(long, hide = true)]
+    export_on_load: Option<PathBuf>,
     /// Initial computed-history position in calendar years.
     #[arg(long, default_value_t = 0.0)]
     initial_year: f64,
@@ -182,7 +187,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let launch_started = Instant::now();
     let scripted = args.capture.is_some()
         || args.benchmark_seconds.is_some()
-        || args.interface_check.is_some();
+        || args.interface_check.is_some()
+        || args.export_on_load.is_some();
     let tour_marker = tour::marker_path();
     let play_tour = tour::should_play(
         args.tour,
@@ -288,6 +294,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(path) = args.study.clone() {
                 app.file.request_open(path);
             }
+            app.export = export_panel::ExportPanel::new(args.export_on_load);
             app.started = launch_started;
             app.year = args.initial_year;
             app.step = args.step;
@@ -520,6 +527,9 @@ struct FarisApp {
     tour: tour::Tour,
     tour_marker: Option<PathBuf>,
     file: study_file::FileState,
+    export: export_panel::ExportPanel,
+    /// Screen rectangle of the 3D viewport in the last frame, for the export picture.
+    viewport_rect: Option<egui::Rect>,
 }
 
 impl FarisApp {
@@ -564,6 +574,8 @@ impl FarisApp {
             tour: tour::Tour::default(),
             tour_marker: None,
             file: study_file::FileState::default(),
+            export: export_panel::ExportPanel::new(None),
+            viewport_rect: None,
         };
         if app.transport.has_results() {
             app.message = "Checked transport records loaded.".into();
@@ -877,6 +889,7 @@ impl FarisApp {
             && !self.study.archive.is_loading()
             && self.tour.settled()
             && self.interface_check.as_ref().is_none_or(|c| c.finished())
+            && self.export.development_settled()
             && self.started.elapsed().as_secs_f64() >= 1.0
         {
             self.capture_requested = true;
@@ -884,7 +897,12 @@ impl FarisApp {
         }
         let screenshot = ctx.input(|input| {
             input.events.iter().find_map(|event| {
-                if let egui::Event::Screenshot { image, .. } = event {
+                // Screenshots tagged by the export belong to the export panel.
+                if let egui::Event::Screenshot {
+                    image, user_data, ..
+                } = event
+                    && user_data.data.is_none()
+                {
                     Some(image.clone())
                 } else {
                     None
@@ -1485,6 +1503,129 @@ impl FarisApp {
     }
 }
 
+impl FarisApp {
+    /// The one place the saved study file enters the export. The export names
+    /// the `.faris` file and its SHA-256 when this returns a stamp; None means
+    /// an unsaved study. The study-file layer wires this to the open file.
+    fn export_study_file_stamp(&self) -> Option<faris_report::StudyFileStamp> {
+        self.study_file_stamp()
+    }
+
+    /// The name the export folder and PDF title carry: the study file's name
+    /// once saved or opened.
+    fn export_study_name(&self) -> String {
+        self.file
+            .path
+            .as_deref()
+            .and_then(std::path::Path::file_stem)
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Outboard port and allocation study".into())
+    }
+
+    /// Why the export cannot start now, if it cannot.
+    fn export_blocked(&self) -> Option<&'static str> {
+        if self.history.assumptions.is_none() {
+            Some("This study has no operating assumptions, so there are no histories to export.")
+        } else if self.history.is_pending() || self.history.is_stale() {
+            Some("The operating histories are still calculating; export when the timeline settles.")
+        } else if self.sweep.as_ref().is_some_and(|s| s.is_pending()) {
+            Some("The allocation sweep is still loading or calculating.")
+        } else if self.study.archive.is_loading() {
+            Some("Saved evidence is still loading.")
+        } else {
+            None
+        }
+    }
+
+    /// Everything the export needs, copied from the engine results on screen.
+    fn export_input(&self) -> Result<faris_report::ReportInput, String> {
+        use faris_engine::brief::Arrangement;
+        let paired = self.paired.as_ref().map(|(m, p)| (m, p));
+        // The same orientation as the compare view: the ported case first.
+        let (port, control) = match paired {
+            Some((_, other)) if self.manifest.penetration.is_none() => {
+                (other, Some(&self.transport))
+            }
+            _ => (&self.transport, paired.map(|(_, p)| p)),
+        };
+        let mut arrangements = Vec::new();
+        for (panel, is_port) in [(Some(port), true), (control, false)] {
+            let Some(panel) = panel else { continue };
+            for (index, variant) in compare_panel::VARIANTS.iter().enumerate() {
+                let record = panel.record(variant);
+                arrangements.push(faris_report::ArrangementInput {
+                    arrangement: Arrangement {
+                        port: is_port,
+                        breeder: index == 1,
+                    },
+                    transport: record
+                        .filter(|r| r.normalized.is_some())
+                        .map(|_| panel.summary(variant)),
+                    sampling: record.map(|r| faris_report::Sampling {
+                        seed: r.sampling.seed,
+                        histories: u64::from(r.sampling.batches)
+                            * u64::from(r.sampling.particles_per_batch),
+                    }),
+                    history: record
+                        .and_then(|r| self.history.result(&r.scenario_sha256, variant))
+                        .cloned(),
+                });
+            }
+        }
+        let port_volume_unvalidated = std::iter::once(&self.manifest)
+            .chain(self.paired.iter().map(|(m, _)| m))
+            .any(|m| {
+                m.penetration.is_some()
+                    && m.geometry_volume_status
+                        == faris_engine::GeometryVolumeStatus::PenetrationEstimateNotIndependentlyValidated
+            });
+        Ok(faris_report::ReportInput {
+            study_name: self.export_study_name(),
+            arrangements,
+            sweep: self.sweep.as_ref().and_then(|s| s.export_data()),
+            preset_label: self.history.preset_label().to_owned(),
+            preset_magnet_limit: self.history.preset_magnet_limit(),
+            fusion_power_mw: self.manifest.fusion_power_mw,
+            port_volume_unvalidated,
+            study_file: self.export_study_file_stamp(),
+            view_image: None,
+            view_image_note: None,
+            generated_unix_s: faris_report::now_unix_s(),
+        })
+    }
+
+    fn begin_export(&mut self, ctx: &egui::Context) {
+        match self.export_input() {
+            Ok(input) => self.export.begin(ctx, input, self.viewport_rect),
+            Err(error) => self.message = format!("Export not started: {error}"),
+        }
+    }
+
+    /// `--export-on-load`: a development check that exports once everything is
+    /// calculated, without the folder dialog.
+    fn run_development_export(&mut self, ctx: &egui::Context) {
+        if !self.export.development_requested()
+            || self.frames < 8
+            || self.export_blocked().is_some()
+            || self.started.elapsed().as_secs_f64() < 1.0
+        {
+            return;
+        }
+        let Some(parent) = self.export.take_development_request() else {
+            return;
+        };
+        match self.export_input() {
+            Ok(input) => self
+                .export
+                .begin_into(ctx, input, self.viewport_rect, parent),
+            Err(error) => {
+                eprintln!("FARIS export not started: {error}");
+                self.export.fail(error);
+            }
+        }
+    }
+}
+
 impl eframe::App for FarisApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
         if let Some(check) = &mut self.interface_check {
@@ -1617,6 +1758,8 @@ impl eframe::App for FarisApp {
         if let Some(sweep) = &mut self.sweep {
             sweep.update(&ctx, self.history.assumptions.as_ref());
         }
+        self.export.poll(&ctx);
+        self.run_development_export(&ctx);
         if field_before.0 != self.transport.render_key().0 {
             self.message="Transport worker finished. Inspect execution status and recorded numerical results; scientific qualification NOT_EVALUATED.".into();
         }
@@ -1640,6 +1783,8 @@ impl eframe::App for FarisApp {
                 self.step = step;
             }
         }
+        let export_blocked = self.export_blocked();
+        let mut export_clicked = false;
         egui::Panel::top("menu").show(ui, |ui| {
             let compact = ui.available_width() < 900.0;
             ui.horizontal(|ui| {
@@ -1666,6 +1811,7 @@ impl eframe::App for FarisApp {
                             ui,
                             &self.manifest,
                             &self.manifest.variants[self.variant].id,
+                            &mut |ui| export_clicked |= self.export.button(ui, export_blocked),
                         );
                     });
                 }
@@ -1673,11 +1819,18 @@ impl eframe::App for FarisApp {
             if compact {
                 ui.horizontal_wrapped(|ui| self.step_bar(ui));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    self.study
-                        .header(ui, &self.manifest, &self.manifest.variants[self.variant].id);
+                    self.study.header(
+                        ui,
+                        &self.manifest,
+                        &self.manifest.variants[self.variant].id,
+                        &mut |ui| export_clicked |= self.export.button(ui, export_blocked),
+                    );
                 });
             }
         });
+        if export_clicked {
+            self.begin_export(&ctx);
+        }
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.transport.has_results() {
@@ -1689,6 +1842,7 @@ impl eframe::App for FarisApp {
                     );
                     self.tour.anchor("status-badge", cold.rect);
                 }
+                self.export.status_ui(ui);
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.add(egui::Label::new(egui::RichText::new(&self.message).small()).truncate())
                         .on_hover_text(&self.message);
@@ -1927,6 +2081,7 @@ impl eframe::App for FarisApp {
                 let (rect, response) =
                     ui.allocate_exact_size(ui.available_size().max(egui::vec2(1.0, 1.0)), egui::Sense::click_and_drag());
                 viewport_points = [rect.width(), rect.height()];
+                self.viewport_rect = Some(rect);
                 self.tour.anchor("viewport", rect);
                 if response.dragged() {
                     let delta = ctx.input(|input| input.pointer.delta());
@@ -2065,6 +2220,14 @@ impl eframe::App for FarisApp {
             }
         }
         self.opening_overlay(&ctx);
+        if self.export.development_requested()
+            && self.export.development_settled()
+            && self.capture.is_none()
+            && self.interface_check.is_none()
+            && self.benchmark.is_none()
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
         self.tour.show(&ctx);
         self.capture_frame(&ctx);
     }

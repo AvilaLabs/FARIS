@@ -12,6 +12,7 @@ description = "Native egui desktop workspace with a wgpu 3D viewport"
 faris-model.workspace = true
 faris-engine.workspace = true
 faris-study.workspace = true
+faris-report.workspace = true
 eframe.workspace = true
 bytemuck.workspace = true
 clap.workspace = true

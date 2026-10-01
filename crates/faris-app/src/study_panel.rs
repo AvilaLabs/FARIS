@@ -174,7 +174,15 @@ impl StudyPanel {
         ctx.request_repaint();
     }
 
-    pub fn header(&mut self, ui: &mut egui::Ui, manifest: &DemoManifest, variant_id: &str) {
+    /// Top-bar controls. `after_compile` adds controls immediately left of the
+    /// compile button (the layout is right to left).
+    pub fn header(
+        &mut self,
+        ui: &mut egui::Ui,
+        manifest: &DemoManifest,
+        variant_id: &str,
+        after_compile: &mut dyn FnMut(&mut egui::Ui),
+    ) {
         if let Some(pending) = &self.pending {
             if ui.button("Cancel compile").clicked() {
                 pending.cancellation.cancel();
@@ -187,6 +195,7 @@ impl StudyPanel {
         } else if ui.button("Compile study").clicked() {
             self.start(ui.ctx().clone(), manifest, variant_id);
         }
+        after_compile(ui);
         let saved_tooltip = self
             .archive
             .core_tooltip(&manifest.source_sha256, variant_id);

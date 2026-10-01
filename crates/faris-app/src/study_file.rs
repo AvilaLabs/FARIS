@@ -466,6 +466,20 @@ impl FarisApp {
         }
     }
 
+    /// The saved file the export may name: only when the current view matches
+    /// what was last saved or opened, so the hash describes what is exported.
+    pub fn study_file_stamp(&self) -> Option<faris_report::StudyFileStamp> {
+        let path = self.file.path.as_ref()?;
+        if self.file.saved_view.is_none() || self.file.dirty(&self.view_state()) {
+            return None;
+        }
+        let bytes = std::fs::read(path).ok()?;
+        Some(faris_report::StudyFileStamp {
+            file_name: path.file_name()?.to_string_lossy().into_owned(),
+            sha256: format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes)),
+        })
+    }
+
     pub fn apply_view(&mut self, view: &ViewState) {
         let want_port = view.arrangement != "control";
         if self.paired.is_some() && self.manifest.penetration.is_some() != want_port {
