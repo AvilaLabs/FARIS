@@ -1,3 +1,4 @@
+use crate::badge::{self, Kind};
 use eframe::egui;
 use faris_engine::{
     DemoManifest,
@@ -12,6 +13,24 @@ use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+/// Badge kind for a requirement verdict; absent or unknown states stay NOT_EVALUATED.
+pub fn verdict_kind(status: &str) -> Kind {
+    match status.to_ascii_lowercase().as_str() {
+        "pass" => Kind::Checked,
+        "fail" => Kind::Failed,
+        "inconclusive" => Kind::Partial,
+        _ => Kind::NotEvaluated,
+    }
+}
+
+/// One labelled status line: caption on the left, badge on the right.
+fn status_row(ui: &mut egui::Ui, caption: &str, kind: Kind, label: &str, explanation: &str) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(caption);
+        badge::badge(ui, kind, label, explanation);
+    });
+}
 
 struct PendingCompilation {
     handle: Option<std::thread::JoinHandle<()>>,
@@ -307,8 +326,15 @@ impl StudyPanel {
             ui.add(egui::TextEdit::singleline(&mut self.faris_path).desired_width(f32::INFINITY));
         });
         ui.add_space(8.0);
+        ui.strong("Status");
         if self.pending.is_some() {
-            ui.label("Current draft: compiling");
+            status_row(
+                ui,
+                "Compilation",
+                Kind::Partial,
+                "compiling",
+                "The external Avila Core compiler is running on the current draft study. Compilation says only whether the study contract is well formed.",
+            );
         } else if let Some(compilation) = &self.completed {
             let stale = self.compiled_variant.as_deref() != Some(variant_id)
                 || self.compiled_selection.as_ref() != Some(&self.selection)
@@ -316,11 +342,31 @@ impl StudyPanel {
             let status = compilation.report["status"]
                 .as_str()
                 .unwrap_or("not_available");
-            ui.label(format!(
-                "Current draft: {}{}",
-                status,
-                if stale { " · study changed" } else { "" }
-            ));
+            let kind = match status {
+                "compiled" => Kind::Checked,
+                "not_available" => Kind::NotEvaluated,
+                s if s.contains("reject") || s.contains("fail") || s.contains("error") => {
+                    Kind::Failed
+                }
+                _ => Kind::Partial,
+            };
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Compilation");
+                badge::badge(
+                    ui,
+                    kind,
+                    status,
+                    "Result of the external Avila Core compilation of the current draft. Compilation establishes that the study contract is well formed; it is not run readiness and not a scientific verdict.",
+                );
+                if stale {
+                    badge::badge(
+                        ui,
+                        Kind::Partial,
+                        "study changed",
+                        "The arrangement, analyses or scenario changed after this compilation. Compile the study again to refresh it.",
+                    );
+                }
+            });
             ui.collapsing("Compiler findings", |ui| {
                 if let Some(findings) = compilation.report["findings"].as_array() {
                     if findings.is_empty() {
@@ -348,7 +394,13 @@ impl StudyPanel {
                 }
             });
         } else {
-            ui.label("Current draft: not compiled");
+            status_row(
+                ui,
+                "Compilation",
+                Kind::NotEvaluated,
+                "not compiled",
+                "No Avila Core compilation of the current draft yet. Use Compile study in the top bar.",
+            );
         }
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);
@@ -358,8 +410,24 @@ impl StudyPanel {
                 ui.monospace(output.display().to_string());
             });
         }
-        ui.label(format!("Fresh transport readiness: {readiness}"));
-        ui.label("Scientific assessment: NOT_EVALUATED");
+        status_row(
+            ui,
+            "Run readiness",
+            if readiness.starts_with("Transport configured") {
+                Kind::Checked
+            } else {
+                Kind::Partial
+            },
+            readiness,
+            "Whether a fresh transport run can start for this arrangement: needs a physics input plus OpenMC, data-audit and cross-section paths (Transport configuration, Simulate step). Readiness is not a result and not a verdict.",
+        );
+        status_row(
+            ui,
+            "Scientific verdict",
+            Kind::NotEvaluated,
+            "NOT_EVALUATED",
+            "No scientific assessment has been made at this level. Compilation and readiness do not establish one; a verdict needs executed, verified evidence stages with qualified bounds.",
+        );
         self.archive.controls(ui, scenario_sha256, variant_id);
     }
 
@@ -371,7 +439,7 @@ impl StudyPanel {
         run_path: Option<&std::path::Path>,
         assumptions: Option<&faris_model::history::OperatingHistoryAssumptions>,
     ) {
-        ui.collapsing("Core execution and evidence",|ui|{
+        egui::CollapsingHeader::new("Core execution and evidence").default_open(true).show(ui,|ui|{
             if let Some(pending)=&self.pending_evidence {
                 if self.reduced_motion {ui.small("Running…");} else {ui.spinner();} ui.label("Verifying artifacts and executing declared FARIS stages");
                 if ui.button("Cancel evidence").clicked(){pending.cancellation.cancel();}
@@ -384,17 +452,27 @@ impl StudyPanel {
             }
             if let Some(evidence)=&self.evidence {
                 let current = run_path.map(|run_path|EvidenceIdentity{scenario_sha256:manifest.source_sha256.clone(),variant:variant.into(),selection:self.selection.clone(),run_path:run_path.to_path_buf(),assumptions:assumptions.cloned(),core_path:self.core_path.clone(),faris_path:self.faris_path.clone()});
-                if current.as_ref()!=self.evidence_identity.as_ref(){ui.colored_label(egui::Color32::YELLOW,"Saved evidence belongs to earlier inputs or selections.");}
-                ui.label(if evidence.completed(){"Core workflow: executed and verified"}else{"Core workflow: incomplete or rejected"});
+                if current.as_ref()!=self.evidence_identity.as_ref(){
+                    ui.horizontal_wrapped(|ui|{
+                        badge::badge(ui,Kind::Partial,"earlier inputs","Saved evidence belongs to earlier inputs or selections. Run the bound study stages again to refresh it.");
+                        if self.evidence_identity.as_ref().is_some_and(|e|e.assumptions.as_ref()!=assumptions){
+                            badge::badge(ui,Kind::Partial,"receipts cover different assumptions","The operating assumptions currently selected differ from those the saved evidence receipts cover. The receipts remain valid for their own assumptions; re-run the stages to cover the current ones.");
+                        }
+                    });
+                }
+                status_row(ui,"Core workflow",if evidence.completed(){Kind::Checked}else{Kind::Failed},if evidence.completed(){"executed and verified"}else{"incomplete or rejected"},"Executed Core stages and their verified receipts. This states that the declared stages ran and verified; it is not a scientific verdict.");
                 ui.small(format!("Case: {}",evidence.expected_case_id));
                 if let Some(verdicts)=evidence.report.pointer("/campaign/verdicts").and_then(serde_json::Value::as_array){for v in verdicts{
-                    ui.label(format!("{} · {}",v["requirement_id"].as_str().unwrap_or("requirement"),v.pointer("/verdict/status").and_then(serde_json::Value::as_str).unwrap_or("not_evaluated").to_uppercase()));
-                    ui.small(v["statement"].as_str().unwrap_or(""));
+                    let status=v.pointer("/verdict/status").and_then(serde_json::Value::as_str).unwrap_or("not_evaluated").to_uppercase();
+                    ui.horizontal_wrapped(|ui|{
+                        ui.label(v["requirement_id"].as_str().unwrap_or("requirement"));
+                        badge::badge(ui,verdict_kind(&status),&status,v["statement"].as_str().unwrap_or("Verdict scope is stated in the evidence report."));
+                    });
                 }}
                 if let Some(findings)=evidence.report["findings"].as_array(){for f in findings{ui.small(format!("{}: {}",f["code"].as_str().unwrap_or("finding"),f["message"].as_str().unwrap_or("See record")));}}
             }
             if let Some(path)=&self.evidence_output{ui.small(format!("Evidence: {}",path.display()));}
-            ui.small("Transport stage verifies the prior OpenMC run; normalization/history/energy execute through the bound Rust CLI. Qualified physical bounds remain unavailable.");
+            badge::badge(ui,Kind::Conditional,"qualified bounds unavailable","Transport stage verifies the prior OpenMC run; normalization/history/energy execute through the bound Rust CLI. Qualified physical bounds remain unavailable.");
         });
     }
 

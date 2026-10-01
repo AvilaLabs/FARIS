@@ -1,5 +1,4 @@
 mod archive_panel;
-#[allow(dead_code)] // Shared widget; unused variants are kept for consistent status vocabulary.
 mod badge;
 mod camera;
 mod history_panel;
@@ -12,7 +11,7 @@ use camera::{Camera, triangle_hit};
 use clap::Parser;
 use eframe::egui;
 use faris_engine::{
-    DemoManifest, build_manifest,
+    DemoManifest, VariantGeometry, build_manifest,
     mesh::{CUTAWAY_SWEEP, MeshVertex, torus_shell, torus_shell_with_prism_cut},
 };
 use faris_model::LoadedScenario;
@@ -102,6 +101,51 @@ struct Arguments {
     /// Initial coloring for identified results loaded with --run.
     #[arg(long,value_enum,default_value_t=transport_panel::FieldView::Materials)]
     field_view: transport_panel::FieldView,
+    /// Workflow step shown on launch.
+    #[arg(long, value_enum, default_value_t = Step::Design)]
+    step: Step,
+}
+
+/// Guided workflow: the left panel shows only the current step's content.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+enum Step {
+    #[default]
+    Design,
+    Simulate,
+    Operate,
+    Compare,
+    Evidence,
+}
+
+impl Step {
+    const ALL: [Step; 5] = [
+        Step::Design,
+        Step::Simulate,
+        Step::Operate,
+        Step::Compare,
+        Step::Evidence,
+    ];
+    fn number(self) -> usize {
+        self as usize + 1
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Step::Design => "Design",
+            Step::Simulate => "Simulate",
+            Step::Operate => "Operate",
+            Step::Compare => "Compare",
+            Step::Evidence => "Evidence",
+        }
+    }
+    fn key(self) -> egui::Key {
+        match self {
+            Step::Design => egui::Key::Num1,
+            Step::Simulate => egui::Key::Num2,
+            Step::Operate => egui::Key::Num3,
+            Step::Compare => egui::Key::Num4,
+            Step::Evidence => egui::Key::Num5,
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -227,6 +271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             app.started = launch_started;
             app.year = args.initial_year;
+            app.step = args.step;
             app.interface_check = interface_check;
             app.study
                 .archive
@@ -323,7 +368,7 @@ struct FarisApp {
     transport: transport_panel::TransportPanel,
     paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
     history: history_panel::HistoryPanel,
-    show_history: bool,
+    step: Step,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
     interface_check: Option<interface_check::InterfaceCheck>,
@@ -364,13 +409,13 @@ impl FarisApp {
             transport,
             paired,
             history,
-            show_history,
+            step: Step::Design,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
             interface_check: None,
         };
         if app.transport.has_results() {
-            app.message="Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.".into();
+            app.message = "Checked transport records loaded.".into();
         }
         app.study.selection.fuel_history = show_history;
         app.study.selection.electricity = show_history
@@ -666,7 +711,7 @@ impl FarisApp {
             > if self.interface_check.is_some() {
                 170
             } else {
-                20
+                100
             }
         {
             eprintln!("FARIS capture timed out");
@@ -674,6 +719,435 @@ impl FarisApp {
         } else {
             ctx.request_repaint();
         }
+    }
+}
+
+fn hex_color(hex: &str) -> egui::Color32 {
+    let channel = |i: usize| {
+        hex.get(1 + i * 2..3 + i * 2)
+            .and_then(|h| u8::from_str_radix(h, 16).ok())
+            .unwrap_or(128)
+    };
+    egui::Color32::from_rgb(channel(0), channel(1), channel(2))
+}
+
+/// One horizontal bar of stacked layers, widths proportional to thickness.
+/// Layers whose thickness differs from `other` are outlined in gold.
+fn draw_bar(
+    ui: &mut egui::Ui,
+    lane: &str,
+    variant: &VariantGeometry,
+    other: Option<&VariantGeometry>,
+    height: f32,
+    total_m: f64,
+    selected: &mut String,
+) {
+    let gold = egui::Color32::from_rgb(232, 178, 92);
+    let width = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let mut x = rect.left();
+    for component in &variant.components {
+        let w = (component.thickness_m / total_m) as f32 * width;
+        let segment = egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(w, height));
+        x += w;
+        let response = ui
+            .interact(
+                segment,
+                ui.id().with(("radial-build", lane, &component.id)),
+                egui::Sense::click(),
+            )
+            .on_hover_cursor(egui::CursorIcon::PointingHand);
+        let fill = hex_color(&component.color);
+        ui.painter().rect_filled(segment, 0.0, fill);
+        let counterpart = other
+            .and_then(|o| o.components.iter().find(|c| c.id == component.id))
+            .filter(|c| (c.thickness_m - component.thickness_m).abs() > 1e-9);
+        if counterpart.is_some() {
+            ui.painter().rect_stroke(
+                segment.shrink(1.0),
+                0.0,
+                egui::Stroke::new(2.0, gold),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if *selected == component.id {
+            ui.painter().rect_stroke(
+                segment,
+                0.0,
+                egui::Stroke::new(2.0, egui::Color32::WHITE),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if w >= 34.0 && height >= 22.0 {
+            let luminance =
+                0.299 * fill.r() as f32 + 0.587 * fill.g() as f32 + 0.114 * fill.b() as f32;
+            ui.painter().text(
+                segment.center(),
+                egui::Align2::CENTER_CENTER,
+                format!("{:.2}", component.thickness_m),
+                egui::FontId::proportional(11.0),
+                if luminance > 140.0 {
+                    egui::Color32::BLACK
+                } else {
+                    egui::Color32::WHITE
+                },
+            );
+        }
+        if response.clicked() {
+            *selected = component.id.clone();
+        }
+        response.on_hover_ui(|ui| {
+            ui.strong(&component.label);
+            ui.label(format!(
+                "{:.3} m thick · {}",
+                component.thickness_m, component.material_id
+            ));
+            ui.weak(format!("{} · click to select", variant.label));
+            if let Some(counterpart) = counterpart {
+                ui.label(format!(
+                    "Differs from the other allocation: {:.3} m there.",
+                    counterpart.thickness_m
+                ));
+            }
+        });
+    }
+}
+
+/// Radial-build diagram: active allocation on top, the other beneath.
+fn radial_build(
+    ui: &mut egui::Ui,
+    active: &VariantGeometry,
+    other: Option<&VariantGeometry>,
+    selected: &mut String,
+) {
+    let total = |v: &VariantGeometry| v.components.iter().map(|c| c.thickness_m).sum::<f64>();
+    let total_m = total(active).max(other.map_or(0.0, total)).max(1e-9);
+    ui.strong("Radial build");
+    ui.weak("First wall to magnets · widths proportional to thickness");
+    ui.add_space(4.0);
+    ui.small(format!("{} (shown)", active.label));
+    draw_bar(ui, "active", active, other, 28.0, total_m, selected);
+    if let Some(other) = other {
+        ui.add_space(4.0);
+        draw_bar(ui, "other", other, Some(active), 14.0, total_m, selected);
+        ui.small(format!("{} (comparison)", other.label));
+        ui.weak("Outlined layers differ between the two allocations.");
+    }
+    if let Some(component) = active.components.iter().find(|c| c.id == *selected) {
+        ui.add_space(4.0);
+        ui.small(format!(
+            "Selected: {} · {:.3} m",
+            component.label, component.thickness_m
+        ));
+    }
+}
+
+/// "Reference · blanket 0.45 m · shield 0.45 m" for an allocation choice.
+fn allocation_text(variant: &VariantGeometry) -> String {
+    let mut text = variant.label.clone();
+    for id in ["blanket", "shield"] {
+        if let Some(component) = variant.components.iter().find(|c| c.id == id) {
+            text.push_str(&format!(" · {id} {:.2} m", component.thickness_m));
+        }
+    }
+    text
+}
+
+impl FarisApp {
+    fn step_bar(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing.x = 2.0;
+        for step in Step::ALL {
+            let response = ui
+                .selectable_label(
+                    self.step == step,
+                    format!("{} {}", step.number(), step.name()),
+                )
+                .on_hover_text(format!("Press {} to switch here", step.number()));
+            if response.clicked() {
+                self.step = step;
+            }
+        }
+    }
+
+    fn swap_arrangement(&mut self) {
+        if let Some((manifest, panel)) = &mut self.paired {
+            std::mem::swap(&mut self.manifest, manifest);
+            std::mem::swap(&mut self.transport, panel);
+            self.transport.view = panel.view;
+            self.message = "Switched physical scenario. Recorded results retain their distinct scenario identities.".into();
+            self.rebuild()
+                .unwrap_or_else(|error| self.message = error.to_string());
+        }
+    }
+
+    fn design_step(&mut self, ui: &mut egui::Ui) {
+        ui.label(&self.manifest.title);
+        ui.weak("ARC-inspired · idealized geometry");
+        ui.add_space(12.0);
+        ui.strong("Arrangement");
+        ui.add_space(4.0);
+        let has_port = self.manifest.penetration.is_some();
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Port");
+            if self.paired.is_some() {
+                let mut swap = false;
+                swap |= ui
+                    .selectable_label(has_port, "With outboard port")
+                    .clicked()
+                    && !has_port;
+                swap |= ui
+                    .selectable_label(!has_port, "No port (matched control)")
+                    .clicked()
+                    && has_port;
+                if swap {
+                    self.swap_arrangement();
+                }
+            } else {
+                let _ = ui.selectable_label(
+                    true,
+                    if has_port {
+                        "With outboard port"
+                    } else {
+                        "No port (feature-free control)"
+                    },
+                );
+                ui.weak("matched arrangement not loaded");
+            }
+        });
+        ui.add_space(4.0);
+        ui.label("Allocation");
+        for (index, variant) in self.manifest.variants.iter().enumerate() {
+            ui.selectable_value(&mut self.variant, index, allocation_text(variant));
+        }
+        ui.add_space(12.0);
+        let active = &self.manifest.variants[self.variant];
+        let other = self
+            .manifest
+            .variants
+            .iter()
+            .enumerate()
+            .find(|(index, _)| *index != self.variant)
+            .map(|(_, v)| v);
+        radial_build(ui, active, other, &mut self.selected);
+        ui.add_space(12.0);
+        ui.separator();
+        ui.horizontal_wrapped(|ui| {
+            ui.strong("Plant inputs");
+            badge::badge(
+                ui,
+                badge::Kind::Authored,
+                "authored",
+                "Scenario inputs authored for this ARC-inspired study; tunable, not measured.",
+            );
+        });
+        egui::ScrollArea::horizontal()
+            .id_salt("plant-inputs-scroll")
+            .show(ui, |ui| {
+                egui::Grid::new("plant-inputs").show(ui, |ui| {
+                    for (label, value) in [
+                        (
+                            "Major radius",
+                            format!("{:.2} m", self.manifest.major_radius_m),
+                        ),
+                        (
+                            "Radial build",
+                            format!("{:.2} m", self.manifest.radial_build_m),
+                        ),
+                        (
+                            "Fusion power",
+                            format!("{:.0} MW", self.manifest.fusion_power_mw),
+                        ),
+                    ] {
+                        ui.label(label);
+                        ui.label(value);
+                        ui.end_row();
+                    }
+                });
+            });
+        ui.add_space(12.0);
+        ui.collapsing("Sources and assumptions", |ui| {
+            if !self.manifest.references.is_empty() {
+                badge::badge(
+                    ui,
+                    badge::Kind::Literature,
+                    "literature",
+                    "Cited sources for scenario inputs. Linking a source does not qualify the value.",
+                );
+            }
+            for reference in &self.manifest.references {
+                ui.hyperlink_to(&reference.title, &reference.url);
+            }
+            badge::badge(
+                ui,
+                badge::Kind::Authored,
+                "authored assumptions",
+                "Assumptions authored for this scenario; not measurements or literature values.",
+            );
+            for assumption in &self.manifest.assumptions {
+                ui.small(assumption);
+                ui.add_space(5.0);
+            }
+        });
+    }
+
+    fn transport_card(&self, ui: &mut egui::Ui) {
+        let variant = &self.manifest.variants[self.variant];
+        let note = "Monte Carlo ± one standard error; cold-data surrogate; scientific qualification NOT_EVALUATED.";
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.strong("Transport results");
+            ui.weak(allocation_text(variant));
+            let Some(record) = self
+                .transport
+                .record(&variant.id)
+                .filter(|r| r.normalized.is_some())
+            else {
+                ui.add_space(4.0);
+                ui.weak("No transport results for this arrangement. Run transport below.");
+                return;
+            };
+            let rate = record
+                .normalized
+                .as_ref()
+                .expect("normalized record")
+                .source_neutron_rate_per_s;
+            ui.add_space(8.0);
+            if let Some(tally) = self
+                .transport
+                .response(&variant.id, "total-tritium-production")
+                .or_else(|| self.transport.response(&variant.id, "blanket-tritium"))
+            {
+                badge::metric(
+                    ui,
+                    "Tritium breeding · H3 per source neutron",
+                    &format!(
+                        "{:.4} ± {:.4}",
+                        tally.integrated_mean / rate,
+                        tally.integrated_standard_error / rate
+                    ),
+                    badge::Kind::Calculated,
+                    &format!("Gross births per primary neutron; recovery and fuel availability are separate. {note}"),
+                );
+                ui.add_space(6.0);
+            }
+            if let Some(flux) = self.transport.response(&variant.id, "magnets-flux") {
+                let (value, explanation) = if flux.mean == 0.0 && flux.standard_error == 0.0 {
+                    (
+                        "no sampled tracks".to_owned(),
+                        format!("No sampled tracks; this does not establish zero flux or an upper bound. {note}"),
+                    )
+                } else {
+                    (
+                        format!("{:.2e} ± {:.1e}", flux.mean, flux.standard_error),
+                        format!(
+                            "Component volume average in neutrons/m²/s; relative sampling SE {:.1}%. Volume and model/data uncertainty are separate. {note}",
+                            100.0 * flux.standard_error / flux.mean
+                        ),
+                    )
+                };
+                badge::metric(
+                    ui,
+                    "Magnet-region mean flux · neutrons/m²/s",
+                    &value,
+                    badge::Kind::Calculated,
+                    &explanation,
+                );
+                ui.add_space(6.0);
+            }
+            if let Some(heat) = self
+                .transport
+                .response(&variant.id, "heating-total-whole-model")
+            {
+                badge::metric(
+                    ui,
+                    "Total nuclear heating · MW",
+                    &format!(
+                        "{:.2} ± {:.2}",
+                        heat.integrated_mean / 1e6,
+                        heat.integrated_standard_error / 1e6
+                    ),
+                    badge::Kind::Calculated,
+                    &format!("Coupled neutron/photon deposition. Includes material reaction energy and can exceed D–T source power; heat recovery is an authored assumption. {note}"),
+                );
+                ui.add_space(6.0);
+            }
+            badge::metric(
+                ui,
+                "Histories",
+                &transport_panel::grouped(
+                    (u64::from(record.sampling.batches)
+                        * u64::from(record.sampling.particles_per_batch)) as usize,
+                ),
+                badge::Kind::Calculated,
+                &format!("Particle histories sampled in the recorded run (seed {}). {note}", record.sampling.seed),
+            );
+        });
+    }
+
+    fn simulate_step(&mut self, ui: &mut egui::Ui) {
+        self.transport_card(ui);
+        ui.add_space(12.0);
+        self.transport
+            .controls(ui, &self.manifest.variants[self.variant].id);
+    }
+
+    fn operate_step(&mut self, ui: &mut egui::Ui) {
+        ui.label("Scrub the timeline below; edits recalculate all four histories.");
+        ui.add_space(8.0);
+        self.history.controls(ui);
+        ui.add_space(8.0);
+        self.history.sensitivity_controls(
+            ui,
+            &self.manifest.source_sha256,
+            &self.manifest.variants[self.variant].id,
+        );
+    }
+
+    fn compare_step(&mut self, ui: &mut egui::Ui) {
+        ui.label("Compares two allocations, each with and without the outboard port, under the same envelope, materials and source.");
+        ui.add_space(8.0);
+        ui.weak("The comparison is in the panel below; drag its top edge to resize.");
+        if self.paired.is_none() {
+            ui.add_space(8.0);
+            badge::badge(
+                ui,
+                badge::Kind::Partial,
+                "single port setting loaded",
+                "Only this arrangement's port setting is loaded. Provide the matched scenario (--control-scenario or --control-bundle) to compare port and no-port.",
+            );
+        }
+    }
+
+    fn evidence_step(&mut self, ui: &mut egui::Ui) {
+        let variant = &self.manifest.variants[self.variant].id;
+        self.study.controls(
+            ui,
+            variant,
+            &self.manifest.source_sha256,
+            self.transport.readiness(variant),
+        );
+        ui.add_space(8.0);
+        self.study.evidence_controls(
+            ui,
+            &self.manifest,
+            variant,
+            self.transport.location(variant),
+            self.history.assumptions.as_ref(),
+        );
+    }
+
+    /// Bottom-panel content on the Compare step.
+    fn compare_view(&mut self, ui: &mut egui::Ui) {
+        egui::ScrollArea::both()
+            .id_salt("compare-view")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                self.transport.comparison(ui);
+                if let Some((_, panel)) = &self.paired {
+                    ui.separator();
+                    panel.comparison(ui);
+                }
+            });
     }
 }
 
@@ -813,16 +1287,33 @@ impl eframe::App for FarisApp {
             self.hidden.clone(),
             year_before_frame,
         );
+        if !ctx.egui_wants_keyboard_input() {
+            let chosen = ctx.input(|input| {
+                if input.modifiers.any() {
+                    return None;
+                }
+                Step::ALL
+                    .into_iter()
+                    .find(|step| input.key_pressed(step.key()))
+            });
+            if let Some(step) = chosen {
+                self.step = step;
+            }
+        }
         egui::Panel::top("menu").show(ui, |ui| {
             let compact = ui.available_width() < 900.0;
             ui.horizontal(|ui| {
                 ui.strong("FARIS");
-                ui.weak("Avila Labs");
+                if !compact {
+                    ui.weak("Avila Labs");
+                }
                 ui.separator();
+                if !compact {
+                    self.step_bar(ui);
+                    ui.separator();
+                }
                 interface_size_menu(ui);
                 if !compact {
-                    ui.separator();
-                    ui.label("Research workspace");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         self.study.header(
                             ui,
@@ -833,6 +1324,7 @@ impl eframe::App for FarisApp {
                 }
             });
             if compact {
+                ui.horizontal_wrapped(|ui| self.step_bar(ui));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     self.study
                         .header(ui, &self.manifest, &self.manifest.variants[self.variant].id);
@@ -840,149 +1332,100 @@ impl eframe::App for FarisApp {
             }
         });
         egui::Panel::bottom("status").show(ui, |ui| {
-            ui.small(&self.message);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if self.transport.has_results() {
+                    badge::badge(
+                        ui,
+                        badge::Kind::Conditional,
+                        "cold-data surrogate · NOT_EVALUATED",
+                        "Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.",
+                    );
+                }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(&self.message).small()).truncate())
+                        .on_hover_text(&self.message);
+                });
+            });
         });
         let workspace_width = ui.available_width();
-        let timeline_max_height = (ui.available_height() * 0.45).clamp(85.0, 360.0);
-        egui::Panel::bottom("timeline")
-            .resizable(true)
-            .default_size(
-                (if self.show_history { 270.0_f32 } else { 110.0 }).min(timeline_max_height),
-            )
-            .size_range(85.0..=timeline_max_height)
-            .show(ui, |ui| {
-                let content_width = ui.available_width();
-                egui::ScrollArea::both()
-                    .id_salt("timeline-content")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.set_width(content_width);
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut self.show_history, true, "Operating history");
-                            ui.selectable_value(
-                                &mut self.show_history,
-                                false,
-                                "Transport comparison",
-                            );
-                        });
-                        if self.show_history {
-                            self.history.timeline(
-                                ui,
-                                &self.manifest.source_sha256,
-                                &self.manifest.variants[self.variant].id,
-                                &mut self.year,
-                                self.manifest.horizon_years,
-                            );
-                            return;
-                        }
-                        if self.transport.has_results() {
-                            egui::ScrollArea::both().show(ui, |ui| {
-                                self.transport.comparison(ui);
-                                if let Some((_, panel)) = &self.paired {
-                                    ui.separator();
-                                    panel.comparison(ui);
-                                }
+        if self.step == Step::Compare {
+            let compare_max_height = (ui.available_height() * 0.75).max(120.0);
+            egui::Panel::bottom("compare")
+                .resizable(true)
+                .default_size((ui.available_height() * 0.55).min(compare_max_height))
+                .size_range(120.0..=compare_max_height)
+                .show(ui, |ui| self.compare_view(ui));
+        } else {
+            let timeline_max_height = (ui.available_height() * 0.45).clamp(85.0, 360.0);
+            let show_history = self.history.assumptions.is_some();
+            egui::Panel::bottom("timeline")
+                .resizable(true)
+                .default_size(
+                    (if show_history { 270.0_f32 } else { 110.0 }).min(timeline_max_height),
+                )
+                .size_range(85.0..=timeline_max_height)
+                .show(ui, |ui| {
+                    let content_width = ui.available_width();
+                    egui::ScrollArea::both()
+                        .id_salt("timeline-content")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.set_width(content_width);
+                            if show_history {
+                                self.history.timeline(
+                                    ui,
+                                    &self.manifest.source_sha256,
+                                    &self.manifest.variants[self.variant].id,
+                                    &mut self.year,
+                                    self.manifest.horizon_years,
+                                );
+                                return;
+                            }
+                            ui.horizontal(|ui| {
+                                ui.strong("Operating history");
+                                ui.separator();
+                                ui.label(format!("Year {:.1}", self.year));
+                                ui.weak("Timeline preview · ageing model pending");
                             });
-                            return;
-                        }
-                        ui.horizontal(|ui| {
-                            ui.strong("Operating history");
-                            ui.separator();
-                            ui.label(format!("Year {:.1}", self.year));
-                            ui.weak("Timeline preview · ageing model pending");
-                        });
-                        ui.add(
-                            egui::Slider::new(&mut self.year, 0.0..=self.manifest.horizon_years)
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut self.year,
+                                    0.0..=self.manifest.horizon_years,
+                                )
                                 .text("years")
                                 .show_value(false),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.label("Tritium inventory  —");
-                            ui.separator();
-                            ui.label("Net electricity  —");
-                            ui.separator();
-                            ui.label("Replacement events  —");
+                            );
+                            ui.horizontal(|ui| {
+                                ui.label("Tritium inventory  —");
+                                ui.separator();
+                                ui.label("Net electricity  —");
+                                ui.separator();
+                                ui.label("Replacement events  —");
+                            });
                         });
-                    });
-            });
-        let left_max_width = (workspace_width * 0.28).clamp(150.0, 320.0);
+                });
+        }
+        let left_max_width = (workspace_width * 0.28).clamp(150.0, 380.0);
         egui::Panel::left("scenario")
             .resizable(true)
-            .default_size(220.0_f32.min(left_max_width))
+            .default_size(320.0_f32.min(left_max_width))
             .size_range(140.0..=left_max_width)
             .show(ui, |ui| {
                 let content_width = ui.available_width();
-                egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                    ui.set_width(content_width);
-                    ui.heading("Scenario");
-                    ui.add_space(8.0);
-                    ui.label(&self.manifest.title);
-                    ui.weak("ARC-inspired · idealized geometry");
-                    ui.add_space(12.0);
-                    ui.strong("Arrangement");
-                    if self.paired.is_some() {
-                        let is_control=self.manifest.penetration.is_none();
-                        ui.label(if is_control {"Feature-free control"} else {"Finite outboard penetration"});
-                        if ui.button(if is_control {"Show penetration"} else {"Show matched control"}).clicked()
-                            && let Some((manifest,panel))=&mut self.paired {
-                            std::mem::swap(&mut self.manifest,manifest);
-                            std::mem::swap(&mut self.transport,panel);
-                            self.transport.view=panel.view;
-                            self.message="Switched physical scenario. Recorded results retain their distinct scenario identities.".into();
-                            self.rebuild().unwrap_or_else(|error|self.message=error.to_string());
-                        }
-                    }
-                    for (index, variant) in self.manifest.variants.iter().enumerate() {
-                        ui.selectable_value(&mut self.variant, index, &variant.label);
-                    }
-                    ui.add_space(16.0);
-                    ui.separator();
-                    ui.strong("Plant inputs");
-                    egui::Grid::new("plant-inputs").show(ui, |ui| {
-                        for (label, value) in [
-                            (
-                                "Major radius",
-                                format!("{:.2} m", self.manifest.major_radius_m),
-                            ),
-                            (
-                                "Radial build",
-                                format!("{:.2} m", self.manifest.radial_build_m),
-                            ),
-                            (
-                                "Fusion power",
-                                format!("{:.0} MW", self.manifest.fusion_power_mw),
-                            ),
-                        ] {
-                            ui.label(label);
-                            ui.label(value);
-                            ui.end_row();
+                egui::ScrollArea::both()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_width(content_width);
+                        ui.heading(format!("{} · {}", self.step.number(), self.step.name()));
+                        ui.add_space(8.0);
+                        match self.step {
+                            Step::Design => self.design_step(ui),
+                            Step::Simulate => self.simulate_step(ui),
+                            Step::Operate => self.operate_step(ui),
+                            Step::Compare => self.compare_step(ui),
+                            Step::Evidence => self.evidence_step(ui),
                         }
                     });
-                    ui.add_space(16.0);
-                    ui.separator();
-                    self.study.controls(
-                        ui,
-                        &self.manifest.variants[self.variant].id,
-                        &self.manifest.source_sha256,
-                        self.transport
-                            .readiness(&self.manifest.variants[self.variant].id),
-                    );
-                    self.transport
-                        .controls(ui, &self.manifest.variants[self.variant].id);
-                    self.history.controls(ui);
-                    self.history.sensitivity_controls(ui,&self.manifest.source_sha256,&self.manifest.variants[self.variant].id);
-                    self.study.evidence_controls(ui,&self.manifest,&self.manifest.variants[self.variant].id,self.transport.location(&self.manifest.variants[self.variant].id),self.history.assumptions.as_ref());
-                    ui.add_space(16.0);
-                    ui.collapsing("Sources and assumptions", |ui| {
-                        for reference in &self.manifest.references {
-                            ui.hyperlink_to(&reference.title, &reference.url);
-                        }
-                        for assumption in &self.manifest.assumptions {
-                            ui.small(assumption);
-                            ui.add_space(5.0);
-                        }
-                    });
-                });
             });
         let right_max_width = (workspace_width * 0.32).clamp(180.0, 400.0);
         egui::Panel::right("properties")
@@ -1029,6 +1472,7 @@ impl eframe::App for FarisApp {
                     ui.strong(&component.label);
                     ui.weak(&component.id);
                     ui.add_space(8.0);
+                    egui::ScrollArea::horizontal().id_salt("component-properties-scroll").show(ui, |ui| {
                     egui::Grid::new("component-properties").show(ui, |ui| {
                         for (label, value) in [
                             ("Thickness", format!("{:.3} m", component.thickness_m)),
@@ -1041,14 +1485,17 @@ impl eframe::App for FarisApp {
                             ui.end_row();
                         }
                     });
+                    });
                     ui.add_space(12.0);
                     ui.label(format!("Material: {}", component.material_id));
                     if let Some(case)=self.transport.case(&variant.id)
                         && let Some(material)=case.materials.iter().find(|m|m.id==component.material_id) {
                         match &material.recipe {
                             faris_model::physics::MaterialRecipe::NuclideMixture{density_kg_m3,nuclear_data_temperature_k,..}=>{
-                                ui.label(format!("Density: {density_kg_m3:.1} kg/m³"));
-                                ui.small(format!("Data selection: {nuclear_data_temperature_k:.1} K · cold reference"));
+                                ui.horizontal_wrapped(|ui|{
+                                    ui.label(format!("Density: {density_kg_m3:.1} kg/m³"));
+                                    badge::badge(ui,badge::Kind::Conditional,"cold reference",&format!("Data selection: {nuclear_data_temperature_k:.1} K · cold reference"));
+                                });
                             }
                             faris_model::physics::MaterialRecipe::Void{..}=>{ui.small("Explicit geometric void.");}
                         }
@@ -1056,17 +1503,23 @@ impl eframe::App for FarisApp {
                     ui.add_space(12.0);
                     ui.separator();
                     if let Some(response)=self.transport.response(&variant.id,&format!("{}-flux",component.id)) {
-                        ui.label(format!("Reference neutron flux: {:.3e} neutrons/m²/s",response.mean));
-                        ui.small(format!("Standard error: {:.2e} neutrons/m²/s",response.standard_error));
-                        ui.small("Component volume average. Sampling uncertainty only.");
-                        if response.mean == 0.0 && response.standard_error == 0.0 {ui.colored_label(egui::Color32::YELLOW,"No sampled tracks. This does not establish zero flux or an upper bound.");}
-                        else if response.mean > 0.0 && response.standard_error / response.mean > 0.3 {ui.colored_label(egui::Color32::YELLOW,format!("Weak sampling: {:.1}% relative standard error.",100.0*response.standard_error/response.mean));}
-                        ui.small(format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
+                        ui.weak("Reference neutron flux · neutrons/m²/s");
+                        ui.horizontal_wrapped(|ui|{
+                            ui.label(egui::RichText::new(format!("{:.3e}",response.mean)).size(18.0).strong());
+                            badge::badge(ui,badge::Kind::Calculated,&format!("± {:.2e} SE",response.standard_error),&format!("Standard error: {:.2e} neutrons/m²/s\nComponent volume average. Sampling uncertainty only.",response.standard_error));
+                            badge::badge(ui,badge::Kind::Calculated,&format!("volume {:.4} m³",response.volume_m3),&format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
+                        });
+                        if response.mean == 0.0 && response.standard_error == 0.0 {badge::badge(ui,badge::Kind::Partial,"no sampled tracks","No sampled tracks. This does not establish zero flux or an upper bound.");}
+                        else if response.mean > 0.0 && response.standard_error / response.mean > 0.3 {let text=format!("Weak sampling: {:.1}% relative standard error.",100.0*response.standard_error/response.mean);badge::badge(ui,badge::Kind::Partial,&format!("weak sampling · {:.0}% RSE",100.0*response.standard_error/response.mean),&text);}
                     } else {ui.label("Mean neutron flux  —");}
+                    ui.add_space(8.0);
                     if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
-                        ui.label(format!("Reference nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
-                        ui.small(format!("Sampling SE: {:.3} MW · coupled neutron/photon", heating.integrated_standard_error / 1e6));
-                        ui.small("Deposition includes material reaction energy and can exceed D–T source power. Full physical energy closure is not evaluated; heat recovery is an authored assumption.");
+                        ui.weak("Reference nuclear heating · MW");
+                        ui.horizontal_wrapped(|ui|{
+                            ui.label(egui::RichText::new(format!("{:.3}",heating.integrated_mean / 1e6)).size(18.0).strong());
+                            badge::badge(ui,badge::Kind::Calculated,&format!("± {:.3} MW SE",heating.integrated_standard_error / 1e6),&format!("Sampling SE: {:.3} MW · coupled neutron/photon",heating.integrated_standard_error / 1e6));
+                            badge::badge(ui,badge::Kind::Conditional,"energy closure not evaluated","Deposition includes material reaction energy and can exceed D–T source power. Full physical energy closure is not evaluated; heat recovery is an authored assumption.");
+                        });
                     } else { ui.label("Nuclear heating  —"); }
                     self.history.inspector(ui,&self.manifest.source_sha256,&variant.id,&component.id,self.year*faris_engine::history::JULIAN_YEAR_SECONDS);
                     self.transport.spectra(ui,&variant.id,&component.id);
@@ -1211,6 +1664,7 @@ impl eframe::App for FarisApp {
                 "variant_id":variant, "field_view":format!("{:?}",self.transport.view),
                 "selected_component":self.selected, "hidden_components":self.hidden,
                 "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},
+                "step":self.step.name(),
                 "year":self.year, "history_pending":self.history.is_pending(),
                 "history_stale":self.history.is_stale(), "history_snapshot":snapshot,
                 "history_controls":self.history.interface_status(&self.manifest.source_sha256, variant),
