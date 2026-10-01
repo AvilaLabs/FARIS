@@ -8,6 +8,7 @@ mod evidence;
 mod history;
 mod reactor;
 mod study;
+mod study_file;
 mod transport;
 
 #[derive(Parser)]
@@ -59,6 +60,11 @@ enum Command {
         #[command(subcommand)]
         command: study::StudyCommand,
     },
+    /// Create, inspect, verify and unpack .faris study files.
+    StudyFile {
+        #[command(subcommand)]
+        command: study_file::StudyFileCommand,
+    },
     /// Execute a fixed-source cold-data numerical reference through OpenMC.
     Reactor {
         #[command(subcommand)]
@@ -75,6 +81,9 @@ fn main() -> std::process::ExitCode {
                 if error
                     .downcast_ref::<study::CoreCompilationRejected>()
                     .is_some()
+                    || error
+                        .downcast_ref::<study_file::StudyFileRejected>()
+                        .is_some()
                 {
                     1
                 } else {
@@ -92,6 +101,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::Control { command } => control::run(command)?,
         Command::Reactor { command } => reactor::run(command)?,
         Command::Study { command } => study::run(command)?,
+        Command::StudyFile { command } => study_file::run(command)?,
         Command::Transport { command } => transport::run(command)?,
         Command::Validate { scenario } => {
             let loaded = LoadedScenario::load(&scenario)?;

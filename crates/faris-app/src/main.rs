@@ -4,6 +4,7 @@ mod camera;
 mod compare_panel;
 mod history_panel;
 mod interface_check;
+mod study_file;
 mod study_panel;
 mod sweep_panel;
 mod tour;
@@ -29,6 +30,16 @@ use std::{
 #[derive(Parser)]
 #[command(about = "FARIS native desktop workspace", version)]
 struct Arguments {
+    /// Open a .faris study file: it supplies every input and the saved view.
+    #[arg(
+        value_name = "STUDY.faris",
+        conflicts_with_all = [
+            "scenario", "physics", "run", "bundle", "sweep_bundle", "control_scenario",
+            "control_physics", "control_run", "control_bundle", "assumptions", "saved_study",
+            "step", "field_view", "initial_year",
+        ]
+    )]
+    study: Option<PathBuf>,
     /// Load a scenario; otherwise use the bundled geometry demo.
     #[arg(long)]
     scenario: Option<PathBuf>,
@@ -175,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tour_marker = tour::marker_path();
     let play_tour = tour::should_play(
         args.tour,
-        scripted,
+        scripted || args.study.is_some(),
         tour_marker.as_deref().is_some_and(|p| p.exists()),
     );
     let interface_check = args
@@ -200,63 +211,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .into(),
         );
     }
-    let loaded = if let Some(path) = args.scenario {
-        LoadedScenario::load(&path)?
-    } else if let Some(path) = args.bundle.first() {
-        scenario_from_bundle(path)?
+    let inputs = study_file::StudyInputs::from_arguments(&args);
+    let session_inputs = if args.study.is_some() {
+        SessionInputs::empty(args.runs_directory.clone())
     } else {
-        LoadedScenario::from_bytes(include_bytes!(
-            "../../../scenarios/arc-inspired/scenario.json"
-        ))?
+        SessionInputs {
+            scenario: args.scenario.clone(),
+            physics: args.physics.clone(),
+            run: args.run.clone(),
+            bundle: args.bundle.clone(),
+            control_scenario: args.control_scenario.clone(),
+            control_physics: args.control_physics.clone(),
+            control_run: args.control_run.clone(),
+            control_bundle: args.control_bundle.clone(),
+            assumptions: args.assumptions.clone(),
+            python: args.python.clone(),
+            openmc: args.openmc.clone(),
+            audit: args.audit.clone(),
+            cross_sections: args.cross_sections.clone(),
+            runs_directory: args.runs_directory.clone(),
+            field_view: args.field_view,
+        }
     };
-    let manifest = build_manifest(&loaded)?;
+    let Session {
+        manifest,
+        control,
+        transport,
+        history,
+    } = build_session(session_inputs).map_err(std::io::Error::other)?;
     if !args.initial_year.is_finite()
         || !(0.0..=manifest.horizon_years).contains(&args.initial_year)
     {
         return Err("initial year must be finite and within the scenario horizon".into());
     }
-    let control = if args.control_scenario.is_some() || !args.control_bundle.is_empty() {
-        let scenario = if let Some(path) = &args.control_scenario {
-            LoadedScenario::load(path)?
-        } else {
-            scenario_from_bundle(&args.control_bundle[0])?
-        };
-        let control_manifest = build_manifest(&scenario)?;
-        let panel = transport_panel::TransportPanel::new(
-            scenario,
-            transport_panel::TransportConfiguration {
-                python: args.python.clone(),
-                openmc: args.openmc.clone(),
-                audit: args.audit.clone(),
-                cross_sections: args.cross_sections.clone(),
-                physics: args.control_physics,
-                runs: args.control_run,
-                bundles: args.control_bundle,
-                runs_directory: args.runs_directory.clone(),
-            },
-        )
-        .map_err(std::io::Error::other)?;
-        Some((control_manifest, panel))
-    } else {
-        None
-    };
-    let mut transport = transport_panel::TransportPanel::new(
-        loaded,
-        transport_panel::TransportConfiguration {
-            python: args.python,
-            openmc: args.openmc,
-            audit: args.audit,
-            cross_sections: args.cross_sections,
-            physics: args.physics,
-            runs: args.run,
-            bundles: args.bundle,
-            runs_directory: args.runs_directory.clone(),
-        },
-    )
-    .map_err(std::io::Error::other)?;
-    transport.view = args.field_view;
-    let history =
-        history_panel::HistoryPanel::new(args.assumptions).map_err(std::io::Error::other)?;
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         depth_buffer: 32,
@@ -267,7 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Default::default()
     };
     eframe::run_native(
-        "FARIS · Avila Labs",
+        study_file::window_title(None, false).as_str(),
         options,
         Box::new(move |cc| {
             let state = cc
@@ -291,12 +278,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 manifest,
                 args.capture,
                 args.core,
-                args.runs_directory,
+                args.runs_directory.clone(),
                 transport,
                 control,
                 history,
             )?;
             app.sweep = sweep;
+            app.file = study_file::FileState::new(inputs, args.runs_directory.clone());
+            if let Some(path) = args.study.clone() {
+                app.file.request_open(path);
+            }
             app.started = launch_started;
             app.year = args.initial_year;
             app.step = args.step;
@@ -321,6 +312,105 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
     Ok(())
+}
+
+/// Everything needed to load one study's arrangements and assumptions. Built
+/// from command-line flags or from the files a .faris study was unpacked to.
+#[derive(Clone, Default)]
+struct SessionInputs {
+    scenario: Option<PathBuf>,
+    physics: Vec<PathBuf>,
+    run: Vec<PathBuf>,
+    bundle: Vec<PathBuf>,
+    control_scenario: Option<PathBuf>,
+    control_physics: Vec<PathBuf>,
+    control_run: Vec<PathBuf>,
+    control_bundle: Vec<PathBuf>,
+    assumptions: Option<PathBuf>,
+    python: Option<PathBuf>,
+    openmc: Option<PathBuf>,
+    audit: Option<PathBuf>,
+    cross_sections: Option<PathBuf>,
+    runs_directory: PathBuf,
+    field_view: transport_panel::FieldView,
+}
+
+impl SessionInputs {
+    /// The bundled geometry demo with nothing loaded.
+    fn empty(runs_directory: PathBuf) -> Self {
+        Self {
+            runs_directory,
+            ..Self::default()
+        }
+    }
+}
+
+/// The loaded arrangements and history panel; sendable from a worker thread.
+struct Session {
+    manifest: DemoManifest,
+    control: Option<(DemoManifest, transport_panel::TransportPanel)>,
+    transport: transport_panel::TransportPanel,
+    history: history_panel::HistoryPanel,
+}
+
+fn build_session(inputs: SessionInputs) -> Result<Session, String> {
+    let err = |e: Box<dyn std::error::Error>| e.to_string();
+    let loaded = if let Some(path) = &inputs.scenario {
+        LoadedScenario::load(path).map_err(|e| e.to_string())?
+    } else if let Some(path) = inputs.bundle.first() {
+        scenario_from_bundle(path).map_err(err)?
+    } else {
+        LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/scenario.json"
+        ))
+        .map_err(|e| e.to_string())?
+    };
+    let manifest = build_manifest(&loaded).map_err(|e| e.to_string())?;
+    let control = if inputs.control_scenario.is_some() || !inputs.control_bundle.is_empty() {
+        let scenario = if let Some(path) = &inputs.control_scenario {
+            LoadedScenario::load(path).map_err(|e| e.to_string())?
+        } else {
+            scenario_from_bundle(&inputs.control_bundle[0]).map_err(err)?
+        };
+        let control_manifest = build_manifest(&scenario).map_err(|e| e.to_string())?;
+        let panel = transport_panel::TransportPanel::new(
+            scenario,
+            transport_panel::TransportConfiguration {
+                python: inputs.python.clone(),
+                openmc: inputs.openmc.clone(),
+                audit: inputs.audit.clone(),
+                cross_sections: inputs.cross_sections.clone(),
+                physics: inputs.control_physics,
+                runs: inputs.control_run,
+                bundles: inputs.control_bundle,
+                runs_directory: inputs.runs_directory.clone(),
+            },
+        )?;
+        Some((control_manifest, panel))
+    } else {
+        None
+    };
+    let mut transport = transport_panel::TransportPanel::new(
+        loaded,
+        transport_panel::TransportConfiguration {
+            python: inputs.python,
+            openmc: inputs.openmc,
+            audit: inputs.audit,
+            cross_sections: inputs.cross_sections,
+            physics: inputs.physics,
+            runs: inputs.run,
+            bundles: inputs.bundle,
+            runs_directory: inputs.runs_directory,
+        },
+    )?;
+    transport.view = inputs.field_view;
+    let history = history_panel::HistoryPanel::new(inputs.assumptions)?;
+    Ok(Session {
+        manifest,
+        control,
+        transport,
+        history,
+    })
 }
 
 /// Load the sweep's bundles through the ordinary transport record validation.
@@ -429,6 +519,7 @@ struct FarisApp {
     interface_check: Option<interface_check::InterfaceCheck>,
     tour: tour::Tour,
     tour_marker: Option<PathBuf>,
+    file: study_file::FileState,
 }
 
 impl FarisApp {
@@ -441,7 +532,6 @@ impl FarisApp {
         paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
         history: history_panel::HistoryPanel,
     ) -> Result<Self, faris_engine::mesh::MeshError> {
-        let show_history = history.assumptions.is_some();
         let mut app = Self {
             selected: manifest.variants[0].components
                 [1.min(manifest.variants[0].components.len() - 1)]
@@ -473,26 +563,44 @@ impl FarisApp {
             interface_check: None,
             tour: tour::Tour::default(),
             tour_marker: None,
+            file: study_file::FileState::default(),
         };
         if app.transport.has_results() {
             app.message = "Checked transport records loaded.".into();
         }
-        app.study.selection.fuel_history = show_history;
-        app.study.selection.electricity = show_history
-            && app
+        app.reset_for_session()?;
+        Ok(app)
+    }
+
+    /// Initial per-study state once the arrangements and history panel are in
+    /// place: first allocation, default selection, camera, and the Core
+    /// analyses the loaded inputs can support.
+    fn reset_for_session(&mut self) -> Result<(), faris_engine::mesh::MeshError> {
+        let show_history = self.history.assumptions.is_some();
+        self.variant = 0;
+        self.hidden.clear();
+        self.selected = self.manifest.variants[0].components
+            [1.min(self.manifest.variants[0].components.len() - 1)]
+        .id
+        .clone();
+        self.study.selection.fuel_history = show_history;
+        self.study.selection.electricity = show_history
+            && self
                 .transport
-                .response(&app.manifest.variants[0].id, "heating-total-whole-model")
+                .response(&self.manifest.variants[0].id, "heating-total-whole-model")
                 .is_some();
-        if app.transport.view == transport_panel::FieldView::FluxSlice
-            && let Some(record) = app.transport.record(&app.manifest.variants[app.variant].id)
+        self.camera = Camera::default();
+        if self.transport.view == transport_panel::FieldView::FluxSlice
+            && let Some(record) = self
+                .transport
+                .record(&self.manifest.variants[self.variant].id)
         {
-            app.camera.frame_bounds(
+            self.camera.frame_bounds(
                 record.mesh.lower_left_m.map(|x| x as f32),
                 record.mesh.upper_right_m.map(|x| x as f32),
             );
         }
-        app.rebuild()?;
-        Ok(app)
+        self.rebuild()
     }
 
     fn rebuild(&mut self) -> Result<(), faris_engine::mesh::MeshError> {
@@ -763,6 +871,7 @@ impl FarisApp {
         };
         if self.frames >= 8
             && !self.capture_requested
+            && !self.file.is_busy()
             && !self.history.is_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
@@ -803,7 +912,7 @@ impl FarisApp {
         } else if self.started.elapsed().as_secs()
             > if self.interface_check.is_some() {
                 170
-            } else if self.sweep.is_some() {
+            } else if self.sweep.is_some() || self.file.is_busy() {
                 // Seven 16 MiB bundles validate slowly in unoptimized builds.
                 400
             } else {
@@ -1314,6 +1423,12 @@ impl FarisApp {
     }
 
     fn evidence_step(&mut self, ui: &mut egui::Ui) {
+        if let Some(note) = study_file::evidence_badge(&self.file.evidence) {
+            ui.horizontal_wrapped(|ui| {
+                badge::badge(ui, note.kind, note.label, &note.text);
+            });
+            ui.add_space(8.0);
+        }
         // Saved Core receipts bind the assumptions they were executed with
         // (the loaded file). Offer that set explicitly instead of silently
         // showing receipts beside histories they do not cover.
@@ -1393,6 +1508,7 @@ impl eframe::App for FarisApp {
             if b.ready_at.is_none()
                 && now.duration_since(b.launch_started).as_secs_f64() >= 2.0
                 && !self.history.is_pending()
+                && !self.file.is_busy()
                 && !self.study.archive.is_loading()
             {
                 b.ready_at = Some(now);
@@ -1427,6 +1543,7 @@ impl eframe::App for FarisApp {
             // fixed sleep would measure our throttle plus rendering latency.
             ctx.request_repaint();
         }
+        self.poll_file(&ctx);
         self.study.poll(&ctx);
         let history_before = self.history.revision();
         for (scenario, variant, history) in self.study.archive.take_histories() {
@@ -1530,6 +1647,8 @@ impl eframe::App for FarisApp {
                 if !compact {
                     ui.weak("Avila Labs");
                 }
+                ui.separator();
+                self.file_menu(ui);
                 ui.separator();
                 if !compact {
                     self.step_bar(ui);
@@ -1933,8 +2052,10 @@ impl eframe::App for FarisApp {
                 "transport":self.transport.interface_status(variant),
                 "cutaway":self.cutaway, "scene_revision":self.revision, "message":self.message,
             });
-            let ready =
-                self.frames >= 8 && !self.history.is_pending() && !self.study.archive.is_loading();
+            let ready = self.frames >= 8
+                && !self.history.is_pending()
+                && !self.study.archive.is_loading()
+                && !self.file.is_busy();
             if let Err(error) = check.observe(state, ready) {
                 eprintln!("FARIS interface check report failed: {error}");
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -1943,6 +2064,7 @@ impl eframe::App for FarisApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
+        self.opening_overlay(&ctx);
         self.tour.show(&ctx);
         self.capture_frame(&ctx);
     }

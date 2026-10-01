@@ -63,6 +63,25 @@ impl Plot {
             Plot::FullPower => Some(s.cumulative_full_power_seconds / JULIAN_YEAR_SECONDS),
         }
     }
+    /// Stable name stored in study files.
+    fn name(self) -> &'static str {
+        match self {
+            Plot::MagnetFluence => "magnet-fluence",
+            Plot::Electricity => "electricity",
+            Plot::Tritium => "tritium",
+            Plot::FullPower => "full-power",
+        }
+    }
+    fn from_name(name: &str) -> Option<Self> {
+        [
+            Plot::MagnetFluence,
+            Plot::Electricity,
+            Plot::Tritium,
+            Plot::FullPower,
+        ]
+        .into_iter()
+        .find(|plot| plot.name() == name)
+    }
     fn title(self) -> &'static str {
         match self {
             Plot::MagnetFluence => "Magnet fluence · component-average, n/m²",
@@ -316,6 +335,49 @@ impl HistoryPanel {
             .map_or("the loaded operating assumptions", |preset| {
                 preset.name.as_str()
             })
+    }
+
+    /// Name of the selected preset, if presets exist (saved in study files).
+    pub fn selected_preset(&self) -> Option<&str> {
+        self.presets.get(self.preset_index).map(|p| p.name.as_str())
+    }
+
+    /// The what-if values as currently edited.
+    pub fn what_if_values(&self) -> Option<&OperatingHistoryAssumptions> {
+        self.assumptions.as_ref()
+    }
+
+    pub fn plot_name(&self) -> &'static str {
+        self.plot.name()
+    }
+
+    /// Restore a saved view before the first calculation: the preset, then the
+    /// edited what-if values on top of it. Unknown names and invalid values
+    /// leave the defaults; histories are recalculated, never stored.
+    pub fn restore_view(
+        &mut self,
+        preset: Option<&str>,
+        what_if: Option<&OperatingHistoryAssumptions>,
+        plot: &str,
+    ) {
+        if let Some(index) =
+            preset.and_then(|name| self.presets.iter().position(|p| p.name == name))
+        {
+            self.preset_index = index;
+            self.assumptions = Some(self.presets[index].assumptions.clone());
+        }
+        if let Some(values) = what_if
+            && self.assumptions.is_some()
+            && values.validate().is_ok()
+        {
+            self.assumptions = Some(values.clone());
+        }
+        if let Some(plot) = Plot::from_name(plot) {
+            self.plot = plot;
+        }
+        self.requested = self.assumptions.is_some();
+        self.edited = false;
+        self.debounce = None;
     }
 
     /// Select a preset by name and recalculate; false when no such preset exists.

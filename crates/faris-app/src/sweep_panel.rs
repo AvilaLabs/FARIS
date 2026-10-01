@@ -54,6 +54,8 @@ pub struct SweepPanel {
     pending: Option<Pending>,
     history_error: Option<String>,
     selected: usize,
+    /// Saved selection (blanket thickness, m), applied when the points load.
+    wanted_blanket_m: Option<f64>,
 }
 
 /// Axis mapping a data range to a 0..1 fraction (linear or base-10 log).
@@ -145,6 +147,7 @@ impl SweepPanel {
             pending: None,
             history_error: None,
             selected: 0,
+            wanted_blanket_m: None,
         };
         panel.install(loaded);
         panel
@@ -180,9 +183,15 @@ impl SweepPanel {
             Ok((transport, manifest, points, rates))
         }) {
             Ok((transport, manifest, points, rates)) => {
+                let wanted = panel.wanted_blanket_m.unwrap_or(NAMED[0].0);
                 panel.selected = points
                     .iter()
-                    .position(|p| (p.blanket_m - NAMED[0].0).abs() < 1e-9)
+                    .position(|p| (p.blanket_m - wanted).abs() < 1e-9)
+                    .or_else(|| {
+                        points
+                            .iter()
+                            .position(|p| (p.blanket_m - NAMED[0].0).abs() < 1e-9)
+                    })
                     .unwrap_or(0);
                 panel._transport = Some(transport);
                 panel.manifest = Some(manifest);
@@ -195,6 +204,27 @@ impl SweepPanel {
 
     pub fn is_pending(&self) -> bool {
         self.pending.is_some() || self.loading.is_some()
+    }
+
+    /// Blanket thickness (m) of the selected allocation, once the points load;
+    /// before that, the saved selection still waiting to be applied.
+    pub fn selected_blanket_m(&self) -> Option<f64> {
+        self.points
+            .get(self.selected)
+            .map(|p| p.blanket_m)
+            .or(self.wanted_blanket_m)
+    }
+
+    /// Select the allocation with this blanket thickness, now or when loaded.
+    pub fn select_blanket_m(&mut self, blanket_m: f64) {
+        self.wanted_blanket_m = Some(blanket_m);
+        if let Some(index) = self
+            .points
+            .iter()
+            .position(|p| (p.blanket_m - blanket_m).abs() < 1e-9)
+        {
+            self.selected = index;
+        }
     }
 
     /// Poll the history worker and schedule a recomputation when the selected

@@ -150,6 +150,45 @@ OpenMC Python/executable paths. The desktop runs the same engine as the CLI.
 flux-slice` starts with calculated spatial fields. Source geometry remains a
 full torus. The display cutaway does not change transport.
 
+## Study files
+
+A `.faris` file is one study: both arrangements (with and without the port), the
+recorded transport, the allocation sweep, the operating assumptions, and the view
+you left open (step, preset, what-if values, year, field view, history tab, selected
+arrangement and allocation). Calculated histories are not stored; they recalculate
+on opening. The format, its size policy and its reading rules are in
+[docs/STUDY_FILE.md](docs/STUDY_FILE.md).
+
+```bash
+cargo run -p faris-app -- demo.faris          # or File > Open, Ctrl+O, or drop the file on the window
+```
+
+The **File** menu in the top bar has Open, Save, Save as (Ctrl+O, Ctrl+S,
+Ctrl+Shift+S). The window title shows the file name and a dot when the view differs
+from what was saved. Recorded files are stored byte for byte and checked by hash on
+every open, so the Core receipts' "unchanged since checked" guarantee survives a
+save. By default the Core evidence archives (about 50 MB for the demo) are recorded by name
+and hash, not included; the study opens fully without them and its Evidence step
+says the receipts are not included and how to supply them. Tick **Include Core
+evidence in saved files** to store them inside. Archives found beside the file at
+the recorded relative paths (for example `port/archives/reference-case.tar.gz`
+when the file sits at the package root) are checked against their hashes and used.
+
+```bash
+faris study-file create --bundle port/bundles/reference.transport-bundle.json \
+  --control-bundle control/bundles/reference.transport-bundle.json \
+  --sweep-bundle sweep/blanket-045cm.transport-bundle.json \
+  --assumptions operating-assumptions.json \
+  --evidence saved-study-port-reference.json [--pack-evidence] -o demo.faris
+faris study-file inspect demo.faris     # manifest summary and sizes
+faris study-file verify demo.faris      # rehash everything; exit 1 on any failure
+faris study-file unpack demo.faris out/ # bundles and files back out; refuses an existing directory
+```
+
+To open `.faris` files from your file manager on Linux, run
+`scripts/install_desktop_integration.sh /absolute/path/to/faris-app` (user-level; add
+`--uninstall` to remove it).
+
 ## Use the CLI
 
 The default workspace member is the CLI, so headless operations do not build
@@ -223,6 +262,7 @@ development artifacts, not simulation evidence.
 | --- | --- |
 | `crates/faris-model/` | Scenario types, units, validation, and identities |
 | `crates/faris-engine/` | Shared geometry, transport normalization/jobs, history, comparison and Core evidence |
+| `crates/faris-study/` | The `.faris` study file: verified, content-addressed container (no UI) |
 | `crates/faris-cli/` | Headless client of the same engine |
 | `crates/faris-app/` | Native egui workspace and wgpu renderer |
 | `scenarios/arc-inspired/scenario.json` | The single editable demo scenario |
@@ -233,6 +273,7 @@ development artifacts, not simulation evidence.
 | `docs/TOOLING.md` | Open-source tools and planned integration roles |
 | `docs/SCIENTIFIC_BASELINE.md` | Benchmark selection, validation scope, uncertainty rules and unresolved scientific inputs |
 | `docs/MATERIAL_BASELINE.md` | Primary-source material candidates and inputs that still need resolution |
+| `docs/STUDY_FILE.md` | The `.faris` study file: container, size policy, reading rules |
 | `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
 | `controls/` | Independent analytic controls and external OpenMC numerical checks |
 | `references/` | Identified scientific sources and read-only tool/data audits |

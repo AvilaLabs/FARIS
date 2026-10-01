@@ -22,7 +22,11 @@ takes about 12 characters. As 8-byte binary values the numbers alone would take
 about 0.6 MB.
 
 **Demo (v1 as built):** recorded files are stored byte for byte, compressed
-with zstd. Core receipts check those bytes by hash, so any rewrite that saves
+with zstd at level 15. Level 19, the 5.0 MB figure above, takes about two
+minutes to write the demo study on one core; level 15 writes it in about six
+seconds into 6.1 MB (level 9: 1.5 s, 6.2 MB; level 12: 3.2 s, 6.1 MB). The
+high levels are a time cliff, not a ratio gain, so the writer stops at 15 and
+the level can be raised with `--zstd-level` where time does not matter. Core receipts check those bytes by hash, so any rewrite that saves
 space would break the "unchanged since checked" guarantee; lossless compression
 does not.
 
@@ -53,7 +57,7 @@ A zip archive. Entries:
 | `mimetype` | `application/vnd.avila-labs.faris-study`, first entry, stored uncompressed, so the type is detectable from the first bytes |
 | `manifest.json` | format `faris-study/1`, roles, view state, blob table, layers |
 | `blobs/<sha256>` | exact bytes of one file, named by its SHA-256; identical files are stored once |
-| `preview.png` | optional thumbnail |
+| `preview.png` | optional thumbnail (readers accept it; v1 writers do not yet produce one) |
 
 Blobs are zstd-compressed, except blobs that are already compressed (evidence
 `.tar.gz` archives), which are stored. Each blob entry in the manifest records
@@ -83,3 +87,59 @@ Blobs are zstd-compressed, except blobs that are already compressed (evidence
 - Unknown manifest fields are ignored, so minor versions can add fields.
 - Opening a file with referenced evidence never claims Core verification. The
   Evidence step shows the recorded hashes and explains how to supply the archives.
+
+## Manifest as built (v1)
+
+`manifest.json` is pretty-printed JSON with these top-level fields. Digests are
+lowercase hexadecimal SHA-256 without a prefix.
+
+- `format`: `faris-study/1`; `created_by`: the FARIS version.
+- `arrangements.port`, `arrangements.control`: `{scenario, physics[], bundles[]}`.
+  `scenario` and `physics` are blob digests. Each bundle is `{name, schema_version,
+  notice, files{member name: digest}, trailing_newline}`. The reader rebuilds the
+  exact `RecordedTransportBundle` and writes it back as indented JSON, with the
+  trailing newline the recorded file had.
+- `sweep`: bundles in the same form.
+- `assumptions`: digest of the operating-assumption file.
+- `view`: `{step, preset, what_if, year, field_view, history_tab, arrangement,
+  allocation, sweep_blanket_m}`. `what_if` holds the full edited assumption
+  values; names are the app's stable kebab-case names; unknown names fall back
+  to defaults on opening.
+- `layers.evidence`: `{mode: packed|referenced, archives[]}`, each archive
+  `{arrangement, allocation, kind: case|workspace, file_name, sha256, bytes}`.
+  `file_name` is a relative path of one to four safe components, for example
+  `port/archives/reference-case.tar.gz`: the two arrangements use the same base
+  names, and the path is where the archive is looked for relative to the study
+  file (a study saved beside the package root finds `port/archives/...`
+  unchanged). Referenced archives found there are used only when size and hash
+  both match; one that exists with a different hash is reported as such, never used.
+- `blobs`: `[{sha256, bytes, media_type, encoding}]`, one per distinct file.
+
+Packed evidence archives are blobs with media type `application/gzip`, stored
+rather than recompressed.
+
+## Reader limits as built
+
+Beyond the reading rules above, the reader refuses: a first entry that is not a
+stored `mimetype` with the exact type string; entry names other than
+`mimetype`, `manifest.json`, `preview.png` and `blobs/<64 hex>`; repeated entry
+names (checked in the central directory, because the zip library silently keeps
+the last of two); a blob entry missing from the table or a table entry missing
+from the file; zip64 containers; more than 4 GiB of declared blob bytes or 1 GiB
+for one blob; blob reads longer than the recorded size (bounded while
+decompressing, so a lying header cannot expand past it); unsafe bundle names or
+evidence paths in the manifest. Writing is atomic: a temporary file in the
+destination directory, `fsync`, then rename.
+
+## Opening in the app
+
+Opening unpacks the recorded files to a workspace directory inside the runs
+directory (not `/tmp`, which may be memory), then loads them through the same
+code as the command-line flags, off the UI thread behind a progress card. The
+workspace is removed when another study is opened or the app exits normally.
+Core evidence archives, packed or found beside the file, are extracted
+(regular files only, bounded, created exclusively) in the background and
+reopened by the existing saved-study code, so the study is usable first and
+the receipts verify afterwards. Saving writes the inputs from those files plus
+the current view; a session started from `--run` records cannot be saved
+because a study file holds recorded-transport bundles.

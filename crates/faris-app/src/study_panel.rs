@@ -120,6 +120,11 @@ impl StudyPanel {
         }
     }
 
+    /// The Core executable path currently configured, if any.
+    pub fn core_path(&self) -> Option<PathBuf> {
+        (!self.core_path.is_empty()).then(|| PathBuf::from(&self.core_path))
+    }
+
     pub fn poll(&mut self, ctx: &egui::Context) {
         self.archive.poll(ctx);
         if let Some(pending) = &self.pending_evidence {
