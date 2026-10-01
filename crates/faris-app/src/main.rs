@@ -6,6 +6,7 @@ mod history_panel;
 mod interface_check;
 mod study_panel;
 mod sweep_panel;
+mod tour;
 mod transport_panel;
 mod viewport;
 
@@ -109,6 +110,12 @@ struct Arguments {
     /// Workflow step shown on launch.
     #[arg(long, value_enum, default_value_t = Step::Design)]
     step: Step,
+    /// Guided tour on launch: auto plays it once, until finished or skipped.
+    #[arg(long, value_enum, default_value_t = tour::TourMode::Auto)]
+    tour: tour::TourMode,
+    /// Start the tour at this stop (1-based); for captures.
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..=tour::STOPS.len() as i64))]
+    tour_stop: Option<u32>,
 }
 
 /// Guided workflow: the left panel shows only the current step's content.
@@ -162,6 +169,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("benchmark duration must be finite and in 2..=120 seconds".into());
     }
     let launch_started = Instant::now();
+    let scripted = args.capture.is_some()
+        || args.benchmark_seconds.is_some()
+        || args.interface_check.is_some();
+    let tour_marker = tour::marker_path();
+    let play_tour = tour::should_play(
+        args.tour,
+        scripted,
+        tour_marker.as_deref().is_some_and(|p| p.exists()),
+    );
     let interface_check = args
         .interface_check
         .as_deref()
@@ -285,6 +301,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.year = args.initial_year;
             app.step = args.step;
             app.interface_check = interface_check;
+            app.tour_marker = tour_marker;
+            if play_tour {
+                app.start_tour(args.tour_stop.map_or(0, |n| n as usize - 1));
+            }
             app.study
                 .archive
                 .queue_descriptors(args.saved_study, args.saved_study_ready_marker)
@@ -407,6 +427,8 @@ struct FarisApp {
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
     interface_check: Option<interface_check::InterfaceCheck>,
+    tour: tour::Tour,
+    tour_marker: Option<PathBuf>,
 }
 
 impl FarisApp {
@@ -449,6 +471,8 @@ impl FarisApp {
             benchmark: None,
             geometry_cache: BTreeMap::new(),
             interface_check: None,
+            tour: tour::Tour::default(),
+            tour_marker: None,
         };
         if app.transport.has_results() {
             app.message = "Checked transport records loaded.".into();
@@ -742,6 +766,7 @@ impl FarisApp {
             && !self.history.is_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
+            && self.tour.settled()
             && self.interface_check.as_ref().is_none_or(|c| c.finished())
             && self.started.elapsed().as_secs_f64() >= 1.0
         {
@@ -927,6 +952,7 @@ fn allocation_text(variant: &VariantGeometry) -> String {
 impl FarisApp {
     fn step_bar(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing.x = 2.0;
+        let mut bounds = egui::Rect::NOTHING;
         for step in Step::ALL {
             let response = ui
                 .selectable_label(
@@ -934,10 +960,94 @@ impl FarisApp {
                     format!("{} {}", step.number(), step.name()),
                 )
                 .on_hover_text(format!("Press {} to switch here", step.number()));
+            bounds = bounds.union(response.rect);
             if response.clicked() {
                 self.step = step;
             }
         }
+        self.tour.anchor("steps-bar", bounds);
+    }
+
+    fn start_tour(&mut self, stop: usize) {
+        self.tour.start(
+            tour::Saved {
+                step: self.step,
+                view: self.transport.view,
+                year: self.year,
+            },
+            stop,
+        );
+    }
+
+    /// Apply a tour transition to the app state. A stop that shows a history
+    /// waits for the histories to finish so it never falls back needlessly.
+    fn apply_tour(&mut self) {
+        let Some(effect) = self.tour.pending() else {
+            return;
+        };
+        let variant = self.manifest.variants[self.variant].id.clone();
+        let (view, year, step) = match effect {
+            tour::Effect::Enter(index) => {
+                let stop = &tour::STOPS[index];
+                if stop.year.is_some()
+                    && (self.history.is_pending()
+                        || (self.history.assumptions.is_some() && self.frames < 8))
+                {
+                    return;
+                }
+                let has_history = self
+                    .history
+                    .result(&self.manifest.source_sha256, &variant)
+                    .is_some();
+                let has_transport = self
+                    .transport
+                    .record(&variant)
+                    .is_some_and(|r| r.normalized.is_some());
+                let view = stop.view.map(|view| match view {
+                    transport_panel::FieldView::FluxSlice if !has_transport => {
+                        transport_panel::FieldView::Materials
+                    }
+                    transport_panel::FieldView::ComponentFluence if !has_history => {
+                        transport_panel::FieldView::Materials
+                    }
+                    view => view,
+                });
+                let year = stop.year.map(|spec| match spec {
+                    tour::YearSpec::Fixed(year) => year,
+                    tour::YearSpec::FirstMagnetReplacement { fallback } => self
+                        .history
+                        .first_magnet_replacement_year(&self.manifest.source_sha256, &variant)
+                        .unwrap_or(fallback),
+                });
+                (view, year, stop.step)
+            }
+            tour::Effect::Skipped(saved) => (Some(saved.view), Some(saved.year), Some(saved.step)),
+            tour::Effect::Finished => (
+                Some(transport_panel::FieldView::Materials),
+                Some(0.0),
+                Some(Step::Design),
+            ),
+        };
+        if let Some(step) = step {
+            self.step = step;
+        }
+        if let Some(view) = view {
+            if self.transport.view == transport_panel::FieldView::FluxSlice
+                && view != transport_panel::FieldView::FluxSlice
+            {
+                self.camera = Camera::default();
+            }
+            self.transport.view = view;
+        }
+        if let Some(year) = year {
+            self.year = year.clamp(0.0, self.manifest.horizon_years);
+        }
+        if matches!(effect, tour::Effect::Skipped(_) | tour::Effect::Finished)
+            && let Some(path) = &self.tour_marker
+        {
+            tour::write_marker(path);
+        }
+        self.tour.clear_pending();
     }
 
     fn swap_arrangement(&mut self) {
@@ -955,6 +1065,7 @@ impl FarisApp {
         ui.label(&self.manifest.title);
         ui.weak("ARC-inspired · idealized geometry");
         ui.add_space(12.0);
+        let arrangement_top = ui.cursor().top();
         ui.strong("Arrangement");
         ui.add_space(4.0);
         let has_port = self.manifest.penetration.is_some();
@@ -1000,6 +1111,11 @@ impl FarisApp {
             .find(|(index, _)| *index != self.variant)
             .map(|(_, v)| v);
         radial_build(ui, active, other, &mut self.selected);
+        let arrangement = egui::Rect::from_min_max(
+            egui::pos2(ui.max_rect().left(), arrangement_top),
+            egui::pos2(ui.max_rect().right(), ui.cursor().top()),
+        );
+        self.tour.anchor_in(ui, "design-arrangement", arrangement);
         ui.add_space(12.0);
         ui.separator();
         ui.horizontal_wrapped(|ui| {
@@ -1156,7 +1272,13 @@ impl FarisApp {
     }
 
     fn simulate_step(&mut self, ui: &mut egui::Ui) {
+        let card_top = ui.cursor().top();
         self.transport_card(ui);
+        let card = egui::Rect::from_min_max(
+            egui::pos2(ui.max_rect().left(), card_top),
+            egui::pos2(ui.max_rect().right(), ui.min_rect().bottom()),
+        );
+        self.tour.anchor_in(ui, "transport-card", card);
         ui.add_space(12.0);
         self.transport
             .controls(ui, &self.manifest.variants[self.variant].id);
@@ -1165,7 +1287,9 @@ impl FarisApp {
     fn operate_step(&mut self, ui: &mut egui::Ui) {
         ui.label("Scrub the timeline below; edits recalculate all four histories.");
         ui.add_space(8.0);
-        self.history.controls(ui);
+        if let Some(what_if) = self.history.controls(ui) {
+            self.tour.anchor_in(ui, "what-if", what_if);
+        }
         ui.add_space(8.0);
         self.history.sensitivity_controls(
             ui,
@@ -1222,6 +1346,9 @@ impl FarisApp {
             self.transport.location(variant),
             self.history.assumptions.as_ref(),
         );
+        if let Some(status) = self.study.status_rect.take() {
+            self.tour.anchor_in(ui, "evidence-status", status);
+        }
     }
 
     /// Bottom-panel content on the Compare step.
@@ -1321,6 +1448,7 @@ impl eframe::App for FarisApp {
         }
         self.history.poll(&ctx);
         let field_before = self.transport.render_key();
+        self.apply_tour();
         self.transport.poll(&ctx);
         let mut history_inputs: Vec<_> = self
             .transport
@@ -1382,7 +1510,7 @@ impl eframe::App for FarisApp {
             self.hidden.clone(),
             year_before_frame,
         );
-        if !ctx.egui_wants_keyboard_input() {
+        if !self.tour.active && !ctx.egui_wants_keyboard_input() {
             let chosen = ctx.input(|input| {
                 if input.modifiers.any() {
                     return None;
@@ -1408,6 +1536,11 @@ impl eframe::App for FarisApp {
                     ui.separator();
                 }
                 interface_size_menu(ui);
+                let replay = ui.button("Tour").on_hover_text("Replay the guided tour");
+                self.tour.anchor("tour-button", replay.rect);
+                if replay.clicked() {
+                    self.start_tour(0);
+                }
                 if !compact {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         self.study.header(
@@ -1429,12 +1562,13 @@ impl eframe::App for FarisApp {
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.transport.has_results() {
-                    badge::badge(
+                    let cold = badge::badge(
                         ui,
                         badge::Kind::Conditional,
                         "cold-data surrogate · NOT_EVALUATED",
                         "Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.",
                     );
+                    self.tour.anchor("status-badge", cold.rect);
                 }
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.add(egui::Label::new(egui::RichText::new(&self.message).small()).truncate())
@@ -1445,11 +1579,12 @@ impl eframe::App for FarisApp {
         let workspace_width = ui.available_width();
         if self.step == Step::Compare {
             let compare_max_height = (ui.available_height() * 0.75).max(120.0);
-            egui::Panel::bottom("compare")
+            let compare = egui::Panel::bottom("compare")
                 .resizable(true)
                 .default_size((ui.available_height() * 0.55).min(compare_max_height))
                 .size_range(120.0..=compare_max_height)
                 .show(ui, |ui| self.compare_view(ui));
+            self.tour.anchor("compare-view", compare.response.rect);
         } else {
             let timeline_max_height = (ui.available_height() * 0.55).clamp(85.0, 640.0);
             let show_history = self.history.assumptions.is_some();
@@ -1467,13 +1602,16 @@ impl eframe::App for FarisApp {
                         .show(ui, |ui| {
                             ui.set_width(content_width);
                             if show_history {
-                                self.history.timeline(
+                                let plot = self.history.timeline(
                                     ui,
                                     &self.manifest.source_sha256,
                                     &self.manifest.variants[self.variant].id,
                                     &mut self.year,
                                     self.manifest.horizon_years,
                                 );
+                                if let Some(plot) = plot {
+                                    self.tour.anchor_in(ui, "timeline-plot", plot);
+                                }
                                 return;
                             }
                             ui.horizontal(|ui| {
@@ -1670,6 +1808,7 @@ impl eframe::App for FarisApp {
                 let (rect, response) =
                     ui.allocate_exact_size(ui.available_size().max(egui::vec2(1.0, 1.0)), egui::Sense::click_and_drag());
                 viewport_points = [rect.width(), rect.height()];
+                self.tour.anchor("viewport", rect);
                 if response.dragged() {
                     let delta = ctx.input(|input| input.pointer.delta());
                     if ctx.input(|input| input.modifiers.shift) {
@@ -1785,6 +1924,7 @@ impl eframe::App for FarisApp {
                 "selected_component":self.selected, "hidden_components":self.hidden,
                 "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},
                 "step":self.step.name(),
+                "tour":{"active":self.tour.active,"stop":self.tour.stop + 1},
                 "year":self.year, "history_pending":self.history.is_pending(),
                 "history_stale":self.history.is_stale(), "history_snapshot":snapshot,
                 "history_controls":self.history.interface_status(&self.manifest.source_sha256, variant),
@@ -1803,6 +1943,7 @@ impl eframe::App for FarisApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
+        self.tour.show(&ctx);
         self.capture_frame(&ctx);
     }
 }

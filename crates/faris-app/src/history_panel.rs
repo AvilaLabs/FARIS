@@ -562,7 +562,16 @@ impl HistoryPanel {
         }
     }
 
-    pub fn controls(&mut self, ui: &mut egui::Ui) {
+    /// Start (calendar years) of the first calculated magnet replacement.
+    pub fn first_magnet_replacement_year(&self, scenario: &str, variant: &str) -> Option<f64> {
+        let history = self.result(scenario, variant)?;
+        component_replacement_spans(&history.events, "magnets", history.assumptions.horizon_s)
+            .first()
+            .map(|(start, _)| start / JULIAN_YEAR_SECONDS)
+    }
+
+    /// Returns the area of the "What if…" group when histories can be edited.
+    pub fn controls(&mut self, ui: &mut egui::Ui) -> Option<egui::Rect> {
         if !self.presets.is_empty() {
             let old_index = self.preset_index;
             let combo = egui::ComboBox::from_id_salt("history-preset")
@@ -589,7 +598,14 @@ impl HistoryPanel {
                 );
             }
         }
+        let top = ui.cursor().top();
         self.what_if(ui);
+        let what_if = self.assumptions.is_some().then(|| {
+            egui::Rect::from_min_max(
+                egui::pos2(ui.max_rect().left(), top),
+                egui::pos2(ui.max_rect().right(), ui.cursor().top()),
+            )
+        });
         ui.horizontal(|ui| {
             if self.pending.is_some() || self.debounce.is_some() {
                 ui.spinner();
@@ -633,6 +649,7 @@ impl HistoryPanel {
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);
         }
+        what_if
     }
 
     /// Sliders bound to the selected authored assumptions. Any edit cancels the
@@ -923,7 +940,7 @@ impl HistoryPanel {
         variant: &str,
         year: &mut f64,
         horizon_years: f64,
-    ) {
+    ) -> Option<egui::Rect> {
         ui.horizontal_wrapped(|ui| {
             ui.strong("Calculated operating history");
             ui.separator();
@@ -946,7 +963,7 @@ impl HistoryPanel {
         let active = key(scenario, variant);
         if self.results.is_empty() {
             ui.weak("Waiting for identified transport and completed history.");
-            return;
+            return None;
         }
         self.ensure_cache();
         let series = self.series_list();
@@ -1034,8 +1051,9 @@ impl HistoryPanel {
                     });
             }
         });
-        self.draw_plot(ui, &active, year, horizon_years, &series);
+        let plot = self.draw_plot(ui, &active, year, horizon_years, &series);
         ui.small("Click or drag on the plot to scrub; hover for values. Scrubbing selects the computed snapshot at or before the requested time; discrete events are never interpolated across. Conditional on authored assumptions.");
+        Some(plot)
     }
 
     /// Headline numbers for the active arrangement at the scrub time.
@@ -1164,7 +1182,7 @@ impl HistoryPanel {
         year: &mut f64,
         horizon_years: f64,
         series: &[Series],
-    ) {
+    ) -> egui::Rect {
         let plot = self.plot;
         let height = (ui.clip_rect().bottom() - ui.cursor().top() - 52.0).clamp(150.0, 1400.0);
         let (outer, response) = ui.allocate_exact_size(
@@ -1447,6 +1465,7 @@ impl HistoryPanel {
                 }
             });
         }
+        outer
     }
 
     /// Wording of the service-limit line from the limit's declared provenance;

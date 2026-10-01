@@ -66,6 +66,8 @@ struct EvidenceIdentity {
 pub struct StudyPanel {
     pub archive: crate::archive_panel::ArchivePanel,
     pub selection: StudySelection,
+    /// Where the Status block was last drawn (guided tour spotlight).
+    pub status_rect: Option<egui::Rect>,
     core_path: String,
     runs_directory: PathBuf,
     pending: Option<PendingCompilation>,
@@ -114,6 +116,7 @@ impl StudyPanel {
             evidence_output: None,
             evidence_identity: None,
             reduced_motion: false,
+            status_rect: None,
         }
     }
 
@@ -326,6 +329,7 @@ impl StudyPanel {
             ui.add(egui::TextEdit::singleline(&mut self.faris_path).desired_width(f32::INFINITY));
         });
         ui.add_space(8.0);
+        let status_top = ui.cursor().top();
         ui.strong("Status");
         if self.pending.is_some() {
             status_row(
@@ -428,6 +432,10 @@ impl StudyPanel {
             "NOT_EVALUATED",
             "No scientific assessment has been made at this level. Compilation and readiness do not establish one; a verdict needs executed, verified evidence stages with qualified bounds.",
         );
+        self.status_rect = Some(egui::Rect::from_min_max(
+            egui::pos2(ui.max_rect().left(), status_top),
+            egui::pos2(ui.max_rect().right(), ui.cursor().top()),
+        ));
         self.archive.controls(ui, scenario_sha256, variant_id);
     }
 
