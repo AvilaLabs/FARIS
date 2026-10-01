@@ -1,0 +1,998 @@
+{
+  "baseline_core_histories_from_safe_archive_extract": [
+    {
+      "baseline_core_history_sha256": "sha256:8f352ccb96a7339d117dbaf9abe9ed3f87e09fcdd58782fc9ac7d44b23978928",
+      "binding_status": "PASS",
+      "canonical_archive_member_semantic_match_to_v3": true,
+      "canonical_archive_member_sha256_verified": true,
+      "energy_ledger": "PASS",
+      "history_method": "continuous-delayed-release-v2",
+      "mass_balance": "PASS",
+      "outcome": "horizon_completed",
+      "pair": "control",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "semantic_json_equal_to_v3_history": true,
+      "transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "v3_original_history_sha256": "ae75373186f1493e953a3fe14d5b829eb303b87701009d6b2b2092e6eb44a036",
+      "variant": "reference"
+    },
+    {
+      "baseline_core_history_sha256": "sha256:65441b037c2c205d1e88c81c5050ba685d6c999e52433d426275f5bb4017bcb3",
+      "binding_status": "PASS",
+      "canonical_archive_member_semantic_match_to_v3": true,
+      "canonical_archive_member_sha256_verified": true,
+      "energy_ledger": "PASS",
+      "history_method": "continuous-delayed-release-v2",
+      "mass_balance": "PASS",
+      "outcome": "horizon_completed",
+      "pair": "control",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "semantic_json_equal_to_v3_history": true,
+      "transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "v3_original_history_sha256": "570d0c68e990d387fcdbf513d4802f655eeb56ba672a2774f00fda3181195c0a",
+      "variant": "breeder-emphasis"
+    },
+    {
+      "baseline_core_history_sha256": "sha256:594447aaed493b8f29dd4489543b79628c4d46722393d3af73fe582aa74adf62",
+      "binding_status": "PASS",
+      "canonical_archive_member_semantic_match_to_v3": true,
+      "canonical_archive_member_sha256_verified": true,
+      "energy_ledger": "PASS",
+      "history_method": "continuous-delayed-release-v2",
+      "mass_balance": "PASS",
+      "outcome": "horizon_completed",
+      "pair": "port",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "semantic_json_equal_to_v3_history": true,
+      "transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "v3_original_history_sha256": "24595d3c616f8d7f29d2bac36bd9c24f59b40ccecc9e294576beb245a1dadc17",
+      "variant": "reference"
+    },
+    {
+      "baseline_core_history_sha256": "sha256:863093210e401f682b427cc284276f80f0eb6b485c6f15a840dfc4e2b522c509",
+      "binding_status": "PASS",
+      "canonical_archive_member_semantic_match_to_v3": true,
+      "canonical_archive_member_sha256_verified": true,
+      "energy_ledger": "PASS",
+      "history_method": "continuous-delayed-release-v2",
+      "mass_balance": "PASS",
+      "outcome": "horizon_completed",
+      "pair": "port",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "semantic_json_equal_to_v3_history": true,
+      "transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "v3_original_history_sha256": "37a12df0b1499610ac23cd298ff44180f8aa5a4443e9e929f70d0931ff960374",
+      "variant": "breeder-emphasis"
+    }
+  ],
+  "canonical_indexed_artifact_audit": {
+    "baseline_core_history_members": "4/4 exact embedded history JSON SHA and semantic content match the v3 600s baseline output",
+    "event_history_records": "4/4 history, rate, and provenance files match package index; history/rates agree with recorded v3 hashes",
+    "outage_duration_cases": "12/12 assumptions/history/rates/provenance files match package index and independently audited hashes",
+    "paired_comparisons": "2/2 actual final-CLI compare-runs replays byte-identical to package JSON; current hashes recorded; packaged provenance binds both distinct-seed run/input/raw/scenario identities and sampler plans",
+    "sensitivity_records": "4/4 study and provenance files match package index; selected adverse-corner replays match serialized outcomes"
+  },
+  "comparison_replays": [
+    {
+      "both_run_and_raw_hashes_match_package_index": true,
+      "cli_replay_byte_identical": true,
+      "comparison_path": "control/comparisons/reference-vs-breeder-emphasis.json",
+      "comparison_sha256": "sha256:57cc0f875f57b3ee76752e900fa6a99dce3ea513c1ec1a8c19ca50aaf81751fe",
+      "current_cli_replay_sha256": "57cc0f875f57b3ee76752e900fa6a99dce3ea513c1ec1a8c19ca50aaf81751fe",
+      "dependence_scope": "two distinct seeds; no covariance estimate or significance/ranking claim",
+      "generator_cli_sha256": "sha256:240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+      "interpretation": "Conditional paired code-to-code/model comparison only. No empirical qualification, service-life claim, or inferential significance is implied.",
+      "pair": "control",
+      "point_differences": {
+        "burned_tritium_kg_right_minus_left": 5.5690095227681695,
+        "full_power_seconds_right_minus_left": 5972472.903146386,
+        "net_electricity_mwh_right_minus_left": 184192.01895162463,
+        "produced_tritium_kg_right_minus_left": 17.8329803544882
+      },
+      "provenance_path": "control/comparisons/reference-vs-breeder-emphasis.provenance.json",
+      "provenance_sha256": "sha256:526d7dc7cabf0271521a9ebcb8f4442a54c5a0d5d02c9e6a527fbde2dc6daec4",
+      "sampling_plans_bound": true,
+      "scenario_hash": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6"
+    },
+    {
+      "both_run_and_raw_hashes_match_package_index": true,
+      "cli_replay_byte_identical": true,
+      "comparison_path": "port/comparisons/reference-vs-breeder-emphasis.json",
+      "comparison_sha256": "sha256:4968a29ee08b2e4639ec19e981d8e33a00bb3cb900153d616f0e56a341fa577d",
+      "current_cli_replay_sha256": "4968a29ee08b2e4639ec19e981d8e33a00bb3cb900153d616f0e56a341fa577d",
+      "dependence_scope": "two distinct seeds; no covariance estimate or significance/ranking claim",
+      "generator_cli_sha256": "sha256:240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+      "interpretation": "Conditional paired code-to-code/model comparison only. No empirical qualification, service-life claim, or inferential significance is implied.",
+      "pair": "port",
+      "point_differences": {
+        "burned_tritium_kg_right_minus_left": 5.819415356123159,
+        "full_power_seconds_right_minus_left": 6241020.128354907,
+        "net_electricity_mwh_right_minus_left": 206152.77411896735,
+        "produced_tritium_kg_right_minus_left": 20.015364201333227
+      },
+      "provenance_path": "port/comparisons/reference-vs-breeder-emphasis.provenance.json",
+      "provenance_sha256": "sha256:6c172334998b37a35481c35bf72d4fc25ed4b80935c7627ada7d2b937af4fdfe",
+      "sampling_plans_bound": true,
+      "scenario_hash": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5"
+    }
+  ],
+  "comparison_scope_findings": {
+    "across_each_pair_seeds_are_distinct": true,
+    "comparison_statement_says_descriptive_not_uncertainty_qualified": true,
+    "metadata_wording_issue": "Resolved in canonical package: comparison identifies blanket/shield geometry allocation, with compositions/source/data fixed; seeds are distinct and Monte Carlo covariance is not estimated or propagated.",
+    "no_cross_run_covariance_estimated_or_propagated": true
+  },
+  "controlled_input_difference_audit": [
+    {
+      "material_recipe_change": false,
+      "pair": "control",
+      "penetration_unchanged_within_pair": true,
+      "physics_material_source_and_nuclear_data_same_except_identity_fields": true,
+      "scenario_sha256": "sha256:99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "selected_variant_geometry_diff": {
+        "blanket": {
+          "breeder_emphasis_thickness_m": 0.55,
+          "reference_thickness_m": 0.45
+        },
+        "shield": {
+          "breeder_emphasis_thickness_m": 0.35,
+          "reference_thickness_m": 0.45
+        }
+      },
+      "total_blanket_plus_shield_radial_thickness_breeder_emphasis_m": 0.9,
+      "total_blanket_plus_shield_radial_thickness_reference_m": 0.9
+    },
+    {
+      "material_recipe_change": false,
+      "pair": "port",
+      "penetration_unchanged_within_pair": true,
+      "physics_material_source_and_nuclear_data_same_except_identity_fields": true,
+      "scenario_sha256": "sha256:f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "selected_variant_geometry_diff": {
+        "blanket": {
+          "breeder_emphasis_thickness_m": 0.55,
+          "reference_thickness_m": 0.45
+        },
+        "shield": {
+          "breeder_emphasis_thickness_m": 0.35,
+          "reference_thickness_m": 0.45
+        }
+      },
+      "total_blanket_plus_shield_radial_thickness_breeder_emphasis_m": 0.9,
+      "total_blanket_plus_shield_radial_thickness_reference_m": 0.9
+    }
+  ],
+  "event_histories": [
+    {
+      "baseline_core_archive_history": {
+        "archive_embedded_history_sha256": "sha256:8f352ccb96a7339d117dbaf9abe9ed3f87e09fcdd58782fc9ac7d44b23978928",
+        "core_case_relative_path": "control/cases/reference/expected/history.json",
+        "decimal_energy_ledger": "PASS",
+        "event_count": 202,
+        "outcome": "horizon_completed",
+        "processing_model": "continuous-delayed-release-v2",
+        "semantic_json_matches_v3_history": true,
+        "step_s": 600.0,
+        "transport_binding": "PASS",
+        "v3_history_sha256": "ae75373186f1493e953a3fe14d5b829eb303b87701009d6b2b2092e6eb44a036"
+      },
+      "delay_boundary": "PASS",
+      "event_count": 201,
+      "event_history_path": "control/event-histories/reference.json",
+      "event_kinds": {
+        "operation_started": 24,
+        "operation_stopped": 24,
+        "planned_outage_ended": 46,
+        "planned_outage_started": 46,
+        "replacement_completed": 20,
+        "replacement_started": 20,
+        "service_limit_reached": 21
+      },
+      "event_provenance_sha256": "sha256:52fccd9c7c09f3128cafc56163b1ab82d2fba2b2c0eff52140c159e8eb5de7b6",
+      "history_sha256": "sha256:ebc7ebaa5926a971eb8101d1169ddc24e48d886d764eab30ada6589a212d4767",
+      "independent_decimal_balance": "PASS",
+      "independent_engine_replay_byte_identical": true,
+      "outcome": "permanent_component_limit",
+      "pair": "control",
+      "particle_heat_mean_sum_relative_difference": "9.71423929151378155784388504976041592893201129E-14",
+      "phase_audits": "PASS",
+      "provenance_path": "control/event-histories/reference.provenance.json",
+      "qualification": "NOT_EVALUATED",
+      "rates_path": "control/event-histories/reference.rates.json",
+      "rates_sha256": "sha256:52b5999009882da8ec3cdb4688524e3dae7a85c55db1694eddf7573268933b6c",
+      "raw_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "response_uncertainties": {
+        "breeder_h3_per_source_neutron": {
+          "mean": 1.2945191749494094,
+          "relative_se": 0.0008775277358559298,
+          "se": 0.0011359764806154415,
+          "unit": "particles/source_neutron"
+        },
+        "magnet_average_flux": {
+          "mean": 34182441060835.855,
+          "relative_se": 0.3495729638387516,
+          "se": 11949257232879.83,
+          "unit": "neutrons/m\u00b2/s"
+        },
+        "propagated_to_history": false,
+        "whole_model_transport_deposited_heat": {
+          "mean_w": 492738531.17675275,
+          "relative_se": 0.0004989290789372096,
+          "se_w": 245841.5815168908,
+          "unit": "W"
+        }
+      },
+      "run_record_sha256": "sha256:51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130011,
+        "threads": 1
+      },
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "transport_binding": "PASS",
+      "variant": "reference",
+      "whole_model_heat_se_w": 245841.5815168908
+    },
+    {
+      "baseline_core_archive_history": {
+        "archive_embedded_history_sha256": "sha256:65441b037c2c205d1e88c81c5050ba685d6c999e52433d426275f5bb4017bcb3",
+        "core_case_relative_path": "control/cases/breeder-emphasis/expected/history.json",
+        "decimal_energy_ledger": "PASS",
+        "event_count": 185,
+        "outcome": "horizon_completed",
+        "processing_model": "continuous-delayed-release-v2",
+        "semantic_json_matches_v3_history": true,
+        "step_s": 600.0,
+        "transport_binding": "PASS",
+        "v3_history_sha256": "570d0c68e990d387fcdbf513d4802f655eeb56ba672a2774f00fda3181195c0a"
+      },
+      "delay_boundary": "PASS",
+      "event_count": 149,
+      "event_history_path": "control/event-histories/breeder-emphasis.json",
+      "event_kinds": {
+        "operation_started": 16,
+        "operation_stopped": 16,
+        "planned_outage_ended": 40,
+        "planned_outage_started": 40,
+        "replacement_completed": 12,
+        "replacement_started": 12,
+        "service_limit_reached": 13
+      },
+      "event_provenance_sha256": "sha256:5e8ebb1c7122b63a26681124f27b65cd6ae54461815c26a52784f8c799cc1c9f",
+      "history_sha256": "sha256:fdc8db2f271f8f0cc0809da466d78b90f22c5552babdeb9621bea79814ab4820",
+      "independent_decimal_balance": "PASS",
+      "independent_engine_replay_byte_identical": true,
+      "outcome": "permanent_component_limit",
+      "pair": "control",
+      "particle_heat_mean_sum_relative_difference": "7.05307910105879439959033504113152326997802207E-14",
+      "phase_audits": "PASS",
+      "provenance_path": "control/event-histories/breeder-emphasis.provenance.json",
+      "qualification": "NOT_EVALUATED",
+      "rates_path": "control/event-histories/breeder-emphasis.rates.json",
+      "rates_sha256": "sha256:a2d1e6964daec2dd31f073ade5e5152e7ae8bf5f362f76abfe6a284332e97361",
+      "raw_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "response_uncertainties": {
+        "breeder_h3_per_source_neutron": {
+          "mean": 1.3085481085773836,
+          "relative_se": 0.0008580149578010247,
+          "se": 0.0011227538501616344,
+          "unit": "particles/source_neutron"
+        },
+        "magnet_average_flux": {
+          "mean": 44020187095342.32,
+          "relative_se": 0.27731531068022625,
+          "se": 12207471860546.541,
+          "unit": "neutrons/m\u00b2/s"
+        },
+        "propagated_to_history": false,
+        "whole_model_transport_deposited_heat": {
+          "mean_w": 491653354.5582156,
+          "relative_se": 0.0004618071879860182,
+          "se_w": 227049.05313242233,
+          "unit": "W"
+        }
+      },
+      "run_record_sha256": "sha256:70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130012,
+        "threads": 1
+      },
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "transport_binding": "PASS",
+      "variant": "breeder-emphasis",
+      "whole_model_heat_se_w": 227049.05313242233
+    },
+    {
+      "baseline_core_archive_history": {
+        "archive_embedded_history_sha256": "sha256:594447aaed493b8f29dd4489543b79628c4d46722393d3af73fe582aa74adf62",
+        "core_case_relative_path": "port/cases/reference/expected/history.json",
+        "decimal_energy_ledger": "PASS",
+        "event_count": 202,
+        "outcome": "horizon_completed",
+        "processing_model": "continuous-delayed-release-v2",
+        "semantic_json_matches_v3_history": true,
+        "step_s": 600.0,
+        "transport_binding": "PASS",
+        "v3_history_sha256": "24595d3c616f8d7f29d2bac36bd9c24f59b40ccecc9e294576beb245a1dadc17"
+      },
+      "delay_boundary": "PASS",
+      "event_count": 89,
+      "event_history_path": "port/event-histories/reference.json",
+      "event_kinds": {
+        "operation_started": 5,
+        "operation_stopped": 5,
+        "planned_outage_ended": 33,
+        "planned_outage_started": 33,
+        "replacement_completed": 4,
+        "replacement_started": 4,
+        "service_limit_reached": 5
+      },
+      "event_provenance_sha256": "sha256:c850bd743693876c191cdd2bf04188913df74ee0fa05db7343f2b6dbd49a6571",
+      "history_sha256": "sha256:8d3c6503f7734fdf13aec42e7056f8b52f3aee64d0bd3f9c34c8d4138346f10b",
+      "independent_decimal_balance": "PASS",
+      "independent_engine_replay_byte_identical": true,
+      "outcome": "permanent_component_limit",
+      "pair": "port",
+      "particle_heat_mean_sum_relative_difference": "1.06403754926544700919191975562561763278749687E-13",
+      "phase_audits": "PASS",
+      "provenance_path": "port/event-histories/reference.provenance.json",
+      "qualification": "NOT_EVALUATED",
+      "rates_path": "port/event-histories/reference.rates.json",
+      "rates_sha256": "sha256:23159be077244313c9df3a91764a7ec3bc46340146864f9778b3cf8eaf527f86",
+      "raw_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "response_uncertainties": {
+        "breeder_h3_per_source_neutron": {
+          "mean": 1.2952251096574432,
+          "relative_se": 0.0010574219510290966,
+          "se": 0.0013695994624758493,
+          "unit": "particles/source_neutron"
+        },
+        "magnet_average_flux": {
+          "mean": 164224129199310.6,
+          "relative_se": 0.13885013213159517,
+          "se": 22802542038520.43,
+          "unit": "neutrons/m\u00b2/s"
+        },
+        "propagated_to_history": false,
+        "whole_model_transport_deposited_heat": {
+          "mean_w": 492917379.0549722,
+          "relative_se": 0.0006080563920028413,
+          "se_w": 299721.56306366326,
+          "unit": "W"
+        }
+      },
+      "run_record_sha256": "sha256:6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130013,
+        "threads": 1
+      },
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "transport_binding": "PASS",
+      "variant": "reference",
+      "whole_model_heat_se_w": 299721.56306366326
+    },
+    {
+      "baseline_core_archive_history": {
+        "archive_embedded_history_sha256": "sha256:863093210e401f682b427cc284276f80f0eb6b485c6f15a840dfc4e2b522c509",
+        "core_case_relative_path": "port/cases/breeder-emphasis/expected/history.json",
+        "decimal_energy_ledger": "PASS",
+        "event_count": 197,
+        "outcome": "horizon_completed",
+        "processing_model": "continuous-delayed-release-v2",
+        "semantic_json_matches_v3_history": true,
+        "step_s": 600.0,
+        "transport_binding": "PASS",
+        "v3_history_sha256": "37a12df0b1499610ac23cd298ff44180f8aa5a4443e9e929f70d0931ff960374"
+      },
+      "delay_boundary": "PASS",
+      "event_count": 79,
+      "event_history_path": "port/event-histories/breeder-emphasis.json",
+      "event_kinds": {
+        "operation_started": 4,
+        "operation_stopped": 4,
+        "planned_outage_ended": 32,
+        "planned_outage_started": 32,
+        "replacement_completed": 2,
+        "replacement_started": 2,
+        "service_limit_reached": 3
+      },
+      "event_provenance_sha256": "sha256:589c86d6405c0d62474c2de150165aec40b8ecd69d266c7bedfb22c45152bdb7",
+      "history_sha256": "sha256:6d0d158241aff90d52c50b49bcd9939a814961fbfe066a89e70405492b2b0e17",
+      "independent_decimal_balance": "PASS",
+      "independent_engine_replay_byte_identical": true,
+      "outcome": "permanent_component_limit",
+      "pair": "port",
+      "particle_heat_mean_sum_relative_difference": "7.31381915063703996803962210566822814986112952E-14",
+      "phase_audits": "PASS",
+      "provenance_path": "port/event-histories/breeder-emphasis.provenance.json",
+      "qualification": "NOT_EVALUATED",
+      "rates_path": "port/event-histories/breeder-emphasis.rates.json",
+      "rates_sha256": "sha256:071c4dd95148f48aa46e3fe1af6bded0992d423cc1afeb8f899a266a3b0fe7e3",
+      "raw_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "response_uncertainties": {
+        "breeder_h3_per_source_neutron": {
+          "mean": 1.311706431682948,
+          "relative_se": 0.0009095610370595412,
+          "se": 0.0011930770623192126,
+          "unit": "particles/source_neutron"
+        },
+        "magnet_average_flux": {
+          "mean": 211713453749173.78,
+          "relative_se": 0.14132287419098694,
+          "se": 29919953788733.816,
+          "unit": "neutrons/m\u00b2/s"
+        },
+        "propagated_to_history": false,
+        "whole_model_transport_deposited_heat": {
+          "mean_w": 491950228.17683536,
+          "relative_se": 0.0004995002101586069,
+          "se_w": 245729.2423619039,
+          "unit": "W"
+        }
+      },
+      "run_record_sha256": "sha256:7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130014,
+        "threads": 1
+      },
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "transport_binding": "PASS",
+      "variant": "breeder-emphasis",
+      "whole_model_heat_se_w": 245729.2423619039
+    }
+  ],
+  "interpretation_correction": "Comparison is blanket/shield geometry allocation (+0.10 m blanket, \u22120.10 m shield) with materials/source/data held fixed and distinct seeds; it is descriptive only, with no propagated joint MC uncertainty or ranking.",
+  "outage_duration_probe": {
+    "all_12_cli_history_validate": "PASS",
+    "all_12_decimal_signed_energy_ledger_checks": "PASS",
+    "all_12_decimal_terminal_mass_balance_checks": "PASS",
+    "all_12_outcomes": "horizon_completed",
+    "all_baseline_1x_histories_and_rates_match_v3_byte_for_byte": true,
+    "base_operating_assumptions_sha256": "a87af85745e8055fa6b3338b0a5d17c1273ebd328d7afc580fb46066d3ed3546",
+    "cases": [
+      {
+        "assumptions_sha256": "4eeb661b5d6a21064e5db74dc1cdb210f208d6618800e5e6d0cc179a5642ea9e",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-1E-9",
+        "decimal_terminal_mass_residual_kg": "3.271598433E-8",
+        "declared_mass_tolerance_kg": "1.9513193600532708E-7",
+        "duration_days": [
+          15.0
+        ],
+        "duration_multiplier": 0.5,
+        "event_count": 202,
+        "history_sha256": "99c905f0e9b0073dbf8b9d46a2fc8cb64120e07dc5e9ff9320a1be13892de1f2",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "370a302ad947f35044e10a56b5dc542774a7d996c888b553708ca9797dc552c2",
+        "rates_sha256": "52b5999009882da8ec3cdb4688524e3dae7a85c55db1694eddf7573268933b6c",
+        "raw_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+        "run_record_sha256": "sha256:51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130011,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11027,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "d636ebcd91bb9554d7d9b3de92cb8722dcc68007f66e5d0f299e0efb30a513d4",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "5E-9",
+        "decimal_terminal_mass_residual_kg": "3.124785E-8",
+        "declared_mass_tolerance_kg": "1.8720231053768116E-7",
+        "duration_days": [
+          30.0
+        ],
+        "duration_multiplier": 1.0,
+        "event_count": 202,
+        "history_sha256": "ae75373186f1493e953a3fe14d5b829eb303b87701009d6b2b2092e6eb44a036",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "1dbd537ccd22f954b6add8b5ff6f145680f28d2222a46d6148e98c95a4eaf9cf",
+        "rates_sha256": "52b5999009882da8ec3cdb4688524e3dae7a85c55db1694eddf7573268933b6c",
+        "raw_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+        "run_record_sha256": "sha256:51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130011,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11025,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "222674d76e4ecf555d7074e24f2765f1e3ae80065afc2e9ceeea2abc77260101",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-4E-9",
+        "decimal_terminal_mass_residual_kg": "2.874781435E-8",
+        "declared_mass_tolerance_kg": "1.7270275739161594E-7",
+        "duration_days": [
+          60.0
+        ],
+        "duration_multiplier": 2.0,
+        "event_count": 188,
+        "history_sha256": "d648139d7470cb01d06fe796f1a7826e1c49de9ecffdba9d5c4082ff366acfc0",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "0129f00ab7d3af028c049314f772058cb3e1a2805efb268f8dfac862bdf65b43",
+        "rates_sha256": "52b5999009882da8ec3cdb4688524e3dae7a85c55db1694eddf7573268933b6c",
+        "raw_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+        "run_record_sha256": "sha256:51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130011,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11024,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "4eeb661b5d6a21064e5db74dc1cdb210f208d6618800e5e6d0cc179a5642ea9e",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "4E-9",
+        "decimal_terminal_mass_residual_kg": "3.770964518E-8",
+        "declared_mass_tolerance_kg": "1.9982063105773023E-7",
+        "duration_days": [
+          15.0
+        ],
+        "duration_multiplier": 0.5,
+        "event_count": 189,
+        "history_sha256": "2547b87c742538d75f40b8449c34766ebc6bd18cc60a1469844b1c97117cf730",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "3019711e3128f766525981beffda73c0476f726d89a0c8cbf16ea53acb86fd5d",
+        "rates_sha256": "a2d1e6964daec2dd31f073ade5e5152e7ae8bf5f362f76abfe6a284332e97361",
+        "raw_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+        "run_record_sha256": "sha256:70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130012,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11021,
+        "variant": "breeder-emphasis"
+      },
+      {
+        "assumptions_sha256": "d636ebcd91bb9554d7d9b3de92cb8722dcc68007f66e5d0f299e0efb30a513d4",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-6E-9",
+        "decimal_terminal_mass_residual_kg": "3.814626507E-8",
+        "declared_mass_tolerance_kg": "1.9021144597693692E-7",
+        "duration_days": [
+          30.0
+        ],
+        "duration_multiplier": 1.0,
+        "event_count": 185,
+        "history_sha256": "570d0c68e990d387fcdbf513d4802f655eeb56ba672a2774f00fda3181195c0a",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "6210c3c428b7c63391905b74ce8b28961c19e0cb333db5649c32e69ec297bf3c",
+        "rates_sha256": "a2d1e6964daec2dd31f073ade5e5152e7ae8bf5f362f76abfe6a284332e97361",
+        "raw_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+        "run_record_sha256": "sha256:70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130012,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11025,
+        "variant": "breeder-emphasis"
+      },
+      {
+        "assumptions_sha256": "222674d76e4ecf555d7074e24f2765f1e3ae80065afc2e9ceeea2abc77260101",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-3E-9",
+        "decimal_terminal_mass_residual_kg": "3.429167511E-8",
+        "declared_mass_tolerance_kg": "1.7323382395640136E-7",
+        "duration_days": [
+          60.0
+        ],
+        "duration_multiplier": 2.0,
+        "event_count": 190,
+        "history_sha256": "c6a241f1e0a2028f23738be40b1cfdd30485d977a1bebee70050dad4e1738daf",
+        "outcome": "horizon_completed",
+        "pair": "control",
+        "provenance_sha256": "ca03e37c5b6765ae9ca5ab00c13bf8917928019787ffc2c7b1930a4f2b771d53",
+        "rates_sha256": "a2d1e6964daec2dd31f073ade5e5152e7ae8bf5f362f76abfe6a284332e97361",
+        "raw_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+        "run_record_sha256": "sha256:70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130012,
+          "threads": 1
+        },
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "snapshot_count": 11023,
+        "variant": "breeder-emphasis"
+      },
+      {
+        "assumptions_sha256": "4eeb661b5d6a21064e5db74dc1cdb210f208d6618800e5e6d0cc179a5642ea9e",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-4E-9",
+        "decimal_terminal_mass_residual_kg": "-2.7197811E-10",
+        "declared_mass_tolerance_kg": "1.952168503988012E-7",
+        "duration_days": [
+          15.0
+        ],
+        "duration_multiplier": 0.5,
+        "event_count": 202,
+        "history_sha256": "1d310885ccc3080a16a7ee9471f875af92ec3aa8ec1a6ff261dbd367bc3018a5",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "a468785fff565a88c8fb817a5653f890fcab148000c9aa39570d830d8f57829f",
+        "rates_sha256": "23159be077244313c9df3a91764a7ec3bc46340146864f9778b3cf8eaf527f86",
+        "raw_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+        "run_record_sha256": "sha256:6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130013,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11027,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "d636ebcd91bb9554d7d9b3de92cb8722dcc68007f66e5d0f299e0efb30a513d4",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-5E-9",
+        "decimal_terminal_mass_residual_kg": "1.04913E-9",
+        "declared_mass_tolerance_kg": "1.8717881646817354E-7",
+        "duration_days": [
+          30.0
+        ],
+        "duration_multiplier": 1.0,
+        "event_count": 202,
+        "history_sha256": "24595d3c616f8d7f29d2bac36bd9c24f59b40ccecc9e294576beb245a1dadc17",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "0fbea462292de1df0597c5f3e47b7f036cdcc4a6b002ad467c6c17d173a7b696",
+        "rates_sha256": "23159be077244313c9df3a91764a7ec3bc46340146864f9778b3cf8eaf527f86",
+        "raw_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+        "run_record_sha256": "sha256:6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130013,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11025,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "222674d76e4ecf555d7074e24f2765f1e3ae80065afc2e9ceeea2abc77260101",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-2E-9",
+        "decimal_terminal_mass_residual_kg": "3.24554189E-9",
+        "declared_mass_tolerance_kg": "1.7268640173841224E-7",
+        "duration_days": [
+          60.0
+        ],
+        "duration_multiplier": 2.0,
+        "event_count": 188,
+        "history_sha256": "f6d16b4af6887474c348a0e52649d8b82e4c67932afde2af89734963c4b5eae6",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "97f2375a2b413a2a8ba273fa8b7d605e0f49a099f63660f609ed58ec7601914a",
+        "rates_sha256": "23159be077244313c9df3a91764a7ec3bc46340146864f9778b3cf8eaf527f86",
+        "raw_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+        "run_record_sha256": "sha256:6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130013,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11024,
+        "variant": "reference"
+      },
+      {
+        "assumptions_sha256": "4eeb661b5d6a21064e5db74dc1cdb210f208d6618800e5e6d0cc179a5642ea9e",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "-4E-9",
+        "decimal_terminal_mass_residual_kg": "6.66482616E-9",
+        "declared_mass_tolerance_kg": "2.0020722746932461E-7",
+        "duration_days": [
+          15.0
+        ],
+        "duration_multiplier": 0.5,
+        "event_count": 189,
+        "history_sha256": "323f29f4d91fa27a735be7bd279e9d0ba85b219599b52dddc038906e30140170",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "47e1761b30e06c2e7997dcf3b0a473d255727033ada63ec9afd71f5762bdf136",
+        "rates_sha256": "071c4dd95148f48aa46e3fe1af6bded0992d423cc1afeb8f899a266a3b0fe7e3",
+        "raw_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+        "run_record_sha256": "sha256:7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130014,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11021,
+        "variant": "breeder-emphasis"
+      },
+      {
+        "assumptions_sha256": "d636ebcd91bb9554d7d9b3de92cb8722dcc68007f66e5d0f299e0efb30a513d4",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "1E-9",
+        "decimal_terminal_mass_residual_kg": "4.36589616E-9",
+        "declared_mass_tolerance_kg": "1.9053371199978156E-7",
+        "duration_days": [
+          30.0
+        ],
+        "duration_multiplier": 1.0,
+        "event_count": 197,
+        "history_sha256": "37a12df0b1499610ac23cd298ff44180f8aa5a4443e9e929f70d0931ff960374",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "098629099687cf61a33bb1da6588a695972b2113723e46f8c505a31ae7b9685f",
+        "rates_sha256": "071c4dd95148f48aa46e3fe1af6bded0992d423cc1afeb8f899a266a3b0fe7e3",
+        "raw_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+        "run_record_sha256": "sha256:7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130014,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11025,
+        "variant": "breeder-emphasis"
+      },
+      {
+        "assumptions_sha256": "222674d76e4ecf555d7074e24f2765f1e3ae80065afc2e9ceeea2abc77260101",
+        "baseline_anchor_exact": true,
+        "cli_history_validate": "PASS",
+        "decimal_signed_energy_ledger_residual_mwh": "1E-9",
+        "decimal_terminal_mass_residual_kg": "5.64702216E-9",
+        "declared_mass_tolerance_kg": "1.7356868180950684E-7",
+        "duration_days": [
+          60.0
+        ],
+        "duration_multiplier": 2.0,
+        "event_count": 190,
+        "history_sha256": "8825ca7c977284061eac0fc2f2490e26341b47fe98904578016f67b57ea90227",
+        "outcome": "horizon_completed",
+        "pair": "port",
+        "provenance_sha256": "d856893dabbf4c5b2f5226a88692ce5cad960c1b9a41993ebadfa0054e3cddc7",
+        "rates_sha256": "071c4dd95148f48aa46e3fe1af6bded0992d423cc1afeb8f899a266a3b0fe7e3",
+        "raw_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+        "run_record_sha256": "sha256:7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "sampling": {
+          "batches": 100,
+          "particles_per_batch": 10000,
+          "seed": 81130014,
+          "threads": 1
+        },
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "snapshot_count": 11023,
+        "variant": "breeder-emphasis"
+      }
+    ],
+    "interpretation": "AUTHORED_SCENARIO_PROBE",
+    "not_availability_estimate": true,
+    "not_physical_uncertainty": true,
+    "not_probability_distribution": true,
+    "outage_summary_sha256": "sha256:077e4a4ae9cf79b9cc50a36ce91efab1b4124a56403a31012459fe58d7fc43b0",
+    "scope": "12 cases: four exact transport drivers \u00d7 15/30/60 day planned-outage durations. Only each of 30 outage durations changes; outage starts and spacing, all other authored operating assumptions, rates, and source records are held fixed. These are deterministic point-input probes, not physical maintenance evidence or a probability distribution."
+  },
+  "package_index_declared_bytes": 465995550,
+  "package_index_file_count": 181,
+  "package_index_path": "dist/FARIS-demo-2026-10-01/package-index.json",
+  "package_index_sha256": "sha256:dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+  "package_verification_before_pycache_failure": "superseded; canonical clean package is bound by the package index above; relocation/launcher checks are owned by the package/native walkthrough records.",
+  "package_verification_scope": {
+    "canonical_index_file_count": 181,
+    "canonical_index_sha256": "sha256:dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+    "canonical_package_bytes": 465995389,
+    "independent_C05_checks": "12 of 12 histories validated; all twelve indexed hashes verified; exact multiplier-1 anchors; Decimal conservation and signed-ledger checks",
+    "relocation_reopen_and_export_replay": "PASS (TC verifier)",
+    "tamper_rejection": "PASS (TC verifier)"
+  },
+  "package_verifier": "PASS: TC ran canonical verify.sh and explicit relocate/reopen/tamper verification; four saved Core receipts revalidated, tamper mutation produced EXPECTED_REJECTION. This report independently audits all indexed history/comparison/sensitivity/C05 files and numerical bindings.",
+  "scientific_qualification": "NOT_EVALUATED: cold authored code-to-code transport/history demo. No experimental or validated-physics reference, response uncertainty propagation/covariance, physical service-limit qualification, material/process qualification, neutron-source+nuclear-Q energy closure, or facility prediction is established.",
+  "scope": "independent numerical/accounting audit; no physical qualification, statistical covariance, or design ranking",
+  "sensitivity_checks": [
+    {
+      "axes": {
+        "delay_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ],
+        "recovery_fraction_levels": [
+          0.9,
+          0.95,
+          0.99
+        ],
+        "service_limit_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "event_count": 278,
+      "grid_unique_points": 27,
+      "identity_bound_to_run_raw_scenario": true,
+      "max_mass_balance_residual_kg": 2.8232896909230476e-08,
+      "outcome": "horizon_completed",
+      "pair": "control",
+      "physical_uncertainty_interpretation": "none; authored parameter sweep only",
+      "provenance_path": "control/sensitivities/reference.provenance.json",
+      "provenance_sha256": "sha256:6c4bd28ee9e92a185590d8d392197b99372f0cbbe0a8effa508f4bccfb0aec14",
+      "rerun_engine_result_matches_point_exactly": true,
+      "rerun_point": {
+        "delay_multiplier": 2.0,
+        "recovery_fraction": 0.9,
+        "service_limit_multiplier": 0.5
+      },
+      "sampling_uncertainty_propagated": false,
+      "study_path": "control/sensitivities/reference.json",
+      "study_sha256": "sha256:da24097086218ac1f0d8c3e604c029d8f1a187c5b7b78df3d77a93d96e89c63a",
+      "variant": "reference"
+    },
+    {
+      "axes": {
+        "delay_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ],
+        "recovery_fraction_levels": [
+          0.9,
+          0.95,
+          0.99
+        ],
+        "service_limit_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "event_count": 255,
+      "grid_unique_points": 27,
+      "identity_bound_to_run_raw_scenario": true,
+      "max_mass_balance_residual_kg": 3.476161225535179e-08,
+      "outcome": "horizon_completed",
+      "pair": "control",
+      "physical_uncertainty_interpretation": "none; authored parameter sweep only",
+      "provenance_path": "control/sensitivities/breeder-emphasis.provenance.json",
+      "provenance_sha256": "sha256:69b8039f07205f45b1079e2003dccae135f291ca1aa338feabd6ffd8d4fbf3ff",
+      "rerun_engine_result_matches_point_exactly": true,
+      "rerun_point": {
+        "delay_multiplier": 2.0,
+        "recovery_fraction": 0.9,
+        "service_limit_multiplier": 0.5
+      },
+      "sampling_uncertainty_propagated": false,
+      "study_path": "control/sensitivities/breeder-emphasis.json",
+      "study_sha256": "sha256:f3171b2635e8dcd02c75056011c77d2845a80c9573ed078936fa84b7a277ae69",
+      "variant": "breeder-emphasis"
+    },
+    {
+      "axes": {
+        "delay_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ],
+        "recovery_fraction_levels": [
+          0.9,
+          0.95,
+          0.99
+        ],
+        "service_limit_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "event_count": 278,
+      "grid_unique_points": 27,
+      "identity_bound_to_run_raw_scenario": true,
+      "max_mass_balance_residual_kg": 1.3754103633800696e-08,
+      "outcome": "horizon_completed",
+      "pair": "port",
+      "physical_uncertainty_interpretation": "none; authored parameter sweep only",
+      "provenance_path": "port/sensitivities/reference.provenance.json",
+      "provenance_sha256": "sha256:0944a584daad947aa5943c6d5d4e0635f73bd42b9179784d5e607a1d241c2585",
+      "rerun_engine_result_matches_point_exactly": true,
+      "rerun_point": {
+        "delay_multiplier": 2.0,
+        "recovery_fraction": 0.9,
+        "service_limit_multiplier": 0.5
+      },
+      "sampling_uncertainty_propagated": false,
+      "study_path": "port/sensitivities/reference.json",
+      "study_sha256": "sha256:09e0b11766c522116b344060035920129e5557732db0e1ea7d5938f987e9b41c",
+      "variant": "reference"
+    },
+    {
+      "axes": {
+        "delay_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ],
+        "recovery_fraction_levels": [
+          0.9,
+          0.95,
+          0.99
+        ],
+        "service_limit_multipliers": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "event_count": 251,
+      "grid_unique_points": 27,
+      "identity_bound_to_run_raw_scenario": true,
+      "max_mass_balance_residual_kg": 1.2538606597445323e-08,
+      "outcome": "horizon_completed",
+      "pair": "port",
+      "physical_uncertainty_interpretation": "none; authored parameter sweep only",
+      "provenance_path": "port/sensitivities/breeder-emphasis.provenance.json",
+      "provenance_sha256": "sha256:9e10bce6032ee4f7e36027720226fdef6c2710f7bc25f1eaf8b7656c2760ce01",
+      "rerun_engine_result_matches_point_exactly": true,
+      "rerun_point": {
+        "delay_multiplier": 2.0,
+        "recovery_fraction": 0.9,
+        "service_limit_multiplier": 0.5
+      },
+      "sampling_uncertainty_propagated": false,
+      "study_path": "port/sensitivities/breeder-emphasis.json",
+      "study_sha256": "sha256:01f8f6139ddaa9409110ea65001ad14bac33b92c44eb594cf009749d976cbd59",
+      "variant": "breeder-emphasis"
+    }
+  ],
+  "sensitivity_scope_findings": {
+    "axes": [
+      "recovery fraction (and complement processing loss)",
+      "processing-delay multiplier",
+      "service-limit multiplier"
+    ],
+    "outage_probe_note": "Outage duration is evaluated separately by the indexed 12-case C05 probe; it is not an axis in the 27-point joint sensitivity grid.",
+    "parameter_grid_is_probability_distribution": false,
+    "planned_outage_variation_included": false,
+    "separate_outage_duration_probe_included": true,
+    "transport_standard_errors_propagated": false
+  }
+}

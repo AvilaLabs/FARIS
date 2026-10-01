@@ -1,0 +1,70 @@
+{
+  "schema_version": "faris-portable-demo-verification/v0.2",
+  "recorded_at_utc": "2026-10-01",
+  "distribution": {
+    "path": "dist/FARIS-demo-2026-10-01",
+    "package_schema": "faris-recorded-demo-package/v0.4",
+    "package_status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
+    "package_index_sha256": "sha256:dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+    "indexed_file_count": 181,
+    "compressed_bytes": 465995550,
+    "compressed_cap_bytes": 536870912,
+    "expanded_case_workspace_bytes": 803549595,
+    "expanded_cap_bytes": 1610612736
+  },
+  "binaries": {
+    "faris_cli": "sha256:240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+    "faris_app": "sha256:2bc7a57c859e9ce4fd592190697a0363a6acf778fa6b7ed6aba8ea0a25a2a931",
+    "avila_core": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397"
+  },
+  "source_provenance": {
+    "faris_commit": "a7530af92ad1234ab6df42419c4643ee7bf7d398",
+    "core_commit": "2f8f838c081ae375f2ff3d542e986d0f4c104f96",
+    "core_binary_profile": "debug; copied then stripped with --strip-debug"
+  },
+  "verification": {
+    "embedded_verify_sh": "PASS",
+    "archive_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED",
+    "saved_core_case_count": 4,
+    "saved_core_cases": [
+      "FARIS-arc-cold-coupled-control-001-reference",
+      "FARIS-arc-cold-coupled-control-001-breeder-emphasis",
+      "FARIS-arc-cold-reference-port-001-reference",
+      "FARIS-arc-cold-reference-port-001-breeder-emphasis"
+    ],
+    "relocated_copy": {
+      "path": "/tmp/faris-recorded-demo-final-2026-10-01-relocated",
+      "rehash_reopen_export_revalidation": "PASS",
+      "original_preserved": true
+    },
+    "tamper_negative_control": {
+      "target_in_relocated_copy": "README.md",
+      "tampered_copy_result": "EXPECTED_REJECTION",
+      "original_preserved": true
+    },
+    "outage_study": {
+      "path": "references/outage-duration-sensitivity-summary.json",
+      "sha256": "sha256:077e4a4ae9cf79b9cc50a36ce91efab1b4124a56403a31012459fe58d7fc43b0",
+      "probe_count": 12,
+      "interpretation": "authored deterministic outage-duration scenario probes; not probability or physical uncertainty"
+    },
+    "packaged_gui_launch_smoke": {
+      "package_launcher_executed": "YES",
+      "gpu": "Intel(R) Graphics (ADL-N), Vulkan/Mesa 26.0.8",
+      "first_ui_frame_seconds_after_process_setup": 1.918,
+      "saved_evidence_materialization_seconds": 4.222,
+      "saved_evidence_materialized_bytes": 803549595,
+      "capture": "TIMED_OUT; no screenshot artifact was produced in this run",
+      "interpretation": "Application started and reached its first frame; this capture attempt is not a completed visual acceptance check."
+    }
+  },
+  "host": {
+    "sys_platform": "linux",
+    "machine": "x86_64"
+  },
+  "scope": {
+    "scientific_qualification": "NOT_EVALUATED",
+    "physical_result_authentication": "NOT_CLAIMED",
+    "note": "Package hashes and saved Core receipts establish identity consistency and workflow replay only."
+  }
+}
