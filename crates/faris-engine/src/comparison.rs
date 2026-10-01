@@ -262,3 +262,202 @@ pub fn compare_histories_cancellable(
         interpretation: "Conditional paired code-to-code/model comparison only. No empirical qualification, service-life claim, or inferential significance is implied.".into(),
     })
 }
+
+/// True when two independent sampled estimates differ by more than twice the
+/// combined standard error, `|b - a| > 2 sqrt(se_a² + se_b²)`. Covariance
+/// between the runs is not modelled (the runs use distinct seeds), and any
+/// non-finite or negative input is never reported as resolved.
+pub fn difference_resolved_2sigma(a: f64, se_a: f64, b: f64, se_b: f64) -> bool {
+    if ![a, se_a, b, se_b].iter().all(|v| v.is_finite()) || se_a < 0.0 || se_b < 0.0 {
+        return false;
+    }
+    (b - a).abs() > 2.0 * (se_a * se_a + se_b * se_b).sqrt()
+}
+
+/// First-order relative sampling uncertainty of the time at which accumulated
+/// fluence crosses a fixed limit. Fluence is flux times operating time, so the
+/// crossing time scales as 1 / flux and its relative uncertainty equals the
+/// relative standard error of the driving flux. Ignores outage-timing
+/// nonlinearity and all model or data uncertainty. None for a non-positive
+/// mean or a missing/invalid standard error.
+pub fn first_crossing_relative_uncertainty(flux_mean: f64, flux_se: Option<f64>) -> Option<f64> {
+    let se = flux_se?;
+    (flux_mean.is_finite() && flux_mean > 0.0 && se.is_finite() && se >= 0.0)
+        .then(|| se / flux_mean)
+}
+
+/// Replacement outages of one component as `(start_s, end_s)` pairs, taken
+/// from `ReplacementStarted` and the following `ReplacementCompleted` event.
+/// A replacement still open at the end of the history ends at `horizon_s`.
+pub fn component_replacement_spans(
+    events: &[crate::history::HistoryEvent],
+    component_id: &str,
+    horizon_s: f64,
+) -> Vec<(f64, f64)> {
+    use crate::history::EventKind;
+    let mut spans = Vec::new();
+    let mut open: Option<f64> = None;
+    for event in events
+        .iter()
+        .filter(|e| e.component_id.as_deref() == Some(component_id))
+    {
+        match event.kind {
+            EventKind::ReplacementStarted => open = Some(event.time_s),
+            EventKind::ReplacementCompleted => {
+                if let Some(start) = open.take() {
+                    spans.push((start, event.time_s));
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(start) = open {
+        spans.push((start, horizon_s.max(start)));
+    }
+    spans
+}
+
+/// Why the plant is or is not producing at one instant, from recorded events
+/// and authored outages. A presentation classification, not a new calculation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperatingState {
+    Operating,
+    MagnetReplacement,
+    OtherReplacement,
+    PlannedOutage,
+    FuelLimited,
+    Stopped,
+}
+
+pub fn classify_operating_state(
+    events: &[crate::history::HistoryEvent],
+    planned_outages: &[faris_model::history::TimeInterval],
+    operating: bool,
+    time_s: f64,
+    horizon_s: f64,
+) -> OperatingState {
+    use crate::history::EventKind;
+    if operating {
+        return OperatingState::Operating;
+    }
+    let inside = |spans: Vec<(f64, f64)>| spans.iter().any(|(s, e)| *s <= time_s && time_s < *e);
+    if inside(component_replacement_spans(events, "magnets", horizon_s)) {
+        return OperatingState::MagnetReplacement;
+    }
+    let mut others: Vec<&str> = events
+        .iter()
+        .filter(|e| e.kind == EventKind::ReplacementStarted)
+        .filter_map(|e| e.component_id.as_deref())
+        .collect();
+    others.sort_unstable();
+    others.dedup();
+    if others
+        .into_iter()
+        .filter(|c| *c != "magnets")
+        .any(|c| inside(component_replacement_spans(events, c, horizon_s)))
+    {
+        return OperatingState::OtherReplacement;
+    }
+    if planned_outages
+        .iter()
+        .any(|o| o.start_s <= time_s && time_s < o.end_s)
+    {
+        return OperatingState::PlannedOutage;
+    }
+    let last_fuel = events.iter().filter(|e| e.time_s <= time_s).rfind(|e| {
+        matches!(
+            e.kind,
+            EventKind::FuelUnavailable | EventKind::FuelAvailable
+        )
+    });
+    if last_fuel.is_some_and(|e| e.kind == EventKind::FuelUnavailable) {
+        OperatingState::FuelLimited
+    } else {
+        OperatingState::Stopped
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::history::{EventKind, HistoryEvent};
+
+    fn event(time_s: f64, kind: EventKind, component: Option<&str>) -> HistoryEvent {
+        HistoryEvent {
+            time_s,
+            order: 0,
+            kind,
+            component_id: component.map(Into::into),
+            mass_kg: None,
+            note: String::new(),
+        }
+    }
+
+    #[test]
+    fn two_sigma_resolution_uses_combined_standard_error() {
+        // Combined SE = 5, threshold 10.
+        assert!(difference_resolved_2sigma(0.0, 3.0, 10.5, 4.0));
+        assert!(!difference_resolved_2sigma(0.0, 3.0, 9.5, 4.0));
+        assert!(difference_resolved_2sigma(10.5, 3.0, 0.0, 4.0));
+        assert!(!difference_resolved_2sigma(1.0, 0.1, 1.0, 0.1));
+        assert!(!difference_resolved_2sigma(f64::NAN, 1.0, 5.0, 1.0));
+        assert!(!difference_resolved_2sigma(0.0, -1.0, 5.0, 1.0));
+    }
+
+    #[test]
+    fn first_crossing_uncertainty_is_relative_flux_error() {
+        let rel = first_crossing_relative_uncertainty(1.6e14, Some(0.23e14)).unwrap();
+        assert!((rel - 0.14375).abs() < 1e-12);
+        assert_eq!(first_crossing_relative_uncertainty(0.0, Some(1.0)), None);
+        assert_eq!(first_crossing_relative_uncertainty(1.0, None), None);
+        assert_eq!(first_crossing_relative_uncertainty(1.0, Some(-1.0)), None);
+        assert_eq!(
+            first_crossing_relative_uncertainty(1.0, Some(0.0)),
+            Some(0.0)
+        );
+    }
+
+    #[test]
+    fn replacement_spans_pair_start_and_completion_per_component() {
+        let events = vec![
+            event(10.0, EventKind::ReplacementStarted, Some("magnets")),
+            event(12.0, EventKind::ReplacementStarted, Some("blanket")),
+            event(14.0, EventKind::ReplacementCompleted, Some("blanket")),
+            event(20.0, EventKind::ReplacementCompleted, Some("magnets")),
+            event(50.0, EventKind::ReplacementStarted, Some("magnets")),
+        ];
+        assert_eq!(
+            component_replacement_spans(&events, "magnets", 60.0),
+            vec![(10.0, 20.0), (50.0, 60.0)]
+        );
+        assert_eq!(
+            component_replacement_spans(&events, "blanket", 60.0),
+            vec![(12.0, 14.0)]
+        );
+        assert!(component_replacement_spans(&events, "shield", 60.0).is_empty());
+    }
+
+    #[test]
+    fn operating_state_prefers_replacement_then_outage_then_fuel() {
+        let events = vec![
+            event(10.0, EventKind::ReplacementStarted, Some("magnets")),
+            event(20.0, EventKind::ReplacementCompleted, Some("magnets")),
+            event(30.0, EventKind::ReplacementStarted, Some("blanket")),
+            event(33.0, EventKind::ReplacementCompleted, Some("blanket")),
+            event(40.0, EventKind::FuelUnavailable, None),
+            event(45.0, EventKind::FuelAvailable, None),
+        ];
+        let outages = vec![faris_model::history::TimeInterval {
+            start_s: 100.0,
+            end_s: 110.0,
+            reason: "test".into(),
+        }];
+        let state = |operating, t| classify_operating_state(&events, &outages, operating, t, 200.0);
+        assert_eq!(state(true, 15.0), OperatingState::Operating);
+        assert_eq!(state(false, 15.0), OperatingState::MagnetReplacement);
+        assert_eq!(state(false, 31.0), OperatingState::OtherReplacement);
+        assert_eq!(state(false, 42.0), OperatingState::FuelLimited);
+        assert_eq!(state(false, 47.0), OperatingState::Stopped);
+        assert_eq!(state(false, 105.0), OperatingState::PlannedOutage);
+    }
+}

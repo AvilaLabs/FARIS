@@ -1,6 +1,8 @@
 mod archive_panel;
 mod badge;
 mod camera;
+#[allow(dead_code)] // Presented by the Compare step once wired in.
+mod compare_panel;
 mod history_panel;
 mod interface_check;
 mod study_panel;
