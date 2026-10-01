@@ -710,7 +710,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
                  "working_tree_clean_at_packaging": not bool(git_output(
                      core_license_root, "status", "--porcelain", "--untracked-files=all"))},
         "rebuild": [
-            "FARIS: check out the recorded commit, then run cargo build --release --locked --bin faris --bin faris-app.",
+            "FARIS: check out the recorded commit, then run cargo build --release --locked -p faris-cli -p faris-app --bins -j 1.",
             "Packaged Core: check out the recorded commit, run cargo build --locked --bin avila-core, copy target/debug/avila-core to the distribution, then run strip --strip-debug on that copy.",
             "Optional Core release build: cargo build --release --locked --bin avila-core; it is compatible but has a different binary hash.",
             "These instructions identify the source and toolchain command; they do not claim bit-for-bit reproducibility.",
@@ -723,7 +723,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
         f"- Packaged FARIS CLI reports: `{installed['faris']['version']}`.\n"
         f"- Packaged native app reports: `{installed['faris-app']['version']}`.\n"
         f"- Core executable reports: `{installed['avila-core']['version']}`.\n"
-        "- Rebuild FARIS with `cargo build --release --locked --bin faris --bin faris-app`.\n"
+        "- Rebuild FARIS with `cargo build --release --locked -p faris-cli -p faris-app --bins -j 1`.\n"
         "- The packaged Core executable is from the debug profile: build with `cargo build --locked --bin avila-core`, "
         "copy `target/debug/avila-core`, then apply `strip --strip-debug` to that copy.\n"
         "- A release-profile Core rebuild is also compatible, using `cargo build --release --locked --bin avila-core`; "
