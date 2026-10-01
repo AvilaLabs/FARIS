@@ -1,0 +1,137 @@
+{
+  "schema_version": "faris-render-performance-profile/v0.1",
+  "purpose": "Preserve baseline bottleneck evidence and first optimized palette benchmark. The final source has a subsequent context-mode cache invalidation fix; the project owner will perform final relink and acceptance benchmarks.",
+  "machine_and_graphics": {
+    "gpu": "Intel(R) Graphics (ADL-N)",
+    "backend": "Vulkan",
+    "driver": "Intel open-source Mesa driver, Mesa 26.0.8-1ubuntu0.3"
+  },
+  "case_inputs": {
+    "corrected_fine_runs": {
+      "control_breeder_fine": {
+        "path": "/tmp/faris-primary-control-breeder-1m",
+        "run_json_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "raw_transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771"
+      },
+      "control_reference_fine": {
+        "path": "/tmp/faris-primary-control-reference-1m",
+        "run_json_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "raw_transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0"
+      },
+      "port_breeder_fine": {
+        "path": "/tmp/faris-primary-port-breeder-1m",
+        "run_json_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "raw_transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3"
+      },
+      "port_reference_fine": {
+        "path": "/tmp/faris-primary-port-reference-1m",
+        "run_json_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "raw_transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872"
+      }
+    },
+    "history_assumptions": "scenarios/arc-inspired/demo-operating-assumptions.json",
+    "history_snapshot_count_total": 44100,
+    "field_view": "Component Fluence",
+    "motion": "camera orbit and computed history year scrub",
+    "logical_window_points": [
+      1440,
+      900
+    ]
+  },
+  "baseline_profile": {
+    "display": "Wayland (actual selected backend: inherited WAYLAND_DISPLAY remained set despite DISPLAY=:0)",
+    "pixels_per_point": 1.6666666269302368,
+    "inner_rect_logical_points": [
+      1260,
+      840
+    ],
+    "mean_egui_frames_per_second": 12.582741520053146,
+    "p95_frame_interval_ms": 88.324889,
+    "interval_count": 101,
+    "sample_elapsed_seconds": 8.026867582,
+    "startup_to_first_measured_frame_seconds": 2.309180378,
+    "history_plot_profile_frame_100": {
+      "result_count": 4,
+      "snapshots_total": 44100,
+      "range_and_minmax_us": 736,
+      "plot_construction_total_us": 868
+    },
+    "viewport_prepare_frame_100": {
+      "vertex_count": 757719,
+      "revision": 102,
+      "elapsed_us": 30712
+    },
+    "diagnosis": "Repeated color-only fluence rebuild uploaded/recreated the full 757719-vertex buffer and regenerated the world-reference grid. Plot scans/traces were below 0.9 ms/frame and were not the limiting phase.",
+    "profile_source": "temporary FARIS_FRAME_PROFILE instrumentation; removed from final source"
+  },
+  "optimized_palette_profile": {
+    "display": "X11 forced with WAYLAND_DISPLAY unset",
+    "pixels_per_point": 1.0,
+    "inner_rect_logical_points": [
+      1440,
+      900
+    ],
+    "mean_egui_frames_per_second": 90.00296211482409,
+    "p95_frame_interval_ms": 12.051635999999998,
+    "interval_count": 721,
+    "sample_elapsed_seconds": 8.010847455,
+    "startup_to_first_measured_frame_seconds": 5.880509222,
+    "viewport_prepare_samples_us": [
+      27,
+      27,
+      29,
+      21,
+      30,
+      118,
+      101,
+      22,
+      32
+    ],
+    "viewport_prepare_vertex_count": 757719,
+    "render_validation_errors": 0,
+    "scope": "same four exact corrected fine records, assumptions, field, camera/year motion, size and graphics adapter; component geometry was cached by Arc identity and six per-component color/camera uniforms replaced the per-vertex color map/upload. The subsequent context-mode invalidation fix only affects transitions between renderer modes and does not change this continuous component-fluence path.",
+    "profile_source": "temporary FARIS_FRAME_PROFILE instrumentation; removed from final source"
+  },
+  "exact_optimized_command": [
+    "env",
+    "-u",
+    "WAYLAND_DISPLAY",
+    "FARIS_FRAME_PROFILE=1",
+    "WINIT_X11_SCALE_FACTOR=1.0",
+    "DISPLAY=:0",
+    "XDG_SESSION_TYPE=x11",
+    "target/release/faris-app",
+    "--scenario",
+    "scenarios/arc-inspired/cold-reference-port.scenario.json",
+    "--run",
+    "/tmp/faris-primary-port-reference-1m/run.json",
+    "--run",
+    "/tmp/faris-primary-port-breeder-1m/run.json",
+    "--control-scenario",
+    "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+    "--control-run",
+    "/tmp/faris-primary-control-reference-1m/run.json",
+    "--control-run",
+    "/tmp/faris-primary-control-breeder-1m/run.json",
+    "--assumptions",
+    "scenarios/arc-inspired/demo-operating-assumptions.json",
+    "--field-view",
+    "component-fluence",
+    "--initial-year",
+    "2",
+    "--window-width",
+    "1440",
+    "--window-height",
+    "900",
+    "--benchmark-seconds",
+    "8",
+    "--benchmark-motion"
+  ],
+  "binary_sha256_at_palette_benchmark": "d67e121eeebf8c75c83727eb105af030a4b6c17a492e30668efba9b6c2a81ebe",
+  "retained_profile_counters": {
+    "baseline": "/tmp/faris-frame-baseline.perf.txt",
+    "optimized": "/tmp/faris-frame-palette-x11.perf.txt",
+    "limitation": "Linux perf_event_paranoid=4 blocked CPU sampling events; perf stat reports elapsed/user/sys only. UI timers captured viewport prepare and plot phases directly."
+  },
+  "qualification_boundary": "Egui frame-throughput measurement, not GPU-presented FPS. The optimized benchmark passed the 30 FPS threshold in a short X11 sample; the final context-mode-fixed release binary still requires owner relink and acceptance benchmark. The baseline and optimized entries differ in display backend/scaling and must not be used as a controlled ratio."
+}
