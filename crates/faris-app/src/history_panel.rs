@@ -3,6 +3,7 @@
 use crate::badge::{self, Kind};
 use eframe::egui;
 use faris_engine::{
+    brief::{Arrangement, decimate, limits_differ as differs, magnet_limit},
     comparison::{
         HistorySensitivityGrid, HistorySensitivityResult, OperatingState, classify_operating_state,
         component_replacement_spans, run_history_sensitivity_cancellable,
@@ -310,6 +311,14 @@ impl HistoryPanel {
         self.edited
     }
     /// Name of the selected operating-assumption preset, for conditional labels.
+    /// The selected preset's own magnet service limit, to tell an edited limit
+    /// from the preset's.
+    pub fn preset_magnet_limit(&self) -> Option<f64> {
+        self.presets
+            .get(self.preset_index)
+            .and_then(|p| service_limit(&p.assumptions, "magnets"))
+    }
+
     pub fn preset_label(&self) -> &str {
         self.presets
             .get(self.preset_index)
@@ -1475,13 +1484,8 @@ impl HistoryPanel {
             .presets
             .get(self.preset_index)
             .and_then(|p| service_limit(&p.assumptions, "magnets"));
-        let literature = history
-            .assumptions
-            .service_limits
-            .iter()
-            .find(|l| l.component_id == "magnets")
-            .is_some_and(|l| l.provenance.to_ascii_lowercase().starts_with("literature"));
-        if literature && preset.is_none_or(|p| !differs(p, value)) {
+        let literature = magnet_limit(history, preset).is_some_and(|(_, literature)| literature);
+        if literature {
             format!("REBCO limit {} n/m² (literature)", fmt_sci(value))
         } else {
             format!("Magnet limit {} n/m² (authored limit)", fmt_sci(value))
@@ -1585,10 +1589,6 @@ fn replacement_days(assumptions: &OperatingHistoryAssumptions, component: &str) 
         .map(|s| (s / DAY_S).round())
 }
 
-fn differs(a: f64, b: f64) -> bool {
-    (a - b).abs() > 1e-9 * a.abs().max(b.abs()).max(1e-300)
-}
-
 /// Hover text for a preset: its key authored numbers and the start of its
 /// provenance statement.
 fn preset_note(a: &OperatingHistoryAssumptions, extra: Option<&str>) -> String {
@@ -1648,23 +1648,14 @@ fn event_label(event: &HistoryEvent) -> String {
 }
 
 /// Series colour: port is warm and no-port cool; the breeder-heavy allocation
-/// is the lighter shade of each family.
+/// is the lighter shade of each family (the engine owns the palette).
 pub fn arrangement_color(port: bool, breeder: bool) -> egui::Color32 {
-    match (port, breeder) {
-        (true, false) => egui::Color32::from_rgb(232, 104, 52),
-        (true, true) => egui::Color32::from_rgb(250, 186, 104),
-        (false, false) => egui::Color32::from_rgb(66, 133, 235),
-        (false, true) => egui::Color32::from_rgb(138, 205, 250),
-    }
+    let [r, g, b] = Arrangement { port, breeder }.rgb();
+    egui::Color32::from_rgb(r, g, b)
 }
 
 pub fn arrangement_label(port: bool, breeder: bool) -> &'static str {
-    match (port, breeder) {
-        (true, false) => "Port · reference",
-        (true, true) => "Port · breeder-heavy",
-        (false, false) => "No port · reference",
-        (false, true) => "No port · breeder-heavy",
-    }
+    Arrangement { port, breeder }.label()
 }
 
 /// Header line of a what-if row. Returns true when "revert to preset" is clicked.
@@ -1717,40 +1708,6 @@ fn log_slider(
     range: std::ops::RangeInclusive<f64>,
 ) -> egui::Response {
     full_slider(ui, value, range, true, None)
-}
-
-/// Keep at most `max` points, always including the last, and every point that
-/// is a local extreme of its stride bucket so sawtooth resets stay sharp.
-fn decimate(points: Vec<[f64; 2]>, max: usize) -> Vec<[f64; 2]> {
-    if points.len() <= max {
-        return points;
-    }
-    let buckets = (max / 2).max(1);
-    let stride = points.len().div_ceil(buckets);
-    let mut out = Vec::with_capacity(max + 2);
-    for chunk in points.chunks(stride) {
-        let mut lo = 0;
-        let mut hi = 0;
-        for (i, p) in chunk.iter().enumerate() {
-            if p[1] < chunk[lo][1] {
-                lo = i;
-            }
-            if p[1] > chunk[hi][1] {
-                hi = i;
-            }
-        }
-        let (a, b) = if lo <= hi { (lo, hi) } else { (hi, lo) };
-        out.push(chunk[a]);
-        if b != a {
-            out.push(chunk[b]);
-        }
-    }
-    if let (Some(last), Some(tail)) = (points.last(), out.last())
-        && last != tail
-    {
-        out.push(*last);
-    }
-    out
 }
 
 /// Round axis limits outward to a step of 1, 2 or 5 times a power of ten.
@@ -1853,22 +1810,6 @@ mod tests {
         assert!(lo <= -1.0 && hi >= 36.0);
         let ticks = ((hi - lo) / step).round() as i32;
         assert!((3..=8).contains(&ticks));
-    }
-
-    #[test]
-    fn decimation_bounds_points_and_keeps_extremes_and_end() {
-        let points: Vec<[f64; 2]> = (0..11_000)
-            .map(|i| {
-                let t = f64::from(i);
-                [t, (t % 1000.0)]
-            })
-            .collect();
-        let out = decimate(points.clone(), 1500);
-        assert!(out.len() <= 1500 + 2);
-        assert_eq!(out.last(), points.last());
-        assert!(out.iter().any(|p| p[1] == 999.0));
-        assert!(out.iter().any(|p| p[1] == 0.0));
-        assert_eq!(decimate(points[..100].to_vec(), 1500).len(), 100);
     }
 
     #[test]

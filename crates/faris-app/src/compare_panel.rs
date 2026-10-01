@@ -17,201 +17,21 @@ use crate::{
     transport_panel::TransportPanel,
 };
 use eframe::egui;
-use faris_engine::{
-    comparison::{
-        component_replacement_spans, difference_resolved_2sigma,
-        first_crossing_relative_uncertainty,
-    },
-    history::JULIAN_YEAR_SECONDS,
+use faris_engine::brief::{
+    ArrangementSummary as Cell, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Contrast,
+    REFERENCE_BLANKET_M, compare_study, summarize_arrangement,
 };
 
-/// Blanket thickness of the two recorded allocations, metres (the shield takes
-/// the remainder of the same 0.9 m). Shown in headings and the takeaway only.
-const REFERENCE_BLANKET_M: f64 = 0.45;
-const BREEDER_BLANKET_M: f64 = 0.55;
-const VARIANTS: [&str; 2] = ["reference", "breeder-emphasis"];
-
-/// Numbers for one arrangement. None means the source was not recorded or not
-/// calculated; nothing is filled in.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Cell {
-    recorded: bool,
-    breeding: Option<(f64, f64)>,
-    breeding_is_total: bool,
-    magnet_flux: Option<(f64, f64)>,
-    swaps: Option<usize>,
-    first_swap_y: Option<f64>,
-    first_swap_relative_sampling: Option<f64>,
-    net_twh: Option<f64>,
-    final_tritium_kg: Option<f64>,
-    horizon_years: f64,
-}
+pub const VARIANTS: [&str; 2] = ["reference", "breeder-emphasis"];
 
 fn build_cell(history: &HistoryPanel, panel: Option<&TransportPanel>, variant: &str) -> Cell {
     let Some((panel, record)) = panel.and_then(|p| p.record(variant).map(|r| (p, r))) else {
         return Cell::default();
     };
-    let summary = panel.summary(variant);
-    let mut cell = Cell {
-        recorded: true,
-        breeding: summary
-            .total_h3_per_source
-            .or(summary.breeder_h3_per_source),
-        breeding_is_total: summary.total_h3_per_source.is_some(),
-        magnet_flux: summary.magnet_flux,
-        ..Cell::default()
-    };
-    if let Some(h) = history.result(&record.scenario_sha256, variant) {
-        let horizon_s = h.assumptions.horizon_s;
-        cell.horizon_years = horizon_s / JULIAN_YEAR_SECONDS;
-        if h.assumptions
-            .service_limits
-            .iter()
-            .any(|l| l.component_id == "magnets")
-        {
-            let spans = component_replacement_spans(&h.events, "magnets", horizon_s);
-            cell.swaps = Some(spans.len());
-            cell.first_swap_y = spans.first().map(|(s, _)| s / JULIAN_YEAR_SECONDS);
-            cell.first_swap_relative_sampling = h
-                .driving_rates
-                .component_average_flux_n_m2_s
-                .get("magnets")
-                .and_then(|r| first_crossing_relative_uncertainty(r.mean, r.standard_error));
-        }
-        if let Some(last) = h.snapshots.last() {
-            cell.net_twh = last.cumulative_net_electricity_mwh.map(|v| v / 1e6);
-            cell.final_tritium_kg = Some(last.available_tritium_kg);
-        }
-    }
-    cell
-}
-
-/// A change `to − from` for each compared quantity. Percentages are relative to
-/// `from`; the flag says whether a transport difference exceeds 2σ.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Contrast {
-    breeding_pct: Option<(f64, bool)>,
-    flux_pct: Option<(f64, bool)>,
-    swaps: Option<i64>,
-    first_swap_y: Option<f64>,
-    net_twh: Option<f64>,
-}
-
-fn percent_change(from: f64, to: f64) -> Option<f64> {
-    (from != 0.0 && from.is_finite() && to.is_finite()).then(|| (to - from) / from * 100.0)
-}
-
-fn sampled_change(from: Option<(f64, f64)>, to: Option<(f64, f64)>) -> Option<(f64, bool)> {
-    let ((a, sa), (b, sb)) = (from?, to?);
-    Some((
-        percent_change(a, b)?,
-        difference_resolved_2sigma(a, sa, b, sb),
-    ))
-}
-
-fn contrast(from: &Cell, to: &Cell) -> Contrast {
-    Contrast {
-        breeding_pct: sampled_change(from.breeding, to.breeding),
-        flux_pct: sampled_change(from.magnet_flux, to.magnet_flux),
-        swaps: from.swaps.zip(to.swaps).map(|(a, b)| b as i64 - a as i64),
-        first_swap_y: from.first_swap_y.zip(to.first_swap_y).map(|(a, b)| b - a),
-        net_twh: from.net_twh.zip(to.net_twh).map(|(a, b)| b - a),
-    }
-}
-
-fn count_word(n: u64) -> String {
-    match n {
-        1 => "one".into(),
-        2 => "two".into(),
-        3 => "three".into(),
-        4 => "four".into(),
-        5 => "five".into(),
-        other => other.to_string(),
-    }
-}
-
-fn plural(n: u64, noun: &str) -> String {
-    if n == 1 {
-        format!("{} {noun}", count_word(n))
-    } else {
-        format!("{} {noun}s", count_word(n))
-    }
-}
-
-/// One plain-language sentence for moving blanket thickness at the expense of
-/// shield (breeder-heavy versus reference), built from the contrast numbers.
-fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> Option<String> {
-    let (breeding, resolved) = c.breeding_pct?;
-    let breeding_clause = if resolved {
-        let verb = if breeding >= 0.0 { "raises" } else { "lowers" };
-        format!("{verb} breeding by {:.1} %", breeding.abs())
-    } else {
-        format!("changes breeding by {breeding:+.1} % (within sampling noise)")
-    };
-    let mut tail = Vec::new();
-    let mut worse_first = false;
-    if let Some(d) = c.first_swap_y
-        && d.abs() >= 0.05
-    {
-        worse_first = d < 0.0;
-        tail.push(format!(
-            "{} the first magnet swap {:.1} years {}",
-            if d < 0.0 { "brings" } else { "pushes" },
-            d.abs(),
-            if d < 0.0 { "earlier" } else { "later" }
-        ));
-    }
-    if let Some(d) = c.swaps {
-        tail.push(match d {
-            0 => format!("leaves the swap count over {horizon_years:.0} years unchanged"),
-            d if d > 0 => format!(
-                "adds {} over {horizon_years:.0} years",
-                plural(d.unsigned_abs(), "swap")
-            ),
-            d => format!(
-                "removes {} over {horizon_years:.0} years",
-                plural(d.unsigned_abs(), "swap")
-            ),
-        });
-    }
-    let joiner = if worse_first && breeding > 0.0 && resolved {
-        "but"
-    } else {
-        "and"
-    };
-    let mut sentence =
-        format!("Shifting {shift_cm:.0} cm from shield to blanket {breeding_clause}");
-    if let Some((first, rest)) = tail.split_first() {
-        sentence.push_str(&format!(" {joiner} {first}"));
-        if let Some(last) = rest.first() {
-            sentence.push_str(&format!(" and {last}"));
-        }
-    }
-    sentence.push('.');
-    Some(sentence)
-}
-
-/// One sentence for the finite outboard port in the reference allocation
-/// (`c` is port minus no-port).
-fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
-    let swaps = c.swaps?;
-    let net = c.net_twh?;
-    let swap_clause = match swaps {
-        0 => format!("leaves the magnet swap count over {horizon_years:.0} years unchanged"),
-        d if d > 0 => format!(
-            "adds {} over {horizon_years:.0} years",
-            plural(d.unsigned_abs(), "magnet swap")
-        ),
-        d => format!(
-            "removes {} over {horizon_years:.0} years",
-            plural(d.unsigned_abs(), "magnet swap")
-        ),
-    };
-    Some(format!(
-        "Adding the finite outboard port {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
-        if net < 0.0 { "costs" } else { "adds" },
-        net.abs()
-    ))
+    summarize_arrangement(
+        Some(&panel.summary(variant)),
+        history.result(&record.scenario_sha256, variant),
+    )
 }
 
 fn pair(value: Option<(f64, f64)>, decimals: usize) -> String {
@@ -462,15 +282,13 @@ pub fn compare_view(
     after: &mut dyn FnMut(&mut egui::Ui),
 ) {
     // cells[port 0 / control 1][reference 0 / breeder 1]
-    let cells: Vec<Vec<Cell>> = [Some(port), control]
-        .iter()
-        .map(|panel| {
-            VARIANTS
-                .iter()
-                .map(|v| build_cell(history, *panel, v))
-                .collect()
-        })
-        .collect();
+    let build = |panel: Option<&TransportPanel>| {
+        [
+            build_cell(history, panel, VARIANTS[0]),
+            build_cell(history, panel, VARIANTS[1]),
+        ]
+    };
+    let cells: [[Cell; 2]; 2] = [build(Some(port)), build(control)];
     egui::ScrollArea::both()
         .id_salt("compare-view")
         .auto_shrink([false, false])
@@ -484,9 +302,12 @@ pub fn compare_view(
                 }
             });
             ui.add_space(4.0);
-            let shift_cm = ((BREEDER_BLANKET_M - REFERENCE_BLANKET_M) * 100.0).round();
             let heading = |blanket: f64| {
-                format!("{:.2} / {:.2} m blanket / shield", blanket, 0.9 - blanket)
+                format!(
+                    "{:.2} / {:.2} m blanket / shield",
+                    blanket,
+                    BLANKET_PLUS_SHIELD_M - blanket
+                )
             };
             let label_w = 80.0;
             let column_w = ((ui.available_width() - label_w - 24.0) / 2.0).clamp(300.0, 560.0);
@@ -535,10 +356,7 @@ pub fn compare_view(
             ui.add_space(10.0);
             ui.strong("What changes");
             ui.small("Each row is the second arrangement minus the first. Transport differences carry a screening flag; history differences are conditional on the authored assumptions.");
-            let port_alloc = contrast(&cells[0][0], &cells[0][1]);
-            let control_alloc = contrast(&cells[1][0], &cells[1][1]);
-            let ref_port = contrast(&cells[1][0], &cells[0][0]);
-            let breeder_port = contrast(&cells[1][1], &cells[0][1]);
+            let study = compare_study(&cells);
             egui::Grid::new("compare-deltas")
                 .num_columns(6)
                 .striped(true)
@@ -548,22 +366,14 @@ pub fn compare_view(
                         ui.strong(heading);
                     }
                     ui.end_row();
-                    contrast_row(ui, "Breeder-heavy − Reference · with port", &port_alloc);
-                    contrast_row(ui, "Breeder-heavy − Reference · no port", &control_alloc);
-                    contrast_row(ui, "Port − No port · reference", &ref_port);
-                    contrast_row(ui, "Port − No port · breeder-heavy", &breeder_port);
+                    contrast_row(ui, "Breeder-heavy − Reference · with port", &study.allocation_with_port);
+                    contrast_row(ui, "Breeder-heavy − Reference · no port", &study.allocation_no_port);
+                    contrast_row(ui, "Port − No port · reference", &study.port_reference);
+                    contrast_row(ui, "Port − No port · breeder-heavy", &study.port_breeder);
                 });
 
             ui.add_space(10.0);
-            let horizon = cells[0][0].horizon_years.max(cells[0][1].horizon_years);
-            let horizon = if horizon > 0.0 { horizon } else { 30.0 };
-            let sentences: Vec<String> = [
-                allocation_takeaway(&port_alloc, shift_cm, horizon),
-                port_takeaway(&ref_port, horizon),
-            ]
-            .into_iter()
-            .flatten()
-            .collect();
+            let sentences = &study.takeaways;
             if !sentences.is_empty() {
                 egui::Frame::new()
                     .fill(egui::Color32::from_white_alpha(8))
@@ -597,80 +407,4 @@ pub fn compare_view(
             ui.separator();
             after(ui);
         });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn cell(breeding: f64, flux: f64, swaps: usize, first: Option<f64>, net: f64) -> Cell {
-        Cell {
-            recorded: true,
-            breeding: Some((breeding, 0.0014)),
-            magnet_flux: Some((flux, flux * 0.14)),
-            swaps: Some(swaps),
-            first_swap_y: first,
-            net_twh: Some(net),
-            horizon_years: 30.0,
-            ..Cell::default()
-        }
-    }
-
-    #[test]
-    fn contrast_is_second_minus_first() {
-        let a = cell(1.295, 1.6e14, 4, Some(6.8), 34.13);
-        let b = cell(1.312, 2.1e14, 5, Some(5.2), 33.72);
-        let c = contrast(&a, &b);
-        assert_eq!(c.swaps, Some(1));
-        assert!((c.first_swap_y.unwrap() + 1.6).abs() < 1e-9);
-        assert!((c.net_twh.unwrap() + 0.41).abs() < 1e-9);
-        let (breeding, resolved) = c.breeding_pct.unwrap();
-        assert!((breeding - 1.3127).abs() < 1e-3);
-        assert!(resolved);
-        // A 31 % flux change on 14 % relative errors is within sampling noise.
-        assert!(!c.flux_pct.unwrap().1);
-    }
-
-    #[test]
-    fn missing_swaps_leave_the_first_swap_delta_unset() {
-        let none = cell(1.3, 1e14, 0, None, 35.4);
-        let some = cell(1.3, 1e14, 4, Some(6.8), 34.1);
-        let c = contrast(&none, &some);
-        assert_eq!(c.swaps, Some(4));
-        assert_eq!(c.first_swap_y, None);
-        assert_eq!(contrast(&Cell::default(), &some).swaps, None);
-    }
-
-    #[test]
-    fn takeaway_follows_the_numbers() {
-        let c = Contrast {
-            breeding_pct: Some((1.3, true)),
-            swaps: Some(1),
-            first_swap_y: Some(-1.6),
-            ..Contrast::default()
-        };
-        assert_eq!(
-            allocation_takeaway(&c, 10.0, 30.0).unwrap(),
-            "Shifting 10 cm from shield to blanket raises breeding by 1.3 % but brings the first magnet swap 1.6 years earlier and adds one swap over 30 years."
-        );
-        let flat = Contrast {
-            breeding_pct: Some((0.4, false)),
-            swaps: Some(0),
-            ..Contrast::default()
-        };
-        assert_eq!(
-            allocation_takeaway(&flat, 10.0, 30.0).unwrap(),
-            "Shifting 10 cm from shield to blanket changes breeding by +0.4 % (within sampling noise) and leaves the swap count over 30 years unchanged."
-        );
-        assert!(allocation_takeaway(&Contrast::default(), 10.0, 30.0).is_none());
-        let port = Contrast {
-            swaps: Some(4),
-            net_twh: Some(-1.31),
-            ..Contrast::default()
-        };
-        assert_eq!(
-            port_takeaway(&port, 30.0).unwrap(),
-            "Adding the finite outboard port adds four magnet swaps over 30 years and costs 1.31 TWh of lifetime net electricity (reference allocation)."
-        );
-    }
 }

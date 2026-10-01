@@ -11,6 +11,7 @@ description = "Native egui desktop workspace with a wgpu 3D viewport"
 [dependencies]
 faris-model.workspace = true
 faris-engine.workspace = true
+faris-report.workspace = true
 eframe.workspace = true
 bytemuck.workspace = true
 clap.workspace = true
@@ -18,6 +19,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+rfd = "=0.17.2"
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
 
 [lints]

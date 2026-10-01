@@ -26,18 +26,7 @@ pub enum FieldView {
     ComponentFluence,
 }
 
-/// Per-arrangement transport numbers as (mean, standard error).
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct TransportSummary {
-    /// Breeder-only H3 births per source neutron.
-    pub breeder_h3_per_source: Option<(f64, f64)>,
-    /// Whole-model H3 production per source neutron.
-    pub total_h3_per_source: Option<(f64, f64)>,
-    /// Magnet-envelope mean neutron flux, n/m²/s.
-    pub magnet_flux: Option<(f64, f64)>,
-    /// Whole-model total nuclear heating, W.
-    pub nuclear_heat_w: Option<(f64, f64)>,
-}
+pub use faris_engine::brief::TransportSummary;
 
 pub struct TransportConfiguration {
     pub python: Option<PathBuf>,
@@ -238,32 +227,12 @@ impl TransportPanel {
             .any(|record| record.normalized.is_some())
     }
 
-    /// Recorded, already-normalized transport quantities for one arrangement.
-    /// Values are mean and one Monte Carlo standard error; nothing is computed
-    /// beyond the per-source-neutron normalization.
+    /// Recorded, already-normalized transport quantities for one arrangement
+    /// (the engine's summary; nothing is computed here).
     pub fn summary(&self, variant: &str) -> TransportSummary {
-        let rate = self
-            .record(variant)
-            .and_then(|r| r.normalized.as_ref())
-            .map(|n| n.source_neutron_rate_per_s);
-        let per_source = |id: &str| {
-            let tally = self.response(variant, id)?;
-            let rate = rate?;
-            Some((
-                tally.integrated_mean / rate,
-                tally.integrated_standard_error / rate,
-            ))
-        };
-        TransportSummary {
-            breeder_h3_per_source: per_source("blanket-tritium"),
-            total_h3_per_source: per_source("total-tritium-production"),
-            magnet_flux: self
-                .response(variant, "magnets-flux")
-                .map(|t| (t.mean, t.standard_error)),
-            nuclear_heat_w: self
-                .response(variant, "heating-total-whole-model")
-                .map(|t| (t.integrated_mean, t.integrated_standard_error)),
-        }
+        self.record(variant)
+            .map(faris_engine::brief::transport_summary)
+            .unwrap_or_default()
     }
     pub fn readiness(&self, variant: &str) -> &'static str {
         if self.cases.contains_key(variant)
