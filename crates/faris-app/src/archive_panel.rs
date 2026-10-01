@@ -1,5 +1,6 @@
 //! Reopening saved studies revalidates their identities on a worker thread.
 
+use crate::badge::{self, Kind};
 use eframe::egui;
 use faris_engine::{
     case_archive::{SavedCaseInspection, inspect_saved_case},
@@ -171,15 +172,22 @@ impl ArchivePanel {
 
     pub fn controls(&mut self, ui: &mut egui::Ui, current_scenario: &str, current_variant: &str) {
         if self.is_loading() {
-            ui.small("Preparing/checking saved study evidence…");
+            ui.horizontal_wrapped(|ui| {
+                ui.spinner();
+                ui.small("Preparing/checking saved study evidence…");
+            });
         }
         if !self.errors.is_empty() {
-            ui.colored_label(
-                egui::Color32::LIGHT_RED,
-                "Saved study unavailable · expand for diagnostics",
-            );
+            ui.horizontal_wrapped(|ui| {
+                badge::badge(
+                    ui,
+                    Kind::Failed,
+                    "saved study unavailable",
+                    "A saved study could not be opened or verified. Expand Reopen saved study for diagnostics.",
+                );
+            });
         }
-        ui.collapsing("Reopen saved study", |ui| {
+        egui::CollapsingHeader::new("Reopen saved study").default_open(!self.saved.is_empty()).show(ui, |ui| {
             for (label, value) in [
                 ("Case directory", &mut self.case_directory),
                 ("Saved execution report", &mut self.execution_report),
@@ -220,12 +228,22 @@ impl ArchivePanel {
                 let saved = &self.saved[self.selected];
                 if scenario_digest(saved) != current_scenario || saved.variant_id != current_variant
                 {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        "Saved study belongs to another scenario or arrangement.",
+                    badge::badge(
+                        ui,
+                        Kind::Partial,
+                        "other scenario or arrangement",
+                        "Saved study belongs to another scenario or arrangement than the one currently shown. Its receipts are valid only for their own identities.",
                     );
                 }
-                ui.label("Saved Core workflow: executed and verified");
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Saved Core workflow");
+                    badge::badge(
+                        ui,
+                        Kind::Checked,
+                        "executed and verified",
+                        "Inputs, outputs, contract and stage receipts of the saved case were re-verified on opening. This is not a scientific verdict.",
+                    );
+                });
                 ui.small(format!("{} · {}", saved.scenario_id, saved.variant_id));
                 ui.small(format!(
                     "{} verified stage receipts · {} history snapshots",
@@ -233,11 +251,16 @@ impl ArchivePanel {
                     saved.history_snapshot_count.unwrap_or(0)
                 ));
                 for verdict in &saved.requirement_verdicts {
-                    ui.label(format!(
-                        "{} · {}",
-                        verdict.requirement_id,
-                        verdict.status.to_uppercase()
-                    ));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(&verdict.requirement_id);
+                        let status = verdict.status.to_uppercase();
+                        badge::badge(
+                            ui,
+                            crate::study_panel::verdict_kind(&status),
+                            &status,
+                            "Verdict recorded in the verified saved evidence, within the scope and limitations listed under Saved identities and scope.",
+                        );
+                    });
                 }
                 ui.collapsing("Saved identities and scope", |ui| {
                     ui.small(format!("Compiler: {}", saved.compiler_id));

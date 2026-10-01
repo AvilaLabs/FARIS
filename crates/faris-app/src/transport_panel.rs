@@ -1,3 +1,4 @@
+use crate::badge::{self, Kind};
 use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,
@@ -62,6 +63,19 @@ pub struct TransportPanel {
     revision: u64,
     pub view: FieldView,
     pub slice: usize,
+}
+
+/// Thousands-separated integer for compact badge labels.
+pub fn grouped(value: usize) -> String {
+    let digits = value.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
 }
 
 fn path_text(path: Option<PathBuf>) -> String {
@@ -395,13 +409,20 @@ impl TransportPanel {
     }
 
     pub fn controls(&mut self, ui: &mut egui::Ui, variant: &str) {
-        ui.separator();
-        ui.strong("Neutron transport");
-        if let Some(case) = self.case(variant) {
-            ui.small(format!("Case: {}", case.id));
-        } else {
-            ui.small("No physics input selected for this arrangement.");
-        }
+        ui.strong("Run and review transport");
+        ui.horizontal_wrapped(|ui| {
+            if let Some(case) = self.case(variant) {
+                ui.small(format!("Case: {}", case.id));
+            } else {
+                ui.small("No physics input selected for this arrangement.");
+            }
+            badge::badge(
+                ui,
+                Kind::Conditional,
+                "cold-data surrogate · NOT_EVALUATED",
+                "Cold-data surrogate. Scientific qualification: NOT_EVALUATED.",
+            );
+        });
         ui.collapsing("Transport configuration", |ui| {
             for (label, path) in [
                 ("OpenMC Python", &mut self.python),
@@ -454,48 +475,92 @@ impl TransportPanel {
             });
         }
         if let Some(record) = self.record(variant) {
-            ui.label(format!(
-                "Execution: {}",
-                record
-                    .execution
-                    .as_ref()
-                    .map_or("unavailable", |e| match e.execution_status {
-                        faris_engine::jobs::ExecutionStatus::Succeeded => "completed",
-                        faris_engine::jobs::ExecutionStatus::Failed => "failed",
-                        faris_engine::jobs::ExecutionStatus::Cancelled => "cancelled",
-                        faris_engine::jobs::ExecutionStatus::TimedOut => "timed out",
-                        faris_engine::jobs::ExecutionStatus::OutputLimit => "log limit reached",
-                        faris_engine::jobs::ExecutionStatus::ArtifactLimit =>
-                            "artifact limit reached",
-                        faris_engine::jobs::ExecutionStatus::FileSizeLimit =>
-                            "single-file limit reached",
-                    })
-            ));
-            ui.small(format!(
-                "{} histories",
-                u64::from(record.sampling.batches) * u64::from(record.sampling.particles_per_batch)
-            ));
-            if let Some(precision) = &record.sampling_precision_summary {
-                if precision.all_goals_met {
-                    ui.small("Exploratory sampling goals met.");
-                } else {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        format!(
-                            "{} / {} sampling checks unresolved",
-                            precision.checks_unmet, precision.check_count,
-                        ),
-                    );
-                }
+            ui.add_space(8.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(format!(
+                    "Execution: {}",
+                    record
+                        .execution
+                        .as_ref()
+                        .map_or("unavailable", |e| match e.execution_status {
+                            faris_engine::jobs::ExecutionStatus::Succeeded => "completed",
+                            faris_engine::jobs::ExecutionStatus::Failed => "failed",
+                            faris_engine::jobs::ExecutionStatus::Cancelled => "cancelled",
+                            faris_engine::jobs::ExecutionStatus::TimedOut => "timed out",
+                            faris_engine::jobs::ExecutionStatus::OutputLimit => "log limit reached",
+                            faris_engine::jobs::ExecutionStatus::ArtifactLimit =>
+                                "artifact limit reached",
+                            faris_engine::jobs::ExecutionStatus::FileSizeLimit =>
+                                "single-file limit reached",
+                        })
+                ));
                 ui.small(format!(
+                    "{} histories",
+                    u64::from(record.sampling.batches)
+                        * u64::from(record.sampling.particles_per_batch)
+                ));
+            });
+            if let Some(precision) = &record.sampling_precision_summary {
+                let targets = format!(
                     "Targets: {:.0}% integrated · {:.0}% local relative SE",
                     precision.integrated_goal * 100.0,
                     precision.local_goal * 100.0,
-                ));
-                ui.small("Sampling review only. Local goals may remain unresolved even when whole-model rates are precise.")
-                    .on_hover_text(format!("{}\n{}\n{}", precision.plan_id, precision.purpose, precision.estimator));
+                );
+                let review = "Sampling review only. Local goals may remain unresolved even when whole-model rates are precise.";
+                let plan = format!(
+                    "{}\n{}\n{}",
+                    precision.plan_id, precision.purpose, precision.estimator
+                );
+                ui.horizontal_wrapped(|ui| {
+                    if precision.all_goals_met {
+                        badge::badge(
+                            ui,
+                            Kind::Checked,
+                            "exploratory sampling goals met",
+                            &format!("Exploratory sampling goals met.\n{targets}\n{review}\n{plan}"),
+                        );
+                    } else {
+                        badge::badge(
+                            ui,
+                            Kind::Partial,
+                            &format!(
+                                "local precision {} / {} bins",
+                                grouped(precision.checks_met),
+                                grouped(precision.check_count)
+                            ),
+                            &format!(
+                                "{} / {} sampling checks unresolved.\n{targets}\n{review}\n{plan}",
+                                precision.checks_unmet, precision.check_count,
+                            ),
+                        );
+                    }
+                    if let (Some(tbr), Some(heating)) = (
+                        precision.whole_model_tbr_relative_standard_error,
+                        precision.whole_model_heating_relative_standard_error,
+                    ) && tbr.max(heating) <= precision.integrated_goal
+                    {
+                        badge::badge(
+                            ui,
+                            Kind::Checked,
+                            "whole-model goals met",
+                            &format!(
+                                "Whole-model relative standard errors: tritium breeding {:.2}%, heating {:.2}%, within the {:.0}% integrated target. Sampling precision only; model and data uncertainty are separate.",
+                                tbr * 100.0,
+                                heating * 100.0,
+                                precision.integrated_goal * 100.0
+                            ),
+                        );
+                    }
+                });
             } else {
-                ui.small("Sampling-goal receipt unavailable for this historical record.");
+                ui.horizontal_wrapped(|ui| {
+                    badge::badge(
+                        ui,
+                        Kind::NotEvaluated,
+                        "sampling receipt unavailable",
+                        "Sampling-goal receipt unavailable for this historical record.",
+                    );
+                });
             }
             if let Some(tally) = self.response(variant, "total-tritium-production") {
                 let rate = record
@@ -503,21 +568,33 @@ impl TransportPanel {
                     .as_ref()
                     .expect("normalized result")
                     .source_neutron_rate_per_s;
-                ui.label(format!(
-                    "Total H3/source: {:.4} ± {:.4}",
-                    tally.integrated_mean / rate,
-                    tally.integrated_standard_error / rate
-                ));
-                ui.small(
-                    "± one Monte Carlo standard error; total-model production per primary neutron.",
-                );
-                if let Some(breeder) = self.response(variant, "blanket-tritium") {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(format!(
-                        "Breeder H3/source: {:.4} ± {:.4}",
-                        breeder.integrated_mean / rate,
-                        breeder.integrated_standard_error / rate
+                        "Total H3/source: {:.4} ± {:.4}",
+                        tally.integrated_mean / rate,
+                        tally.integrated_standard_error / rate
                     ));
-                    ui.small("Gross births. Recovery and fuel availability are separate.");
+                    badge::badge(
+                        ui,
+                        Kind::Calculated,
+                        "± 1 SE",
+                        "± one Monte Carlo standard error; total-model production per primary neutron.",
+                    );
+                });
+                if let Some(breeder) = self.response(variant, "blanket-tritium") {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(format!(
+                            "Breeder H3/source: {:.4} ± {:.4}",
+                            breeder.integrated_mean / rate,
+                            breeder.integrated_standard_error / rate
+                        ));
+                        badge::badge(
+                            ui,
+                            Kind::Calculated,
+                            "gross births",
+                            "Gross births. Recovery and fuel availability are separate.",
+                        );
+                    });
                 }
             }
             if let Some(location) = self.locations.get(variant) {
@@ -527,7 +604,6 @@ impl TransportPanel {
                 });
             }
         }
-        ui.small("Cold-data surrogate. Scientific qualification: NOT_EVALUATED.");
     }
 
     pub fn viewport_controls(&mut self, ui: &mut egui::Ui, variant: &str, has_history: bool) {
