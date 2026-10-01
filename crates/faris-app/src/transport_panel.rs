@@ -591,37 +591,103 @@ impl TransportPanel {
             FieldView::NuclearHeating => (0.0, 8.0, "W/m³"),
             FieldView::ComponentFluence => (18.0, 28.0, "neutrons/m²"),
         };
+        let note = if self.view == FieldView::ComponentFluence {
+            "Gray = zero sampled-mean fluence · no-track scores give no upper bound · magenta = unavailable. Conditional point history; uncertainty is not propagated."
+        } else {
+            "Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."
+        };
         ui.horizontal_wrapped(|ui| {
-            ui.small(format!("≤10^{lower:.0}"));
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(150.0, 8.0), egui::Sense::hover());
-            for i in 0..75 {
-                let color = scalar_color(
-                    10.0_f64.powf(lower + (upper - lower) * i as f64 / 74.0),
-                    0.0,
-                    lower,
-                    upper,
-                );
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_max(
-                        egui::pos2(rect.left() + rect.width() * i as f32 / 75.0, rect.top()),
-                        egui::pos2(
-                            rect.left() + rect.width() * (i + 1) as f32 / 75.0,
-                            rect.bottom(),
-                        ),
-                    ),
-                    0.0,
-                    egui::Color32::from_rgb(
-                        (color[0] * 255.0) as u8,
-                        (color[1] * 255.0) as u8,
-                        (color[2] * 255.0) as u8,
-                    ),
+            ui.small(format!("{label} · log₁₀, fixed across arrangements"));
+            ui.small("ⓘ").on_hover_text(note);
+        });
+        let decades = (upper - lower) as usize;
+        let bar_width = 360.0_f32.min(ui.available_width().max(120.0));
+        let (rect, response) =
+            ui.allocate_exact_size(egui::vec2(bar_width + 34.0, 30.0), egui::Sense::hover());
+        response.on_hover_text(format!(
+            "Values at or below 10^{lower:.0} and at or above 10^{upper:.0} saturate at the ends of the scale."
+        ));
+        let bar = egui::Rect::from_min_size(
+            rect.min + egui::vec2(17.0, 0.0),
+            egui::vec2(bar_width, 10.0),
+        );
+        let to_color32 = |color: [f32; 3]| {
+            egui::Color32::from_rgb(
+                (color[0] * 255.0).round() as u8,
+                (color[1] * 255.0).round() as u8,
+                (color[2] * 255.0).round() as u8,
+            )
+        };
+        let painter = ui.painter();
+        let mut gradient = egui::Mesh::default();
+        const SEGMENTS: usize = 64;
+        for i in 0..=SEGMENTS {
+            let t = i as f32 / SEGMENTS as f32;
+            let color = to_color32(colormap(t));
+            let x = bar.left() + bar.width() * t;
+            gradient.colored_vertex(egui::pos2(x, bar.top()), color);
+            gradient.colored_vertex(egui::pos2(x, bar.bottom()), color);
+            if i > 0 {
+                let base = (i as u32 - 1) * 2;
+                gradient.add_triangle(base, base + 1, base + 2);
+                gradient.add_triangle(base + 1, base + 3, base + 2);
+            }
+        }
+        painter.add(egui::Shape::mesh(gradient));
+        painter.rect_stroke(
+            bar,
+            1.0,
+            egui::Stroke::new(1.0, egui::Color32::from_gray(90)),
+            egui::StrokeKind::Outside,
+        );
+        let label_step = if bar_width / decades.max(1) as f32 >= 34.0 {
+            1
+        } else {
+            2
+        };
+        for decade in 0..=decades {
+            let x = bar.left() + bar.width() * decade as f32 / decades.max(1) as f32;
+            painter.line_segment(
+                [
+                    egui::pos2(x, bar.bottom()),
+                    egui::pos2(x, bar.bottom() + 3.0),
+                ],
+                egui::Stroke::new(1.0, egui::Color32::from_gray(150)),
+            );
+            if decade % label_step == 0 {
+                painter.text(
+                    egui::pos2(x, bar.bottom() + 4.0),
+                    egui::Align2::CENTER_TOP,
+                    format!("10^{:.0}", lower + decade as f64),
+                    egui::FontId::monospace(9.5),
+                    egui::Color32::from_gray(185),
                 );
             }
-            ui.small(format!(
-                "≥10^{upper:.0} {label} · log₁₀, fixed across arrangements"
-            ));
+        }
+        ui.horizontal_wrapped(|ui| {
+            for (color, text, hover) in [
+                (
+                    to_color32(NONPOSITIVE_COLOR),
+                    "no sampled score",
+                    "Nonpositive or zero sampled score; no upper bound is inferred.",
+                ),
+                (
+                    to_color32(scalar_color(10.0_f64.powf((lower + upper) * 0.5), 1.0e30, lower, upper)),
+                    ">30% rel. SE",
+                    "Relative Monte Carlo standard error above 30%: colour is blended toward neutral gray.",
+                ),
+                (
+                    to_color32(UNAVAILABLE_COLOR),
+                    "unavailable",
+                    "No result is recorded for this component or bin.",
+                ),
+            ] {
+                let (swatch, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
+                ui.painter().rect_filled(swatch, 2.0, color);
+                ui.small(text).on_hover_text(hover);
+                ui.add_space(6.0);
+            }
         });
-        ui.small(if self.view==FieldView::ComponentFluence {"Gray = zero sampled-mean fluence · no-track scores give no upper bound · magenta = unavailable. Conditional point history; uncertainty is not propagated."}else{"Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."});
     }
 
     pub fn spectra(&self, ui: &mut egui::Ui, variant: &str, component: &str) {
@@ -674,6 +740,38 @@ pub fn flux_color(mean: f64, standard_error: f64) -> [f32; 3] {
     scalar_color(mean, standard_error, 10.0, 20.0)
 }
 
+/// Sampled zero or nonpositive scores: neutral dark gray, never a data colour.
+const NONPOSITIVE_COLOR: [f32; 3] = [0.18; 3];
+/// Missing result (component or bin without a record).
+const UNAVAILABLE_COLOR: [f32; 3] = [0.75, 0.10, 0.65];
+
+/// Standard perceptually uniform "inferno" control points (sRGB, t = 0, 0.1, ... 1).
+const INFERNO: [[f32; 3]; 11] = [
+    [0.001462, 0.000466, 0.013866],
+    [0.087411, 0.044556, 0.224813],
+    [0.258234, 0.038571, 0.406485],
+    [0.416331, 0.090203, 0.432943],
+    [0.578304, 0.148039, 0.404411],
+    [0.735683, 0.215906, 0.330245],
+    [0.865006, 0.316822, 0.226055],
+    [0.954506, 0.468744, 0.099874],
+    [0.987622, 0.645320, 0.039886],
+    [0.964394, 0.843848, 0.273391],
+    [0.988362, 0.998364, 0.644924],
+];
+
+/// Inferno interpolated linearly between its control points. The darkest 4 %
+/// is trimmed so the low end stays distinct from black backgrounds and from
+/// the gray used for nonpositive scores.
+fn colormap(t: f32) -> [f32; 3] {
+    let position = (0.04 + 0.96 * t.clamp(0.0, 1.0)) * (INFERNO.len() - 1) as f32;
+    let index = (position.floor() as usize).min(INFERNO.len() - 2);
+    let fraction = position - index as f32;
+    std::array::from_fn(|channel| {
+        INFERNO[index][channel] * (1.0 - fraction) + INFERNO[index + 1][channel] * fraction
+    })
+}
+
 pub fn scalar_color(
     mean: f64,
     standard_error: f64,
@@ -681,18 +779,65 @@ pub fn scalar_color(
     upper_log10: f64,
 ) -> [f32; 3] {
     if mean <= 0.0 {
-        return [0.18; 3];
+        return NONPOSITIVE_COLOR;
     }
     let t = ((mean.log10() - lower_log10) / (upper_log10 - lower_log10)).clamp(0.0, 1.0) as f32;
-    let mut color = [
-        (2.0 * t - 0.6).clamp(0.0, 1.0),
-        (1.0 - (2.0 * t - 1.0).abs()).clamp(0.0, 1.0),
-        (1.4 - 2.0 * t).clamp(0.0, 1.0),
-    ];
+    let mut color = colormap(t);
     if standard_error / mean > 0.3 {
+        // Clearly muted: 55 % toward neutral gray.
         for channel in &mut color {
-            *channel = *channel * 0.3 + 0.35;
+            *channel = *channel * 0.45 + 0.40 * 0.55;
         }
     }
     color
+}
+
+#[cfg(test)]
+mod colormap_tests {
+    use super::*;
+
+    fn luminance(c: [f32; 3]) -> f32 {
+        0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+
+    #[test]
+    fn scale_is_monotonic_in_luminance_and_saturates_at_the_limits() {
+        let mut previous = -1.0;
+        for step in 0..=20 {
+            let color = scalar_color(10.0_f64.powf(10.0 + step as f64 * 0.5), 0.0, 10.0, 20.0);
+            assert!(luminance(color) > previous);
+            previous = luminance(color);
+        }
+        assert_eq!(
+            scalar_color(1.0, 0.0, 10.0, 20.0),
+            scalar_color(1e10, 0.0, 10.0, 20.0)
+        );
+        assert_eq!(
+            scalar_color(1e30, 0.0, 10.0, 20.0),
+            scalar_color(1e20, 0.0, 10.0, 20.0)
+        );
+    }
+
+    #[test]
+    fn zero_scores_are_gray_and_unavailable_is_not_a_data_color() {
+        assert_eq!(scalar_color(0.0, 0.0, 10.0, 20.0), [0.18; 3]);
+        assert_eq!(scalar_color(-1.0, 0.0, 10.0, 20.0), [0.18; 3]);
+        for step in 0..=100 {
+            let color = scalar_color(10.0_f64.powf(step as f64 * 0.1 + 10.0), 0.0, 10.0, 20.0);
+            let distance: f32 = (0..3)
+                .map(|i| (color[i] - UNAVAILABLE_COLOR[i]).abs())
+                .sum();
+            assert!(distance > 0.25);
+        }
+    }
+
+    #[test]
+    fn imprecise_bins_are_pulled_toward_neutral_gray() {
+        let sharp = scalar_color(1e15, 1e13, 10.0, 20.0);
+        let noisy = scalar_color(1e15, 5e14, 10.0, 20.0);
+        let spread = |c: [f32; 3]| {
+            c.iter().cloned().fold(0.0, f32::max) - c.iter().cloned().fold(1.0, f32::min)
+        };
+        assert!(spread(noisy) < 0.5 * spread(sharp));
+    }
 }
