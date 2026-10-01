@@ -1,5 +1,7 @@
 //! Scenario semantics and validation. Display labels never imply material properties.
 
+pub mod transport;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};

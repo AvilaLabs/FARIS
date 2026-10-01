@@ -1,0 +1,89 @@
+{
+  "schema": "faris.scientific-baseline/1.0.0",
+  "status": "recommended_inputs_not_yet_qualified",
+  "as_of": "2026-09-30",
+  "study": {
+    "concept": "ARC-inspired idealized D-T tokamak",
+    "claim_boundary": "research model; not a reproduction or qualification of ARC",
+    "comparison": "two blanket/shield allocations at fixed declared outer envelope",
+    "transport": "OpenMC continuous-energy fixed-source Monte Carlo",
+    "history_owner": "Rust FARIS engine after transport normalization"
+  },
+  "transport_runtime_candidate": {
+    "tool": "OpenMC",
+    "version": "0.15.3",
+    "commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+    "readiness_record": "openmc-fendl-readiness.json",
+    "status": "available in neighboring tool environment; not yet configured as FARIS runtime"
+  },
+  "reference_ladder": [
+    {
+      "id": "JADE-ITER-1D",
+      "role": "code_to_code_and_adapter_regression",
+      "experimental_validation": false,
+      "local_inputs": "/home/connoravila/Documents/Avila-Labs/development/iaea-open-benchmarks/jade_open_benchmarks/inputs/ITER_1D",
+      "local_revision": "must pin before use",
+      "metadata": {"openmc": "1.1", "mcnp": "1.0", "serpent": "1.0"},
+      "required_audit": ["source distribution", "response definitions", "normalization", "data library", "reference tallies", "input hashes"],
+      "limitation": "benchmark agreement is not agreement with experiment or validation of FARIS geometry"
+    },
+    {
+      "id": "SINBAD-FNG-ITER-BULK-SS-SBE-10.002",
+      "role": "experimental_shield_transport_validation",
+      "experimental_validation": true,
+      "primary_record": "https://cms.oecd-nea.org/science/wprs/shielding/sinbad/FNG_BLKT/FNGBKT_A.HTM",
+      "source_observation": "14-MeV d-T source; source intensity accuracy reported as +/-2%; mock-up responses include activation/reaction measurements and TLD heating",
+      "local_package": null,
+      "required_before_run": ["download exact SINBAD package", "pin package revision/hashes", "extract response-specific experimental uncertainties", "check redistribution terms"],
+      "limitation": "integral response validation for the mock-up only; does not validate FARIS design, blanket TBR or operating-life model"
+    },
+    {
+      "id": "SINBAD-FNG-HCPB-TBM-2005",
+      "role": "experimental_breeding_response_validation",
+      "experimental_validation": true,
+      "primary_record": "https://www.oecd-nea.org/science/wprs/shielding/sinbad/fng_hcpb/fnghcpb-a.htm",
+      "uncertainty_evidence": "https://doi.org/10.1016/j.fusengdes.2007.08.007",
+      "local_package": null,
+      "required_before_run": ["download exact SINBAD package", "pin package revision/hashes", "extract per-position tritium results and uncertainties", "check redistribution terms"],
+      "published_uncertainty_context": "reported approximately 8-10% at 2-sigma for total T-production prediction in that experiment; not a universal FARIS tolerance",
+      "limitation": "validates specified responses only for the HCPB mock-up and modeled conditions"
+    }
+  ],
+  "nuclear_data": {
+    "preferred_family": "IAEA FENDL fusion evaluation",
+    "candidate_local_installation": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5",
+    "candidate_claim": "directory and XML identify FENDL-3.2 HDF5 neutron/photon data",
+    "verified_for_faris": false,
+    "verified_release_and_provenance": false,
+    "coverage_audit_required": ["all scenario nuclides", "Li-6/Li-7 tritium-producing score behavior", "temperatures", "heating treatment", "photon data if used"],
+    "readiness_record": "openmc-fendl-readiness.json",
+    "secondary_candidate": "ENDF/B-VIII.1",
+    "secondary_candidate_local": "/home/connoravila/Documents/Avila-Labs/.nctforge-data/nctforge/openmc-endfb81-official-library/selected/endfb-viii.1-hdf5",
+    "secondary_candidate_status": "local acquisition receipt says acquisition_only and publisher_digest unavailable; not verified/qualified; do not bundle"
+  },
+  "comparison_rule": {
+    "response_specific": true,
+    "universal_percent_tolerance": null,
+    "rule": "|C-E| <= k*sqrt(uC^2+uE^2-2Cov(C,E))",
+    "coverage_factor": "Use published benchmark coverage convention; k=2 only for compatible standard uncertainties and an approximately 95% interval",
+    "expanded_uncertainty_handling": "Convert to standard uncertainty only when coverage factor and distribution convention are known; otherwise use like-for-like published expanded intervals or report that compatibility cannot be tested",
+    "covariance_handling": "Set covariance zero only when relevant calculation and measurement components are defensibly independent; where known common-mode effects exist, obtain covariance or a defensible bound",
+    "missing_uncertainty_state": "INCONCLUSIVE",
+    "compatibility_vs_qualification": "Passing the uncertainty compatibility check is evidence of consistency at stated coverage, not model qualification; assess domain relevance, systematic bias, model-form error, uncertainty completeness, and numerical verification separately",
+    "monte_carlo_precision": "numerical precision target chosen after pilot; report achieved precision; it does not define experimental agreement tolerance"
+  },
+  "unresolved": [
+    "FARIS reactor material compositions, densities, enrichments, temperatures and void/homogenization",
+    "FARIS source spatial/angular/energy distribution and normalization convention",
+    "verified nuclear-data provenance and coverage",
+    "penetration geometry, fill, affected volumes and matching control",
+    "exact production response/tally definitions and magnet exposure quantity",
+    "accessible pinned experimental benchmark files and response uncertainties",
+    "fuel recovery/retention/inventory assumptions, component limit basis, and electricity assumptions",
+    "named workstation and measured solver resource/runtime budget"
+  ],
+  "excluded_reference": {
+    "project": "fusion-energy-ledger absolute WCLL TBR result",
+    "reason": "reported +8.5% overprediction and failed mechanism reproduction; not a qualified reference result"
+  }
+}

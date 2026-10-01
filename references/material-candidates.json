@@ -1,0 +1,329 @@
+{
+  "schema": "faris.material-candidates/1.0.0",
+  "status": "candidate_recipes_with_unresolved_physical_inputs",
+  "as_of": "2026-09-30",
+  "purpose": "Input design for an ARC-inspired teaching/research transport model; not an ARC reproduction or qualified material specification.",
+  "source_design": {
+    "paper": "Sorbom et al., ARC: A compact, high-field, fusion nuclear science facility and demonstration power plant with demountable magnets",
+    "arxiv": "1409.3540",
+    "doi": "10.1016/j.fusengdes.2015.07.008",
+    "note": "ARC neutronics are a simplified axisymmetric MCNP design calculation; several first-wall/divertor designs were explicitly open-ended."
+  },
+  "material_basis": {
+    "composition_fraction_basis": "atom_fraction unless otherwise stated",
+    "isotope_policy": "Preserve final nuclide atom fractions used in transport and source recipe/provenance. Elemental natural-abundance expansion is a declared assumption, not implicit identity.",
+    "geometry_policy": "Material identities are distinct from geometric dimensions. The current FARIS two-allocation radial envelope does not establish ARC wall/channel/multiplier layer thicknesses or a detailed ARC radial build.",
+    "temperature_policy": "Record physical material temperature and nuclear-data temperature separately; no silent use of 293.6 K data for hot materials."
+  },
+  "regions": [
+    {
+      "id": "flibe_breeder",
+      "candidate": "stoichiometric Li2BeF4 (2 LiF : 1 BeF2 molar), liquid",
+      "composition": {
+        "formula_atom_counts": {
+          "Li": 2,
+          "Be": 1,
+          "F": 4
+        },
+        "li_isotopic_atom_fractions": {
+          "Li6": 0.9,
+          "Li7": 0.1
+        },
+        "derived_nuclide_atom_fractions_if_Be9_and_F19_only": {
+          "Li6": 0.2571428571428571,
+          "Li7": 0.02857142857142857,
+          "Be9": 0.14285714285714285,
+          "F19": 0.5714285714285714
+        },
+        "be_and_f_isotope_convention": null,
+        "status": "Li enrichment and salt formula are ARC-derived; Be9-only/F19-only representation remains a declared implementation assumption until isotope conventions are selected."
+      },
+      "published_inputs": {
+        "li6_abundance_of_lithium": {
+          "value": 0.9,
+          "basis": "isotopic atom abundance",
+          "source": "ARC paper, section 5.3"
+        },
+        "bulk_temperature_K": {
+          "inlet": 800,
+          "outlet": 900,
+          "peak_upper_estimate": 1000,
+          "source": "ARC thermal analysis; peak reported as less than 1000 K"
+        },
+        "reported_density": {
+          "value": 1940,
+          "unit": "kg/m3",
+          "temperature_K": 950,
+          "source": "ARC Table 5",
+          "limitation": "The paper does not document the density value's exact isotope/composition basis. Do not silently assign as a measured density for 90%-Li6 salt."
+        },
+        "alternate_measured_density_fit": {
+          "equation": "rho_kg_m3 = 2245(7) - 0.424(17) * T_C",
+          "valid_T_C": [
+            447,
+            820
+          ],
+          "composition": {
+            "x_BeF2_mol_fraction": 0.3359,
+            "Li7_over_Li6_atom_ratio": 13.544
+          },
+          "source_doi": "10.1021/acs.jced.2c00212",
+          "uncertainty_note": "Reported fit parameter uncertainties are standard errors; measurement density standard uncertainty and composition basis apply to that near-natural lithium sample, not ARC enriched salt."
+        }
+      },
+      "unresolved": [
+        "enriched-salt density versus temperature",
+        "exact enrichment assay / basis",
+        "Be and F isotopic expansion",
+        "impurity chemistry",
+        "gas/void fraction",
+        "channel versus bulk blanket temperature/density fields",
+        "high-temperature nuclear data for all selected nuclides"
+      ]
+    },
+    {
+      "id": "first_wall_armor",
+      "candidate": "tungsten armor, separate solid region",
+      "composition": null,
+      "published_inputs": {
+        "arc_reference_thickness_m": 0.01,
+        "source": "ARC neutron/thermal model"
+      },
+      "unresolved": [
+        "purity/alloy",
+        "density and porosity",
+        "isotopic vector",
+        "physical temperature",
+        "available required-temperature neutron data",
+        "W nuclear heating treatment"
+      ]
+    },
+    {
+      "id": "vacuum_vessel_structure",
+      "candidate": "INCONEL alloy 718, separate inner and outer structural regions",
+      "composition": null,
+      "published_inputs": {
+        "arc_reference_inner_wall_m": 0.01,
+        "arc_reference_outer_wall_m": 0.03,
+        "special_metals_composition_weight_percent_limits": {
+          "Ni_plus_Co": [
+            50.0,
+            55.0
+          ],
+          "Cr": [
+            17.0,
+            21.0
+          ],
+          "Nb_plus_Ta": [
+            4.75,
+            5.5
+          ],
+          "Mo": [
+            2.8,
+            3.3
+          ],
+          "Ti": [
+            0.65,
+            1.15
+          ],
+          "Al": [
+            0.2,
+            0.8
+          ],
+          "Co_max": 1.0,
+          "C_max": 0.08,
+          "Mn_max": 0.35,
+          "Si_max": 0.35,
+          "P_max": 0.015,
+          "S_max": 0.015,
+          "B_max": 0.006,
+          "Cu_max": 0.3,
+          "Fe": "balance"
+        },
+        "typical_density": {
+          "annealed_lb_in3": 0.296,
+          "aged_lb_in3": 0.297,
+          "approx_annealed_kg_m3": 8196,
+          "approx_aged_kg_m3": 8224,
+          "source": "Special Metals technical bulletin Table 2",
+          "limitation": "Typical values, not specification values; composition/condition dependent."
+        }
+      },
+      "unresolved": [
+        "nominal heat chemistry / selected points within specifications",
+        "Nb-Ta split",
+        "trace-element recipe",
+        "isotope expansion",
+        "density state and porosity",
+        "operating temperature map",
+        "required temperature nuclear data"
+      ]
+    },
+    {
+      "id": "neutron_multiplier",
+      "candidate": "separate solid beryllium multiplier; Be9-only candidate",
+      "composition": null,
+      "published_inputs": {
+        "arc_reference_layer_m": 0.01,
+        "source": "ARC detailed vessel thermal configuration",
+        "reaction_role": "Be-9 (n,2n) multiplication/moderation described in ARC paper"
+      },
+      "unresolved": [
+        "purity/isotope convention",
+        "solid density",
+        "porosity and joint/void representation",
+        "temperature",
+        "irradiation-state assumption",
+        "required-temperature nuclear data"
+      ]
+    },
+    {
+      "id": "neutron_shield",
+      "candidate": "TiH2 shield; stoichiometric formula only as an explicit idealization",
+      "composition": null,
+      "published_inputs": {
+        "arc_design_material": "TiH2",
+        "physical_form": "powder in ARC cost description",
+        "derived_mass_divided_by_rounded_volume_kg_m3": 3762,
+        "source": "ARC paper Table 11: 380 tonnes / 101 m3",
+        "limitation": "Derived from rounded cost-design totals; not a measured bulk density or a specified powder packing fraction."
+      },
+      "unresolved": [
+        "hydrogen-to-titanium ratio / phase",
+        "H/Ti isotopic vectors",
+        "crystalline versus bulk packed density",
+        "packing/porosity",
+        "hydrogen retention / dehydrogenation versus temperature",
+        "containment, coolant and void treatment",
+        "physical temperature",
+        "required H and Ti nuclear data"
+      ]
+    },
+    {
+      "id": "magnet_and_surrounds",
+      "candidate": "unassigned until magnet-response geometry is authored",
+      "composition": null,
+      "unresolved": [
+        "conductor, insulation, structure, cooling/void recipes",
+        "homogenization and volumes",
+        "response location/averaging definition"
+      ]
+    }
+  ],
+  "transport_modes": [
+    {
+      "id": "cold_data_numerical_reference",
+      "role": "adapter/source/geometry/score verification only",
+      "physical_material_temperature_K": null,
+      "nuclear_data_temperature_K": 293.6,
+      "status": "candidate after full composition inventory/data validation; not a hot operating case",
+      "limitation": "Hypothetical numerical reference only; 293.6 K nuclear data with authored density does not define material thermodynamic state. FLiBe is not liquid at that temperature. No operating-blanket conclusion."
+    },
+    {
+      "id": "hot_arc_inspired_production",
+      "role": "design-level neutronics candidate",
+      "physical_material_temperature_K": null,
+      "nuclear_data_temperature_K": null,
+      "status": "blocked pending supported and justified hot data for every selected nuclide and response",
+      "limitation": "ARC's temperatures are design assumptions/predictions, not validated FARIS conditions."
+    }
+  ],
+  "source_specification_required": {
+    "energy_distribution": null,
+    "angular_distribution": null,
+    "spatial_birth_distribution_or_plasma_profile": null,
+    "source_strength_normalization": null,
+    "fusion_power_to_neutron_rate_convention": null,
+    "pair_comparison_rule": "Use an identical fully identified source in both variants. Do not call 14.1 MeV monoenergetic/isotropic source an ARC recreation without the original MCNP source specification."
+  },
+  "response_scope": {
+    "tritium_breeding": "score Li-6 and Li-7 tritium production responses with verified reaction/Q-value and normalization behavior; ARC TBR >= 1.1 is not a transferable acceptance criterion.",
+    "fast_neutron_exposure": "define energy cutoff, tally volume/averaging, source normalization and operating history; does not alone predict magnet life.",
+    "nuclear_heating": "Use coupled neutron-photon treatment and documented deposited-energy response for total nuclear heating, or report total heating unavailable. Photoatomic file presence alone is insufficient. ARC explicitly counted both neutron and photon heating.",
+    "not_provided_by_material_record": [
+      "activation/depletion",
+      "component failure life",
+      "thermohydraulics",
+      "stress",
+      "full design qualification"
+    ]
+  },
+  "nuclear_data_readiness": {
+    "candidate_distribution": "FENDL-3.2 HDF5",
+    "openmc_version": "0.15.3",
+    "existing_audit": "openmc-fendl-readiness.json",
+    "audited_target_temperature_K": 293.6,
+    "audited_target_nuclides": [
+      "Li6",
+      "Li7",
+      "Be9",
+      "F19",
+      "Fe54",
+      "Fe56",
+      "Fe57",
+      "Fe58",
+      "Cr50",
+      "Cr52",
+      "Cr53",
+      "Cr54",
+      "Ni58",
+      "Ni60",
+      "Ni61",
+      "Ni62",
+      "Ni64"
+    ],
+    "still_to_audit_for_this_candidate": [
+      "H1",
+      "Ti natural-isotope set / chosen Ti isotopes",
+      "W natural-isotope set / chosen W isotopes",
+      "all non-major Inconel alloy elements after assay recipe",
+      "every required hot temperature",
+      "Li tritium-production scores and reaction energy",
+      "photon production and deposition response",
+      "FENDL acquisition provenance, licensing and redistribution conditions"
+    ],
+    "qualification": "not qualified"
+  },
+  "implementation_fields_required": [
+    "material_id",
+    "region_ids",
+    "physical_state",
+    "recipe_basis_and_original_recipe",
+    "nuclide_atom_fractions",
+    "enrichment_basis",
+    "density_value_and_unit",
+    "density_basis_crystal_solid_or_homogenized_bulk",
+    "density_reference_temperature",
+    "porosity_or_void_separately",
+    "physical_temperature",
+    "loaded_nuclear_data_temperature",
+    "source_reference_and_table_page",
+    "assumption_or_measurement_status",
+    "unresolved_fields"
+  ],
+  "references": [
+    {
+      "id": "arc",
+      "url": "https://arxiv.org/abs/1409.3540",
+      "doi": "10.1016/j.fusengdes.2015.07.008"
+    },
+    {
+      "id": "flibe_density",
+      "url": "https://doi.org/10.1021/acs.jced.2c00212",
+      "note": "Vidrio et al. 2022; density fit is for measured near-natural lithium composition, not the ARC 90%-Li6 recipe."
+    },
+    {
+      "id": "inconel_718",
+      "url": "https://www.specialmetals.com/documents/technical-bulletins/inconel/inconel-alloy-718.pdf",
+      "note": "Manufacturer chemistry limits and typical density."
+    },
+    {
+      "id": "openmc_temperature",
+      "url": "https://docs.openmc.org/en/stable/methods/cross_sections.html"
+    },
+    {
+      "id": "fendl",
+      "url": "https://www-nds.iaea.org/fendl/"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "schema": "faris.external-tool-data-audit/1.0.0",
+  "audit_date": "2026-09-30",
+  "purpose": "read-only readiness and content coverage audit; not a solver result or nuclear-data qualification",
+  "openmc": {
+    "executable": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/openmc",
+    "python": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/python",
+    "version": "0.15.3",
+    "commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+    "build": {
+      "type": "Release",
+      "compiler": "GNU 14.3.0",
+      "mpi": true,
+      "parallel_hdf5": true,
+      "dagmc": true,
+      "libmesh": false
+    },
+    "conda_package": {
+      "name": "openmc",
+      "version": "0.15.3",
+      "build": "dagmc_mpi_openmpi_py313ha0fa856_102",
+      "channel": "https://conda.anaconda.org/conda-forge/linux-64",
+      "package_sha256": "cd0e0777a0b1790f5974fce4af2e65918814a97c771cceb2b7e8110cfbecc2ce",
+      "software_license": "MIT (OpenMC software package; does not license nuclear data)"
+    },
+    "identity_status": "version/commit/build/package identified; external neighboring environment is not yet a FARIS-managed runtime"
+  },
+  "nuclear_data": {
+    "candidate": "FENDL-3.2 OpenMC HDF5 distribution",
+    "extracted_directory": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5",
+    "cross_sections_xml": "cross_sections.xml",
+    "cross_sections_xml_sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674",
+    "archive_path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5.tar.xz",
+    "archive_bytes": 335955104,
+    "archive_sha256": "374d60526ff740ee2f6720524ad8dc3c76edb818bb257d1c72d8ed51c0739a2c",
+    "provenance": {
+      "upstream_reference": "https://openmc.org/data/",
+      "published_description": "FENDL-3.2 HDF5 produced by converting IAEA-NDS ACE; 192 neutron nuclides, photoatomic data for 61 elements, incident neutron data at 293.6 K",
+      "local_acquisition_receipt": false,
+      "publisher_checksum_available": false,
+      "archive_byte_identity_verified_against_publisher": false,
+      "content_inventory_matches_published_summary": true,
+      "data_license_or_redistribution_terms_verified": false,
+      "redistribution_decision": "unresolved; do not package until confirmed"
+    },
+    "xml_inventory_audit": {
+      "xml_library_file_references": 253,
+      "missing_referenced_files": [],
+      "neutron_nuclide_count": 192,
+      "photoatomic_element_count": 61,
+      "all_253_files_hdf5_read_tested": false,
+      "targeted_nuclide_hdf5_files_readable": true
+    },
+    "temperature": {
+      "official_distribution_temperature_kelvin": 293.6,
+      "target_files_hdf5_key": "294K",
+      "target_files_kT_eV": 0.025300000000000003,
+      "temperature_datasets_per_target_nuclide": 1,
+      "elevated_temperature_readiness": "not established; no bounding-temperature data in audited files"
+    },
+    "target_coverage": {
+      "isotope_sets_present_and_readable": {
+        "Li": ["Li6", "Li7"],
+        "Be": ["Be9"],
+        "O": ["O16"],
+        "F": ["F19"],
+        "Fe": ["Fe54", "Fe56", "Fe57", "Fe58"],
+        "Cr": ["Cr50", "Cr52", "Cr53", "Cr54"],
+        "Ni": ["Ni58", "Ni60", "Ni61", "Ni62", "Ni64"]
+      },
+      "listed_neutron_isotopes_have_MT301": true,
+      "listed_neutron_isotopes_have_MT444": true,
+      "listed_neutron_isotopes_have_294K_only": true,
+      "photon_elements_present_and_hdf5_readable_for_target_material_elements": ["O", "F", "Fe", "Cr", "Ni", "Li", "Be"],
+      "photon_data_type": "photoatomic",
+      "coverage_caveat": "A library-level isotope/file presence audit does not establish each material's complete physical reaction coverage, target T/H3 tally behavior, data uncertainty, geometry validity, or response accuracy. It also does not establish a validated damage response."
+    },
+    "target_neutron_files": [
+      {"nuclide":"Li6","path":"neutron/Li6.h5","sha256":"dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543","mt_301":true,"mt_444":true},
+      {"nuclide":"Li7","path":"neutron/Li7.h5","sha256":"f261968904018a39f45f4fecc2d803ac3eae6f6f73cf3ec90756f52d669dce3f","mt_301":true,"mt_444":true},
+      {"nuclide":"Be9","path":"neutron/Be9.h5","sha256":"9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9","mt_301":true,"mt_444":true},
+      {"nuclide":"O16","path":"neutron/O16.h5","sha256":"e3f0ee8d6221c4f4064764ca43f6a4858f4520ff4c30d4285b2698150599bb7c","mt_301":true,"mt_444":true},
+      {"nuclide":"F19","path":"neutron/F19.h5","sha256":"6fa9f0b30487886660b8edc5705d0c426694225c8d0cc992ec7360cd3068f814","mt_301":true,"mt_444":true},
+      {"nuclide":"Fe54","path":"neutron/Fe54.h5","sha256":"abc528ee420a3210600b1479a0903ee2afb8dfcf3e9d57c4789919db3812c13e","mt_301":true,"mt_444":true},
+      {"nuclide":"Fe56","path":"neutron/Fe56.h5","sha256":"2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1","mt_301":true,"mt_444":true},
+      {"nuclide":"Fe57","path":"neutron/Fe57.h5","sha256":"a53b71466fdc4e54673d46ff09be21222fbdd2e323638ace133b26d0c9ba18f1","mt_301":true,"mt_444":true},
+      {"nuclide":"Fe58","path":"neutron/Fe58.h5","sha256":"b91c20113f8b8d650a15cb6cf965845b4f6811b770f2739fffab0375e6db2750","mt_301":true,"mt_444":true},
+      {"nuclide":"Cr50","path":"neutron/Cr50.h5","sha256":"5b22adbebe5065853841991b2eeaace1ceaa5d08537d22d55ebeae42fee01a1f","mt_301":true,"mt_444":true},
+      {"nuclide":"Cr52","path":"neutron/Cr52.h5","sha256":"1cb746d92f99bb65ce153c21c0e59b4b386e828c716c10a3493b358012434f6f","mt_301":true,"mt_444":true},
+      {"nuclide":"Cr53","path":"neutron/Cr53.h5","sha256":"ecc399b243ccf1834c2428dfd12592ae03ce08de25ebc5754fcfc7cf623ffce7","mt_301":true,"mt_444":true},
+      {"nuclide":"Cr54","path":"neutron/Cr54.h5","sha256":"c5833fc9a53ec4016b6f1f9e174880f5835e73e92ed2daaf2d40e0bdc82aa4c5","mt_301":true,"mt_444":true},
+      {"nuclide":"Ni58","path":"neutron/Ni58.h5","sha256":"94dd52702fd57cbd2f4279c66eeebeeaa69e47f317a7f3a848673ce84670f108","mt_301":true,"mt_444":true},
+      {"nuclide":"Ni60","path":"neutron/Ni60.h5","sha256":"efb083521d722970ee54cf07be04c764d30ec677c579a34ddd34d0dcc28db8b2","mt_301":true,"mt_444":true},
+      {"nuclide":"Ni61","path":"neutron/Ni61.h5","sha256":"20fa1e41b51b5c960a8d80d9e36cf4368ca7f1b12e8b89306137a2d54282fbde","mt_301":true,"mt_444":true},
+      {"nuclide":"Ni62","path":"neutron/Ni62.h5","sha256":"1287925770a94c2c553ec2d9c193484ba7a636aaf1731ef5322b0bd0f396f0b4","mt_301":true,"mt_444":true},
+      {"nuclide":"Ni64","path":"neutron/Ni64.h5","sha256":"b7f7f1fca2a808d5cdd7ffd952e3f9e6a79407e9991d16cc9ec576f0a3acf66e","mt_301":true,"mt_444":true}
+    ],
+    "data_selection_status": "candidate identified and targeted files audited; run-level material, temperature, source, reaction-score, and licensing decisions still required",
+    "qualification_status": "not qualified"
+  },
+  "primary_references": {
+    "openmc_fendl_distribution": "https://openmc.org/data/",
+    "openmc_temperature_handling": "https://docs.openmc.org/en/stable/methods/cross_sections.html",
+    "openmc_tally_score_units": "https://docs.openmc.org/en/stable/usersguide/tallies.html",
+    "iaea_fendl_technical_recommendations": "https://www-nds.iaea.org/publications/indc/indc-nds-0797.pdf"
+  }
+}

@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 use faris_engine::build_manifest;
 use faris_model::LoadedScenario;
-use std::{fs::OpenOptions, io::Write, path::PathBuf};
+use std::path::PathBuf;
+
+mod control;
+mod transport;
 
 #[derive(Parser)]
 #[command(
@@ -27,6 +30,16 @@ enum Command {
     },
     /// Inspect optional tool availability without executing tools.
     Doctor,
+    /// Execute independently specified mathematical controls through the job runner.
+    Control {
+        #[command(subcommand)]
+        command: control::ControlCommand,
+    },
+    /// Check and normalize raw fixed-source transport artifacts; no solver invocation.
+    Transport {
+        #[command(subcommand)]
+        command: transport::TransportCommand,
+    },
 }
 
 fn main() -> std::process::ExitCode {
@@ -41,6 +54,8 @@ fn main() -> std::process::ExitCode {
 
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
     match arguments.command {
+        Command::Control { command } => control::run(command)?,
+        Command::Transport { command } => transport::run(command)?,
         Command::Validate { scenario } => {
             let loaded = LoadedScenario::load(&scenario)?;
             println!(
@@ -53,16 +68,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         }
         Command::Export { scenario, output } => {
             let manifest = build_manifest(&LoadedScenario::load(&scenario)?)?;
-            let mut bytes = serde_json::to_vec_pretty(&manifest)?;
-            bytes.push(b'\n');
-            if let Some(parent) = output.parent().filter(|path| !path.as_os_str().is_empty()) {
-                std::fs::create_dir_all(parent)?;
-            }
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&output)?;
-            file.write_all(&bytes)?;
+            transport::write_new_json(&output, &manifest)?;
             println!("Exported {} to {}", manifest.scenario_id, output.display());
         }
         Command::Doctor => {
@@ -90,7 +96,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
                     "faris_version": env!("CARGO_PKG_VERSION"), "optional_tools": tools,
-                    "note": "PATH presence only. No adapter is implemented and no solver was executed.",
+                    "note": "PATH presence only; no solver executed. The absorber numerical control accepts explicit tool paths. Reactor transport and Core execution are not implemented.",
                 }))?
             );
         }

@@ -1,6 +1,13 @@
 # OpenMC adapter plan
 
-Status: planned. No OpenMC invocation or transport result is present.
+Status: the reactor adapter is planned. Strict Rust transport requests/imports
+and normalization are implemented. A separate bundled worker actually invokes
+OpenMC for the synthetic absorber-sphere numerical control; it does not model
+the FARIS reactor or provide reactor results.
+
+See [the transport boundary](../../docs/TRANSPORT.md),
+[independent controls](../../docs/NUMERICAL_CONTROLS.md), and
+[scientific baseline](../../docs/SCIENTIFIC_BASELINE.md).
 
 The first adapter should export the complete scenario geometry and stable
 component IDs, assign actual materials, and define a normalized D-T source.

@@ -1,6 +1,9 @@
-//! Shared operations used by the native app and CLI. No physics adapter is active yet.
+//! Shared geometry, checked transport normalization and bounded external jobs.
+//! Reactor transport and operating-history adapters remain unimplemented.
 
+pub mod jobs;
 pub mod mesh;
+pub mod transport;
 
 use faris_model::{LoadedScenario, Reference, ScenarioError};
 use serde::Serialize;

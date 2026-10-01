@@ -13,7 +13,7 @@ uses **egui/eframe for the interface and wgpu for the 3D viewport**, with an
 outliner, component inspector, central viewport, and timeline inspired by
 Blender's workspace layout.
 
-## Current scaffold
+## Current implementation
 
 - A Rust workspace with separate model, engine, CLI, and desktop crates.
 - One versioned scenario with two allocations inside the same radial envelope.
@@ -23,9 +23,15 @@ Blender's workspace layout.
   arrangement switching, and component dimensions.
 - A timeline selector prepared for future operating-history results.
 - CLI validation, deterministic geometry exports, and optional tool detection.
+- Strict transport requests and raw-tally imports, checked source normalization,
+  integrated rates, volume averages, units, and Monte Carlo standard errors.
+- A Rust external-job runner with time/log bounds and process-group cancellation.
+- An independently specified absorber-sphere control that actually runs OpenMC,
+  with identified raw inputs/statepoints and scoped numerical comparisons.
+- A scientific baseline, benchmark route, and local tool/data readiness audit.
 
-**This is a geometry scaffold.** Neutron transport, activation, ageing, fuel
-inventory, maintenance, and power production are not implemented. Their result
+**The desktop remains a geometry scaffold.** Reactor transport, activation,
+ageing, fuel inventory, maintenance, and power production are not implemented. Their result
 records say `NOT_EVALUATED`; the app leaves their values empty. Component
 colors identify layers and do not represent calculated physical fields.
 Material definitions are deliberately unassigned. The idealized circular
@@ -71,12 +77,41 @@ Export refuses an existing destination to preserve previous run records.
 `doctor` checks names on `PATH` without executing tools; detection does not
 mean a FARIS adapter is available.
 
+The first executable scientific increment is a mathematical transport control:
+
+```bash
+cargo run -- control absorber --python /path/to/openmc-env/bin/python \
+  --openmc /path/to/openmc-env/bin/openmc --output runs/absorber-001
+```
+
+It uses synthetic one-group data, 1,000,000 histories and one thread by default.
+The Rust worker caps histories, runtime and captured logs; Ctrl-C cancels its
+solver process group. External execution currently requires Unix. A numerical
+control PASS applies only to the declared control, with its sampling rule and
+limitations in [NUMERICAL_CONTROLS.md](docs/NUMERICAL_CONTROLS.md). It establishes
+no reactor prediction or nuclear-data qualification. Native solver memory and
+disk usage are not sandboxed by this runner.
+
+Transport imports are independently usable without OpenMC:
+
+```bash
+cargo run -- transport validate-request --scenario scenarios/arc-inspired/scenario.json --request /path/to/request.json
+cargo run -- transport normalize --scenario scenarios/arc-inspired/scenario.json \
+  --request /path/to/request.json --artifact /path/to/raw-tallies.json --output runs/normalized-001.json
+```
+
+An import checks definitions and arithmetic; the artifact's solver identities
+and raw numbers are adapter assertions. Import success leaves scientific
+qualification `NOT_EVALUATED`. See [TRANSPORT.md](docs/TRANSPORT.md) for contracts,
+normalization, trust limits and unavailable reactor functionality.
+
 ## Development
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+python3 -m unittest discover -s controls -p 'test_*.py'
 ```
 
 Use `--jobs 1` when compiling the graphics stack on a memory-constrained machine.
@@ -105,7 +140,12 @@ development artifacts, not simulation evidence.
 | `docs/ROADMAP.md` | Long-term project direction and development phases |
 | `docs/DEMO_ROADMAP.md` | Comprehensive demo-only roadmap: dependencies, detailed requirements, and acceptance walkthrough |
 | `docs/TOOLING.md` | Open-source tools and planned integration roles |
-| `integrations/` | Adapter plans; no active solver or Core integration yet |
+| `docs/SCIENTIFIC_BASELINE.md` | Benchmark selection, validation scope, uncertainty rules and unresolved scientific inputs |
+| `docs/MATERIAL_BASELINE.md` | Primary-source material candidates and inputs that still need resolution |
+| `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
+| `controls/` | Independent analytic controls and external OpenMC numerical checks |
+| `references/` | Identified scientific sources and read-only tool/data audits |
+| `integrations/` | Reactor adapter plans; Core integration remains unimplemented |
 | `runs/` | Ignored generated records and captures |
 | `data/raw/` | Ignored downloaded scientific inputs |
 

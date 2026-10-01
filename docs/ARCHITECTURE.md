@@ -17,9 +17,10 @@ faris-engine: geometry → environment → state/history → comparisons
 FARIS study generator → Avila Core compilation → readiness / execution / evidence
 ```
 
-The current engine implements geometry and explicit empty evaluation records.
-The environment, state/history, comparisons, and external adapters are future
-work. The app draws the engine's tessellated geometry in an egui paint callback
+The current engine implements geometry, strict transport imports, checked
+normalization and bounded external execution. Reactor evaluation records remain
+empty. The environment, state/history, comparisons and reactor adapters are
+future work. The app draws the engine's tessellated geometry in an egui paint callback
 with a depth buffer; it does not reproduce domain geometry in a second language.
 
 ## Current contracts
@@ -37,6 +38,10 @@ with a depth buffer; it does not reproduce domain geometry in a second language.
 - Display tessellation and the display cutaway are presentation approximations.
   Volumes are analytic full-torus values. Future solver export must use the full
   scenario geometry, including explicitly modeled penetrations.
+- `faris-transport-request/v0.1` and `faris-transport-artifact/v0.1` bind raw
+  per-source tallies to exact scenario bytes, source and response definitions.
+  Their checked conversions preserve integrated and averaged values. See
+  [TRANSPORT.md](TRANSPORT.md) for dimensions and trust limits.
 
 ## Future adapter boundary
 
@@ -63,9 +68,11 @@ not move the authoritative FARIS model or time loop out of Rust.
 
 ## Execution and evidence
 
-Before adding execution, introduce a worker/job boundary with finite work limits,
-cancellation, and child cleanup. The app loads completed artifacts and sends
-requests; it does not block its event thread on solvers.
+The Rust job boundary implements wall-time/log bounds, cancellation and Unix
+process-group cleanup. `control absorber` executes a bundled external OpenMC
+worker against an analytic numerical reference. It does not calculate the
+reactor. Desktop jobs/results integration remains future work and must use
+workers so solver execution never blocks the egui event thread.
 
 Use `PASS`, `FAIL`, `INCONCLUSIVE`, and `NOT_EVALUATED` for explicitly scoped
 assessments. Geometry validity and solver completion cannot imply engineering

@@ -1,7 +1,10 @@
 # Scientific tools and integration roles
 
 FARIS can use the wider open-source ecosystem. This table is a shortlist, not
-a requirement to install every tool. None of these adapters is implemented yet.
+a requirement to install every tool. Reactor adapters remain unimplemented;
+OpenMC already executes the independent mathematical control through FARIS's
+bounded Rust runner. Existing local tool/data identities and scientific gaps
+are recorded in [the readiness audit](../references/openmc-fendl-readiness.json).
 
 | Role | Candidate tools | Initial use |
 | --- | --- | --- |

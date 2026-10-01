@@ -4,6 +4,16 @@ Status: implementation plan, 2026-09-30. This document covers the first demo onl
 Requirements describe the target; they do not claim implemented features.
 The existing application is a geometry scaffold, not the finished demo.
 
+Implementation has begun on M1 and the independent foundations of M2/M3:
+the [scientific baseline](SCIENTIFIC_BASELINE.md) records a benchmark route;
+the [data audit](../references/openmc-fendl-readiness.json) identifies existing
+OpenMC/FENDL inputs and unresolved provenance/temperature coverage. Strict
+transport schemas and Rust normalization are implemented, with a bounded
+external runner and a real [OpenMC numerical control](NUMERICAL_CONTROLS.md).
+These increments do not complete M1, M2 or M3. Reactor materials/source choices,
+experimental benchmark reproduction, the production adapter, generated Core
+studies, and desktop job/results integration still need implementation.
+
 ## The result we are building
 
 **Within one compact D-T tokamak's fixed radial envelope, how does allocating
