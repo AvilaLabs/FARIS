@@ -1,0 +1,394 @@
+{
+  "checker": {
+    "path": "controls/check_history.py",
+    "sha256": "461ce7040a3dd2f9c1cc4bd5988a25ff9269ff5a2b167671266242a43a07e37e"
+  },
+  "checks": {
+    "corrected_geometry_control_local_fine_pilot": {
+      "coarse": {
+        "events": 202,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-control-local-fine-smoke-history-600s.json",
+        "segment_limit": 3000000,
+        "segments": 2210635,
+        "sha256": "b2cf4f3ca4def774f86f5f8931dd3590896d628243c15437586cd9fbedefe88a",
+        "snapshots": 11025,
+        "transport_artifact_sha256": "9c12b528e9695577eef550752bc035189d19722d4f3a9cc0a6706a156889c4fa"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 2.6615509796101833e-09,
+          "cumulative_decay_kg": 3.410320914554177e-09,
+          "cumulative_processing_loss_kg": 8.494964731653454e-10,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 0.0,
+          "first-wall": 1.1281016910271292e-11,
+          "magnet-gap": 0.0,
+          "magnets": 0.0,
+          "shield": 1.0927144405723606e-11,
+          "vessel": 2.2531599246781375e-11
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 1.8406212235153078e-11,
+          "cumulative_auxiliary_electricity_mwh": 6.305494545852702e-13,
+          "cumulative_gross_electricity_mwh": 7.318665299834267e-12,
+          "cumulative_transport_recovered_heat_mwh": 4.405078173276755e-12
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 0.0002415180206298828,
+        "relative_changes": {
+          "cumulative_burn_kg": 3.129555765524811e-12,
+          "cumulative_full_power_seconds": 5.740551929240986e-13,
+          "cumulative_fusion_energy_mwh": 9.685676770490697e-12,
+          "cumulative_production_kg": 9.941128557532136e-12
+        },
+        "signed_net_energy_scaled_change": 1.9446856942325617e-12
+      },
+      "fine": {
+        "events": 202,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-control-local-fine-smoke-history-500s.json",
+        "segment_limit": 3000000,
+        "segments": 2524891,
+        "sha256": "7462441e5ef3413fb013d610434959c3a1129635f31ff6c886ee391a2d935207",
+        "snapshots": 11025,
+        "transport_artifact_sha256": "9c12b528e9695577eef550752bc035189d19722d4f3a9cc0a6706a156889c4fa"
+      }
+    },
+    "corrected_geometry_port_one_bin_pilot": {
+      "coarse": {
+        "events": 202,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-port-volume-smoke-v07-history-600s.json",
+        "segment_limit": 3000000,
+        "segments": 2212537,
+        "sha256": "a3e78fe335fac12071c57c511af28edcc44c3c1fc81ded62aecfe65b06d3aa5c",
+        "snapshots": 11025,
+        "transport_artifact_sha256": "3c269192619b01cb81d4688940ada0f460eacc191946d08cfa3f1f1b3650f9c6"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 1.7297878684985335e-09,
+          "cumulative_decay_kg": 1.8219594721813337e-09,
+          "cumulative_processing_loss_kg": 7.391705025838746e-10,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 0.0,
+          "first-wall": 1.6238305428116936e-11,
+          "magnet-gap": 9.539580519999769e-12,
+          "magnets": 9.985741662831064e-12,
+          "shield": 2.542227314185382e-12,
+          "vessel": 1.060529005819997e-11
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 1.941529950478017e-11,
+          "cumulative_auxiliary_electricity_mwh": 8.283537739480505e-13,
+          "cumulative_gross_electricity_mwh": 1.3965012530474168e-13,
+          "cumulative_transport_recovered_heat_mwh": 7.353375197930789e-12
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 2.0742416381835938e-05,
+        "relative_changes": {
+          "cumulative_burn_kg": 4.396621370749113e-12,
+          "cumulative_full_power_seconds": 4.657726885156388e-14,
+          "cumulative_fusion_energy_mwh": 9.259425426889861e-12,
+          "cumulative_production_kg": 1.0723399689379902e-11
+        },
+        "signed_net_energy_scaled_change": 4.0857159075827955e-12
+      },
+      "fine": {
+        "events": 202,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-port-volume-smoke-v07-history-500s.json",
+        "segment_limit": 3000000,
+        "segments": 2527012,
+        "sha256": "836f05484aea58bf474a7a41d44617886c3382b7de3b28219f83c11d72b190ed",
+        "snapshots": 11025,
+        "transport_artifact_sha256": "3c269192619b01cb81d4688940ada0f460eacc191946d08cfa3f1f1b3650f9c6"
+      }
+    },
+    "old_geometry_breeder_baseline": {
+      "coarse": {
+        "events": 63,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-breeder-1m-600s-final-v1.json",
+        "segment_limit": 3000000,
+        "segments": 1600820,
+        "sha256": "881ac31c7dd1951f1c4c0d91c077ec64aa81ab2add622301c8c9b5dcfab0e9a2",
+        "snapshots": 11004,
+        "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 5.240470566436617e-06,
+          "cumulative_decay_kg": 2.168009325631548e-05,
+          "cumulative_processing_loss_kg": 6.6684142892015075e-06,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 6.287700370955381e-06,
+          "first-wall": 6.28770019351219e-06,
+          "magnet-gap": 6.287700159481636e-06,
+          "magnets": 6.287700500163749e-06,
+          "shield": 6.2877001999393624e-06,
+          "vessel": 6.287700178706234e-06
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 6.287701033549103e-06,
+          "cumulative_auxiliary_electricity_mwh": 1.4676926916461877e-06,
+          "cumulative_gross_electricity_mwh": 6.287700263663112e-06,
+          "cumulative_transport_recovered_heat_mwh": 6.28770091654809e-06
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 164.77195415645838,
+        "relative_changes": {
+          "cumulative_burn_kg": 6.287739803982245e-06,
+          "cumulative_full_power_seconds": 6.287740049610009e-06,
+          "cumulative_fusion_energy_mwh": 6.287739771345834e-06,
+          "cumulative_production_kg": 6.287739872592333e-06
+        },
+        "signed_net_energy_scaled_change": 4.797316829973324e-06
+      },
+      "fine": {
+        "events": 63,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-breeder-1m-500s-v2.json",
+        "segment_limit": 3000000,
+        "segments": 1918507,
+        "sha256": "a13554b468b58a29c96c61d5bd9deaaabd51ba015a212a9e14858f0d2d30abe9",
+        "snapshots": 11004,
+        "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+      }
+    },
+    "old_geometry_breeder_event_fixture": {
+      "coarse": {
+        "events": 270,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-breeder-1m-event-600s-final-v1.json",
+        "segment_limit": 3000000,
+        "segments": 1768903,
+        "sha256": "87a37004061da10204ffde7f0646c71838ec6faf6b83dec74ff24647ff9e394a",
+        "snapshots": 11054,
+        "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 1.2757041709832162e-05,
+          "cumulative_decay_kg": 1.3865120820355514e-05,
+          "cumulative_processing_loss_kg": 6.59413001891096e-06,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 1.697496526683159e-05,
+          "first-wall": 4.52068887339686e-07,
+          "magnet-gap": 4.520749613131851e-07,
+          "magnets": 4.5206818060938744e-07,
+          "shield": 4.520589892204716e-07,
+          "vessel": 4.5205848223932565e-07
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 4.5205690774088044e-07,
+          "cumulative_auxiliary_electricity_mwh": 3.6489867374774273e-07,
+          "cumulative_gross_electricity_mwh": 4.5206695510164974e-07,
+          "cumulative_transport_recovered_heat_mwh": 4.520622051056128e-07
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 162.9362263083458,
+        "relative_changes": {
+          "cumulative_burn_kg": 4.5207633911186056e-07,
+          "cumulative_full_power_seconds": 4.5206401700793294e-07,
+          "cumulative_fusion_energy_mwh": 4.5205879051540837e-07,
+          "cumulative_production_kg": 4.5206688193322693e-07
+        },
+        "signed_net_energy_scaled_change": 3.461488092010284e-07
+      },
+      "fine": {
+        "events": 270,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-breeder-1m-event-500s-v1.json",
+        "segment_limit": 3000000,
+        "segments": 2085159,
+        "sha256": "5b6d9dd7fa4940f66a381584da450b33e2a338e415132a0916b535824f92eb39",
+        "snapshots": 11054,
+        "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+      }
+    },
+    "old_geometry_reference_baseline": {
+      "coarse": {
+        "events": 63,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-reference-1m-600s-final-v1.json",
+        "segment_limit": 3000000,
+        "segments": 1600359,
+        "sha256": "b4d37c8789271f93acee7f8cda2cf870730b7773742a638dc239e05828dd06f2",
+        "snapshots": 11004,
+        "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 7.94160066286409e-06,
+          "cumulative_decay_kg": 3.2880236159327225e-05,
+          "cumulative_processing_loss_kg": 9.943128255640588e-06,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 9.530292684861321e-06,
+          "first-wall": 9.530292333898306e-06,
+          "magnet-gap": 9.530292804496124e-06,
+          "magnets": 9.530292524784852e-06,
+          "shield": 9.53029252082306e-06,
+          "vessel": 9.530292226952665e-06
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 9.530292939485795e-06,
+          "cumulative_auxiliary_electricity_mwh": 2.201761143125801e-06,
+          "cumulative_gross_electricity_mwh": 9.530292451501669e-06,
+          "cumulative_transport_recovered_heat_mwh": 9.530292066306114e-06
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 246.41841281577945,
+        "relative_changes": {
+          "cumulative_burn_kg": 9.530383009094838e-06,
+          "cumulative_full_power_seconds": 9.530383251097879e-06,
+          "cumulative_fusion_energy_mwh": 9.530382975888556e-06,
+          "cumulative_production_kg": 9.530383309114879e-06
+        },
+        "signed_net_energy_scaled_change": 7.200995791918487e-06
+      },
+      "fine": {
+        "events": 63,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-reference-1m-500s-v2.json",
+        "segment_limit": 3000000,
+        "segments": 1918048,
+        "sha256": "8f015d554578bb5c58ee958fcc2968f8cb33e53fed3ea874932f94abf49560fc",
+        "snapshots": 11004,
+        "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+      }
+    },
+    "old_geometry_reference_event_fixture": {
+      "coarse": {
+        "events": 282,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-reference-1m-event-600s-final-v1.json",
+        "segment_limit": 3000000,
+        "segments": 1751434,
+        "sha256": "02e1a50385a48ba2ffab73fcd9de725476f8f9be3b97f047622509b3352c41aa",
+        "snapshots": 11055,
+        "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 9.149583239609349e-06,
+          "cumulative_decay_kg": 9.606402933570735e-06,
+          "cumulative_processing_loss_kg": 4.568132027316096e-06,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 1.3621706223045585e-05,
+          "first-wall": 3.207624495089897e-07,
+          "magnet-gap": 3.207714986672196e-07,
+          "magnets": 3.207621944786635e-07,
+          "shield": 3.207740135330996e-07,
+          "vessel": 3.207611390959442e-07
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 3.2076694243481055e-07,
+          "cumulative_auxiliary_electricity_mwh": 2.578624956856961e-07,
+          "cumulative_gross_electricity_mwh": 3.207763344951695e-07,
+          "cumulative_transport_recovered_heat_mwh": 3.207723131244539e-07
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 113.21549594402313,
+        "relative_changes": {
+          "cumulative_burn_kg": 3.2078662453960455e-07,
+          "cumulative_full_power_seconds": 3.2077393631161534e-07,
+          "cumulative_fusion_energy_mwh": 3.207691227782593e-07,
+          "cumulative_production_kg": 3.2077397420444855e-07
+        },
+        "signed_net_energy_scaled_change": 2.4568487505000466e-07
+      },
+      "fine": {
+        "events": 282,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-history-coupled-reference-1m-event-500s-v2.json",
+        "segment_limit": 3000000,
+        "segments": 2068118,
+        "sha256": "38e4278f276cd8854a87a22913181065400ac4e506d80275ca2866ed1e3515d8",
+        "snapshots": 11055,
+        "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+      }
+    }
+  },
+  "criteria_version": "extended-displayed-output-v2",
+  "criterion_extension_date": "2026-10-01",
+  "limits": {
+    "absolute_mass_tolerance_kg": 0.0001,
+    "component_fluence": "max absolute delta / max(abs(coarse),abs(fine),1) <=1e-4",
+    "displayed_energy_relative": "transport-recovered heat, alpha-recovered heat, gross and auxiliary totals relative change <=1e-4; both unavailable recorded, one-sided availability fails",
+    "event_sequence": "same kind and component_id; event time within coarse maximum step",
+    "fine_step_strictly_less_than_coarse": true,
+    "other_absolute_state": "final available stock, in-process stock, processing loss, and decay deltas <=1e-4 kg",
+    "recovered_heat_gross_auxiliary": "relative change <=1e-4; both unavailable allowed and recorded; one-sided availability fails",
+    "relative_tolerance": 0.0001,
+    "replacement_counts": "identical per component",
+    "same_assumptions_except_maximum_step": true,
+    "same_driving_rates": true,
+    "signed_net_energy": "absolute difference / max(gross_a,gross_b,aux_a,aux_b,1 MWh) <=1e-4; net unavailable without gross and aux fails"
+  },
+  "notice": "Extended before corrected-geometry 1M primary outputs. Existing v1 reports remain unchanged and only assessed the earlier aggregate/event gate. These added checks are not retroactive to those reports; corrected primary grids must be run through this v2 checker.",
+  "schema_version": "faris-history-refinement-controls/v0.2",
+  "status": "PREPRIMARY_SOFTWARE_NUMERICAL_CONTROLS",
+  "superseded_geometry_notice": "The old geometry cases fail to qualify as reactor evidence because first-wall material filled the intended radial clearance (actual inner boundary1.00m; declared1.08m). Corrected pilots are software/control feasibility only, not the corrected 1M primary records."
+}

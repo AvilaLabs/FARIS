@@ -1,0 +1,195 @@
+{
+  "default_notice": "This grid is only provisionally selected from software/numerical controls on the defective geometry drivers. Re-run reference, breeder, and event histories on corrected local-fine transport rates before adopting it as final.",
+  "defect": {
+    "allowed_use": "The deterministic history balances, convergence checks, arithmetic controls, software event fixtures, and OpenMC/normalization workflow remain numerical/software diagnostics. They are not corrected-geometry reactor evidence and must not support design rankings, lifetime or facility-output claims.",
+    "scope": "All OpenMC transport runs whose input geometry used this cell definition, including reference, breeder-emphasis, and port variants. Their volumes, fluxes, H3 production, heating, transport-driven operating histories, sensitivities, service events, and paired differences describe the erroneous material geometry.",
+    "summary": "The modeled first-wall cell began at plasma radius 1.00 m, while the declared inner radius is 1.08 m. Material filled the intended 0.08 m clearance."
+  },
+  "history_controls": {
+    "breeder-baseline-500": {
+      "event_count": 63,
+      "integration_segment_count": 1918507,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 500.0,
+      "path": "/tmp/faris-history-coupled-breeder-1m-500s-v2.json",
+      "sha256": "a13554b468b58a29c96c61d5bd9deaaabd51ba015a212a9e14858f0d2d30abe9",
+      "snapshot_count": 11004,
+      "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+    },
+    "breeder-baseline-600": {
+      "event_count": 63,
+      "integration_segment_count": 1600820,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 600.0,
+      "path": "/tmp/faris-history-coupled-breeder-1m-600s-final-v1.json",
+      "sha256": "881ac31c7dd1951f1c4c0d91c077ec64aa81ab2add622301c8c9b5dcfab0e9a2",
+      "snapshot_count": 11004,
+      "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+    },
+    "breeder-event-500": {
+      "event_count": 270,
+      "integration_segment_count": 2085159,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 500.0,
+      "path": "/tmp/faris-history-coupled-breeder-1m-event-500s-v1.json",
+      "sha256": "5b6d9dd7fa4940f66a381584da450b33e2a338e415132a0916b535824f92eb39",
+      "snapshot_count": 11054,
+      "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+    },
+    "breeder-event-600": {
+      "event_count": 270,
+      "integration_segment_count": 1768903,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 600.0,
+      "path": "/tmp/faris-history-coupled-breeder-1m-event-600s-final-v1.json",
+      "sha256": "87a37004061da10204ffde7f0646c71838ec6faf6b83dec74ff24647ff9e394a",
+      "snapshot_count": 11054,
+      "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73"
+    },
+    "reference-baseline-500": {
+      "event_count": 63,
+      "integration_segment_count": 1918048,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 500.0,
+      "path": "/tmp/faris-history-coupled-reference-1m-500s-v2.json",
+      "sha256": "8f015d554578bb5c58ee958fcc2968f8cb33e53fed3ea874932f94abf49560fc",
+      "snapshot_count": 11004,
+      "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+    },
+    "reference-baseline-600": {
+      "event_count": 63,
+      "integration_segment_count": 1600359,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 600.0,
+      "path": "/tmp/faris-history-coupled-reference-1m-600s-final-v1.json",
+      "sha256": "b4d37c8789271f93acee7f8cda2cf870730b7773742a638dc239e05828dd06f2",
+      "snapshot_count": 11004,
+      "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+    },
+    "reference-event-500": {
+      "event_count": 282,
+      "integration_segment_count": 2068118,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 500.0,
+      "path": "/tmp/faris-history-coupled-reference-1m-event-500s-v2.json",
+      "sha256": "38e4278f276cd8854a87a22913181065400ac4e506d80275ca2866ed1e3515d8",
+      "snapshot_count": 11055,
+      "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+    },
+    "reference-event-600": {
+      "event_count": 282,
+      "integration_segment_count": 1751434,
+      "integration_segment_limit": 3000000,
+      "maximum_step_s": 600.0,
+      "path": "/tmp/faris-history-coupled-reference-1m-event-600s-final-v1.json",
+      "sha256": "02e1a50385a48ba2ffab73fcd9de725476f8f9be3b97f047622509b3352c41aa",
+      "snapshot_count": 11055,
+      "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+    },
+    "reference-sensitivity-600": {
+      "event_count": 0,
+      "integration_segment_count": null,
+      "integration_segment_limit": null,
+      "maximum_step_s": null,
+      "path": "/tmp/faris-history-coupled-reference-1m-600s-sensitivity-final-v1.json",
+      "sha256": "6a3b23f221155b6b093b7d139980864c72a1c910201376175dcf4b2d3032b567",
+      "snapshot_count": 0,
+      "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
+    }
+  },
+  "primary_runs": {
+    "breeder-emphasis": {
+      "execution_status": "SUCCEEDED",
+      "input_sha256": "2fece8444152b359db6e349c180a79390bc52ce76d8596e5d20fbe4f3ebebd1f",
+      "path": "/tmp/faris-coupled-breeder-1m-r1/run.json",
+      "raw_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117034,
+        "threads": 1
+      },
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "sha256": "5386432048f8ae94f632306c9b2c4c113a66485792dccb0bab0ea534a8ef2572",
+      "variant_id": "breeder-emphasis"
+    },
+    "reference": {
+      "execution_status": "SUCCEEDED",
+      "input_sha256": "a2a65f9f93ceffe997a84106fdd7fd82e279a0b1974277bddc8615e74a8aeb55",
+      "path": "/tmp/faris-coupled-reference-1m-r1/run.json",
+      "raw_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117034,
+        "threads": 1
+      },
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "sha256": "347135a3c50378bd41e1cdb8c6a577634d8579a1df7dadcf4117bf9218311e41",
+      "variant_id": "reference"
+    }
+  },
+  "provisional_default_step_s": 600,
+  "resource_bounds": {
+    "cancellation": "checked at each integration segment",
+    "dynamic_integration_segment_bound": 3000000,
+    "event_bound": 20000,
+    "measured_event_500s_segments": {
+      "breeder-emphasis": 2085159,
+      "reference": 2068118
+    },
+    "measured_history_runtime_s_500s_event": {
+      "breeder-emphasis": 34.41,
+      "reference": 34.06
+    },
+    "measured_peak_rss_kib_500s_event": {
+      "breeder-emphasis": 44608,
+      "reference": 44408
+    },
+    "nominal_history_step_bound": 2000000,
+    "routine_snapshot_bound": 50000
+  },
+  "schema_version": "faris-history-geometry-supersession/v0.1",
+  "status": "SUPERSEDED_AS_REACTOR_EVIDENCE",
+  "step_refinement": {
+    "acceptance_rule": "relative production, burn, full-power seconds and fusion energy <=1e-4; final available stock and decay deltas <=1e-4 kg; event-kind sequence unchanged; max event-time shift <= coarse step.",
+    "assumption_fixtures": [
+      "baseline",
+      "software event demonstration"
+    ],
+    "failed_coarser_checks": [
+      {
+        "failure": "decay delta 2.291e-4 kg > 1e-4 kg",
+        "pair_s": [
+          3600,
+          1800
+        ]
+      },
+      {
+        "failure": "breeder decay delta 1.04889e-4 kg > 1e-4 kg",
+        "pair_s": [
+          1200,
+          1000
+        ]
+      },
+      {
+        "failure": "breeder decay delta 1.65462e-4 kg > 1e-4 kg",
+        "pair_s": [
+          1200,
+          946.728
+        ]
+      }
+    ],
+    "pair": "600 s to 500 s; all four combinations PASS on old geometry point rates.",
+    "rate_cases": [
+      "reference",
+      "breeder-emphasis"
+    ],
+    "worst_observed": {
+      "decay_change_kg": 3.2880236159327225e-05,
+      "event_time_shift_s": 246.41841281577945,
+      "final_available_stock_change_kg": 1.2757041709832162e-05,
+      "relative_aggregate_change": 9.530383309114879e-06
+    }
+  }
+}

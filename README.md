@@ -21,7 +21,8 @@ Blender's workspace layout.
 - Shared full-torus geometry records and display meshes.
 - Native GPU rendering, orbit/zoom, cutaway, component picking, visibility,
   arrangement switching, and component dimensions.
-- A timeline selector prepared for future operating-history results.
+- A calculated Rust operating history with decay, processing delay/losses,
+  fuel availability, maintenance/replacements, exposure and signed energy ledgers.
 - CLI validation, deterministic geometry exports, and optional tool detection.
 - Strict transport requests and raw-tally imports, checked source normalization,
   integrated rates, volume averages, units, and Monte Carlo standard errors.
@@ -30,27 +31,38 @@ Blender's workspace layout.
   with identified raw inputs/statepoints and scoped numerical comparisons.
 - A scientific baseline, benchmark route, and local tool/data readiness audit.
 - Typed material, source, and nuclear-data inputs bound to exact scenario bytes.
-- Generated study dependencies, actual external Avila Core compilation, saved
-  compiler reports, and a native Compile study button with cancellation.
+- Generated study dependencies, actual external Avila Core compilation and
+  four-stage execution/evidence binding, verified saved-study reopening, and
+  a native Compile study button with cancellation.
 - Real OpenMC torus transport for an explicit cold-data surrogate: component
   tritium production, neutron flux, energy spectra, and a 3D Cartesian flux mesh.
 - Checked record replay, native transport execution/cancellation, component
-  flux coloring, and horizontal spatial-flux slices using calculated values.
+  flux/heating/fluence coloring, and spatial-flux slices using calculated values.
+- Coupled neutron/photon transport with explicit charged-particle deposition,
+  direct total heating, and an independent thermal Li-6 capture control.
+- Authored history comparisons and full-rerun sensitivity, with independent
+  mass/energy/event controls and measured integration-grid refinement.
+- A finite outboard port and matched feature-free control; their final
+  volume-checked spatial comparison remains in progress.
 - An identified ITER_1D execution reference; code-to-code comparison remains
   unavailable without traceable reference responses.
 
 **The functional demo is in progress.** The default scene is a geometry preview;
 the explicit cold-reference workflow runs transport and displays its results.
-Activation, ageing, fuel inventory, maintenance, and power production remain
-unimplemented. Scientific qualification stays `NOT_EVALUATED`, including for
+Activation and physical degradation models remain outside the demo. Fuel,
+maintenance, exposure-triggered service events and power/energy arithmetic are
+conditional on identified transport results and authored assumptions.
+Scientific qualification stays `NOT_EVALUATED`, including for
 completed transport. Material colors identify layers; calculated field modes
 are labeled separately. The bundled starting scenario has unassigned materials. The idealized circular
 tori and magnet envelope do not reproduce the published ARC engineering design.
 
 ![Native component-flux view of recorded cold-reference results](docs/images/cold-reference-component-flux.png)
 
-Recorded numerical results from two million-history runs. Monte Carlo sampling
-errors remain visible; scientific qualification is `NOT_EVALUATED`.
+Earlier recorded neutron-only results, retained as a historical increment and
+superseded as reactor evidence after a first-wall clearance defect was found.
+Final corrected coupled cases and their complete evidence package are being
+prepared. See [current demo acceptance](docs/DEMO_ACCEPTANCE.md).
 
 ## Run the desktop
 
@@ -68,7 +80,7 @@ Load an authored scenario explicitly:
 cargo run -p faris-app -- --scenario scenarios/arc-inspired/scenario.json
 ```
 
-Drag in the viewport to orbit, scroll to zoom, and click a component to inspect
+Drag in the viewport to orbit, Shift-drag to pan, scroll to zoom, and click a component to inspect
 it. Use the outliner to select or hide components. The cutaway is a display
 operation; it does not change the full-torus model or reported volumes.
 

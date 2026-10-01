@@ -9,6 +9,7 @@ import math
 import argparse
 import json
 import unittest
+from copy import deepcopy
 
 getcontext().prec = 45
 D = Decimal
@@ -221,29 +222,159 @@ def verify_engine_history(path, run_path=None):
 
 
 def compare_refinement(coarse, fine):
-    # Frozen rule: aggregate mass/energy changes <=1e-4 relative; final stock/decay <=1e-4 kg;
-    # discrete event sequence identical and timings within the coarse one-hour integration step.
+    # Criterion extension recorded before corrected-geometry 1M primary outputs.
+    # Preserve prior v1 control reports separately; they did not assess all displayed outputs.
+    coarse_assumptions = dict(coarse["assumptions"])
+    fine_assumptions = dict(fine["assumptions"])
+    coarse_step = coarse_assumptions.pop("maximum_step_s", None)
+    fine_step = fine_assumptions.pop("maximum_step_s", None)
+    if coarse_assumptions != fine_assumptions or coarse.get("driving_rates") != fine.get("driving_rates"):
+        raise AssertionError("step refinement must use identical assumptions and driving rates except maximum_step_s")
+    if not isinstance(coarse_step, (int, float)) or not isinstance(fine_step, (int, float)) or not (0 < fine_step < coarse_step):
+        raise AssertionError("refinement requires a positive, strictly finer integration step")
     a, b = coarse["snapshots"][-1], fine["snapshots"][-1]
     rel_keys = ("cumulative_production_kg", "cumulative_burn_kg", "cumulative_full_power_seconds", "cumulative_fusion_energy_mwh")
     rel_changes = {key: abs(b[key] - a[key]) / max(abs(a[key]), 1e-30) for key in rel_keys}
-    abs_keys = ("available_tritium_kg", "cumulative_decay_kg")
+    abs_keys = (
+        "available_tritium_kg",
+        "in_process_tritium_kg",
+        "cumulative_processing_loss_kg",
+        "cumulative_decay_kg",
+    )
     abs_changes = {key: abs(b[key] - a[key]) for key in abs_keys}
     if max(rel_changes.values()) > 1e-4 or max(abs_changes.values()) > 1e-4:
         raise AssertionError("step-refinement change exceeds frozen aggregate tolerances")
     ea, eb = coarse["events"], fine["events"]
-    if [e["kind"] for e in ea] != [e["kind"] for e in eb]:
-        raise AssertionError("step refinement changed discrete event sequence")
+    event_signature = lambda events: [(e["kind"], e.get("component_id")) for e in events]
+    if event_signature(ea) != event_signature(eb):
+        raise AssertionError("step refinement changed discrete event kind/component sequence")
+    if coarse.get("outcome") != fine.get("outcome"):
+        raise AssertionError("step refinement changed final history outcome")
+    if a["component_replacements"] != b["component_replacements"]:
+        raise AssertionError("step refinement changed final component replacement counts")
+    fluence_a, fluence_b = a["component_fluence_n_m2"], b["component_fluence_n_m2"]
+    if fluence_a.keys() != fluence_b.keys():
+        raise AssertionError("step refinement changed final component-fluence identities")
+    fluence_relative_changes = {
+        key: abs(fluence_b[key] - fluence_a[key]) / max(abs(fluence_a[key]), abs(fluence_b[key]), 1.0)
+        for key in fluence_a
+    }
+    if any(not math.isfinite(value) for value in fluence_relative_changes.values()) or max(fluence_relative_changes.values(), default=0.0) > 1e-4:
+        raise AssertionError("step-refinement component-fluence change exceeds 1e-4 relative")
+
+    energy_keys = (
+        "cumulative_transport_recovered_heat_mwh",
+        "cumulative_alpha_recovered_heat_mwh",
+        "cumulative_gross_electricity_mwh",
+        "cumulative_auxiliary_electricity_mwh",
+    )
+    energy_relative_changes = {}
+    unavailable_energy = []
+    for key in energy_keys:
+        x, y = a.get(key), b.get(key)
+        if x is None and y is None:
+            unavailable_energy.append(key)
+            continue
+        if x is None or y is None:
+            raise AssertionError(f"step refinement changed availability of displayed energy output {key}")
+        change = abs(y - x) / max(abs(x), abs(y), 1e-30)
+        energy_relative_changes[key] = change
+        if not math.isfinite(change) or change > 1e-4:
+            raise AssertionError(f"step-refinement displayed energy change exceeds 1e-4 relative: {key}")
+    net_a, net_b = a.get("cumulative_net_electricity_mwh"), b.get("cumulative_net_electricity_mwh")
+    if net_a is None and net_b is None:
+        unavailable_energy.append("cumulative_net_electricity_mwh")
+        net_scaled_change = None
+    elif net_a is None or net_b is None:
+        raise AssertionError("step refinement changed availability of signed net electricity")
+    else:
+        if any(a.get(key) is None or b.get(key) is None for key in energy_keys[-2:]):
+            raise AssertionError("net electricity is present without both gross and auxiliary totals")
+        energy_scale_mwh = max(
+            abs(a.get("cumulative_gross_electricity_mwh") or 0.0),
+            abs(b.get("cumulative_gross_electricity_mwh") or 0.0),
+            abs(a.get("cumulative_auxiliary_electricity_mwh") or 0.0),
+            abs(b.get("cumulative_auxiliary_electricity_mwh") or 0.0),
+            1.0,
+        )
+        net_scaled_change = abs(net_b - net_a) / energy_scale_mwh
+        if not math.isfinite(net_scaled_change) or net_scaled_change > 1e-4:
+            raise AssertionError("step-refinement signed net-energy change exceeds 1e-4 on gross/auxiliary scale")
     max_event_time_delta = max((abs(x["time_s"] - y["time_s"]) for x, y in zip(ea, eb)), default=0.0)
-    coarse_step = coarse["assumptions"]["maximum_step_s"]
     if max_event_time_delta > coarse_step + 1e-9:
         raise AssertionError("event timing moved by more than the coarse time resolution")
-    return {"relative_changes": rel_changes, "absolute_changes_kg": abs_changes,
+    return {"criteria_version": "extended-displayed-output-v2",
+            "criterion_extension_date": "2026-10-01",
+            "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+            "relative_changes": rel_changes, "absolute_changes_kg": abs_changes,
+            "component_fluence_relative_changes": fluence_relative_changes,
+            "displayed_energy_relative_changes": energy_relative_changes,
+            "signed_net_energy_scaled_change": net_scaled_change,
+            "energy_outputs_unavailable": unavailable_energy,
             "maximum_event_time_delta_s": max_event_time_delta,
             "coarse_step_s": coarse_step, "acceptance": "PASS",
-            "criterion": "relative aggregate <=1e-4; final stock/decay <=1e-4kg; same event-kind sequence; event-time delta <= coarse step"}
+            "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step"}
 
 
 class HistoryControlTests(unittest.TestCase):
+    def refinement_fixture(self):
+        snapshot = {
+            "cumulative_production_kg": 1.0,
+            "cumulative_burn_kg": 1.0,
+            "cumulative_full_power_seconds": 100.0,
+            "cumulative_fusion_energy_mwh": 10.0,
+            "available_tritium_kg": 1.0,
+            "in_process_tritium_kg": 0.0,
+            "cumulative_processing_loss_kg": 0.0,
+            "cumulative_decay_kg": 0.0,
+            "component_replacements": {"blanket": 1, "magnets": 0},
+            "component_fluence_n_m2": {"blanket": 1.0e20, "magnets": 0.0},
+            "cumulative_transport_recovered_heat_mwh": 1.0e6,
+            "cumulative_alpha_recovered_heat_mwh": 1.0e5,
+            "cumulative_gross_electricity_mwh": 8.0e5,
+            "cumulative_auxiliary_electricity_mwh": 799_999.9999,
+            "cumulative_net_electricity_mwh": 0.0001,
+        }
+        coarse = {
+            "assumptions": {"maximum_step_s": 600.0, "horizon_s": 100_000.0},
+            "driving_rates": {"source_rate": 1.0},
+            "outcome": "horizon_completed",
+            "events": [{"kind": "blanket_replaced", "component_id": "blanket", "time_s": 50.0}],
+            "snapshots": [snapshot],
+        }
+        fine = deepcopy(coarse)
+        fine["assumptions"]["maximum_step_s"] = 500.0
+        fine["snapshots"][0]["cumulative_net_electricity_mwh"] = -0.0001
+        return coarse, fine
+
+    def test_refinement_accepts_near_zero_net_when_large_terms_agree(self):
+        coarse, fine = self.refinement_fixture()
+        result = compare_refinement(coarse, fine)
+        self.assertEqual(result["acceptance"], "PASS")
+        self.assertLess(result["signed_net_energy_scaled_change"], 1e-4)
+
+    def test_refinement_rejects_component_event_reassignment_and_energy_drift(self):
+        coarse, fine = self.refinement_fixture()
+        fine["events"][0]["component_id"] = "magnets"
+        with self.assertRaisesRegex(AssertionError, "event kind/component"):
+            compare_refinement(coarse, fine)
+
+        coarse, fine = self.refinement_fixture()
+        fine["snapshots"][0]["cumulative_transport_recovered_heat_mwh"] *= 1.01
+        with self.assertRaisesRegex(AssertionError, "displayed energy"):
+            compare_refinement(coarse, fine)
+
+    def test_refinement_rejects_component_fluence_and_driver_changes(self):
+        coarse, fine = self.refinement_fixture()
+        fine["snapshots"][0]["component_fluence_n_m2"]["blanket"] *= 1.001
+        with self.assertRaisesRegex(AssertionError, "component-fluence"):
+            compare_refinement(coarse, fine)
+
+        coarse, fine = self.refinement_fixture()
+        fine["driving_rates"]["source_rate"] *= 1.001
+        with self.assertRaisesRegex(AssertionError, "identical assumptions and driving rates"):
+            compare_refinement(coarse, fine)
+
     def test_half_life_decay_and_conservation(self):
         opening = D("1.25")
         residual = decay(opening, HALF_LIFE_Y * YEAR_S)

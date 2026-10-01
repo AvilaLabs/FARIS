@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fs::File,
     io::{Read, Write},
@@ -183,18 +183,43 @@ fn mesh_payload_preflight(
     manifest: &DemoManifest,
     input_json_bytes: usize,
 ) -> Result<MeshPreflight, ReactorError> {
-    let request_bytes = serde_json::to_vec_pretty(request)?.len();
+    mesh_payload_preflight_with_encoding(request, manifest, input_json_bytes, true, true)
+}
+
+fn mesh_payload_preflight_legacy_compact(
+    request: &TransportRequest,
+    manifest: &DemoManifest,
+    input_json_bytes: usize,
+) -> Result<MeshPreflight, ReactorError> {
+    mesh_payload_preflight_with_encoding(request, manifest, input_json_bytes, false, false)
+}
+
+fn mesh_payload_preflight_with_encoding(
+    request: &TransportRequest,
+    manifest: &DemoManifest,
+    input_json_bytes: usize,
+    pretty_json: bool,
+    spectra_reserves_request_copy: bool,
+) -> Result<MeshPreflight, ReactorError> {
+    let request_bytes = if pretty_json {
+        serde_json::to_vec_pretty(request)?.len()
+    } else {
+        serde_json::to_vec(request)?.len()
+    };
     if request_bytes > MAX_JSON_BYTES as usize {
         return Err("transport request exceeds 16 MiB JSON limit".into());
     }
     let mut volumes = Vec::new();
+    let mut volume_domains = BTreeSet::new();
     let mut tallies = Vec::with_capacity(request.responses.len());
     let max = f64::MAX;
     for response in &request.responses {
-        if !volumes
-            .iter()
-            .any(|v: &DomainVolume| v.domain == response.domain)
-        {
+        let domain_key = match &response.domain {
+            ResponseDomain::WholeModel => (0_u8, String::new(), 0_u64),
+            ResponseDomain::Component { component_id } => (1_u8, component_id.clone(), 0_u64),
+            ResponseDomain::Mesh { mesh_id, bin } => (2_u8, mesh_id.clone(), *bin),
+        };
+        if volume_domains.insert(domain_key) {
             volumes.push(DomainVolume {
                 domain: response.domain.clone(),
                 value: max,
@@ -240,7 +265,11 @@ fn mesh_payload_preflight(
         volumes,
         tallies,
     };
-    let raw_bound = serde_json::to_vec_pretty(&artifact)?.len();
+    let raw_bound = if pretty_json {
+        serde_json::to_vec_pretty(&artifact)?.len()
+    } else {
+        serde_json::to_vec(&artifact)?.len()
+    };
     if raw_bound > MAX_TRANSPORT_ARTIFACT_BYTES {
         return Err("requested tallies exceed the 16 MiB raw-artifact budget".into());
     }
@@ -270,12 +299,7 @@ fn mesh_payload_preflight(
             }
         };
         let domain_volume = match &response.domain {
-            ResponseDomain::Mesh { .. } => request
-                .responses
-                .iter()
-                .find(|r| r.domain == response.domain)
-                .map(|_| 1.0)
-                .unwrap_or(1.0),
+            ResponseDomain::Mesh { .. } => 1.0,
             ResponseDomain::WholeModel => 1.0,
             ResponseDomain::Component { component_id } => variant
                 .components
@@ -315,13 +339,21 @@ fn mesh_payload_preflight(
         source_neutron_rate_per_s: max,
         results: normalized_results,
     };
-    let run_bound = serde_json::to_vec_pretty(&normalized)?
-        .len()
-        .saturating_add(64 * 1024);
+    let serialized_run = if pretty_json {
+        serde_json::to_vec_pretty(&normalized)?.len()
+    } else {
+        serde_json::to_vec(&normalized)?.len()
+    };
+    let run_bound = serialized_run.saturating_add(64 * 1024);
     if run_bound > MAX_JSON_BYTES as usize {
         return Err("normalized run record exceeds the 16 MiB JSON budget".into());
     }
-    let spectrum_bound = request_bytes.saturating_add(
+    let spectrum_bound = (if spectra_reserves_request_copy {
+        request_bytes
+    } else {
+        0
+    })
+    .saturating_add(
         request
             .responses
             .iter()
@@ -352,6 +384,11 @@ fn mesh_payload_preflight(
         return Err("mesh request exceeds the 32 MiB evidence-package content budget".into());
     }
     Ok(MeshPreflight {
+        serialization_method: if pretty_json {
+            "pretty-json-v2".into()
+        } else {
+            "compact-json-v1".into()
+        },
         request_json_bytes: request_bytes,
         raw_artifact_upper_bound_bytes: raw_bound,
         run_json_upper_bound_bytes: run_bound,
@@ -431,6 +468,10 @@ pub struct ReactorRun {
     pub normalized: Option<NormalizedTransportResult>,
     #[serde(default)]
     pub transport_spectra_sha256: Option<String>,
+    /// Exact worker receipt bytes; absent only on historical runs before the
+    /// geometry ownership audit was recorded.
+    #[serde(default)]
+    pub worker_result_sha256: Option<String>,
     #[serde(default)]
     pub normalized_spectra: Option<Vec<NormalizedEnergySpectrum>>,
     pub scientific_qualification: String,
@@ -440,10 +481,16 @@ pub struct ReactorRun {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MeshPreflight {
+    #[serde(default = "legacy_preflight_serialization_method")]
+    pub serialization_method: String,
     pub request_json_bytes: usize,
     pub raw_artifact_upper_bound_bytes: usize,
     pub run_json_upper_bound_bytes: usize,
     pub package_content_upper_bound_bytes: usize,
+}
+
+fn legacy_preflight_serialization_method() -> String {
+    "compact-json-v1".into()
 }
 
 pub struct ReactorJob<'a> {
@@ -811,6 +858,25 @@ fn check_geometric_volumes(
         .ok_or("empty variant")?
         .outer_minor_radius_m;
     let penetration = scenario.scenario.penetration.as_ref();
+    let mut port_component_geometry = BTreeMap::new();
+    if let Some(faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. }) = penetration {
+        for component in &variant.components {
+            let intersection = crate::geometry::estimate_torus_shell_box_intersection(
+                scenario.scenario.geometry.major_radius_m,
+                component.inner_minor_radius_m,
+                component.outer_minor_radius_m,
+                &bounds_m.minimum_xyz_m,
+                &bounds_m.maximum_xyz_m,
+            );
+            port_component_geometry.insert(
+                component.id.as_str(),
+                (
+                    component.full_torus_volume_m3 - intersection.volume_m3,
+                    intersection.refinement_delta_m3,
+                ),
+            );
+        }
+    }
     for response in &result.results {
         let expected = match &response.domain {
             ResponseDomain::WholeModel => {
@@ -822,20 +888,10 @@ fn check_geometric_volumes(
                     .iter()
                     .find(|c| &c.id == component_id)
                     .ok_or("unknown component volume")?;
-                if let Some(penetration) = penetration {
-                    let faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. } =
-                        penetration;
-                    let intersection = crate::geometry::estimate_torus_shell_box_intersection(
-                        scenario.scenario.geometry.major_radius_m,
-                        component.inner_minor_radius_m,
-                        component.outer_minor_radius_m,
-                        &bounds_m.minimum_xyz_m,
-                        &bounds_m.maximum_xyz_m,
-                    );
-                    component.full_torus_volume_m3 - intersection.volume_m3
-                } else {
-                    component.full_torus_volume_m3
-                }
+                port_component_geometry
+                    .get(component_id.as_str())
+                    .map(|entry| entry.0)
+                    .unwrap_or(component.full_torus_volume_m3)
             }
             ResponseDomain::Mesh { mesh_id, bin }
                 if mesh_id == &mesh.id && *bin < mesh.bins() as u64 =>
@@ -847,23 +903,12 @@ fn check_geometric_volumes(
         let tolerance = if let (Some(penetration), ResponseDomain::Component { component_id }) =
             (penetration, &response.domain)
         {
-            let faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. } = penetration;
-            let component = variant
-                .components
-                .iter()
-                .find(|c| &c.id == component_id)
-                .ok_or("unknown component volume")?;
-            let intersection = crate::geometry::estimate_torus_shell_box_intersection(
-                scenario.scenario.geometry.major_radius_m,
-                component.inner_minor_radius_m,
-                component.outer_minor_radius_m,
-                &bounds_m.minimum_xyz_m,
-                &bounds_m.maximum_xyz_m,
-            );
-            (3.0 * response
-                .volume_standard_error_m3
-                .hypot(intersection.refinement_delta_m3))
-            .max(1.0e-8)
+            let _ = penetration;
+            let refinement_delta = port_component_geometry
+                .get(component_id.as_str())
+                .map(|entry| entry.1)
+                .ok_or("missing port geometry volume estimate for affected component")?;
+            (3.0 * response.volume_standard_error_m3.hypot(refinement_delta)).max(1.0e-8)
         } else {
             1.0e-10 * expected
         };
@@ -874,6 +919,178 @@ fn check_geometric_volumes(
             )
             .into());
         }
+    }
+    Ok(())
+}
+
+fn embedded_worker_sha256() -> String {
+    digest(include_bytes!(
+        "../../../integrations/openmc/reactor_transport.py"
+    ))
+}
+
+/// Bind the worker's geometry-only OpenMC Geometry.find probes to the exact
+/// input and expected scenario/material assignments. This is a software and
+/// geometry control, not experimental or physical validation.
+fn validate_geometry_ownership_receipt(
+    worker: &Value,
+    input_sha256: &str,
+    scenario: &LoadedScenario,
+    physics: &PhysicsCase,
+) -> Result<(), ReactorError> {
+    fn audit_str<'a>(obj: &'a Value, key: &str) -> Result<&'a str, ReactorError> {
+        obj.get(key)
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("geometry ownership audit is missing {key}").into())
+    }
+    let audit = worker
+        .get("geometry_ownership_audit")
+        .ok_or("worker receipt is missing geometry_ownership_audit")?;
+    let manifest = build_manifest(scenario)?;
+    let variant = manifest
+        .variants
+        .iter()
+        .find(|variant| variant.id == physics.variant_id)
+        .ok_or("geometry ownership variant is absent from scenario")?;
+    if audit_str(audit, "schema_version")? != "faris-openmc-geometry-ownership-audit/v0.1"
+        || audit_str(audit, "status")? != "PASS"
+        || audit_str(audit, "clearance_status")? != "PASS"
+        || audit_str(audit, "scientific_qualification")? != "NOT_EVALUATED"
+        || audit_str(audit, "scenario_sha256")? != scenario.source_sha256
+        || audit_str(audit, "variant_id")? != physics.variant_id
+        || audit_str(audit, "input_sha256")? != input_sha256
+        || audit
+            .get("checks_are_geometry_only")
+            .and_then(Value::as_bool)
+            != Some(true)
+        || audit.get("probe_count").and_then(Value::as_u64) != Some(117)
+        || audit.get("failed_probe_count").and_then(Value::as_u64) != Some(0)
+        || audit.get("plasma_radius_m").and_then(Value::as_f64)
+            != Some(manifest.plasma_minor_radius_m)
+        || audit
+            .get("declared_plasma_to_first_wall_clearance_m")
+            .and_then(Value::as_f64)
+            .is_none_or(|measured| {
+                (measured - scenario.scenario.geometry.plasma_to_first_wall_gap_m).abs()
+                    > 4.0
+                        * f64::EPSILON
+                        * scenario
+                            .scenario
+                            .geometry
+                            .plasma_to_first_wall_gap_m
+                            .abs()
+                            .max(1.0)
+            })
+        || audit
+            .get("first_wall_inner_radius_m")
+            .and_then(Value::as_f64)
+            != variant
+                .components
+                .first()
+                .map(|component| component.inner_minor_radius_m)
+    {
+        return Err("worker geometry ownership audit identity/status/geometry differs".into());
+    }
+
+    let mut expected_ids = BTreeMap::<String, (String, Option<String>)>::new();
+    let toroidal = ["1.57079633", "3.14159265", "4.71238898"];
+    for phi in toroidal {
+        expected_ids.insert(
+            format!("plasma-interior-phi-{phi}"),
+            ("plasma-source-domain".into(), None),
+        );
+        for label in ["near-plasma", "near-first-wall"] {
+            expected_ids.insert(
+                format!("clearance-{label}-phi-{phi}"),
+                ("plasma-first-wall-clearance".into(), None),
+            );
+        }
+    }
+    let assignments: BTreeMap<_, _> = physics
+        .component_assignments
+        .iter()
+        .map(|assignment| {
+            (
+                assignment.component_id.as_str(),
+                assignment.material_id.as_str(),
+            )
+        })
+        .collect();
+    for component in &variant.components {
+        let material_id = assignments
+            .get(component.id.as_str())
+            .ok_or("geometry ownership component has no material assignment")?;
+        let expected_material = if matches!(
+            physics
+                .materials
+                .iter()
+                .find(|material| material.id == **material_id),
+            Some(faris_model::physics::MaterialDefinition {
+                recipe: MaterialRecipe::Void { .. },
+                ..
+            })
+        ) {
+            None
+        } else {
+            Some((**material_id).to_owned())
+        };
+        for phi in toroidal {
+            for theta in ["0.00000000", "1.57079633", "3.14159265", "4.71238898"] {
+                expected_ids.insert(
+                    format!("{}-mid-phi-{phi}-theta-{theta}", component.id),
+                    (component.id.clone(), expected_material.clone()),
+                );
+            }
+            for edge in ["near-inner", "near-outer"] {
+                expected_ids.insert(
+                    format!("{}-{edge}-phi-{phi}", component.id),
+                    (component.id.clone(), expected_material.clone()),
+                );
+            }
+        }
+    }
+    let probes = audit
+        .get("probes")
+        .and_then(Value::as_array)
+        .ok_or("geometry ownership audit probes are missing")?;
+    if probes.len() != expected_ids.len() {
+        return Err("geometry ownership audit probe count differs from required coverage".into());
+    }
+    let mut observed_ids = BTreeSet::new();
+    for probe in probes {
+        let probe_id = audit_str(probe, "probe_id")?;
+        let (cell, material) = expected_ids
+            .get(probe_id)
+            .ok_or("geometry ownership audit contains an unexpected probe")?;
+        let expected_material_id = material.as_ref().map_or("void", |id| id.as_str());
+        let openmc_material_name = material.as_ref().map(|id| id.as_str());
+        if !observed_ids.insert(probe_id)
+            || audit_str(probe, "status")? != "PASS"
+            || audit_str(probe, "expected_cell_name")? != cell
+            || audit_str(probe, "observed_cell_name")? != cell
+            || audit_str(probe, "expected_material_id")? != expected_material_id
+            || probe
+                .get("expected_openmc_material_name")
+                .and_then(Value::as_str)
+                != openmc_material_name
+            || probe
+                .get("observed_openmc_material_name")
+                .and_then(Value::as_str)
+                != openmc_material_name
+            || probe.get("expected_cell_id").and_then(Value::as_u64)
+                != probe.get("observed_cell_id").and_then(Value::as_u64)
+            || probe
+                .get("expected_openmc_material_id")
+                .and_then(Value::as_u64)
+                != probe
+                    .get("observed_openmc_material_id")
+                    .and_then(Value::as_u64)
+        {
+            return Err(format!("geometry ownership probe {probe_id} failed binding").into());
+        }
+    }
+    if observed_ids.len() != expected_ids.len() {
+        return Err("geometry ownership audit is missing required probes".into());
     }
     Ok(())
 }
@@ -965,7 +1182,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -978,6 +1195,14 @@ pub fn run_reactor(
         .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded)
     {
         let import = (|| -> Result<_, ReactorError> {
+            let worker_bytes = read_json_bytes(&output.join("solver/worker-result.json"))?;
+            let worker: Value = serde_json::from_slice(&worker_bytes)?;
+            validate_geometry_ownership_receipt(
+                &worker,
+                &record.input_sha256,
+                job.scenario,
+                &physics,
+            )?;
             let raw_bytes = read_json_bytes(&output.join("solver/transport-artifact.json"))?;
             let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
             if artifact.histories
@@ -1007,14 +1232,16 @@ pub fn run_reactor(
             check_geometric_volumes(&normalized, job.scenario, &record.mesh)?;
             Ok((
                 digest(&raw_bytes),
+                digest(&worker_bytes),
                 normalized,
                 digest(&spectra_bytes),
                 normalized_spectra,
             ))
         })();
         match import {
-            Ok((digest, normalized, spectra_digest, normalized_spectra)) => {
+            Ok((digest, worker_digest, normalized, spectra_digest, normalized_spectra)) => {
                 record.raw_artifact_sha256 = Some(digest);
+                record.worker_result_sha256 = Some(worker_digest);
                 record.normalized = Some(normalized);
                 record.transport_spectra_sha256 = Some(spectra_digest);
                 record.normalized_spectra = Some(normalized_spectra);
@@ -1057,8 +1284,22 @@ pub fn load_reactor_run(
         let mesh: FieldMesh = serde_json::from_value(input["mesh"].clone())?;
         request_for_case_with_mesh(scenario, &physics, mesh)?
     };
-    let expected_preflight =
-        mesh_payload_preflight(&request, &build_manifest(scenario)?, input_bytes.len())?;
+    let manifest = build_manifest(scenario)?;
+    // Enforce current pretty-JSON budgets even when replaying a receipt created
+    // by the earlier compact-size estimator.
+    let current_preflight = mesh_payload_preflight(&request, &manifest, input_bytes.len())?;
+    let saved_preflight_matches = if let Some(saved) = &record.mesh_preflight {
+        let expected = match saved.serialization_method.as_str() {
+            "pretty-json-v2" => current_preflight,
+            "compact-json-v1" => {
+                mesh_payload_preflight_legacy_compact(&request, &manifest, input_bytes.len())?
+            }
+            _ => return Err("unsupported mesh preflight method".into()),
+        };
+        saved == &expected
+    } else {
+        true
+    };
     if digest(&serde_json::to_vec(&physics)?) != record.physics_sha256
         || serde_json::from_value::<SamplingPlan>(input["sampling"].clone())? != record.sampling
         || !record
@@ -1066,10 +1307,7 @@ pub fn load_reactor_run(
             .as_ref()
             .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded)
         || mesh != record.mesh
-        || record
-            .mesh_preflight
-            .as_ref()
-            .is_some_and(|saved| saved != &expected_preflight)
+        || !saved_preflight_matches
         || physics.variant_id != record.variant_id
         || physics.scientific_scope != record.scientific_scope
         || input_request != request
@@ -1095,6 +1333,16 @@ pub fn load_reactor_run(
             != u64::from(record.sampling.batches) * u64::from(record.sampling.particles_per_batch)
     {
         return Err("recorded solver/data/sampling identity differs".into());
+    }
+    if let Some(expected_worker_digest) = record.worker_result_sha256.as_deref() {
+        let worker_bytes = read_json_bytes(&parent.join("solver/worker-result.json"))?;
+        if digest(&worker_bytes) != expected_worker_digest {
+            return Err("recorded worker-result digest differs".into());
+        }
+        let worker: Value = serde_json::from_slice(&worker_bytes)?;
+        validate_geometry_ownership_receipt(&worker, &record.input_sha256, scenario, &physics)?;
+    } else if record.adapter_sha256 == embedded_worker_sha256() {
+        return Err("current worker run is missing its bound geometry-ownership receipt".into());
     }
     let normalized = normalize_transport_artifact(&request, &artifact, scenario)?;
     let normalized_spectra = if request.schema_version == TRANSPORT_REQUEST_VERSION {
@@ -1274,6 +1522,11 @@ mod tests {
         let mesh = FieldMesh::for_preset(&manifest, MeshPreset::OutboardLocal).unwrap();
         let (request, _) = request_for_case_with_mesh(&scenario, &physics, mesh).unwrap();
         let preflight = mesh_payload_preflight(&request, &manifest, 128 * 1024).unwrap();
+        let compact =
+            mesh_payload_preflight_legacy_compact(&request, &manifest, 128 * 1024).unwrap();
+        assert_eq!(preflight.serialization_method, "pretty-json-v2");
+        assert_eq!(compact.serialization_method, "compact-json-v1");
+        assert!(compact.request_json_bytes < preflight.request_json_bytes);
         assert!(preflight.request_json_bytes < MAX_JSON_BYTES as usize);
         assert!(preflight.raw_artifact_upper_bound_bytes < MAX_TRANSPORT_ARTIFACT_BYTES);
         assert!(preflight.run_json_upper_bound_bytes < MAX_JSON_BYTES as usize);
@@ -1288,5 +1541,46 @@ mod tests {
                 .any(|r| r.id == "outboard-port-window-flux")
         );
         assert!(mesh_payload_preflight(&window_request, &manifest, 128 * 1024).is_ok());
+    }
+
+    #[test]
+    fn compact_and_pretty_preflight_versions_keep_exact_recorded_sizes() {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics = load_physics_case(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scenarios/arc-inspired/cold-coupled-control.breeder-emphasis.physics.json"
+            )),
+            &scenario,
+        )
+        .unwrap();
+        let manifest = build_manifest(&scenario).unwrap();
+        let coarse = FieldMesh::for_preset(&manifest, MeshPreset::Coarse).unwrap();
+        let (request, _) = request_for_case_with_mesh(&scenario, &physics, coarse).unwrap();
+        let old = mesh_payload_preflight_legacy_compact(&request, &manifest, 296_682).unwrap();
+        assert_eq!(
+            old,
+            MeshPreflight {
+                serialization_method: "compact-json-v1".into(),
+                request_json_bytes: 130_229,
+                raw_artifact_upper_bound_bytes: 500_241,
+                run_json_upper_bound_bytes: 620_698,
+                package_content_upper_bound_bytes: 5_649_173,
+            }
+        );
+        let current = mesh_payload_preflight(&request, &manifest, 296_682).unwrap();
+        assert_eq!(
+            current,
+            MeshPreflight {
+                serialization_method: "pretty-json-v2".into(),
+                request_json_bytes: 235_600,
+                raw_artifact_upper_bound_bytes: 783_214,
+                run_json_upper_bound_bytes: 812_095,
+                package_content_upper_bound_bytes: 6_359_143,
+            }
+        );
     }
 }

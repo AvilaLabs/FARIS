@@ -109,7 +109,7 @@ impl TransportPanel {
         for path in config.bundles {
             let bundle: faris_engine::core_evidence::RecordedTransportBundle =
                 serde_json::from_slice(
-                    &faris_engine::reactor::read_json_bytes(&path).map_err(|e| e.to_string())?,
+                    &faris_engine::core_evidence::read_stage(&path).map_err(|e| e.to_string())?,
                 )
                 .map_err(|e| e.to_string())?;
             let directory = bundle.materialize().map_err(|e| e.to_string())?;
@@ -212,7 +212,7 @@ impl TransportPanel {
                     "Breeder H3 / source ± SE",
                     "Magnet mean flux / m² / s",
                     "Total nuclear heat / MW",
-                    "Histories",
+                    "Histories · seed",
                 ] {
                     ui.strong(heading);
                 }
@@ -249,9 +249,8 @@ impl TransportPanel {
                     ui.label(record.map_or_else(
                         || "—".into(),
                         |r| {
-                            (u64::from(r.sampling.batches)
-                                * u64::from(r.sampling.particles_per_batch))
-                            .to_string()
+                            format!("{} · {}",u64::from(r.sampling.batches)
+                                * u64::from(r.sampling.particles_per_batch),r.sampling.seed)
                         },
                     ));
                     ui.end_row();
@@ -539,7 +538,7 @@ impl TransportPanel {
             FieldView::NuclearHeating => (0.0, 8.0, "W/m³"),
             FieldView::ComponentFluence => (18.0, 28.0, "neutrons/m²"),
         };
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.small(format!("≤10^{lower:.0}"));
             let (rect, _) = ui.allocate_exact_size(egui::vec2(150.0, 8.0), egui::Sense::hover());
             for i in 0..75 {
@@ -569,7 +568,7 @@ impl TransportPanel {
                 "≥10^{upper:.0} {label} · log₁₀, fixed across arrangements"
             ));
         });
-        ui.small(if self.view==FieldView::ComponentFluence {"Gray = zero accumulated exposure · magenta = unavailable. Conditional point history; uncertainty is not propagated."}else{"Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."});
+        ui.small(if self.view==FieldView::ComponentFluence {"Gray = zero sampled-mean fluence · no-track scores give no upper bound · magenta = unavailable. Conditional point history; uncertainty is not propagated."}else{"Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."});
     }
 
     pub fn spectra(&self, ui: &mut egui::Ui, variant: &str, component: &str) {

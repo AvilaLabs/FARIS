@@ -255,15 +255,33 @@ achieved result, or interpret any RSE target as engineering qualification.
 
 The ported input is intentionally a separate branch, not a changed baseline:
 `cold-reference-port.scenario.json` preserves the two radial variants and adds
-one finite outboard rectangular-prism void port. Its worker uses the explicit
-axis-aligned box to cut each affected cell, samples points uniformly inside
-that box through OpenMC's Python geometry locator, reports component volume
-estimates and binomial standard errors, and Rust compares those to the separate
-midpoint-quadrature geometry control before normalization. The independent
-adaptive-integration report is required for this geometry control; midpoint
-convergence alone is not a rigorous bound. Ported material/build values remain
-the same authored surrogates and their scientific status remains
-`NOT_EVALUATED`.
+one finite outboard rectangular-prism void port. Its worker cuts each affected
+cell, classifies port-box points against a separate unperforated OpenMC
+geometry, confirms the same points map to the explicit port-void cell in the
+transport geometry, and reports component volume estimates with binomial
+standard errors. Before transport starts, OpenMC `Geometry.find` also checks
+the actual plasma, declared 0.08 m clearance, and every component's inner,
+interior, and outer ownership at multiple directions away from the port. The
+recorded geometry-ownership audit binds exact scenario and input hashes and
+includes expected and observed cell and material identifiers. Rust compares
+component volumes against a separate midpoint quadrature control, and the
+independent adaptive-integration report is required before packaging; midpoint
+convergence alone is not a rigorous bound. These are geometry checks only.
+Ported material/build values remain authored surrogates and their scientific
+status remains `NOT_EVALUATED`.
+
+The first 1M coupled campaign exposed a real geometry defect before primary
+delivery: the transport worker began the first-wall material at the plasma
+surface (1.00 m), filling the scenario's explicitly declared 0.08 m void
+clearance instead of starting the wall at its 1.08 m inner radius. Its first
+port-volume implementation also reused a mutable CSG region and queried only
+the already-cut geometry, reporting zero removed component volume. We corrected
+the cell partition, separated the sampling control geometry, verified final
+port-to-void mapping, and added pre-transport ownership probes. The prior
+coupled smoke, coarse 1M control records, and two port 1M attempts are retained
+as superseded or rejected diagnostics; none is primary evidence for the
+corrected geometry. Exact run/input/artifact hashes and rejection states are in
+[`geometry-correction-superseded-runs.json`](../references/geometry-correction-superseded-runs.json).
 
 Spatial refinement is selected with `--mesh-preset`: `coarse` retains the
 full-model 12×8×12 mesh; `outboard-local-coarse` (12×6×12) and `outboard-local`
@@ -290,11 +308,11 @@ or coarse-to-fine visual change to a physical conclusion when it misses the
 independent seeds; no paired covariance is assumed for comparisons across
 runs.
 
-The million-history records preserve the earlier worker revision. A separate
-30,000-history integrated smoke exercised the final bounded log streaming,
-statepoint/settings verification, and XML/statepoint hashes. Those changes
-do not alter the source, geometry, materials, scoring or explicit estimators.
-Generated runs, solver statepoints and nuclear data remain outside Git.
+Generated runs, solver statepoints and nuclear data remain outside Git. Only
+the corrected-geometry worker revision, with its exact hashes, is eligible for
+the final local-fine primary runs. The geometry audit and port-volume report
+are required receipts alongside transport and normalization; none is a
+physical validation.
 
 Input identity, OpenMC execution, exact volume arithmetic, and Monte Carlo
 standard errors are necessary implementation checks; they do not validate

@@ -160,22 +160,44 @@ impl StudyPanel {
         } else if ui.button("Compile study").clicked() {
             self.start(ui.ctx().clone(), manifest, variant_id);
         }
-        if self.attempted {
-            ui.small("✦ Powered by Avila Core")
-                .on_hover_text(self.completed.as_ref().map_or_else(
-                    || "Genuine external Avila Core compilation attempt.".into(),
-                    |c| {
-                        format!(
-                            "{} · compiler {}",
-                            c.report["semantic_profile"]
-                                .as_str()
-                                .unwrap_or("Profile unavailable"),
-                            c.report
-                                .pointer("/compiled/compiler")
-                                .map_or_else(|| "Identity unavailable".into(), |v| v.to_string())
-                        )
-                    },
+        let saved_tooltip = self
+            .archive
+            .core_tooltip(&manifest.source_sha256, variant_id);
+        if self.attempted || saved_tooltip.is_some() {
+            ui.small("Powered by Avila Core")
+                .on_hover_text(saved_tooltip.unwrap_or_else(|| {
+                    self.completed.as_ref().map_or_else(
+                        || "Genuine external Avila Core compilation attempt.".into(),
+                        |c| {
+                            format!(
+                                "{} · compiler {}",
+                                c.report["semantic_profile"]
+                                    .as_str()
+                                    .unwrap_or("Profile unavailable"),
+                                c.report.pointer("/compiled/compiler").map_or_else(
+                                    || "Identity unavailable".into(),
+                                    |v| v.to_string()
+                                )
+                            )
+                        },
+                    )
+                }));
+            // Draw the small spark directly; the default font has no ✦ glyph.
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+            let center = rect.center();
+            for points in [
+                [[0.0, -5.0], [1.7, 0.0], [0.0, 5.0], [-1.7, 0.0]],
+                [[-5.0, 0.0], [0.0, -1.7], [5.0, 0.0], [0.0, 1.7]],
+            ] {
+                ui.painter().add(egui::Shape::convex_polygon(
+                    points
+                        .into_iter()
+                        .map(|[x, y]| center + egui::vec2(x, y))
+                        .collect(),
+                    egui::Color32::from_rgb(193, 161, 96),
+                    egui::Stroke::NONE,
                 ));
+            }
         }
     }
 
@@ -321,7 +343,7 @@ impl StudyPanel {
                 ui.monospace(output.display().to_string());
             });
         }
-        ui.label(format!("Run readiness: {readiness}"));
+        ui.label(format!("Fresh transport readiness: {readiness}"));
         ui.label("Scientific assessment: NOT_EVALUATED");
         self.archive.controls(ui, scenario_sha256, variant_id);
     }

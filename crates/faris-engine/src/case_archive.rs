@@ -54,6 +54,9 @@ pub struct SavedCaseInspection {
     pub package_sha256: String,
     pub faris_executable_sha256: String,
     pub core_executable_sha256: String,
+    pub compiler_id: String,
+    pub semantic_profile: String,
+    pub compiler_executable_sha256: String,
     pub compilation_status: String,
     pub execution_status: String,
     pub binding_status: String,
@@ -83,6 +86,14 @@ struct LoadedHistory {
     result: Option<crate::history::HistoryResult>,
     result_sha256: Option<String>,
     assumptions_sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct VerifiedCompilation {
+    snapshot_sha256: String,
+    compiler_id: String,
+    semantic_profile: String,
+    executable_sha256: String,
 }
 
 /// Verify a prepared Core case, the saved FARIS/Core run report, and its
@@ -443,16 +454,19 @@ pub fn inspect_saved_case(
     let history = load_history_result(&case_root, report, &scenario, &run)?;
 
     Ok(SavedCaseInspection {
-        schema_version: "faris-saved-case-inspection/v0.1".into(),
+        schema_version: "faris-saved-case-inspection/v0.2".into(),
         record_integrity: "UNSIGNED_IDENTITY_REVALIDATED".into(),
         case_id,
         scenario_id,
         scenario_sha256: format!("sha256:{scenario_sha}"),
         variant_id,
-        compiled_snapshot_sha256: compiled,
+        compiled_snapshot_sha256: compiled.snapshot_sha256,
         package_sha256: format!("sha256:{package_sha}"),
         faris_executable_sha256: format!("sha256:{}", saved.faris_sha256),
         core_executable_sha256: format!("sha256:{}", saved.core_sha256),
+        compiler_id: compiled.compiler_id,
+        semantic_profile: compiled.semantic_profile,
+        compiler_executable_sha256: format!("sha256:{}", compiled.executable_sha256),
         compilation_status: report["compile"]["status"]
             .as_str()
             .unwrap_or_default()
@@ -488,7 +502,10 @@ pub fn inspect_saved_case(
     })
 }
 
-fn verify_compilation(root: &Path, saved: &CoreEvidenceRun) -> Result<String, ReactorError> {
+fn verify_compilation(
+    root: &Path,
+    saved: &CoreEvidenceRun,
+) -> Result<VerifiedCompilation, ReactorError> {
     let bytes = read_case_file(root, "compile/compilation.json", MAX_REPORT_BYTES)?;
     let compilation: Value = serde_json::from_slice(&bytes)?;
     if compilation["schema_version"] != "faris-core-compilation/v0.1"
@@ -498,8 +515,8 @@ fn verify_compilation(root: &Path, saved: &CoreEvidenceRun) -> Result<String, Re
     {
         return Err("saved Core compilation is incomplete or unsupported".into());
     }
-    let snapshot = string_at(&compilation, "/report/compiled/snapshot_sha256")?;
-    validate_prefixed_sha256(snapshot)?;
+    let snapshot = string_at(&compilation, "/report/compiled/snapshot_sha256")?.to_owned();
+    validate_prefixed_sha256(&snapshot)?;
     let contract: Value =
         serde_json::from_slice(&read_case_file(root, "contract.json", MAX_REPORT_BYTES)?)?;
     if snapshot != saved.compiled_snapshot_sha256
@@ -515,12 +532,34 @@ fn verify_compilation(root: &Path, saved: &CoreEvidenceRun) -> Result<String, Re
     {
         return Err("Core compilation does not bind the saved contract and registry".into());
     }
-    if string_at(&compilation, "/executable_sha256")? != saved.core_sha256 {
+    let executable_sha256 = string_at(&compilation, "/executable_sha256")?;
+    validate_plain_sha256(executable_sha256)?;
+    if executable_sha256 != saved.core_sha256 {
         return Err(
             "saved Core compilation executable identity differs from the execution report".into(),
         );
     }
-    Ok(snapshot.to_owned())
+    let compiled = &compilation["report"]["compiled"];
+    let compiler_id = checked_identity_label(string_at(compiled, "/compiler")?, "Core compiler")?;
+    let semantic_profile = checked_identity_label(
+        string_at(compiled, "/semantic_profile")?,
+        "Core semantic profile",
+    )?;
+    Ok(VerifiedCompilation {
+        snapshot_sha256: snapshot,
+        compiler_id,
+        semantic_profile,
+        executable_sha256: executable_sha256.to_owned(),
+    })
+}
+
+fn checked_identity_label(value: &str, label: &str) -> Result<String, ReactorError> {
+    if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+        return Err(
+            format!("saved {label} identity is empty, excessive, or contains controls").into(),
+        );
+    }
+    Ok(value.to_owned())
 }
 
 fn verify_core_integrity_inventory(
@@ -871,6 +910,21 @@ mod tests {
         {
             std::os::unix::fs::symlink(root.join("small"), root.join("link")).unwrap();
             assert!(read_root_file(&root, Path::new("link"), 2).is_err());
+        }
+    }
+
+    #[test]
+    fn compiler_and_semantic_profile_must_be_present_bounded_identities() {
+        assert_eq!(
+            checked_identity_label("avila.core/compiler-rust@0.1.0", "Core compiler").unwrap(),
+            "avila.core/compiler-rust@0.1.0"
+        );
+        assert!(
+            checked_identity_label("avila.core/semantic/0.2-draft", "Core semantic profile")
+                .is_ok()
+        );
+        for invalid in ["", "bad\nlabel", &"x".repeat(257)] {
+            assert!(checked_identity_label(invalid, "Core identity").is_err());
         }
     }
 }

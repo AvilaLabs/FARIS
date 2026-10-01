@@ -317,6 +317,108 @@ def check_data_identity(physics: dict, xml_path: Path, openmc, coupled_heating_r
     return xml_hash, required, actual_temps, runtime_temp, photon_hashes, photon_physics
 
 
+def audit_geometry_ownership(
+    geometry, major_radius_m, plasma_minor_radius_m, gap_m,
+    first_inner_radius_m, components, component_cells, plasma_cell,
+    clearance_cell, materials, scenario_sha256, variant_id,
+):
+    """Probe actual OpenMC CSG ownership before solving; this is geometry-only."""
+    probes = []
+    toroidal_angles = (math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0)
+    cross_section_angles = (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0)
+
+    def probe(label, radial_m, phi, theta, expected_name, expected_cell, expected_material_id):
+        ring_radius_cm = 100.0 * (major_radius_m + radial_m * math.cos(theta))
+        point_cm = [ring_radius_cm * math.cos(phi), 100.0 * radial_m * math.sin(theta),
+                    ring_radius_cm * math.sin(phi)]
+        path = geometry.find(point_cm)
+        observed = path[-1] if isinstance(path, (list, tuple)) and path else (
+            None if isinstance(path, (list, tuple)) else path
+        )
+        expected_fill = materials[expected_material_id]
+        observed_fill = None if observed is None else observed.fill
+        expected_material_name = None if expected_fill is None else expected_fill.name
+        observed_material_name = None if observed_fill is None else observed_fill.name
+        expected_material_openmc_id = None if expected_fill is None else expected_fill.id
+        observed_material_openmc_id = None if observed_fill is None else observed_fill.id
+        match = (
+            observed is not None
+            and observed.id == expected_cell.id
+            and observed.name == expected_name
+            and observed_material_name == expected_material_name
+            and observed_material_openmc_id == expected_material_openmc_id
+        )
+        probes.append({
+            "probe_id": label,
+            "point_xyz_cm": point_cm,
+            "minor_radius_m": radial_m,
+            "toroidal_angle_rad": phi,
+            "cross_section_angle_rad": theta,
+            "expected_cell_name": expected_name,
+            "expected_cell_id": expected_cell.id,
+            "observed_cell_name": None if observed is None else observed.name,
+            "observed_cell_id": None if observed is None else observed.id,
+            "expected_material_id": expected_material_id,
+            "expected_openmc_material_name": expected_material_name,
+            "expected_openmc_material_id": expected_material_openmc_id,
+            "observed_openmc_material_name": observed_material_name,
+            "observed_openmc_material_id": observed_material_openmc_id,
+            "status": "PASS" if match else "FAIL",
+        })
+
+    plasma_delta = min(1.0e-4, plasma_minor_radius_m / 10.0)
+    for phi in toroidal_angles:
+        probe(f"plasma-interior-phi-{phi:.8f}", plasma_minor_radius_m - plasma_delta,
+              phi, 0.0, "plasma-source-domain", plasma_cell, "void")
+
+    clearance_ok = []
+    if gap_m > 0.0:
+        delta = min(1.0e-4, gap_m / 4.0)
+        for phi in toroidal_angles:
+            for label, radius in (("near-plasma", plasma_minor_radius_m + delta),
+                                  ("near-first-wall", first_inner_radius_m - delta)):
+                probe_id = f"clearance-{label}-phi-{phi:.8f}"
+                probe(probe_id, radius, phi, 0.0, "plasma-first-wall-clearance",
+                      clearance_cell, "void")
+                clearance_ok.append(probes[-1]["status"] == "PASS")
+
+    for component in components:
+        cid = component["id"]
+        inner = float(component["inner_minor_radius_m"])
+        outer = float(component["outer_minor_radius_m"])
+        delta = min(1.0e-4, (outer - inner) / 4.0)
+        cell = component_cells[cid]
+        material_id = component["material_id"]
+        for phi in toroidal_angles:
+            for theta in cross_section_angles:
+                probe(f"{cid}-mid-phi-{phi:.8f}-theta-{theta:.8f}",
+                      (inner + outer) / 2.0, phi, theta, cid, cell, material_id)
+            for label, radius in (("near-inner", inner + delta),
+                                  ("near-outer", outer - delta)):
+                probe(f"{cid}-{label}-phi-{phi:.8f}", radius, phi, 0.0,
+                      cid, cell, material_id)
+
+    failed = sum(p["status"] != "PASS" for p in probes)
+    return {
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "method": "OpenMC Geometry.find actual cell/material ownership at analytic probes; zero transport histories",
+        "scenario_sha256": scenario_sha256,
+        "variant_id": variant_id,
+        "status": "PASS" if failed == 0 else "FAIL",
+        "checks_are_geometry_only": True,
+        "scientific_qualification": "NOT_EVALUATED",
+        "plasma_radius_m": plasma_minor_radius_m,
+        "declared_plasma_to_first_wall_clearance_m": gap_m,
+        "first_wall_inner_radius_m": first_inner_radius_m,
+        "clearance_status": "PASS" if gap_m == 0.0 or all(clearance_ok) else "FAIL",
+        "toroidal_probe_directions_rad": list(toroidal_angles),
+        "cross_section_probe_directions_rad": list(cross_section_angles),
+        "probe_count": len(probes),
+        "failed_probe_count": failed,
+        "probes": probes,
+    }
+
+
 def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photon_physics: dict):
     manifest = inp["manifest"]
     physics = inp["physics"]
@@ -361,8 +463,17 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     require(math.isfinite(R) and R > 0 and plasma_minor > 0, "invalid torus dimensions")
     scale = 100.0
     plasma_surface = openmc.YTorus(a=R * scale, b=plasma_minor * scale, c=plasma_minor * scale)
+    first_inner = plasma_minor + gap
+    first_inner_surface = openmc.YTorus(
+        a=R * scale, b=first_inner * scale, c=first_inner * scale
+    )
     require("void" in materials, "explicit void material required for plasma and clearance")
     plasma = openmc.Cell(name="plasma-source-domain", fill=materials["void"], region=-plasma_surface)
+    # Keep an unperforated geometry with independent cells for the volume
+    # sampling control below. The transport geometry is cut by the port; using
+    # that geometry alone would classify every in-port point as port void and
+    # falsely report zero removed component volume.
+    control_cells = [openmc.Cell(name="plasma-source-domain", fill=materials["void"], region=-plasma_surface)]
     penetration = manifest.get("penetration")
     port_region = None
     if penetration is not None:
@@ -378,10 +489,26 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         require(penetration["fill_material_id"] in materials, "penetration fill material is absent")
     surfaces = []
     cells = [plasma]
+    clearance_cell = None
+    if gap > 0.0:
+        # Model the declared plasma-to-first-wall clearance explicitly. The
+        # material component's volume and port intersection start at its own
+        # inner radius, not at the plasma boundary.
+        clearance_cell = openmc.Cell(
+            name="plasma-first-wall-clearance",
+            fill=materials["void"],
+            region=+plasma_surface & -first_inner_surface,
+        )
+        cells.append(clearance_cell)
+        control_cells.append(
+            openmc.Cell(
+                name="plasma-first-wall-clearance",
+                fill=materials["void"],
+                region=+plasma_surface & -first_inner_surface,
+            )
+        )
     component_cells = {}
     component_filters = {}
-    inner = plasma_minor + gap
-    first_inner = inner
     for component in variant["components"]:
         rid = component["id"]
         require(rid in assignments and assignments[rid] == component["material_id"], f"material assignment mismatch for {rid}")
@@ -389,14 +516,18 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         inner = float(component["inner_minor_radius_m"])
         outer = float(component["outer_minor_radius_m"])
         require(math.isclose(inner, first_inner if not surfaces else float(surfaces[-1].c) / scale, abs_tol=1e-8), f"non-contiguous radial geometry before {rid}")
+        inner_surface = first_inner_surface if not surfaces else surfaces[-1]
         surf = openmc.YTorus(a=R * scale, b=outer * scale, c=outer * scale)
-        surfaces.append(surf)
-        inner_surface = plasma_surface if len(surfaces) == 1 else surfaces[-2]
+        control_region = +inner_surface & -surf
+        control_cells.append(openmc.Cell(name=rid, fill=materials[component["material_id"]], region=control_region))
+        # Build a second CSG node tree so the cut applied below cannot alias
+        # or mutate the unperforated control cell's region expression.
         region = +inner_surface & -surf
         if penetration is not None and rid in penetration["affected_component_ids"]:
             region &= ~port_region
         cell = openmc.Cell(name=rid, fill=materials[component["material_id"]], region=region)
         cells.append(cell)
+        surfaces.append(surf)
         component_cells[rid] = cell
         component_filters[rid] = openmc.CellFilter(cell)
     outer_minor = float(variant["components"][-1]["outer_minor_radius_m"])
@@ -414,6 +545,26 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     cells.append(outside)
     root = openmc.Universe(cells=cells)
     geometry = openmc.Geometry(root)
+    control_cells.append(openmc.Cell(name="outside-torus-void", fill=materials["void"], region=+outer_surface))
+    unperforated_geometry = openmc.Geometry(openmc.Universe(cells=control_cells))
+    geometry_ownership_audit = audit_geometry_ownership(
+        geometry,
+        R,
+        plasma_minor,
+        gap,
+        first_inner,
+        variant["components"],
+        component_cells,
+        plasma,
+        clearance_cell,
+        materials,
+        request["scenario_sha256"],
+        physics["variant_id"],
+    )
+    require(
+        geometry_ownership_audit["status"] == "PASS",
+        "pre-transport OpenMC geometry ownership audit failed",
+    )
 
     penetration_volume_audit = None
     component_volume_cm3 = {}
@@ -429,12 +580,24 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         rng = random.Random(int(inp.get("penetration_volume_seed", 913_731_507)))
         box_volume_m3 = math.prod(maximum[i] - minimum[i] for i in range(3))
         inside = {component_id: 0 for component_id in component_cells}
+        confirmed_port_void = {component_id: 0 for component_id in component_cells}
         for _ in range(samples):
             point = [100.0 * rng.uniform(minimum[i], maximum[i]) for i in range(3)]
-            found = geometry.find(point)
-            cell = found[-1] if isinstance(found, (list, tuple)) else found
-            if cell is not None and cell.name in inside:
-                inside[cell.name] += 1
+            original_path = unperforated_geometry.find(point)
+            original_cell = (
+                original_path[-1]
+                if isinstance(original_path, (list, tuple)) and original_path
+                else (None if isinstance(original_path, (list, tuple)) else original_path)
+            )
+            if original_cell is not None and original_cell.name in inside:
+                component_id = original_cell.name
+                inside[component_id] += 1
+                if component_id in penetration["affected_component_ids"]:
+                    final_path = geometry.find(point)
+                    final_cell = final_path[-1] if isinstance(final_path, (list, tuple)) else final_path
+                    require(final_cell is not None and final_cell.name == penetration["id"],
+                            f"port geometry did not map removed {component_id} points to the explicit void cell")
+                    confirmed_port_void[component_id] += 1
         for component_id in penetration["affected_component_ids"]:
             require(component_id in component_cells, f"penetration lists unknown component: {component_id}")
             p = inside[component_id] / samples
@@ -447,13 +610,14 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         penetration_volume_audit = {
             "scenario_sha256": request["scenario_sha256"],
             "variant_id": physics["variant_id"],
-            "method": "independent_uniform_point_classification_in_port_box_using_OpenMC_Python_Geometry.find",
+            "method": "uniform_point_classification_in_unperforated_control_geometry_plus_final_port_void_confirmation",
             "seed": int(inp.get("penetration_volume_seed", 913_731_507)),
             "samples": samples,
             "box_volume_m3": box_volume_m3,
             "intersection_estimates_m3": {key: box_volume_m3 * count / samples for key, count in inside.items()},
             "intersection_standard_errors_m3": {key: box_volume_m3 * math.sqrt((count / samples) * (1.0 - count / samples) / samples) for key, count in inside.items()},
             "cell_counts": inside,
+            "final_port_void_confirmation_counts_by_component": confirmed_port_void,
             "fractional_volume_standard_errors_are_binomial": True,
             "independent_of_Rust_midpoint_quadrature": True,
             "not_a_physical_validation": True,
@@ -561,7 +725,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     if mesh_response_defs:
         require(mesh_meta is not None, "mesh-domain responses require mesh input metadata")
         dims = tuple(int(v) for v in mesh_meta["dimensions"])
-        require(len(dims) == 3 and math.prod(dims) <= 4096, "mesh dimensions exceed adapter bound")
+        require(len(dims) == 3 and math.prod(dims) <= 32768, "mesh dimensions exceed adapter bound")
         mesh = openmc.RegularMesh()
         mesh.dimension = dims
         mesh.lower_left = [100.0 * v for v in mesh_meta["lower_left_m"]]
@@ -575,19 +739,21 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         ]
         require(api_indices == expected_indices, "OpenMC RegularMesh.indices order disagrees with requested x-fast bin order")
         require(api_indices[0] == (1, 1, 1), "OpenMC mesh bin zero is not index (1,1,1)")
-        require(api_indices[1] == (2, 1, 1), "OpenMC mesh bin 1 does not increment x first")
-        require(api_indices[dims[0]] == (1, 2, 1), "OpenMC mesh x-row rollover does not increment y")
-        require(api_indices[dims[0] * dims[1]] == (1, 1, 2), "OpenMC mesh plane rollover does not increment z")
+        tested_rollovers = {"bin_0": list(api_indices[0])}
+        if dims[0] > 1:
+            require(api_indices[1] == (2, 1, 1), "OpenMC mesh bin 1 does not increment x first")
+            tested_rollovers["bin_1"] = list(api_indices[1])
+        if dims[1] > 1:
+            require(api_indices[dims[0]] == (1, 2, 1), "OpenMC mesh x-row rollover does not increment y")
+            tested_rollovers["bin_nx"] = list(api_indices[dims[0]])
+        if dims[2] > 1:
+            require(api_indices[dims[0] * dims[1]] == (1, 1, 2), "OpenMC mesh plane rollover does not increment z")
+            tested_rollovers["bin_nx_times_ny"] = list(api_indices[dims[0] * dims[1]])
         mesh_index_audit = {
             "api": "openmc.RegularMesh.indices",
             "ordering": "x-fastest, then y, then z; 1-based tuple indices correspond to zero-based flat bin i + nx*(j + ny*k)",
             "first_index_tuples": [list(v) for v in api_indices[: min(4, len(api_indices))]],
-            "tested_rollovers": {
-                "bin_0": list(api_indices[0]),
-                "bin_1": list(api_indices[1]),
-                "bin_nx": list(api_indices[dims[0]]),
-                "bin_nx_times_ny": list(api_indices[dims[0] * dims[1]]),
-            },
+            "tested_rollovers": tested_rollovers,
             "assertion": "PASS",
         }
         mesh_tally = openmc.Tally(name="spatial-neutron-flux")
@@ -614,7 +780,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     if mesh_meta:
         widths = [(mesh_meta["upper_right_m"][i]-mesh_meta["lower_left_m"][i])/mesh_meta["dimensions"][i] for i in range(3)]
         mesh_bin_volume_cm3 = math.prod(widths)*1.0e6
-    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit
+    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit
 
 
 def main() -> int:
@@ -631,6 +797,7 @@ def main() -> int:
     exported_xml_hashes = {}
     mesh_index_audit = None
     penetration_volume_audit = None
+    geometry_ownership_audit = None
     try:
         inp = read_input(args.input.expanduser().resolve(strict=True))
         request = inp["request"]
@@ -645,7 +812,8 @@ def main() -> int:
         xml_hash, required_nuclides, actual_data_temps, runtime_data_temperature, photon_data_hashes, photon_physics = check_data_identity(inp["physics"], xml, openmc, coupled_heating_required)
         # Set only the path; all scored quantities remain raw, per source neutron.
         os.environ["OPENMC_CROSS_SECTIONS"] = str(xml)
-        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, component_volume_se_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit = compose(inp, out, openmc, runtime_data_temperature, photon_physics)
+        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, component_volume_se_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit = compose(inp, out, openmc, runtime_data_temperature, photon_physics)
+        geometry_ownership_audit["input_sha256"] = sha256(args.input)
         exported_xml = sorted(out.glob("*.xml"))
         require(exported_xml, "OpenMC model export produced no XML inputs")
         exported_xml_hashes = {path.name: sha256(path) for path in exported_xml}
@@ -740,7 +908,7 @@ def main() -> int:
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:
@@ -753,6 +921,8 @@ def main() -> int:
             record["mesh_index_audit"] = mesh_index_audit
         if penetration_volume_audit is not None:
             record["penetration_volume_audit"] = penetration_volume_audit
+        if geometry_ownership_audit is not None:
+            record["geometry_ownership_audit"] = geometry_ownership_audit
         (out / "worker-result.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")
         raise
     (out / "worker-result.json").write_text(json.dumps(record, indent=2)+"\n", encoding="utf-8")

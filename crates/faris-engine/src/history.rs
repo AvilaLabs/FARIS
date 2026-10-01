@@ -15,10 +15,10 @@ pub const TRITIUM_MOLAR_MASS_KG_PER_MOL: f64 = 3.016_049_277_9e-3;
 pub const AVOGADRO_CONSTANT_PER_MOL: f64 = 6.022_140_76e23;
 pub const ELEMENTARY_CHARGE_J_PER_EV: f64 = 1.602_176_634e-19;
 pub const MASS_BALANCE_RELATIVE_TOLERANCE: f64 = 1e-10;
-// The input horizon/step pair is separately bounded to <=1,000,000 nominal
+// The input horizon/step pair is separately bounded to <=2,000,000 nominal
 // segments. Event-driven transitions and delayed-cohort releases can subdivide
-// those intervals, so the runtime bound allows at most 2x that nominal budget.
-const MAX_HISTORY_SEGMENTS: usize = 2_000_000;
+// those intervals, so allow a measured, explicit 3,000,000 runtime-segment cap.
+const MAX_HISTORY_SEGMENTS: usize = 3_000_000;
 const MAX_HISTORY_EVENTS: usize = 20_000;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -330,6 +330,10 @@ pub struct HistoryResult {
     pub tritium_decay_constant_per_s: f64,
     pub tritium_atom_mass_kg: f64,
     pub mass_balance_tolerance_kg: f64,
+    #[serde(default)]
+    pub integration_segment_count: Option<usize>,
+    #[serde(default)]
+    pub integration_segment_limit: Option<usize>,
     pub events: Vec<HistoryEvent>,
     pub snapshots: Vec<HistorySnapshot>,
     pub energy_unavailable_reason: Option<String>,
@@ -769,7 +773,9 @@ pub fn run_operating_history_cancellable(
         }
         segments += 1;
         if segments > MAX_HISTORY_SEGMENTS {
-            return Err("history exceeded the runtime segment bound".into());
+            return Err(format!(
+                "history used {segments} segments; runtime segment limit is {MAX_HISTORY_SEGMENTS}"
+            ));
         }
 
         let mut next = (time + assumptions.maximum_step_s).min(assumptions.horizon_s);
@@ -1014,6 +1020,7 @@ pub fn run_operating_history_cancellable(
         schema_version: "faris-history-result/v0.1".into(), outcome, assumptions: assumptions.clone(), driving_rates: rates.clone(),
         tritium_decay_constant_per_s: lambda, tritium_atom_mass_kg: atom_mass,
         mass_balance_tolerance_kg: MASS_BALANCE_RELATIVE_TOLERANCE*scale.max(1.0), events, snapshots,
+        integration_segment_count: Some(segments), integration_segment_limit: Some(MAX_HISTORY_SEGMENTS),
         energy_unavailable_reason,
         notice: "Conditional deterministic history from the exact recorded transport driving rates and authored assumptions. Monte Carlo standard errors and assumption/model uncertainty are retained as provenance but not propagated into a qualified bound. No service-life or net-electricity claim is qualified.".into(),
     })
@@ -1155,6 +1162,33 @@ mod tests {
             solver_digest: format!("sha256:{}", "c".repeat(64)),
             nuclear_data_digest: format!("sha256:{}", "d".repeat(64)),
         }
+    }
+
+    #[test]
+    fn history_validation_allows_reviewed_two_million_step_budget_and_rejects_more() {
+        let mut fine = assumptions(946_728_000.0);
+        fine.maximum_step_s = 500.0;
+        assert!(fine.validate().is_ok());
+
+        fine.maximum_step_s = 400.0;
+        assert!(fine.validate().unwrap_err().contains("2,000,000-step"));
+    }
+
+    #[test]
+    fn legacy_history_without_segment_counts_deserializes_as_unavailable() {
+        let run = run_operating_history(&assumptions(86_400.0), &rates()).unwrap();
+        let mut value = serde_json::to_value(run).unwrap();
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("integration_segment_count");
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("integration_segment_limit");
+        let legacy: HistoryResult = serde_json::from_value(value).unwrap();
+        assert_eq!(legacy.integration_segment_count, None);
+        assert_eq!(legacy.integration_segment_limit, None);
     }
 
     #[test]

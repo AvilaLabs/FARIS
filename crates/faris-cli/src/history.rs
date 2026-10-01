@@ -243,11 +243,14 @@ fn compare_runs(request: CompareRunRequest) -> Result<(), Box<dyn std::error::Er
         controlled_difference,
         output,
     } = request;
-    ensure_new_outputs(&output, None)?;
+    let provenance_output = append_suffix(&output, ".provenance.json");
+    ensure_new_outputs(&output, Some(&provenance_output))?;
     let scenario =
         faris_model::LoadedScenario::from_bytes(&crate::transport::read_bounded(&scenario_path)?)?;
     let assumptions: OperatingHistoryAssumptions =
         serde_json::from_slice(&crate::transport::read_bounded(&assumptions_path)?)?;
+    let left_provenance = comparison_run_provenance(&left_run)?;
+    let right_provenance = comparison_run_provenance(&right_run)?;
     let left = rates_from_run(&scenario, &left_run)?;
     let right = rates_from_run(&scenario, &right_run)?;
     let interrupts = crate::control::interrupt_cancellation()?;
@@ -266,8 +269,71 @@ fn compare_runs(request: CompareRunRequest) -> Result<(), Box<dyn std::error::Er
     )
     .map_err(std::io::Error::other)?;
     write_new_json(&output, &paired)?;
+    let mut comparison_bytes = serde_json::to_vec_pretty(&paired)?;
+    comparison_bytes.push(b'\n');
+    let provenance = serde_json::json!({
+        "schema_version": "faris-history-comparison-provenance/v0.1",
+        "comparison_path": output,
+        "comparison_sha256": crate::transport::sha256(&comparison_bytes),
+        "assumptions_sha256": crate::transport::sha256(&crate::transport::read_bounded(&assumptions_path)?),
+        "scenario_sha256": scenario.source_sha256,
+        "left_run": left_provenance,
+        "right_run": right_provenance,
+        "scope": "Exact run-record byte hashes and recorded sampler settings bind the paired deterministic comparison to its two transport records. Same-seed runs are not independent replicates; no covariance is estimated."
+    });
+    write_new_json(&provenance_output, &provenance)?;
     println!("Paired history comparison recorded at {}", output.display());
     Ok(())
+}
+
+fn append_suffix(path: &std::path::Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_os_string();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+fn comparison_run_provenance(
+    path: &std::path::Path,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let bytes = crate::transport::read_bounded(path)?;
+    let record: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let migration_path = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(std::path::Path::new("."))
+        .join("preflight-migration.json");
+    let migration = if migration_path.is_file() {
+        let migration_bytes = crate::transport::read_bounded(&migration_path)?;
+        Some(serde_json::json!({
+            "path": migration_path,
+            "sha256": crate::transport::sha256(&migration_bytes)
+        }))
+    } else {
+        None
+    };
+    let sampling = record
+        .get("sampling")
+        .cloned()
+        .ok_or("run record lacks recorded sampling plan")?;
+    let raw_artifact_sha256 = record
+        .get("raw_artifact_sha256")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("run record lacks raw artifact identity")?;
+    Ok(serde_json::json!({
+        "path": path,
+        "run_record_sha256": crate::transport::sha256(&bytes),
+        "raw_artifact_sha256": raw_artifact_sha256,
+        "sampling": sampling,
+        "scenario_sha256": record.get("scenario_sha256"),
+        "variant_id": record.get("variant_id"),
+        "input_sha256": record.get("input_sha256"),
+        "physics_sha256": record.get("physics_sha256"),
+        "adapter_sha256": record.get("adapter_sha256"),
+        "openmc_sha256": record.get("openmc_sha256"),
+        "cross_sections_sha256": record.get("cross_sections_sha256"),
+        "execution_status": record.pointer("/execution/execution_status"),
+        "preflight_migration_receipt": migration
+    }))
 }
 
 fn sensitivity(

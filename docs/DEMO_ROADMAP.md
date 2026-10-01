@@ -1,31 +1,38 @@
 # FARIS functional demo roadmap
 
-Status: implementation plan, 2026-09-30. This document covers the first demo only.
+Status: active implementation and acceptance tracking, 2026-10-01. This document covers the first demo only.
 Requirements describe the target; they do not claim implemented features.
-The application now includes a working numerical transport increment; it is
-not the finished demo.
+The implementation now includes coupled neutron/photon transport, component
+spectra and direct heating scores, a conservative Rust fuel/event/energy ledger,
+actual Core stage execution and receipt verification, saved-study reopening,
+and native field/history presentation. The [acceptance matrix](DEMO_ACCEPTANCE.md)
+tracks current evidence and the remaining requirements. Final port-volume
+checks, spatial/sampling refinement, paired histories, portable packaging and
+the complete native walkthrough are still in progress.
 
-Implementation has begun on M1 and the independent foundations of M2/M3:
-the [scientific baseline](SCIENTIFIC_BASELINE.md) records a benchmark route;
-the [data audit](../references/openmc-fendl-readiness.json) identifies existing
-OpenMC/FENDL inputs and unresolved provenance/temperature coverage. Strict
-transport schemas and Rust normalization are implemented, with a bounded
-external runner and a real [OpenMC numerical control](NUMERICAL_CONTROLS.md).
-These increments do not complete M1, M2 or M3. An explicit cold-data surrogate
-now assigns materials/source, runs real OpenMC transport, and integrates
-checked results into the desktop. Generated Core studies and actual semantic
-compilation work in the CLI/native app. Core stage execution/evidence binding,
-hot-state/data applicability, experimental/reference response qualification,
-and operating inputs remain pending. See [the implemented transport boundary](COLD_REFERENCE.md).
+An independent volume check exposed a first-wall clearance error in the earlier
+transport geometry. Those runs and their derived histories are preserved as
+superseded diagnostics. A corrected port pilot now passes cell-ownership and
+independent volume checks; the four full corrected cases remain in progress.
+
+The [scientific baseline](SCIENTIFIC_BASELINE.md), [cold model boundary](COLD_REFERENCE.md),
+[operating-history controls](OPERATING_HISTORY.md), and
+[coupled Li-6 control](LITHIUM_CAPTURE_CONTROL.md) distinguish numerical
+verification from physical qualification. Material operating state, reactor
+reference responses, nuclear-data applicability and engineering limits remain
+unqualified. Those gaps restrict claims; completed solver jobs and verified
+Core receipts do not turn them into physical passes.
 
 | Milestone | Current implementation status |
 | --- | --- |
 | M0 | Complete: starting capabilities and demo boundary recorded |
-| M1 | In progress: audited cold-data materials/source and reference route; operating assumptions and qualification gaps remain |
-| M2 | In progress: typed transport inputs/results, workers, cancellation, planner and real Core compile; history/evidence formats remain |
-| M3 | In progress: both allocations run real OpenMC, normalize in Rust, and replay in the app; prediction qualification remains unresolved |
-| M4 | Initial field presentation implemented; penetration/control geometry and spatial validation remain |
-| M5–M7 | Pending |
+| M1 | Explicit cold model, materials/data/source and authored operating inputs documented; final case freeze and response applicability review in progress |
+| M2 | Typed transport/history/evidence formats, bounded workers, dependencies and actual Core compilation implemented and tested |
+| M3 | Coupled transport and independent numerical controls implemented; earlier reactor results superseded after a clearance defect; corrected primary cases and restricted conclusions pending |
+| M4 | Port/control CSG and field mapping implemented; corrected port pilot passes ownership and independent volume checks; final local refinement campaign in progress |
+| M5 | Fuel/decay/delay, service events, outages, power/energy, paired comparisons and sensitivity implemented; fine integration-grid checks and final drivers pending |
+| M6 | Four-stage Core execution verified on a coupled smoke case; saved receipt reopening implemented; final cases for both allocations/control still pending |
+| M7 | Optimized native binary built and preliminary performance measured; final package, complete walkthrough and launch remain |
 
 ## The result we are building
 

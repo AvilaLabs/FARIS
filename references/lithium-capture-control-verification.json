@@ -1,0 +1,164 @@
+{
+  "data_identity": {
+    "cross_sections_xml_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "li6_neutron_hdf5_sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543",
+    "li_photon_hdf5_sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04",
+    "neutron_audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "photon_provenance_sha256": "465225601ab2e5a31bf8504610589bcde0e19e197e36b3030f104cbaddfadde6",
+    "provenance_status": "The NNDC download page and supplied ZIPs state no explicit license. These files remain local in the Git-ignored data/raw directory; do not redistribute absent rights confirmation. Preserve NNDC/ENDF-B-VII.1 attribution. The OpenMC Python conversion library is installed separately and is not bundled here."
+  },
+  "heating_energy_screen": {
+    "accepted_lower": 4770671.175782663,
+    "accepted_upper": 4792010.963900396,
+    "observed_heating_mean": 4783557.916043284,
+    "physical_lower": 4780028.826246148,
+    "physical_upper": 4782653.3134369105,
+    "relative_model_floor": 4781.356431143101,
+    "sampling_expansion": 4576.294032341982
+  },
+  "idealized_model": {
+    "atom_density_atoms_per_barn_cm": 0.01,
+    "atomic_relaxation": true,
+    "electron_treatment": "led",
+    "geometry": "vacuum-bounded sphere, radius 10cm",
+    "material": "pure Li6 only",
+    "numeric_cross_section_temperature_k": 293.59430848016336,
+    "photon_transport": true,
+    "physical_material_temperature_k": null,
+    "source_direction": "isotropic",
+    "source_location_cm": [
+      0,
+      0,
+      0
+    ],
+    "source_neutron_energy_ev": 0.0253
+  },
+  "independent_checker": {
+    "checks": {
+      "absorption_is_n_t_plus_n_gamma": true,
+      "all_particle_heat_is_neutron_photon_electron_plus_positron_heat": true,
+      "ame2020_and_endf_q_crosscheck": true,
+      "coupled_heating_in_conservative_energy_interval": true,
+      "h3_production_matches_n_t_events": true
+    },
+    "path": "controls/check_lithium_capture.py",
+    "result_sha256": "c3e1c195aa5b49db8d3b51eaa908a4b66a7f70d812b5fea916f0c63e27dce54b",
+    "sha256": "8ab10939bac53e7f06e5c70f4c549d7749da4848e882a9e6dac6b1b6212a5b75",
+    "status": "PASS"
+  },
+  "limitations": [
+    "All score means are source-normalized OpenMC responses; no fusion source rate or volume division is applied.",
+    "OpenMC standard errors and the three-standard-error screening are heuristic; no rigorous confidence level is asserted.",
+    "Li6(n,gamma) photon local deposition is bounded from zero to the full reaction Q; photon leakage energy is not tallied.",
+    "The control material atom density is an explicit numerical assumption and is not a physical FARIS material recipe.",
+    "A PASS verifies only these response identities and conservative bounds for this exact local library/model.",
+    "The 3-SE margins are heuristic arithmetic screens, not rigorous confidence intervals.",
+    "The all-particle heating mean and standard error are directly reported from OpenMC; component standard errors are not combined to create a substitute total uncertainty.",
+    "The cited NNDC source does not state a redistribution license; evaluated photon data and raw statepoint are not packaged."
+  ],
+  "local_record": {
+    "path": "runs/lithium-capture-control-final-002/control-result.json",
+    "record_retained_locally_ignored": true,
+    "sha256": "a3b95c32d169f666769ce98117f93161bfa29eb58bcd334d416927db4b889c0b"
+  },
+  "responses": {
+    "h3_production": {
+      "estimator": "tracklength",
+      "mean": 0.9994891992021199,
+      "score": "H3-production",
+      "standard_error": 0.0003089425787590592,
+      "unit": "tritium_particles/source_neutron"
+    },
+    "heating_electron": {
+      "estimator": "collision",
+      "mean": 4.36229805322777,
+      "particle_scope": "electron",
+      "score": "heating",
+      "standard_error": 1.4335536474304962,
+      "unit": "eV/source_neutron"
+    },
+    "heating_neutron": {
+      "estimator": "collision",
+      "mean": 4783553.0722314995,
+      "particle_scope": "neutron",
+      "score": "heating",
+      "standard_error": 47.38311517672735,
+      "unit": "eV/source_neutron"
+    },
+    "heating_photon": {
+      "estimator": "collision",
+      "mean": 0.00011212999999939686,
+      "particle_scope": "photon",
+      "score": "heating",
+      "standard_error": 2.489267124703556e-05,
+      "unit": "eV/source_neutron"
+    },
+    "heating_positron": {
+      "estimator": "collision",
+      "mean": 0.48140160106970936,
+      "particle_scope": "positron",
+      "score": "heating",
+      "standard_error": 0.4814016010697094,
+      "unit": "eV/source_neutron"
+    },
+    "heating_total": {
+      "estimator": "collision",
+      "mean": 4783557.916043284,
+      "particle_scope": "all",
+      "score": "heating",
+      "standard_error": 47.11097673353715,
+      "unit": "eV/source_neutron"
+    },
+    "n_gamma_reactions": {
+      "estimator": "tracklength",
+      "mean": 4.1004405004187016e-05,
+      "score": "(n,gamma)",
+      "standard_error": 1.2674482104611457e-08,
+      "unit": "reactions/source_neutron"
+    },
+    "n_t_reactions": {
+      "estimator": "tracklength",
+      "mean": 0.9994891992021198,
+      "score": "(n,t)",
+      "standard_error": 0.0003089425787626891,
+      "unit": "reactions/source_neutron"
+    },
+    "neutron_absorption": {
+      "estimator": "tracklength",
+      "mean": 0.9995302036071237,
+      "score": "absorption",
+      "standard_error": 0.0003089552532331094,
+      "unit": "reactions/source_neutron"
+    }
+  },
+  "sampling": {
+    "batches": 100,
+    "limits": {
+      "address_space_per_process_bytes": 4294967296,
+      "file_size_bytes": 268435456,
+      "output_file_count": 256,
+      "output_tree_bytes": 536870912
+    },
+    "nominal_histories": 10000000,
+    "particles_per_batch": 100000,
+    "seed": 20261002,
+    "threads": 8,
+    "timeout_seconds": 600,
+    "wall_seconds": 35.45143407699652
+  },
+  "schema_version": "faris.li6-thermal-coupled-control-verification/v0.2",
+  "scope": "separate idealized OpenMC numerical control; not a FARIS scenario, blanket result, material qualification, or reactor qualification",
+  "solver": {
+    "executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+    "name": "OpenMC",
+    "script_sha256": "69e64ac187fd7e59a02356fb9fa73b8881562567a36ca98f0b8f7d720e457319",
+    "version": "0.15.3"
+  },
+  "statepoint": {
+    "bytes": 60144,
+    "current_batch": 100,
+    "path": "statepoint.100.h5",
+    "sha256": "ee69ddc5caf53892c8f7f93983d438e2e6cc34fa6c6565313f0b548160a2b6b2"
+  },
+  "status": "PASS"
+}

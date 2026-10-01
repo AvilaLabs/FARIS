@@ -54,6 +54,26 @@ impl ArchivePanel {
         std::mem::take(&mut self.incoming)
     }
 
+    pub fn core_tooltip(&self, scenario_sha256: &str, variant_id: &str) -> Option<String> {
+        let matches = |saved: &&SavedCaseInspection| {
+            scenario_digest(saved) == scenario_sha256 && saved.variant_id == variant_id
+        };
+        let saved = self
+            .saved
+            .get(self.selected)
+            .filter(matches)
+            .or_else(|| self.saved.iter().find(matches))?;
+        Some(format!(
+            "Verified saved study: {}\n{}\n{}\nCompiler SHA-256: {}\n{} stage receipts verified.\n{}",
+            saved.case_id,
+            saved.compiler_id,
+            saved.semantic_profile,
+            saved.compiler_executable_sha256,
+            saved.verified_receipt_count,
+            saved.scope_notice,
+        ))
+    }
+
     pub fn poll(&mut self, ctx: &egui::Context) {
         if self.pending.is_none() && !self.queued_descriptors.is_empty() {
             let descriptors = std::mem::take(&mut self.queued_descriptors);
@@ -81,7 +101,7 @@ impl ArchivePanel {
                 Ok(mut saved) => {
                     if let Some(history) = saved.history_result.take() {
                         self.incoming.push((
-                            saved.scenario_sha256.clone(),
+                            scenario_digest(&saved).to_owned(),
                             saved.variant_id.clone(),
                             history,
                         ));
@@ -152,7 +172,7 @@ impl ArchivePanel {
                         }
                     });
                 let saved = &self.saved[self.selected];
-                if saved.scenario_sha256 != current_scenario || saved.variant_id != current_variant
+                if scenario_digest(saved) != current_scenario || saved.variant_id != current_variant
                 {
                     ui.colored_label(
                         egui::Color32::YELLOW,
@@ -174,6 +194,12 @@ impl ArchivePanel {
                     ));
                 }
                 ui.collapsing("Saved identities and scope", |ui| {
+                    ui.small(format!("Compiler: {}", saved.compiler_id));
+                    ui.small(format!("Semantic profile: {}", saved.semantic_profile));
+                    ui.small(format!(
+                        "Compiler SHA-256: {}",
+                        saved.compiler_executable_sha256
+                    ));
                     ui.small(format!("Scenario SHA-256: {}", saved.scenario_sha256));
                     ui.small(format!("Contract: {}", saved.compiled_snapshot_sha256));
                     ui.small(format!("Package: {}", saved.package_sha256));
@@ -185,6 +211,13 @@ impl ArchivePanel {
             }
         });
     }
+}
+
+fn scenario_digest(saved: &SavedCaseInspection) -> &str {
+    saved
+        .scenario_sha256
+        .strip_prefix("sha256:")
+        .unwrap_or(&saved.scenario_sha256)
 }
 
 fn inspect(locations: Locations) -> Result<SavedCaseInspection, String> {

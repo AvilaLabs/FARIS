@@ -36,6 +36,17 @@ struct Arguments {
     /// Exercise camera orbit and calculated-history scrubbing during measurement.
     #[arg(long, requires = "benchmark_seconds")]
     benchmark_motion: bool,
+    /// Initial computed-history position in calendar years.
+    #[arg(long, default_value_t = 0.0)]
+    initial_year: f64,
+    /// Initial native window dimensions in logical points.
+    #[arg(long, default_value_t = 1440)]
+    window_width: u32,
+    #[arg(long, default_value_t = 900)]
+    window_height: u32,
+    /// Interface magnification for display/accessibility checks.
+    #[arg(long, default_value_t = 1.0)]
+    interface_scale: f32,
     /// External Avila Core executable used by Compile study.
     #[arg(long)]
     core: Option<PathBuf>,
@@ -89,6 +100,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("benchmark duration must be finite and in 2..=120 seconds".into());
     }
     let launch_started = Instant::now();
+    if !(980..=3840).contains(&args.window_width)
+        || !(640..=2160).contains(&args.window_height)
+        || !args.interface_scale.is_finite()
+        || !(0.75..=2.0).contains(&args.interface_scale)
+    {
+        return Err(
+            "window size must be 980..3840 × 640..2160 points; interface scale must be 0.75..2"
+                .into(),
+        );
+    }
     let loaded = if let Some(path) = args.scenario {
         LoadedScenario::load(&path)?
     } else if let Some(path) = args.bundle.first() {
@@ -99,6 +120,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))?
     };
     let manifest = build_manifest(&loaded)?;
+    if !args.initial_year.is_finite()
+        || !(0.0..=manifest.horizon_years).contains(&args.initial_year)
+    {
+        return Err("initial year must be finite and within the scenario horizon".into());
+    }
     let control = if args.control_scenario.is_some() || !args.control_bundle.is_empty() {
         let scenario = if let Some(path) = &args.control_scenario {
             LoadedScenario::load(path)?
@@ -146,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         depth_buffer: 32,
         multisampling: 0,
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1440.0, 900.0])
+            .with_inner_size([args.window_width as f32, args.window_height as f32])
             .with_min_inner_size([980.0, 640.0]),
         ..Default::default()
     };
@@ -164,6 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
+            cc.egui_ctx.set_zoom_factor(args.interface_scale);
             let mut app = FarisApp::new(
                 manifest,
                 args.capture,
@@ -174,6 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 history,
             )?;
             app.started = launch_started;
+            app.year = args.initial_year;
             app.study
                 .archive
                 .queue_descriptors(args.saved_study)
@@ -196,7 +224,7 @@ fn scenario_from_bundle(
     path: &std::path::Path,
 ) -> Result<LoadedScenario, Box<dyn std::error::Error>> {
     let bundle: faris_engine::core_evidence::RecordedTransportBundle = serde_json::from_slice(
-        &faris_engine::reactor::read_json_bytes(path)
+        &faris_engine::core_evidence::read_stage(path)
             .map_err(|e| std::io::Error::other(e.to_string()))?,
     )?;
     bundle
@@ -584,6 +612,7 @@ impl FarisApp {
 impl eframe::App for FarisApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let year_before_frame = self.year.to_bits();
         if self.frames == 0 {
             eprintln!(
                 "FARIS first UI frame: {:.3} s after process setup began",
@@ -622,7 +651,7 @@ impl eframe::App for FarisApp {
                         .unwrap_or_default();
                     eprintln!(
                         "{}",
-                        serde_json::json!({"schema_version":"faris-native-frame-benchmark/v0.1", "measurement":"egui frame throughput; not GPU presentation FPS", "first_measured_frame_seconds": ready_at.duration_since(b.launch_started).as_secs_f64(), "elapsed_seconds":elapsed,"interval_count":intervals.len(),"mean_frames_per_second":intervals.len() as f64/elapsed,"p95_frame_interval_ms":p95*1000.0,"orbit_and_scrub":b.motion,"viewport_points":[1440,900]})
+                        serde_json::json!({"schema_version":"faris-native-frame-benchmark/v0.1", "measurement":"egui frame throughput; not GPU presentation FPS", "first_measured_frame_seconds": ready_at.duration_since(b.launch_started).as_secs_f64(), "elapsed_seconds":elapsed,"interval_count":intervals.len(),"mean_frames_per_second":intervals.len() as f64/elapsed,"p95_frame_interval_ms":p95*1000.0,"orbit_and_scrub":b.motion,"window_points":ctx.input(|i|i.viewport().inner_rect.map(|r|[r.width(),r.height()])),"pixels_per_point":ctx.pixels_per_point()})
                     );
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -708,7 +737,7 @@ impl eframe::App for FarisApp {
             self.cutaway,
             self.selected.clone(),
             self.hidden.clone(),
-            self.year.to_bits(),
+            year_before_frame,
         );
         egui::Panel::top("menu").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -930,6 +959,7 @@ impl eframe::App for FarisApp {
                     if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
                         ui.label(format!("Nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
                         ui.small(format!("Sampling SE: {:.3} MW · coupled neutron/photon", heating.integrated_standard_error / 1e6));
+                        ui.small("Deposition includes material reaction energy and can exceed D–T source power. Full physical energy closure is not evaluated; heat recovery is an authored assumption.");
                     } else { ui.label("Nuclear heating  —"); }
                     self.history.inspector(ui,&self.manifest.source_sha256,&variant.id,&component.id,self.year*faris_engine::history::JULIAN_YEAR_SECONDS);
                     self.transport.spectra(ui,&variant.id,&component.id);
@@ -941,7 +971,7 @@ impl eframe::App for FarisApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(egui::Color32::from_rgb(47, 50, 57)))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.strong("3D viewport");
                     ui.separator();
                     ui.checkbox(&mut self.cutaway, "Cutaway");
@@ -954,7 +984,7 @@ impl eframe::App for FarisApp {
                     }
                     ui.weak("Drag to orbit · Shift-drag to pan · scroll to zoom · click to select");
                 });
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let has_history=self.history.result(&self.manifest.source_sha256,&self.manifest.variants[self.variant].id).is_some();
                     self.transport.viewport_controls(ui,&self.manifest.variants[self.variant].id,has_history);
                     if field_before.1 != self.transport.view && self.transport.view == transport_panel::FieldView::FluxSlice
@@ -1008,10 +1038,7 @@ impl eframe::App for FarisApp {
                     self.revision,
                     self.transport.view != transport_panel::FieldView::Materials,
                 ));
-                ui.painter().text(
-                    rect.left_bottom() + egui::vec2(16.0, -16.0),
-                    egui::Align2::LEFT_BOTTOM,
-                    match self.transport.view {
+                let caption = match self.transport.view {
                         transport_panel::FieldView::Materials => {
                             "X red · Y green · Z blue · metre grid · material identities"
                         }
@@ -1019,14 +1046,19 @@ impl eframe::App for FarisApp {
                             "Reference-power component mean flux · neutrons/m²/s · stationary cold model"
                         }
                         transport_panel::FieldView::FluxSlice => {
-                            "Reference-power bin mean flux · neutrons/m²/s · full voxel volumes"
+                            "Reference-power bin mean flux · neutrons/m²/s · full voxel volumes, including any material/void mixture"
                         }
                         transport_panel::FieldView::NuclearHeating => "Reference-power nuclear heat deposition · W/m³ · coupled transport",
                         transport_panel::FieldView::ComponentFluence => "Snapshot accumulated neutron fluence · neutrons/m² · component mean",
-                    },
+                    };
+                let galley = ui.painter().layout(
+                    caption.to_owned(),
                     egui::FontId::monospace(12.0),
                     egui::Color32::from_gray(180),
+                    (rect.width() - 32.0).max(1.0),
                 );
+                let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
+                ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
             });
         self.capture_frame(&ctx);
     }

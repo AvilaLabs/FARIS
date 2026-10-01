@@ -1,7 +1,7 @@
 {
   "schema_version": "faris-operating-history/v0.1",
   "horizon_s": 946728000,
-  "maximum_step_s": 1200,
+  "maximum_step_s": 600,
   "snapshot_interval_s": 86400,
   "initial_available_tritium_kg": 5,
   "initial_in_process_tritium_kg": 0,

@@ -1,0 +1,138 @@
+{
+  "data_identity": {
+    "cross_sections_xml_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "li6_neutron_hdf5_sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543",
+    "li_photon_hdf5_sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04",
+    "neutron_audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "photon_provenance_sha256": "465225601ab2e5a31bf8504610589bcde0e19e197e36b3030f104cbaddfadde6",
+    "provenance_status": "The NNDC download page and supplied ZIPs state no explicit license. These files remain local in the Git-ignored data/raw directory; do not redistribute absent rights confirmation. Preserve NNDC/ENDF-B-VII.1 attribution. The OpenMC Python conversion library is installed separately and is not bundled here."
+  },
+  "heating_energy_screen": {
+    "accepted_lower": 4775127.297048015,
+    "accepted_upper": 4795706.480068843,
+    "observed_heating_mean": 4783611.4678239385,
+    "physical_lower": 4784103.52637227,
+    "physical_upper": 4786730.250744588,
+    "relative_model_floor": 4785.4322629545995,
+    "sampling_expansion": 4190.797061300796
+  },
+  "idealized_model": {
+    "atom_density_atoms_per_barn_cm": 0.01,
+    "geometry": "vacuum-bounded sphere, radius 10cm",
+    "material": "pure Li6 only",
+    "numeric_cross_section_temperature_k": 293.59430848016336,
+    "physical_material_temperature_k": null,
+    "source_direction": "isotropic",
+    "source_location_cm": [
+      0,
+      0,
+      0
+    ],
+    "source_neutron_energy_ev": 0.0253
+  },
+  "independent_checker": {
+    "checks": {
+      "absorption_is_n_t_plus_n_gamma": true,
+      "all_particle_heat_is_neutron_plus_photon_heat": true,
+      "ame2020_and_endf_q_crosscheck": true,
+      "coupled_heating_in_conservative_energy_interval": true,
+      "h3_production_matches_n_t_events": true
+    },
+    "path": "controls/check_lithium_capture.py",
+    "result_sha256": "0f30b4a32b7f48057797aac330ba6b348c2ec69f54a7d34a93d6d64e7ab078c1",
+    "sha256": "4296e0a99924a2bd04f5925769a680ee583dc80f844024783552253c88842724",
+    "status": "PASS"
+  },
+  "limits_and_caveats": [
+    "All score means are source-normalized OpenMC responses; no fusion source rate or volume division is applied.",
+    "OpenMC standard errors and the three-standard-error screening are heuristic; no rigorous confidence level is asserted.",
+    "Li6(n,gamma) photon local deposition is bounded from zero to the full reaction Q; photon leakage energy is not tallied.",
+    "The control material atom density is an explicit numerical assumption and is not a physical FARIS material recipe.",
+    "A PASS verifies only these response identities and conservative bounds for this exact local library/model.",
+    "The 3-SE margins are conservative arithmetic screens, not rigorous confidence intervals; source draws are Monte Carlo estimators.",
+    "The cited NNDC source does not state a redistribution license; evaluated photon data and raw statepoint are not packaged."
+  ],
+  "local_record": {
+    "path": "runs/lithium-capture-control-final-001/control-result.json",
+    "record_retained_locally_ignored": true,
+    "sha256": "8195e634aff17a754fe29b0862994314fe11fc86ba106d2cad49b0d7c6147c3c"
+  },
+  "previous_limited_screen_status": "PASS",
+  "responses": {
+    "h3_production": {
+      "estimator": "tracklength",
+      "mean": 1.0003412063536519,
+      "score": "H3-production",
+      "standard_error": 0.00028233649235001937,
+      "unit": "tritium_particles/source_neutron"
+    },
+    "heating_neutron": {
+      "estimator": "collision",
+      "mean": 4783607.568607275,
+      "score": "heating",
+      "standard_error": 46.02417182699882,
+      "unit": "eV/source_neutron"
+    },
+    "heating_photon": {
+      "estimator": "collision",
+      "mean": 0.0001257499999996506,
+      "score": "heating",
+      "standard_error": 2.4653300535006528e-05,
+      "unit": "eV/source_neutron"
+    },
+    "heating_total": {
+      "estimator": "collision",
+      "mean": 4783611.4678239385,
+      "score": "heating",
+      "standard_error": 45.924704464085956,
+      "unit": "eV/source_neutron"
+    },
+    "n_gamma_reactions": {
+      "estimator": "tracklength",
+      "mean": 4.103935891277745e-05,
+      "score": "(n,gamma)",
+      "standard_error": 1.1582959053835069e-08,
+      "unit": "reactions/source_neutron"
+    },
+    "n_t_reactions": {
+      "estimator": "tracklength",
+      "mean": 1.0003412063536519,
+      "score": "(n,t)",
+      "standard_error": 0.00028233649235001937,
+      "unit": "reactions/source_neutron"
+    },
+    "neutron_absorption": {
+      "estimator": "tracklength",
+      "mean": 1.0003822457125635,
+      "score": "absorption",
+      "standard_error": 0.00028234807532162353,
+      "unit": "reactions/source_neutron"
+    }
+  },
+  "sampling": {
+    "batches": 100,
+    "limits": {
+      "address_space_per_process_bytes": 4294967296,
+      "file_size_bytes": 268435456,
+      "output_file_count": 256,
+      "output_tree_bytes": 536870912
+    },
+    "nominal_histories": 10000000,
+    "particles_per_batch": 100000,
+    "seed": 20261001,
+    "threads": 8,
+    "timeout_seconds": 600,
+    "wall_seconds": 38.153090475010686
+  },
+  "schema_version": "faris.li6-thermal-coupled-control-verification/v0.1",
+  "scope": "Preserved historical limited screen only; do not use for current acceptance.",
+  "solver": {
+    "executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+    "name": "OpenMC",
+    "script_sha256": "ac8932d717821173008f4efa446d1818832ce69aef65b09b24a065c9072692e2",
+    "version": "0.15.3"
+  },
+  "status": "SUPERSEDED",
+  "superseded_by": "references/lithium-capture-control-verification.json (to be replaced by the rerun with neutron, photon, electron and positron scopes)",
+  "superseded_reason": "The earlier component closure omitted explicit electron and positron deposition tallies. Although its aggregate tolerance accepted the discrepancy, it did not provide a complete particle-scope partition of the directly scored all-particle heating."
+}

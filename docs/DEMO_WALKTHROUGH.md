@@ -174,7 +174,10 @@ remains open.
 
 After corrected reference/breeder runs exist for both the feature-free control
 and finite-port scenarios, and both port-volume reports bind to the exact port
-run/artifact, create the portable four-run hash-indexed package:
+run/artifact, create the portable four-run hash-indexed package. For each port
+run, the packager also requires the worker's OpenMC geometry-ownership audit to
+pass all plasma, clearance, and component probes, and checks that every sampled
+port intersection is confirmed void in the final geometry:
 
 ```bash
 python3 scripts/package_recorded_demo.py \
@@ -193,10 +196,14 @@ python3 scripts/package_recorded_demo.py \
 ```
 
 The packager checks all four scenario/run identities and normalized heating/H3
-responses, requires port geometry reports to bind to each raw artifact, generates
+responses, requires port geometry reports to bind to each raw artifact, archives
+the exact worker ownership and void-confirmation audits with their input/run/
+artifact hashes, generates
 the complete study selection, prepares each Core case, runs the real Core
 workflow, invokes Core's verified `export` for each case, and records its receipts/reports and the four portable
-`RecordedTransportBundle` JSON files. It writes a SHA-256 index and refuses an
+`RecordedTransportBundle` JSON files. It also reopens each prepared case with
+`faris evidence inspect` and stores the identity-revalidation report beside the
+package. It writes a SHA-256 index and refuses an
 existing output directory. It excludes statepoints, HDF5, ENDF, ZIPs, and
 nuclear-data files; recipients need compatible external data for fresh runs.
 Recorded results remain inspectable offline, but identity checks and Core
@@ -224,3 +231,21 @@ case package and stage files and shows the original scenario/variant and Core
 states. It does not attach saved results to a newly selected scenario; unsigned
 digests establish identity consistency only, not record authenticity or physical
 qualification.
+
+After copying the package to another directory or machine, rehash its index and
+reopen all four saved Core cases against the same pinned FARIS and Core
+executables. This command creates an unchanged relocated copy, runs each
+`faris evidence inspect`, then makes a separate temporary tampered copy and
+checks that its modified indexed file is rejected. The original package and
+the relocated copy remain untouched by the negative control:
+
+```bash
+python3 scripts/verify_recorded_demo.py \
+  --package demo/recorded-study \
+  --relocated-copy /tmp/faris-recorded-study-relocated \
+  --faris target/release/faris \
+  --core /path/to/avila-core
+```
+
+The verifier reports `EXPECTED_REJECTION` for the deliberately changed copy;
+it does not treat matching hashes as authenticity or scientific qualification.

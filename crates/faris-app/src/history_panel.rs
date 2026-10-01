@@ -506,7 +506,9 @@ impl HistoryPanel {
                     snapshot.power_fraction * 100.0
                 ));
                 if let Some(value) = snapshot.instantaneous_transport_recovered_heat_mw {
-                    ui.small(format!("Nuclear heat recovered {value:.1} MW"));
+                    ui.small(format!(
+                        "Assumed recovered transport-tally heat {value:.1} MW"
+                    ));
                 }
                 if let Some(value) = snapshot.instantaneous_alpha_recovered_heat_mw {
                     ui.small(format!("Alpha heat {value:.1} MW"));
