@@ -7,7 +7,7 @@ supply, operating history, and maintenance affect one another over its life.
 It will combine existing open-source scientific tools with new models where
 the chosen research question exposes a gap.
 
-The first target is a narrow native desktop demo: one ARC-inspired compact
+The first demo explores one ARC-inspired compact
 D-T tokamak, two blanket/shield arrangements, and a shared 3D scene. The app
 uses **egui/eframe for the interface and wgpu for the 3D viewport**, with an
 outliner, component inspector, central viewport, and timeline inspired by
@@ -49,7 +49,10 @@ Blender's workspace layout.
 - An identified ITER_1D execution reference; code-to-code comparison remains
   unavailable without traceable reference responses.
 
-**Final demo delivery and native acceptance are in progress.** The default scene
+**The scoped functional demo is complete on the recorded Linux workstation.**
+Its four corrected coupled transport cases, conservative histories, real Core
+receipts, portable exports, and native controls have recorded acceptance evidence.
+The default scene
 is a geometry preview; the recorded-study launcher opens calculated transport,
 histories and verified Core evidence together.
 Activation and physical degradation models remain outside the demo. Fuel,
@@ -60,11 +63,10 @@ completed transport. Material colors identify layers; calculated field modes
 are labeled separately. The bundled starting scenario has unassigned materials. The idealized circular
 tori and magnet envelope do not reproduce the published ARC engineering design.
 
-![Native component-flux view of recorded cold-reference results](docs/images/cold-reference-component-flux.png)
+![Native corrected coupled workspace with verified Core execution and calculated history](docs/images/demo-coupled-core-workspace.png)
 
-The image above is an earlier neutron-only increment, superseded as reactor
-evidence after a first-wall clearance defect was found. The corrected coupled
-campaign and continuous delayed-release history controls are recorded in
+The image shows the corrected finite-port reference case and an actual native
+Core execution. The coupled campaign and continuous delayed-release controls are recorded in
 [current demo acceptance](docs/DEMO_ACCEPTANCE.md),
 [transport refinement](references/transport-refinement-results.json), and
 [history verification](docs/OPERATING_HISTORY.md).
@@ -73,6 +75,20 @@ The resolved port-window comparison is a declared mixed-volume spatial average,
 not a magnet peak or a qualified plant prediction. Neither the remaining local
 map uncertainty nor nuclear-data and engineering qualification gaps are hidden
 by a successful run or Core receipt.
+
+The local recorded distribution opens all four cases without OpenMC or nuclear
+data. From this repository, run:
+
+```bash
+dist/FARIS-demo-2026-10-01/verify.sh
+dist/FARIS-demo-2026-10-01/launch.sh
+```
+
+The distribution lives in ignored `dist/`; source and verification metadata are
+on GitHub. Follow the [walkthrough](docs/DEMO_WALKTHROUGH.md) to create or explore
+it, and inspect [native acceptance evidence](references/native-demo-verification.json).
+Measured orbit/history-scrub throughput was 89.33 egui frames/s on X11 and
+62.07 on Wayland; these are measured UI frame rates, not GPU presentation rates.
 
 ## Run the desktop
 

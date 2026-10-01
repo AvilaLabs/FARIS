@@ -1,0 +1,266 @@
+{
+  "schema_version": "faris-native-demo-verification/v0.1",
+  "recorded_at_utc": "2026-10-01",
+  "status": "SCOPED_FUNCTIONAL_NUMERICAL_DEMO_COMPLETE_PHYSICAL_QUALIFICATION_NOT_EVALUATED",
+  "distribution": {
+    "path": "dist/FARIS-demo-2026-10-01",
+    "package_index_sha256": "dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+    "source_commit": "a7530af92ad1234ab6df42419c4643ee7bf7d398",
+    "indexed_files": 181,
+    "indexed_bytes": 465995550,
+    "expanded_core_bytes": 803549595,
+    "final_post_check_index_inventory": "PASS; all indexed file sizes and SHA-256 values rechecked after native tests"
+  },
+  "binaries": {
+    "faris_app": "2bc7a57c859e9ce4fd592190697a0363a6acf778fa6b7ed6aba8ea0a25a2a931",
+    "faris_cli": "240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+    "avila_core": "fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397"
+  },
+  "host": {
+    "os": "Linux x86_64",
+    "cpu": "Intel Core i3-N305",
+    "logical_cpus": 8,
+    "ram": "30 GiB reported usable",
+    "graphics": "Intel ADL-N integrated graphics, Vulkan, Mesa 26.0.8-1ubuntu0.3",
+    "rust_toolchain": "1.98.1"
+  },
+  "checks": [
+    {
+      "name": "explore",
+      "status": "PASS",
+      "checkpoint_count": 23,
+      "plan": "references/native-demo-checks/2026-10-01/explore-plan.json",
+      "plan_sha256": "0fdfbca857e1f923d70ed5041d1cf474efb7dbb89112a35a6627d58cff98484b",
+      "report": "references/native-demo-checks/2026-10-01/explore-report.json",
+      "report_sha256": "dfa1692eb85d96c8da7b0d0071130476b84e4c5e25c07ddf3e9004bf9b1a9abe"
+    },
+    {
+      "name": "events",
+      "status": "PASS",
+      "checkpoint_count": 8,
+      "plan": "references/native-demo-checks/2026-10-01/events-plan.json",
+      "plan_sha256": "e6d469d63a52d7af4076ccbc8f4f98b4d68db049f502302320aa151eab4d0596",
+      "report": "references/native-demo-checks/2026-10-01/events-report.json",
+      "report_sha256": "4d10e0a86f4fd822a19c1b8d06cf5c0c9e1b697ee47b9775f5702283414cf46e"
+    },
+    {
+      "name": "sensitivity",
+      "status": "PASS",
+      "checkpoint_count": 3,
+      "plan": "references/native-demo-checks/2026-10-01/sensitivity-plan.json",
+      "plan_sha256": "06437508353e090b94e883ff45ab1e05e7884828caffdad6486726ae3b36a182",
+      "report": "references/native-demo-checks/2026-10-01/sensitivity-report.json",
+      "report_sha256": "7458338366a50870d33788caa42dfa9656390faf638e2a4c41c205f244185b41"
+    },
+    {
+      "name": "minimum-scale-keyboard",
+      "status": "PASS",
+      "checkpoint_count": 5,
+      "plan": "references/native-demo-checks/2026-10-01/minimum-scale-keyboard-plan.json",
+      "plan_sha256": "1d92adcb290eb9e2cc94acef5c9aa4a05d80d1c39917922551dde48cae0e54d9",
+      "report": "references/native-demo-checks/2026-10-01/minimum-scale-keyboard-report.json",
+      "report_sha256": "4c0fc094a7a5617f7cc76768a94cf09ee233612d44aeefb2b95a0b874a6c4538"
+    },
+    {
+      "name": "cancel",
+      "status": "PASS",
+      "checkpoint_count": 4,
+      "plan": "references/native-demo-checks/2026-10-01/cancel-plan.json",
+      "plan_sha256": "6ce1d2e9fde42b1d9a146c47803a5440370f3477c669ae05522a954f600c9f24",
+      "report": "references/native-demo-checks/2026-10-01/cancel-report.json",
+      "report_sha256": "b2d0b10119ae780fe26ef98a2281007dcde84850f3424a177e64fbbbcb8f788c"
+    },
+    {
+      "name": "missing-openmc",
+      "status": "PASS",
+      "checkpoint_count": 1,
+      "plan": "references/native-demo-checks/2026-10-01/missing-openmc-plan.json",
+      "plan_sha256": "edcfbde60a5059a8cc817dc71d1104e70bbb1750bb73a27c466c669c4808d36f",
+      "report": "references/native-demo-checks/2026-10-01/missing-openmc-report.json",
+      "report_sha256": "4f50949c9080258910424f5e05f2e47e0fd07cd3ddadc1d522b20a6caac6374d"
+    },
+    {
+      "name": "missing-core",
+      "status": "PASS",
+      "checkpoint_count": 1,
+      "plan": "references/native-demo-checks/2026-10-01/missing-core-plan.json",
+      "plan_sha256": "53641ccd357d71cd418fb1e66c7e57bda894aa8bdaaa655660936e69b377042c",
+      "report": "references/native-demo-checks/2026-10-01/missing-core-report.json",
+      "report_sha256": "279fe17f84d94859235db969403ff2ca3fe63465aa7b89418ae4e2ab5bd203ed"
+    },
+    {
+      "name": "fresh-native-core",
+      "status": "PASS",
+      "checkpoint_count": 3,
+      "plan": "references/native-demo-checks/2026-10-01/evidence-plan.json",
+      "plan_sha256": "d77bb76339c08eff7f82c05f28cec4b21230a5f81479d1a3386da2fe4e45cbe3",
+      "report": "references/native-demo-checks/2026-10-01/evidence-report.json",
+      "report_sha256": "c4cfb88aa783711ef25d5dfa2fc48b1855cff42b51d9a5b6bf6ec06a0e44b440"
+    },
+    {
+      "name": "numeric-edit-recalculation",
+      "status": "PASS",
+      "checkpoint_count": 5,
+      "plan": "references/native-demo-checks/2026-10-01/recalculation.plan.json",
+      "plan_sha256": "1c3c4b49eec8c8e21d834aca48d6c6a5c9f193071aba667fb776ccea573b8d5a",
+      "report": "references/native-demo-checks/2026-10-01/recalculation.report.json",
+      "report_sha256": "e01cf85159f1c6fd1a0927a097df33afffa2e05347ed06cc548e73ee1a8c7c53"
+    }
+  ],
+  "performance": [
+    {
+      "window_system": "x11",
+      "receipt": "references/native-demo-checks/2026-10-01/benchmark-x11.json",
+      "receipt_sha256": "fe443405a8e435460708e31e679c5ff5af6f7d9147c0c2311ad1ef63a8516575",
+      "first_ui_frame_from_launcher_invocation_s": 4.225095152040012,
+      "frame_profile": {
+        "elapsed_seconds": 12.010994965,
+        "first_measured_frame_seconds": 10.405407529,
+        "interval_count": 1073,
+        "mean_frames_per_second": 89.33481390398701,
+        "measurement": "egui frame throughput; not GPU presentation FPS",
+        "orbit_and_scrub": true,
+        "p95_frame_interval_ms": 11.882553,
+        "pixels_per_point": 1.0,
+        "schema_version": "faris-native-frame-benchmark/v0.1",
+        "window_points": [
+          1440.0,
+          900.0
+        ]
+      }
+    },
+    {
+      "window_system": "wayland",
+      "receipt": "references/native-demo-checks/2026-10-01/benchmark-wayland.json",
+      "receipt_sha256": "343aa2d5428cb57548cc84bcf6c3ec9ec9b1a2552a1e6fcdc01e08e994488827",
+      "first_ui_frame_from_launcher_invocation_s": 3.6366599070024677,
+      "frame_profile": {
+        "elapsed_seconds": 12.003095036,
+        "first_measured_frame_seconds": 10.737899104,
+        "interval_count": 745,
+        "mean_frames_per_second": 62.06732494957145,
+        "measurement": "egui frame throughput; not GPU presentation FPS",
+        "orbit_and_scrub": true,
+        "p95_frame_interval_ms": 22.596971,
+        "pixels_per_point": 1.6666666269302368,
+        "schema_version": "faris-native-frame-benchmark/v0.1",
+        "window_points": [
+          1260.0,
+          840.0
+        ]
+      }
+    }
+  ],
+  "startup": {
+    "receipt": "references/native-demo-checks/2026-10-01/launch-timing.json",
+    "receipt_sha256": "60041e1db79fc764a2f96adcea4a00731f04a1470f56a2e3bebe3fd076479798",
+    "first_ui_frame_from_launcher_invocation_s": 2.920476059021894,
+    "core_materialization_s": 4.371,
+    "measurement_limit": "Kernel filesystem caches not cleared; evidence extraction continues after the usable scene appears."
+  },
+  "independent_native_display_replay": {
+    "event_snapshots": "references/native-demo-checks/2026-10-01/event-history-replay.json",
+    "event_snapshot_receipt_sha256": "b2b653dbab123ce4e6932d3d2256ff713d79af32d7c4b9e0b312993303da179d",
+    "edited_history": "references/native-demo-checks/2026-10-01/edited-history-replay.json",
+    "edited_history_receipt_sha256": "45b5c6673d2acc38b03d31a3b80054a823afc942af369e2a0b4fcbd2fe200fd7",
+    "edit": "Opening usable tritium 5 to 6 kg on one recorded port/reference case; observed stale retained history, pending recalculation, current replacement, then independent packaged CLI replay."
+  },
+  "sensitivity": {
+    "native_port_reference_sha256": "09e0b11766c522116b344060035920129e5557732db0e1ea7d5938f987e9b41c",
+    "packaged_port_reference_sha256": "09e0b11766c522116b344060035920129e5557732db0e1ea7d5938f987e9b41c",
+    "scope": "27 actual Rust history reruns on the native current port/reference case; same bytes as the packaged CLI result; authored scenario grid, not probabilistic uncertainty."
+  },
+  "fresh_native_core": {
+    "inspection": "references/native-demo-checks/2026-10-01/core-reopen.json",
+    "inspection_sha256": "a4733c821b2871fbf72855b30b9be739aa3fd1c6b5c741d08021957ccfe2cae3",
+    "case_id": "FARIS-arc-cold-reference-port-001-reference",
+    "case_directory": "runs/demo-native-qa/core-evidence-1790852307355580053",
+    "reinspection_after_app_exit": "PASS",
+    "receipt_count": 4,
+    "stage_input_count": 12,
+    "stage_output_count": 4,
+    "log_count": 8,
+    "scope": "One newly executed native port/reference Core case. Transport stage revalidates recorded OpenMC data; normalize/history/energy execute the actual Rust stages. Separately, all four saved package cases were revalidated on relocation."
+  },
+  "cancellation": {
+    "report_path": "references/native-demo-checks/2026-10-01/cancel-report.json",
+    "report_sha256": "b2d0b10119ae780fe26ef98a2281007dcde84850f3424a177e64fbbbcb8f788c",
+    "run_acknowledgement_upper_bound_s": 0.200295495,
+    "cancel_acknowledgement_upper_bound_s": 0.205775962,
+    "prior_completed_result_retained": true,
+    "cancelled_result_normalized": false,
+    "input_scope": "native egui raw_input_hook; OS routing not verified"
+  },
+  "supporting_evidence": [
+    {
+      "path": "references/portable-demo-verification.json",
+      "sha256": "42371a0b917aa37be86c55c27bd5ce485e2c255f75b8a9d55748dc6e7bf2e68e"
+    },
+    {
+      "path": "references/portable-history-comparison-verification.json",
+      "sha256": "481240f941e48b28756c6605c803923aa0840c22cb53d82e61130362f8e400a2"
+    },
+    {
+      "path": "references/transport-refinement-results.json",
+      "sha256": "d97529dd2aea5fec953fe1bb00f8915adf3189e0f58b66e11834db0086bc259d"
+    },
+    {
+      "path": "references/operating-history-primary-refinement-v3.json",
+      "sha256": "87d07a3b8c85a300f462a9055527a1c45bd2f8515444638b764bc63d6fb72c68"
+    },
+    {
+      "path": "references/core-integration-controls-final.json",
+      "sha256": "4be659b1c3d59696e66fd86ffb8ddc4271fb806cab38df14eb50695c4379c616"
+    },
+    {
+      "path": "references/demo-workstation-resource-envelope.json",
+      "sha256": "753f3fc43c8a1fca6d2562f3d6bc8011cfbed0362582e54c59d1498e962841a9"
+    }
+  ],
+  "native_captures": [
+    {
+      "path": "docs/images/demo-coupled-core-workspace.png",
+      "sha256": "f08bd80e311ff8e9a668bdb83ed96913a3f5a0bb527535fac61341997f51aafc",
+      "bytes": 772202,
+      "capture": "Unmodified native wgpu output from the final packaged executable."
+    },
+    {
+      "path": "docs/images/demo-coupled-flux-slice.png",
+      "sha256": "30d8ad70fe0cb8d81355681533e0914b6d76c19a2bdaa50cc87b1ef53c507b2e",
+      "bytes": 698048,
+      "capture": "Unmodified native wgpu output from the final packaged executable."
+    },
+    {
+      "path": "docs/images/demo-history-recalculation.png",
+      "sha256": "65c76720491323cd17f06715948a74868c22bc376c98f65f0c90116afbb39e10",
+      "bytes": 386005,
+      "capture": "Unmodified native wgpu output from the final packaged executable."
+    },
+    {
+      "path": "docs/images/demo-history-events.png",
+      "sha256": "f5c95ffe7da2b8b39956786e49004c312c1c59d3f3f7b34e7c11d72148529798",
+      "bytes": 700021,
+      "capture": "Unmodified native wgpu output from the final packaged executable."
+    },
+    {
+      "path": "docs/images/demo-sensitivity.png",
+      "sha256": "b6831f435782c9c78cc4413e35036cf7152bc91490bfa8a2c31d336ea3a8600e",
+      "bytes": 777972,
+      "capture": "Unmodified native wgpu output from the final packaged executable."
+    }
+  ],
+  "input_delivery_scope": "Bounded development plans pass pointer/keyboard events through eframe raw_input_hook to actual native egui controls; real external workers execute. OS pointer/keyboard routing is not established by these tests.",
+  "rejected_acceptance_attempts": [
+    "Initial canonical launch exhausted the shared /tmp quota during Core extraction; it was not counted as a completed Core walkthrough. Retest used a private workspace TMPDIR and passed.",
+    "Numeric-edit automation trials that missed controls as the sidebar resized/scrolled were rejected; the final settled single-case plan and all expected state transitions passed.",
+    "XTest OS input injection did not reliably route subsequent pointer/numeric events on this desktop; it contributes no OS-routing acceptance claim.",
+    "Earlier exact minimum-size assertions missed fractional display rounding; final checks record actual points and reachable controls."
+  ],
+  "limits": [
+    "Physical qualification, response-specific external reactor validation, material operating-state applicability, authenticated neutron-data acquisition, source-to-heating plus nuclear-Q closure, and engineering service limits remain NOT_EVALUATED or unresolved.",
+    "Local sampling targets remain missed for 5133\u20135236 of6925 checks; fine/coarse diagnostics do not establish spatial convergence. A narrowly scored port window has only its stated sampling screen.",
+    "Histories/comparisons use fixed sampled means; no propagated response uncertainty/covariance, lifetime confidence bound, safety result, or design ranking.",
+    "The measurements cover this one Linux workstation and these display configurations; no second-host, cross-platform, GPU presentation-rate, measured production peak-RSS, or bit-identical build claim.",
+    "Portable hashes and unsigned Core receipts establish identity and replay consistency, not authenticity. Nuclear data/statepoints are excluded; fresh transport requires the separately documented local data/tools."
+  ]
+}

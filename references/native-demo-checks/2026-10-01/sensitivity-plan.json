@@ -1,0 +1,84 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "move",
+      "x": 100,
+      "y": 450
+    },
+    {
+      "time_s": 0.7,
+      "type": "scroll",
+      "x": 0,
+      "y": -500
+    },
+    {
+      "time_s": 2,
+      "type": "button",
+      "x": 80,
+      "y": 512,
+      "pressed": true
+    },
+    {
+      "time_s": 2.15,
+      "type": "button",
+      "x": 80,
+      "y": 512,
+      "pressed": false
+    },
+    {
+      "time_s": 2.7,
+      "type": "move",
+      "x": 100,
+      "y": 500
+    },
+    {
+      "time_s": 2.9,
+      "type": "scroll",
+      "x": 0,
+      "y": -300
+    },
+    {
+      "time_s": 4,
+      "type": "checkpoint",
+      "name": "sensitivity action scrolled into view",
+      "expected": {}
+    },
+    {
+      "time_s": 4.5,
+      "type": "button",
+      "x": 100,
+      "y": 500,
+      "pressed": true
+    },
+    {
+      "time_s": 4.65,
+      "type": "button",
+      "x": 100,
+      "y": 500,
+      "pressed": false
+    },
+    {
+      "time_s": 4.85,
+      "type": "checkpoint",
+      "name": "native sensitivity worker acknowledged",
+      "expected": {
+        "/history_controls/sensitivity_pending": true
+      }
+    },
+    {
+      "time_s": 60,
+      "type": "checkpoint",
+      "name": "native 27-point result exactly matches packaged CLI bytes",
+      "expected": {
+        "/history_controls/sensitivity_pending": false,
+        "/history_controls/sensitivity_status": "current",
+        "/history_controls/sensitivity_point_count": 27,
+        "/history_controls/sensitivity_result_sha256": "09e0b11766c522116b344060035920129e5557732db0e1ea7d5938f987e9b41c",
+        "/history_controls/sensitivity_assumptions_match": true,
+        "/history_controls/sensitivity_transport_matches": true
+      }
+    }
+  ]
+}

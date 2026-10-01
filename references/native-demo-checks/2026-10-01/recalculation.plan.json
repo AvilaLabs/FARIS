@@ -1,0 +1,134 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "single recorded case ready",
+      "expected": {
+        "/history_loaded": true
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "move",
+      "x": 100,
+      "y": 400
+    },
+    {
+      "time_s": 0.7,
+      "type": "scroll",
+      "x": 0,
+      "y": -1000
+    },
+    {
+      "time_s": 2.1,
+      "type": "button",
+      "x": 80,
+      "y": 553,
+      "pressed": true
+    },
+    {
+      "time_s": 2.25,
+      "type": "button",
+      "x": 80,
+      "y": 553,
+      "pressed": false
+    },
+    {
+      "time_s": 3,
+      "type": "checkpoint",
+      "name": "single-case operating inputs exposed",
+      "expected": {}
+    },
+    {
+      "time_s": 8.5,
+      "type": "button",
+      "x": 195,
+      "y": 573,
+      "pressed": true
+    },
+    {
+      "time_s": 8.65,
+      "type": "button",
+      "x": 195,
+      "y": 573,
+      "pressed": false
+    },
+    {
+      "time_s": 9,
+      "type": "key",
+      "key": "A",
+      "pressed": true,
+      "control": true
+    },
+    {
+      "time_s": 9.05,
+      "type": "key",
+      "key": "A",
+      "pressed": false,
+      "control": true
+    },
+    {
+      "time_s": 9.2,
+      "type": "text",
+      "text": "6.0"
+    },
+    {
+      "time_s": 9.4,
+      "type": "key",
+      "key": "Enter",
+      "pressed": true
+    },
+    {
+      "time_s": 9.45,
+      "type": "key",
+      "key": "Enter",
+      "pressed": false
+    },
+    {
+      "time_s": 10,
+      "type": "checkpoint",
+      "name": "opening inventory edit marks retained history stale",
+      "expected": {
+        "/history_controls/current_assumptions/initial_available_tritium_kg": 6.0,
+        "/history_stale": true,
+        "/history_loaded": true
+      }
+    },
+    {
+      "time_s": 11,
+      "type": "button",
+      "x": 85,
+      "y": 639,
+      "pressed": true
+    },
+    {
+      "time_s": 11.15,
+      "type": "button",
+      "x": 85,
+      "y": 639,
+      "pressed": false
+    },
+    {
+      "time_s": 11.25,
+      "type": "checkpoint",
+      "name": "edited history recalculation acknowledged",
+      "expected": {
+        "/history_pending": true
+      }
+    },
+    {
+      "time_s": 25,
+      "type": "checkpoint",
+      "name": "edited inventory has current recalculated history",
+      "expected": {
+        "/history_pending": false,
+        "/history_stale": false,
+        "/history_controls/current_assumptions/initial_available_tritium_kg": 6.0,
+        "/history_controls/history_assumptions_match": true,
+        "/history_controls/history_transport_matches": true
+      }
+    }
+  ]
+}

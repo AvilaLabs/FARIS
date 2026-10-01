@@ -1,15 +1,20 @@
 # FARIS functional demo roadmap
 
-Status: active implementation and acceptance tracking, 2026-10-01. This document covers the first demo only.
-Requirements describe the target; they do not claim implemented features.
+Status: scoped functional/numerical demo complete on the named Linux workstation,
+2026-10-01. This document covers the first demo only.
 The implementation now includes coupled neutron/photon transport, component
 spectra and direct heating scores, a conservative Rust fuel/event/energy ledger,
 actual Core stage execution and receipt verification, saved-study reopening,
 and native field/history presentation. The [acceptance matrix](DEMO_ACCEPTANCE.md)
-tracks current evidence and the remaining requirements. The four corrected
+tracks the evidence and scientific limits. The four corrected
 primary runs, port-volume checks, sampling/spatial diagnostics and independent
-history refinement controls are complete. Final paired comparisons/sensitivity,
-portable packaging and the complete native walkthrough are still in progress.
+history refinement controls are complete. Paired comparisons, authored
+sensitivities, twelve outage-duration probes, portable packaging, actual Core
+execution/reopening, and the native walkthrough are verified. Completion is
+within the declared cold numerical boundary; it does not assert that unqualified
+physical claims or unmet local precision/convergence targets have passed.
+The [native verification record](../references/native-demo-verification.json)
+binds the final checks to the delivered binaries and package index.
 
 An independent volume check exposed a first-wall clearance error in the earlier
 transport geometry. Those runs and their derived histories are preserved as
@@ -31,12 +36,12 @@ Core receipts do not turn them into physical passes.
 | --- | --- |
 | M0 | Complete: starting capabilities and demo boundary recorded |
 | M1 | Complete within the declared cold numerical boundary: frozen materials/data/source, authored operating inputs and response applicability limits |
-| M2 | Typed transport/history/evidence formats, bounded workers, dependencies and actual Core compilation implemented and tested |
+| M2 | Complete: typed transport/history/evidence formats, bounded workers, dependencies, actual Core compilation, and native cancellation verified |
 | M3 | Corrected coupled primary cases and independent normalization/capture controls complete; physical qualification explicitly NOT_EVALUATED |
-| M4 | Corrected port/control ownership and volumes verified; sampling/window and fine/coarse diagnostics complete with restricted local-map conclusions; final native presentation checks pending |
-| M5 | Continuous delayed release, conservation, service events and signed energy verified at 600/500/250 s for all four primary drivers; final paired/sensitivity package pending |
-| M6 | Four-stage Core execution verified on a coupled smoke case; saved receipt reopening implemented; final cases for both allocations/control still pending |
-| M7 | Optimized native binary built and preliminary performance measured; final package, complete walkthrough and launch remain |
+| M4 | Complete within the scoped spatial boundary: corrected ownership/volumes, sampling/window and fine/coarse diagnostics, calculated fields, picking and native presentation verified; local-map convergence remains NOT_EVALUATED |
+| M5 | Complete within the deterministic numerical boundary: all four drivers verified at 600/500/250 s, independent conservation/event/energy checks, paired comparisons, 27-point reruns and outage-duration probes |
+| M6 | Complete: all four genuine Core cases verified and reopened after relocation; fresh native four-stage execution re-inspected after app exit; scoped findings, dependency/edit flow and CLI replay verified |
+| M7 | Complete on the named workstation: final indexed distribution, native walkthrough, supported input edit/recalculation, real solver cancellation/recovery, exports and measured startup/frame throughput; physical qualification and second-host execution remain unevaluated |
 
 ## The result we are building
 
@@ -454,7 +459,7 @@ The demo is complete when those actions work with real data and the requirements
 above have supporting evidence. A good-looking reactor, a compiled contract,
 handwritten curves, or an untraceable solver output alone is insufficient.
 
-## Immediate work after this roadmap
+## Original implementation sequence (completed within the declared demo boundary)
 
 1. Resolve M1's reference/material/data/source choices and define acceptance
    targets for the specific responses we will show.

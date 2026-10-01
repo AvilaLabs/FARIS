@@ -1,0 +1,65 @@
+{
+  "schema_version": "faris-final-native-error-recovery-command-plan/v0.1",
+  "app_sha256": "sha256:2bc7a57c859e9ce4fd592190697a0363a6acf778fa6b7ed6aba8ea0a25a2a931",
+  "scenario_mode": "Standalone control reference bundle; no --assumptions or matched control is supplied. All GUI checks have --capture and should be run with an external timeout.",
+  "commands": {
+    "missing_openmc": {
+      "timeout_seconds": 90,
+      "argv": [
+        "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/bin/faris-app",
+        "--bundle",
+        "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/control/bundles/reference.transport-bundle.json",
+        "--window-width",
+        "1260",
+        "--window-height",
+        "840",
+        "--interface-scale",
+        "1",
+        "--runs-directory",
+        "/tmp/faris-final-recovery-runs-openmc",
+        "--interface-check-output",
+        "/tmp/faris-canonical-final-missing-openmc-report.json",
+        "--capture",
+        "/tmp/faris-canonical-final-missing-openmc.png",
+        "--core",
+        "/tmp/faris-demo-avila-core",
+        "--python",
+        "/usr/bin/python3",
+        "--openmc",
+        "/tmp/faris-deliberately-missing-openmc",
+        "--audit",
+        "/home/connoravila/Documents/Avila-Labs/project-faris/references/openmc-library-audit.json",
+        "--cross-sections",
+        "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/combined-fendl32-endfbvii1/cross_sections.xml",
+        "--interface-check",
+        "/tmp/faris-canonical-final-missing-openmc-plan.json"
+      ],
+      "plan": "/tmp/faris-canonical-final-missing-openmc-plan.json"
+    },
+    "missing_core": {
+      "timeout_seconds": 90,
+      "argv": [
+        "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/bin/faris-app",
+        "--bundle",
+        "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/control/bundles/reference.transport-bundle.json",
+        "--window-width",
+        "1260",
+        "--window-height",
+        "840",
+        "--interface-scale",
+        "1",
+        "--runs-directory",
+        "/tmp/faris-final-recovery-runs-core",
+        "--interface-check-output",
+        "/tmp/faris-canonical-final-missing-core-report.json",
+        "--capture",
+        "/tmp/faris-canonical-final-missing-core.png",
+        "--core",
+        "/tmp/faris-deliberately-missing-avila-core",
+        "--interface-check",
+        "/tmp/faris-canonical-final-missing-core-plan.json"
+      ],
+      "plan": "/tmp/faris-canonical-final-missing-core-plan.json"
+    }
+  }
+}

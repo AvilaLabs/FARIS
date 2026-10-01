@@ -1,0 +1,81 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "move",
+      "x": 100,
+      "y": 450
+    },
+    {
+      "time_s": 0.7,
+      "type": "scroll",
+      "x": 0,
+      "y": -500
+    },
+    {
+      "time_s": 2,
+      "type": "button",
+      "x": 80,
+      "y": 534,
+      "pressed": true
+    },
+    {
+      "time_s": 2.15,
+      "type": "button",
+      "x": 80,
+      "y": 534,
+      "pressed": false
+    },
+    {
+      "time_s": 2.5,
+      "type": "move",
+      "x": 100,
+      "y": 450
+    },
+    {
+      "time_s": 2.7,
+      "type": "scroll",
+      "x": 0,
+      "y": -200
+    },
+    {
+      "time_s": 4,
+      "type": "checkpoint",
+      "name": "actual native Core execution controls",
+      "expected": {}
+    },
+    {
+      "time_s": 4.5,
+      "type": "button",
+      "x": 100,
+      "y": 490,
+      "pressed": true
+    },
+    {
+      "time_s": 4.65,
+      "type": "button",
+      "x": 100,
+      "y": 490,
+      "pressed": false
+    },
+    {
+      "time_s": 4.85,
+      "type": "checkpoint",
+      "name": "native Core worker starts",
+      "expected": {
+        "/core/evidence_pending": true
+      }
+    },
+    {
+      "time_s": 30,
+      "type": "checkpoint",
+      "name": "native Core stages executed and receipts verified",
+      "expected": {
+        "/core/evidence_pending": false,
+        "/core/evidence_completed": true,
+        "/core/has_error": false
+      }
+    }
+  ]
+}

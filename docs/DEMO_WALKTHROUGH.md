@@ -6,9 +6,11 @@ prediction. The corrected campaign contains four million-history coupled runs wi
 geometry/data identities. Earlier neutron-only and incorrect-clearance runs
 remain superseded diagnostics, and must not supply final reactor conclusions.
 
-The offline distribution is being finalized at
-`dist/FARIS-demo-2026-10-01`. Once its verification receipt is recorded, the
-short native demonstration is:
+The verified local offline distribution is at
+`dist/FARIS-demo-2026-10-01`. Its exact index and final native checks are recorded
+in [portable verification](../references/portable-demo-verification.json) and
+[native verification](../references/native-demo-verification.json).
+The short native demonstration is:
 
 1. Run the distribution's `verify.sh`, then `launch.sh`. No OpenMC installation
    or nuclear data is needed for recorded exploration.
@@ -305,6 +307,28 @@ fresh-run records default to `$XDG_STATE_HOME/faris/recorded-demo-runs/<package-
 `--runs-directory /path/outside/the/distribution` to choose another output root.
 The launcher refuses a run directory inside the distribution and suppresses
 Python bytecode writes there.
+
+On a workstation with a small temporary-directory quota, choose a private
+temporary root on a volume with room for the 803,549,595 expanded Core bytes.
+This uses Python's standard `TMPDIR`; it preserves the indexed packet:
+
+```bash
+mkdir -p runs/demo-native-temporary
+chmod 700 runs/demo-native-temporary
+TMPDIR="$PWD/runs/demo-native-temporary" \
+  dist/FARIS-demo-2026-10-01/launch.sh \
+  --runs-directory "$PWD/runs/demo-native"
+```
+
+For the native **Run transport** action, supply the documented Python/OpenMC
+executables, nuclear-data audit and cross-sections XML. When loading recorded
+bundles, reuse their bound physics inputs; omit `--physics` and
+`--control-physics` overrides unless they match those identities exactly.
+The identity guard rejects mismatched inputs before calculation. Missing tools,
+genuine OpenMC cancellation, stale-history recovery, and numeric editing were
+checked on the delivered binary. Those bounded checks use egui's native input
+hook; OS input injection and a fresh run on a second installation were not
+verified.
 
 Open the port arrangement and its feature-free control from that package with:
 

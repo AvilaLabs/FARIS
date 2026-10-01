@@ -1,0 +1,29 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 55,
+      "y": 654,
+      "pressed": true
+    },
+    {
+      "time_s": 0.7,
+      "type": "button",
+      "x": 55,
+      "y": 654,
+      "pressed": false
+    },
+    {
+      "time_s": 2,
+      "type": "checkpoint",
+      "name": "missing-openmc actionable dependency failure",
+      "expected": {
+        "/transport/has_error": true,
+        "/transport/pending": false,
+        "/transport/completed_record_available": true
+      }
+    }
+  ]
+}

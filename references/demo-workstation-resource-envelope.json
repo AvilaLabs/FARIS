@@ -1,0 +1,301 @@
+{
+  "schema_version": "faris-demo-workstation-resource-envelope/v0.1",
+  "purpose": "Bounded execution and artifact observations for the corrected four-run local-fine primary campaign and one fresh native cancellation attempt. These are run-specific receipts, not a general machine capability or physical qualification.",
+  "canonical_package_identity": {
+    "package_index_path": "dist/FARIS-demo-2026-10-01/package-index.json",
+    "package_index_sha256": "dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+    "faris_source_commit": "a7530af92ad1234ab6df42419c4643ee7bf7d398",
+    "faris_cli_sha256": "sha256:240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+    "faris_app_sha256": "sha256:2bc7a57c859e9ce4fd592190697a0363a6acf778fa6b7ed6aba8ea0a25a2a931",
+    "package_status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED"
+  },
+  "production_runs": {
+    "control_reference": {
+      "run_record_path": "/tmp/faris-primary-control-reference-1m/run.json",
+      "run_record_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "reference",
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "input_sha256": "6b103d44793d9240dc116a2adc2973b5dda37974023280884fb24327f5c6088d",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130011,
+        "threads": 1
+      },
+      "mesh": {
+        "id": "neutron-flux-outboard-local",
+        "dimensions": [
+          24,
+          12,
+          24
+        ],
+        "lower_left_m": [
+          4.0,
+          -0.45,
+          -0.45
+        ],
+        "upper_right_m": [
+          5.58,
+          0.45,
+          0.45
+        ]
+      },
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "raw_transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "worker_result_sha256": "0c0b0fcdb35d5546e7c7c5fe572a9af73e4d8260cc2bc0e4be623a5f8b55fb49",
+      "transport_spectra_sha256": "ab4105c4601a18029d27ec9378da61e1d64d856ff31b07b8746c7c09d11d258a",
+      "execution": {
+        "execution_status": "SUCCEEDED",
+        "elapsed_seconds": 1215.857806855,
+        "resource_limits": {
+          "address_space_bytes": 4294967296,
+          "single_file_bytes": 268435456,
+          "artifact_total_bytes": 536870912,
+          "artifact_file_count": 2048
+        },
+        "artifact_files_observed": 16,
+        "artifact_bytes_observed": 10953857,
+        "largest_artifact_file_bytes_observed": 4443260
+      }
+    },
+    "control_breeder_emphasis": {
+      "run_record_path": "/tmp/faris-primary-control-breeder-1m/run.json",
+      "run_record_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "breeder-emphasis",
+      "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+      "input_sha256": "b1ed3b1c2199458cf49aa12124437e42a44931e7ee76db4d923a4b88b3e30cd0",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130012,
+        "threads": 1
+      },
+      "mesh": {
+        "id": "neutron-flux-outboard-local",
+        "dimensions": [
+          24,
+          12,
+          24
+        ],
+        "lower_left_m": [
+          4.0,
+          -0.45,
+          -0.45
+        ],
+        "upper_right_m": [
+          5.58,
+          0.45,
+          0.45
+        ]
+      },
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "raw_transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "worker_result_sha256": "23c11a001ec575400c124d79c0a6b85e49f7ac5675d3530b79b291d62cf74b69",
+      "transport_spectra_sha256": "1793e0c7e71576b763a96a96111fac89c70aa65e2a1cf255f7825a5aaf3ea09e",
+      "execution": {
+        "execution_status": "SUCCEEDED",
+        "elapsed_seconds": 1178.18406781,
+        "resource_limits": {
+          "address_space_bytes": 4294967296,
+          "single_file_bytes": 268435456,
+          "artifact_total_bytes": 536870912,
+          "artifact_file_count": 2048
+        },
+        "artifact_files_observed": 16,
+        "artifact_bytes_observed": 10964705,
+        "largest_artifact_file_bytes_observed": 4448825
+      }
+    },
+    "port_reference": {
+      "run_record_path": "/tmp/faris-primary-port-reference-1m/run.json",
+      "run_record_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "reference",
+      "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+      "input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130013,
+        "threads": 1
+      },
+      "mesh": {
+        "id": "neutron-flux-outboard-local",
+        "dimensions": [
+          24,
+          12,
+          24
+        ],
+        "lower_left_m": [
+          4.0,
+          -0.45,
+          -0.45
+        ],
+        "upper_right_m": [
+          5.58,
+          0.45,
+          0.45
+        ]
+      },
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "raw_transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "worker_result_sha256": "d33a1d2a1adc57a8ddb5586324bc0ddd9b18cf49b7f6e4abee6b1fc539188d30",
+      "transport_spectra_sha256": "b2d4d514fcd1656d633f12ab25139b357f3d2835651a89220101180502e44763",
+      "execution": {
+        "execution_status": "SUCCEEDED",
+        "elapsed_seconds": 1364.709110466,
+        "resource_limits": {
+          "address_space_bytes": 4294967296,
+          "single_file_bytes": 268435456,
+          "artifact_total_bytes": 536870912,
+          "artifact_file_count": 2048
+        },
+        "artifact_files_observed": 16,
+        "artifact_bytes_observed": 11080081,
+        "largest_artifact_file_bytes_observed": 4498224
+      }
+    },
+    "port_breeder_emphasis": {
+      "run_record_path": "/tmp/faris-primary-port-breeder-1m/run.json",
+      "run_record_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "breeder-emphasis",
+      "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+      "input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 81130014,
+        "threads": 1
+      },
+      "mesh": {
+        "id": "neutron-flux-outboard-local",
+        "dimensions": [
+          24,
+          12,
+          24
+        ],
+        "lower_left_m": [
+          4.0,
+          -0.45,
+          -0.45
+        ],
+        "upper_right_m": [
+          5.58,
+          0.45,
+          0.45
+        ]
+      },
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "raw_transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "worker_result_sha256": "dce4c422bcedafaca5c24a33ed3bbca7f3c1b0446a2bf1309fe17f484eb8f2e6",
+      "transport_spectra_sha256": "738033daf06cd8e1d9d97f8ffaf91a938e2f7e139994287493dee7cf9f553734",
+      "execution": {
+        "execution_status": "SUCCEEDED",
+        "elapsed_seconds": 1328.312218707,
+        "resource_limits": {
+          "address_space_bytes": 4294967296,
+          "single_file_bytes": 268435456,
+          "artifact_total_bytes": 536870912,
+          "artifact_file_count": 2048
+        },
+        "artifact_files_observed": 16,
+        "artifact_bytes_observed": 11090135,
+        "largest_artifact_file_bytes_observed": 4502991
+      }
+    }
+  },
+  "native_cancellation_attempt": {
+    "run_record_path": "runs/demo-native-qa/transport-reference-1790852179394428013/run.json",
+    "run_record_sha256": "6cbc3ea6c3fd7f25b656da90b98bb4197a7adc1dee855c8588cac26816193a45",
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "variant_id": "reference",
+    "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+    "input_sha256": "219277a2974b5e455556fffa12f438fb349e2b31fa24d65c51a17aff240db563",
+    "sampling": {
+      "batches": 100,
+      "particles_per_batch": 10000,
+      "seed": 123456789,
+      "threads": 1
+    },
+    "mesh": {
+      "id": "neutron-flux",
+      "dimensions": [
+        12,
+        8,
+        12
+      ],
+      "lower_left_m": [
+        -5.58,
+        -2.2800000000000002,
+        -5.58
+      ],
+      "upper_right_m": [
+        5.58,
+        2.2800000000000002,
+        5.58
+      ]
+    },
+    "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+    "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+    "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+    "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "raw_transport_artifact_sha256": null,
+    "worker_result_sha256": null,
+    "transport_spectra_sha256": null,
+    "execution": {
+      "execution_status": "CANCELLED",
+      "elapsed_seconds": 34.65701096,
+      "resource_limits": {
+        "address_space_bytes": 4294967296,
+        "single_file_bytes": 268435456,
+        "artifact_total_bytes": 536870912,
+        "artifact_file_count": 2048
+      },
+      "artifact_files_observed": 11,
+      "artifact_bytes_observed": 486791,
+      "largest_artifact_file_bytes_observed": 296662,
+      "batch_1_observed": true,
+      "normalized_responses_emitted": 0,
+      "summary_h5_sha256": "6f050da5a7625472b73c556007ec39fedbe9aa26ce97c446b0acd9c31975f614",
+      "openmc_stdout_log_sha256": null
+    }
+  },
+  "short_process_memory_observation": {
+    "method": "/usr/bin/time -v around the final packaged native FARIS app during one fresh OpenMC Run/Cancel attempt",
+    "run_record_path": "runs/demo-native-qa/transport-reference-1790852179394428013/run.json",
+    "maximum_resident_set_kib": 256324,
+    "elapsed_wall_seconds": 37.0,
+    "scope": "One short native run canceled during OpenMC batch 1. This is not the 1M production runs, not a measured production peak, and not a memory qualification. It is separate from the JobResult elapsed_seconds/artifact accounting."
+  },
+  "interpretation_and_limits": [
+    "The four successful primary runs used 100 batches \u00d7 10000 particles, one solver thread, and each completed under the configured 3600 s job timeout.",
+    "The recorded 4 GiB address-space, 256 MiB per-file, 512 MiB aggregate artifact, and 2048-file limits are enforced ceilings. They are not measurements of peak resident memory.",
+    "Observed output counts and bytes are sampled/recorded at job completion by the runner; they describe these exact run trees.",
+    "No production peak RSS measurement is available here. The short canceled-run RSS must not be represented as the production peak or as a general workstation capacity guarantee.",
+    "The final packaged native app Run/Cancel check is recorded in references/native-demo-checks/2026-10-01/cancel-report.json. It canceled a real OpenMC batch-1 attempt, retained the previous completed result, and emitted no normalized canceled response. The separate earlier CLI cancellation control covers process ownership/cleanup. Neither establishes host-independent resource behavior."
+  ],
+  "native_interface_cancellation": {
+    "report_path": "references/native-demo-checks/2026-10-01/cancel-report.json",
+    "report_sha256": "b2d0b10119ae780fe26ef98a2281007dcde84850f3424a177e64fbbbcb8f788c",
+    "run_acknowledgement_upper_bound_s": 0.200295495,
+    "cancel_acknowledgement_upper_bound_s": 0.205775962,
+    "prior_completed_result_retained": true,
+    "cancelled_result_normalized": false,
+    "input_scope": "native egui raw_input_hook; OS routing not verified"
+  }
+}

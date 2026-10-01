@@ -1,0 +1,16 @@
+{
+  "schema_version": "faris-native-history-edit-replay/v0.1",
+  "status": "PASS",
+  "scope": "Same packaged native binary, single recorded port/reference case; numeric opening inventory edit from 5 to 6 kg; at-or-before displayed snapshot agrees with separately invoked packaged CLI using the identical run and edited assumptions. Fixed sampled transport means; no propagated Monte Carlo uncertainty.",
+  "native_report_sha256": "e01cf85159f1c6fd1a0927a097df33afffa2e05347ed06cc548e73ee1a8c7c53",
+  "cli_sha256": "240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+  "run_record_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+  "assumptions_sha256": "37df4152376ffa7ab6ab5eb0713e8a5e23a6ccb8dda767f52d79aed6029a5d99",
+  "history_sha256": "254b928cf6ac01a2c0f8756a3507b6af04a67356b923961e658898096dc75ac1",
+  "rates_sha256": "23159be077244313c9df3a91764a7ec3bc46340146864f9778b3cf8eaf527f86",
+  "snapshot_time_s": 7862400.0,
+  "available_tritium_kg": 6.944638912897939,
+  "numeric_relative_tolerance": 1e-12,
+  "numeric_absolute_tolerance": 1e-08,
+  "all_displayed_snapshot_fields_match": true
+}

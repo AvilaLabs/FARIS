@@ -1,0 +1,130 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "minimum enlarged interface ready",
+      "expected": {
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "key",
+      "key": "Tab",
+      "pressed": true
+    },
+    {
+      "time_s": 0.6,
+      "type": "key",
+      "key": "Tab",
+      "pressed": false
+    },
+    {
+      "time_s": 0.8,
+      "type": "key",
+      "key": "Space",
+      "pressed": true
+    },
+    {
+      "time_s": 0.9,
+      "type": "key",
+      "key": "Space",
+      "pressed": false
+    },
+    {
+      "time_s": 8,
+      "type": "checkpoint",
+      "name": "keyboard activates genuine Compile study",
+      "expected": {
+        "/core/compile_attempted": true,
+        "/core/compilation_status": "compiled",
+        "/core/has_error": false
+      }
+    },
+    {
+      "time_s": 9,
+      "type": "button",
+      "x": 340,
+      "y": 40,
+      "pressed": true
+    },
+    {
+      "time_s": 9.15,
+      "type": "button",
+      "x": 340,
+      "y": 40,
+      "pressed": false
+    },
+    {
+      "time_s": 9.5,
+      "type": "checkpoint",
+      "name": "minimum viewport cutaway reachable",
+      "expected": {
+        "/cutaway": false
+      }
+    },
+    {
+      "time_s": 10,
+      "type": "button",
+      "x": 90,
+      "y": 206,
+      "pressed": true
+    },
+    {
+      "time_s": 10.15,
+      "type": "button",
+      "x": 90,
+      "y": 206,
+      "pressed": false
+    },
+    {
+      "time_s": 10.5,
+      "type": "checkpoint",
+      "name": "minimum arrangement control reachable",
+      "expected": {
+        "/variant_id": "breeder-emphasis",
+        "/core/saved_core_verified": true,
+        "/history_loaded": true
+      }
+    },
+    {
+      "time_s": 11,
+      "type": "button",
+      "x": 270,
+      "y": 90,
+      "pressed": true
+    },
+    {
+      "time_s": 11.15,
+      "type": "button",
+      "x": 270,
+      "y": 90,
+      "pressed": false
+    },
+    {
+      "time_s": 11.5,
+      "type": "button",
+      "x": 270,
+      "y": 138,
+      "pressed": true
+    },
+    {
+      "time_s": 11.65,
+      "type": "button",
+      "x": 270,
+      "y": 138,
+      "pressed": false
+    },
+    {
+      "time_s": 12,
+      "type": "checkpoint",
+      "name": "minimum field selector changes actual displayed data",
+      "expected": {
+        "/field_view": "ComponentFlux"
+      }
+    }
+  ]
+}

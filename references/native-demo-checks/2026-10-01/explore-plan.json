@@ -1,0 +1,648 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "four corrected histories ready",
+      "expected": {
+        "/history_loaded": true,
+        "/history_stale": false,
+        "/source_on": true,
+        "/scenario_id": "arc-cold-reference-port-001",
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 1210,
+      "y": 10,
+      "pressed": true
+    },
+    {
+      "time_s": 0.65,
+      "type": "button",
+      "x": 1210,
+      "y": 10,
+      "pressed": false
+    },
+    {
+      "time_s": 1,
+      "type": "button",
+      "x": 700,
+      "y": 400,
+      "pressed": true
+    },
+    {
+      "time_s": 1.2,
+      "type": "move",
+      "x": 740,
+      "y": 430
+    },
+    {
+      "time_s": 1.4,
+      "type": "button",
+      "x": 740,
+      "y": 430,
+      "pressed": false
+    },
+    {
+      "time_s": 1.8,
+      "type": "checkpoint",
+      "name": "orbit changed camera",
+      "expected": {}
+    },
+    {
+      "time_s": 2.1,
+      "type": "button",
+      "x": 700,
+      "y": 400,
+      "pressed": true,
+      "shift": true
+    },
+    {
+      "time_s": 2.3,
+      "type": "move",
+      "x": 720,
+      "y": 410,
+      "shift": true
+    },
+    {
+      "time_s": 2.5,
+      "type": "button",
+      "x": 720,
+      "y": 410,
+      "pressed": false,
+      "shift": true
+    },
+    {
+      "time_s": 2.8,
+      "type": "checkpoint",
+      "name": "pan changed target",
+      "expected": {}
+    },
+    {
+      "time_s": 3.1,
+      "type": "move",
+      "x": 700,
+      "y": 400
+    },
+    {
+      "time_s": 3.3,
+      "type": "scroll",
+      "x": 0,
+      "y": 100
+    },
+    {
+      "time_s": 4.4,
+      "type": "checkpoint",
+      "name": "zoom changed distance",
+      "expected": {}
+    },
+    {
+      "time_s": 5,
+      "type": "button",
+      "x": 435,
+      "y": 40,
+      "pressed": true
+    },
+    {
+      "time_s": 5.15,
+      "type": "button",
+      "x": 435,
+      "y": 40,
+      "pressed": false
+    },
+    {
+      "time_s": 5.4,
+      "type": "checkpoint",
+      "name": "frame scene resets camera",
+      "expected": {
+        "/camera/distance": 15.0,
+        "/camera/target": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "time_s": 10,
+      "type": "checkpoint",
+      "name": "genuine Core compile complete",
+      "expected": {
+        "/core/compile_attempted": true,
+        "/core/compilation_status": "compiled",
+        "/core/compilation_stale": false,
+        "/core/has_error": false
+      }
+    },
+    {
+      "time_s": 11,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 11.15,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 11.45,
+      "type": "button",
+      "x": 300,
+      "y": 108,
+      "pressed": true
+    },
+    {
+      "time_s": 11.6,
+      "type": "button",
+      "x": 300,
+      "y": 108,
+      "pressed": false
+    },
+    {
+      "time_s": 11.9,
+      "type": "checkpoint",
+      "name": "component flux selected",
+      "expected": {
+        "/field_view": "ComponentFlux"
+      }
+    },
+    {
+      "time_s": 12.3,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 12.450000000000001,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 12.75,
+      "type": "button",
+      "x": 300,
+      "y": 150,
+      "pressed": true
+    },
+    {
+      "time_s": 12.9,
+      "type": "button",
+      "x": 300,
+      "y": 150,
+      "pressed": false
+    },
+    {
+      "time_s": 13.2,
+      "type": "checkpoint",
+      "name": "nuclear heating selected",
+      "expected": {
+        "/field_view": "NuclearHeating"
+      }
+    },
+    {
+      "time_s": 13.6,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 13.75,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 14.049999999999999,
+      "type": "button",
+      "x": 300,
+      "y": 171,
+      "pressed": true
+    },
+    {
+      "time_s": 14.2,
+      "type": "button",
+      "x": 300,
+      "y": 171,
+      "pressed": false
+    },
+    {
+      "time_s": 14.5,
+      "type": "checkpoint",
+      "name": "computed fluence selected",
+      "expected": {
+        "/field_view": "ComponentFluence"
+      }
+    },
+    {
+      "time_s": 15,
+      "type": "button",
+      "x": 12,
+      "y": 635,
+      "pressed": true
+    },
+    {
+      "time_s": 15.15,
+      "type": "button",
+      "x": 12,
+      "y": 635,
+      "pressed": false
+    },
+    {
+      "time_s": 15.5,
+      "type": "checkpoint",
+      "name": "timeline moves to planned source-off start",
+      "expected": {
+        "/source_on": false,
+        "/history_snapshot/power_fraction": 0.0
+      }
+    },
+    {
+      "time_s": 16,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 16.15,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 16.45,
+      "type": "button",
+      "x": 300,
+      "y": 129,
+      "pressed": true
+    },
+    {
+      "time_s": 16.599999999999998,
+      "type": "button",
+      "x": 300,
+      "y": 129,
+      "pressed": false
+    },
+    {
+      "time_s": 16.9,
+      "type": "checkpoint",
+      "name": "local spatial flux selected",
+      "expected": {
+        "/field_view": "FluxSlice"
+      }
+    },
+    {
+      "time_s": 17.3,
+      "type": "button",
+      "x": 560,
+      "y": 330,
+      "pressed": true
+    },
+    {
+      "time_s": 17.45,
+      "type": "button",
+      "x": 560,
+      "y": 330,
+      "pressed": false
+    },
+    {
+      "time_s": 17.8,
+      "type": "checkpoint",
+      "name": "actual spatial bin inspected",
+      "expected": {}
+    },
+    {
+      "time_s": 18.1,
+      "type": "button",
+      "x": 560,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 18.25,
+      "type": "button",
+      "x": 560,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 19,
+      "type": "checkpoint",
+      "name": "Y slice changed",
+      "expected": {}
+    },
+    {
+      "time_s": 20,
+      "type": "button",
+      "x": 80,
+      "y": 207,
+      "pressed": true
+    },
+    {
+      "time_s": 20.15,
+      "type": "button",
+      "x": 80,
+      "y": 207,
+      "pressed": false
+    },
+    {
+      "time_s": 20.5,
+      "type": "checkpoint",
+      "name": "allocation changes study identity",
+      "expected": {
+        "/variant_id": "breeder-emphasis",
+        "/core/compilation_stale": true,
+        "/transport/completed_record_available": true
+      }
+    },
+    {
+      "time_s": 21,
+      "type": "button",
+      "x": 80,
+      "y": 166,
+      "pressed": true
+    },
+    {
+      "time_s": 21.15,
+      "type": "button",
+      "x": 80,
+      "y": 166,
+      "pressed": false
+    },
+    {
+      "time_s": 21.5,
+      "type": "checkpoint",
+      "name": "matched control retains correct branch",
+      "expected": {
+        "/scenario_id": "arc-cold-coupled-control-001",
+        "/variant_id": "breeder-emphasis",
+        "/transport/completed_record_available": true
+      }
+    },
+    {
+      "time_s": 22,
+      "type": "button",
+      "x": 80,
+      "y": 187,
+      "pressed": true
+    },
+    {
+      "time_s": 22.15,
+      "type": "button",
+      "x": 80,
+      "y": 187,
+      "pressed": false
+    },
+    {
+      "time_s": 22.5,
+      "type": "checkpoint",
+      "name": "actual saved Core case verified",
+      "expected": {
+        "/variant_id": "reference",
+        "/core/saved_core_verified": true,
+        "/history_stale": false
+      }
+    },
+    {
+      "time_s": 23,
+      "type": "button",
+      "x": 80,
+      "y": 166,
+      "pressed": true
+    },
+    {
+      "time_s": 23.15,
+      "type": "button",
+      "x": 80,
+      "y": 166,
+      "pressed": false
+    },
+    {
+      "time_s": 23.5,
+      "type": "checkpoint",
+      "name": "return to penetration branch",
+      "expected": {
+        "/scenario_id": "arc-cold-reference-port-001",
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 24,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 24.15,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 24.45,
+      "type": "button",
+      "x": 300,
+      "y": 86,
+      "pressed": true
+    },
+    {
+      "time_s": 24.599999999999998,
+      "type": "button",
+      "x": 300,
+      "y": 86,
+      "pressed": false
+    },
+    {
+      "time_s": 25,
+      "type": "button",
+      "x": 435,
+      "y": 40,
+      "pressed": true
+    },
+    {
+      "time_s": 25.15,
+      "type": "button",
+      "x": 435,
+      "y": 40,
+      "pressed": false
+    },
+    {
+      "time_s": 26,
+      "type": "button",
+      "x": 1040,
+      "y": 169,
+      "pressed": true
+    },
+    {
+      "time_s": 26.15,
+      "type": "button",
+      "x": 1040,
+      "y": 169,
+      "pressed": false
+    },
+    {
+      "time_s": 26.5,
+      "type": "checkpoint",
+      "name": "select magnet envelope",
+      "expected": {
+        "/selected_component": "magnets"
+      }
+    },
+    {
+      "time_s": 27,
+      "type": "button",
+      "x": 992,
+      "y": 169,
+      "pressed": true
+    },
+    {
+      "time_s": 27.15,
+      "type": "button",
+      "x": 992,
+      "y": 169,
+      "pressed": false
+    },
+    {
+      "time_s": 27.5,
+      "type": "checkpoint",
+      "name": "hide magnet envelope",
+      "expected": {
+        "/hidden_components": [
+          "magnets"
+        ]
+      }
+    },
+    {
+      "time_s": 28,
+      "type": "button",
+      "x": 520,
+      "y": 400,
+      "pressed": true
+    },
+    {
+      "time_s": 28.15,
+      "type": "button",
+      "x": 520,
+      "y": 400,
+      "pressed": false
+    },
+    {
+      "time_s": 28.5,
+      "type": "checkpoint",
+      "name": "visible surface picked with magnet hidden",
+      "expected": {}
+    },
+    {
+      "time_s": 29,
+      "type": "button",
+      "x": 992,
+      "y": 169,
+      "pressed": true
+    },
+    {
+      "time_s": 29.15,
+      "type": "button",
+      "x": 992,
+      "y": 169,
+      "pressed": false
+    },
+    {
+      "time_s": 30,
+      "type": "button",
+      "x": 327,
+      "y": 40,
+      "pressed": true
+    },
+    {
+      "time_s": 30.15,
+      "type": "button",
+      "x": 327,
+      "y": 40,
+      "pressed": false
+    },
+    {
+      "time_s": 30.5,
+      "type": "checkpoint",
+      "name": "full display shown",
+      "expected": {
+        "/cutaway": false,
+        "/hidden_components": []
+      }
+    },
+    {
+      "time_s": 31,
+      "type": "button",
+      "x": 327,
+      "y": 40,
+      "pressed": true
+    },
+    {
+      "time_s": 31.15,
+      "type": "button",
+      "x": 327,
+      "y": 40,
+      "pressed": false
+    },
+    {
+      "time_s": 31.5,
+      "type": "checkpoint",
+      "name": "cutaway restored",
+      "expected": {
+        "/cutaway": true
+      }
+    },
+    {
+      "time_s": 32,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": true
+    },
+    {
+      "time_s": 32.15,
+      "type": "button",
+      "x": 270,
+      "y": 60,
+      "pressed": false
+    },
+    {
+      "time_s": 32.45,
+      "type": "button",
+      "x": 300,
+      "y": 129,
+      "pressed": true
+    },
+    {
+      "time_s": 32.6,
+      "type": "button",
+      "x": 300,
+      "y": 129,
+      "pressed": false
+    },
+    {
+      "time_s": 33,
+      "type": "checkpoint",
+      "name": "final real spatial view",
+      "expected": {
+        "/field_view": "FluxSlice",
+        "/transport/completed_record_available": true
+      }
+    }
+  ]
+}

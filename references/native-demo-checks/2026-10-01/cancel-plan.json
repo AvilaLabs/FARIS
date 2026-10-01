@@ -1,0 +1,69 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "corrected completed transport loaded",
+      "expected": {
+        "/transport/completed_record_available": true,
+        "/transport/pending": false
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 55,
+      "y": 654,
+      "pressed": true
+    },
+    {
+      "time_s": 0.7,
+      "type": "button",
+      "x": 55,
+      "y": 654,
+      "pressed": false
+    },
+    {
+      "time_s": 0.9,
+      "type": "checkpoint",
+      "name": "fresh run acknowledged",
+      "expected": {
+        "/transport/pending": true,
+        "/transport/completed_record_available": true
+      }
+    },
+    {
+      "time_s": 35,
+      "type": "checkpoint",
+      "name": "owned fresh worker remains active",
+      "expected": {
+        "/transport/pending": true
+      }
+    },
+    {
+      "time_s": 35.5,
+      "type": "button",
+      "x": 185,
+      "y": 654,
+      "pressed": true
+    },
+    {
+      "time_s": 35.7,
+      "type": "button",
+      "x": 185,
+      "y": 654,
+      "pressed": false
+    },
+    {
+      "time_s": 35.9,
+      "type": "checkpoint",
+      "name": "cancel completes and preserves old result",
+      "expected": {
+        "/transport/pending": false,
+        "/transport/last_attempt_status": "CANCELLED",
+        "/transport/completed_record_available": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": "faris-native-launch-measurement/v0.1",
+  "measurement": "First native UI frame log received after launcher invocation; includes shell, manifest and index verification. Kernel filesystem caches are not cleared.",
+  "command": [
+    "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01/launch.sh",
+    "--window-width",
+    "1440",
+    "--window-height",
+    "900",
+    "--initial-year",
+    "0.25",
+    "--field-view",
+    "component-fluence",
+    "--benchmark-seconds",
+    "12",
+    "--benchmark-motion",
+    "--runs-directory",
+    "/home/connoravila/Documents/Avila-Labs/project-faris/runs/demo-native-qa"
+  ],
+  "exit_code": 0,
+  "stderr_timeline": [
+    {
+      "elapsed_seconds": 4.174895225034561,
+      "stderr": "FARIS graphics: AdapterInfo { name: \"Intel(R) Graphics (ADL-N)\", vendor: 32902, device: 18128, device_type: IntegratedGpu, device_pci_bus_id: \"0000:00:02.0\", driver: \"Intel open-source Mesa driver\", driver_info: \"Mesa 26.0.8-1ubuntu0.3\", backend: Vulkan, subgroup_min_size: 8, subgroup_max_size: 32, transient_saves_memory: Some(false), limit_bucket: None }"
+    },
+    {
+      "elapsed_seconds": 4.225095152040012,
+      "stderr": "FARIS first UI frame: 3.170 s after process setup began"
+    },
+    {
+      "elapsed_seconds": 7.2015095300157554,
+      "stderr": "FARIS demo: materialized 803549595 bytes of Core evidence in 6.149 s; the private temporary copy remains until the app exits."
+    },
+    {
+      "elapsed_seconds": 23.471461125998758,
+      "stderr": "{\"elapsed_seconds\":12.010994965,\"first_measured_frame_seconds\":10.405407529,\"interval_count\":1073,\"mean_frames_per_second\":89.33481390398701,\"measurement\":\"egui frame throughput; not GPU presentation FPS\",\"orbit_and_scrub\":true,\"p95_frame_interval_ms\":11.882553,\"pixels_per_point\":1.0,\"schema_version\":\"faris-native-frame-benchmark/v0.1\",\"window_points\":[1440.0,900.0]}"
+    }
+  ],
+  "elapsed_seconds": 23.612637654005084
+}

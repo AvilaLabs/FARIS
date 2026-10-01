@@ -1,0 +1,54 @@
+{
+  "schema_version": "faris-native-event-history-replay/v0.1",
+  "status": "PASS",
+  "native_report_sha256": "4d10e0a86f4fd822a19c1b8d06cf5c0c9e1b697ee47b9775f5702283414cf46e",
+  "packaged_event_history_sha256": "8d3c6503f7734fdf13aec42e7056f8b52f3aee64d0bd3f9c34c8d4138346f10b",
+  "snapshot_selection": "at-or-before requested time; no event interpolation",
+  "numeric_relative_tolerance": 1e-12,
+  "numeric_absolute_tolerance": 1e-08,
+  "checkpoints": [
+    {
+      "checkpoint": "shared Rust event histories ready",
+      "requested_year": 0.25,
+      "snapshot_time_s": 7862400.0,
+      "operating": true,
+      "blanket_replacements": 0
+    },
+    {
+      "checkpoint": "replacement outage begins",
+      "requested_year": 0.265,
+      "snapshot_time_s": 8347021.284802169,
+      "operating": false,
+      "blanket_replacements": 0
+    },
+    {
+      "checkpoint": "outage exposure stays fixed",
+      "requested_year": 0.4,
+      "snapshot_time_s": 12614400.0,
+      "operating": false,
+      "blanket_replacements": 0
+    },
+    {
+      "checkpoint": "exact completed replacement resets blanket only",
+      "requested_year": 0.42877219068630595,
+      "snapshot_time_s": 13531021.284802169,
+      "operating": true,
+      "blanket_replacements": 1
+    },
+    {
+      "checkpoint": "permanent magnet stop",
+      "requested_year": 1.5110450945449707,
+      "snapshot_time_s": 47684956.67561237,
+      "operating": false,
+      "blanket_replacements": 4
+    },
+    {
+      "checkpoint": "permanent stop persists to horizon",
+      "requested_year": 30.0,
+      "snapshot_time_s": 946728000.0,
+      "operating": false,
+      "blanket_replacements": 4
+    }
+  ],
+  "scope": "Fixed transport means and authored event limits; no physical lifetime or propagated response uncertainty."
+}

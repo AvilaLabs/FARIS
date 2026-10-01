@@ -1,0 +1,168 @@
+{
+  "schema_version": "faris-native-demo-checks-manifest/v0.1",
+  "date": "2026-10-01",
+  "report_validation": "All nine paired native egui raw-input reports have passed=true and input_plan_sha256 equal to the SHA-256 of the corresponding copied plan bytes. The recalculation plan/report pair is validated the same way. Edited assumptions and independent history replay are exact copied receipts. Raw-input checks exercise egui injection, not OS routing; additional benchmark/reopen/error-recovery files are copied as supplied.",
+  "files": [
+    {
+      "path": "references/native-demo-checks/2026-10-01/explore-plan.json",
+      "source": "/tmp/faris-packaged-native-explore-plan.json",
+      "sha256": "0fdfbca857e1f923d70ed5041d1cf474efb7dbb89112a35a6627d58cff98484b",
+      "bytes": 11833
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/explore-report.json",
+      "source": "/tmp/faris-packaged-native-explore-report-v2.json",
+      "sha256": "dfa1692eb85d96c8da7b0d0071130476b84e4c5e25c07ddf3e9004bf9b1a9abe",
+      "bytes": 582437
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/events-plan.json",
+      "source": "/tmp/faris-canonical-events-plan.json",
+      "sha256": "e6d469d63a52d7af4076ccbc8f4f98b4d68db049f502302320aa151eab4d0596",
+      "bytes": 8152
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/events-report.json",
+      "source": "/tmp/faris-canonical-events-report.json",
+      "sha256": "4d10e0a86f4fd822a19c1b8d06cf5c0c9e1b697ee47b9775f5702283414cf46e",
+      "bytes": 212021
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/sensitivity-plan.json",
+      "source": "/tmp/faris-canonical-sensitivity-plan.json",
+      "sha256": "06437508353e090b94e883ff45ab1e05e7884828caffdad6486726ae3b36a182",
+      "bytes": 1798
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/sensitivity-report.json",
+      "source": "/tmp/faris-canonical-sensitivity-report.json",
+      "sha256": "7458338366a50870d33788caa42dfa9656390faf638e2a4c41c205f244185b41",
+      "bytes": 77095
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/minimum-scale-keyboard-plan.json",
+      "source": "/tmp/faris-canonical-min-scale-keyboard-plan.json",
+      "sha256": "1d92adcb290eb9e2cc94acef5c9aa4a05d80d1c39917922551dde48cae0e54d9",
+      "bytes": 2480
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/minimum-scale-keyboard-report.json",
+      "source": "/tmp/faris-canonical-min-scale-keyboard-report.json",
+      "sha256": "4c0fc094a7a5617f7cc76768a94cf09ee233612d44aeefb2b95a0b874a6c4538",
+      "bytes": 127955
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/cancel-plan.json",
+      "source": "/tmp/faris-canonical-cancel-plan.json",
+      "sha256": "6ce1d2e9fde42b1d9a146c47803a5440370f3477c669ae05522a954f600c9f24",
+      "bytes": 1451
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/cancel-report.json",
+      "source": "/tmp/faris-canonical-cancel-report-v2.json",
+      "sha256": "b2d0b10119ae780fe26ef98a2281007dcde84850f3424a177e64fbbbcb8f788c",
+      "bytes": 12950
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/missing-openmc-plan.json",
+      "source": "/tmp/faris-canonical-final-missing-openmc-plan.json",
+      "sha256": "edcfbde60a5059a8cc817dc71d1104e70bbb1750bb73a27c466c669c4808d36f",
+      "bytes": 576
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/missing-openmc-report.json",
+      "source": "/tmp/faris-canonical-final-missing-openmc-report-v2.json",
+      "sha256": "4f50949c9080258910424f5e05f2e47e0fd07cd3ddadc1d522b20a6caac6374d",
+      "bytes": 3802
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/missing-core-plan.json",
+      "source": "/tmp/faris-canonical-final-missing-core-plan.json",
+      "sha256": "53641ccd357d71cd418fb1e66c7e57bda894aa8bdaaa655660936e69b377042c",
+      "bytes": 561
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/missing-core-report.json",
+      "source": "/tmp/faris-canonical-final-missing-core-report-v2.json",
+      "sha256": "279fe17f84d94859235db969403ff2ca3fe63465aa7b89418ae4e2ab5bd203ed",
+      "bytes": 3765
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/evidence-plan.json",
+      "source": "/tmp/faris-canonical-evidence-plan.json",
+      "sha256": "d77bb76339c08eff7f82c05f28cec4b21230a5f81479d1a3386da2fe4e45cbe3",
+      "bytes": 1454
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/evidence-report.json",
+      "source": "/tmp/faris-canonical-evidence-report.json",
+      "sha256": "c4cfb88aa783711ef25d5dfa2fc48b1855cff42b51d9a5b6bf6ec06a0e44b440",
+      "bytes": 76939
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/core-reopen.json",
+      "source": "/tmp/faris-canonical-core-reopen.json",
+      "sha256": "a4733c821b2871fbf72855b30b9be739aa3fd1c6b5c741d08021957ccfe2cae3",
+      "bytes": 3481
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/benchmark-x11.json",
+      "source": "/tmp/faris-canonical-benchmark-x11.json",
+      "sha256": "fe443405a8e435460708e31e679c5ff5af6f7d9147c0c2311ad1ef63a8516575",
+      "bytes": 1996
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/benchmark-wayland.json",
+      "source": "/tmp/faris-canonical-benchmark-wayland.json",
+      "sha256": "343aa2d5428cb57548cc84bcf6c3ec9ec9b1a2552a1e6fcdc01e08e994488827",
+      "bytes": 1942
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/launch-timing.json",
+      "source": "/tmp/faris-canonical-launch-timing-v2.json",
+      "sha256": "60041e1db79fc764a2f96adcea4a00731f04a1470f56a2e3bebe3fd076479798",
+      "bytes": 1821
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/error-recovery-command-plan.json",
+      "source": "/tmp/faris-canonical-final-error-recovery-command-plan.json",
+      "sha256": "73b7bac3547d656e4382db22965a615ed3342ed073064374552127e73ae95419",
+      "bytes": 2652
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/recalculation.plan.json",
+      "source": "/tmp/faris-single-recalculate-final-plan.json",
+      "sha256": "1c3c4b49eec8c8e21d834aca48d6c6a5c9f193071aba667fb776ccea573b8d5a",
+      "bytes": 2655
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/recalculation.report.json",
+      "source": "/tmp/faris-single-recalculate-final-report.json",
+      "sha256": "e01cf85159f1c6fd1a0927a097df33afffa2e05347ed06cc548e73ee1a8c7c53",
+      "bytes": 127867
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/edited-assumptions.json",
+      "source": "/tmp/faris-native-edited-assumptions.json",
+      "sha256": "37df4152376ffa7ab6ab5eb0713e8a5e23a6ccb8dda767f52d79aed6029a5d99",
+      "bytes": 8047
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/edited-history-replay.json",
+      "source": "/tmp/faris-native-edited-replay.json",
+      "sha256": "45b5c6673d2acc38b03d31a3b80054a823afc942af369e2a0b4fcbd2fe200fd7",
+      "bytes": 1142
+    },
+    {
+      "path": "references/native-demo-checks/2026-10-01/event-history-replay.json",
+      "source": "Derived by at-or-before replay against the indexed CLI-produced event history",
+      "sha256": "b2b653dbab123ce4e6932d3d2256ff713d79af32d7c4b9e0b312993303da179d",
+      "bytes": 1790
+    }
+  ],
+  "recalculation_pair": {
+    "plan_sha256": "1c3c4b49eec8c8e21d834aca48d6c6a5c9f193071aba667fb776ccea573b8d5a",
+    "report_sha256": "e01cf85159f1c6fd1a0927a097df33afffa2e05347ed06cc548e73ee1a8c7c53",
+    "passed": true
+  }
+}

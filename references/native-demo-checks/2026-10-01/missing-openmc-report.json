@@ -1,0 +1,111 @@
+{
+  "application_version": "0.0.1",
+  "input_delivery_times": [
+    {
+      "delivered_time_s": 0.509549595,
+      "step_index": 0,
+      "target_time_s": 0.5
+    },
+    {
+      "delivered_time_s": 0.709471475,
+      "step_index": 1,
+      "target_time_s": 0.7
+    },
+    {
+      "delivered_time_s": 2.002914491,
+      "step_index": 2,
+      "target_time_s": 2.0
+    }
+  ],
+  "input_plan_sha256": "edcfbde60a5059a8cc817dc71d1104e70bbb1750bb73a27c466c669c4808d36f",
+  "observations": [
+    {
+      "failures": [],
+      "name": "missing-openmc actionable dependency failure",
+      "observed_time_s": 2.003714451,
+      "passed": true,
+      "state": {
+        "camera": {
+          "distance": 15.0,
+          "pitch": 0.5,
+          "target": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "yaw": -0.6499999761581421
+        },
+        "core": {
+          "compilation_stale": false,
+          "compilation_status": null,
+          "compile_attempted": false,
+          "compile_pending": false,
+          "error": null,
+          "evidence_completed": false,
+          "evidence_pending": false,
+          "has_error": false,
+          "saved_core_verified": false
+        },
+        "cutaway": true,
+        "field_view": "Materials",
+        "hidden_components": [],
+        "history_controls": {
+          "current_assumptions": null,
+          "current_assumptions_sha256": null,
+          "current_transport_artifact_sha256": null,
+          "history_assumptions": null,
+          "history_assumptions_match": null,
+          "history_assumptions_sha256": null,
+          "history_pending": false,
+          "history_requested": true,
+          "history_status": "not_loaded",
+          "history_transport_artifact_sha256": null,
+          "history_transport_matches": null,
+          "preset_index": 0,
+          "preset_name": null,
+          "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+          "sensitivity_assumptions_match": null,
+          "sensitivity_pending": false,
+          "sensitivity_point_count": 0,
+          "sensitivity_result_sha256": null,
+          "sensitivity_status": "not_run",
+          "sensitivity_transport_artifact_sha256": null,
+          "sensitivity_transport_matches": null,
+          "variant_id": "reference"
+        },
+        "history_loaded": false,
+        "history_pending": false,
+        "history_snapshot": null,
+        "history_stale": false,
+        "message": "Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.",
+        "pixels_per_point": 1.6666666269302368,
+        "scenario_id": "arc-cold-coupled-control-001",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "scene_revision": 1,
+        "selected_component": "blanket",
+        "source_on": null,
+        "transport": {
+          "completed_record_available": true,
+          "error": "cannot locate OpenMC executable at /tmp/faris-deliberately-missing-openmc: No such file or directory (os error 2)",
+          "has_error": true,
+          "last_attempt_directory": null,
+          "last_attempt_status": null,
+          "pending": false,
+          "readiness": "Transport configured; preflight on run",
+          "slice": 4
+        },
+        "variant_id": "reference",
+        "window_points": [
+          1260.0,
+          840.0
+        ],
+        "year": 0.0
+      }
+    }
+  ],
+  "passed": true,
+  "schema_version": "faris-interface-check-report/v0.1",
+  "scope": "Synthetic pointer/keyboard events through eframe raw_input_hook in the native egui/wgpu app. Actual controls and external workers execute. OS pointer/keyboard routing is not verified by this check.",
+  "steps_delivered": 3,
+  "timed_out": false
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": "faris-saved-case-inspection/v0.2",
+  "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
+  "case_id": "FARIS-arc-cold-reference-port-001-reference",
+  "scenario_id": "arc-cold-reference-port-001",
+  "scenario_sha256": "sha256:f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+  "variant_id": "reference",
+  "compiled_snapshot_sha256": "sha256:e213f2c414b3c511829f34b149c746365eb9510ec6c21049b49ca7533b95b7e1",
+  "package_sha256": "sha256:b414cb5c117ffb8aab4af8f51912f97f11457564b808288973faec5c7dd4fad6",
+  "faris_executable_sha256": "sha256:240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+  "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+  "compiler_id": "avila.core/compiler-rust@0.1.0",
+  "semantic_profile": "avila.core/semantic/0.2-draft",
+  "compiler_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+  "compilation_status": "compiled",
+  "execution_status": "executed",
+  "binding_status": "verified",
+  "campaign_status": "evaluated",
+  "requirement_verdicts": [
+    {
+      "requirement_id": "FARIS-TBR",
+      "status": "not_evaluated",
+      "evidence_ids": [
+        "normalize:tbr"
+      ],
+      "reason_codes": [
+        "CORE-A4402"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "transport",
+      "receipt_sha256": "sha256:ea50fc35491760a63ae67fa951c0517360a0d146b5291020c48cb6971eaef031",
+      "verified_input_count": 4,
+      "verified_output_count": 1,
+      "verified_log_count": 2
+    },
+    {
+      "step_id": "normalize",
+      "receipt_sha256": "sha256:876041993a68ed342f17435e1e4e2a52cd6ba3a0c0c921c22036c9f4ebdf41d9",
+      "verified_input_count": 3,
+      "verified_output_count": 1,
+      "verified_log_count": 2
+    },
+    {
+      "step_id": "history",
+      "receipt_sha256": "sha256:ea8c974e94e95b4996a2325eda79cbe743a6abd53c6a0c0939f1a8d9f293c17a",
+      "verified_input_count": 3,
+      "verified_output_count": 1,
+      "verified_log_count": 2
+    },
+    {
+      "step_id": "energy",
+      "receipt_sha256": "sha256:ea6175e6e0eea6e9acdb3c24f7583017a03c95cb7155bcace0f96ebefc8e7b80",
+      "verified_input_count": 2,
+      "verified_output_count": 1,
+      "verified_log_count": 2
+    }
+  ],
+  "verified_package_document_count": 7,
+  "verified_package_artifact_count": 9,
+  "verified_receipt_count": 4,
+  "verified_stage_input_count": 12,
+  "verified_stage_output_count": 4,
+  "verified_log_count": 8,
+  "history_snapshot_count": 11025,
+  "history_event_count": 202,
+  "history_result_sha256": "sha256:594447aaed493b8f29dd4489543b79628c4d46722393d3af73fe582aa74adf62",
+  "history_assumptions_sha256": "sha256:6617dbb18b70bf148763f93c31d1f1e10819bcd81998b23a22363bbb7408c166",
+  "limitations": [
+    "Recorded OpenMC outputs are revalidated and normalized under Core. Nuclear-data acquisition and reactor-response methods remain scientifically unqualified; physical requirements must remain NOT_EVALUATED."
+  ],
+  "scope_notice": "This workflow separates byte-integrity checks, semantic compilation, controlled execution with receipts, claim generation, identity binding, campaign evaluation, and replay. Re-hashing bytes proves identity only; a verified receipt proves that a named executable ran over named bytes and produced named bytes; structural admission and a Core verdict do not establish scientific correctness, qualification, certification, or regulatory approval."
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 1210,
+      "y": 10,
+      "pressed": true
+    },
+    {
+      "time_s": 0.7,
+      "type": "button",
+      "x": 1210,
+      "y": 10,
+      "pressed": false
+    },
+    {
+      "time_s": 2,
+      "type": "checkpoint",
+      "name": "missing-core actionable dependency failure",
+      "expected": {
+        "/core/has_error": true,
+        "/core/compile_attempted": false,
+        "/core/compile_pending": false
+      }
+    }
+  ]
+}
