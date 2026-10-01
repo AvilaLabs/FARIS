@@ -2,7 +2,7 @@ use eframe::egui;
 
 pub const VERTICAL_FOV_RADIANS: f32 = 45.0_f32.to_radians();
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
@@ -10,13 +10,16 @@ pub struct Camera {
     pub target: [f32; 3],
 }
 
+/// First view of a scenario: looking into the cutaway quadrant from the
+/// outboard side, so the poloidal cross-section of the layered shells and the
+/// outboard port on the midplane are both in frame without moving the camera.
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            yaw: -0.65,
-            pitch: 0.5,
-            distance: 15.0,
-            target: [0.0; 3],
+            yaw: -1.0,
+            pitch: 0.3,
+            distance: 11.0,
+            target: [3.0, 0.0, -0.8],
         }
     }
 }
@@ -49,6 +52,38 @@ impl Camera {
         let right = normalize(cross(forward, [0.0, 1.0, 0.0]));
         let up = cross(right, forward);
         (eye, right, up, forward)
+    }
+
+    /// One easing step of the displayed camera toward `goal` by `alpha` in
+    /// (0, 1]. Returns the new camera and whether it has settled on the goal.
+    pub fn eased_toward(&self, goal: &Camera, alpha: f32) -> (Camera, bool) {
+        let finite = |camera: &Camera| {
+            camera.yaw.is_finite()
+                && camera.pitch.is_finite()
+                && camera.distance.is_finite()
+                && camera.target.iter().all(|x| x.is_finite())
+        };
+        if !finite(self) || !finite(goal) {
+            return (*goal, true);
+        }
+        let alpha = alpha.clamp(0.0, 1.0);
+        let step = |from: f32, to: f32| from + (to - from) * alpha;
+        let next = Camera {
+            yaw: step(self.yaw, goal.yaw),
+            pitch: step(self.pitch, goal.pitch),
+            distance: step(self.distance, goal.distance),
+            target: std::array::from_fn(|axis| step(self.target[axis], goal.target[axis])),
+        };
+        let scale = goal.distance.max(1.0);
+        let settled = (next.yaw - goal.yaw).abs() < 5e-4
+            && (next.pitch - goal.pitch).abs() < 5e-4
+            && (next.distance - goal.distance).abs() < 5e-4 * scale
+            && (0..3).all(|axis| (next.target[axis] - goal.target[axis]).abs() < 5e-4 * scale);
+        if settled {
+            (*goal, true)
+        } else {
+            (next, false)
+        }
     }
 
     pub fn frame_bounds(&mut self, minimum: [f32; 3], maximum: [f32; 3]) {
@@ -122,12 +157,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn camera_center_ray_reaches_the_scene_origin() {
+    fn camera_center_ray_reaches_the_orbit_target() {
         let camera = Camera::default();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
         let (origin, direction) = camera.ray(rect, rect.center());
         let endpoint = add(origin, scale(direction, camera.distance));
-        assert!(dot(endpoint, endpoint).sqrt() < 1e-4);
+        let error = subtract(endpoint, camera.target);
+        assert!(dot(error, error).sqrt() < 1e-4);
     }
 
     #[test]
@@ -139,6 +175,48 @@ mod tests {
         );
         assert!(triangle_hit([0.0, 0.0, 2.0], [0.0, 0.0, 1.0], triangle).is_none());
         assert!(triangle_hit([3.0, 0.0, 2.0], [0.0, 0.0, -1.0], triangle).is_none());
+    }
+
+    #[test]
+    fn eased_camera_converges_monotonically_and_snaps_when_settled() {
+        let goal = Camera {
+            yaw: 2.0,
+            pitch: -0.4,
+            distance: 5.0,
+            target: [1.0, 2.0, 3.0],
+        };
+        let mut shown = Camera::default();
+        let mut previous_gap = f32::INFINITY;
+        for _ in 0..200 {
+            let (next, settled) = shown.eased_toward(&goal, 0.2);
+            let gap = (next.yaw - goal.yaw).abs();
+            assert!(gap <= previous_gap);
+            previous_gap = gap;
+            shown = next;
+            if settled {
+                break;
+            }
+        }
+        assert_eq!(shown, goal);
+        let (snapped, settled) = shown.eased_toward(
+            &Camera {
+                yaw: f32::NAN,
+                ..goal
+            },
+            0.2,
+        );
+        assert!(settled && snapped.yaw.is_nan());
+    }
+
+    #[test]
+    fn default_view_looks_into_the_cutaway_quadrant_toward_the_outboard_port() {
+        let camera = Camera::default();
+        let (eye, _, _, forward) = camera.basis();
+        // The cutaway removes the +X, -Z toroidal quadrant; the eye sits in it.
+        assert!(eye[0] > 0.0 && eye[2] < 0.0);
+        // The outboard port (x 4.3..5.6, y = z = 0) lies in front of the camera.
+        let to_port = subtract([4.9, 0.0, 0.0], eye);
+        assert!(dot(to_port, forward) > 0.0);
     }
 
     #[test]

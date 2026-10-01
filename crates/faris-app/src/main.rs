@@ -437,6 +437,7 @@ impl FarisApp {
 
     fn rebuild(&mut self) -> Result<(), faris_engine::mesh::MeshError> {
         self.meshes.clear();
+        let mut slice_vertices: Option<Arc<[viewport::Vertex]>> = None;
         if self.transport.view == transport_panel::FieldView::FluxSlice
             && let Some(record) = self
                 .transport
@@ -482,9 +483,7 @@ impl FarisApp {
                     });
                 }
             }
-            self.vertices = vertices.into();
-            self.revision += 1;
-            return Ok(());
+            slice_vertices = Some(vertices.into());
         }
         let sweep = if self.cutaway { CUTAWAY_SWEEP } else { TAU };
         for component in &self.manifest.variants[self.variant].components {
@@ -590,9 +589,10 @@ impl FarisApp {
             });
         }
         // Component fields change a few colors, while the scenario-derived
-        // geometry stays in its cached MeshVertex buffers. Spatial slices retain
-        // their separately colored per-bin vertex path above.
-        self.vertices = Arc::from([]);
+        // geometry stays in its cached MeshVertex buffers. Spatial slices keep
+        // their separately colored per-bin vertices; the component meshes then
+        // serve as faint context geometry around the slice.
+        self.vertices = slice_vertices.unwrap_or_else(|| Arc::from([]));
         self.revision += 1;
         Ok(())
     }
@@ -663,6 +663,37 @@ impl FarisApp {
         }
         if let Some(selected) = selected {
             self.selected = selected;
+        }
+    }
+
+    /// Double-click framing: select the component under the pointer and move
+    /// the camera goal to its bounds (the displayed camera eases there).
+    fn frame_component(&mut self, rect: egui::Rect, point: egui::Pos2) {
+        if self.transport.view == transport_panel::FieldView::FluxSlice {
+            return;
+        }
+        let components: Vec<viewport::ComponentDraw> = self
+            .meshes
+            .iter()
+            .map(|mesh| viewport::ComponentDraw {
+                vertices: mesh.vertices.clone(),
+                color: mesh.color,
+            })
+            .collect();
+        if let Some(index) = viewport::pick_component(&self.camera, rect, point, &components) {
+            let mesh = &self.meshes[index];
+            self.selected = mesh.id.clone();
+            let mut minimum = [f32::INFINITY; 3];
+            let mut maximum = [f32::NEG_INFINITY; 3];
+            for vertex in mesh.vertices.iter() {
+                for axis in 0..3 {
+                    minimum[axis] = minimum[axis].min(vertex.position[axis]);
+                    maximum[axis] = maximum[axis].max(vertex.position[axis]);
+                }
+            }
+            if minimum.iter().chain(&maximum).all(|x| x.is_finite()) {
+                self.camera.frame_bounds(minimum, maximum);
+            }
         }
     }
 
@@ -1596,6 +1627,11 @@ impl eframe::App for FarisApp {
                 {
                     self.pick(rect, point);
                 }
+                if response.double_clicked()
+                    && let Some(point) = response.interact_pointer_pos()
+                {
+                    self.frame_component(rect, point);
+                }
                 if (before
                     != (
                         self.variant,
@@ -1611,16 +1647,31 @@ impl eframe::App for FarisApp {
                     self.message = error.to_string();
                 }
                 let flat_color = self.transport.view != transport_panel::FieldView::Materials;
-                let callback = if self.transport.view == transport_panel::FieldView::FluxSlice {
-                    viewport::paint(rect, self.camera, self.vertices.clone(), self.revision, flat_color)
-                } else {
-                    let components = self.meshes.iter().map(|mesh| viewport::ComponentDraw {
-                        vertices: mesh.vertices.clone(),
-                        color: mesh.color,
-                    }).collect::<Vec<_>>();
-                    viewport::paint_components(rect, self.camera, components.into(), self.revision, flat_color)
+                let slice_view = self.transport.view == transport_panel::FieldView::FluxSlice;
+                let components: Arc<[viewport::ComponentDraw]> = self.meshes.iter().map(|mesh| viewport::ComponentDraw {
+                    vertices: mesh.vertices.clone(),
+                    color: mesh.color,
+                }).collect::<Vec<_>>().into();
+                let shown_camera = viewport::eased_camera(&ctx, self.camera);
+                let hovered = if slice_view { None } else { viewport::hover_component(&ctx, &response, rect, shown_camera, &components) };
+                let scene = viewport::Scene {
+                    slice: self.vertices.clone(),
+                    components,
+                    revision: self.revision,
+                    flat_color,
+                    slice_view,
+                    port: self.manifest.penetration.as_ref().map(|faris_model::Penetration::OutboardRectangularPrism { bounds_m, .. }| viewport::PortBox {
+                        minimum: bounds_m.minimum_xyz_m.map(|x| x as f32),
+                        maximum: bounds_m.maximum_xyz_m.map(|x| x as f32),
+                    }),
+                    hover: hovered,
                 };
-                ui.painter().add(callback);
+                ui.painter().add(viewport::paint(rect, shown_camera, &scene));
+                viewport::paint_labels(ui.painter(), rect, shown_camera, &scene);
+                let hovered_label = hovered.and_then(|index| {
+                    let id = &self.meshes.get(index)?.id;
+                    self.manifest.variants[self.variant].components.iter().find(|c| &c.id == id).map(|c| c.label.clone())
+                });
                 let caption = match self.transport.view {
                         transport_panel::FieldView::Materials => {
                             "X red · Y green · Z blue · metre grid · material identities"
@@ -1644,7 +1695,12 @@ impl eframe::App for FarisApp {
                     let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
                     ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
                 }
-                response.on_hover_text(caption);
+                response.on_hover_ui(|ui| {
+                    if let Some(label) = &hovered_label {
+                        ui.strong(label);
+                    }
+                    ui.weak(caption);
+                });
             });
         if let Some(check) = &mut self.interface_check {
             let variant = &self.manifest.variants[self.variant].id;
