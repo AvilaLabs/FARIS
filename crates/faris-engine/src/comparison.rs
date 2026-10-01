@@ -257,7 +257,7 @@ pub fn compare_histories_cancellable(
         schema_version: "faris-history-comparison/v0.1".into(),
         left_label: left_label.into(), right_label: right_label.into(),
         controlled_difference: controlled_difference.into(),
-        dependence_note: "Both deterministic histories use the same authored assumptions. Transport Monte Carlo responses may share histories and their covariance is not inferred here; differences are descriptive point estimates, not uncertainty-qualified effects.".into(),
+        dependence_note: "Both deterministic histories use the same authored assumptions. Joint Monte Carlo uncertainty of production, exposure and heat responses is not propagated through these histories. Differences are descriptive point estimates, not uncertainty-qualified effects.".into(),
         left: summarize(left, &l), right: summarize(right, &r), differences,
         interpretation: "Conditional paired code-to-code/model comparison only. No empirical qualification, service-life claim, or inferential significance is implied.".into(),
     })

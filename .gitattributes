@@ -1,0 +1,4 @@
+# Preserve the original whitespace in copied third-party license notices.
+licenses/** -whitespace
+docs/THIRD_PARTY_NOTICES.md -whitespace
+docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md -whitespace

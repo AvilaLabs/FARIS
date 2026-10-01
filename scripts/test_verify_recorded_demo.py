@@ -211,8 +211,16 @@ def make_operating_artifacts(root: Path, pair: str, scenario_sha: str,
 
 def make_package(root: Path, faris: Path, core: Path,
                  core_source_repo: Path, core_source_revision: str) -> None:
-    assumptions = {"operating_days": 10, "service_limit": 0.9}
-    event_assumptions = {"planned_outage_duration_s": 1.0, "recovery_fraction": 0.5}
+    assumptions = {"horizon_s": 30 * 365.25 * 86400,
+                   "planned_outages": [
+                       {"start_s": 0, "end_s": 30 * 86400, "reason": "fixture"},
+                       {"start_s": 365.25 * 86400,
+                        "end_s": 395.25 * 86400, "reason": "fixture"},
+                   ], "operating_days": 10, "service_limit": 0.9}
+    event_assumptions = {"horizon_s": 30 * 365 * 86400, "planned_outages": [
+        {"start_s": 0, "end_s": 30 * 86400, "reason": "fixture"},
+        {"start_s": 365.25 * 86400, "end_s": 395.25 * 86400, "reason": "fixture"},
+    ], "recovery_fraction": 0.5}
     grid = {"recovery_fraction_levels": [0.2, 0.5, 0.8],
             "delay_multipliers": [0.5, 1.0, 2.0],
             "service_limit_multipliers": [0.5, 1.0, 1.5], "rationale": "fixture grid"}
@@ -275,12 +283,15 @@ def make_package(root: Path, faris: Path, core: Path,
             shutil.rmtree(workspace)
             arrangement = {
                 "variant_id": variant,
+                "scenario_sha256": scenario_sha,
                 "core_execution_report_member": "execution-report.json",
                 "core_execution_report_sha256": "sha256:" + hashlib.sha256(b"report material\n").hexdigest(),
                 "case_archive": case_archive,
                 "workspace_archive": workspace_archive,
                 "run_record_sha256": run_record_hash,
                 "raw_artifact_sha256": artifact_sha,
+                "input_sha256": bundle_summary["input_sha256"],
+                "sampling": {"batches": 10},
                 "transport_bundle": bundle_rel,
                 "transport_bundle_sha256": VERIFY.digest(root / bundle_rel),
                 "mesh_nonzero_flux_bin_count": 1,
@@ -393,6 +404,78 @@ def make_package(root: Path, faris: Path, core: Path,
                       "paired_history_comparison": comparison,
                       "event_histories": events,
                       "sensitivity_studies": sensitivities})
+    outage_records = []
+    base_event_path = root / "operating-assumptions.json"
+    base_event = json.loads(base_event_path.read_text())
+    for pair in pairs:
+        pair_id = pair["scenario_path"].split("/", 1)[0]
+        for arrangement in pair["arrangements"]:
+            for multiplier in PACKAGE.OUTAGE_DURATION_MULTIPLIERS:
+                adjusted = PACKAGE.scale_outage_durations(base_event, multiplier)
+                factor = str(multiplier).replace(".", "p")
+                directory = root / "outage-duration-sensitivity" / pair_id / arrangement["variant_id"] / f"multiplier-{factor}"
+                assumptions_path = directory / "assumptions.json"
+                write(assumptions_path, json.dumps(adjusted) + "\n")
+                history = {
+                    "schema_version": "faris-history-result/v0.1",
+                    "assumptions": adjusted,
+                    "driving_rates": {"scenario_sha256": pair["scenario_sha256"],
+                                      "transport_artifact_sha256": arrangement["raw_artifact_sha256"]},
+                    "events": [{"kind": "planned_outage_started"}],
+                    "snapshots": [{"time_s": 1.0}],
+                }
+                history_path, rates_path = directory / "history.json", directory / "rates.json"
+                write(history_path, json.dumps(history) + "\n")
+                write(rates_path, json.dumps({"transport_artifact_sha256": arrangement["raw_artifact_sha256"]}) + "\n")
+                provenance = {
+                    "schema_version": "faris-outage-duration-provenance/v0.1",
+                    "pair_id": pair_id, "variant_id": arrangement["variant_id"],
+                    "duration_multiplier": multiplier,
+                    "run_record_sha256": arrangement["run_record_sha256"],
+                    "raw_artifact_sha256": arrangement["raw_artifact_sha256"],
+                    "input_sha256": arrangement["input_sha256"],
+                    "sampling": arrangement["sampling"],
+                    "scenario_sha256": pair["scenario_sha256"],
+                    "adjusted_assumptions_sha256": VERIFY.digest(assumptions_path),
+                    "history_sha256": VERIFY.digest(history_path),
+                    "rates_sha256": VERIFY.digest(rates_path),
+                    "base_operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
+                    "interpretation": "AUTHORED_SCENARIO_PROBE",
+                    "not_probability_distribution": True,
+                    "not_physical_uncertainty": True,
+                    "not_availability_estimate": True,
+                }
+                provenance_path = directory / "provenance.json"
+                write(provenance_path, json.dumps(provenance) + "\n")
+                outage_records.append({
+                    "pair_id": pair_id, "variant_id": arrangement["variant_id"],
+                    "duration_multiplier": multiplier,
+                    "assumptions_path": assumptions_path.relative_to(root).as_posix(),
+                    "assumptions_sha256": VERIFY.digest(assumptions_path),
+                    "history_path": history_path.relative_to(root).as_posix(),
+                    "history_sha256": VERIFY.digest(history_path),
+                    "rates_path": rates_path.relative_to(root).as_posix(),
+                    "rates_sha256": VERIFY.digest(rates_path),
+                    "provenance_path": provenance_path.relative_to(root).as_posix(),
+                    "provenance_sha256": VERIFY.digest(provenance_path),
+                })
+    outage_summary = {
+        "schema_version": "faris-outage-duration-study/v0.1",
+        "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
+        "interpretation": "AUTHORED_SCENARIO_PROBE",
+        "not_probability_distribution": True,
+        "not_physical_uncertainty": True,
+        "not_availability_estimate": True,
+        "axis": {"multipliers": [0.5, 1.0, 2.0], "resulting_duration_days": [15, 30, 60],
+                 "base_outage_duration_days": 30,
+                 "fixed": ["outage start times", "outage spacing", "all non-duration assumptions",
+                           "transport source rates", "scenario", "variant", "operating history horizon"],
+                 "maximum_outage_below_annual_spacing": True},
+        "scope": "Authored one-factor scenario probes; levels are not probability distributions.",
+        "records": outage_records,
+    }
+    outage_summary_path = root / "references/outage-duration-sensitivity-summary.json"
+    write(outage_summary_path, json.dumps(outage_summary) + "\n")
     app = root.parent / "faris-app-test"
     write(app, "#!/usr/bin/env python3\nimport json,os,sys,time\nfrom pathlib import Path\n"
                "if '--version' in sys.argv: print('faris-app 0.0.1'); raise SystemExit(0)\n"
@@ -410,7 +493,8 @@ def make_package(root: Path, faris: Path, core: Path,
                "  p=Path(args[i+1]); d=json.loads(p.read_text()); base=p.parent; c=(base/d['case_directory']).resolve(); w=(base/d['execution_workspace']).resolve()\n"
                "  assert (c/'case.marker').is_file() and (w/'receipt.json').is_file()\n"
                "  ds.append({'descriptor':str(p),'exists_during_launch':True})\n"
-               "log=os.environ.get('FARIS_TEST_ARGS'); Path(log).write_text(json.dumps({'saved':ds,'args':args,'core':args[args.index('--core')+1]})) if log else None\n")
+               "runs=Path(args[args.index('--runs-directory')+1]); runs.mkdir(parents=True,exist_ok=True); (runs/'fake-app-output.json').write_text('{\\\"created\\\":true}\\n')\n"
+               "log=os.environ.get('FARIS_TEST_ARGS'); Path(log).write_text(json.dumps({'saved':ds,'args':args,'core':args[args.index('--core')+1],'runs':str(runs)})) if log else None\n")
     app.chmod(0o755)
     runtime = PACKAGE.install_local_runtime(
         root, faris, app, core, core_source_repo, core_source_revision,
@@ -436,6 +520,10 @@ def make_package(root: Path, faris: Path, core: Path,
              "sensitivity_grid": {"path": "inputs/sensitivity-grid.json",
                                   "sha256": VERIFY.digest(root / "inputs/sensitivity-grid.json"),
                                   "points_per_run": 27},
+             "outage_duration_sensitivity": {
+                 "path": outage_summary_path.relative_to(root).as_posix(),
+                 "sha256": VERIFY.digest(outage_summary_path), "case_count": 12,
+                 "multipliers": [0.5, 1.0, 2.0], "duration_days": [15, 30, 60]},
              "expanded_case_workspace_bytes": sum(item["expanded_bytes"] for item in expanded_records),
              "expanded_case_workspace_file_count": sum(item["file_count"] for item in expanded_records),
              "expanded_case_workspace_member_count": sum(item["archive_member_count"] for item in expanded_records),
@@ -527,22 +615,55 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         result = VERIFY.verify_package(relocated, self.faris, self.core)
         self.assertEqual(result["inspected_saved_case_count"], 4)
 
+    def test_outage_duration_axis_changes_only_interval_lengths(self):
+        base = json.loads((self.package / "operating-assumptions.json").read_text())
+        adjusted = PACKAGE.scale_outage_durations(base, 2.0)
+        for original, changed in zip(base["planned_outages"], adjusted["planned_outages"], strict=True):
+            self.assertEqual(changed["start_s"], original["start_s"])
+            self.assertEqual(changed["end_s"] - changed["start_s"],
+                             2 * (original["end_s"] - original["start_s"]))
+        base["planned_outages"][1]["start_s"] = 20 * 86400
+        with self.assertRaisesRegex(ValueError, "ordered, and non-overlapping"):
+            PACKAGE.scale_outage_durations(base, 2.0)
+
+    def test_outage_duration_replay_rejects_tampered_input_or_missing_driver(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        VERIFY.verify_outage_duration_study(self.package, index)
+        summary_path = self.package / index["outage_duration_sensitivity"]["path"]
+        summary = json.loads(summary_path.read_text())
+        target_record = summary["records"][0]
+        assumptions_path = self.package / target_record["assumptions_path"]
+        assumptions = json.loads(assumptions_path.read_text())
+        assumptions["recovery_fraction"] = 0.1
+        write(assumptions_path, json.dumps(assumptions) + "\n")
+        with self.assertRaises(ValueError):
+            VERIFY.verify_outage_duration_study(self.package, index)
+
     def test_launcher_keeps_private_materialization_alive_for_app_and_cleans_it(self):
         log = self.root / "app-arguments.json"
-        environment = dict(os.environ, FARIS_TEST_ARGS=str(log))
+        state_home = self.root / "state-home"
+        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(state_home))
+        index_bytes = (self.package / "package-index.json").read_bytes()
         result = subprocess.run(
-            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
-             str(self.package)], env=environment, text=True, capture_output=True, check=False,
+            [str(self.package / "launch.sh")], env=environment, text=True, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         data = json.loads(log.read_text())
         self.assertEqual(len(data["saved"]), 4)
         self.assertTrue(data["core"].endswith("bin/avila-core"))
         self.assertIn("--saved-study-ready-marker", data["args"])
+        self.assertIn("--runs-directory", data["args"])
+        self.assertFalse(Path(data["runs"]).is_relative_to(self.package.resolve()))
+        self.assertTrue((Path(data["runs"]) / "fake-app-output.json").is_file())
         for item in data["saved"]:
             self.assertTrue(item["exists_during_launch"])
             self.assertFalse(Path(item["descriptor"]).exists())
         self.assertIn("materialized", result.stderr)
+        self.assertEqual((self.package / "package-index.json").read_bytes(), index_bytes)
+        self.assertFalse(any(self.package.rglob("__pycache__")))
+        index = json.loads(index_bytes)
+        for item in index["files"]:
+            self.assertEqual(VERIFY.digest(self.package / item["path"]), item["sha256"])
 
     def test_launcher_cancels_materialization_and_cleans_when_app_exits(self):
         environment = dict(os.environ, FARIS_TEST_EXIT_EARLY="7")
@@ -626,16 +747,26 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         relocated = self.root / "relocated-cli" / "demo"
         original = VERIFY.digest(self.package / "control" / "scenario.json")
         result = subprocess.run(
-            ["python3", str(SCRIPT), "--package", str(self.package), "--faris", str(self.faris),
-             "--core", str(self.core), "--relocated-copy", str(relocated)],
+            [str(self.package / "verify.sh")],
             text=True, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)
         self.assertEqual(output["inspected_saved_case_count"], 4)
         self.assertEqual(output["tamper_control"], "EXPECTED_REJECTION")
-        self.assertTrue(relocated.is_dir())
+        self.assertTrue(output["original_preserved"])
+        self.assertFalse(any(self.package.rglob("__pycache__")))
         self.assertEqual(VERIFY.digest(self.package / "control" / "scenario.json"), original)
+
+    def test_launcher_rejects_runs_directory_inside_read_only_package(self):
+        environment = dict(os.environ, XDG_STATE_HOME=str(self.root / "state-home"))
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
+             str(self.package), "--runs-directory", str(self.package / "user-runs")],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("outside the read-only distribution", result.stderr)
 
     def test_index_rejects_extra_unindexed_file_and_path_traversal(self):
         extra = self.package / "unexpected.txt"

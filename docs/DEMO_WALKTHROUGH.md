@@ -31,7 +31,10 @@ short native demonstration is:
    Change recovery or opening fuel under **Operating assumptions** and press
    **Recalculate history**. Earlier curves remain marked until completion.
 7. Inspect **Conditional sensitivity** and the packaged paired comparisons.
-   The 27 full-history reruns probe authored assumptions; they are not lifetime
+   The 27 full-history reruns probe recovery, processing delay and service limits.
+   A separate packaged study varies annual planned outages over 15, 30 and 60
+   days for each transport driver, keeping the remaining baseline inputs fixed.
+   These authored ranges are not lifetime
    confidence bounds. The result can remain an unresolved engineering tradeoff.
 
 Fresh transport and reproducible CLI/export instructions follow below. It takes
@@ -279,6 +282,12 @@ These deterministic history
 probes are authored scenario studies, not
 probability distributions or lifetime uncertainty bounds.
 
+The separate outage-duration study contains twelve additional full Rust
+histories: four fixed transport drivers at annual outage durations of 15, 30
+and 60 days. Its one-factor changes preserve outage start dates and every other
+baseline input. Assumptions, driving rates, full histories and provenance are
+retained for independent replay; the 30-day level reproduces the baseline.
+
 The local Linux distribution includes hash-pinned, read-only copies of the
 release FARIS CLI, native app, and Core executable. Launch the offline four-case
 workspace with `dist/FARIS-demo-2026-10-01/launch.sh`; run
@@ -289,6 +298,13 @@ check byte identity only; they are unsigned and do not establish authenticity.
 The package copies FARIS's AGPL license and Core's license/third-party notices
 from the declared source revisions, and records the repository commits plus
 the build commands in `SOURCE_PROVENANCE.md`.
+
+Launch and verification preserve the indexed distribution. Generated study and
+fresh-run records default to `$XDG_STATE_HOME/faris/recorded-demo-runs/<package-name>`
+(or `~/.local/state/faris/recorded-demo-runs/<package-name>`). Pass
+`--runs-directory /path/outside/the/distribution` to choose another output root.
+The launcher refuses a run directory inside the distribution and suppresses
+Python bytecode writes there.
 
 Open the port arrangement and its feature-free control from that package with:
 

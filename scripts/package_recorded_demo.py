@@ -40,8 +40,10 @@ MAX_TREE_FILES = 2048
 MAX_TREE_MEMBERS = 4096
 MAX_EXPANDED_PACKAGE_BYTES = 1536 * 1024 * 1024
 MAX_EXPANDED_PACKAGE_FILES = 8192
+OUTAGE_DURATION_MULTIPLIERS = (0.5, 1.0, 2.0)
 SUPPORT_SOURCE_FILES = (
     "docs/COLD_REFERENCE.md",
+    "docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md",
     "docs/DEMO_INPUT_SPEC.md",
     "docs/LITHIUM_CAPTURE_CONTROL.md",
     "docs/NUMERICAL_CONTROLS.md",
@@ -52,6 +54,7 @@ SUPPORT_SOURCE_FILES = (
     "controls/check_port_geometry.py",
     "controls/check_transport_arithmetic.py",
     "controls/test_lithium_capture.py",
+    "scripts/collect_dependency_notices.py",
     "integrations/openmc/assemble_fendl_photon_overlay.py",
     "integrations/openmc/audit_library.py",
     "integrations/openmc/convert_endfbvii1_photon.py",
@@ -357,6 +360,119 @@ def add_sensitivity(faris: Path, branch: Path, scenario: Path, run_path: Path,
             "point_count": expected_points}
 
 
+def scale_outage_durations(base: dict, multiplier: float) -> dict:
+    """Copy an authored event fixture while changing only planned outage lengths."""
+    if (isinstance(multiplier, bool) or not isinstance(multiplier, (int, float))
+            or not math.isfinite(multiplier) or multiplier not in OUTAGE_DURATION_MULTIPLIERS):
+        raise ValueError("outage multiplier is outside the frozen three-level axis")
+    if not isinstance(base, dict):
+        raise ValueError("event assumptions must be an object")
+    adjusted = json.loads(json.dumps(base))
+    outages = adjusted.get("planned_outages")
+    horizon = adjusted.get("horizon_s")
+    if (not isinstance(outages, list) or not outages
+            or not isinstance(horizon, (int, float)) or isinstance(horizon, bool)
+            or not math.isfinite(horizon) or horizon <= 0):
+        raise ValueError("outage-duration study requires authored planned outages")
+    previous_end = -math.inf
+    previous_start = None
+    expected_base_duration = 30 * 86400.0
+    annual_spacing = 365.25 * 86400.0
+    for outage in outages:
+        start, end = outage.get("start_s"), outage.get("end_s")
+        if (not isinstance(start, (int, float)) or isinstance(start, bool)
+                or not isinstance(end, (int, float)) or isinstance(end, bool)
+                or not math.isfinite(start) or not math.isfinite(end) or end <= start
+                or start < previous_end):
+            raise ValueError("planned outage intervals must be finite, ordered, and non-overlapping")
+        duration = (end - start) * multiplier
+        base_duration = end - start
+        if not math.isclose(base_duration, expected_base_duration, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("frozen outage axis requires exactly 30-day baseline outages")
+        if previous_start is not None:
+            if not math.isclose(start - previous_start, annual_spacing, rel_tol=0.0, abs_tol=1e-6):
+                raise ValueError("frozen outage axis requires exactly annual 365.25-day spacing")
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("scaled planned outage duration must be finite and positive")
+        outage["end_s"] = start + duration
+        if outage["end_s"] > horizon:
+            raise ValueError("scaled planned outage exceeds the authored history horizon")
+        previous_end = outage["end_s"]
+        previous_start = start
+    return adjusted
+
+
+def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
+                              scenario: Path, run_path: Path,
+                              base_assumptions: Path, scenario_sha: str,
+                              variant_id: str) -> list[dict]:
+    identity = source_run_identity(run_path, scenario_sha, variant_id)
+    base = json.loads(base_assumptions.read_text(encoding="utf-8"))
+    records = []
+    for multiplier in OUTAGE_DURATION_MULTIPLIERS:
+        adjusted = scale_outage_durations(base, multiplier)
+        factor = str(multiplier).replace(".", "p")
+        directory = staging / "outage-duration-sensitivity" / pair_id / variant_id / f"multiplier-{factor}"
+        directory.mkdir(parents=True)
+        assumptions_path = directory / "assumptions.json"
+        write_bounded_json(assumptions_path, adjusted)
+        history_path = directory / "history.json"
+        rates_path = directory / "rates.json"
+        invoke([str(faris), "history", "from-run", "--scenario", str(scenario),
+                "--run", str(run_path), "--assumptions", str(assumptions_path),
+                "--output", str(history_path), "--rates-output", str(rates_path)], timeout=600)
+        invoke([str(faris), "history", "validate", "--assumptions", str(assumptions_path),
+                "--rates", str(rates_path)], timeout=180)
+        history = json.loads(history_path.read_text(encoding="utf-8"))
+        rates = json.loads(rates_path.read_text(encoding="utf-8"))
+        verify_finite_json(history, str(history_path))
+        if (history.get("schema_version") != "faris-history-result/v0.1"
+                or history.get("assumptions") != adjusted
+                or bare_sha256(history.get("driving_rates", {}).get("scenario_sha256"), str(history_path)) != scenario_sha
+                or bare_sha256(history.get("driving_rates", {}).get("transport_artifact_sha256"), str(history_path))
+                != identity["raw_artifact_sha256"]
+                or bare_sha256(rates.get("transport_artifact_sha256"), str(rates_path))
+                != identity["raw_artifact_sha256"]
+                or not history.get("snapshots")):
+            raise RuntimeError(f"outage history is incomplete or bound to another run: {history_path}")
+        provenance = {
+            "schema_version": "faris-outage-duration-provenance/v0.1",
+            "pair_id": pair_id,
+            "variant_id": variant_id,
+            "duration_multiplier": multiplier,
+            "outage_durations_days": sorted({(item["end_s"] - item["start_s"]) / 86400.0
+                                              for item in adjusted["planned_outages"]}),
+            **identity,
+            "base_operating_assumptions_sha256": sha256(base_assumptions),
+            "adjusted_assumptions_sha256": sha256(assumptions_path),
+            "history_sha256": sha256(history_path),
+            "rates_sha256": sha256(rates_path),
+            "event_count": len(history.get("events", [])),
+            "snapshot_count": len(history["snapshots"]),
+            "outcome": history.get("outcome"),
+            "scope": "Authored one-factor scenario probe only; levels are not probability distributions, physical uncertainty ranges, maintenance forecasts, or availability estimates.",
+            "interpretation": "AUTHORED_SCENARIO_PROBE",
+            "not_probability_distribution": True,
+            "not_physical_uncertainty": True,
+            "not_availability_estimate": True,
+        }
+        provenance_path = directory / "provenance.json"
+        write_bounded_json(provenance_path, provenance)
+        records.append({
+            "pair_id": pair_id, "variant_id": variant_id,
+            "duration_multiplier": multiplier,
+            "assumptions_path": assumptions_path.relative_to(staging).as_posix(),
+            "assumptions_sha256": sha256(assumptions_path),
+            "history_path": history_path.relative_to(staging).as_posix(),
+            "history_sha256": sha256(history_path),
+            "rates_path": rates_path.relative_to(staging).as_posix(),
+            "rates_sha256": sha256(rates_path),
+            "provenance_path": provenance_path.relative_to(staging).as_posix(),
+            "provenance_sha256": sha256(provenance_path),
+        })
+    return records
+
+
 def archive_tree(staging: Path, branch: Path, variant_id: str,
                  kind: str, source: Path) -> dict[str, object]:
     archives = branch / "archives"
@@ -393,8 +509,9 @@ def add_history_comparison(faris: Path, branch: Path, scenario: Path,
     left_identity = source_run_identity(left_run, scenario_sha, "reference")
     right_identity = source_run_identity(right_run, scenario_sha, "breeder-emphasis")
     controlled_difference = (
-        "Reference and breeder-emphasis material allocation differ under the same scenario and authored assumptions; "
-        "runs have independent seeds; deterministic history differences are descriptive and transport covariance is not estimated."
+        "Reference and breeder-emphasis blanket/shield geometry allocations differ (blanket +0.10 m, shield −0.10 m), "
+        "with material compositions, source and data held fixed under the same scenario and authored assumptions; "
+        "transport seeds are distinct."
     )
     comparison_path = branch / "comparisons" / "reference-vs-breeder-emphasis.json"
     comparison_path.parent.mkdir(parents=True, exist_ok=True)
@@ -541,6 +658,20 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(source.stdout)
     shutil.copyfile(faris_repo / "LICENSE", licenses_dir / "faris-LICENSE")
+    faris_third_party_notices = faris_repo / "docs" / "THIRD_PARTY_NOTICES.md"
+    if not faris_third_party_notices.is_file() or faris_third_party_notices.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+        raise RuntimeError("FARIS third-party dependency notices are missing or oversized")
+    shutil.copyfile(faris_third_party_notices,
+                    licenses_dir / "faris-THIRD_PARTY_NOTICES.md")
+    core_runtime_notices = faris_repo / "docs" / "CORE_RUNTIME_DEPENDENCY_NOTICES.md"
+    rust_library_notice = faris_repo / "licenses" / "rust-1.98.1-COPYRIGHT-library.html"
+    for source in (core_runtime_notices, rust_library_notice):
+        if not source.is_file() or source.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise RuntimeError(f"required runtime license/notice is missing or oversized: {source}")
+    shutil.copyfile(core_runtime_notices,
+                    licenses_dir / "core-RUNTIME_DEPENDENCY_NOTICES.md")
+    shutil.copyfile(rust_library_notice,
+                    licenses_dir / "rust-1.98.1-COPYRIGHT-library.html")
 
     faris_revision = git_output(faris_repo, "rev-parse", "HEAD")
     core_revision_resolved = git_output(core_license_root, "rev-parse", f"{core_source_revision}^{{commit}}")
@@ -585,6 +716,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
 
     launch = """#!/bin/sh
 set -eu
+export PYTHONDONTWRITEBYTECODE=1
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 python3 "$root/scripts/verify_binary_manifest.py" "$root"
 exec python3 "$root/scripts/launch_recorded_demo.py" "$root" "$@"
@@ -594,6 +726,7 @@ exec python3 "$root/scripts/launch_recorded_demo.py" "$root" "$@"
     launch_path.chmod(0o555)
     verify = """#!/bin/sh
 set -eu
+export PYTHONDONTWRITEBYTECODE=1
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT HUP INT TERM
@@ -750,7 +883,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> Non
         "It exposes normalized integrated tritium production and all-particle heating, 12 neutron/photon component spectra, and the complete local mesh field.",
         "The port cases additionally retain independent OpenMC point-ownership/clearance and geometry-volume audit reports.",
         "",
-        "The package includes two descriptive paired-history comparisons, four event-control histories, and four 27-point sensitivity results from the indexed assumptions and grid.",
+        "The package includes two descriptive paired-history comparisons, four event-control histories, four 27-point sensitivity results, and a separate 12-case planned-outage duration axis (15/30/60 days for each of four exact transport drivers). The outage axis changes duration only and is an authored scenario probe, not a physical uncertainty range or availability estimate.",
         "Their deterministic results are conditional on the authored ledger model; grid points are not probabilities, confidence limits, material allowables, or lifetime predictions.",
         "See `support/` for the bounded scientific background, independent checker scripts, data acquisition route, license notes, and included verification metadata.",
         "The old DEMO_ACCEPTANCE snapshot is intentionally omitted because release acceptance is determined by the final package index and fresh verifier run.",
@@ -787,6 +920,7 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
     run_summaries = []
     event_summaries = []
     sensitivity_summaries = []
+    outage_summaries = []
     for index, (variant_id, run_path) in enumerate(variants):
         inspected = verify_run(faris, scenario_path, run_path, variant_id)
         volume_identity = None
@@ -888,6 +1022,9 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             faris, branch, scenario_path, run_path, assumptions,
             sensitivity_grid, scenario_sha, variant_id)
         sensitivity_summaries.append(sensitivity_identity)
+        outage_summaries.extend(add_outage_duration_study(
+            faris, staging, branch.name, scenario_path, run_path,
+            assumptions, scenario_sha, variant_id))
         case_report_sha = sha256(execution_report)
         case_archive = archive_tree(staging, branch, variant_id, "case", case)
         workspace_archive = archive_tree(staging, branch, variant_id, "workspace", workspace)
@@ -905,6 +1042,8 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             "variant_id": variant_id,
             "run_record_sha256": sha256(run_path),
             "raw_artifact_sha256": source_run_identity(run_path, scenario_sha, variant_id)["raw_artifact_sha256"],
+            "input_sha256": source_run_identity(run_path, scenario_sha, variant_id)["input_sha256"],
+            "sampling": source_run_identity(run_path, scenario_sha, variant_id)["sampling"],
             "scenario_sha256": inspected["scenario_sha256"],
             "scientific_qualification": inspected["scientific_qualification"],
             "normalized_response_count": inspected["response_count"],
@@ -941,6 +1080,7 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         "paired_history_comparison": comparison_summary,
         "event_histories": event_summaries,
         "sensitivity_studies": sensitivity_summaries,
+        "outage_duration_studies": outage_summaries,
         "feature": "finite_port" if port_reports else "feature_free_control",
     }
 
@@ -1058,6 +1198,26 @@ def main() -> None:
             branches.append(add_pair(staging, pair_id, faris, core, scenario_path,
                                      reference_run, breeder_run, assumptions,
                                      event_assumptions, sensitivity_grid, volume_reports))
+        outage_records = [record for pair in branches for record in pair["outage_duration_studies"]]
+        if len(outage_records) != 12:
+            raise RuntimeError(f"outage-duration study produced {len(outage_records)} of 12 required runs")
+        outage_summary = {
+            "schema_version": "faris-outage-duration-study/v0.1",
+            "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
+            "axis": {"base_outage_duration_days": 30, "multipliers": list(OUTAGE_DURATION_MULTIPLIERS),
+                     "resulting_duration_days": [15, 30, 60],
+                     "fixed": ["outage start times", "outage spacing", "all non-duration assumptions",
+                               "transport source rates", "scenario", "variant", "operating history horizon"],
+                     "maximum_outage_below_annual_spacing": True},
+            "scope": "One-factor authored scenario probes; levels are not probability distributions, physical uncertainty ranges, maintenance forecasts, or availability claims.",
+            "interpretation": "AUTHORED_SCENARIO_PROBE",
+            "not_probability_distribution": True,
+            "not_physical_uncertainty": True,
+            "not_availability_estimate": True,
+            "records": outage_records,
+        }
+        outage_summary_path = staging / "references" / "outage-duration-sensitivity-summary.json"
+        write_bounded_json(outage_summary_path, outage_summary)
         write_package_readme(staging, branches, support_manifest)
         indexed_files = scan_package(staging)
         expanded_total = sum(
@@ -1093,6 +1253,13 @@ def main() -> None:
                 "path": "inputs/sensitivity-grid.json",
                 "sha256": sha256(inputs_dir / "sensitivity-grid.json"),
                 "points_per_run": 27,
+            },
+            "outage_duration_sensitivity": {
+                "path": outage_summary_path.relative_to(staging).as_posix(),
+                "sha256": sha256(outage_summary_path),
+                "case_count": len(outage_records),
+                "multipliers": list(OUTAGE_DURATION_MULTIPLIERS),
+                "duration_days": [15, 30, 60],
             },
             "package_file_count": len(indexed_files),
             "package_bytes": sum(item["bytes"] for item in indexed_files),

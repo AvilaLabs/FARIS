@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import platform
 from pathlib import Path, PurePosixPath
@@ -18,6 +19,7 @@ from typing import Any
 SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
+sys.dont_write_bytecode = True
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import validate_recorded_bundle
 from recorded_archives import (extract_indexed_trees, MAX_EXPANDED_BYTES, MAX_MEMBERS,
@@ -37,6 +39,19 @@ def digest(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             hasher.update(block)
     return "sha256:" + hasher.hexdigest()
+
+
+def bare_sha256(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{label}: missing SHA-256 identity")
+    result = value.removeprefix("sha256:")
+    if len(result) != 64:
+        raise ValueError(f"{label}: malformed SHA-256 identity")
+    try:
+        bytes.fromhex(result)
+    except ValueError as error:
+        raise ValueError(f"{label}: malformed SHA-256 identity") from error
+    return result.lower()
 
 
 def safe_package_path(root: Path, relative: str, *, must_be_file: bool = True) -> Path:
@@ -127,6 +142,9 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     expected_license_files = {
         "licenses/faris-LICENSE", "licenses/core-LICENSE",
         "licenses/core-THIRD_PARTY_NOTICES.md",
+        "licenses/faris-THIRD_PARTY_NOTICES.md",
+        "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md",
+        "licenses/rust-1.98.1-COPYRIGHT-library.html",
     }
     if (not isinstance(license_files, dict)
             or not expected_license_files <= set(license_files)
@@ -257,6 +275,121 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
                 or any(character not in "0123456789abcdefABCDEF" for character in source_sha_bare)):
             raise ValueError(f"packaged scientific support identity mismatch: {relative}")
     return index, inventory
+
+
+def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
+    ref = index.get("outage_duration_sensitivity")
+    if (not isinstance(ref, dict) or ref.get("case_count") != 12
+            or ref.get("multipliers") != [0.5, 1.0, 2.0]
+            or ref.get("duration_days") != [15, 30, 60]):
+        raise ValueError("package does not identify the complete frozen outage-duration axis")
+    summary_path = safe_package_path(root, ref.get("path"))
+    if digest(summary_path) != ref.get("sha256"):
+        raise ValueError("outage-duration summary digest mismatch")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if (summary.get("schema_version") != "faris-outage-duration-study/v0.1"
+            or summary.get("status") != "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY"
+            or summary.get("interpretation") != "AUTHORED_SCENARIO_PROBE"
+            or summary.get("not_probability_distribution") is not True
+            or summary.get("not_physical_uncertainty") is not True
+            or summary.get("not_availability_estimate") is not True
+            or summary.get("axis", {}).get("multipliers") != [0.5, 1.0, 2.0]
+            or summary.get("axis", {}).get("base_outage_duration_days") != 30
+            or summary.get("axis", {}).get("resulting_duration_days") != [15, 30, 60]
+            or summary.get("axis", {}).get("fixed") != [
+                "outage start times", "outage spacing", "all non-duration assumptions",
+                "transport source rates", "scenario", "variant", "operating history horizon"]
+            or summary.get("axis", {}).get("maximum_outage_below_annual_spacing") is not True):
+        raise ValueError("outage-duration summary has incomplete scope or axis metadata")
+    records = summary.get("records")
+    if not isinstance(records, list) or len(records) != 12:
+        raise ValueError("outage-duration summary must have exactly 12 records")
+    base_sha = index.get("operating_assumptions_sha256")
+    base_path = safe_package_path(root, "operating-assumptions.json")
+    if digest(base_path) != base_sha:
+        raise ValueError("base operating assumptions digest mismatch for outage-duration axis")
+    base = json.loads(base_path.read_text(encoding="utf-8"))
+    base_outages = base.get("planned_outages")
+    if not isinstance(base_outages, list) or not base_outages:
+        raise ValueError("base operating assumptions lack the annual outage schedule")
+    for outage_index, outage in enumerate(base_outages):
+        if (outage.get("end_s") - outage.get("start_s") != 30 * 86400
+                or (outage_index > 0 and outage.get("start_s") - base_outages[outage_index - 1].get("start_s")
+                    != 365.25 * 86400)):
+            raise ValueError("base assumptions do not match the frozen 30-day annual outage axis")
+    arrangements: dict[tuple[str, str], dict] = {}
+    for pair in index.get("scenario_pairs", []):
+        pair_id = pair.get("scenario_path", "").split("/", 1)[0]
+        for arrangement in pair.get("arrangements", []):
+            arrangements[(pair_id, arrangement.get("variant_id"))] = arrangement
+    seen: set[tuple[str, str, float]] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise ValueError("malformed outage-duration record")
+        pair_id, variant, multiplier = (record.get("pair_id"), record.get("variant_id"),
+                                        record.get("duration_multiplier"))
+        key = (pair_id, variant, multiplier)
+        arrangement = arrangements.get((pair_id, variant))
+        if (key in seen or isinstance(multiplier, bool)
+                or not isinstance(multiplier, (int, float)) or not math.isfinite(multiplier)
+                or multiplier not in [0.5, 1.0, 2.0] or arrangement is None):
+            raise ValueError("outage-duration record has duplicate or unknown run identity")
+        seen.add(key)
+        paths = ("assumptions", "history", "rates", "provenance")
+        loaded = {}
+        for name in paths:
+            path = safe_package_path(root, record.get(f"{name}_path"))
+            if digest(path) != record.get(f"{name}_sha256"):
+                raise ValueError(f"outage-duration {name} digest mismatch")
+            loaded[name] = json.loads(path.read_text(encoding="utf-8"))
+        adjusted = loaded["assumptions"]
+        outages = adjusted.get("planned_outages")
+        if not isinstance(outages, list) or len(outages) != len(base_outages or []):
+            raise ValueError("outage-duration assumptions change outage count")
+        expected = json.loads(json.dumps(base))
+        for source, target in zip(base_outages, outages, strict=True):
+            duration = source["end_s"] - source["start_s"]
+            if (target.get("start_s") != source.get("start_s")
+                    or target.get("end_s") != source.get("start_s") + duration * multiplier):
+                raise ValueError("outage-duration assumptions change start times or use the wrong duration")
+            if target.get("end_s") - target.get("start_s") >= 365.25 * 86400:
+                raise ValueError("outage-duration axis contains an overlapping annual outage")
+        expected["planned_outages"] = outages
+        if adjusted != expected:
+            raise ValueError("outage-duration assumptions changed a non-duration input")
+        history, rates, provenance = loaded["history"], loaded["rates"], loaded["provenance"]
+        raw = arrangement.get("raw_artifact_sha256")
+        if (history.get("schema_version") != "faris-history-result/v0.1"
+                or history.get("assumptions") != adjusted
+                or bare_sha256(history.get("driving_rates", {}).get("scenario_sha256"), str(summary_path))
+                != arrangement.get("scenario_sha256")
+                or bare_sha256(history.get("driving_rates", {}).get("transport_artifact_sha256"), str(summary_path))
+                != raw
+                or bare_sha256(rates.get("transport_artifact_sha256"), str(summary_path)) != raw
+                or not history.get("snapshots")):
+            raise ValueError("outage-duration history does not match the bound transport run")
+        if (provenance.get("schema_version") != "faris-outage-duration-provenance/v0.1"
+                or provenance.get("pair_id") != pair_id
+                or provenance.get("variant_id") != variant
+                or provenance.get("duration_multiplier") != multiplier
+                or provenance.get("run_record_sha256") != arrangement.get("run_record_sha256")
+                or provenance.get("raw_artifact_sha256") != raw
+                or provenance.get("input_sha256") != arrangement.get("input_sha256")
+                or provenance.get("sampling") != arrangement.get("sampling")
+                or provenance.get("scenario_sha256") != arrangement.get("scenario_sha256")
+                or provenance.get("adjusted_assumptions_sha256") != record.get("assumptions_sha256")
+                or provenance.get("history_sha256") != record.get("history_sha256")
+                or provenance.get("rates_sha256") != record.get("rates_sha256")
+                or provenance.get("base_operating_assumptions_sha256") != base_sha
+                or provenance.get("interpretation") != "AUTHORED_SCENARIO_PROBE"
+                or provenance.get("not_probability_distribution") is not True
+                or provenance.get("not_physical_uncertainty") is not True
+                or provenance.get("not_availability_estimate") is not True):
+            raise ValueError("outage-duration provenance is not bound to its exact run and inputs")
+    expected = {(pair_id, variant, multiplier)
+                for pair_id, variant in arrangements for multiplier in [0.5, 1.0, 2.0]}
+    if seen != expected:
+        raise ValueError("outage-duration records do not cover every pair, variant, and level")
 
 
 def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
@@ -539,6 +672,7 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
 
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, _ = verify_index(package, faris, core)
+    verify_outage_duration_study(package.resolve(strict=True), index)
     expanded = int(index["expanded_case_workspace_bytes"])
     directory_count = int(index["expanded_case_workspace_directory_count"])
     largest_case = max(int(item["case_archive"]["expanded_bytes"])

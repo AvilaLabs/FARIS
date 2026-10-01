@@ -16,6 +16,7 @@ import time
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.dont_write_bytecode = True
 from recorded_archives import extract_indexed_trees
 from verify_recorded_demo import verify_index
 
@@ -25,6 +26,39 @@ def main() -> int:
         raise ValueError("usage: launch_recorded_demo.py PACKAGE_ROOT [APP_ARGUMENTS...]")
     root = Path(sys.argv[1]).resolve(strict=True)
     app_arguments = sys.argv[2:]
+    runs_override = None
+    index = 0
+    while index < len(app_arguments):
+        argument = app_arguments[index]
+        if argument == "--runs-directory":
+            if runs_override is not None or index + 1 >= len(app_arguments):
+                raise ValueError("--runs-directory must be supplied once with a path")
+            runs_override = app_arguments[index + 1]
+            if runs_override.startswith("--"):
+                raise ValueError("--runs-directory requires a path value")
+            index += 2
+            continue
+        if argument.startswith("--runs-directory="):
+            if runs_override is not None:
+                raise ValueError("--runs-directory must be supplied only once")
+            runs_override = argument.split("=", 1)[1]
+            if not runs_override:
+                raise ValueError("--runs-directory requires a path value")
+        index += 1
+    if runs_override is None:
+        state_home = os.environ.get("XDG_STATE_HOME")
+        state_root = Path(state_home) if state_home else Path.home() / ".local" / "state"
+        if not state_root.is_absolute():
+            raise ValueError("XDG_STATE_HOME must be an absolute path")
+        runs_directory = state_root / "faris" / "recorded-demo-runs" / root.name
+        app_arguments.extend(("--runs-directory", str(runs_directory)))
+    else:
+        runs_directory = Path(runs_override)
+        if not runs_directory.is_absolute():
+            runs_directory = Path.cwd() / runs_directory
+    runs_directory = runs_directory.resolve(strict=False)
+    if runs_directory == root or root in runs_directory.parents:
+        raise ValueError("--runs-directory must resolve outside the read-only distribution")
     faris, core, app = (root / "bin/faris", root / "bin/avila-core", root / "bin/faris-app")
     index, _ = verify_index(root, faris, core)
     expanded_bytes = index.get("expanded_case_workspace_bytes")
