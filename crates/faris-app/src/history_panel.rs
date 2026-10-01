@@ -134,6 +134,9 @@ impl HistoryPanel {
     pub fn is_pending(&self) -> bool {
         self.pending.is_some()
     }
+    pub fn is_stale(&self) -> bool {
+        self.edited
+    }
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -299,6 +302,11 @@ impl HistoryPanel {
             self.error = None;
             return;
         }
+        // Retain the last complete curves for inspection while the worker runs,
+        // but never present them as belonging to a new transport driver.
+        if !self.results.is_empty() {
+            self.edited = true;
+        }
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
@@ -364,7 +372,7 @@ impl HistoryPanel {
             ui.small("Authored scenario assumptions. Editing these reuses eligible transport and recalculates the Rust ledger.");
             if let Some(pending)=&self.pending{ui.spinner();if ui.button("Cancel history").clicked(){pending.cancellation.cancel();}}
             else if ui.button("Recalculate history").clicked(){self.requested=true;}
-            if self.edited{ui.colored_label(egui::Color32::YELLOW,"Displayed history belongs to previous assumptions.");}
+            if self.edited{ui.colored_label(egui::Color32::YELLOW,"Displayed history belongs to earlier inputs.");}
             ui.collapsing("Model provenance",|ui|{ui.small(&a.provenance);ui.small(&a.energy.provenance);for limit in &a.service_limits{ui.small(format!("{}: {:.3e} {} · {:?}",limit.component_id,limit.limit,limit.unit,limit.class));ui.small(&limit.provenance);}});
         });
         if let Some(error) = &self.error {
@@ -388,7 +396,8 @@ impl HistoryPanel {
                 let worker_cancel = cancellation.clone();
                 let (sender, receiver) = mpsc::channel();
                 let context = ui.ctx().clone();
-                let grid = HistorySensitivityGrid { recovery_fraction_levels: vec![0.90,0.95,0.99],delay_multipliers:vec![0.5,1.0,2.0],service_limit_multipliers:vec![0.5,1.0,2.0], rationale:"Authored factor-of-two service/delay and 90–99% recovery probes expose consequence sensitivity; no materials qualification or probability distribution is asserted.".into() };
+                let grid: HistorySensitivityGrid = serde_json::from_slice(include_bytes!("../../../scenarios/arc-inspired/demo-operating-sensitivity.json"))
+                    .expect("bundled sensitivity input is checked with the authored scenario");
                 match std::thread::Builder::new().name("faris-history-sensitivity".into()).spawn(move || {
                     let result = run_history_sensitivity_cancellable(&worker_assumptions,&rates,&grid,&worker_cancel);
                     let _ = sender.send(result); context.request_repaint();
@@ -422,7 +431,7 @@ impl HistoryPanel {
         year: &mut f64,
         horizon_years: f64,
     ) {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.strong("Calculated operating history");
             ui.separator();
             for (value, label) in [
@@ -435,6 +444,10 @@ impl HistoryPanel {
             }
             if self.pending.is_some() {
                 ui.spinner();
+            }
+            if self.edited {
+                ui.colored_label(egui::Color32::YELLOW, "Earlier history inputs")
+                    .on_hover_text("Displayed history belongs to earlier transport or operating inputs. Recalculation applies the current inputs.");
             }
         });
         ui.add(egui::Slider::new(year, 0.0..=horizon_years).text("calendar years"));

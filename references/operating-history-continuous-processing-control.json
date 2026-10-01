@@ -1,0 +1,199 @@
+{
+  "cli_version": "faris 0.0.1",
+  "created_utc": "2026-10-01T07:31:44.167046+00:00",
+  "independent_check_method": "Python Decimal closed-form constant-rate ODE/DDE calculations; independent of Rust evolve_stock and flow_integral helpers.",
+  "no_openmc_run_used": true,
+  "phase_case": {
+    "assumptions_file": "references/operating-history-processing-control-phases-assumptions.json",
+    "checks": {
+      "off-delayed-off": {
+        "current_power_fraction": "0.0",
+        "delayed_source_power_fraction": "0.0",
+        "expected": {
+          "available_tritium_kg": "0.00105221686581149926762117543654135886522670557",
+          "burn_kg": "0E-41",
+          "decay_kg": "9.37963743237882788383214952537473250777080807E-12",
+          "in_process_tritium_kg": "3.72482735234705061609398561925898435418513539E-19",
+          "processing_loss_kg": "0E-88",
+          "production_kg": "0E-42"
+        },
+        "interval_duration_s": "5.0",
+        "interval_start_s": "60.0",
+        "method": "independent Decimal constant-rate delayed-release solution",
+        "observed": {
+          "available_tritium_kg": "0.0010522168658114999",
+          "burn_kg": "0E-20",
+          "decay_kg": "9.37963743237884E-12",
+          "in_process_tritium_kg": "3.7248273523470505E-19",
+          "processing_loss_kg": "0E-21",
+          "production_kg": "0E-20"
+        },
+        "phase": "off-delayed-off",
+        "processing_delay_s": "20.0",
+        "scope": "software/mathematical control only; no reactor qualification",
+        "status": "PASS"
+      },
+      "off-delayed-on": {
+        "current_power_fraction": "0.0",
+        "delayed_source_power_fraction": "1.0",
+        "expected": {
+          "available_tritium_kg": "0.00101864884172354461943059178089694069007563719",
+          "burn_kg": "0E-41",
+          "decay_kg": "9.46691356982968385694079113219197464064409160E-12",
+          "in_process_tritium_kg": "0.0000419600770081271871799610742166347310007650819",
+          "processing_loss_kg": "0.00000279733842980454355976328794563344673162308705",
+          "production_kg": "0E-42"
+        },
+        "interval_duration_s": "5.0",
+        "interval_start_s": "40.0",
+        "method": "independent Decimal constant-rate delayed-release solution",
+        "observed": {
+          "available_tritium_kg": "0.0010186488417235455",
+          "burn_kg": "0E-20",
+          "decay_kg": "9.46691356987409E-12",
+          "in_process_tritium_kg": "0.00004196007700812723",
+          "processing_loss_kg": "0.000002797338429804540",
+          "production_kg": "0E-20"
+        },
+        "phase": "off-delayed-on",
+        "processing_delay_s": "20.0",
+        "scope": "software/mathematical control only; no reactor qualification",
+        "status": "PASS"
+      },
+      "on-delayed-off": {
+        "current_power_fraction": "1.0",
+        "delayed_source_power_fraction": "0.0",
+        "expected": {
+          "available_tritium_kg": "0.00104755455991260475890772386579079301344754018",
+          "burn_kg": "0.00000466223088258053105575774460213754000",
+          "decay_kg": "9.42119667038375872786904321667581146671465940E-12",
+          "in_process_tritium_kg": "0.0000139866925854021053027448876366788498766483565",
+          "processing_loss_kg": "0E-88",
+          "production_kg": "0.000013986692647741593167273233806412620000"
+        },
+        "interval_duration_s": "5.0",
+        "interval_start_s": "100.0",
+        "method": "independent Decimal constant-rate delayed-release solution",
+        "observed": {
+          "available_tritium_kg": "0.0010475545599126059",
+          "burn_kg": "0.00000466223088258050",
+          "decay_kg": "9.42119667023572E-12",
+          "in_process_tritium_kg": "0.00001398669258540211",
+          "processing_loss_kg": "0E-21",
+          "production_kg": "0.00001398669264774163"
+        },
+        "phase": "on-delayed-off",
+        "processing_delay_s": "20.0",
+        "scope": "software/mathematical control only; no reactor qualification",
+        "status": "PASS"
+      },
+      "on-delayed-on": {
+        "current_power_fraction": "1.0",
+        "delayed_source_power_fraction": "1.0",
+        "expected": {
+          "available_tritium_kg": "0.000994405269206544602035820589559794105993061606",
+          "burn_kg": "0.00000466223088258053105575774460213754000",
+          "decay_kg": "9.33392211651593253873100983195231720918228033E-12",
+          "in_process_tritium_kg": "0.0000559467695935287199999990729678376953229980981",
+          "processing_loss_kg": "0.00000279733842980454355976328794563344673162308705",
+          "production_kg": "0.000013986692647741593167273233806412620000"
+        },
+        "interval_duration_s": "5.0",
+        "interval_start_s": "25.0",
+        "method": "independent Decimal constant-rate delayed-release solution",
+        "observed": {
+          "available_tritium_kg": "0.0009944052692065443",
+          "burn_kg": "0.000004662230882580533",
+          "decay_kg": "9.333922116412336E-12",
+          "in_process_tritium_kg": "0.000055946769593528786",
+          "processing_loss_kg": "0.0000027973384298045410",
+          "production_kg": "0.00001398669264774164"
+        },
+        "phase": "on-delayed-on",
+        "processing_delay_s": "20.0",
+        "scope": "software/mathematical control only; no reactor qualification",
+        "status": "PASS"
+      }
+    },
+    "delay_boundary_check": {
+      "checked_boundaries": [
+        {
+          "expected_in_process_kg": "0.0000559467695935286160046278916216961421510088552",
+          "observed_in_process_kg": "0.00005594676959352865",
+          "time_s": "20.0"
+        },
+        {
+          "expected_in_process_kg": "0E-130",
+          "observed_in_process_kg": "3.7248273855507857E-19",
+          "time_s": "60.0"
+        },
+        {
+          "expected_in_process_kg": "0.0000559467695935286160046278916216961421510088552",
+          "observed_in_process_kg": "0.00005594676959352902",
+          "time_s": "120.0"
+        },
+        {
+          "expected_in_process_kg": "0E-130",
+          "observed_in_process_kg": "1.0162277784683468E-18",
+          "time_s": "180.0"
+        }
+      ],
+      "scope": "software/math boundary control; no reactor qualification",
+      "status": "PASS"
+    },
+    "expected_event_phases": [
+      "on-delayed-on",
+      "off-delayed-on",
+      "on-delayed-off",
+      "off-delayed-off"
+    ],
+    "history_file": "references/operating-history-processing-control-phases-history.json",
+    "mass_balance_decimal_max_residual_kg": "1.59676610422330533E-17",
+    "rates_file": "references/operating-history-processing-control-rates.json"
+  },
+  "processing_model": "continuous-delayed-release-v2",
+  "restart_case": {
+    "assumptions_file": "references/operating-history-processing-control-restart-assumptions.json",
+    "delay_boundary_check": {
+      "checked_boundaries": [
+        {
+          "expected_in_process_kg": "8.99861377457733052304365116131081078284241959E-8",
+          "observed_in_process_kg": "8.998613774577334E-8",
+          "time_s": "86400.0"
+        }
+      ],
+      "scope": "software/math boundary control; no reactor qualification",
+      "status": "PASS"
+    },
+    "history_file": "references/operating-history-processing-control-restart-history.json",
+    "mass_balance_decimal_max_residual_kg": "2.8178E-22",
+    "outcome": "fuel_limited_at_horizon",
+    "rates_file": "references/operating-history-processing-control-rates.json",
+    "restart_crossing_check": {
+      "fuel_off_time_s": "0.03217343880196974",
+      "observed_restart_time_s": "86400.00376652865",
+      "predicted_restart_time_s": "86400.00376652865",
+      "restart_threshold_kg": "6.00002E-8",
+      "scope": "synthetic software/math control only; not a physical result",
+      "status": "PASS"
+    }
+  },
+  "schema_version": "faris-operating-history-continuous-processing-control/v1",
+  "scope": "These are mathematical/software controls of delayed production, inventory decay, recovery, scrap, and restart event timing. They are not an OpenMC benchmark, a physical material case, or reactor-performance evidence.",
+  "sha256": {
+    "controls/check_history.py": "dea7d636bfdc7ddc3657c5ff6f7739850529301162e00ab0598ffac09ad7e1f6",
+    "references/operating-history-processing-control-phases-assumptions.json": "ce07606023f28af6c4d9a0bb248548324435de461da6d284a5073770c336ac59",
+    "references/operating-history-processing-control-phases-history.json": "47cf9ef83ae77eea01d11ec790f74c7e36bac539618dbe33c8509340195e46cd",
+    "references/operating-history-processing-control-rates.json": "b741bb5299b9fd251866f31b3705ce5d575f0f586f8387cedba10bf4f90daf32",
+    "references/operating-history-processing-control-restart-assumptions.json": "6fe7709fbe2e71802c08baa1ba3110c3c1791e61473d73921ae0795c0b2f2f56",
+    "references/operating-history-processing-control-restart-history.json": "babcf41f790d20f0a1e89c124d783313b75960c3d3c1f564868a807231ab3970"
+  },
+  "status": "PASS_SOFTWARE_MATH_CONTROLS_ONLY",
+  "synthetic_identity_sentinels": {
+    "interpretation": "Synthetic software control; these sentinel identities do not identify a physical transport calculation.",
+    "nuclear_data_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "scenario_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "solver_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "transport_artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

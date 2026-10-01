@@ -43,5 +43,9 @@
       "max_relative_volume_difference": "3.1502445686943557767997075824286250214818362313401E-15",
       "magnet_flux_relative_standard_error": "0.53459850038316777669828894598769270106049327395643"
     }
-  ]
+  ],
+  "record_status": "SUPERSEDED_GEOMETRY",
+  "superseded_reason": "The preserved 1M neutron-only runs used adapter 25b3711ff5842519fba278089f0efd9d40ead1793ce469f36fc06d82924cd539. That worker used the plasma surface as the first material-cell inner boundary, filling the declared 0.08 m plasma-to-wall clearance. The later geometry ownership audit found this defect. The old arithmetic checks remain arithmetic-only and do not make the transport responses eligible.",
+  "superseded_by": "geometry-correction-superseded-runs.json and transport-refinement-results.json",
+  "preserved_scope_note": "Historical source-rate/unit/volume arithmetic results are preserved as records, but the old transport predictions and magnet RSE values are not primary evidence or design conclusions."
 }

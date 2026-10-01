@@ -1,0 +1,19 @@
+{
+  "reference_fusion_power_mw": 525.0,
+  "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+  "neutron_source_rate_per_s": 1.8618137864158527e+20,
+  "total_reaction_energy_ev": 17600000.0,
+  "primary_neutron_energy_ev": 14100000.0,
+  "breeder_h3_per_source_neutron": {
+    "mean": 3.0,
+    "standard_error": 0.0,
+    "unit": "particles/source_neutron",
+    "response_id": "synthetic-H3-production"
+  },
+  "component_average_flux_n_m2_s": {},
+  "transport_deposited_heat_w": null,
+  "scenario_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "transport_artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "solver_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nuclear_data_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}

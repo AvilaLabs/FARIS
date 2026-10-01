@@ -6,14 +6,18 @@ The implementation now includes coupled neutron/photon transport, component
 spectra and direct heating scores, a conservative Rust fuel/event/energy ledger,
 actual Core stage execution and receipt verification, saved-study reopening,
 and native field/history presentation. The [acceptance matrix](DEMO_ACCEPTANCE.md)
-tracks current evidence and the remaining requirements. Final port-volume
-checks, spatial/sampling refinement, paired histories, portable packaging and
-the complete native walkthrough are still in progress.
+tracks current evidence and the remaining requirements. The four corrected
+primary runs, port-volume checks, sampling/spatial diagnostics and independent
+history refinement controls are complete. Final paired comparisons/sensitivity,
+portable packaging and the complete native walkthrough are still in progress.
 
 An independent volume check exposed a first-wall clearance error in the earlier
 transport geometry. Those runs and their derived histories are preserved as
-superseded diagnostics. A corrected port pilot now passes cell-ownership and
-independent volume checks; the four full corrected cases remain in progress.
+superseded diagnostics. All four corrected million-history cases pass
+cell-ownership checks, and both port cases pass independent volume checks.
+An additional directly tallied port window resolves a local sampling effect;
+fine/coarse map diagnostics do not establish mesh convergence or physical
+qualification.
 
 The [scientific baseline](SCIENTIFIC_BASELINE.md), [cold model boundary](COLD_REFERENCE.md),
 [operating-history controls](OPERATING_HISTORY.md), and
@@ -26,11 +30,11 @@ Core receipts do not turn them into physical passes.
 | Milestone | Current implementation status |
 | --- | --- |
 | M0 | Complete: starting capabilities and demo boundary recorded |
-| M1 | Explicit cold model, materials/data/source and authored operating inputs documented; final case freeze and response applicability review in progress |
+| M1 | Complete within the declared cold numerical boundary: frozen materials/data/source, authored operating inputs and response applicability limits |
 | M2 | Typed transport/history/evidence formats, bounded workers, dependencies and actual Core compilation implemented and tested |
-| M3 | Coupled transport and independent numerical controls implemented; earlier reactor results superseded after a clearance defect; corrected primary cases and restricted conclusions pending |
-| M4 | Port/control CSG and field mapping implemented; corrected port pilot passes ownership and independent volume checks; final local refinement campaign in progress |
-| M5 | Fuel/decay/delay, service events, outages, power/energy, paired comparisons and sensitivity implemented; fine integration-grid checks and final drivers pending |
+| M3 | Corrected coupled primary cases and independent normalization/capture controls complete; physical qualification explicitly NOT_EVALUATED |
+| M4 | Corrected port/control ownership and volumes verified; sampling/window and fine/coarse diagnostics complete with restricted local-map conclusions; final native presentation checks pending |
+| M5 | Continuous delayed release, conservation, service events and signed energy verified at 600/500/250 s for all four primary drivers; final paired/sensitivity package pending |
 | M6 | Four-stage Core execution verified on a coupled smoke case; saved receipt reopening implemented; final cases for both allocations/control still pending |
 | M7 | Optimized native binary built and preliminary performance measured; final package, complete walkthrough and launch remain |
 

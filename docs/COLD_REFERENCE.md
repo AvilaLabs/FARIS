@@ -2,11 +2,13 @@
 
 **Scope:** executable OpenMC fixed-source numerical reference for checking FARIS
 geometry export, explicit material construction, source sampling, raw response
-mapping, and Rust normalization. The `arc-cold-reference-001` scenario keeps the
-existing two radial allocations but replaces the unassigned material labels
-with declared cold-data recipes. It is **not** the ARC reactor, an operating
-liquid blanket model, an experimental benchmark reproduction, or a qualified
-design prediction. Keep scientific qualification `NOT_EVALUATED`.
+mapping, and Rust normalization. Corrected production fixtures are
+`arc-cold-coupled-control-001` and `arc-cold-reference-port-001`. They retain
+two authored radial allocations and explicit cold-data material recipes. The
+historical `arc-cold-reference-001` fixture is not the identity used by the
+corrected coupled production records. This is **not** the ARC reactor, an
+operating liquid blanket model, an experimental benchmark reproduction, or a
+qualified design prediction. Keep scientific qualification `NOT_EVALUATED`.
 
 ## Scenario and physical inputs
 
@@ -14,10 +16,11 @@ The full circular-torus model uses major radius 3.3 m, plasma minor radius
 1.0 m, 0.08 m plasma-to-first-wall gap, and 1.20 m radial build. The reference
 allocation has 0.45 m each for blanket and shield; breeder-emphasis has 0.55 m
 blanket and 0.35 m shield. Shared shell thicknesses and identities are fixed.
-There are no ports, divertor, supports, flow channels, coil windings, or resolved
-penetrations. The viewport cutaway is display-only.
+The control fixture has no ports, divertor, supports, flow channels, coil
+windings, or other resolved penetrations. Its separate ported sibling adds one
+authored rectangular void bore. The viewport cutaway is display-only.
 
-The authored recipes in the two `cold-reference.*.physics.json` files are:
+The authored recipes in the two `cold-coupled-control.*.physics.json` files are:
 
 - Natural-isotope W, 19,300 kg/m³, as the first-wall dense-element proxy.
 - Li2BeF4 formula stoichiometry with 90 atom% Li-6 within lithium, Be-9 and F-19,
@@ -75,9 +78,10 @@ For the separate port manifest, it removes the axis-aligned rectangular prism
 from exactly the listed component cells and fills its in-envelope portion with
 the declared material. The original unported scenario remains the analytic
 torus-volume control.
-The 12x8x12 mesh bin numbering is `i + nx*(j + ny*k)`; mesh limits are supplied
-by the Rust engine. Analytic torus shell and mesh-bin volumes accompany raw
-scores for the Rust normalizer.
+The full-model 12×8×12 mesh uses bin numbering `i + nx*(j + ny*k)`. Final primary
+records use the outboard-local 24×12×24 mesh; coarse local and one-bin window
+meshes are separate diagnostics. Bounds come from the Rust engine. Analytic torus
+shell and Cartesian bin volumes accompany raw scores for normalization.
 
 The adapter writes `solver/transport-artifact.json` in
 `faris-transport-artifact/v0.2`, echoing the complete request and one raw tally
@@ -172,86 +176,127 @@ Use an existing OpenMC 0.15.3 environment and the XML it was audited against:
 
 ```bash
 cargo run -- reactor run \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
-  --physics scenarios/arc-inspired/cold-reference.reference.physics.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.reference.physics.json \
+  --mesh-preset outboard-local \
   --audit references/openmc-library-audit.json \
   --cross-sections /path/to/cross_sections.xml \
   --python /path/to/openmc-env/bin/python --openmc /path/to/openmc-env/bin/openmc \
   --particles 10000 --batches 100 --seed 123456789 --threads 1 \
-  --output runs/cold-reference-001
+  --output runs/cold-coupled-control-reference-001
 
 cargo run -- reactor inspect \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
-  --run runs/cold-reference-001/run.json
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --run runs/cold-coupled-control-reference-001/run.json
 ```
 
 The supplied audit records this workstation's local cache. Another installation
 must run `audit_library.py` and supply its own audit; library content differences
 cannot be silently accepted. `reactor run` refuses an existing output directory.
 Ctrl-C cancels the owned process group. Neither process completion nor accepted
-normalization sets a scientific PASS. Default resource limits are one million
-histories, one thread, 600 seconds, and bounded captured logs; memory and total
-disk usage are not sandboxed.
+normalization sets a scientific PASS. The CLI allows up to ten million histories,
+32 threads and a one-hour timeout; job resource and artifact caps are recorded per
+run. These are resource bounds, not a sandbox.
 
 Native replay uses the same case definitions and rechecks its recorded inputs,
 raw artifact, sampling, audit, adapter identity, volumes, and normalization:
 
 ```bash
 cargo run -p faris-app -- \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
-  --physics scenarios/arc-inspired/cold-reference.reference.physics.json \
-  --physics scenarios/arc-inspired/cold-reference.breeder-emphasis.physics.json \
-  --run runs/cold-reference-001/run.json --field-view flux-slice
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.reference.physics.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.breeder-emphasis.physics.json \
+  --run runs/cold-coupled-control-reference-001/run.json --field-view flux-slice
 ```
 
-Repeat `--run` for the other arrangement. Add `--python`, `--openmc`, `--audit`
-and `--cross-sections` to enable the native **Run transport** worker. Closing the
+Repeat `--run` for the other arrangement. For port runs, select
+`cold-reference-port.scenario.json` and its matching port physics cases. Add
+`--python`, `--openmc`, `--audit` and `--cross-sections` to enable the native
+**Run transport** worker. Closing the
 native application cancels and joins owned workers; camera interaction remains
 available while a job runs.
 
-The display uses a fixed flux scale across arrangements. The spatial view shows
-a horizontal layer of the 12×8×12 Cartesian mesh: each value averages its full
-bin volume, including void. Gray bins have zero samples; desaturated bins have
-more than 30% relative standard error. Neither treatment supplies a zero-flux
+The display uses a fixed flux scale across arrangements. Each displayed mesh
+value is a full-bin volume average, including void; the selected local 24×12×24
+primary mesh does not resolve point peaks. Gray bins have zero samples;
+desaturated bins have more than 30% relative standard error. Neither treatment supplies a zero-flux
 bound or total uncertainty. Component coloring represents region averages,
 not a resolved within-component field. Spectra remain supplementary raw files.
 
-### Current numerical evidence and precision limit
+### Corrected campaign results and precision limits
 
-Both allocations completed one million histories on this workstation in about
-257 and 264 seconds respectively, with one thread and separate seeds. Replay
-revalidated each run's 1,164 responses. The saved
-[verification summary](../references/cold-reference-verification.json) identifies
-inputs, raw records and statepoints. An independent 50-digit Decimal check of
-all 4,656 normalized values per run and torus/mesh volumes agreed within the
-declared relative arithmetic tolerance of `1e-12`. Reproduce that arithmetic
-control with Python's standard library:
+Four corrected primary records each transport 1,000,000 histories (100 batches ×
+10,000 particles, one thread) with independent seeds 81130011–81130014. The two
+unported control variants and two port variants use the 24×12×24 outboard-local
+mesh over identical bounds. Wall time was about 19.6–22.8 minutes per run. Exact
+run, input, worker, statepoint, raw tally, spectra, audit, executable, scenario,
+physics and data identities are recorded in
+[`transport-refinement-results.json`](../references/transport-refinement-results.json).
+Those records are replayable numerical results, not qualified physics evidence.
 
-```bash
-python3 controls/check_transport_arithmetic.py \
-  --run runs/cold-reference-1m-001 --run runs/cold-breeder-1m-001
-```
+Evidence levels are distinct: source-rate, unit-conversion, shell-volume,
+mesh-volume, ownership and tally-normalization controls are analytical/software
+checks; independent Rust midpoint and Python/SciPy integration are geometry
+implementation cross-checks, not independent transport solvers. This campaign
+does not reproduce an experimental neutron-transport benchmark or establish
+agreement with measurements. The ARC paper is design precedent only, not an
+as-built model specification; material, data-temperature, source, and geometry
+applicability for an ARC-like plant remain unevaluated. There is no design-level
+validation or qualification here.
 
-This arithmetic control does not validate the transport values. The earlier
-neutron-only million-history magnet flux has about 52% and 53% relative Monte
-Carlo standard error for the two allocations; outer vessel/clearance regions
-and many mesh bins are also poorly sampled. Those figures are historical
-neutron-only pilots and are not estimates from the new coupled run. They cannot
-establish a shielding preference or service-life response.
+The normalized whole-model gross H3 production was 1.2945, 1.3085, 1.2952 and
+1.3117 H3 atoms per source neutron for control-reference, control-breeder,
+port-reference and port-breeder, respectively. Their direct Monte Carlo RSEs
+were 0.088%, 0.086%, 0.106% and 0.091%. Coupled total deposited heating was
+492.74, 491.65, 492.92 and 491.95 MW with RSE 0.050%, 0.046%, 0.061% and 0.050%.
+These are the model's gross tritium and OpenMC deposition responses; whole-model
+H3 includes all modeled regions and is not an extraction-corrected TBR. Heating
+is not a thermal balance. The source convention injects one 14.1 MeV neutron per
+reaction while normalizing with 17.6 MeV per D-T reaction; the implied neutron
+source power is 420.6 MW, and the difference from scored deposition is not an
+energy-closure or power-conversion result.
 
-For the functional demo, predeclare exploratory precision goals separately
-from scientific acceptance: at most 5% relative standard error for whole-model
-H3 production and integrated component heating, and at most 10% for
-component-local heating and magnet/mesh flux. These are FARIS numerical review
-goals, not code standards, experimental uncertainty tolerances, or reactor
-qualification limits. They do not make an under-sampled quantity acceptable;
-every response must report its actual RSE and the presentation must expose
-which goals were missed. At the historical 52% magnet-flux RSE, simple
-independent-history scaling estimates about 27 million histories to reach 10%
-RSE, well above the current 10-million-history cap. Use tested variance
-reduction with an independent unbiasedness control or present that local
-response as unresolved. Do not extrapolate the 1/sqrt(N) estimate into an
-achieved result, or interpret any RSE target as engineering qualification.
+Before these runs, the worker declared exploratory RSE goals of at most 5% for
+integrated whole-model H3 and component heating, and at most 10% for local
+component heating and magnet/mesh flux. All four passed the direct whole-model
+checks, but each has 5,133–5,236 unmet checks out of 6,925; the failed checks are
+mostly local mesh bins and low-response material regions. Magnet-flux RSE ranges
+from 13.9% to 35.0%, and magnet-surrogate integrated heating RSE from 11.2% to
+12.6%. Therefore `all_goals_met` is false for every primary. Show local values
+with their direct SE and retain the visible unresolved status. The targets are
+internal sampling goals, not validation tolerances or physical limits.
+
+Independent arithmetic reconstructed all 6,954 normalized responses in each
+fine primary from raw tally units, domain volumes and the 525 MW source-rate
+convention, independently computing `P_fusion / (17.6×10⁶ eV × 1.602176634×10⁻¹⁹ J/eV)` from each exact scenario and physics input. It matched each recorded source rate at the stored precision. Mean, integrated mean and volume matched exactly; tally-only SE reconstruction differed by at most 1.54×10⁻⁵ relative for ported records because the normalized record separately propagates the Monte Carlo port-volume SE.
+Independent torus-shell arithmetic matches unported component volumes and the
+whole torus to floating-point precision; mesh-bin volumes and sums match the
+Cartesian bounds. Each run's pre-transport OpenMC `Geometry.find` ownership and
+clearance audit passed all 117 probes. Both port-primary independent adaptive
+quadrature reports passed all six component checks and remain bound to the exact
+run/worker/raw/input identities. These test implementation and geometry
+partitioning only.
+
+A separate two-record direct window experiment compared the feature-free and
+ported reference allocation with independent seeds. Each used one direct tally
+bin spanning X=[4.34,5.58] m and Y,Z=[−0.15,0.15] m. This volume average mixes
+material, port void, and corners outside the torus. The flux estimates were
+1.419±0.0323×10¹⁸ and 2.531±0.0585×10¹⁸ n·m⁻²·s⁻¹ (one-standard-error values;
+RSE 2.28% and 2.31%). Under the predeclared internal screen—both RSE ≤10% and
+the absolute difference greater than twice `sqrt(SE_control² + SE_port²)`—the
+authored window difference passes at 16.64 combined SE. This resolves only that
+specific model-window contrast, not a physical port streaming factor or
+component maximum.
+
+Local coarse and fine maps used the same bounds at 12×6×12 and 24×12×24 with
+independent seeds and one million histories per run. Fine-to-coarse ratios of
+summed cell means were 0.9981 (control) and 0.9994 (port). Per-cell relative
+differences were broad (median 8.2%/11.0%, 90th percentile 79.7%/100%), with
+large sparse-bin tails; covariance across tally bins is unavailable. No
+quantitative map-convergence tolerance was predeclared, so map convergence is
+`NOT_EVALUATED`. The ratios are descriptive point estimates only: do not sum
+bin SEs, infer peak convergence, or use the apparent aggregate agreement as a
+statistical acceptance test.
 
 The ported input is intentionally a separate branch, not a changed baseline:
 `cold-reference-port.scenario.json` preserves the two radial variants and adds
@@ -278,10 +323,14 @@ port-volume implementation also reused a mutable CSG region and queried only
 the already-cut geometry, reporting zero removed component volume. We corrected
 the cell partition, separated the sampling control geometry, verified final
 port-to-void mapping, and added pre-transport ownership probes. The prior
-coupled smoke, coarse 1M control records, and two port 1M attempts are retained
-as superseded or rejected diagnostics; none is primary evidence for the
+coupled smoke, coarse 1M control records, two port 1M attempts, and the earlier
+in-repository neutron-only million-history pair are retained as superseded or
+rejected diagnostics; none is primary evidence for the
 corrected geometry. Exact run/input/artifact hashes and rejection states are in
-[`geometry-correction-superseded-runs.json`](../references/geometry-correction-superseded-runs.json).
+[`geometry-correction-superseded-runs.json`](../references/geometry-correction-superseded-runs.json). The
+older arithmetic receipt is marked superseded in
+[`cold-reference-verification.json`](../references/cold-reference-verification.json);
+its arithmetic pass is not a physical or geometry validation.
 
 Spatial refinement is selected with `--mesh-preset`: `coarse` retains the
 full-model 12×8×12 mesh; `outboard-local-coarse` (12×6×12) and `outboard-local`
@@ -290,8 +339,8 @@ separate `outboard-port-window` preset uses a single direct OpenMC mesh tally
 over the same box for both the feature-free control and port case: X from
 R+1.04 m to the outer-envelope X bound, Y and Z from −0.15 m to +0.15 m. Its
 volume average intentionally mixes material, the port void, and box corners
-outside the torus along the outboard radial path; it is a transport-window response, not a magnet-material flux or
-component failure estimate. This direct tally provides its own standard error.
+outside the torus along the outboard radial path; it is a transport-window
+response, not a magnet-material flux or component failure estimate. This direct tally provides its own standard error.
 Do not sum per-bin standard errors to estimate window uncertainty.
 
 Before the independent local comparisons, require exact replay of every
@@ -300,8 +349,10 @@ checked volume report. Treat a path-window effect as sampling-resolved only if
 both independent-seed estimates have RSE ≤10% and their absolute difference
 exceeds twice the combined one-standard-error value
 `sqrt(SE_control² + SE_port²)`. The 10% and 2-SE gates are internal screening
-rules for this demo, not validation tolerances or physical limits; the latter
-is an approximate normal-coverage check. Otherwise label the effect unresolved.
+rules for this demo, not validation tolerances or physical limits. The reported
+±2 combined-SE band is a descriptive sampling screen only, not a calibrated
+confidence interval or physical-model bound; it represents Monte Carlo sampling
+uncertainty only. Otherwise label the effect unresolved.
 Local maps are descriptive: report bin RSEs and do not promote any bin maximum
 or coarse-to-fine visual change to a physical conclusion when it misses the
 10% internal precision goal. Coarse and fine maps are separate runs with
@@ -310,9 +361,9 @@ runs.
 
 Generated runs, solver statepoints and nuclear data remain outside Git. Only
 the corrected-geometry worker revision, with its exact hashes, is eligible for
-the final local-fine primary runs. The geometry audit and port-volume report
-are required receipts alongside transport and normalization; none is a
-physical validation.
+the corrected local-fine primary runs, identified in the refinement-results
+receipt. The geometry audit and port-volume report are required receipts alongside
+transport and normalization; none is a physical validation.
 
 Input identity, OpenMC execution, exact volume arithmetic, and Monte Carlo
 standard errors are necessary implementation checks; they do not validate
@@ -333,10 +384,9 @@ is not a qualified benchmark and is not used here.
 
 ## Evidence
 
-- [Scenario](../scenarios/arc-inspired/cold-reference.scenario.json) and
-  [reference physics case](../scenarios/arc-inspired/cold-reference.reference.physics.json)
-  bind by exact scenario-byte SHA-256; the breeder-emphasis input binds to the
-  same scenario with its own variant ID.
+- Corrected [control scenario](../scenarios/arc-inspired/cold-coupled-control.scenario.json) and [port scenario](../scenarios/arc-inspired/cold-reference-port.scenario.json) retain separate SHA-256 identities; their physics cases bind each allocation by variant ID. Historical `cold-reference.scenario.json` runs are not primary evidence.
+- The bounded [transport campaign and refinement receipt](../references/transport-refinement-results.json) binds every run, raw tally, worker, statepoint, spectra sidecar, audit, data-library digest and independent port-volume report.
+- [Superseded-geometry records](../references/geometry-correction-superseded-runs.json) preserve the earlier geometry defect and list the corrected primary receipt hashes.
 - [Input specification and material sources](DEMO_INPUT_SPEC.md).
 - [Read-only OpenMC library audit](../integrations/openmc/audit_library.py) and
   [machine-readable audit/input record](../references/demo-input-spec.json),

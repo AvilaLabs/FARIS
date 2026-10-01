@@ -42,13 +42,16 @@ Blender's workspace layout.
   direct total heating, and an independent thermal Li-6 capture control.
 - Authored history comparisons and full-rerun sensitivity, with independent
   mass/energy/event controls and measured integration-grid refinement.
-- A finite outboard port and matched feature-free control; their final
-  volume-checked spatial comparison remains in progress.
+- Four corrected million-history coupled cases: two allocations, each with a
+  finite outboard port and a matched feature-free control. Cell ownership and
+  independent port-volume checks pass; sparse local mesh estimates retain
+  unresolved sampling uncertainty.
 - An identified ITER_1D execution reference; code-to-code comparison remains
   unavailable without traceable reference responses.
 
-**The functional demo is in progress.** The default scene is a geometry preview;
-the explicit cold-reference workflow runs transport and displays its results.
+**Final demo delivery and native acceptance are in progress.** The default scene
+is a geometry preview; the recorded-study launcher opens calculated transport,
+histories and verified Core evidence together.
 Activation and physical degradation models remain outside the demo. Fuel,
 maintenance, exposure-triggered service events and power/energy arithmetic are
 conditional on identified transport results and authored assumptions.
@@ -59,10 +62,17 @@ tori and magnet envelope do not reproduce the published ARC engineering design.
 
 ![Native component-flux view of recorded cold-reference results](docs/images/cold-reference-component-flux.png)
 
-Earlier recorded neutron-only results, retained as a historical increment and
-superseded as reactor evidence after a first-wall clearance defect was found.
-Final corrected coupled cases and their complete evidence package are being
-prepared. See [current demo acceptance](docs/DEMO_ACCEPTANCE.md).
+The image above is an earlier neutron-only increment, superseded as reactor
+evidence after a first-wall clearance defect was found. The corrected coupled
+campaign and continuous delayed-release history controls are recorded in
+[current demo acceptance](docs/DEMO_ACCEPTANCE.md),
+[transport refinement](references/transport-refinement-results.json), and
+[history verification](docs/OPERATING_HISTORY.md).
+
+The resolved port-window comparison is a declared mixed-volume spatial average,
+not a magnet peak or a qualified plant prediction. Neither the remaining local
+map uncertainty nor nuclear-data and engineering qualification gaps are hidden
+by a successful run or Core receipt.
 
 ## Run the desktop
 
@@ -125,11 +135,12 @@ cargo run -- control absorber --python /path/to/openmc-env/bin/python \
 
 It uses synthetic one-group data, 1,000,000 histories and one thread by default.
 The Rust worker caps histories, runtime and captured logs; Ctrl-C cancels its
-solver process group. External execution currently requires Unix. A numerical
+  solver process group. External execution currently requires Unix. A numerical
 control PASS applies only to the declared control, with its sampling rule and
 limitations in [NUMERICAL_CONTROLS.md](docs/NUMERICAL_CONTROLS.md). It establishes
-no reactor prediction or nuclear-data qualification. Native solver memory and
-disk usage are not sandboxed by this runner.
+no reactor prediction or nuclear-data qualification. Linux jobs have explicit
+address-space, file-size, artifact-count and total-output limits; the runner is
+not a general sandbox for hostile executables.
 
 Transport imports are independently usable without OpenMC:
 
@@ -151,6 +162,8 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 python3 -m unittest discover -s controls -p 'test_*.py'
+python3 controls/check_history.py
+python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
 Use `--jobs 1` when compiling the graphics stack on a memory-constrained machine.
@@ -170,7 +183,7 @@ development artifacts, not simulation evidence.
 | Path | Responsibility |
 | --- | --- |
 | `crates/faris-model/` | Scenario types, units, validation, and identities |
-| `crates/faris-engine/` | Shared geometry, display mesh generation, result records, future simulation operations |
+| `crates/faris-engine/` | Shared geometry, transport normalization/jobs, history, comparison and Core evidence |
 | `crates/faris-cli/` | Headless client of the same engine |
 | `crates/faris-app/` | Native egui workspace and wgpu renderer |
 | `scenarios/arc-inspired/scenario.json` | The single editable demo scenario |
@@ -184,7 +197,8 @@ development artifacts, not simulation evidence.
 | `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
 | `controls/` | Independent analytic controls and external OpenMC numerical checks |
 | `references/` | Identified scientific sources and read-only tool/data audits |
-| `integrations/` | Reactor adapter plans; Core integration remains unimplemented |
+| `integrations/` | Scientific adapters, Core template and integration documentation |
+| `scripts/` | Portable distribution packaging, bounded extraction and verification |
 | `runs/` | Ignored generated records and captures |
 | `data/raw/` | Ignored downloaded scientific inputs |
 

@@ -72,7 +72,8 @@ def run(core, source, case):
         registry = case / "registry.json"
         mutations = [
             ("wrong-unit", lambda c: c["requirements"][0]["limit"].update(unit="MW")),
-            ("noncanonical-limit", lambda c: c["requirements"][0]["limit"].update(value="1e0")),
+            ("overlapping-binding", lambda c: c["workflow"][1]["bindings"].append(
+                json.loads(json.dumps(c["workflow"][1]["bindings"][-1])))),
             ("missing-bound-input", lambda c: c["workflow"][1]["bindings"][-1]["source"].update(input_id="missing-physics")),
         ]
         with tempfile.TemporaryDirectory(prefix="faris-core-controls-") as temporary:

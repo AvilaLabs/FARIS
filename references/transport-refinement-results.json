@@ -1,0 +1,2175 @@
+{
+  "campaign_status": {
+    "corrected_primary_runs": "PASS_REPLAY_AND_GEOMETRY_RECEIPTS",
+    "direct_window_effect": "PASS_INTERNAL_TWO_COMBINED_SE_SAMPLING_SCREEN_FOR_AUTHORED_WINDOW_ONLY",
+    "local_refinement": "DESCRIPTIVE_ONLY_NOT_EVALUATED",
+    "primary_history_count": 1000000,
+    "primary_mesh": "24x12x24 outboard-local Cartesian regular mesh",
+    "primary_sampling_precision": "WHOLE_MODEL_GOALS_MET; LOCAL_GOALS_MOSTLY_UNMET",
+    "scientific_qualification": "NOT_EVALUATED"
+  },
+  "corrected_primary_response_summary": {
+    "control_breeder_fine": {
+      "blanket_gross_tritium": {
+        "integrated_mean": 2.4362729087377608e+20,
+        "integrated_standard_error": 2.0903585969824096e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 2.4549338623093857e+18,
+        "relative_standard_error": 0.0008580149578010247,
+        "response_id": "blanket-tritium",
+        "standard_error": 2106369974273694.2,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "blanket_total_deposition": {
+        "integrated_mean": 362912868.95580995,
+        "integrated_standard_error": 208536.43358232052,
+        "integrated_unit": "watts",
+        "mean": 3656926.479263188,
+        "relative_standard_error": 0.000574618459197469,
+        "response_id": "heating-total-blanket",
+        "standard_error": 2101.3374589126383,
+        "unit": "watts_per_cubic_metre"
+      },
+      "interpretation": "Raw-response normalization summary only. Whole-model tritium is gross modeled H3 production, not extraction/recovery-corrected breeding or a validated TBR; whole-model heating is coupled OpenMC deposited heating under the stated model, not a plant thermal/power balance. Magnet quantities are copper surrogate response only.",
+      "magnet_surrogate_total_deposition": {
+        "integrated_mean": 10160.307650214256,
+        "integrated_standard_error": 1133.2227416148455,
+        "integrated_unit": "watts",
+        "mean": 221.5595724195091,
+        "relative_standard_error": 0.1115342941009221,
+        "response_id": "heating-total-magnets",
+        "standard_error": 24.711490511112075,
+        "unit": "watts_per_cubic_metre"
+      },
+      "magnet_surrogate_volume_average_neutron_flux": {
+        "integrated_mean": 2018683457566046.2,
+        "integrated_standard_error": 559811830199961.4,
+        "integrated_unit": "neutron_metres_per_second",
+        "mean": 44020187095342.32,
+        "relative_standard_error": 0.27731531068022625,
+        "response_id": "magnets-flux",
+        "standard_error": 12207471860546.541,
+        "unit": "neutrons_per_square_metre_second"
+      },
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "whole_model_gross_tritium": {
+        "integrated_mean": 2.436272909588921e+20,
+        "integrated_standard_error": 2.0903585974863696e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 7.194697869604156e+17,
+        "per_source_neutron_gross_tritium_production": 1.3085481090345508,
+        "per_source_neutron_standard_error": 0.0011227538504323168,
+        "relative_standard_error": 0.0008580149577081172,
+        "response_id": "total-tritium-production",
+        "standard_error": 617315838831109.0,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "whole_model_total_deposition": {
+        "integrated_mean": 491653354.5582156,
+        "integrated_standard_error": 227049.05313242233,
+        "integrated_unit": "watts",
+        "mean": 1451929.8427944134,
+        "relative_standard_error": 0.0004618071879860182,
+        "response_id": "heating-total-whole-model",
+        "standard_error": 670.5116378538695,
+        "unit": "watts_per_cubic_metre"
+      }
+    },
+    "control_reference_fine": {
+      "blanket_gross_tritium": {
+        "integrated_mean": 2.4101536467004857e+20,
+        "integrated_standard_error": 2.1149766726539898e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 3.0794791894423634e+18,
+        "relative_standard_error": 0.0008775277358559298,
+        "response_id": "blanket-tritium",
+        "standard_error": 2702328400726811.0,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "blanket_total_deposition": {
+        "integrated_mean": 359177103.5018042,
+        "integrated_standard_error": 212268.74815152213,
+        "integrated_unit": "watts",
+        "mean": 4589244.412165255,
+        "relative_standard_error": 0.0005909863019719348,
+        "response_id": "heating-total-blanket",
+        "standard_error": 2712.1805839909102,
+        "unit": "watts_per_cubic_metre"
+      },
+      "interpretation": "Raw-response normalization summary only. Whole-model tritium is gross modeled H3 production, not extraction/recovery-corrected breeding or a validated TBR; whole-model heating is coupled OpenMC deposited heating under the stated model, not a plant thermal/power balance. Magnet quantities are copper surrogate response only.",
+      "magnet_surrogate_total_deposition": {
+        "integrated_mean": 6058.6743673529245,
+        "integrated_standard_error": 759.6483649162438,
+        "integrated_unit": "watts",
+        "mean": 132.11778112166186,
+        "relative_standard_error": 0.1253819431210229,
+        "response_id": "heating-total-magnets",
+        "standard_error": 16.565184117871965,
+        "unit": "watts_per_cubic_metre"
+      },
+      "magnet_surrogate_volume_average_neutron_flux": {
+        "integrated_mean": 1567542822098473.8,
+        "integrated_standard_error": 547970590265124.4,
+        "integrated_unit": "neutron_metres_per_second",
+        "mean": 34182441060835.855,
+        "relative_standard_error": 0.3495729638387516,
+        "response_id": "magnets-flux",
+        "standard_error": 11949257232879.83,
+        "unit": "neutrons_per_square_metre_second"
+      },
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "whole_model_gross_tritium": {
+        "integrated_mean": 2.4101536489806764e+20,
+        "integrated_standard_error": 2.1149766694393542e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 7.117563576514848e+17,
+        "per_source_neutron_gross_tritium_production": 1.2945191761741242,
+        "per_source_neutron_standard_error": 0.0011359764788888265,
+        "relative_standard_error": 0.0008775277336919324,
+        "response_id": "total-tritium-production",
+        "standard_error": 624585943470731.9,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "whole_model_total_deposition": {
+        "integrated_mean": 492738531.17675275,
+        "integrated_standard_error": 245841.5815168908,
+        "integrated_unit": "watts",
+        "mean": 1455134.5403776783,
+        "relative_standard_error": 0.0004989290789372096,
+        "response_id": "heating-total-whole-model",
+        "standard_error": 726.008935960355,
+        "unit": "watts_per_cubic_metre"
+      }
+    },
+    "port_breeder_fine": {
+      "blanket_gross_tritium": {
+        "integrated_mean": 2.4421531182376567e+20,
+        "integrated_standard_error": 2.2212873228824355e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 2.462090173768262e+18,
+        "relative_standard_error": 0.0009095610370595412,
+        "response_id": "blanket-tritium",
+        "standard_error": 2239421721001478.8,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "blanket_total_deposition": {
+        "integrated_mean": 363090443.3327857,
+        "integrated_standard_error": 226518.84812849056,
+        "integrated_unit": "watts",
+        "mean": 3660546.1223656917,
+        "relative_standard_error": 0.0006238634265591995,
+        "response_id": "heating-total-blanket",
+        "standard_error": 2283.681777353703,
+        "unit": "watts_per_cubic_metre"
+      },
+      "interpretation": "Raw-response normalization summary only. Whole-model tritium is gross modeled H3 production, not extraction/recovery-corrected breeding or a validated TBR; whole-model heating is coupled OpenMC deposited heating under the stated model, not a plant thermal/power balance. Magnet quantities are copper surrogate response only.",
+      "magnet_surrogate_total_deposition": {
+        "integrated_mean": 24890.118896586257,
+        "integrated_standard_error": 3137.3385437314428,
+        "integrated_unit": "watts",
+        "mean": 542.9345179780331,
+        "relative_standard_error": 0.12604755151096272,
+        "response_id": "heating-total-magnets",
+        "standard_error": 68.43556662336734,
+        "unit": "watts_per_cubic_metre"
+      },
+      "magnet_surrogate_volume_average_neutron_flux": {
+        "integrated_mean": 9705724836668158.0,
+        "integrated_standard_error": 1371640930001648.5,
+        "integrated_unit": "neutron_metres_per_second",
+        "mean": 211713453749173.78,
+        "relative_standard_error": 0.14132287418860248,
+        "response_id": "magnets-flux",
+        "standard_error": 29919953788733.816,
+        "unit": "neutrons_per_square_metre_second"
+      },
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "whole_model_gross_tritium": {
+        "integrated_mean": 2.442153119350613e+20,
+        "integrated_standard_error": 2.221287325411213e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 7.212063055777985e+17,
+        "per_source_neutron_gross_tritium_production": 1.3117064322807288,
+        "per_source_neutron_standard_error": 0.001193077063677446,
+        "relative_standard_error": 0.0009095610376804998,
+        "response_id": "total-tritium-production",
+        "standard_error": 655981155683062.1,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "whole_model_total_deposition": {
+        "integrated_mean": 491950228.17683536,
+        "integrated_standard_error": 245729.2423619039,
+        "integrated_unit": "watts",
+        "mean": 1452806.5573788176,
+        "relative_standard_error": 0.0004995002101586069,
+        "response_id": "heating-total-whole-model",
+        "standard_error": 725.6771807305216,
+        "unit": "watts_per_cubic_metre"
+      }
+    },
+    "port_reference_fine": {
+      "blanket_gross_tritium": {
+        "integrated_mean": 2.4114679656722124e+20,
+        "integrated_standard_error": 2.5499391611052774e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 3.08275761630026e+18,
+        "relative_standard_error": 0.0010574219510290966,
+        "response_id": "blanket-tritium",
+        "standard_error": 3259776268559085.0,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "blanket_total_deposition": {
+        "integrated_mean": 359164155.56920546,
+        "integrated_standard_error": 258788.29554036833,
+        "integrated_unit": "watts",
+        "mean": 4591460.686372318,
+        "relative_standard_error": 0.0007205292942728071,
+        "response_id": "heating-total-blanket",
+        "standard_error": 3308.2834479890334,
+        "unit": "watts_per_cubic_metre"
+      },
+      "interpretation": "Raw-response normalization summary only. Whole-model tritium is gross modeled H3 production, not extraction/recovery-corrected breeding or a validated TBR; whole-model heating is coupled OpenMC deposited heating under the stated model, not a plant thermal/power balance. Magnet quantities are copper surrogate response only.",
+      "magnet_surrogate_total_deposition": {
+        "integrated_mean": 17185.928051868952,
+        "integrated_standard_error": 2072.9661316141146,
+        "integrated_unit": "watts",
+        "mean": 374.88103619008325,
+        "relative_standard_error": 0.12061997032442374,
+        "response_id": "heating-total-magnets",
+        "standard_error": 45.21813946148438,
+        "unit": "watts_per_cubic_metre"
+      },
+      "magnet_surrogate_volume_average_neutron_flux": {
+        "integrated_mean": 7528639211744802.0,
+        "integrated_standard_error": 1045352549303602.9,
+        "integrated_unit": "neutron_metres_per_second",
+        "mean": 164224129199310.6,
+        "relative_standard_error": 0.13885013212916825,
+        "response_id": "magnets-flux",
+        "standard_error": 22802542038520.43,
+        "unit": "neutrons_per_square_metre_second"
+      },
+      "source_neutron_rate_per_s": 1.8618137864158527e+20,
+      "whole_model_gross_tritium": {
+        "integrated_mean": 2.41146796851237e+20,
+        "integrated_standard_error": 2.5499391593719603e+17,
+        "integrated_unit": "particles_per_second",
+        "mean": 7.121444969234619e+17,
+        "per_source_neutron_gross_tritium_production": 1.295225111182922,
+        "per_source_neutron_standard_error": 0.0013695994615448661,
+        "relative_standard_error": 0.0010574219490649146,
+        "response_id": "total-tritium-production",
+        "standard_error": 753037221952660.1,
+        "unit": "particles_per_cubic_metre_second"
+      },
+      "whole_model_total_deposition": {
+        "integrated_mean": 492917379.0549722,
+        "integrated_standard_error": 299721.56306366326,
+        "integrated_unit": "watts",
+        "mean": 1455662.7063492918,
+        "relative_standard_error": 0.0006080563920028413,
+        "response_id": "heating-total-whole-model",
+        "standard_error": 885.1250131958418,
+        "unit": "watts_per_cubic_metre"
+      }
+    }
+  },
+  "direct_port_window_comparison": {
+    "combined_standard_error_independent": 6.6877147987322136e+16,
+    "covariance_assumption": "Independent pseudo-random sequences by distinct OpenMC seeds; no paired covariance used.",
+    "difference_port_minus_control": 1.1128715360773829e+18,
+    "domain": "outboard-port-window-flux, one bin covering the authored rectangular outboard window; mixed material/void/outside-corner path-window average, not a local peak or engineering port tally.",
+    "estimators": [
+      {
+        "mean": 1.4185929178009362e+18,
+        "record": "control_reference_window",
+        "relative_standard_error": 0.022781714254365877,
+        "response_id": "outboard-port-window-flux",
+        "standard_error": 3.2317978496608068e+16,
+        "unit": "neutrons_per_square_metre_second"
+      },
+      {
+        "mean": 2.531464453878319e+18,
+        "record": "port_reference_window",
+        "relative_standard_error": 0.023128900235246837,
+        "response_id": "outboard-port-window-flux",
+        "standard_error": 5.854998880282526e+16,
+        "unit": "neutrons_per_square_metre_second"
+      }
+    ],
+    "interpretation": "The predeclared screen passes for this single authored model-window estimator. The contrast does not validate a physical penetration, port streaming factor, blanket design, or model discrepancy.",
+    "predeclared_screen_gate": {
+      "absolute_difference": 1.1128715360773829e+18,
+      "absolute_difference_greater_than_combined_se_factor": 2.0,
+      "absolute_difference_threshold": 1.3375429597464427e+17,
+      "both_independent_run_rse_at_most": 0.1,
+      "combined_standard_error": 6.6877147987322136e+16,
+      "control_rse": 0.022781714254365877,
+      "control_rse_pass": true,
+      "criteria": [
+        "control_rse <= 0.10",
+        "port_rse <= 0.10",
+        "abs(port_mean - control_mean) > 2 * combined_standard_error"
+      ],
+      "difference_divided_by_combined_standard_error": 16.640535213737724,
+      "difference_gate_pass": true,
+      "gate_status": "PASS_INTERNAL_SCREEN_ONLY",
+      "pass_status": "PASS_INTERNAL_SCREEN_ONLY",
+      "port_rse": 0.023128900235246837,
+      "port_rse_pass": true
+    },
+    "standardized_difference": 16.640535213737724,
+    "statistical_interpretation": "Descriptive \u00b12 combined-standard-error sampling screen only. This is not a calibrated confidence interval, not a physical-model discrepancy bound, and includes Monte Carlo sampling uncertainty only.",
+    "two_combined_standard_error_screen_difference_band": [
+      9.791172401027387e+17,
+      1.2466258320520271e+18
+    ]
+  },
+  "fine_coarse_local_mesh_comparisons": [
+    {
+      "cell_mean_comparison_method": "unweighted average of the 8 equal-volume fine-bin mean estimates versus direct coarse-bin mean; point-estimate diagnostic only",
+      "coarse_cell_rse_median": 0.08379124449026254,
+      "coarse_cell_rse_p90": 0.6633795428921779,
+      "coarse_dimensions": [
+        12,
+        6,
+        12
+      ],
+      "coarse_nonzero_bin_count": 539,
+      "coarse_record": "control_reference_coarse",
+      "comparison": "control",
+      "covariance_available_for_aggregate_uncertainty": false,
+      "fine_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "fine_record": "control_reference_fine",
+      "fine_to_coarse_bin_ratio": 8,
+      "map_convergence_status": "NOT_EVALUATED",
+      "maximum_absolute_relative_cell_mean_difference": 89.26970638522357,
+      "median_absolute_relative_cell_mean_difference": 0.08209654119654292,
+      "p90_absolute_relative_cell_mean_difference": 0.7966569151917958,
+      "same_bounds": true,
+      "sum_of_local_bin_means_fine_over_coarse": 0.9981153101601826
+    },
+    {
+      "cell_mean_comparison_method": "unweighted average of the 8 equal-volume fine-bin mean estimates versus direct coarse-bin mean; point-estimate diagnostic only",
+      "coarse_cell_rse_median": 0.14823987060865895,
+      "coarse_cell_rse_p90": 0.8578863239040728,
+      "coarse_dimensions": [
+        12,
+        6,
+        12
+      ],
+      "coarse_nonzero_bin_count": 752,
+      "coarse_record": "port_reference_coarse",
+      "comparison": "port",
+      "covariance_available_for_aggregate_uncertainty": false,
+      "fine_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "fine_record": "port_reference_fine",
+      "fine_to_coarse_bin_ratio": 8,
+      "map_convergence_status": "NOT_EVALUATED",
+      "maximum_absolute_relative_cell_mean_difference": 216.98777063761614,
+      "median_absolute_relative_cell_mean_difference": 0.10996088157015599,
+      "p90_absolute_relative_cell_mean_difference": 1.0,
+      "same_bounds": true,
+      "sum_of_local_bin_means_fine_over_coarse": 0.9994342136088531
+    }
+  ],
+  "independent_geometry_arithmetic_controls": {
+    "method": "Independent torus-shell formula 2*pi^2*R*(r_outer^2-r_inner^2) using exact scenario dimensions/layer thicknesses; Cartesian mesh bin volumes reconstructed from exact bounds/dimensions. Unported component volumes match shell formula. Ported component volumes are checked against an independent adaptive SciPy double-integral remaining-volume calculation and against an OpenMC point-sampling audit with reported binomial standard errors; Rust midpoint convergence is an additional separate control.",
+    "records": {
+      "control_breeder_fine": {
+        "analytic_component_shell_volumes_m3": {
+          "blanket": 99.23985921339361,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 83.67154523111529,
+          "vessel": 13.255865671103061
+        },
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 99.23985921339361,
+          "first-wall": 4.2796578604003725,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 83.67154523111527,
+          "vessel": 13.25586567110306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": null,
+        "max_relative_component_shell_volume_difference": 2.075349125261695e-16,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": null,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00018515625,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 6912,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            24,
+            12,
+            24
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": false,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "variant_id": "breeder-emphasis",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "control_reference_coarse": {
+        "analytic_component_shell_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.2796578604003725,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.25586567110306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": null,
+        "max_relative_component_shell_volume_difference": 2.075349125261695e-16,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": null,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00148125,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 864,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            12,
+            6,
+            12
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": false,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "control_reference_fine": {
+        "analytic_component_shell_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.2796578604003725,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.25586567110306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": null,
+        "max_relative_component_shell_volume_difference": 2.075349125261695e-16,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": null,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00018515625,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 6912,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            24,
+            12,
+            24
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": false,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "control_reference_window": {
+        "analytic_component_shell_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.2796578604003725,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.25586567110306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": null,
+        "max_relative_component_shell_volume_difference": 2.075349125261695e-16,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": null,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.11160000000000002,
+          "analytic_mesh_box_volume_m3": 0.11160000000000002,
+          "artifact_bin_count": 1,
+          "artifact_bin_volume_sum_m3": 0.1116,
+          "dimensions": [
+            1,
+            1,
+            1
+          ],
+          "lower_left_m": [
+            4.34,
+            -0.15,
+            -0.15
+          ],
+          "mesh_sum_relative_difference": 1.2435293734600765e-16,
+          "upper_right_m": [
+            5.58,
+            0.15,
+            0.15
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": false,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "port_breeder_fine": {
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 99.19023861339362,
+          "first-wall": 4.276952572900372,
+          "magnet-gap": 16.331546623035244,
+          "magnets": 45.84368477672164,
+          "shield": 83.64007526861529,
+          "vessel": 13.25135869610306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "independent_port_volume_control": {
+          "all_component_report_checks_pass": true,
+          "interpretation": "Independent numerical geometry check; quadrature error estimate and Monte Carlo volume standard errors are not a design-accuracy statement.",
+          "intersection_volume_report_sum_m3": 0.10818190939964308,
+          "remaining_volume_report_vs_artifact_m3": {
+            "blanket": 1.0752547609627072e-05,
+            "first-wall": 3.757544194904483e-06,
+            "magnet-gap": 6.804021097650548e-06,
+            "magnets": 3.2128592636126996e-05,
+            "shield": 7.00449553079352e-05,
+            "vessel": 2.2954385183737713e-06
+          },
+          "report_sha256": "a69d1dfbdff0a2de62b443f9a130ccc6561b367365cf91122112a3061c829a1f",
+          "report_status": "PASS"
+        },
+        "independent_quadrature_remaining_component_volumes_m3": {
+          "blanket": 99.19024936594123,
+          "first-wall": 4.276948815356177,
+          "magnet-gap": 16.331553427056342,
+          "magnets": 45.843716905314274,
+          "shield": 83.64000522365998,
+          "vessel": 13.251360991541578
+        },
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": 7.00449553079352e-05,
+        "max_relative_component_shell_volume_difference": 0.0006321270503965548,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": 8.785572044755838e-07,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00018515625,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 6912,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            24,
+            12,
+            24
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": true,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "unperforated_shell_baseline_m3": {
+          "blanket": 99.23985921339361,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 83.67154523111529,
+          "vessel": 13.255865671103061
+        },
+        "variant_id": "breeder-emphasis",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "port_reference_coarse": {
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.22437784019851,
+          "first-wall": 4.276952572900372,
+          "magnet-gap": 16.331546623035244,
+          "magnets": 45.84368477672164,
+          "shield": 104.6059360418104,
+          "vessel": 13.25135869610306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "independent_port_volume_control": {
+          "all_component_report_checks_pass": true,
+          "interpretation": "Independent numerical geometry check; quadrature error estimate and Monte Carlo volume standard errors are not a design-accuracy statement.",
+          "intersection_volume_report_sum_m3": 0.10818190939964309,
+          "remaining_volume_report_vs_artifact_m3": {
+            "blanket": 2.740789781796593e-06,
+            "first-wall": 3.757544194904483e-06,
+            "magnet-gap": 6.804021097650548e-06,
+            "magnets": 3.2128592636126996e-05,
+            "shield": 6.203319748010472e-05,
+            "vessel": 2.2954385183737713e-06
+          },
+          "report_sha256": "49008990b56427191549d9e2fb89604d187be24a6c3deb91d5a595c552cb4a60",
+          "report_status": "PASS"
+        },
+        "independent_quadrature_remaining_component_volumes_m3": {
+          "blanket": 78.2243805809883,
+          "first-wall": 4.276948815356177,
+          "magnet-gap": 16.331553427056342,
+          "magnets": 45.843716905314274,
+          "shield": 104.60587400861291,
+          "vessel": 13.251360991541578
+        },
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": 6.203319748010472e-05,
+        "max_relative_component_shell_volume_difference": 0.0006321270503965548,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": 8.785572044755838e-07,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00148125,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 864,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            12,
+            6,
+            12
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": true,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "unperforated_shell_baseline_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "port_reference_fine": {
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.22437784019851,
+          "first-wall": 4.276952572900372,
+          "magnet-gap": 16.331546623035244,
+          "magnets": 45.84368477672164,
+          "shield": 104.6059360418104,
+          "vessel": 13.25135869610306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "independent_port_volume_control": {
+          "all_component_report_checks_pass": true,
+          "interpretation": "Independent numerical geometry check; quadrature error estimate and Monte Carlo volume standard errors are not a design-accuracy statement.",
+          "intersection_volume_report_sum_m3": 0.10818190939964309,
+          "remaining_volume_report_vs_artifact_m3": {
+            "blanket": 2.740789781796593e-06,
+            "first-wall": 3.757544194904483e-06,
+            "magnet-gap": 6.804021097650548e-06,
+            "magnets": 3.2128592636126996e-05,
+            "shield": 6.203319748010472e-05,
+            "vessel": 2.2954385183737713e-06
+          },
+          "report_sha256": "e23676de8911a8d81deb653727b742bf4657a6eee347a2055042afe9c8e83501",
+          "report_status": "PASS"
+        },
+        "independent_quadrature_remaining_component_volumes_m3": {
+          "blanket": 78.2243805809883,
+          "first-wall": 4.276948815356177,
+          "magnet-gap": 16.331553427056342,
+          "magnets": 45.843716905314274,
+          "shield": 104.60587400861291,
+          "vessel": 13.251360991541578
+        },
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": 6.203319748010472e-05,
+        "max_relative_component_shell_volume_difference": 0.0006321270503965548,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": 8.785572044755838e-07,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.00018515625,
+          "analytic_mesh_box_volume_m3": 1.2797999999999998,
+          "artifact_bin_count": 6912,
+          "artifact_bin_volume_sum_m3": 1.2797999999999998,
+          "dimensions": [
+            24,
+            12,
+            24
+          ],
+          "lower_left_m": [
+            4.0,
+            -0.45,
+            -0.45
+          ],
+          "mesh_sum_relative_difference": 0.0,
+          "upper_right_m": [
+            5.58,
+            0.45,
+            0.45
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": true,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "unperforated_shell_baseline_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      },
+      "port_reference_window": {
+        "analytic_outer_torus_volume_m3": 338.6206000229114,
+        "artifact_component_volumes_m3": {
+          "blanket": 78.22437784019851,
+          "first-wall": 4.276952572900372,
+          "magnet-gap": 16.331546623035244,
+          "magnets": 45.84368477672164,
+          "shield": 104.6059360418104,
+          "vessel": 13.25135869610306
+        },
+        "artifact_whole_model_volume_m3": 338.62060002291133,
+        "independent_port_volume_control": {
+          "all_component_report_checks_pass": true,
+          "interpretation": "Independent numerical geometry check; quadrature error estimate and Monte Carlo volume standard errors are not a design-accuracy statement.",
+          "intersection_volume_report_sum_m3": 0.10818190939964309,
+          "remaining_volume_report_vs_artifact_m3": {
+            "blanket": 2.740789781796593e-06,
+            "first-wall": 3.757544194904483e-06,
+            "magnet-gap": 6.804021097650548e-06,
+            "magnets": 3.2128592636126996e-05,
+            "shield": 6.203319748010472e-05,
+            "vessel": 2.2954385183737713e-06
+          },
+          "report_sha256": "02de03ba28f3f5f7c39ecbaa18b4807d54dd7bb87ea55c92ff4918ef355a5045",
+          "report_status": "PASS"
+        },
+        "independent_quadrature_remaining_component_volumes_m3": {
+          "blanket": 78.2243805809883,
+          "first-wall": 4.276948815356177,
+          "magnet-gap": 16.331553427056342,
+          "magnets": 45.843716905314274,
+          "shield": 104.60587400861291,
+          "vessel": 13.251360991541578
+        },
+        "max_absolute_remaining_volume_difference_vs_independent_quadrature_m3": 6.203319748010472e-05,
+        "max_relative_component_shell_volume_difference": 0.0006321270503965548,
+        "max_relative_remaining_volume_difference_vs_independent_quadrature": 8.785572044755838e-07,
+        "mesh": {
+          "all_bins_same_expected_volume": true,
+          "analytic_bin_volume_m3": 0.11160000000000002,
+          "analytic_mesh_box_volume_m3": 0.11160000000000002,
+          "artifact_bin_count": 1,
+          "artifact_bin_volume_sum_m3": 0.1116,
+          "dimensions": [
+            1,
+            1,
+            1
+          ],
+          "lower_left_m": [
+            4.34,
+            -0.15,
+            -0.15
+          ],
+          "mesh_sum_relative_difference": 1.2435293734600765e-16,
+          "upper_right_m": [
+            5.58,
+            0.15,
+            0.15
+          ]
+        },
+        "port_cuts_are_expected_difference_from_unperforated_shell": true,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "unperforated_shell_baseline_m3": {
+          "blanket": 78.26497594019851,
+          "first-wall": 4.279657860400373,
+          "magnet-gap": 16.336958773035246,
+          "magnets": 45.85812988922164,
+          "shield": 104.64642850431039,
+          "vessel": 13.255865671103061
+        },
+        "variant_id": "reference",
+        "whole_model_relative_difference": 1.6786757467490736e-16
+      }
+    },
+    "scope": "Code-geometry consistency only. Does not validate physical geometry or model completeness."
+  },
+  "independent_normalization_controls": {
+    "geometry_independent_arithmetic": "Geometry shell volumes were independently evaluated as 2*pi^2*R*(r_outer^2-r_inner^2) from exact scenario dimensions and compared to artifact component volumes. For ports, this control is combined with the bound independent SciPy dblquad intersection/remaining-volume reports; OpenMC uniform-point intersection estimates retain binomial SE and are not treated as exact.",
+    "per_record_reconstruction": {
+      "control_breeder_fine": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 0.0,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 6954,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "control_reference_coarse": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 0.0,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 906,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "control_reference_fine": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 0.0,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 6954,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "control_reference_window": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 0.0,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 43,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "port_breeder_fine": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 1.5373733124638884e-05,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 6954,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "port_reference_coarse": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 1.2773064200978175e-05,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 906,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "port_reference_fine": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 1.2115348044870051e-05,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 6954,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      },
+      "port_reference_window": {
+        "max_relative_difference": {
+          "integrated_mean": 0.0,
+          "integrated_standard_error": 0.0,
+          "mean": 0.0,
+          "standard_error": 1.3802034939146023e-05,
+          "volume_m3": 0.0
+        },
+        "method": "Independent unit conversion and normalization from raw tallies/artifact volumes plus a separately reconstructed source rate from the exact scenario fusion-power input and physics-case D-T energy input; run-record source rate is used only as a comparison value.",
+        "responses_reconstructed": 43,
+        "standard_error_comparison_note": "The independently reconstructed tally-only SE can differ slightly for ported cell responses because the normalized receipt separately propagates the Monte Carlo volume SE; no volume-uncertainty term is added to the raw tally SE reconstruction."
+      }
+    },
+    "physical_constants": {
+      "dt_energy_per_reaction_ev": 17600000.0,
+      "electron_volt_joule": 1.602176634e-19,
+      "neutron_energy_ev": 14100000.0,
+      "neutrons_per_reaction": 1.0,
+      "source_fusion_power_w": 525000000.0
+    },
+    "scope": "Arithmetic consistency checks only; these do not validate nuclear data, transport physics, material choices, or design validity.",
+    "source_normalization": {
+      "equation": "P_fusion(W) / [Q_DT(eV/reaction) * exact_J_per_eV]",
+      "exact_si_electron_volt_joule": 1.602176634e-19,
+      "implied_source_neutron_power_w": 420596590.909091,
+      "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+      "independently_calculated_reaction_rate_per_s": 1.8618137864158527e+20,
+      "interpretation": "The input-derived rate is used in the independent tally reconstruction. Recorded source rate is compared against it only; no normalized source-rate field is used as the reconstruction input.",
+      "physics_case_dt_energy_per_reaction_ev": 17600000.0,
+      "physics_case_neutron_energy_ev": 14100000.0,
+      "physics_case_neutrons_per_reaction": 1.0,
+      "scenario_fusion_power_input_mw": 525.0,
+      "source_rate_comparison_tolerance_relative": 1e-12
+    },
+    "source_rate_match_checks": {
+      "control_breeder_fine": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "control_reference_coarse": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "control_reference_fine": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "control_reference_window": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "port_breeder_fine": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "port_reference_coarse": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "port_reference_fine": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "port_reference_window": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      }
+    }
+  },
+  "predeclared_limits": "Worker exploratory RSE targets were 5% whole/integrated and 10% local. No quantitative fine/coarse cell-mean convergence tolerance was predeclared; therefore map comparison is descriptive and its status remains NOT_EVALUATED.",
+  "primary_sampling_precision": [
+    {
+      "all_goals_met": false,
+      "integrated_goal_rse": 0.05,
+      "largest_unmet_examples": [
+        {
+          "observed_rse": 0.0705564007312264,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-vessel",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.3495729638387516,
+          "quantity": "magnet or mesh neutron flux",
+          "response_id": "magnets-flux",
+          "target_rse": 0.1
+        },
+        {
+          "observed_rse": 0.1253819431210229,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.1253819431210229,
+          "quantity": "volume-averaged component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.1
+        }
+      ],
+      "local_goal_rse": 0.1,
+      "plan_id": "faris-exploratory-precision-goals/v0.1",
+      "record": "control_reference_fine",
+      "total_checks": 6925,
+      "unmet_checks": 5236,
+      "whole_model_heating_rse": 0.0004989290789372096,
+      "whole_model_tbr_rse": 0.0008775277336919324
+    },
+    {
+      "all_goals_met": false,
+      "integrated_goal_rse": 0.05,
+      "largest_unmet_examples": [
+        {
+          "observed_rse": 0.07179151121785352,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-vessel",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.27731531068022625,
+          "quantity": "magnet or mesh neutron flux",
+          "response_id": "magnets-flux",
+          "target_rse": 0.1
+        },
+        {
+          "observed_rse": 0.11153429410092208,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.11153429410092208,
+          "quantity": "volume-averaged component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.1
+        }
+      ],
+      "local_goal_rse": 0.1,
+      "plan_id": "faris-exploratory-precision-goals/v0.1",
+      "record": "control_breeder_fine",
+      "total_checks": 6925,
+      "unmet_checks": 5227,
+      "whole_model_heating_rse": 0.00046180718798601814,
+      "whole_model_tbr_rse": 0.0008580149577081172
+    },
+    {
+      "all_goals_met": false,
+      "integrated_goal_rse": 0.05,
+      "largest_unmet_examples": [
+        {
+          "observed_rse": 0.06851231621343608,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-vessel",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.13885013213159517,
+          "quantity": "magnet or mesh neutron flux",
+          "response_id": "magnets-flux",
+          "target_rse": 0.1
+        },
+        {
+          "observed_rse": 0.12061997032442373,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.12061997032721744,
+          "quantity": "volume-averaged component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.1
+        }
+      ],
+      "local_goal_rse": 0.1,
+      "plan_id": "faris-exploratory-precision-goals/v0.1",
+      "record": "port_reference_fine",
+      "total_checks": 6925,
+      "unmet_checks": 5154,
+      "whole_model_heating_rse": 0.0006080563920028413,
+      "whole_model_tbr_rse": 0.0010574219490649146
+    },
+    {
+      "all_goals_met": false,
+      "integrated_goal_rse": 0.05,
+      "largest_unmet_examples": [
+        {
+          "observed_rse": 0.07824430336464375,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-vessel",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.14132287419098696,
+          "quantity": "magnet or mesh neutron flux",
+          "response_id": "magnets-flux",
+          "target_rse": 0.1
+        },
+        {
+          "observed_rse": 0.12604755151096272,
+          "quantity": "integrated component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.05
+        },
+        {
+          "observed_rse": 0.12604755151363614,
+          "quantity": "volume-averaged component deposited heating",
+          "response_id": "heating-total-magnets",
+          "target_rse": 0.1
+        }
+      ],
+      "local_goal_rse": 0.1,
+      "plan_id": "faris-exploratory-precision-goals/v0.1",
+      "record": "port_breeder_fine",
+      "total_checks": 6925,
+      "unmet_checks": 5133,
+      "whole_model_heating_rse": 0.0004995002101586069,
+      "whole_model_tbr_rse": 0.0009095610376804998
+    }
+  ],
+  "records": {
+    "control_breeder_fine": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1178.18406781,
+      "evidence_directory": "/tmp/faris-primary-control-breeder-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "b1ed3b1c2199458cf49aa12124437e42a44931e7ee76db4d923a4b88b3e30cd0",
+      "mesh_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "mesh_id": "neutron-flux-outboard-local",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "b1ed3b1c2199458cf49aa12124437e42a44931e7ee76db4d923a4b88b3e30cd0",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "run_json_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+      "run_record_path": "run.json",
+      "run_record_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81130012,
+      "solver_output_artifact_bytes": 10964705,
+      "statepoint_sha256": "d0f013cc43ad2ec0ffcaed428ad8202612cdbb32b872f944f91652387647e1b0",
+      "statepoint_size_bytes": 388104,
+      "transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "transport_spectra_sha256": "1793e0c7e71576b763a96a96111fac89c70aa65e2a1cf255f7825a5aaf3ea09e",
+      "variant_id": "breeder-emphasis",
+      "worker_result_sha256": "23c11a001ec575400c124d79c0a6b85e49f7ac5675d3530b79b291d62cf74b69"
+    },
+    "control_reference_coarse": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1126.558045808,
+      "evidence_directory": "/tmp/faris-diagnostic-localcoarse-control-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "c63ba211b4041d28a67165160175371782631a8c8f1b94a7b87e77b6227be7c7",
+      "mesh_dimensions": [
+        12,
+        6,
+        12
+      ],
+      "mesh_id": "neutron-flux-outboard-local-coarse",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "c63ba211b4041d28a67165160175371782631a8c8f1b94a7b87e77b6227be7c7",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "e7ea44dbea00abdad7f286b0c33895958aac950a979ca60aa04c52056c085145",
+      "run_json_sha256": "0dd62f18ccabf8492016240fb9f52167be569a251965af353a129c43be622c3e",
+      "run_record_path": "run.json",
+      "run_record_sha256": "0dd62f18ccabf8492016240fb9f52167be569a251965af353a129c43be622c3e",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81140101,
+      "solver_output_artifact_bytes": 1992315,
+      "statepoint_sha256": "19b59232b352286edf8612d41a90e0b3066f533e26a0348ab5826106c520fd10",
+      "statepoint_size_bytes": 291336,
+      "transport_artifact_sha256": "e7ea44dbea00abdad7f286b0c33895958aac950a979ca60aa04c52056c085145",
+      "transport_spectra_sha256": "4278b8b1c7670eaad624f2bee46984ed5d746ad796a9d14910dc570951559775",
+      "variant_id": "reference",
+      "worker_result_sha256": "b318fb5f5e36465b2a4561e14257f76f87afb7061ae19308db2243541afd3853"
+    },
+    "control_reference_fine": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1215.857806855,
+      "evidence_directory": "/tmp/faris-primary-control-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "6b103d44793d9240dc116a2adc2973b5dda37974023280884fb24327f5c6088d",
+      "mesh_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "mesh_id": "neutron-flux-outboard-local",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "6b103d44793d9240dc116a2adc2973b5dda37974023280884fb24327f5c6088d",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "run_json_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+      "run_record_path": "run.json",
+      "run_record_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81130011,
+      "solver_output_artifact_bytes": 10953857,
+      "statepoint_sha256": "3509687754330a63f477f14e64126920a5d640103964e5e52618e14c9295cd65",
+      "statepoint_size_bytes": 388104,
+      "transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "transport_spectra_sha256": "ab4105c4601a18029d27ec9378da61e1d64d856ff31b07b8746c7c09d11d258a",
+      "variant_id": "reference",
+      "worker_result_sha256": "0c0b0fcdb35d5546e7c7c5fe572a9af73e4d8260cc2bc0e4be623a5f8b55fb49"
+    },
+    "control_reference_window": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1011.301614215,
+      "evidence_directory": "/tmp/faris-diagnostic-window-control-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "status": "PASS"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "d15755659df4d1e668e6ba3b25665d2a932225d75808954638830c0b28b7e9cf",
+      "mesh_dimensions": [
+        1,
+        1,
+        1
+      ],
+      "mesh_id": "neutron-flux-outboard-port-window",
+      "mesh_lower_left_m": [
+        4.34,
+        -0.15,
+        -0.15
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.15,
+        0.15
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "d15755659df4d1e668e6ba3b25665d2a932225d75808954638830c0b28b7e9cf",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "e44f8637e5f7945f4e2cee0ce0ffa4c5de3c6e013f7e62f950e638c681afa066",
+      "run_json_sha256": "bcaf0c11f6c8e1b430a58071da4023dc80d89b83a3c6703bbfd8d8ea923531f5",
+      "run_record_path": "run.json",
+      "run_record_sha256": "bcaf0c11f6c8e1b430a58071da4023dc80d89b83a3c6703bbfd8d8ea923531f5",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81140001,
+      "solver_output_artifact_bytes": 693181,
+      "statepoint_sha256": "545954c5cadc833d789869fd0a660c95ca7aa94b0d9b9589504e1f4cc96fa1a1",
+      "statepoint_size_bytes": 277512,
+      "transport_artifact_sha256": "e44f8637e5f7945f4e2cee0ce0ffa4c5de3c6e013f7e62f950e638c681afa066",
+      "transport_spectra_sha256": "5950a388fa0dc7438f122cdeeb40378d91ea662f0ea96f26378f2dc9f9af8f22",
+      "variant_id": "reference",
+      "worker_result_sha256": "f861c10d6338cbafda048bb0853bb793d67bdcce73f164f70eabaa1d8ea806cf"
+    },
+    "port_breeder_fine": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1328.312218707,
+      "evidence_directory": "/tmp/faris-primary-port-breeder-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "independent_volume_report": {
+        "all_component_checks_pass": true,
+        "component_intersection_sum_m3": 0.10818190939964308,
+        "component_validation_count": 6,
+        "geometry_check": "PASS",
+        "input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+        "max_intersection_difference_m3": 7.004495531016258e-05,
+        "path": "faris-primary-port-breeder-1m-volume-check.json",
+        "penetration_id": "outboard-service-port",
+        "run_record_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "schema_version": "faris-independent-port-volume-check/v0.1",
+        "sha256": "a69d1dfbdff0a2de62b443f9a130ccc6561b367365cf91122112a3061c829a1f",
+        "transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+        "transport_volume_check": "PASS",
+        "variant_id": "breeder-emphasis",
+        "worker_result_sha256": "dce4c422bcedafaca5c24a33ed3bbca7f3c1b0446a2bf1309fe17f484eb8f2e6"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+      "mesh_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "mesh_id": "neutron-flux-outboard-local",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "penetration_volume_audit": {
+        "box_volume_m3": 0.11249999999999999,
+        "final_port_void_confirmation_counts_by_component": {
+          "blanket": 441072,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 279733,
+          "vessel": 40062
+        },
+        "intersection_estimates_m3": {
+          "blanket": 0.0496206,
+          "first-wall": 0.0027052875,
+          "magnet-gap": 0.005412149999999999,
+          "magnets": 0.0144451125,
+          "shield": 0.0314699625,
+          "vessel": 0.004506975
+        },
+        "intersection_standard_errors_m3": {
+          "blanket": 5.585797665186235e-05,
+          "first-wall": 1.7234449898164538e-05,
+          "magnet-gap": 2.407437449607985e-05,
+          "magnets": 3.7635274425893896e-05,
+          "shield": 5.049764590056247e-05,
+          "vessel": 2.2061773814663562e-05
+        },
+        "method": "uniform_point_classification_in_unperforated_control_geometry_plus_final_port_void_confirmation",
+        "nonzero_classification_counts_by_component": {
+          "blanket": 441072,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 279733,
+          "vessel": 40062
+        },
+        "samples": 1000000,
+        "sampling_seed": 913731507,
+        "scipy_report_path": "faris-primary-port-breeder-1m-volume-check.json"
+      },
+      "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "run_json_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+      "run_record_path": "run.json",
+      "run_record_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81130014,
+      "solver_output_artifact_bytes": 11090135,
+      "statepoint_sha256": "fcbc6130f12c5685c1f49c476c5d0e5ed56a72a38766826dd63da4d86aeeba41",
+      "statepoint_size_bytes": 388104,
+      "transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "transport_spectra_sha256": "738033daf06cd8e1d9d97f8ffaf91a938e2f7e139994287493dee7cf9f553734",
+      "variant_id": "breeder-emphasis",
+      "worker_result_sha256": "dce4c422bcedafaca5c24a33ed3bbca7f3c1b0446a2bf1309fe17f484eb8f2e6"
+    },
+    "port_reference_coarse": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1311.970928959,
+      "evidence_directory": "/tmp/faris-diagnostic-localcoarse-port-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "independent_volume_report": {
+        "all_component_checks_pass": true,
+        "component_intersection_sum_m3": 0.10818190939964309,
+        "component_validation_count": 6,
+        "geometry_check": "PASS",
+        "input_sha256": "163270220d337cd4ab47e19ec03ec385bbfca15a21d458c23fb199f4c75e87c8",
+        "max_intersection_difference_m3": 6.203319748217251e-05,
+        "path": "faris-diagnostic-localcoarse-port-reference-1m-volume-check.json",
+        "penetration_id": "outboard-service-port",
+        "run_record_sha256": "87cf1319eb2d6309477759a41d93d2612a0e9d48bec5d954f6c91f55e8da0564",
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "schema_version": "faris-independent-port-volume-check/v0.1",
+        "sha256": "49008990b56427191549d9e2fb89604d187be24a6c3deb91d5a595c552cb4a60",
+        "transport_artifact_sha256": "aaf61160aeef0fba25210b73bcf9e0e6df07b47b0d801ea14d8206434149a835",
+        "transport_volume_check": "PASS",
+        "variant_id": "reference",
+        "worker_result_sha256": "1cab4235a25f76af2bd8e2bc97fa2f0ccac556136ae9d8fca76937565d714d71"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "163270220d337cd4ab47e19ec03ec385bbfca15a21d458c23fb199f4c75e87c8",
+      "mesh_dimensions": [
+        12,
+        6,
+        12
+      ],
+      "mesh_id": "neutron-flux-outboard-local-coarse",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "163270220d337cd4ab47e19ec03ec385bbfca15a21d458c23fb199f4c75e87c8",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "penetration_volume_audit": {
+        "box_volume_m3": 0.11249999999999999,
+        "final_port_void_confirmation_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "intersection_estimates_m3": {
+          "blanket": 0.0405981,
+          "first-wall": 0.0027052875,
+          "magnet-gap": 0.005412149999999999,
+          "magnets": 0.0144451125,
+          "shield": 0.04049246249999999,
+          "vessel": 0.004506975
+        },
+        "intersection_standard_errors_m3": {
+          "blanket": 5.4028515863292037e-05,
+          "first-wall": 1.7234449898164538e-05,
+          "magnet-gap": 2.407437449607985e-05,
+          "magnets": 3.7635274425893896e-05,
+          "shield": 5.3997800991670884e-05,
+          "vessel": 2.2061773814663562e-05
+        },
+        "method": "uniform_point_classification_in_unperforated_control_geometry_plus_final_port_void_confirmation",
+        "nonzero_classification_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "samples": 1000000,
+        "sampling_seed": 913731507,
+        "scipy_report_path": "faris-diagnostic-localcoarse-port-reference-1m-volume-check.json"
+      },
+      "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "aaf61160aeef0fba25210b73bcf9e0e6df07b47b0d801ea14d8206434149a835",
+      "run_json_sha256": "87cf1319eb2d6309477759a41d93d2612a0e9d48bec5d954f6c91f55e8da0564",
+      "run_record_path": "run.json",
+      "run_record_sha256": "87cf1319eb2d6309477759a41d93d2612a0e9d48bec5d954f6c91f55e8da0564",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81140102,
+      "solver_output_artifact_bytes": 2031404,
+      "statepoint_sha256": "b4567298a9d906d980b5e935e119bda7508e89d1a796ffb225d4326fb0a06017",
+      "statepoint_size_bytes": 291336,
+      "transport_artifact_sha256": "aaf61160aeef0fba25210b73bcf9e0e6df07b47b0d801ea14d8206434149a835",
+      "transport_spectra_sha256": "a27e024ec20ac28f72391773c4efd4eea2524033a68780a2bff0308b5939022c",
+      "variant_id": "reference",
+      "worker_result_sha256": "1cab4235a25f76af2bd8e2bc97fa2f0ccac556136ae9d8fca76937565d714d71"
+    },
+    "port_reference_fine": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1364.709110466,
+      "evidence_directory": "/tmp/faris-primary-port-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "independent_volume_report": {
+        "all_component_checks_pass": true,
+        "component_intersection_sum_m3": 0.10818190939964309,
+        "component_validation_count": 6,
+        "geometry_check": "PASS",
+        "input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+        "max_intersection_difference_m3": 6.203319748217251e-05,
+        "path": "faris-primary-port-reference-1m-volume-check.json",
+        "penetration_id": "outboard-service-port",
+        "run_record_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "schema_version": "faris-independent-port-volume-check/v0.1",
+        "sha256": "e23676de8911a8d81deb653727b742bf4657a6eee347a2055042afe9c8e83501",
+        "transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+        "transport_volume_check": "PASS",
+        "variant_id": "reference",
+        "worker_result_sha256": "d33a1d2a1adc57a8ddb5586324bc0ddd9b18cf49b7f6e4abee6b1fc539188d30"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+      "mesh_dimensions": [
+        24,
+        12,
+        24
+      ],
+      "mesh_id": "neutron-flux-outboard-local",
+      "mesh_lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "penetration_volume_audit": {
+        "box_volume_m3": 0.11249999999999999,
+        "final_port_void_confirmation_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "intersection_estimates_m3": {
+          "blanket": 0.0405981,
+          "first-wall": 0.0027052875,
+          "magnet-gap": 0.005412149999999999,
+          "magnets": 0.0144451125,
+          "shield": 0.04049246249999999,
+          "vessel": 0.004506975
+        },
+        "intersection_standard_errors_m3": {
+          "blanket": 5.4028515863292037e-05,
+          "first-wall": 1.7234449898164538e-05,
+          "magnet-gap": 2.407437449607985e-05,
+          "magnets": 3.7635274425893896e-05,
+          "shield": 5.3997800991670884e-05,
+          "vessel": 2.2061773814663562e-05
+        },
+        "method": "uniform_point_classification_in_unperforated_control_geometry_plus_final_port_void_confirmation",
+        "nonzero_classification_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "samples": 1000000,
+        "sampling_seed": 913731507,
+        "scipy_report_path": "faris-primary-port-reference-1m-volume-check.json"
+      },
+      "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "run_json_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+      "run_record_path": "run.json",
+      "run_record_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81130013,
+      "solver_output_artifact_bytes": 11080081,
+      "statepoint_sha256": "9f86856898b31e858b2502778609c23de73ac0ae633276c6043dfd8f470ca14c",
+      "statepoint_size_bytes": 388104,
+      "transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "transport_spectra_sha256": "b2d4d514fcd1656d633f12ab25139b357f3d2835651a89220101180502e44763",
+      "variant_id": "reference",
+      "worker_result_sha256": "d33a1d2a1adc57a8ddb5586324bc0ddd9b18cf49b7f6e4abee6b1fc539188d30"
+    },
+    "port_reference_window": {
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+      "clearance_status": "PASS",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "elapsed_seconds": 1174.085753476,
+      "evidence_directory": "/tmp/faris-diagnostic-window-port-reference-1m",
+      "geometry_failed_probe_count": 0,
+      "geometry_ownership_status": "PASS",
+      "geometry_probe_count": 117,
+      "histories": 1000000,
+      "independent_source_rate_check": {
+        "absolute_difference_per_s": 0.0,
+        "comparison_tolerance_relative": 1e-12,
+        "dt_energy_per_reaction_ev_from_physics": 17600000.0,
+        "electron_volt_joule_exact_si": 1.602176634e-19,
+        "equation": "fusion_power_w / (energy_per_reaction_ev * electron_volt_joule_exact_si)",
+        "fusion_power_mw_from_scenario": 525.0,
+        "fusion_power_w": 525000000.0,
+        "independently_calculated_neutron_rate_per_s": 1.8618137864158527e+20,
+        "neutron_energy_ev_from_physics": 14100000.0,
+        "neutrons_per_reaction_from_physics": 1.0,
+        "normalization_reconstruction_uses_independently_calculated_rate": true,
+        "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+        "recorded_neutron_rate_per_s_for_comparison_only": 1.8618137864158527e+20,
+        "relative_difference": 0.0,
+        "scenario_path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "status": "PASS"
+      },
+      "independent_volume_report": {
+        "all_component_checks_pass": true,
+        "component_intersection_sum_m3": 0.10818190939964309,
+        "component_validation_count": 6,
+        "geometry_check": "PASS",
+        "input_sha256": "e68ab30a28a4587f63038b1e662a3f848f76e228036a732165205f1b9d1a0a65",
+        "max_intersection_difference_m3": 6.203319748217251e-05,
+        "path": "faris-diagnostic-window-port-reference-1m-volume-check.json",
+        "penetration_id": "outboard-service-port",
+        "run_record_sha256": "3c6a57712c4a5e2c7708dde67c19ce8531eaadc65d198a14181fb9d4bd2d66a6",
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "schema_version": "faris-independent-port-volume-check/v0.1",
+        "sha256": "02de03ba28f3f5f7c39ecbaa18b4807d54dd7bb87ea55c92ff4918ef355a5045",
+        "transport_artifact_sha256": "5b4e3bd067bc3b811d9e167348a28a8ac2512f687fae6fb8909517e0cfba0103",
+        "transport_volume_check": "PASS",
+        "variant_id": "reference",
+        "worker_result_sha256": "253c1bff479acf776164633f2db65ee0856cb6fddd7a1d07404e142ca0a30982"
+      },
+      "input_identity_semantics": "SHA-256 of exact serialized faris-openmc-input/v0.1 file bytes",
+      "input_sha256": "e68ab30a28a4587f63038b1e662a3f848f76e228036a732165205f1b9d1a0a65",
+      "mesh_dimensions": [
+        1,
+        1,
+        1
+      ],
+      "mesh_id": "neutron-flux-outboard-port-window",
+      "mesh_lower_left_m": [
+        4.34,
+        -0.15,
+        -0.15
+      ],
+      "mesh_upper_right_m": [
+        5.58,
+        0.15,
+        0.15
+      ],
+      "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+      "openmc_executable_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "ownership_audit": {
+        "clearance_status": "PASS",
+        "failed_probe_count": 0,
+        "input_sha256": "e68ab30a28a4587f63038b1e662a3f848f76e228036a732165205f1b9d1a0a65",
+        "probe_count": 117,
+        "schema_version": "faris-openmc-geometry-ownership-audit/v0.1",
+        "status": "PASS"
+      },
+      "penetration_volume_audit": {
+        "box_volume_m3": 0.11249999999999999,
+        "final_port_void_confirmation_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "intersection_estimates_m3": {
+          "blanket": 0.0405981,
+          "first-wall": 0.0027052875,
+          "magnet-gap": 0.005412149999999999,
+          "magnets": 0.0144451125,
+          "shield": 0.04049246249999999,
+          "vessel": 0.004506975
+        },
+        "intersection_standard_errors_m3": {
+          "blanket": 5.4028515863292037e-05,
+          "first-wall": 1.7234449898164538e-05,
+          "magnet-gap": 2.407437449607985e-05,
+          "magnets": 3.7635274425893896e-05,
+          "shield": 5.3997800991670884e-05,
+          "vessel": 2.2061773814663562e-05
+        },
+        "method": "uniform_point_classification_in_unperforated_control_geometry_plus_final_port_void_confirmation",
+        "nonzero_classification_counts_by_component": {
+          "blanket": 360872,
+          "first-wall": 24047,
+          "magnet-gap": 48108,
+          "magnets": 128401,
+          "shield": 359933,
+          "vessel": 40062
+        },
+        "samples": 1000000,
+        "sampling_seed": 913731507,
+        "scipy_report_path": "faris-diagnostic-window-port-reference-1m-volume-check.json"
+      },
+      "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "raw_transport_artifact_sha256": "5b4e3bd067bc3b811d9e167348a28a8ac2512f687fae6fb8909517e0cfba0103",
+      "run_json_sha256": "3c6a57712c4a5e2c7708dde67c19ce8531eaadc65d198a14181fb9d4bd2d66a6",
+      "run_record_path": "run.json",
+      "run_record_sha256": "3c6a57712c4a5e2c7708dde67c19ce8531eaadc65d198a14181fb9d4bd2d66a6",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "scientific_qualification": "NOT_EVALUATED",
+      "seed": 81140002,
+      "solver_output_artifact_bytes": 717572,
+      "statepoint_sha256": "6de86360c8ffbb99a80e1483b039c0d3878d4d0efcca2f7619f77e819591beec",
+      "statepoint_size_bytes": 277512,
+      "transport_artifact_sha256": "5b4e3bd067bc3b811d9e167348a28a8ac2512f687fae6fb8909517e0cfba0103",
+      "transport_spectra_sha256": "887ffa3cfd894a5b95d41cacb8dc0591e167ba9c4b6cd6e96e8007daf9e9eeb0",
+      "variant_id": "reference",
+      "worker_result_sha256": "253c1bff479acf776164633f2db65ee0856cb6fddd7a1d07404e142ca0a30982"
+    }
+  },
+  "sampling_design": "All records use 1,000,000 histories, one thread, distinct declared seeds. The control-versus-port direct-window pair is analyzed as independent estimates with zero assumed cross-run covariance; no shared-seed paired variance claim.",
+  "scenario_identities": {
+    "control": {
+      "path": "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+      "scenario_id": "arc-cold-coupled-control-001",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6"
+    },
+    "port": {
+      "path": "scenarios/arc-inspired/cold-reference-port.scenario.json",
+      "scenario_id": "arc-cold-reference-port-001",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5"
+    }
+  },
+  "schema_version": "faris-transport-refinement-results/v0.1",
+  "scientific_qualification": "NOT_EVALUATED",
+  "scope": "Numerical sampling and mesh-resolution diagnostics for a cold-data ARC-inspired surrogate; not experimental validation, design qualification, coil lifetime, or facility prediction.",
+  "source_data_identity": {
+    "audited_library_manifest_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "data_identity_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db",
+    "data_overlay_xml_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+    "dataset_state": "Local cached FENDL-3.2 neutron / ENDF/B-VII.1 photon+atomic relaxation overlay; data files are not included in this record. Provenance and licensing are not upgraded to qualified or redistributable by these checks.",
+    "openmc_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+    "openmc_version": "0.15.3"
+  }
+}

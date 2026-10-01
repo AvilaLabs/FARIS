@@ -1,0 +1,872 @@
+{
+  "control_case": {
+    "contract_sha256": "sha256:54d1496ba1251a8f25ea745f220ef406f1eb1e078030b8ed75dd7e49c0a91602",
+    "directory": "runs/core-coupled-smoke-004-case",
+    "registry_sha256": "sha256:5fd68aeae8fbafe965fad0c50fbad4bb5c771144f8e8f4d9c3e5eb2cf3695ca8",
+    "scope": "The mutations compile the historical smoke004 contract against its registry. The claims file and recorded transport geometry are not loaded or evaluated; the case is used only to test software declaration handling."
+  },
+  "controls_script_sha256": "sha256:c8f23e491a8071e02f2e3381f5fe82f0a26168c20225e2cbedd0a544f8d2a78b",
+  "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+  "core_fixture_index_sha256": "sha256:008a3ff8a3d06770025dc879edc40de898522a0e94a4d4ffe3a95af0686d691b",
+  "core_source": {
+    "commit": "2f8f838c081ae375f2ff3d542e986d0f4c104f96",
+    "path": "/home/connoravila/Documents/Avila-Labs/project-north-star-blanket"
+  },
+  "passed": true,
+  "schema_version": "faris-core-integration-controls/v0.1",
+  "scope": "Software semantic controls only; no physical qualification",
+  "test_summary": {
+    "all_expected_rejections_observed": true,
+    "count": 11,
+    "covered_failure_modes": [
+      "stale claim/document identity rejected",
+      "missing attested parent input not evaluated",
+      "duplicate input-slot binding rejected",
+      "wrong unit rejected",
+      "undeclared bound input rejected",
+      "inverted bounds quarantined",
+      "claim-model mismatch quarantined",
+      "unqualified criterion remains not evaluated"
+    ],
+    "declaration_mutations": [
+      "wrong-unit",
+      "overlapping-binding",
+      "missing-bound-input"
+    ],
+    "semantic_fixture_states": [
+      "pass",
+      "fail",
+      "inconclusive",
+      "not_evaluated"
+    ]
+  },
+  "tests": [
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:9fc3a1d05ebde3f43d59dbc315ce9eb93c610b7ef46c4ab563cf92687af3efed",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "admitted"
+          }
+        ],
+        "campaign_sha256": "sha256:2ba7e525f4f55c8c437b387311eaf94a505bde1d14532eb431b30a703dea43ed",
+        "claims_sha256": "sha256:074a0c0c71cbacd11fa436431c1ee2a5a74862285df2e97e71a82d1e1cf46bf2",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:074a0c0c71cbacd11fa436431c1ee2a5a74862285df2e97e71a82d1e1cf46bf2",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "canonical_unit": "Sv/s",
+              "limit_canonical": "1/36000000",
+              "lower_canonical": "1/40000000",
+              "reasons": [
+                {
+                  "code": "CORE-A4403",
+                  "owner": "policy_owner"
+                },
+                {
+                  "evidence_id": "bounded",
+                  "state": "unqualified"
+                }
+              ],
+              "rule": "bounded.le.within",
+              "status": "pass",
+              "upper_canonical": "11/400000000"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.le.within.pass"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:97db9b69cb7c43d198508fc43171a178697f54a018d6205afc2255707a54cfc5",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "admitted"
+          }
+        ],
+        "campaign_sha256": "sha256:de579015d1e5c574ef16f54ad3868d1531c39f913770b215c5bac4bcf732c8e0",
+        "claims_sha256": "sha256:b8724e4f68266ed225ebdd9ca6ca671dc649e5cba07282d2f625ce84d68b2fa7",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:b8724e4f68266ed225ebdd9ca6ca671dc649e5cba07282d2f625ce84d68b2fa7",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "canonical_unit": "Sv/s",
+              "limit_canonical": "1/36000000",
+              "lower_canonical": "1/40000000",
+              "reasons": [
+                {
+                  "code": "CORE-A4403",
+                  "owner": "policy_owner"
+                },
+                {
+                  "evidence_id": "bounded",
+                  "state": "unqualified"
+                }
+              ],
+              "rule": "bounded.le.crossing",
+              "status": "inconclusive",
+              "upper_canonical": "11/360000000"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.le.crossing.inconclusive"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:21d0b5bcd78bfa69991349463af4a97646a422ac8286ecc6b422922989da9c83",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "admitted"
+          }
+        ],
+        "campaign_sha256": "sha256:d5ec3c816ad2ebdb81cc48dd48c8229e5540885c3ec9b6f842d59bcbc13214b9",
+        "claims_sha256": "sha256:cda6d0a6e16086294f5e8711258453bf9cd02d6668d4dc1a77bcd599de75ff25",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:cda6d0a6e16086294f5e8711258453bf9cd02d6668d4dc1a77bcd599de75ff25",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "canonical_unit": "Sv/s",
+              "limit_canonical": "1/36000000",
+              "lower_canonical": "101/3600000000",
+              "reasons": [
+                {
+                  "code": "CORE-A4403",
+                  "owner": "policy_owner"
+                },
+                {
+                  "evidence_id": "bounded",
+                  "state": "unqualified"
+                }
+              ],
+              "rule": "bounded.le.exceeds",
+              "status": "fail",
+              "upper_canonical": "1/30000000"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.le.exceeds.fail"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:5912cc7e0fe1132f494f12db54f316c1342a00327c38af277c838f18b68da483",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "reasons": [
+              {
+                "code": "CORE-E7101",
+                "detail": "no artifact attested for this input"
+              }
+            ],
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "missing"
+          },
+          {
+            "evidence_id": "calculated",
+            "reasons": [
+              {
+                "code": "CORE-E7103",
+                "detail": "parent `input:case` bound to input slot `source` is not admitted"
+              }
+            ],
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "quarantined"
+          },
+          {
+            "evidence_id": "bounded",
+            "reasons": [
+              {
+                "code": "CORE-E7103",
+                "detail": "parent `step:calculate/dose_rate` bound to input slot `dose_rate` is not admitted"
+              }
+            ],
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "quarantined"
+          }
+        ],
+        "campaign_sha256": "sha256:a14f904287029eaec3fcdfd6603287bed8b46f9bde3474bb5b0dd05869158baa",
+        "claims_sha256": "sha256:683b2d8f8734feff92b9a63e93719691aa50ac73a0403d9c8362167fc62e44bb",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "findings": [
+          {
+            "class": "inadmissible",
+            "code": "CORE-E7103",
+            "message": "parent `input:case` bound to input slot `source` is not admitted",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/claims/0"
+            }
+          },
+          {
+            "class": "inadmissible",
+            "code": "CORE-E7103",
+            "message": "parent `step:calculate/dose_rate` bound to input slot `dose_rate` is not admitted",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/claims/1"
+            }
+          },
+          {
+            "class": "missing",
+            "code": "CORE-E7101",
+            "message": "contract input `case` has no attested artifact",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/inputs"
+            }
+          }
+        ],
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:683b2d8f8734feff92b9a63e93719691aa50ac73a0403d9c8362167fc62e44bb",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "numbers_present": false,
+              "reasons": [
+                {
+                  "evidence_id": "bounded",
+                  "state": "quarantined"
+                }
+              ],
+              "rule": "not_evaluated.quarantined",
+              "status": "not_evaluated"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.parent-missing.not_evaluated"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:7383e80c287a07609c5e520d98df2a8ac946c40b8fca1c0c6040915b3c39e165",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "reasons": [
+              {
+                "code": "CORE-E7201",
+                "detail": "`lower` exceeds `upper`"
+              }
+            ],
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "quarantined"
+          }
+        ],
+        "campaign_sha256": "sha256:69a26655b3c24b0ebfdeb5e29a1f404c3060f4ae09c96a2d739348b3b7349170",
+        "claims_sha256": "sha256:7a1f94eeb72c129b534d72b763eaf81cc9a90c6009f153b81856214cf8bdc478",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "findings": [
+          {
+            "class": "inadmissible",
+            "code": "CORE-E7201",
+            "message": "`lower` exceeds `upper`",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/claims/1/claim"
+            }
+          }
+        ],
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:7a1f94eeb72c129b534d72b763eaf81cc9a90c6009f153b81856214cf8bdc478",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "numbers_present": false,
+              "reasons": [
+                {
+                  "evidence_id": "bounded",
+                  "state": "quarantined"
+                }
+              ],
+              "rule": "not_evaluated.quarantined",
+              "status": "not_evaluated"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.inverted-bounds.quarantine"
+    },
+    {
+      "exit_code": 1,
+      "inputs": {
+        "claims": "sha256:15599676ed06b3d1381df99587a6339372ba39f3f194772eb3363de80d4e8e45",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "claims_sha256": "sha256:75df589f6ba7cb4a5495157d4f80db15b77c02412b80bce7e7d8971ca4646dc4",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "findings": [
+          {
+            "class": "inadmissible",
+            "code": "CORE-E7001",
+            "message": "claims were produced for `sha256:0000000000000000000000000000000000000000000000000000000000000000`, but these documents compile to `sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d`",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/compiled_snapshot_sha256"
+            }
+          }
+        ],
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "rejected"
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.snapshot-mismatch.rejected"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:080aa0b6e0092f5327c79bbaddc7ad44041cadc5d0d409d9b68615ea3aaeb4fa",
+        "contract": "sha256:2f3deae289541cfd9a4e5ec9ffe00641d035f4f28cde0595ef8a4555b8de9bbd",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "admitted"
+          }
+        ],
+        "campaign_sha256": "sha256:93d7296da86525e2176b805170303117f2da475e4b84a39892a0bea068b1848d",
+        "claims_sha256": "sha256:6f8aac956e0dd4a1d8c467384b39bbdb3687b49748dbd0f2208c8ef60bd6d866",
+        "compiled_snapshot_sha256": "sha256:2fe865fd64b587de80e7d441c11e4253af5ceb3e95a988aef6611ce83f491f26",
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:6f8aac956e0dd4a1d8c467384b39bbdb3687b49748dbd0f2208c8ef60bd6d866",
+              "compiled_snapshot_sha256": "sha256:2fe865fd64b587de80e7d441c11e4253af5ceb3e95a988aef6611ce83f491f26",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "numbers_present": false,
+              "reasons": [
+                {
+                  "code": "CORE-A4402",
+                  "owner": "method_owner"
+                },
+                {
+                  "evidence_id": "bounded",
+                  "state": "unqualified"
+                }
+              ],
+              "rule": "not_evaluated.unqualified",
+              "status": "not_evaluated"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.require-qualification.unqualified.not_evaluated"
+    },
+    {
+      "exit_code": 0,
+      "inputs": {
+        "claims": "sha256:e46c417d7f4a24b20191f8bea7cf1269c220e6f1c420c7272ff9d70b63f2900e",
+        "contract": "sha256:8611b52db218cebf1363c19163ce1e3c65e704105078539af7dec20a22aff484",
+        "registry": "sha256:ae585b13bd6a89ed5e87a83742315b6b80fc770afff51b2749965419e4c86019"
+      },
+      "report": {
+        "admissions": [
+          {
+            "evidence_id": "input:case",
+            "source": {
+              "input_id": "case",
+              "source": "contract_input"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "calculated",
+            "source": {
+              "output_slot": "dose_rate",
+              "source": "step_output",
+              "step_id": "calculate"
+            },
+            "state": "admitted"
+          },
+          {
+            "evidence_id": "bounded",
+            "reasons": [
+              {
+                "code": "CORE-E7201",
+                "detail": "claim model `unquantified` is not permitted by output `bounded_dose_rate`"
+              }
+            ],
+            "source": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "state": "quarantined"
+          }
+        ],
+        "campaign_sha256": "sha256:9fe392e46d1abaf65f63a34d2dda8be8c63e012834e066bf8677d33350c25507",
+        "claims_sha256": "sha256:fda9ac7c668f6ec25930c021591587f4e24c6989cee8c86e37f0713dcdf0acc0",
+        "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+        "findings": [
+          {
+            "class": "inadmissible",
+            "code": "CORE-E7201",
+            "message": "claim model `unquantified` is not permitted by output `bounded_dose_rate`",
+            "owner": "executor",
+            "primary": {
+              "document": "claims",
+              "pointer": "/claims/1/claim"
+            }
+          }
+        ],
+        "notice": "Campaign evaluation admits claims under the executable type-level subset of the draft admission rules and derives verdicts from admitted claims under the draft profile. Artifact bytes, execution receipts, package identities, signatures, qualification, policy snapshots, and invalidation are not checked. Optional practical review controls presentation outside this evaluator and cannot alter a technical verdict. No verdict here is scientific truth, certification, or regulatory approval.",
+        "schema_version": "avila.core/campaign-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "status": "evaluated",
+        "verdicts": [
+          {
+            "boundary": {
+              "claims_sha256": "sha256:fda9ac7c668f6ec25930c021591587f4e24c6989cee8c86e37f0713dcdf0acc0",
+              "compiled_snapshot_sha256": "sha256:cc802164995a2a326855de6414b175e2fb750072711fcebc175957540904bd3d",
+              "compiler": "avila.core/compiler-rust@0.1.0",
+              "evaluator": "avila.core/kernel-rust@0.1.0",
+              "semantic_profile": "avila.core/semantic/0.2-draft"
+            },
+            "evidence_ids": [
+              "bounded"
+            ],
+            "metric": {
+              "output_slot": "bounded_dose_rate",
+              "source": "step_output",
+              "step_id": "bound"
+            },
+            "requirement_id": "R-001",
+            "statement": "The bounded specimen dose rate must not exceed the illustrative limit.",
+            "verdict": {
+              "numbers_present": false,
+              "reasons": [
+                {
+                  "evidence_id": "bounded",
+                  "state": "quarantined"
+                }
+              ],
+              "rule": "not_evaluated.quarantined",
+              "status": "not_evaluated"
+            }
+          }
+        ]
+      },
+      "scope": "Core software fixture",
+      "stderr": "",
+      "test": "campaign.model-mismatch.quarantine"
+    },
+    {
+      "contract_sha256": "sha256:c524abce6d3800a851351babb2b6901bc905de68a93e08c4cd6d50680ebd3b4f",
+      "exit_code": 1,
+      "registry_sha256": "sha256:5fd68aeae8fbafe965fad0c50fbad4bb5c771144f8e8f4d9c3e5eb2cf3695ca8",
+      "report": {
+        "findings": [
+          {
+            "class": "invalid",
+            "code": "CORE-T2001",
+            "message": "unit symbol `MW` is not admitted for kind `faris.tritium_breeding_ratio`",
+            "owner": "requester",
+            "primary": {
+              "document": "contract",
+              "pointer": "/requirements/0/limit/unit"
+            },
+            "repairs": [
+              {
+                "applicability": "constrained_choice",
+                "candidates": [
+                  "1"
+                ],
+                "edits": [
+                  [
+                    {
+                      "op": "replace",
+                      "path": "/requirements/0/limit/unit",
+                      "value": "1"
+                    }
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "notice": "Compilation establishes structural and semantic consistency under the named draft profile only. It performs no execution, optional presentation-gate run, agent-identity or trust evaluation, evidence admission, scientific qualification, or requirement verdict.",
+        "schema_version": "avila.core/compile-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "source_identities": [
+          {
+            "document": "contract",
+            "sha256": "sha256:a0b742e02df8a34c18d27323bbdab0d6eed892a82edaa2bd8960263f534045ab"
+          },
+          {
+            "document": "registry",
+            "sha256": "sha256:833ad2dc8a1f3cd3dd4856dce9927d1a73ff5457bfc881767aed3e8577d7d45d"
+          }
+        ],
+        "status": "rejected"
+      },
+      "scope": "FARIS declaration mutation",
+      "stderr": "",
+      "test": "wrong-unit"
+    },
+    {
+      "contract_sha256": "sha256:f9306b4a60a139e4eedfebdd1c181732d0f345fae14881f644abb50ee09951e9",
+      "exit_code": 1,
+      "registry_sha256": "sha256:5fd68aeae8fbafe965fad0c50fbad4bb5c771144f8e8f4d9c3e5eb2cf3695ca8",
+      "report": {
+        "findings": [
+          {
+            "class": "invalid",
+            "code": "CORE-S1102",
+            "message": "step `normalize` binds input slot `physics` more than once",
+            "owner": "requester",
+            "primary": {
+              "document": "contract",
+              "pointer": "/workflow/1/bindings/3/input_slot"
+            }
+          }
+        ],
+        "notice": "Compilation establishes structural and semantic consistency under the named draft profile only. It performs no execution, optional presentation-gate run, agent-identity or trust evaluation, evidence admission, scientific qualification, or requirement verdict.",
+        "schema_version": "avila.core/compile-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "source_identities": [
+          {
+            "document": "contract",
+            "sha256": "sha256:528ef2d04451500bbc7f70a0f3862b81ac12bab89829104d1fdb7710675e3beb"
+          },
+          {
+            "document": "registry",
+            "sha256": "sha256:833ad2dc8a1f3cd3dd4856dce9927d1a73ff5457bfc881767aed3e8577d7d45d"
+          }
+        ],
+        "status": "rejected"
+      },
+      "scope": "FARIS declaration mutation",
+      "stderr": "",
+      "test": "overlapping-binding"
+    },
+    {
+      "contract_sha256": "sha256:f9c03e56f0955f91fed07a171db00cd04fb56a6dd5f1507fc9c8675400630eb9",
+      "exit_code": 1,
+      "registry_sha256": "sha256:5fd68aeae8fbafe965fad0c50fbad4bb5c771144f8e8f4d9c3e5eb2cf3695ca8",
+      "report": {
+        "findings": [
+          {
+            "class": "missing",
+            "code": "CORE-R3101",
+            "message": "contract input `missing-physics` is not declared",
+            "owner": "requester",
+            "primary": {
+              "document": "contract",
+              "pointer": "/workflow/1/bindings/2/source"
+            }
+          }
+        ],
+        "notice": "Compilation establishes structural and semantic consistency under the named draft profile only. It performs no execution, optional presentation-gate run, agent-identity or trust evaluation, evidence admission, scientific qualification, or requirement verdict.",
+        "schema_version": "avila.core/compile-report/v0.2-draft",
+        "semantic_profile": "avila.core/semantic/0.2-draft",
+        "source_identities": [
+          {
+            "document": "contract",
+            "sha256": "sha256:cf91352b5ae4df8182a2c7a5ace996df6e81d6d50eeca45303d1eba14aafee62"
+          },
+          {
+            "document": "registry",
+            "sha256": "sha256:833ad2dc8a1f3cd3dd4856dce9927d1a73ff5457bfc881767aed3e8577d7d45d"
+          }
+        ],
+        "status": "rejected"
+      },
+      "scope": "FARIS declaration mutation",
+      "stderr": "",
+      "test": "missing-bound-input"
+    }
+  ]
+}

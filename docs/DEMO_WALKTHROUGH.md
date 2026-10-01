@@ -2,9 +2,41 @@
 
 This walkthrough is for the identified local FARIS workspace. It uses a cold-data
 numerical surrogate; it does not reproduce ARC or establish a qualified reactor
-prediction. Before the final corrected coupled runs are available, use the
-walkthrough to inspect software behavior only. Do not use the older neutron-only
-million-history runs as final heating or electricity evidence.
+prediction. The corrected campaign contains four million-history coupled runs with exact
+geometry/data identities. Earlier neutron-only and incorrect-clearance runs
+remain superseded diagnostics, and must not supply final reactor conclusions.
+
+The offline distribution is being finalized at
+`dist/FARIS-demo-2026-10-01`. Once its verification receipt is recorded, the
+short native demonstration is:
+
+1. Run the distribution's `verify.sh`, then `launch.sh`. No OpenMC installation
+   or nuclear data is needed for recorded exploration.
+2. Orbit the finite-port scene, select a layer, and inspect its physical inputs.
+   Switch allocations and **Show matched control** while retaining the same
+   field scale. The cutaway changes only the display.
+3. Use **Flux slice** and click a bin; inspect its domain, mean, sampling error
+   and source identity. Read the unresolved precision warning before drawing a
+   local-map conclusion. **Nuclear heating** shows deposited transport heat,
+   not a temperature calculation.
+4. Press **Compile study** and inspect the actual Core findings and small
+   **Powered by Avila Core** attribution. Saved-case evidence and the current
+   draft's compilation have separate identities and states.
+5. Scrub the baseline history through an annual planned outage. Inventory,
+   power, exposure and cumulative energy follow calculated snapshots. Reference
+   flux/heating fields remain explicitly stationary; **Component fluence**
+   follows the history.
+6. In the left panel, select **Replacement-event demonstration**. Let the shared
+   Rust ledger recalculate, then jump to a replacement or permanent-limit event.
+   Change recovery or opening fuel under **Operating assumptions** and press
+   **Recalculate history**. Earlier curves remain marked until completion.
+7. Inspect **Conditional sensitivity** and the packaged paired comparisons.
+   The 27 full-history reruns probe authored assumptions; they are not lifetime
+   confidence bounds. The result can remain an unresolved engineering tradeoff.
+
+Fresh transport and reproducible CLI/export instructions follow below. It takes
+substantially longer than recorded exploration, and its sampling quality must
+be checked independently of successful execution.
 
 ## 1. Check the inputs and tools
 
@@ -14,7 +46,7 @@ and finite-port branches have different scenario byte identities. Never pair a
 run record with a similarly named but different scenario file.
 
 ```bash
-cargo run -- validate scenarios/arc-inspired/cold-reference.scenario.json
+cargo run -- validate scenarios/arc-inspired/cold-coupled-control.scenario.json
 cargo run -- reactor --help
 cargo run -- history --help
 cargo run -- evidence --help
@@ -34,9 +66,9 @@ only run records whose exact scenario hash matches the selected scenario.
 
 ```bash
 cargo run -p faris-app -- \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
-  --physics scenarios/arc-inspired/cold-reference.reference.physics.json \
-  --physics scenarios/arc-inspired/cold-reference.breeder-emphasis.physics.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.reference.physics.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.breeder-emphasis.physics.json \
   --field-view flux-slice
 ```
 
@@ -51,9 +83,11 @@ zero flux.
 For a final paired spatial comparison, use the corrected ported and matched
 feature-free control scenarios/runs supplied with the release. Confirm that their
 physics cases bind to their own exact scenario SHA-256 and that the declared
-port dimensions and affected component IDs are visible. The port comparison is
-not accepted until both the OpenMC point-classification volume audit and the
-independent adaptive-quadrature report bind to the same run/artifact identity.
+port dimensions and affected component IDs are visible. Both corrected port cases have matching OpenMC ownership/volume and independent
+adaptive-quadrature reports. The directly tallied mixed-volume port window
+resolves a sampling difference, while fine/coarse map diagnostics do not
+establish local mesh convergence. Read [the refinement receipt](../references/transport-refinement-results.json)
+before interpreting local bins or the magnet-region estimates.
 
 ## 3. Compile and inspect Core evidence
 
@@ -93,7 +127,7 @@ volume, and normalization identities before exposing results:
 
 ```bash
 cargo run -- reactor inspect \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --run runs/<eligible-variant>/run.json
 ```
 
@@ -104,7 +138,7 @@ case selection requests only breeding and shielding.
 
 ```bash
 cargo run -- study generate \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --variant reference \
   --analysis breeding,shielding,fuel-history,electricity \
   --output /tmp/faris-study-reference
@@ -123,14 +157,14 @@ completed result.
 
 ```bash
 cargo run -- reactor run \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
-  --physics scenarios/arc-inspired/cold-reference.reference.physics.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --physics scenarios/arc-inspired/cold-coupled-control.reference.physics.json \
   --audit references/openmc-library-audit.json \
   --cross-sections /path/to/combined-fendl32-endfbvii1/cross_sections.xml \
   --python /path/to/openmc-env/bin/python \
   --openmc /path/to/openmc-env/bin/openmc \
   --batches 100 --particles 10000 --seed 123456789 --threads 1 \
-  --timeout-seconds 600 --output runs/<new-exclusive-run>
+  --timeout-seconds 3600 --output runs/<new-exclusive-run>
 ```
 
 Repeat with breeder-emphasis and an independent seed. For comparisons, also run
@@ -149,13 +183,17 @@ and net electricity unavailable.
 
 ```bash
 cargo run -- history from-run \
-  --scenario scenarios/arc-inspired/cold-reference.scenario.json \
+  --scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --run runs/<eligible-variant>/run.json \
   --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
   --output /tmp/faris-history-<variant>.json
 ```
 
-Scrub operation, fuel starvation/restart, outages, and replacement events. The
+Scrub operation and planned outages in the baseline. Select the separate
+**Replacement-event demonstration** preset to inspect blanket replacement and
+the permanent magnet-limit event. Its thresholds are explicitly authored to
+exercise those paths. Fuel starvation/restart is independently checked with
+limiting-case controls; it is not guaranteed to occur in every baseline history. The
 ledger should update inventory, component-average energy-integrated flux
 exposure, and cumulative energy under the stated assumptions. These conditional
 service triggers are not material allowables. Run the authored sensitivity grid
@@ -172,9 +210,8 @@ read their scope statements before treating a passing control as evidence. The
 acceptance matrix in [DEMO_ACCEPTANCE.md](DEMO_ACCEPTANCE.md) identifies what
 remains open.
 
-After corrected reference/breeder runs exist for both the feature-free control
-and finite-port scenarios, and both port-volume reports bind to the exact port
-run/artifact, create the portable four-run hash-indexed package. For each port
+The four corrected runs and both independent port-volume reports now exist.
+Use their exact identities to create the portable four-run hash-indexed package. For each port
 run, the packager also requires the worker's OpenMC geometry-ownership audit to
 pass all plasma, clearance, and component probes, and checks that every sampled
 port intersection is confirmed void in the final geometry:
@@ -184,7 +221,7 @@ python3 scripts/package_recorded_demo.py \
   --faris target/release/faris \
   --faris-app target/release/faris-app \
   --core /tmp/faris-demo-avila-core \
-  --core-source-repo ../project-north-star \
+  --core-source-repo ../project-north-star-blanket \
   --core-source-revision 2f8f838c081ae375f2ff3d542e986d0f4c104f96 \
   --control-scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --control-reference-run runs/<control-reference>/run.json \
@@ -197,7 +234,7 @@ python3 scripts/package_recorded_demo.py \
   --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
   --event-assumptions scenarios/arc-inspired/demo-event-assumptions.json \
   --sensitivity-grid scenarios/arc-inspired/demo-operating-sensitivity.json \
-  --output demo/recorded-study
+  --output dist/FARIS-demo-2026-10-01
 ```
 
 The packager checks all four scenario/run identities and normalized heating/H3
@@ -232,8 +269,8 @@ probability distributions or lifetime uncertainty bounds.
 
 The local Linux distribution includes hash-pinned, read-only copies of the
 release FARIS CLI, native app, and Core executable. Launch the offline four-case
-workspace with `demo/recorded-study/launch.sh`; run
-`demo/recorded-study/verify.sh` to rehash the package, reopen all four Core
+workspace with `dist/FARIS-demo-2026-10-01/launch.sh`; run
+`dist/FARIS-demo-2026-10-01/verify.sh` to rehash the package, reopen all four Core
 cases, and exercise a tamper-negative copy. These binaries target the recorded
 OS and architecture and may require compatible system libraries. Their hashes
 check byte identity only; they are unsigned and do not establish authenticity.
@@ -244,7 +281,7 @@ the build commands in `SOURCE_PROVENANCE.md`.
 Open the port arrangement and its feature-free control from that package with:
 
 ```bash
-demo/recorded-study/launch.sh
+dist/FARIS-demo-2026-10-01/launch.sh
 ```
 
 Each saved-study descriptor identifies one exact prepared Core case, its
@@ -263,7 +300,7 @@ the relocated copy remain untouched by the negative control:
 
 ```bash
 python3 scripts/verify_recorded_demo.py \
-  --package demo/recorded-study \
+  --package dist/FARIS-demo-2026-10-01 \
   --relocated-copy /tmp/faris-recorded-study-relocated \
   --faris target/release/faris \
   --core /path/to/avila-core

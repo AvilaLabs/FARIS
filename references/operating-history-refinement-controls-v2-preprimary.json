@@ -1,7 +1,7 @@
 {
   "checker": {
     "path": "controls/check_history.py",
-    "sha256": "461ce7040a3dd2f9c1cc4bd5988a25ff9269ff5a2b167671266242a43a07e37e"
+    "sha256": "f192df65169da87f01ff98b6fc461001b464e4fa119ef66977a8a42e07350b8f"
   },
   "checks": {
     "corrected_geometry_control_local_fine_pilot": {
@@ -65,6 +65,63 @@
         "transport_artifact_sha256": "9c12b528e9695577eef550752bc035189d19722d4f3a9cc0a6706a156889c4fa"
       }
     },
+    "corrected_geometry_control_reference_fine_pilot": {
+      "coarse": {
+        "integration_segment_count": 2209898,
+        "integration_segment_limit": 3000000,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-finalpilot2-control-fine-30k-history-600s.json",
+        "sha256": "6abba0feb99c28a01c18663a2684f12fe6d4958d5ac1e96432c6a2c8db4e8f49",
+        "transport_artifact_sha256": "5552724298af73b614f418ee978c7411e4dfd88621a8fcd70622eb3f024c84ce"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 9.77934178081341e-10,
+          "cumulative_decay_kg": 2.4073187887552194e-10,
+          "cumulative_processing_loss_kg": 9.766338848749001e-10,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 0.0,
+          "first-wall": 1.9686518588051162e-12,
+          "magnet-gap": 0.0,
+          "magnets": 0.0,
+          "shield": 8.351733424913896e-12,
+          "vessel": 0.0
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 1.8112318994034833e-11,
+          "cumulative_auxiliary_electricity_mwh": 6.166713378046582e-13,
+          "cumulative_gross_electricity_mwh": 1.3955907865074096e-11,
+          "cumulative_transport_recovered_heat_mwh": 1.7314178624935913e-11
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 0.0002671480178833008,
+        "relative_changes": {
+          "cumulative_burn_kg": 3.89935843909925e-12,
+          "cumulative_full_power_seconds": 6.233844121191092e-13,
+          "cumulative_fusion_energy_mwh": 8.997073952730801e-12,
+          "cumulative_production_kg": 1.6943345044550633e-11
+        },
+        "signed_net_energy_scaled_change": 4.724950510869884e-12
+      },
+      "fine": {
+        "integration_segment_count": 2524355,
+        "integration_segment_limit": 3000000,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-finalpilot2-control-fine-30k-history-500s.json",
+        "sha256": "ff6670dda88fdc63fb051b79517554f6131979dfd9d31fbb5df6ea0318c64fae",
+        "transport_artifact_sha256": "5552724298af73b614f418ee978c7411e4dfd88621a8fcd70622eb3f024c84ce"
+      }
+    },
     "corrected_geometry_port_one_bin_pilot": {
       "coarse": {
         "events": 202,
@@ -124,6 +181,63 @@
         "sha256": "836f05484aea58bf474a7a41d44617886c3382b7de3b28219f83c11d72b190ed",
         "snapshots": 11025,
         "transport_artifact_sha256": "3c269192619b01cb81d4688940ada0f460eacc191946d08cfa3f1f1b3650f9c6"
+      }
+    },
+    "corrected_geometry_port_reference_fine_pilot": {
+      "coarse": {
+        "integration_segment_count": 2216298,
+        "integration_segment_limit": 3000000,
+        "maximum_step_s": 600.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-finalpilot2-port-fine-30k-history-600s.json",
+        "sha256": "1e2b0ccebe95cef8290d70c34179e105786362bdce11db4a132caef7a477cb08",
+        "transport_artifact_sha256": "d4b7913caa41117d23cccd5ac624908f1adf791817e0c00c848f68d85091a4e0"
+      },
+      "comparison": {
+        "absolute_changes_kg": {
+          "available_tritium_kg": 1.2656187209358905e-09,
+          "cumulative_decay_kg": 4.6169361667125486e-09,
+          "cumulative_processing_loss_kg": 4.681268706008268e-10,
+          "in_process_tritium_kg": 0.0
+        },
+        "acceptance": "PASS",
+        "coarse_step_s": 600.0,
+        "component_fluence_relative_changes": {
+          "blanket": 0.0,
+          "first-wall": 2.6018731340444863e-13,
+          "magnet-gap": 2.7824697974787385e-11,
+          "magnets": 9.280857855357289e-12,
+          "shield": 2.493289342414294e-11,
+          "vessel": 7.544539138768998e-12
+        },
+        "criteria_version": "extended-displayed-output-v2",
+        "criterion": "relative aggregate and recovered heat/gross/aux <=1e-4; final available/in-process/processing-loss/decay <=1e-4kg; component fluence relative <=1e-4; signed net difference divided by max(gross,aux,1MWh) <=1e-4; same event kind/component and replacement counts; event-time delta <= coarse step",
+        "criterion_extension_date": "2026-10-01",
+        "criterion_extension_notice": "Added before corrected-geometry 1M primary outputs. Prior v1 reports evaluated only the earlier aggregate/event gate and are retained separately; rerun this v2 gate for final evidence.",
+        "displayed_energy_relative_changes": {
+          "cumulative_alpha_recovered_heat_mwh": 1.912011088127695e-11,
+          "cumulative_auxiliary_electricity_mwh": 6.980590518944108e-13,
+          "cumulative_gross_electricity_mwh": 2.173318239287295e-11,
+          "cumulative_transport_recovered_heat_mwh": 1.318959978290301e-12
+        },
+        "energy_outputs_unavailable": [],
+        "maximum_event_time_delta_s": 3.719329833984375e-05,
+        "relative_changes": {
+          "cumulative_burn_kg": 3.746245570421938e-12,
+          "cumulative_full_power_seconds": 8.816180407636696e-14,
+          "cumulative_fusion_energy_mwh": 9.445020044670362e-12,
+          "cumulative_production_kg": 9.052913780528416e-12
+        },
+        "signed_net_energy_scaled_change": 8.000188938455445e-12
+      },
+      "fine": {
+        "integration_segment_count": 2530627,
+        "integration_segment_limit": 3000000,
+        "maximum_step_s": 500.0,
+        "outcome": "horizon_completed",
+        "path": "/tmp/faris-finalpilot2-port-fine-30k-history-500s.json",
+        "sha256": "92d554d3787a07a5cba9cf6fc38a5e5f0eb365740b49b2fd8f32da5de47978e8",
+        "transport_artifact_sha256": "d4b7913caa41117d23cccd5ac624908f1adf791817e0c00c848f68d85091a4e0"
       }
     },
     "old_geometry_breeder_baseline": {
@@ -369,6 +483,41 @@
         "snapshots": 11055,
         "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9"
       }
+    }
+  },
+  "corrected_local_fine_pilot_runs": {
+    "control_reference": {
+      "execution_status": "SUCCEEDED",
+      "path": "/tmp/faris-finalpilot2-control-fine-30k/run.json",
+      "raw_artifact_sha256": "5552724298af73b614f418ee978c7411e4dfd88621a8fcd70622eb3f024c84ce",
+      "sampling": {
+        "batches": 30,
+        "particles_per_batch": 1000,
+        "seed": 81120201,
+        "threads": 1
+      },
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "sha256": "7584c9b28d12bad0f4557e7b8c61ee51743aae99519cb30558fd136d2016bf10",
+      "variant_id": "reference"
+    },
+    "port_independent_volume_check": {
+      "path": "/tmp/faris-finalpilot2-port-volume-check.json",
+      "sha256": "c53992560ad420e14d0bd08b6a091c1e0020bf14052b36ff3eb1e3ac49b602d4",
+      "status": "PASS"
+    },
+    "port_reference": {
+      "execution_status": "SUCCEEDED",
+      "path": "/tmp/faris-finalpilot2-port-fine-30k/run.json",
+      "raw_artifact_sha256": "d4b7913caa41117d23cccd5ac624908f1adf791817e0c00c848f68d85091a4e0",
+      "sampling": {
+        "batches": 30,
+        "particles_per_batch": 1000,
+        "seed": 81120202,
+        "threads": 1
+      },
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "sha256": "142aec1825ae5c21b6b739f4d24f03b3cd8bb0610c4c5a4bfab28829974ba3c0",
+      "variant_id": "reference"
     }
   },
   "criteria_version": "extended-displayed-output-v2",

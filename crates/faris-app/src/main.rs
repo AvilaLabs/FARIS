@@ -1025,6 +1025,9 @@ impl eframe::App for FarisApp {
                 ui.horizontal_wrapped(|ui| {
                     let has_history=self.history.result(&self.manifest.source_sha256,&self.manifest.variants[self.variant].id).is_some();
                     self.transport.viewport_controls(ui,&self.manifest.variants[self.variant].id,has_history);
+                    if self.transport.view == transport_panel::FieldView::ComponentFluence && self.history.is_stale() {
+                        ui.colored_label(egui::Color32::YELLOW, "Earlier history inputs");
+                    }
                     if field_before.1 != self.transport.view && self.transport.view == transport_panel::FieldView::FluxSlice
                         && let Some(record) = self.transport.record(&self.manifest.variants[self.variant].id) {
                         self.camera.frame_bounds(record.mesh.lower_left_m.map(|x| x as f32), record.mesh.upper_right_m.map(|x| x as f32));
@@ -1114,6 +1117,7 @@ impl eframe::App for FarisApp {
                 "selected_component":self.selected, "hidden_components":self.hidden,
                 "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},
                 "year":self.year, "history_pending":self.history.is_pending(),
+                "history_stale":self.history.is_stale(), "history_snapshot":snapshot,
                 "history_loaded":snapshot.is_some(), "source_on":snapshot.map(|s|s.operating),
                 "core":self.study.interface_status(&self.manifest.source_sha256, variant),
                 "transport":self.transport.interface_status(variant),

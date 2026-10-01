@@ -1,0 +1,114 @@
+{
+  "schema_version": "faris-native-solver-cancellation-control/v0.1",
+  "purpose": "Fresh execution-path cancellation control for the final release CLI and real OpenMC subprocess. This is not a completed transport response and must not be used as scientific result evidence.",
+  "scope": "Confirms Ctrl-C cancellation after OpenMC initialized a fresh 100 x 10000 fixed-source run; exercises CLI and child cleanup. Does not establish native GUI cancellation, numerical correctness, or physical qualification.",
+  "execution": {
+    "command": [
+      "target/release/faris",
+      "reactor",
+      "run",
+      "--scenario",
+      "scenarios/arc-inspired/cold-coupled-control.scenario.json",
+      "--physics",
+      "scenarios/arc-inspired/cold-coupled-control.reference.physics.json",
+      "--audit",
+      "references/openmc-library-audit.json",
+      "--cross-sections",
+      "data/raw/combined-fendl32-endfbvii1/cross_sections.xml",
+      "--python",
+      "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/python",
+      "--openmc",
+      "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/openmc-env/bin/openmc",
+      "--output",
+      "runs/cold-cancel-fresh-control-20261001",
+      "--batches",
+      "100",
+      "--particles",
+      "10000",
+      "--seed",
+      "61923017",
+      "--threads",
+      "1",
+      "--timeout-seconds",
+      "1800",
+      "--mesh-preset",
+      "outboard-local"
+    ],
+    "cli_binary_sha256": "6cf167d61369f16c735df4e5ed6c51a4f82b2d6634944daf63cf404754c744ba",
+    "sampling": {
+      "batches": 100,
+      "particles_per_batch": 10000,
+      "seed": 61923017,
+      "threads": 1
+    },
+    "mesh": {
+      "id": "neutron-flux-outboard-local",
+      "dimensions": [
+        24,
+        12,
+        24
+      ],
+      "lower_left_m": [
+        4.0,
+        -0.45,
+        -0.45
+      ],
+      "upper_right_m": [
+        5.58,
+        0.45,
+        0.45
+      ]
+    },
+    "observed_seconds_until_solver_summary": 29.797016335,
+    "cancel_signal": "SIGINT sent to CLI process after solver/summary.h5 appeared",
+    "cancel_to_cli_exit_seconds": 0.064121626,
+    "cli_exit_code": 2,
+    "run_execution_status": "CANCELLED",
+    "execution_stdout_marker": "Execution: Some(Cancelled); normalized responses: 0; scientific qualification: NOT_EVALUATED;",
+    "openmc_initialized": true,
+    "openmc_stdout_contains": "Version | 0.15.3; MPI Processes | 1; Simulating batch 1",
+    "summary_file_created_during_solver_initialization": true,
+    "summary_sha256_at_signal": "44b5d3e55465026f29c93bfae7254439c85c2646f800e4cf9b0c4cd1f76df389",
+    "summary_size_bytes_at_signal": 72544,
+    "observed_descendant_pids_at_cancel": [
+      63,
+      67
+    ],
+    "descendant_processes_remaining_after_10_seconds": [],
+    "interpretation": "Cancellation occurred after OpenMC loaded the cross sections and began batch 1. CLI reported CANCELLED and emitted zero normalized responses; the child process tree was empty within the 10-second observation window. The incomplete run is retained only as a cancellation control."
+  },
+  "retained_artifacts": {
+    "run_directory": "runs/cold-cancel-fresh-control-20261001",
+    "run_json_sha256": "878b761972daca8a178e016f828ad6a22ad796c31aad0abc4b07ce1177b7837c",
+    "run_json_execution_status": "CANCELLED",
+    "run_json_normalized": null,
+    "input_json_sha256": "9dfc2c45aff8286b352a7696a5092529492b53727202960e3fa29b0597606db5",
+    "scenario_snapshot_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "audit_snapshot_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669",
+    "adapter_snapshot_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+    "openmc_summary_sha256": "44b5d3e55465026f29c93bfae7254439c85c2646f800e4cf9b0c4cd1f76df389",
+    "openmc_stdout_log_sha256": "c2dca60dfc9b6799abe5697be24269396b531c742c13252cbf748934b3aa21fb",
+    "openmc_stderr_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cli_stdout_log": "runs/cold-cancel-fresh-control-20261001.stdout.log",
+    "cli_stdout_log_sha256": "f3f7c00d0ccbf0f06a01919a83d0d37fa64cdd1c277f406896f27aee54c8ebba",
+    "cli_stderr_log": "runs/cold-cancel-fresh-control-20261001.stderr.log",
+    "cli_stderr_log_sha256": "c3116e5ed1d8464111bbcea433b787924556e0aec7bf76a8ae89821c9e660e47",
+    "run_identity": {
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "reference",
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "input_sha256": "9dfc2c45aff8286b352a7696a5092529492b53727202960e3fa29b0597606db5",
+      "adapter_sha256": "d3bdbb171efc863e35a9b85979a149181ea410bede5f4533f2f5cf972b5604a5",
+      "python_sha256": "887677e7e8be9ce977020b88f7bc2129c3feb8f8860dd0cc9a26c3f1d4783969",
+      "openmc_sha256": "d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+      "cross_sections_sha256": "fd9d79db8c8569f0f88ff56f37314c27d56562e70a4645280d1a8355575f0b9b",
+      "audit_sha256": "c632ee1230bdd01a62e143b93079f2b52532e2ce01678a629e4f669f603d1669"
+    },
+    "normalization_and_solver_result": "NOT_PRODUCED_BY_DESIGN; cancellation happened during batch 1"
+  },
+  "limitations": [
+    "MPI/UCX emitted socket permission warnings in this restricted execution environment; OpenMC nevertheless initialized, read the audited data, wrote summary.h5, and began batch 1.",
+    "Cancellation timing measures CLI SIGINT to CLI process exit; descendant cleanup was checked by observed PID disappearance within 10 seconds.",
+    "This does not measure GUI responsiveness or cancellation under different hosts/resource conditions."
+  ]
+}

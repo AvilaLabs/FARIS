@@ -17,7 +17,12 @@
       "status": "COMPLETED_BUT_SUPERSEDED_GEOMETRY",
       "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
       "variant_id": "reference",
-      "sampling": {"batches": 30, "particles_per_batch": 1000, "seed": 80117033, "threads": 1},
+      "sampling": {
+        "batches": 30,
+        "particles_per_batch": 1000,
+        "seed": 80117033,
+        "threads": 1
+      },
       "run_json_sha256": "ea7b3a4e196e45f5ddc28b014e1762f3b4a2f1a0e45f2df1ac6aed96cb352302",
       "input_sha256": "531bba3204180718d581f1b5b0259ccd437148daab1e43605d855a1c9f4f800c",
       "transport_artifact_sha256": "9a66019183efa919a9cb95c16e4f5eaa8c050cb118549edeb8b733dea7dd1438",
@@ -29,7 +34,12 @@
       "status": "COMPLETED_BUT_SUPERSEDED_GEOMETRY",
       "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
       "variant_id": "reference",
-      "sampling": {"batches": 100, "particles_per_batch": 10000, "seed": 80117034, "threads": 1},
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117034,
+        "threads": 1
+      },
       "run_json_sha256": "347135a3c50378bd41e1cdb8c6a577634d8579a1df7dadcf4117bf9218311e41",
       "input_sha256": "a2a65f9f93ceffe997a84106fdd7fd82e279a0b1974277bddc8615e74a8aeb55",
       "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9",
@@ -41,7 +51,12 @@
       "status": "COMPLETED_BUT_SUPERSEDED_GEOMETRY",
       "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
       "variant_id": "breeder-emphasis",
-      "sampling": {"batches": 100, "particles_per_batch": 10000, "seed": 80117034, "threads": 1},
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117034,
+        "threads": 1
+      },
       "run_json_sha256": "5386432048f8ae94f632306c9b2c4c113a66485792dccb0bab0ea534a8ef2572",
       "input_sha256": "2fece8444152b359db6e349c180a79390bc52ce76d8596e5d20fbe4f3ebebd1f",
       "transport_artifact_sha256": "30b040175bded22cded9a0b83bb354c48183235757b8af0a220a9c2d00db7c73",
@@ -54,7 +69,12 @@
       "status": "SOLVER_COMPLETED_NORMALIZATION_REJECTED",
       "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
       "variant_id": "reference",
-      "sampling": {"batches": 100, "particles_per_batch": 10000, "seed": 80117035, "threads": 1},
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117035,
+        "threads": 1
+      },
       "run_json_sha256": "abfce9d164e8d0433affd2991bd41403920319ee5852b830de343e5dd8f25bd6",
       "input_sha256": "c4b94794004a2562510dab367e0bf06ddb16e6c93e1daae566699f28ca61de3a",
       "transport_artifact_sha256": "cc6ce536526806eea8793a4e821694786c45edd221166f02ce235dde04d9fb79",
@@ -67,13 +87,111 @@
       "status": "SOLVER_COMPLETED_NORMALIZATION_REJECTED",
       "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
       "variant_id": "breeder-emphasis",
-      "sampling": {"batches": 100, "particles_per_batch": 10000, "seed": 80117036, "threads": 1},
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 80117036,
+        "threads": 1
+      },
       "run_json_sha256": "72b83335ffdb6ede0ac4ad640999f9f0f3b75204671e87b40d5d60df9afb9a2f",
       "input_sha256": "54422767919fc5951425dfc9e975ece63fc2d7c07cde7f3da0a3a61ade63f860",
       "transport_artifact_sha256": "ad2f95c8be18dba5fad8528374bb92b14efbb91c0a096e90e7a6ccf7225e49fc",
       "transport_spectra_sha256": "939f50271e1b4d288fa08ff04795ac3df75905dc08346e09dc58afefe40ec835",
       "worker_sha256": "f79970e9c9c5904896b4515e319aa818db2d3952d3587b8b42c5542a6ce754ba",
       "rejection": "OpenMC raw artifact retained; normalization rejected because port point classification was zero and first-wall geometry included the declared clearance."
+    },
+    {
+      "path": "runs/cold-reference-1m-001",
+      "status": "COMPLETED_BUT_SUPERSEDED_GEOMETRY",
+      "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+      "variant_id": "reference",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 123456789,
+        "threads": 1
+      },
+      "run_json_sha256": "bc4248d25523645f186485081061fceb27cde94b13c0c0f67b222ea6005d6bf2",
+      "input_sha256": "ca3c62394a6d32a77591afd3f41f26f4dca182fd549b9ea8364ea95f16eeb023",
+      "transport_artifact_sha256": "2420ec3c8ebba9486013dedd26ae579a8fc25505590271e082d0e2bcca247389",
+      "worker_sha256": "5658398ae2bdb039f666de2c5efbb789c9389d7a2e5dcc5c6a304221d6ec52cc",
+      "adapter_sha256": "25b3711ff5842519fba278089f0efd9d40ead1793ce469f36fc06d82924cd539",
+      "cross_sections_sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674",
+      "statepoint_sha256": "c72a0ebb7cde4425a71683b540a64984734ec907c728be91d61a0d8924a1244e",
+      "rejection": "Historical arithmetic verification passed, but inspection of the preserved worker shows the first material cell used the plasma surface as its inner surface and omitted the declared clearance gap; transport evidence is superseded."
+    },
+    {
+      "path": "runs/cold-breeder-1m-001",
+      "status": "COMPLETED_BUT_SUPERSEDED_GEOMETRY",
+      "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+      "variant_id": "breeder-emphasis",
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 10000,
+        "seed": 987654321,
+        "threads": 1
+      },
+      "run_json_sha256": "f80bd2b29be4dba77c4f7e494592f5ddfe14f0d163379d9dbcf2fd7869aa360a",
+      "input_sha256": "a0c649e8e1abaf073d220abfd258b2cd6fbc3743563f997fe70658b7b4f39682",
+      "transport_artifact_sha256": "f625662ecd59c62ef0544cf4a4d80c69f98d4cefd1a72712508a1e8e91c1c822",
+      "worker_sha256": "5658398ae2bdb039f666de2c5efbb789c9389d7a2e5dcc5c6a304221d6ec52cc",
+      "adapter_sha256": "25b3711ff5842519fba278089f0efd9d40ead1793ce469f36fc06d82924cd539",
+      "cross_sections_sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674",
+      "statepoint_sha256": "2ecc1ec0e2cf8b2db4618baedd6ae2bffaf4b9ebdc87ce1274a7ecb37a1c0d6e",
+      "rejection": "Historical arithmetic verification passed, but inspection of the preserved worker shows the first material cell used the plasma surface as its inner surface and omitted the declared clearance gap; transport evidence is superseded."
     }
-  ]
+  ],
+  "corrected_campaign_reference": "transport-refinement-results.json",
+  "corrected_primary_records": {
+    "control_breeder_fine": {
+      "run_json_sha256": "70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "breeder-emphasis",
+      "seed": 81130012,
+      "input_sha256": "b1ed3b1c2199458cf49aa12124437e42a44931e7ee76db4d923a4b88b3e30cd0",
+      "raw_transport_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+      "worker_result_sha256": "23c11a001ec575400c124d79c0a6b85e49f7ac5675d3530b79b291d62cf74b69",
+      "geometry_ownership_status": "PASS",
+      "clearance_status": "PASS"
+    },
+    "control_reference_fine": {
+      "run_json_sha256": "51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "reference",
+      "seed": 81130011,
+      "input_sha256": "6b103d44793d9240dc116a2adc2973b5dda37974023280884fb24327f5c6088d",
+      "raw_transport_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+      "worker_result_sha256": "0c0b0fcdb35d5546e7c7c5fe572a9af73e4d8260cc2bc0e4be623a5f8b55fb49",
+      "geometry_ownership_status": "PASS",
+      "clearance_status": "PASS"
+    },
+    "port_breeder_fine": {
+      "run_json_sha256": "7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "breeder-emphasis",
+      "seed": 81130014,
+      "input_sha256": "66c658ab5821c5d4bd166d7fbbe35eef01969eef4a7a95094bdf8451bc937a56",
+      "raw_transport_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+      "worker_result_sha256": "dce4c422bcedafaca5c24a33ed3bbca7f3c1b0446a2bf1309fe17f484eb8f2e6",
+      "geometry_ownership_status": "PASS",
+      "clearance_status": "PASS"
+    },
+    "port_reference_fine": {
+      "run_json_sha256": "6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "reference",
+      "seed": 81130013,
+      "input_sha256": "c30b6ef47ec23964f039cbcf45e0c9a5b899f22e9b3236621edfe4fda0de0bf1",
+      "raw_transport_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+      "worker_result_sha256": "d33a1d2a1adc57a8ddb5586324bc0ddd9b18cf49b7f6e4abee6b1fc539188d30",
+      "geometry_ownership_status": "PASS",
+      "clearance_status": "PASS"
+    }
+  },
+  "corrected_geometry_verification_scope": {
+    "ownership_probes_per_run": 117,
+    "ownership_and_clearance_audits": "PASS for each of four corrected primary records; audits are input/scenario bound",
+    "ported_independent_volume_reports": "PASS for all six affected component cells in each port primary; bound hashes are in transport-refinement-results.json",
+    "nonphysical_validation": "These controls establish code geometry partition/volume consistency for the authored geometry only. They do not validate physical configuration, source realism, nuclear data, or design adequacy."
+  }
 }

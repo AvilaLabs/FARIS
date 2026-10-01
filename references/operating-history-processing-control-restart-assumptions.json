@@ -1,0 +1,32 @@
+{
+  "schema_version": "faris-operating-history/v0.1",
+  "horizon_s": 200000,
+  "maximum_step_s": 3600,
+  "snapshot_interval_s": 3600,
+  "initial_available_tritium_kg": 8e-08,
+  "initial_in_process_tritium_kg": 0,
+  "initial_in_process_release_s": 0,
+  "startup_reserve_kg": 5e-08,
+  "recovery_fraction": 0.95,
+  "processing_delay_s": 86400,
+  "operation": [
+    {
+      "start_s": 0,
+      "end_s": 200000,
+      "power_fraction": 1
+    }
+  ],
+  "planned_outages": [],
+  "imports": [],
+  "service_limits": [],
+  "energy": {
+    "alpha_deposition_fraction": null,
+    "thermal_to_electric_efficiency": null,
+    "auxiliary_power_mw_while_operating": null,
+    "auxiliary_power_mw_while_off": null,
+    "provenance": "Unavailable for synthetic software-only control.",
+    "transport_heat_recovery_fraction": null
+  },
+  "provenance": "Synthetic SOFTWARE ONLY delayed processing restart control; zero solver/data/artifact identities.",
+  "restart_inventory_kg": 6e-08
+}
