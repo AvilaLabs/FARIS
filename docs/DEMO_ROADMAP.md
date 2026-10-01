@@ -473,6 +473,79 @@ handwritten curves, or an untraceable solver output alone is insufficient.
 Reuse existing solvers and data where they satisfy this study. Create new FARIS
 tools only where this chain exposes a concrete missing interface or model.
 
+## Next steps (recorded 2026-10-01)
+
+### Where the demo stands
+
+A public-source survey of fusion design, neutronics, fuel-cycle and availability
+tools found none that links 3D Monte Carlo transport to a year-by-year operating
+history (fluence-limited replacements and outages, tritium inventory, net
+electricity) in one interactive tool, with instant what-if recalculation, kind
+labels on every number, 2σ-aware comparison, and a reopenable study file with
+hash receipts. The closest overall is FUSE (General Atomics). No surveyed tool
+covers more than about three of those capabilities. Internal company and
+national-programme tools are not visible to such a survey.
+
+The novelty is the integration. Each individual model is shallower than the
+specialist tools, and an expert reviewer would raise these points first:
+maintenance timing is governed by activation and shutdown dose, which the demo
+does not model; the magnet check compares a volume-average fluence with a
+peak-fluence limit; and Monte Carlo uncertainty stops at the transport results.
+The next steps address those three, in order.
+
+### 1. Carry Monte Carlo uncertainty through the operating history
+
+Sample the transport results within their recorded standard errors and
+recalculate each 30-year history per sample (about one second per set of four
+histories in a release build). Show magnet swaps and first-swap year as
+distributions ("4 swaps in N % of samples, 5 in M %") and draw the fluence
+timeline as a band. Correlations between quantities from one transport run are
+kept; independent runs stay independent. The first-order first-swap interval
+and the "uncertainty not propagated" caveat are replaced by the sampled result,
+and the export carries the distributions. Sampling runs off the UI thread and
+is cancellable when a slider moves.
+
+### 2. Peak magnet fluence instead of the volume average
+
+Add a local tally on the magnet winding pack (fine mesh or peak cell, plus the
+fast-flux component above 0.1 MeV that the REBCO screening limit refers to) and
+rerun the four arrangements and the seven sweep points at 1M histories, about
+7 minutes each. The service-limit check uses the peak with its uncertainty. The
+average stays visible for comparison, and the scenario records which quantity
+the limit applies to. The current caveat that the volume average understates
+the local peak is retired only when this lands.
+
+### 3. Activation and decay heat at each scheduled outage (ACTINV)
+
+The transport records already hold the neutron spectra per component. Feed the
+spectrum and the irradiation history up to each outage into ACTINV to obtain
+inventory, activity and decay heat per component at shutdown and during
+cooling. Show them on the timeline at each magnet or blanket swap and on the 3D
+model. This links activation to an operating schedule, which no surveyed tool
+does. Shutdown dose rate needs a second (decay-photon) transport and is a later
+step; until then the Evidence and export caveats state that dose is not
+evaluated.
+
+### Smaller open items
+
+- `faris export --study <file.faris> --output <dir>` on the CLI, sharing the
+  app's report-input assembly through the engine.
+- Regenerate `docs/THIRD_PARTY_NOTICES.md`. krilla-svg 0.8.1 ships no licence
+  file and needs a pinned supplement (MIT OR Apache-2.0, from the krilla
+  repository at the published commit).
+- File dialogs (Open, Save as, Export) and their keyboard shortcuts have not
+  been exercised in a live session.
+- The packaged demo in `dist/` still has the earlier binaries, and its Core
+  receipts cover only the loaded baseline assumptions, not the default
+  demountable-magnet preset.
+- The native interface-check plans in `references/native-demo-checks` click
+  fixed positions that moved with the step layout.
+- The saved-study panel shows manual path fields first.
+- The "0.0 y" cursor label overlaps the plot title at year 0.
+- `references/operating-history-comparison-reference-1m.json` still carries
+  the stale `controlled_difference` label.
+- A `.faris` preview thumbnail is reserved in the format but not written.
+
 ## References for implementation
 
 - [Demo question and starting scenario](DEMO.md).
