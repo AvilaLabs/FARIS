@@ -90,6 +90,23 @@ it, and inspect [native acceptance evidence](references/native-demo-verification
 Measured orbit/history-scrub throughput was 89.33 egui frames/s on X11 and
 62.07 on Wayland; these are measured UI frame rates, not GPU presentation rates.
 
+## Review the current demo build
+
+The workspace is organized as five steps: **Design → Simulate → Operate → Compare → Evidence**
+(keys 1–5). The default operating preset makes the magnet envelope demountable at a
+literature REBCO fluence screening value (3×10²² n/m², Sorbom et al. 2015); the
+Operate timeline shows each magnet swap, and the Compare step shows all four recorded
+cases plus a seven-point blanket/shield allocation sweep (real 1M-history port runs,
+inputs in `scenarios/arc-inspired/allocation-sweep/`). Swaps and electricity remain
+conditional on authored assumptions; transport qualification stays `NOT_EVALUATED`.
+
+```bash
+cargo build --release -p faris-app
+scripts/launch_review_demo.sh   # recorded package + runs/allocation-sweep/bundles + this build
+```
+
+Sweep bundles are made with `faris transport pack --run <run.json> --output <bundle.json>`.
+
 ## Run the desktop
 
 Rust 1.98.1 is pinned. The first build needs network access to crates.io unless
