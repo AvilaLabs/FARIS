@@ -555,6 +555,19 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
         self.assertEqual(after, before)
 
+    def test_two_port_volume_reports_share_geometry_directory(self):
+        staging = self.root / "staging"
+        branch = staging / "port"
+        first = self.root / "reference-volume.json"
+        second = self.root / "breeder-volume.json"
+        write(first, json.dumps({"variant_id": "reference", "transport_volume_check": "PASS"}) + "\n")
+        write(second, json.dumps({"variant_id": "breeder-emphasis", "transport_volume_check": "PASS"}) + "\n")
+        one = PACKAGE.copy_port_volume_report(staging, branch, "reference", first)
+        two = PACKAGE.copy_port_volume_report(staging, branch, "breeder-emphasis", second)
+        self.assertEqual((staging / one["path"]).read_bytes(), first.read_bytes())
+        self.assertEqual((staging / two["path"]).read_bytes(), second.read_bytes())
+        self.assertNotEqual(one["sha256"], two["sha256"])
+
     def test_launcher_publishes_failed_marker_and_cleans_on_bad_archive(self):
         bad_package = self.root / "bad-archive-package"
         shutil.copytree(self.package, bad_package)

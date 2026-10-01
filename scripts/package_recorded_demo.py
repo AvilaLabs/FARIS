@@ -378,6 +378,15 @@ def archive_tree(staging: Path, branch: Path, variant_id: str,
     }
 
 
+def copy_port_volume_report(staging: Path, branch: Path, variant_id: str,
+                            source: Path) -> dict[str, str]:
+    """Copy a bound port-volume report; both variants share the geometry directory."""
+    target = branch / "geometry" / f"{variant_id}-volume-check.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    return {"path": target.relative_to(staging).as_posix(), "sha256": sha256(target)}
+
+
 def add_history_comparison(faris: Path, branch: Path, scenario: Path,
                            left_run: Path, right_run: Path, assumptions: Path,
                            scenario_sha: str) -> dict:
@@ -788,11 +797,8 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             worker_path = run_path.parent / "solver" / "worker-result.json"
             ownership = verify_port_geometry_ownership(
                 worker_path, run_path, scenario_path, variant_id)
-            volume_target = branch / "geometry" / f"{variant_id}-volume-check.json"
-            volume_target.parent.mkdir()
-            shutil.copyfile(port_reports[index], volume_target)
-            volume_identity = {"path": volume_target.relative_to(staging).as_posix(),
-                               "sha256": sha256(volume_target)}
+            volume_identity = copy_port_volume_report(
+                staging, branch, variant_id, port_reports[index])
             input_data = json.loads((run_path.parent / "input.json").read_text(encoding="utf-8"))
             assignments = input_data["physics"]["component_assignments"]
             geometry_evidence = {
