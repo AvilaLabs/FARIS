@@ -79,8 +79,9 @@ pub struct ServiceLimit {
 pub struct EnergyAssumptions {
     pub alpha_deposition_fraction: Option<f64>,
     pub thermal_to_electric_efficiency: Option<f64>,
-    /// Fraction of explicitly tallied whole-model neutron/photon heat used in the plant ledger.
-    pub neutron_heat_recovery_fraction: Option<f64>,
+    /// Fraction of the explicitly tallied whole-model transport heating used in the conditional ledger.
+    #[serde(alias = "neutron_heat_recovery_fraction")]
+    pub transport_heat_recovery_fraction: Option<f64>,
     pub auxiliary_power_mw_while_operating: Option<f64>,
     pub auxiliary_power_mw_while_off: Option<f64>,
     pub provenance: String,
@@ -257,8 +258,8 @@ impl OperatingHistoryAssumptions {
                 "thermal_to_electric_efficiency",
             ),
             (
-                self.energy.neutron_heat_recovery_fraction,
-                "neutron_heat_recovery_fraction",
+                self.energy.transport_heat_recovery_fraction,
+                "transport_heat_recovery_fraction",
             ),
         ] {
             if let Some(v) = fraction

@@ -1,3 +1,4 @@
+mod archive_panel;
 mod camera;
 mod history_panel;
 mod study_panel;
@@ -62,6 +63,10 @@ struct Arguments {
     /// Identified fuel, maintenance, service-limit and energy assumptions.
     #[arg(long)]
     assumptions: Option<PathBuf>,
+    /// Reopen an identified saved study via a JSON descriptor with relative
+    /// case_directory, execution_report and execution_workspace paths. Repeatable.
+    #[arg(long)]
+    saved_study: Vec<PathBuf>,
     #[arg(long)]
     python: Option<PathBuf>,
     #[arg(long)]
@@ -169,12 +174,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 history,
             )?;
             app.started = launch_started;
+            app.study
+                .archive
+                .queue_descriptors(args.saved_study)
+                .map_err(std::io::Error::other)?;
             app.benchmark = args.benchmark_seconds.map(|duration| Benchmark {
                 duration,
                 motion: args.benchmark_motion,
                 launch_started,
                 ready_at: None,
                 frame_times: Vec::new(),
+                completed: false,
             });
             Ok(Box::new(app))
         }),
@@ -208,6 +218,7 @@ struct Benchmark {
     launch_started: Instant,
     ready_at: Option<Instant>,
     frame_times: Vec<Instant>,
+    completed: bool,
 }
 
 struct FarisApp {
@@ -283,8 +294,13 @@ impl FarisApp {
                 .transport
                 .response(&app.manifest.variants[0].id, "heating-total-whole-model")
                 .is_some();
-        if app.transport.view == transport_panel::FieldView::FluxSlice {
-            app.camera.distance = 20.0;
+        if app.transport.view == transport_panel::FieldView::FluxSlice
+            && let Some(record) = app.transport.record(&app.manifest.variants[app.variant].id)
+        {
+            app.camera.frame_bounds(
+                record.mesh.lower_left_m.map(|x| x as f32),
+                record.mesh.upper_right_m.map(|x| x as f32),
+            );
         }
         app.rebuild()?;
         Ok(app)
@@ -482,10 +498,7 @@ impl FarisApp {
                     let bin = index(0)
                         + mesh.dimensions[0]
                             * (self.transport.slice + mesh.dimensions[1] * index(2));
-                    if let Some(response) = self
-                        .transport
-                        .response(&record.variant_id, &format!("mesh-flux-{bin}"))
-                    {
+                    if let Some(response) = self.transport.mesh_response(&record.variant_id, bin) {
                         self.message = format!(
                             "Bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. Scientific qualification NOT_EVALUATED.",
                             response.mean, response.standard_error
@@ -526,6 +539,7 @@ impl FarisApp {
         if self.frames >= 8
             && !self.capture_requested
             && !self.history.is_pending()
+            && !self.study.archive.is_loading()
             && self.started.elapsed().as_secs_f64() >= 1.0
         {
             self.capture_requested = true;
@@ -583,6 +597,7 @@ impl eframe::App for FarisApp {
             if b.ready_at.is_none()
                 && now.duration_since(b.launch_started).as_secs_f64() >= 2.0
                 && !self.history.is_pending()
+                && !self.study.archive.is_loading()
             {
                 b.ready_at = Some(now);
             }
@@ -593,7 +608,8 @@ impl eframe::App for FarisApp {
                     self.camera.yaw = (elapsed * 0.45) as f32;
                     self.year = (elapsed / b.duration) * self.manifest.horizon_years;
                 }
-                if elapsed >= b.duration {
+                if elapsed >= b.duration && !b.completed {
+                    b.completed = true;
                     let mut intervals: Vec<f64> = b
                         .frame_times
                         .windows(2)
@@ -611,9 +627,29 @@ impl eframe::App for FarisApp {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             }
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            // Continuous repaint models sustained camera/scrub input. Adding a
+            // fixed sleep would measure our throttle plus rendering latency.
+            ctx.request_repaint();
         }
         self.study.poll(&ctx);
+        let history_before = self.history.revision();
+        for (scenario, variant, history) in self.study.archive.take_histories() {
+            let input = if scenario == self.manifest.source_sha256 {
+                self.transport
+                    .record(&variant)
+                    .map(|r| (r, self.manifest.fusion_power_mw))
+            } else {
+                self.paired
+                    .as_ref()
+                    .filter(|(m, _)| m.source_sha256 == scenario)
+                    .and_then(|(m, p)| p.record(&variant).map(|r| (r, m.fusion_power_mw)))
+            };
+            if let Some((run, power)) = input
+                && let Err(error) = self.history.cache_saved_history(history, run, power)
+            {
+                self.message = format!("Saved case reopened; history not reused: {error}");
+            }
+        }
         self.history.poll(&ctx);
         let field_before = self.transport.render_key();
         self.transport.poll(&ctx);
@@ -661,7 +697,9 @@ impl eframe::App for FarisApp {
                     }),
             );
         }
-        self.history.update_inputs(&ctx, &history_inputs);
+        if !self.study.archive.is_loading() {
+            self.history.update_inputs(&ctx, &history_inputs);
+        }
         if field_before.0 != self.transport.render_key().0 {
             self.message="Transport worker finished. Inspect execution status and recorded numerical results; scientific qualification NOT_EVALUATED.".into();
         }
@@ -691,7 +729,7 @@ impl eframe::App for FarisApp {
         });
         egui::Panel::bottom("timeline")
             .resizable(true)
-            .default_size(if self.show_history { 220.0 } else { 110.0 })
+            .default_size(if self.show_history { 270.0 } else { 110.0 })
             .size_range(85.0..=360.0)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -709,7 +747,13 @@ impl eframe::App for FarisApp {
                     return;
                 }
                 if self.transport.has_results() {
-                    self.transport.comparison(ui);
+                    egui::ScrollArea::both().show(ui, |ui| {
+                        self.transport.comparison(ui);
+                        if let Some((_, panel)) = &self.paired {
+                            ui.separator();
+                            panel.comparison(ui);
+                        }
+                    });
                     return;
                 }
                 ui.horizontal(|ui| {
@@ -879,13 +923,14 @@ impl eframe::App for FarisApp {
                         ui.label(format!("Mean neutron flux: {:.3e} neutrons/m²/s",response.mean));
                         ui.small(format!("Standard error: {:.2e} neutrons/m²/s",response.standard_error));
                         ui.small("Component volume average. Sampling uncertainty only.");
+                        if response.mean == 0.0 && response.standard_error == 0.0 {ui.colored_label(egui::Color32::YELLOW,"No sampled tracks. This does not establish zero flux or an upper bound.");}
+                        else if response.mean > 0.0 && response.standard_error / response.mean > 0.3 {ui.colored_label(egui::Color32::YELLOW,format!("Weak sampling: {:.1}% relative standard error.",100.0*response.standard_error/response.mean));}
                         ui.small(format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
                     } else {ui.label("Mean neutron flux  —");}
                     if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
                         ui.label(format!("Nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
                         ui.small(format!("Sampling SE: {:.3} MW · coupled neutron/photon", heating.integrated_standard_error / 1e6));
                     } else { ui.label("Nuclear heating  —"); }
-                    ui.label("Service limit  —");
                     self.history.inspector(ui,&self.manifest.source_sha256,&variant.id,&component.id,self.year*faris_engine::history::JULIAN_YEAR_SECONDS);
                     self.transport.spectra(ui,&variant.id,&component.id);
                     ui.add_space(10.0);
@@ -902,13 +947,20 @@ impl eframe::App for FarisApp {
                     ui.checkbox(&mut self.cutaway, "Cutaway");
                     if ui.button("Frame scene").clicked() {
                         self.camera = Camera::default();
-                        if self.transport.view==transport_panel::FieldView::FluxSlice {self.camera.distance=20.0;}
+                        if self.transport.view==transport_panel::FieldView::FluxSlice
+                            && let Some(record) = self.transport.record(&self.manifest.variants[self.variant].id) {
+                            self.camera.frame_bounds(record.mesh.lower_left_m.map(|x| x as f32), record.mesh.upper_right_m.map(|x| x as f32));
+                        }
                     }
-                    ui.weak("Drag to orbit · scroll to zoom · click to select");
+                    ui.weak("Drag to orbit · Shift-drag to pan · scroll to zoom · click to select");
                 });
                 ui.horizontal(|ui| {
                     let has_history=self.history.result(&self.manifest.source_sha256,&self.manifest.variants[self.variant].id).is_some();
                     self.transport.viewport_controls(ui,&self.manifest.variants[self.variant].id,has_history);
+                    if field_before.1 != self.transport.view && self.transport.view == transport_panel::FieldView::FluxSlice
+                        && let Some(record) = self.transport.record(&self.manifest.variants[self.variant].id) {
+                        self.camera.frame_bounds(record.mesh.lower_left_m.map(|x| x as f32), record.mesh.upper_right_m.map(|x| x as f32));
+                    }
                     if self.transport.view!=transport_panel::FieldView::Materials {ui.weak(match self.transport.view {transport_panel::FieldView::FluxSlice=>"Sampling uncertainty only · click a spatial bin to inspect",transport_panel::FieldView::ComponentFluence=>"Conditional history · component mean · uncertainty not propagated",_=>"Sampling uncertainty only · component volume averages"});}
                 });
                 self.transport.field_legend(ui);
@@ -916,13 +968,19 @@ impl eframe::App for FarisApp {
                     ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
                 if response.dragged() {
                     let delta = ctx.input(|input| input.pointer.delta());
-                    self.camera.yaw -= delta.x * 0.008;
-                    self.camera.pitch = (self.camera.pitch + delta.y * 0.008).clamp(-1.35, 1.35);
+                    if ctx.input(|input| input.modifiers.shift) {
+                        let (_, right, up, _) = self.camera.basis();
+                        let scale = self.camera.distance * 0.002;
+                        self.camera.target = camera::add(self.camera.target, camera::add(camera::scale(right, -delta.x * scale), camera::scale(up, delta.y * scale)));
+                    } else {
+                        self.camera.yaw -= delta.x * 0.008;
+                        self.camera.pitch = (self.camera.pitch + delta.y * 0.008).clamp(-1.35, 1.35);
+                    }
                 }
                 if response.hovered() {
                     let scroll = ctx.input(|input| input.smooth_scroll_delta.y);
                     self.camera.distance =
-                        (self.camera.distance * (-scroll * 0.002).exp()).clamp(6.0, 40.0);
+                        (self.camera.distance * (-scroll * 0.002).exp()).clamp(0.25, 100.0);
                 }
                 if response.clicked()
                     && let Some(point) = response.interact_pointer_pos()
@@ -937,7 +995,8 @@ impl eframe::App for FarisApp {
                         self.hidden.clone(),
                         if self.transport.view==transport_panel::FieldView::ComponentFluence{self.year.to_bits()}else{before.4},
                     )
-                    || field_before != self.transport.render_key())
+                    || field_before != self.transport.render_key()
+                    || (history_before != self.history.revision() && self.transport.view == transport_panel::FieldView::ComponentFluence))
                     && let Err(error) = self.rebuild()
                 {
                     self.message = error.to_string();

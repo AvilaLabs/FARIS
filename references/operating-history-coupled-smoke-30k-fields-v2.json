@@ -1,0 +1,77 @@
+{
+  "schema": "faris-operating-history-coupled-smoke-fields-v2/v1",
+  "status": "SUCCEEDED; BINDING_AND_CONDITIONAL_LEDGER_ARITHMETIC_VERIFIED; PHYSICAL_ENERGY_CLOSURE_NOT_EVALUATED",
+  "scope": "30,000-history coupled smoke control, not production transport statistics and not engineering qualification",
+  "identities": {
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "run_json_sha256": "ea7b3a4e196e45f5ddc28b014e1762f3b4a2f1a0e45f2df1ac6aed96cb352302",
+    "transport_artifact_sha256": "9a66019183efa919a9cb95c16e4f5eaa8c050cb118549edeb8b733dea7dd1438",
+    "assumptions_sha256": "85e4ae2c9d1787d8a6ba428379b682b6a87b32ffd8530f155e4e88c0cc0d053c",
+    "history_json_sha256": "6af0121e39aa00069e86893d7d0cbb4a7facc6e6c3f7897772cae617a8545d94",
+    "rates_json_sha256": "392e5e8dfb7996d07ed61c6981b2eede26c1ec3030356b336efba31dfbb4ddbf",
+    "decimal_control_sha256": "80338776d31054633032e039e1f7e933fbd5ef6186bd1c27f8877e2416f6ef97"
+  },
+  "sampling": {
+    "batches": 30,
+    "particles_per_batch": 1000,
+    "seed": 80117033,
+    "threads": 1
+  },
+  "migration": {
+    "legacy_read_aliases": [
+      "neutron_deposited_heat_w",
+      "neutron_heat_recovery_fraction",
+      "instantaneous_neutron_recovered_heat_mw",
+      "cumulative_neutron_recovered_heat_mwh"
+    ],
+    "current_serialized_names": [
+      "transport_deposited_heat_w",
+      "transport_heat_recovery_fraction",
+      "instantaneous_transport_recovered_heat_mw",
+      "cumulative_transport_recovered_heat_mwh"
+    ],
+    "semantic_change": "field labels clarify that the selected score has total particle scope; underlying tally/ledger mathematics is unchanged"
+  },
+  "binding_audit": {
+    "status": "PASS",
+    "source_run_execution": "SUCCEEDED",
+    "raw_artifact_sha256": "9a66019183efa919a9cb95c16e4f5eaa8c050cb118549edeb8b733dea7dd1438",
+    "component_flux_bindings_checked": 6,
+    "whole_model_heat_estimator": "collision",
+    "whole_model_heat_W": 535211995.87432015,
+    "whole_model_heat_standard_error_W": 1889860.939381727,
+    "particle_scope_mean_sum_W": "535211995.87428358152",
+    "particle_scope_mean_relative_difference": "6.83252249237461112878954841377397140069119575E-14",
+    "standard_errors_not_summed": true,
+    "note": "zero component flux means remain sampled estimates, not proof of zero true flux"
+  },
+  "energy_ledger_audit": {
+    "status": "PASS",
+    "transport_heating_input_W": "535211995.87432015",
+    "recovered_transport_heat_MWh": "3559974.464797959573106966638649",
+    "recovered_alpha_heat_MWh": "771601.76874155629281890325872670421276620",
+    "gross_electricity_MWh": "1732630.493415806346370347958950281685106480",
+    "auxiliary_electricity_MWh": "1721381.91136970144444444444444444444444444444",
+    "net_electricity_MWh": "11248.58204610490192590351450583724066203556",
+    "meaning": "conditional ledger arithmetic only; no heat-cycle or engineering qualification"
+  },
+  "mass_balance_audit": {
+    "decimal_max_abs_residual_kg": "9.874E-13",
+    "engine_max_abs_residual_kg": 9.869882688917642e-13,
+    "tolerance_kg": 5.310945684872032e-09,
+    "snapshots": 11004
+  },
+  "history_outcome": {
+    "outcome": "horizon_completed",
+    "events": 63,
+    "available_tritium_kg": 0.110448814026254,
+    "produced_tritium_kg": 21.60995283137378,
+    "burned_tritium_kg": 24.808745721576432,
+    "full_power_years": 0.8430960765140137,
+    "cumulative_gross_electricity_mwh": 1732630.4934157967,
+    "cumulative_auxiliary_electricity_mwh": 1721381.9113696977,
+    "cumulative_net_electricity_mwh": 11248.582046110881
+  },
+  "physical_energy_closure": "NOT_EVALUATED. OpenMC heating includes reaction-energy KERMA terms; this work does not tally a complete neutron-source + material reaction-Q + escaped-particle balance.",
+  "qualification": "conditional authored demo ledger only. Zero sampled flux means remain estimates, not proof of zero true flux. Thermal recovery, alpha deposition, conversion, service thresholds, inventories, delay, and auxiliary loads are authored illustrative inputs."
+}

@@ -7,6 +7,7 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub distance: f32,
+    pub target: [f32; 3],
 }
 
 impl Default for Camera {
@@ -15,6 +16,7 @@ impl Default for Camera {
             yaw: -0.65,
             pitch: 0.5,
             distance: 15.0,
+            target: [0.0; 3],
         }
     }
 }
@@ -32,19 +34,28 @@ impl Camera {
             0.5
         };
         let distance = if self.distance.is_finite() {
-            self.distance.clamp(6.0, 40.0)
+            self.distance.clamp(0.25, 100.0)
         } else {
             15.0
         };
-        let eye = [
+        let offset = [
             distance * pitch.cos() * yaw.cos(),
             distance * pitch.sin(),
             distance * pitch.cos() * yaw.sin(),
         ];
-        let forward = normalize(scale(eye, -1.0));
+        let target = self.target.map(|x| if x.is_finite() { x } else { 0.0 });
+        let eye = add(target, offset);
+        let forward = normalize(scale(offset, -1.0));
         let right = normalize(cross(forward, [0.0, 1.0, 0.0]));
         let up = cross(right, forward);
         (eye, right, up, forward)
+    }
+
+    pub fn frame_bounds(&mut self, minimum: [f32; 3], maximum: [f32; 3]) {
+        self.target = std::array::from_fn(|axis| (minimum[axis] + maximum[axis]) * 0.5);
+        let extent = subtract(maximum, minimum);
+        let radius = dot(extent, extent).sqrt() * 0.5;
+        self.distance = (radius / (VERTICAL_FOV_RADIANS * 0.5).sin() * 1.15).clamp(0.25, 100.0);
     }
 
     pub fn ray(&self, rect: egui::Rect, point: egui::Pos2) -> ([f32; 3], [f32; 3]) {
@@ -136,6 +147,7 @@ mod tests {
             yaw: f32::INFINITY,
             pitch: 90.0,
             distance: f32::NAN,
+            target: [f32::NAN; 3],
         };
         let (_, right, up, forward) = camera.basis();
         for vector in [right, up, forward] {
@@ -145,5 +157,17 @@ mod tests {
         assert!(dot(right, up).abs() < 1e-5);
         assert!(dot(right, forward).abs() < 1e-5);
         assert!(dot(up, forward).abs() < 1e-5);
+    }
+
+    #[test]
+    fn framing_a_local_field_keeps_render_and_pick_rays_on_its_center() {
+        let mut camera = Camera::default();
+        camera.frame_bounds([4.0, -0.45, -0.45], [5.58, 0.45, 0.45]);
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+        let (origin, direction) = camera.ray(rect, rect.center());
+        let endpoint = add(origin, scale(direction, camera.distance));
+        let error = subtract(endpoint, camera.target);
+        assert!(dot(error, error).sqrt() < 1e-4);
+        assert!(camera.distance < 6.0);
     }
 }

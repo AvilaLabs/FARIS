@@ -1,8 +1,12 @@
 use crate::{control, transport::read_bounded};
 use clap::Subcommand;
 use faris_engine::{
+    build_manifest,
     jobs::ExecutionStatus,
-    reactor::{ReactorJob, SamplingPlan, load_physics_case, load_reactor_run, run_reactor},
+    reactor::{
+        FieldMesh, MeshPreset, ReactorJob, SamplingPlan, load_physics_case, load_reactor_run,
+        run_reactor,
+    },
 };
 use faris_model::{LoadedScenario, transport::ResponseDomain};
 use std::{path::PathBuf, time::Duration};
@@ -34,8 +38,11 @@ pub enum ReactorCommand {
         seed: u64,
         #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=32))]
         threads: u32,
-        #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(1..=3600))]
+        #[arg(long, default_value_t = 3600, value_parser = clap::value_parser!(u64).range(1..=3600))]
         timeout_seconds: u64,
+        /// Spatial flux tally resolution; local variants use the same outboard bounds.
+        #[arg(long, default_value = "coarse", value_parser = ["coarse", "outboard-local-coarse", "outboard-local", "outboard-port-window"])]
+        mesh_preset: String,
     },
     /// Revalidate a saved run's exact input, artifact, volumes, and normalization.
     Inspect {
@@ -62,6 +69,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             seed,
             threads,
             timeout_seconds,
+            mesh_preset,
         } => run_case(
             scenario,
             physics,
@@ -75,6 +83,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             seed,
             threads,
             timeout_seconds,
+            mesh_preset,
         ),
         ReactorCommand::Inspect { scenario, run } => inspect(scenario, run),
     }
@@ -94,6 +103,7 @@ fn run_case(
     seed: u64,
     threads: u32,
     timeout_seconds: u64,
+    mesh_preset: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = LoadedScenario::from_bytes(&read_bounded(&scenario)?)?;
     let physics = load_physics_case(&physics, &scenario)
@@ -104,6 +114,11 @@ fn run_case(
         seed,
         threads,
     };
+    let preset = MeshPreset::from_cli(&mesh_preset)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
+    let manifest = build_manifest(&scenario)?;
+    let mesh = FieldMesh::for_preset(&manifest, preset)
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
     let interrupts = control::interrupt_cancellation()?;
     #[cfg(unix)]
     let cancellation = &interrupts.cancellation;
@@ -124,6 +139,7 @@ fn run_case(
         openmc: &openmc,
         output: &output_absolute,
         sampling,
+        mesh: Some(mesh),
         timeout: Duration::from_secs(timeout_seconds),
         adapter: ADAPTER,
     };
@@ -238,6 +254,7 @@ mod tests {
             "--seed",
             "--threads",
             "--timeout-seconds",
+            "--mesh-preset",
         ] {
             assert!(help.contains(option), "missing {option} in help: {help}");
         }

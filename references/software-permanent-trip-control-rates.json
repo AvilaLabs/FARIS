@@ -1,0 +1,61 @@
+{
+  "reference_fusion_power_mw": 525.0,
+  "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+  "neutron_source_rate_per_s": 1.8618137864158527e+20,
+  "total_reaction_energy_ev": 17600000.0,
+  "primary_neutron_energy_ev": 14100000.0,
+  "breeder_h3_per_source_neutron": {
+    "mean": 0.85,
+    "standard_error": null,
+    "unit": "particles/source_neutron",
+    "response_id": "blanket-tritium"
+  },
+  "component_average_flux_n_m2_s": {
+    "first-wall": {
+      "mean": 1e+18,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "first-wall-flux"
+    },
+    "blanket": {
+      "mean": 1e+18,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "blanket-flux"
+    },
+    "shield": {
+      "mean": 1e+18,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "shield-flux"
+    },
+    "vessel": {
+      "mean": 1e+18,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "vessel-flux"
+    },
+    "magnet-gap": {
+      "mean": 1e+18,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "magnet-gap-flux"
+    },
+    "magnets": {
+      "mean": 1e+20,
+      "standard_error": null,
+      "unit": "neutrons/m\u00b2/s",
+      "response_id": "magnets-flux"
+    }
+  },
+  "transport_deposited_heat_w": {
+    "mean": 536461842.5601156,
+    "standard_error": null,
+    "unit": "W",
+    "response_id": "heating-total-whole-model"
+  },
+  "scenario_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "transport_artifact_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "solver_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nuclear_data_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}

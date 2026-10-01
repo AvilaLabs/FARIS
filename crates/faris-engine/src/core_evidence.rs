@@ -339,7 +339,7 @@ pub fn energy_stage(
         json!({"schema_version":"faris-core-stage-output/v0.1","stage":"energy","energy":"energy_ledger_verified",
         "history_sha256":upstream["history_sha256"],"net_electricity_mwh":canonical_decimal(net)?,
         "gross_electricity_mwh":canonical_decimal(gross)?,"auxiliary_electricity_mwh":canonical_decimal(auxiliary)?,
-        "neutron_recovered_heat_mwh":canonical_decimal(last.cumulative_neutron_recovered_heat_mwh.ok_or("missing recovered neutron-source heat")?)?,
+        "transport_recovered_heat_mwh":canonical_decimal(last.cumulative_transport_recovered_heat_mwh.ok_or("missing recovered neutron-source heat")?)?,
         "alpha_recovered_heat_mwh":canonical_decimal(last.cumulative_alpha_recovered_heat_mwh.ok_or("missing recovered alpha heat")?)?,
         "scientific_qualification":"NOT_EVALUATED","notice":"Signed numerical energy ledger under declared prompt-heat recovery and conversion assumptions. This nominal quantity is not a qualified plant prediction."}),
     )

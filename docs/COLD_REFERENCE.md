@@ -265,6 +265,31 @@ convergence alone is not a rigorous bound. Ported material/build values remain
 the same authored surrogates and their scientific status remains
 `NOT_EVALUATED`.
 
+Spatial refinement is selected with `--mesh-preset`: `coarse` retains the
+full-model 12×8×12 mesh; `outboard-local-coarse` (12×6×12) and `outboard-local`
+(24×12×24) have identical bounds so they test spatial averaging only. The
+separate `outboard-port-window` preset uses a single direct OpenMC mesh tally
+over the same box for both the feature-free control and port case: X from
+R+1.04 m to the outer-envelope X bound, Y and Z from −0.15 m to +0.15 m. Its
+volume average intentionally mixes material, the port void, and box corners
+outside the torus along the outboard radial path; it is a transport-window response, not a magnet-material flux or
+component failure estimate. This direct tally provides its own standard error.
+Do not sum per-bin standard errors to estimate window uncertainty.
+
+Before the independent local comparisons, require exact replay of every
+request/artifact, sufficient in-run histories, and the port's independently
+checked volume report. Treat a path-window effect as sampling-resolved only if
+both independent-seed estimates have RSE ≤10% and their absolute difference
+exceeds twice the combined one-standard-error value
+`sqrt(SE_control² + SE_port²)`. The 10% and 2-SE gates are internal screening
+rules for this demo, not validation tolerances or physical limits; the latter
+is an approximate normal-coverage check. Otherwise label the effect unresolved.
+Local maps are descriptive: report bin RSEs and do not promote any bin maximum
+or coarse-to-fine visual change to a physical conclusion when it misses the
+10% internal precision goal. Coarse and fine maps are separate runs with
+independent seeds; no paired covariance is assumed for comparisons across
+runs.
+
 The million-history records preserve the earlier worker revision. A separate
 30,000-history integrated smoke exercised the final bounded log streaming,
 statepoint/settings verification, and XML/statepoint hashes. Those changes

@@ -33,6 +33,7 @@ struct PendingSensitivity {
     receiver: Receiver<Result<HistorySensitivityResult, String>>,
     identity: String,
     assumptions: OperatingHistoryAssumptions,
+    transport_sha256: String,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -57,8 +58,16 @@ pub struct HistoryPanel {
     rates: BTreeMap<String, TransportDrivingRates>,
     presets: Vec<(String, OperatingHistoryAssumptions)>,
     preset_index: usize,
+    revision: u64,
     pending_sensitivity: Option<PendingSensitivity>,
-    sensitivities: BTreeMap<String, (OperatingHistoryAssumptions, HistorySensitivityResult)>,
+    sensitivities: BTreeMap<
+        String,
+        (
+            OperatingHistoryAssumptions,
+            String,
+            HistorySensitivityResult,
+        ),
+    >,
 }
 
 pub fn key(scenario: &str, variant: &str) -> String {
@@ -113,6 +122,7 @@ impl HistoryPanel {
             rates: BTreeMap::new(),
             presets,
             preset_index: 0,
+            revision: 0,
             pending_sensitivity: None,
             sensitivities: BTreeMap::new(),
         })
@@ -123,6 +133,38 @@ impl HistoryPanel {
     }
     pub fn is_pending(&self) -> bool {
         self.pending.is_some()
+    }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Accept a revalidated saved history only for these exact loaded transport
+    /// inputs and current assumptions. Reopening never silently changes a study.
+    pub fn cache_saved_history(
+        &mut self,
+        history: HistoryResult,
+        run: &ReactorRun,
+        reference_power_mw: f64,
+    ) -> Result<(), String> {
+        let normalized = run
+            .normalized
+            .as_ref()
+            .ok_or("Loaded transport is not accepted")?;
+        let raw = run
+            .raw_artifact_sha256
+            .as_deref()
+            .ok_or("Loaded transport has no artifact identity")?;
+        let rates = TransportDrivingRates::from_normalized(normalized, reference_power_mw, raw)?;
+        if history.driving_rates != rates || self.assumptions.as_ref() != Some(&history.assumptions)
+        {
+            return Err(
+                "Saved history belongs to other transport inputs or operating assumptions".into(),
+            );
+        }
+        self.results
+            .insert(key(&run.scenario_sha256, &run.variant_id), history);
+        self.revision += 1;
+        Ok(())
     }
     pub fn snapshot(&self, scenario: &str, variant: &str, time_s: f64) -> Option<&HistorySnapshot> {
         let history = self.result(scenario, variant)?;
@@ -149,8 +191,10 @@ impl HistoryPanel {
                 }
                 match message {
                     Ok(result) => {
-                        self.sensitivities
-                            .insert(pending.identity, (pending.assumptions, result));
+                        self.sensitivities.insert(
+                            pending.identity,
+                            (pending.assumptions, pending.transport_sha256, result),
+                        );
                     }
                     Err(error) => self.error = Some(error),
                 }
@@ -174,6 +218,7 @@ impl HistoryPanel {
         match result {
             Ok(results) => {
                 self.results = results;
+                self.revision += 1;
                 self.edited = self.assumptions.as_ref() != Some(&pending.assumptions);
                 self.error = None;
             }
@@ -238,6 +283,17 @@ impl HistoryPanel {
             .collect();
         self.bound_transport = identity;
         self.requested = false;
+        // A reopened case supplies the exact history produced by the declared
+        // Rust stage. Check every current input before reusing the saved result.
+        if prepared.iter().all(|(id, _, rates)| {
+            self.results
+                .get(id)
+                .is_some_and(|r| r.assumptions == assumptions && r.driving_rates == *rates)
+        }) {
+            self.edited = false;
+            self.error = None;
+            return;
+        }
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
@@ -321,6 +377,7 @@ impl HistoryPanel {
             } else if ui.add_enabled(self.assumptions.is_some() && self.rates.contains_key(&identity) && !self.edited && self.pending.is_none(), egui::Button::new("Run sensitivity for current arrangement")).clicked() {
                 let assumptions = self.assumptions.clone().expect("enabled assumptions");
                 let rates = self.rates[&identity].clone();
+                let transport_sha256 = rates.transport_artifact_sha256.clone();
                 let worker_assumptions = assumptions.clone();
                 let cancellation = Cancellation::default();
                 let worker_cancel = cancellation.clone();
@@ -331,12 +388,13 @@ impl HistoryPanel {
                     let result = run_history_sensitivity_cancellable(&worker_assumptions,&rates,&grid,&worker_cancel);
                     let _ = sender.send(result); context.request_repaint();
                 }) {
-                    Ok(handle) => self.pending_sensitivity = Some(PendingSensitivity{handle:Some(handle),cancellation,receiver,identity:identity.clone(),assumptions}),
+                    Ok(handle) => self.pending_sensitivity = Some(PendingSensitivity{handle:Some(handle),cancellation,receiver,identity:identity.clone(),assumptions,transport_sha256}),
                     Err(error) => self.error = Some(error.to_string()),
                 }
             }
-            if let Some((assumptions, result)) = self.sensitivities.get(&identity) {
+            if let Some((assumptions, transport_sha256, result)) = self.sensitivities.get(&identity) {
                 if self.assumptions.as_ref() != Some(assumptions) { ui.colored_label(egui::Color32::YELLOW,"Sensitivity belongs to earlier assumptions."); }
+                if self.rates.get(&identity).is_none_or(|r| &r.transport_artifact_sha256 != transport_sha256) {ui.colored_label(egui::Color32::YELLOW,"Sensitivity belongs to earlier transport results.");}
                 egui::ScrollArea::horizontal().show(ui, |ui| {
                     egui::Grid::new("sensitivity-points").striped(true).show(ui, |ui| {
                         for label in ["Recovery","Delay ×","Limit ×","FP years","Net TWh"] { ui.strong(label); } ui.end_row();
@@ -402,13 +460,52 @@ impl HistoryPanel {
                     |v| format!("Net {:.3} TWh", v / 1e6),
                 ));
             });
+            if let Some(history) = self.result(scenario, variant) {
+                let now = *year * JULIAN_YEAR_SECONDS;
+                if let Some(outage) = history
+                    .assumptions
+                    .planned_outages
+                    .iter()
+                    .find(|o| o.start_s <= now && now < o.end_s)
+                {
+                    ui.small(format!("Planned outage: {}", outage.reason));
+                }
+                egui::ComboBox::from_id_salt("history-event-jump")
+                    .selected_text("Jump to a calculated event…")
+                    .show_ui(ui, |ui| {
+                        egui::ScrollArea::vertical().max_height(200.0).show_rows(
+                            ui,
+                            22.0,
+                            history.events.len(),
+                            |ui, rows| {
+                                for index in rows {
+                                    let event = &history.events[index];
+                                    if ui
+                                        .selectable_label(
+                                            false,
+                                            format!(
+                                                "{:.5} y · {:?} {}",
+                                                event.time_s / JULIAN_YEAR_SECONDS,
+                                                event.kind,
+                                                event.component_id.as_deref().unwrap_or("")
+                                            ),
+                                        )
+                                        .clicked()
+                                    {
+                                        *year = event.time_s / JULIAN_YEAR_SECONDS;
+                                    }
+                                }
+                            },
+                        );
+                    });
+            }
             ui.small("Scrubbing selects a computed snapshot at or before the requested time. Discrete events are never interpolated across.");
             ui.horizontal_wrapped(|ui| {
                 ui.small(format!(
                     "Source power {:.1}% of reference",
                     snapshot.power_fraction * 100.0
                 ));
-                if let Some(value) = snapshot.instantaneous_neutron_recovered_heat_mw {
+                if let Some(value) = snapshot.instantaneous_transport_recovered_heat_mw {
                     ui.small(format!("Nuclear heat recovered {value:.1} MW"));
                 }
                 if let Some(value) = snapshot.instantaneous_alpha_recovered_heat_mw {
@@ -527,6 +624,20 @@ impl HistoryPanel {
             ));
         }
         if let Some(history) = self.result(scenario, variant) {
+            if let Some(limit) = history
+                .assumptions
+                .service_limits
+                .iter()
+                .find(|l| l.component_id == component)
+            {
+                ui.label(format!(
+                    "Authored {:?} trigger: {:.3e} {}",
+                    limit.class, limit.limit, limit.unit
+                ));
+                ui.small(&limit.provenance);
+            } else {
+                ui.weak("No service trigger declared for this component.");
+            }
             ui.collapsing("Operating events", |ui| {
                 for event in history
                     .events

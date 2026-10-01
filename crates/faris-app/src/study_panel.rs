@@ -45,6 +45,7 @@ struct EvidenceIdentity {
 /// Presentation only. All contract generation and compiler execution live in
 /// faris-engine, shared with the CLI. No scientific status is inferred here.
 pub struct StudyPanel {
+    pub archive: crate::archive_panel::ArchivePanel,
     pub selection: StudySelection,
     core_path: String,
     runs_directory: PathBuf,
@@ -67,6 +68,7 @@ pub struct StudyPanel {
 impl StudyPanel {
     pub fn new(core: Option<PathBuf>, runs_directory: PathBuf) -> Self {
         Self {
+            archive: crate::archive_panel::ArchivePanel::default(),
             selection: StudySelection::default(),
             core_path: core
                 .or_else(local_core_executable)
@@ -97,6 +99,7 @@ impl StudyPanel {
     }
 
     pub fn poll(&mut self, ctx: &egui::Context) {
+        self.archive.poll(ctx);
         if let Some(pending) = &self.pending_evidence {
             let result = match pending.receiver.try_recv() {
                 Ok(result) => Some(result),
@@ -197,6 +200,10 @@ impl StudyPanel {
             .as_nanos();
         let output = self.runs_directory.join(format!("study-{stamp}"));
         let executable = PathBuf::from(&self.core_path);
+        if !executable.is_file() {
+            self.error = Some("Avila Core executable is unavailable. Choose its installed file in Compiler settings.".into());
+            return;
+        }
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
         let worker_output = output.clone();
@@ -316,6 +323,7 @@ impl StudyPanel {
         }
         ui.label(format!("Run readiness: {readiness}"));
         ui.label("Scientific assessment: NOT_EVALUATED");
+        self.archive.controls(ui, scenario_sha256, variant_id);
     }
 
     pub fn evidence_controls(
@@ -424,6 +432,7 @@ impl StudyPanel {
             });
         match spawn {
             Ok(handle) => {
+                self.attempted = true;
                 self.pending_evidence = Some(PendingEvidence {
                     handle: Some(handle),
                     cancellation,

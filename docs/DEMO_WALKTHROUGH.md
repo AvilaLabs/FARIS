@@ -211,5 +211,16 @@ cargo run -p faris-app -- \
   --control-scenario demo/recorded-study/control/scenario.json \
   --control-bundle demo/recorded-study/control/bundles/reference.transport-bundle.json \
   --control-bundle demo/recorded-study/control/bundles/breeder-emphasis.transport-bundle.json \
-  --assumptions demo/recorded-study/operating-assumptions.json
+  --assumptions demo/recorded-study/operating-assumptions.json \
+  --saved-study demo/recorded-study/saved-study-port-reference.json \
+  --saved-study demo/recorded-study/saved-study-port-breeder-emphasis.json \
+  --saved-study demo/recorded-study/saved-study-control-reference.json \
+  --saved-study demo/recorded-study/saved-study-control-breeder-emphasis.json
 ```
+
+Each saved-study descriptor identifies one exact prepared Core case, its
+execution report, and its completed receipt workspace. Reopening rehashes the
+case package and stage files and shows the original scenario/variant and Core
+states. It does not attach saved results to a newly selected scenario; unsigned
+digests establish identity consistency only, not record authenticity or physical
+qualification.

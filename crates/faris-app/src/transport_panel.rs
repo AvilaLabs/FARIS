@@ -2,7 +2,8 @@ use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,
     reactor::{
-        ReactorJob, ReactorRun, SamplingPlan, load_physics_case, load_reactor_run, run_reactor,
+        FieldMesh, MeshPreset, ReactorJob, ReactorRun, SamplingPlan, load_physics_case,
+        load_reactor_run, run_reactor,
     },
     transport::NormalizedTally,
 };
@@ -54,6 +55,7 @@ pub struct TransportPanel {
     cross_sections: String,
     runs_directory: PathBuf,
     sampling: SamplingPlan,
+    mesh_preset: MeshPreset,
     pending: Option<Pending>,
     error: Option<String>,
     revision: u64,
@@ -79,6 +81,28 @@ impl TransportPanel {
         let mut replay_directories = Vec::new();
         for path in config.runs {
             let record = load_reactor_run(&path, &scenario).map_err(|e| e.to_string())?;
+            let input_path = path
+                .parent()
+                .ok_or("Run record needs its input directory.")?
+                .join("input.json");
+            let input: serde_json::Value = serde_json::from_slice(
+                &faris_engine::reactor::read_json_bytes(&input_path).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| e.to_string())?;
+            let case: PhysicsCase =
+                serde_json::from_value(input["physics"].clone()).map_err(|e| e.to_string())?;
+            case.validate_against(&scenario)
+                .map_err(|e| e.to_string())?;
+            if let Some(configured) = cases.get(&case.variant_id)
+                && serde_json::to_value(configured).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&case).map_err(|e| e.to_string())?
+            {
+                return Err("Configured physics differs from the loaded transport. Open the historical record with its bound physics, or run the new case separately.".into());
+            }
+            cases.entry(case.variant_id.clone()).or_insert(case);
+            if records.contains_key(&record.variant_id) {
+                return Err("Duplicate transport record for an arrangement.".into());
+            }
             locations.insert(record.variant_id.clone(), path);
             records.insert(record.variant_id.clone(), record);
         }
@@ -100,6 +124,14 @@ impl TransportPanel {
                 serde_json::from_value(input["physics"].clone()).map_err(|e| e.to_string())?;
             case.validate_against(&scenario)
                 .map_err(|e| e.to_string())?;
+            if let Some(configured) = cases.get(&case.variant_id)
+                && serde_json::to_value(configured).map_err(|e| e.to_string())?
+                    != serde_json::to_value(&case).map_err(|e| e.to_string())?
+            {
+                return Err(
+                    "Configured physics differs from the recorded bundle's bound physics.".into(),
+                );
+            }
             cases.entry(case.variant_id.clone()).or_insert(case);
             locations.insert(record.variant_id.clone(), directory.path().join("run.json"));
             records.insert(record.variant_id.clone(), record);
@@ -117,6 +149,7 @@ impl TransportPanel {
             cross_sections: path_text(config.cross_sections),
             runs_directory: config.runs_directory,
             sampling: SamplingPlan::default(),
+            mesh_preset: MeshPreset::Coarse,
             pending: None,
             error: None,
             revision: 0,
@@ -148,6 +181,16 @@ impl TransportPanel {
     pub fn render_key(&self) -> (u64, FieldView, usize) {
         (self.revision, self.view, self.slice)
     }
+    pub fn mesh_response(&self, variant: &str, bin: usize) -> Option<&NormalizedTally> {
+        let record = self.record(variant)?;
+        record.normalized.as_ref()?.results.iter().find(|r| {
+            r.domain
+                == faris_model::transport::ResponseDomain::Mesh {
+                    mesh_id: record.mesh.id.clone(),
+                    bin: bin as u64,
+                }
+        })
+    }
 
     pub fn has_results(&self) -> bool {
         self.records
@@ -156,14 +199,19 @@ impl TransportPanel {
     }
 
     pub fn comparison(&self, ui: &mut egui::Ui) {
-        ui.strong("Transport comparison · cold-data surrogate");
-        egui::Grid::new("transport-comparison")
+        ui.strong(if self.scenario.scenario.penetration.is_some() {
+            "Finite penetration · cold-data surrogate"
+        } else {
+            "Feature-free control · cold-data surrogate"
+        });
+        egui::Grid::new(("transport-comparison", &self.scenario.source_sha256))
             .striped(true)
             .show(ui, |ui| {
                 for heading in [
                     "Arrangement",
                     "Breeder H3 / source ± SE",
                     "Magnet mean flux / m² / s",
+                    "Total nuclear heat / MW",
                     "Histories",
                 ] {
                     ui.strong(heading);
@@ -186,10 +234,18 @@ impl TransportPanel {
                         ui.weak("Not calculated");
                     }
                     if let Some(flux) = self.response(&variant.id, "magnets-flux") {
-                        ui.monospace(format!("{:.3e} ± {:.2e}", flux.mean, flux.standard_error));
+                        if flux.mean == 0.0 && flux.standard_error == 0.0 {
+                            ui.weak("No sampled tracks; upper bound unavailable");
+                        } else {
+                            ui.monospace(format!("{:.3e} ± {:.2e}", flux.mean, flux.standard_error))
+                                .on_hover_text(format!("Relative sampling SE: {:.1}%. Volume uncertainty and model/data uncertainty are separate.", 100.0 * flux.standard_error / flux.mean));
+                        }
                     } else {
                         ui.weak("Not calculated");
                     }
+                    if let Some(heat) = self.response(&variant.id, "heating-total-whole-model") {
+                        ui.monospace(format!("{:.2} ± {:.2}", heat.integrated_mean / 1e6, heat.integrated_standard_error / 1e6));
+                    } else {ui.weak("Unavailable");}
                     ui.label(record.map_or_else(
                         || "—".into(),
                         |r| {
@@ -267,6 +323,16 @@ impl TransportPanel {
         let audit = PathBuf::from(&self.audit);
         let cross_sections = PathBuf::from(&self.cross_sections);
         let sampling = self.sampling.clone();
+        let mesh = match faris_engine::build_manifest(&scenario)
+            .map_err(|e| e.to_string())
+            .and_then(|m| FieldMesh::for_preset(&m, self.mesh_preset).map_err(|e| e.to_string()))
+        {
+            Ok(mesh) => mesh,
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return;
+            }
+        };
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -283,6 +349,7 @@ impl TransportPanel {
             .name("faris-openmc-transport".into())
             .spawn(move || {
                 let job = ReactorJob {
+                    mesh: Some(mesh),
                     scenario: &scenario,
                     physics: &physics,
                     audit: &audit,
@@ -291,7 +358,7 @@ impl TransportPanel {
                     openmc: &openmc,
                     output: &worker_output,
                     sampling,
-                    timeout: Duration::from_secs(600),
+                    timeout: Duration::from_secs(3600),
                     adapter: include_bytes!("../../../integrations/openmc/reactor_transport.py"),
                 };
                 let result =
@@ -336,7 +403,12 @@ impl TransportPanel {
                 "100,000 · pilot",
             );
             ui.radio_value(&mut self.sampling.particles_per_batch, 10_000, "1,000,000");
-            ui.small("One thread; 600 s limit. Sampling precision is measured after execution.");
+            egui::ComboBox::from_id_salt("fresh-field-mesh")
+                .selected_text(match self.mesh_preset {MeshPreset::Coarse => "Whole model · coarse", MeshPreset::OutboardLocalCoarse => "Port region · coarse", MeshPreset::OutboardLocal => "Port region · fine", MeshPreset::OutboardPortWindow => "Direct port-window average"})
+                .show_ui(ui, |ui| {
+                    for (preset, label) in [(MeshPreset::Coarse,"Whole model · 12 × 8 × 12"),(MeshPreset::OutboardLocalCoarse,"Port region · 12 × 6 × 12"),(MeshPreset::OutboardLocal,"Port region · 24 × 12 × 24"),(MeshPreset::OutboardPortWindow,"Direct port window · one bin")] {ui.selectable_value(&mut self.mesh_preset, preset, label);}
+                });
+            ui.small("One thread; 1 hour limit; 4 GiB process memory; 512 MiB artifacts. Mesh/request/JSON sizes are checked before spawning. Sampling precision is measured after execution.");
         });
         if let Some(pending) = &self.pending {
             ui.horizontal(|ui| {

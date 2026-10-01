@@ -1,0 +1,48 @@
+{
+  "schema": "faris-software-permanent-limit-control/v1",
+  "status": "PASS SOFTWARE EVENT-SEQUENCING AND LEDGER CONTROL; NOT A TRANSPORT OR PHYSICAL RESULT",
+  "purpose": "Exercise the engine permanent-component-limit path with deliberately synthetic driving rates. This demonstrates code behavior only and must not be interpreted as a magnetic component exposure, service life, nuclear heating response, or reactor result.",
+  "identities": {
+    "assumptions_sha256": "3f023d1d7beabd21607ca956fa511fcdf8ab8310766125c2bbae29b62b763dff",
+    "rates_sha256": "2fd52fa3b7d4de2efb8b56c4a29011cc94a5384f089979fb01f7b57fe0f45290",
+    "history_sha256": "979a2b6763ee09e72b8dc24220ef7812c3152714078059321a119d4d6954f8f7",
+    "audit_sha256": "4a00323a7d5c18f3cf1f1cbdfd2568419e86a05d6661b47a9cafbfae8a2fd9b7"
+  },
+  "source_and_data_identity": "The all-zero scenario, raw transport artifact, solver, and nuclear-data digest fields in the typed synthetic rates are explicit sentinel values. No solver was invoked and no transport artifact is claimed.",
+  "expected_and_observed": {
+    "outcome": "permanent_component_limit",
+    "events": [
+      {
+        "time_s": 0.0,
+        "order": 0,
+        "kind": "operation_started",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source on under declared calendar, inventory, outage, and limit state"
+      },
+      {
+        "time_s": 10000.000000000002,
+        "order": 0,
+        "kind": "service_limit_reached",
+        "component_id": "magnets",
+        "mass_kg": null,
+        "note": "energy_integrated_component_average_neutron_flux neutrons/m\u00b2 reached; applicability is conditional on authored limit"
+      },
+      {
+        "time_s": 10000.000000000002,
+        "order": 1,
+        "kind": "operation_stopped",
+        "component_id": null,
+        "mass_kg": null,
+        "note": "source off under declared calendar, inventory, outage, or limit state"
+      }
+    ],
+    "permanent_limit_component": "magnets",
+    "synthetic_flux_n_m2_s": 1e+20,
+    "synthetic_trip_after_s": 10000,
+    "mass_balance_max_abs_residual_kg": 5.643272307787051e-16,
+    "independent_decimal_mass_check": "PASS",
+    "conditional_energy_arithmetic_check": "PASS, but entirely synthetic and irrelevant to the trip test"
+  },
+  "scope_limit": "This software-only control is kept separate from demo-event-assumptions and all production histories. It supplies a synthetic component flux chosen only to reach the typed event path; it establishes no physical threshold and no relation to Monte Carlo sampled zero or nonzero component fluxes."
+}

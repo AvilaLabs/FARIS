@@ -182,6 +182,13 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         bundle_path = branch / "bundles" / f"{variant_id}.transport-bundle.json"
         bundle_path.parent.mkdir(exist_ok=True)
         shutil.copyfile(recorded_bundle, bundle_path)
+        descriptor_path = staging / f"saved-study-{pair_id}-{variant_id}.json"
+        descriptor = {
+            "case_directory": case.relative_to(staging).as_posix(),
+            "execution_report": execution_report.relative_to(staging).as_posix(),
+            "execution_workspace": workspace.relative_to(staging).as_posix(),
+        }
+        descriptor_path.write_text(json.dumps(descriptor, indent=2) + "\n", encoding="utf-8")
         run_summaries.append({
             "variant_id": variant_id,
             "run_record_sha256": sha256(run_path),
@@ -196,6 +203,8 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             "core_export_directory": export_dir.relative_to(staging).as_posix(),
             "core_export_sha256": export_result.get("export_sha256"),
             "core_export_report_sha256": sha256(exported_report),
+            "saved_study_descriptor": descriptor_path.relative_to(staging).as_posix(),
+            "saved_study_descriptor_sha256": sha256(descriptor_path),
             "transport_bundle": bundle_path.relative_to(staging).as_posix(),
             "transport_bundle_sha256": sha256(bundle_path),
             "port_volume_report": volume_identity,

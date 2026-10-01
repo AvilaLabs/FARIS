@@ -9,7 +9,7 @@ pub const TRANSPORT_REQUEST_VERSION: &str = "faris-transport-request/v0.2";
 pub const TRANSPORT_REQUEST_LEGACY_VERSION: &str = "faris-transport-request/v0.1";
 pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.2";
 pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.1";
-pub const MAX_TRANSPORT_RESPONSES: usize = 4096;
+pub const MAX_TRANSPORT_RESPONSES: usize = 8192;
 pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -150,7 +150,7 @@ impl TransportRequest {
         }
         nonempty(&self.source.distribution_id, "source distribution_id")?;
         if self.responses.is_empty() || self.responses.len() > MAX_TRANSPORT_RESPONSES {
-            return Err("responses must contain 1 to 4096 definitions".into());
+            return Err("responses must contain 1 to 8192 definitions".into());
         }
         let mut ids = std::collections::BTreeSet::new();
         for r in &self.responses {

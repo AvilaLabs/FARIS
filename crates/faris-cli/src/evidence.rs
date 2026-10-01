@@ -47,6 +47,15 @@ pub enum EvidenceCommand {
         #[arg(long)]
         output: PathBuf,
     },
+    /// Reopen and revalidate a saved case and its completed Core workspace.
+    Inspect {
+        #[arg(long)]
+        case: PathBuf,
+        #[arg(long)]
+        report: PathBuf,
+        #[arg(long)]
+        workspace: PathBuf,
+    },
     /// A deterministic FARIS stage invoked by a hash-bound Core descriptor.
     Stage {
         #[arg(value_enum)]
@@ -162,6 +171,16 @@ pub fn run(command: EvidenceCommand) -> Result<(), Box<dyn std::error::Error>> {
             if !result.completed() {
                 return Err("Core execution did not complete; inspect the saved report".into());
             }
+        }
+        EvidenceCommand::Inspect {
+            case,
+            report,
+            workspace,
+        } => {
+            let inspection =
+                faris_engine::case_archive::inspect_saved_case(&case, &report, &workspace)
+                    .map_err(|e| e as Box<dyn std::error::Error>)?;
+            println!("{}", serde_json::to_string_pretty(&inspection)?);
         }
         EvidenceCommand::Stage {
             stage,

@@ -1,5 +1,6 @@
 //! Shared geometry, checked transport normalization and bounded external jobs.
 
+pub mod case_archive;
 pub mod comparison;
 pub mod core_evidence;
 pub mod geometry;

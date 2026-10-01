@@ -15,7 +15,10 @@ pub const TRITIUM_MOLAR_MASS_KG_PER_MOL: f64 = 3.016_049_277_9e-3;
 pub const AVOGADRO_CONSTANT_PER_MOL: f64 = 6.022_140_76e23;
 pub const ELEMENTARY_CHARGE_J_PER_EV: f64 = 1.602_176_634e-19;
 pub const MASS_BALANCE_RELATIVE_TOLERANCE: f64 = 1e-10;
-const MAX_HISTORY_SEGMENTS: usize = 1_000_000;
+// The input horizon/step pair is separately bounded to <=1,000,000 nominal
+// segments. Event-driven transitions and delayed-cohort releases can subdivide
+// those intervals, so the runtime bound allows at most 2x that nominal budget.
+const MAX_HISTORY_SEGMENTS: usize = 2_000_000;
 const MAX_HISTORY_EVENTS: usize = 20_000;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -42,7 +45,8 @@ pub struct TransportDrivingRates {
     /// Whole-model integrated nuclear heating power from the declared total-particle
     /// heating response (including its neutron, photon, electron, and positron scores).
     /// None means no total nuclear-heat or net-electricity result is available.
-    pub neutron_deposited_heat_w: Option<ScalarRate>,
+    #[serde(alias = "neutron_deposited_heat_w")]
+    pub transport_deposited_heat_w: Option<ScalarRate>,
     pub scenario_sha256: String,
     pub transport_artifact_sha256: String,
     pub solver_digest: String,
@@ -113,7 +117,7 @@ impl TransportDrivingRates {
             .results
             .iter()
             .find(|r| r.response_id == "heating-total-whole-model");
-        let neutron_deposited_heat_w = match heat {
+        let transport_deposited_heat_w = match heat {
             Some(r) if r.domain == ResponseDomain::WholeModel
                 && r.score == (ScoreDefinition::Heating { convention: HeatingConvention::Heating, particle_scope: HeatingParticleScope::Total })
                 && r.integrated_unit == PhysicalUnit::Watts => Some(ScalarRate {
@@ -140,7 +144,7 @@ impl TransportDrivingRates {
                 response_id: breeder.response_id.clone(),
             },
             component_average_flux_n_m2_s: flux,
-            neutron_deposited_heat_w,
+            transport_deposited_heat_w,
             scenario_sha256: normalized.scenario_sha256.clone(),
             transport_artifact_sha256: transport_artifact_sha256.into(),
             solver_digest: normalized.solver.digest.clone(),
@@ -200,7 +204,7 @@ impl TransportDrivingRates {
             // upper bound on the true flux.
             check_rate(rate, "neutrons/m²/s", false)?;
         }
-        if let Some(rate) = &self.neutron_deposited_heat_w {
+        if let Some(rate) = &self.transport_deposited_heat_w {
             check_rate(rate, "W", true)?;
         }
         validate_hash(&self.scenario_sha256, false, "scenario_sha256")?;
@@ -299,12 +303,14 @@ pub struct HistorySnapshot {
     pub cumulative_decay_kg: f64,
     pub cumulative_full_power_seconds: f64,
     pub cumulative_fusion_energy_mwh: f64,
-    pub instantaneous_neutron_recovered_heat_mw: Option<f64>,
+    #[serde(alias = "instantaneous_neutron_recovered_heat_mw")]
+    pub instantaneous_transport_recovered_heat_mw: Option<f64>,
     pub instantaneous_alpha_recovered_heat_mw: Option<f64>,
     pub instantaneous_gross_electricity_mw: Option<f64>,
     pub instantaneous_auxiliary_electricity_mw: Option<f64>,
     pub instantaneous_net_electricity_mw: Option<f64>,
-    pub cumulative_neutron_recovered_heat_mwh: Option<f64>,
+    #[serde(alias = "cumulative_neutron_recovered_heat_mwh")]
+    pub cumulative_transport_recovered_heat_mwh: Option<f64>,
     pub cumulative_alpha_recovered_heat_mwh: Option<f64>,
     pub cumulative_gross_electricity_mwh: Option<f64>,
     pub cumulative_auxiliary_electricity_mwh: Option<f64>,
@@ -475,13 +481,16 @@ pub fn run_operating_history_cancellable(
         * atom_mass;
     let energy_ready = assumptions.energy.alpha_deposition_fraction.is_some()
         && assumptions.energy.thermal_to_electric_efficiency.is_some()
-        && assumptions.energy.neutron_heat_recovery_fraction.is_some()
+        && assumptions
+            .energy
+            .transport_heat_recovery_fraction
+            .is_some()
         && assumptions
             .energy
             .auxiliary_power_mw_while_operating
             .is_some()
         && assumptions.energy.auxiliary_power_mw_while_off.is_some()
-        && rates.neutron_deposited_heat_w.is_some();
+        && rates.transport_deposited_heat_w.is_some();
     let energy_unavailable_reason = (!energy_ready).then(|| "net electricity requires explicit alpha deposition, the OpenMC whole-model heating response, thermal conversion efficiency, and operating/off auxiliary loads; unavailable terms remain absent".to_owned());
     let mut available = assumptions.initial_available_tritium_kg;
     let mut cohorts = Vec::new();
@@ -514,7 +523,7 @@ pub fn run_operating_history_cancellable(
     let mut decay = 0.0;
     let mut full_power_seconds = 0.0;
     let mut fusion_energy_mwh = 0.0;
-    let mut neutron_recovered_heat_mwh = energy_ready.then_some(0.0);
+    let mut transport_recovered_heat_mwh = energy_ready.then_some(0.0);
     let mut alpha_recovered_heat_mwh = energy_ready.then_some(0.0);
     let mut gross_electricity_mwh = energy_ready.then_some(0.0);
     let mut auxiliary_electricity_mwh = energy_ready.then_some(0.0);
@@ -681,10 +690,10 @@ pub fn run_operating_history_cancellable(
         let event_snapshot = events.len() != captured_event_count;
         let routine_snapshot = time + 1e-9 >= next_snapshot_s;
         if event_snapshot || routine_snapshot || time >= assumptions.horizon_s {
-            let (neutron_heat_mw, alpha_heat_mw, gross_electric_mw, aux_mw, net_electric_mw) =
+            let (transport_heat_mw, alpha_heat_mw, gross_electric_mw, aux_mw, net_electric_mw) =
                 if energy_ready {
-                    let neutron = rates.neutron_deposited_heat_w.as_ref().unwrap().mean
-                        * assumptions.energy.neutron_heat_recovery_fraction.unwrap()
+                    let transport_heat = rates.transport_deposited_heat_w.as_ref().unwrap().mean
+                        * assumptions.energy.transport_heat_recovery_fraction.unwrap()
                         * requested
                         / 1e6;
                     let alpha = rates.fusion_reaction_rate_per_s
@@ -693,7 +702,7 @@ pub fn run_operating_history_cancellable(
                         * ELEMENTARY_CHARGE_J_PER_EV
                         / 1e6
                         * assumptions.energy.alpha_deposition_fraction.unwrap();
-                    let gross = (neutron + alpha)
+                    let gross = (transport_heat + alpha)
                         * assumptions.energy.thermal_to_electric_efficiency.unwrap();
                     let aux = if requested > 0.0 {
                         assumptions
@@ -704,7 +713,7 @@ pub fn run_operating_history_cancellable(
                         assumptions.energy.auxiliary_power_mw_while_off.unwrap()
                     };
                     (
-                        Some(neutron),
+                        Some(transport_heat),
                         Some(alpha),
                         Some(gross),
                         Some(aux),
@@ -726,12 +735,12 @@ pub fn run_operating_history_cancellable(
                 cumulative_decay_kg: decay,
                 cumulative_full_power_seconds: full_power_seconds,
                 cumulative_fusion_energy_mwh: fusion_energy_mwh,
-                instantaneous_neutron_recovered_heat_mw: neutron_heat_mw,
+                instantaneous_transport_recovered_heat_mw: transport_heat_mw,
                 instantaneous_alpha_recovered_heat_mw: alpha_heat_mw,
                 instantaneous_gross_electricity_mw: gross_electric_mw,
                 instantaneous_auxiliary_electricity_mw: aux_mw,
                 instantaneous_net_electricity_mw: net_electric_mw,
-                cumulative_neutron_recovered_heat_mwh: neutron_recovered_heat_mwh,
+                cumulative_transport_recovered_heat_mwh: transport_recovered_heat_mwh,
                 cumulative_alpha_recovered_heat_mwh: alpha_recovered_heat_mwh,
                 cumulative_gross_electricity_mwh: gross_electricity_mwh,
                 cumulative_auxiliary_electricity_mwh: auxiliary_electricity_mwh,
@@ -872,8 +881,8 @@ pub fn run_operating_history_cancellable(
             if energy_ready {
                 let alpha_fraction = assumptions.energy.alpha_deposition_fraction.unwrap();
                 let efficiency = assumptions.energy.thermal_to_electric_efficiency.unwrap();
-                let neutron_heat_mw = rates.neutron_deposited_heat_w.as_ref().unwrap().mean
-                    * assumptions.energy.neutron_heat_recovery_fraction.unwrap()
+                let transport_heat_mw = rates.transport_deposited_heat_w.as_ref().unwrap().mean
+                    * assumptions.energy.transport_heat_recovery_fraction.unwrap()
                     * requested
                     / 1e6;
                 let alpha_power_mw = rates.fusion_reaction_rate_per_s
@@ -881,14 +890,14 @@ pub fn run_operating_history_cancellable(
                     * (rates.total_reaction_energy_ev - rates.primary_neutron_energy_ev)
                     * ELEMENTARY_CHARGE_J_PER_EV
                     / 1e6;
-                if let Some(v) = neutron_recovered_heat_mwh.as_mut() {
-                    *v += neutron_heat_mw * active_duration / 3600.0;
+                if let Some(v) = transport_recovered_heat_mwh.as_mut() {
+                    *v += transport_heat_mw * active_duration / 3600.0;
                 }
                 if let Some(v) = alpha_recovered_heat_mwh.as_mut() {
                     *v += alpha_power_mw * alpha_fraction * active_duration / 3600.0;
                 }
                 let gross_electric_mw =
-                    (alpha_power_mw * alpha_fraction + neutron_heat_mw) * efficiency;
+                    (alpha_power_mw * alpha_fraction + transport_heat_mw) * efficiency;
                 let aux_mw = assumptions
                     .energy
                     .auxiliary_power_mw_while_operating
@@ -1114,7 +1123,7 @@ mod tests {
             energy: EnergyAssumptions {
                 alpha_deposition_fraction: None,
                 thermal_to_electric_efficiency: None,
-                neutron_heat_recovery_fraction: None,
+                transport_heat_recovery_fraction: None,
                 auxiliary_power_mw_while_operating: None,
                 auxiliary_power_mw_while_off: None,
                 provenance: "not modeled in decay-only control".into(),
@@ -1140,7 +1149,7 @@ mod tests {
                 response_id: "blanket-tritium".into(),
             },
             component_average_flux_n_m2_s: BTreeMap::new(),
-            neutron_deposited_heat_w: None,
+            transport_deposited_heat_w: None,
             scenario_sha256: "a".repeat(64),
             transport_artifact_sha256: "b".repeat(64),
             solver_digest: format!("sha256:{}", "c".repeat(64)),
@@ -1226,6 +1235,52 @@ mod tests {
             .unwrap()
             .mean = -1.0;
         assert!(driving.validate().is_err());
+    }
+
+    #[test]
+    fn legacy_neutron_named_heat_fields_still_deserialize_through_aliases() {
+        let mut a = assumptions(100.0);
+        a.energy.alpha_deposition_fraction = Some(1.0);
+        a.energy.transport_heat_recovery_fraction = Some(0.9);
+        a.energy.thermal_to_electric_efficiency = Some(0.4);
+        a.energy.auxiliary_power_mw_while_operating = Some(1.0);
+        a.energy.auxiliary_power_mw_while_off = Some(1.0);
+        let mut driving = rates();
+        driving.transport_deposited_heat_w = Some(ScalarRate {
+            mean: 10.0e6,
+            standard_error: Some(100.0),
+            unit: "W".into(),
+            response_id: "heating-total-whole-model".into(),
+        });
+        let result = run_operating_history(&a, &driving).unwrap();
+        let mut legacy = serde_json::to_value(result).unwrap();
+        let energy = legacy["assumptions"]["energy"].as_object_mut().unwrap();
+        let recovery = energy.remove("transport_heat_recovery_fraction").unwrap();
+        energy.insert("neutron_heat_recovery_fraction".into(), recovery);
+        let rates = legacy["driving_rates"].as_object_mut().unwrap();
+        let heating = rates.remove("transport_deposited_heat_w").unwrap();
+        rates.insert("neutron_deposited_heat_w".into(), heating);
+        for snapshot in legacy["snapshots"].as_array_mut().unwrap() {
+            let values = snapshot.as_object_mut().unwrap();
+            let heat = values
+                .remove("instantaneous_transport_recovered_heat_mw")
+                .unwrap();
+            values.insert("instantaneous_neutron_recovered_heat_mw".into(), heat);
+            let heat = values
+                .remove("cumulative_transport_recovered_heat_mwh")
+                .unwrap();
+            values.insert("cumulative_neutron_recovered_heat_mwh".into(), heat);
+        }
+        let restored: HistoryResult = serde_json::from_value(legacy).unwrap();
+        assert!(restored.driving_rates.transport_deposited_heat_w.is_some());
+        assert!(
+            restored
+                .snapshots
+                .last()
+                .unwrap()
+                .cumulative_transport_recovered_heat_mwh
+                .is_some()
+        );
     }
 
     #[test]
@@ -1328,13 +1383,13 @@ mod tests {
         a.energy = faris_model::history::EnergyAssumptions {
             alpha_deposition_fraction: Some(1.0),
             thermal_to_electric_efficiency: Some(0.4),
-            neutron_heat_recovery_fraction: Some(0.9),
+            transport_heat_recovery_fraction: Some(0.9),
             auxiliary_power_mw_while_operating: Some(2.0),
             auxiliary_power_mw_while_off: Some(5.0),
             provenance: "analytic control inputs".into(),
         };
         let mut r = rates();
-        r.neutron_deposited_heat_w = Some(ScalarRate {
+        r.transport_deposited_heat_w = Some(ScalarRate {
             mean: 10e6,
             standard_error: Some(0.0),
             unit: "W".into(),
@@ -1342,7 +1397,7 @@ mod tests {
         });
         let result = run_operating_history(&a, &r).unwrap();
         let on = result.snapshots.iter().find(|s| s.time_s == 0.0).unwrap();
-        assert!((on.instantaneous_neutron_recovered_heat_mw.unwrap() - 9.0).abs() < 1e-12);
+        assert!((on.instantaneous_transport_recovered_heat_mw.unwrap() - 9.0).abs() < 1e-12);
         assert!(on.instantaneous_alpha_recovered_heat_mw.unwrap() > 0.19);
         assert!(on.instantaneous_net_electricity_mw.unwrap() > 1.0);
         let off = result.snapshots.iter().find(|s| s.time_s == 10.0).unwrap();

@@ -1,0 +1,92 @@
+{
+  "schema": "faris-operating-history-coupled-reference-fields-v2/v1",
+  "status": "SUCCEEDED; TRANSPORT_BINDING_AND_CONDITIONAL_LEDGER_ARITHMETIC_VERIFIED; PHYSICAL_ENERGY_CLOSURE_NOT_EVALUATED",
+  "scope": "1,000,000-history coupled transport reference with authored conditional operating ledger; code/demo verification, not engineering qualification",
+  "identities": {
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "run_json_sha256": "347135a3c50378bd41e1cdb8c6a577634d8579a1df7dadcf4117bf9218311e41",
+    "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9",
+    "assumptions_sha256": "0b94d7fe93f2027394488c54c9dd00ff5a771905f6ebe4e84d82e490bf2d7fb0",
+    "history_json_sha256": "1243a20040919f7f2396d5e5ac92355e1807641c7398cbfebfb68d6545976955",
+    "rates_json_sha256": "957d8bd5d3052e6945238789daa51150a3c8e12949edf1209d687fdea0b676ae",
+    "decimal_control_json_sha256": "18e1e360bdcdc39611e289034c573893a3a0f966ea98fea89363e06ad15126c3"
+  },
+  "sampling": {
+    "histories": 1000000,
+    "batches": 100,
+    "particles_per_batch": 10000,
+    "seed": 80117033,
+    "threads": 1,
+    "openmc_version": "0.15.3",
+    "openmc_commit": "27e38e894697bb32a1dac7848d2618818b6b8daf",
+    "elapsed_seconds": 1781.653120528
+  },
+  "migration": {
+    "legacy_read_aliases": [
+      "neutron_deposited_heat_w",
+      "neutron_heat_recovery_fraction",
+      "instantaneous_neutron_recovered_heat_mw",
+      "cumulative_neutron_recovered_heat_mwh"
+    ],
+    "current_serialized_names": [
+      "transport_deposited_heat_w",
+      "transport_heat_recovery_fraction",
+      "instantaneous_transport_recovered_heat_mw",
+      "cumulative_transport_recovered_heat_mwh"
+    ],
+    "semantic_change": "field labels clarify total-particle-scope heating; underlying tally and history mathematics unchanged"
+  },
+  "binding_audit": {
+    "status": "PASS",
+    "source_run_execution": "SUCCEEDED",
+    "raw_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9",
+    "component_flux_bindings_checked": 6,
+    "whole_model_heat_estimator": "collision",
+    "whole_model_heat_W": 536461842.5601156,
+    "whole_model_heat_standard_error_W": 292994.05294306,
+    "particle_scope_mean_relative_difference": "6.43546665597773258346124593028380601767297332E-13",
+    "standard_errors_not_summed": true,
+    "note": "component flux means, including small nonzero magnet values, are sampled estimates; no lifetime qualification follows"
+  },
+  "energy_ledger_audit": {
+    "status": "PASS",
+    "transport_heating_input_W": "536461842.5601156",
+    "recovered_transport_heat_MWh": "3467288.0952136051659723197433447",
+    "recovered_alpha_heat_MWh": "749761.7179859967300157844141913672523150275",
+    "gross_electricity_MWh": "1686819.92527984075839524166301442690092601100",
+    "auxiliary_electricity_MWh": "1709876.51320296312916666666666666666666666667",
+    "net_electricity_MWh": "-23056.58792312237077142500365223976574065567",
+    "meaning": "conditional ledger arithmetic only; no heat-cycle or engineering qualification"
+  },
+  "mass_balance_audit": {
+    "decimal_max_abs_residual_kg": "7.6576E-13",
+    "engine_max_abs_residual_kg": 7.673861546209082e-13,
+    "tolerance_kg": 5.162349618903557e-09,
+    "snapshots": 11004
+  },
+  "history_outcome": {
+    "outcome": "horizon_completed",
+    "events": 63,
+    "available_tritium_kg": 0.11029664895139915,
+    "produced_tritium_kg": 20.866896418993864,
+    "burned_tritium_kg": 24.106538588712183,
+    "full_power_years": 0.8192323920995647,
+    "cumulative_gross_electricity_mwh": 1686819.9252798315,
+    "cumulative_auxiliary_electricity_mwh": 1709876.5132029608,
+    "cumulative_net_electricity_mwh": -23056.587923088577
+  },
+  "physical_energy_closure": "NOT_EVALUATED. OpenMC heating includes reaction-energy KERMA terms; this work does not tally a complete neutron-source + material reaction-Q + escaped-particle balance.",
+  "qualification": "conditional authored demo ledger only. Transport heating recovery, alpha deposition, conversion, service thresholds, inventories, delay, and auxiliary loads are illustrative inputs and not facility predictions.",
+  "sampling_response_summary": {
+    "whole_model_heating_W": 536461842.5601156,
+    "whole_model_heating_standard_error_W": 292994.05294306,
+    "blanket_h3_production_per_s": 1.6116073778548975e+20,
+    "blanket_h3_production_standard_error_per_s": 2.18313360394247e+17,
+    "blanket_h3_per_source_neutron": 0.8656114750108154,
+    "blanket_h3_per_source_neutron_standard_error": 0.0011725842938058724,
+    "magnets_average_flux_n_m2_s": 9296447338383.65,
+    "magnets_average_flux_standard_error_n_m2_s": 4612535280771.372,
+    "magnets_average_flux_relative_standard_error": 0.49616107238373724,
+    "note": "standard errors are sampled tally estimates; no covariance combination or lifetime qualification is claimed"
+  }
+}

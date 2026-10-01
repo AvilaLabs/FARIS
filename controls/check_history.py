@@ -48,17 +48,19 @@ def close(actual, expected, label, *, rtol=D("1e-10"), atol=D("1e-12")):
 def verify_energy_ledger(result):
     rates, assumptions = result["driving_rates"], result["assumptions"]
     energy = assumptions["energy"]
-    require = (rates["neutron_deposited_heat_w"] is not None
+    heating_rate = rates.get("transport_deposited_heat_w", rates.get("neutron_deposited_heat_w"))
+    recovery = energy.get("transport_heat_recovery_fraction", energy.get("neutron_heat_recovery_fraction"))
+    require = (heating_rate is not None
                and energy["alpha_deposition_fraction"] is not None
-               and energy["neutron_heat_recovery_fraction"] is not None
+               and recovery is not None
                and energy["thermal_to_electric_efficiency"] is not None
                and energy["auxiliary_power_mw_while_operating"] is not None
                and energy["auxiliary_power_mw_while_off"] is not None)
     if not require:
         return {"status": "NOT_EVALUATED_INPUTS_UNAVAILABLE"}
 
-    heat_w = D(str(rates["neutron_deposited_heat_w"]["mean"]))
-    recovery = D(str(energy["neutron_heat_recovery_fraction"]))
+    heat_w = D(str(heating_rate["mean"]))
+    recovery = D(str(recovery))
     alpha_fraction = D(str(energy["alpha_deposition_fraction"]))
     efficiency = D(str(energy["thermal_to_electric_efficiency"]))
     reaction_rate = D(str(rates["fusion_reaction_rate_per_s"]))
@@ -81,12 +83,13 @@ def verify_energy_ledger(result):
         gross_mw = (neutron_mw + alpha_mw) * efficiency
         aux_mw = D(str(energy["auxiliary_power_mw_while_operating"] if snapshot["operating"]
                         else energy["auxiliary_power_mw_while_off"]))
-        for key, expected in (("instantaneous_neutron_recovered_heat_mw", neutron_mw),
-                              ("instantaneous_alpha_recovered_heat_mw", alpha_mw),
-                              ("instantaneous_gross_electricity_mw", gross_mw),
-                              ("instantaneous_auxiliary_electricity_mw", aux_mw),
-                              ("instantaneous_net_electricity_mw", gross_mw - aux_mw)):
-            close(snapshot[key], expected, key, rtol=D("1e-10"), atol=D("1e-9"))
+        for key, legacy, expected in (("instantaneous_transport_recovered_heat_mw", "instantaneous_neutron_recovered_heat_mw", neutron_mw),
+                                      ("instantaneous_alpha_recovered_heat_mw", None, alpha_mw),
+                                      ("instantaneous_gross_electricity_mw", None, gross_mw),
+                                      ("instantaneous_auxiliary_electricity_mw", None, aux_mw),
+                                      ("instantaneous_net_electricity_mw", None, gross_mw - aux_mw)):
+            close(snapshot.get(key, snapshot.get(legacy) if legacy else None), expected, key,
+                  rtol=D("1e-10"), atol=D("1e-9"))
         last_t = t
         prior_operating = bool(snapshot["operating"])
         full_power_s = D(str(snapshot["cumulative_full_power_seconds"]))
@@ -95,14 +98,15 @@ def verify_energy_ledger(result):
     neutron_mwh = heat_w / D("1e6") * recovery * full_power_s / D("3600")
     alpha_mwh = reaction_rate * (q_ev - neutron_ev) * joule_per_ev / D("1e6") * alpha_fraction * full_power_s / D("3600")
     gross_mwh = (neutron_mwh + alpha_mwh) * efficiency
-    for key, expected in (("cumulative_neutron_recovered_heat_mwh", neutron_mwh),
-                          ("cumulative_alpha_recovered_heat_mwh", alpha_mwh),
-                          ("cumulative_gross_electricity_mwh", gross_mwh),
-                          ("cumulative_auxiliary_electricity_mwh", auxiliary_mwh),
-                          ("cumulative_net_electricity_mwh", gross_mwh - auxiliary_mwh)):
-        close(last[key], expected, key, rtol=D("1e-9"), atol=D("1e-8"))
-    return {"status": "PASS", "neutron_heat_input_W": str(heat_w),
-            "recovered_neutron_heat_MWh": str(neutron_mwh),
+    for key, legacy, expected in (("cumulative_transport_recovered_heat_mwh", "cumulative_neutron_recovered_heat_mwh", neutron_mwh),
+                                  ("cumulative_alpha_recovered_heat_mwh", None, alpha_mwh),
+                                  ("cumulative_gross_electricity_mwh", None, gross_mwh),
+                                  ("cumulative_auxiliary_electricity_mwh", None, auxiliary_mwh),
+                                  ("cumulative_net_electricity_mwh", None, gross_mwh - auxiliary_mwh)):
+        close(last.get(key, last.get(legacy) if legacy else None), expected, key,
+              rtol=D("1e-9"), atol=D("1e-8"))
+    return {"status": "PASS", "transport_heating_input_W": str(heat_w),
+            "recovered_transport_heat_MWh": str(neutron_mwh),
             "recovered_alpha_heat_MWh": str(alpha_mwh),
             "gross_electricity_MWh": str(gross_mwh),
             "auxiliary_electricity_MWh": str(auxiliary_mwh),
@@ -136,7 +140,7 @@ def verify_transport_binding(history, run_path):
     heat = by_id["heating-total-whole-model"]
     if heat["domain"] != {"kind": "whole_model"} or heat["integrated_unit"] != "watts":
         raise AssertionError("whole-model heating response has unexpected domain or unit")
-    heating_rate = rates["neutron_deposited_heat_w"]
+    heating_rate = rates.get("transport_deposited_heat_w", rates.get("neutron_deposited_heat_w"))
     if heating_rate["response_id"] != "heating-total-whole-model" or heating_rate["unit"] != "W":
         raise AssertionError("history did not select the declared whole-model heating response")
     close(heating_rate["mean"], heat["integrated_mean"], "whole-model heat binding")
@@ -192,8 +196,12 @@ def verify_engine_history(path, run_path=None):
         raise AssertionError("Decimal site-balance residual exceeds engine tolerance")
     for snapshot in result["snapshots"]:
         if snapshot["cumulative_net_electricity_mwh"] is not None:
-            expected = snapshot["cumulative_gross_electricity_mwh"] - snapshot["cumulative_auxiliary_electricity_mwh"]
-            if abs(expected - snapshot["cumulative_net_electricity_mwh"]) > 1e-10 * max(1.0, abs(expected)):
+            gross = snapshot["cumulative_gross_electricity_mwh"]
+            auxiliary = snapshot["cumulative_auxiliary_electricity_mwh"]
+            expected = gross - auxiliary
+            # Net power can be a small difference between large cumulative terms;
+            # scale roundoff by those operands instead of the cancellation result.
+            if abs(expected - snapshot["cumulative_net_electricity_mwh"]) > 1e-10 * max(1.0, abs(gross), abs(auxiliary)):
                 raise AssertionError("gross minus auxiliary electricity does not close to net")
     energy_audit = verify_energy_ledger(result)
     binding_audit = verify_transport_binding(result, run_path) if run_path else None

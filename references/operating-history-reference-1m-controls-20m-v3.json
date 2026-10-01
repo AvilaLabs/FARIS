@@ -1,0 +1,139 @@
+{
+  "schema": "faris-operating-history-reference-1m-controls/v3",
+  "status": "REFERENCE HISTORY, EVENT HISTORY, 27-POINT SENSITIVITY, AND SOFTWARE-ONLY PERMANENT TRIP VERIFIED; 20M-16M40S REFINEMENT PASS; PHYSICAL QUALIFICATION NOT EVALUATED",
+  "scope": "A 1,000,000-history OpenMC transport sample bound to deterministic 20-minute event-aware histories. Numerical/code control only, not experimental validation or engineering qualification.",
+  "transport": {
+    "run_json_sha256": "347135a3c50378bd41e1cdb8c6a577634d8579a1df7dadcf4117bf9218311e41",
+    "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+    "transport_artifact_sha256": "0e642ceb25a650cc06715ec2be4e9c914ff196038be15c0ef97745fcaa7e48c9",
+    "solver": {
+      "name": "OpenMC",
+      "version": "0.15.3",
+      "digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51"
+    },
+    "nuclear_data": {
+      "name": "Local FENDL-3.2 neutron and ENDF/B-VII.1 photon inventory; provenance per component audit",
+      "version": "FENDL-3.2 neutron + ENDF/B-VII.1 photon",
+      "digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db"
+    },
+    "histories": 1000000,
+    "batches": 100,
+    "particles_per_batch": 10000,
+    "seed": 80117033,
+    "threads": 1,
+    "whole_model_heat_W": 536461842.5601156,
+    "whole_model_heat_standard_error_W": 292994.05294306,
+    "blanket_h3_production_per_s": 1.6116073778548975e+20,
+    "blanket_h3_production_standard_error_per_s": 2.18313360394247e+17,
+    "blanket_h3_per_source_neutron": 0.8656114750108154,
+    "blanket_h3_per_source_neutron_standard_error": 0.0011725842938058724,
+    "magnet_flux_n_m2_s": 9296447338383.65,
+    "magnet_flux_standard_error_n_m2_s": 4612535280771.372,
+    "magnet_flux_relative_standard_error": 0.49616107238373724
+  },
+  "baseline_history": {
+    "assumptions_sha256": "5856b2762eff084242f9ca4a09d2e89deef762724641402cd2bb4fe56d3b5841",
+    "history_sha256": "6571f6bcf6b9eaca88cfcf3b5d1406fbe3fc6819a1f5712b0fec1a94f1a04554",
+    "rates_sha256": "957d8bd5d3052e6945238789daa51150a3c8e12949edf1209d687fdea0b676ae",
+    "decimal_audit_sha256": "211f7cf365b9399c4e7bccecd47e95f137a0c14577c2b2954795cc0fb9d7622b",
+    "maximum_step_s": 1200,
+    "horizon_s": 946728000.0,
+    "outcome": "horizon_completed",
+    "snapshots": 11004,
+    "events": 63,
+    "full_power_years": 0.8193161089998278,
+    "available_tritium_kg": 0.1102115056519951,
+    "produced_tritium_kg": 20.869028795475927,
+    "burned_tritium_kg": 24.109002022416806,
+    "gross_electricity_MWh": 1686992.3004651978,
+    "auxiliary_electricity_MWh": 1709916.87565171,
+    "signed_net_electricity_MWh": -22924.57516658602,
+    "decimal_mass_residual_max_kg": "1.25399E-12",
+    "mass_balance_tolerance_kg": 5.162784608529987e-09
+  },
+  "event_demonstration": {
+    "assumptions_sha256": "9247b91b2ea7091bc473b8f9b54f291a41d9161427a77721bc6e45b391af792c",
+    "history_sha256": "59a1fac3030f20419f6b527e300ee2b57adfc064e6fe5d3b8543621f40c54f5c",
+    "rates_sha256": "957d8bd5d3052e6945238789daa51150a3c8e12949edf1209d687fdea0b676ae",
+    "decimal_audit_sha256": "7f76d44bb7d3b274dbeba93c148321039298d22592fb782e93196174d364d1c0",
+    "outcome": "horizon_completed",
+    "snapshots": 11055,
+    "events": 282,
+    "event_counts": {
+      "fuel_unavailable": 1,
+      "operation_started": 41,
+      "operation_stopped": 41,
+      "planned_outage_ended": 53,
+      "planned_outage_started": 53,
+      "replacement_completed": 31,
+      "replacement_started": 31,
+      "service_limit_reached": 31
+    },
+    "blanket_replacements": 31,
+    "fuel_unavailable_events": 1,
+    "permanent_magnet_trip_events": 0,
+    "final_mean_based_magnet_fluence_n_m2": 3.281122286347004e+21,
+    "authored_magnet_threshold_n_m2": 4e+21,
+    "interpretation": "No magnet trip occurs in this point-mean history before fuel starvation. Magnet flux SE is 49.6% relative; event time/status is not uncertainty-propagated and is not a physical exposure bound."
+  },
+  "sensitivity": {
+    "grid_sha256": "0bbeb1f835c3d6940befdb7470a81ad33a68766f745c21f85ed6071dc28bb53c",
+    "result_sha256": "2530d2ac0c762cbec348e6375c6fc2a0919a4983f23d38e7e1aaf3e4df61b4fa",
+    "cases": 27,
+    "recovery_levels": [
+      0.9,
+      0.95,
+      0.99
+    ],
+    "delay_multipliers": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "service_limit_multipliers": [
+      0.5,
+      1.0,
+      2.0
+    ],
+    "full_power_years_range": [
+      0.6577462473722416,
+      1.0171278907418047
+    ],
+    "production_kg_range": [
+      16.75363785204364,
+      25.907547779677376
+    ],
+    "signed_net_MWh_range": [
+      -277703.27207763493,
+      289003.8221076115
+    ],
+    "negative_net_cases": 18,
+    "positive_net_cases": 9,
+    "segment_bound_check": "all 27 history reruns completed with the 1200 s step under the engine 1,000,000-segment ceiling; event/sensitivity outcomes remain conditional point-mean calculations."
+  },
+  "time_refinement": {
+    "acceptance_criterion": "Relative changes <=1e-4 for cumulative production, burn, full-power seconds and fusion energy; absolute final available-inventory and decay changes <=1e-4 kg; identical event-kind sequence; event movement <=coarse step.",
+    "coarse_step_s": 1200,
+    "fine_step_s": 1000,
+    "coarse_history_sha256": "6571f6bcf6b9eaca88cfcf3b5d1406fbe3fc6819a1f5712b0fec1a94f1a04554",
+    "fine_history_sha256": "af35e2c22cff720cd0976a3749c1a8da3556f1442ddf9819b0af867785bdbdf1",
+    "audit_status": "PASS",
+    "relative_changes": {
+      "cumulative_production_kg": 1.0983386959888211e-05,
+      "cumulative_burn_kg": 1.0983386961170231e-05,
+      "cumulative_full_power_seconds": 1.0983386957404898e-05,
+      "cumulative_fusion_energy_mwh": 1.0983386955573063e-05
+    },
+    "available_inventory_change_kg": 9.152214712732087e-06,
+    "decay_change_kg": 3.7892531405847585e-05,
+    "max_event_time_change_s": 283.98260943964124,
+    "one_hour_failure_record": "references/operating-history-reference-1m-controls-v2.json retains the 3600-to-1800 s miss; using 1200 s as default does not erase it."
+  },
+  "software_only_permanent_trip": {
+    "result_record": "references/software-permanent-trip-control-result.json",
+    "result_record_sha256": "e89fd20cd4426cc0692dd0bcdae765406a82c70abf7eb61d6fb077182e595c9c",
+    "status": "PASS only for deterministic event sequencing under synthetic rates; no solver/data/artifact or physical flux is represented."
+  },
+  "uncertainty_treatment": "The deterministic history uses sampled transport response means. Standard errors remain bound in driving_rates, but Monte Carlo covariance, response uncertainty, tritium half-life uncertainty, assumption uncertainty, and model discrepancy are not propagated to fluence, service event times, or signed net output. Zero/zero no-track tallies are conditional sample observations, not proof of zero true rate or an upper bound. Positive or negative ledger signs and missing service events therefore remain unqualified conditional results.",
+  "physical_energy_closure": "NOT_EVALUATED. Whole-model heating includes reaction-energy KERMA; no complete neutron-source + material reaction-Q + escaped-particle balance was tallied."
+}

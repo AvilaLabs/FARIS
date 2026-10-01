@@ -1,7 +1,7 @@
 {
   "schema_version": "faris-operating-history/v0.1",
   "horizon_s": 946728000,
-  "maximum_step_s": 3600,
+  "maximum_step_s": 1200,
   "snapshot_interval_s": 86400,
   "initial_available_tritium_kg": 5,
   "initial_in_process_tritium_kg": 0,
@@ -194,10 +194,10 @@
   "energy": {
     "alpha_deposition_fraction": 1,
     "thermal_to_electric_efficiency": 0.4,
-    "neutron_heat_recovery_fraction": 0.9,
     "auxiliary_power_mw_while_operating": 60,
     "auxiliary_power_mw_while_off": 5,
-    "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model neutron/photon heat recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically."
+    "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model total-particle transport heating recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically.",
+    "transport_heat_recovery_fraction": 0.9
   },
   "provenance": "Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years.",
   "restart_inventory_kg": 0.6

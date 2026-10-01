@@ -5,8 +5,10 @@ use crate::{
     DemoManifest, build_manifest,
     jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, ResourceLimits, run_job},
     transport::{
-        NormalizedEnergySpectrum, NormalizedTransportResult, RawTransportSpectra,
-        TransportArtifact, normalize_spectra, normalize_transport_artifact,
+        DomainVolume, MAX_TRANSPORT_ARTIFACT_BYTES, NormalizedEnergySpectrum, NormalizedTally,
+        NormalizedTransportResult, PhysicalUnit, RawTally, RawTallyUnit, RawTransportSpectra,
+        TallyEstimator, ToolIdentity, TransportArtifact, VolumeUnit, normalize_spectra,
+        normalize_transport_artifact,
     },
 };
 use faris_model::{
@@ -17,8 +19,8 @@ use faris_model::{
     },
     transport::{
         HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDefinition,
-        ResponseDomain, ScoreDefinition, TRANSPORT_REQUEST_LEGACY_VERSION,
-        TRANSPORT_REQUEST_VERSION, TransportRequest,
+        ResponseDomain, ScoreDefinition, TRANSPORT_ARTIFACT_VERSION,
+        TRANSPORT_REQUEST_LEGACY_VERSION, TRANSPORT_REQUEST_VERSION, TransportRequest,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -46,9 +48,108 @@ pub struct FieldMesh {
     pub upper_right_m: [f64; 3],
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeshPreset {
+    Coarse,
+    OutboardLocalCoarse,
+    OutboardLocal,
+    OutboardPortWindow,
+}
+
+impl MeshPreset {
+    pub fn from_cli(value: &str) -> Result<Self, ReactorError> {
+        match value {
+            "coarse" => Ok(Self::Coarse),
+            "outboard-local-coarse" => Ok(Self::OutboardLocalCoarse),
+            "outboard-local" => Ok(Self::OutboardLocal),
+            "outboard-port-window" => Ok(Self::OutboardPortWindow),
+            _ => Err("mesh preset must be coarse, outboard-local-coarse, outboard-local, or outboard-port-window".into()),
+        }
+    }
+}
+
 impl FieldMesh {
     pub fn bins(&self) -> usize {
         self.dimensions.iter().product()
+    }
+    pub fn validate(&self, manifest: &DemoManifest) -> Result<(), ReactorError> {
+        let count = self
+            .dimensions
+            .iter()
+            .try_fold(1usize, |n, d| n.checked_mul(*d))
+            .ok_or("mesh bin count overflows")?;
+        if self.id.trim().is_empty()
+            || self.dimensions.contains(&0)
+            || count > 32_768
+            || (0..3).any(|a| {
+                !self.lower_left_m[a].is_finite()
+                    || !self.upper_right_m[a].is_finite()
+                    || self.lower_left_m[a] >= self.upper_right_m[a]
+            })
+        {
+            return Err("mesh dimensions/bounds are invalid or exceed the 32,768-bin cap".into());
+        }
+        let extent = manifest.major_radius_m
+            + manifest
+                .variants
+                .iter()
+                .flat_map(|v| &v.components)
+                .map(|c| c.outer_minor_radius_m)
+                .fold(0.0_f64, f64::max);
+        let outer = manifest
+            .variants
+            .iter()
+            .flat_map(|v| &v.components)
+            .map(|c| c.outer_minor_radius_m)
+            .fold(0.0_f64, f64::max);
+        if self.lower_left_m[0] < -extent
+            || self.upper_right_m[0] > extent
+            || self.lower_left_m[2] < -extent
+            || self.upper_right_m[2] > extent
+            || self.lower_left_m[1] < -outer
+            || self.upper_right_m[1] > outer
+        {
+            return Err("mesh bounds exceed the model's rectangular torus envelope".into());
+        }
+        Ok(())
+    }
+
+    pub fn for_preset(manifest: &DemoManifest, preset: MeshPreset) -> Result<Self, ReactorError> {
+        let outer = manifest
+            .variants
+            .iter()
+            .flat_map(|v| &v.components)
+            .map(|c| c.outer_minor_radius_m)
+            .fold(0.0_f64, f64::max);
+        let extent = manifest.major_radius_m + outer;
+        let mesh = match preset {
+            MeshPreset::Coarse => Self {
+                id: "neutron-flux".into(),
+                dimensions: [12, 8, 12],
+                lower_left_m: [-extent, -outer, -extent],
+                upper_right_m: [extent, outer, extent],
+            },
+            MeshPreset::OutboardLocalCoarse => Self {
+                id: "neutron-flux-outboard-local-coarse".into(),
+                dimensions: [12, 6, 12],
+                lower_left_m: [manifest.major_radius_m + 0.7, -0.45, -0.45],
+                upper_right_m: [extent, 0.45, 0.45],
+            },
+            MeshPreset::OutboardLocal => Self {
+                id: "neutron-flux-outboard-local".into(),
+                dimensions: [24, 12, 24],
+                lower_left_m: [manifest.major_radius_m + 0.7, -0.45, -0.45],
+                upper_right_m: [extent, 0.45, 0.45],
+            },
+            MeshPreset::OutboardPortWindow => Self {
+                id: "neutron-flux-outboard-port-window".into(),
+                dimensions: [1, 1, 1],
+                lower_left_m: [manifest.major_radius_m + 1.04, -0.15, -0.15],
+                upper_right_m: [extent, 0.15, 0.15],
+            },
+        };
+        mesh.validate(manifest)?;
+        Ok(mesh)
     }
     pub fn bin_volume_m3(&self) -> f64 {
         (0..3)
@@ -75,6 +176,187 @@ impl FieldMesh {
                     / self.dimensions[axis] as f64
         }))
     }
+}
+
+fn mesh_payload_preflight(
+    request: &TransportRequest,
+    manifest: &DemoManifest,
+    input_json_bytes: usize,
+) -> Result<MeshPreflight, ReactorError> {
+    let request_bytes = serde_json::to_vec_pretty(request)?.len();
+    if request_bytes > MAX_JSON_BYTES as usize {
+        return Err("transport request exceeds 16 MiB JSON limit".into());
+    }
+    let mut volumes = Vec::new();
+    let mut tallies = Vec::with_capacity(request.responses.len());
+    let max = f64::MAX;
+    for response in &request.responses {
+        if !volumes
+            .iter()
+            .any(|v: &DomainVolume| v.domain == response.domain)
+        {
+            volumes.push(DomainVolume {
+                domain: response.domain.clone(),
+                value: max,
+                standard_error: max,
+                unit: VolumeUnit::CubicCentimetre,
+            });
+        }
+        let (estimator, unit) = match &response.score {
+            ScoreDefinition::Flux => (TallyEstimator::Tracklength, RawTallyUnit::CmPerSource),
+            ScoreDefinition::ReactionRate { .. } => {
+                (TallyEstimator::Tracklength, RawTallyUnit::EventsPerSource)
+            }
+            ScoreDefinition::ParticleProduction { .. } => (
+                TallyEstimator::Tracklength,
+                RawTallyUnit::ParticlesPerSource,
+            ),
+            ScoreDefinition::Heating { .. } => {
+                (TallyEstimator::Collision, RawTallyUnit::EvPerSource)
+            }
+        };
+        tallies.push(RawTally {
+            response_id: response.id.clone(),
+            estimator,
+            unit,
+            mean: max,
+            standard_error: max,
+        });
+    }
+    let artifact = TransportArtifact {
+        schema_version: TRANSPORT_ARTIFACT_VERSION.into(),
+        request: request.clone(),
+        solver: ToolIdentity {
+            name: "OpenMC".into(),
+            version: "0.15.3".into(),
+            digest: format!("sha256:{}", "0".repeat(64)),
+        },
+        nuclear_data: ToolIdentity {
+            name: "bounded preflight".into(),
+            version: "local".into(),
+            digest: format!("sha256:{}", "0".repeat(64)),
+        },
+        histories: 10_000_000,
+        volumes,
+        tallies,
+    };
+    let raw_bound = serde_json::to_vec_pretty(&artifact)?.len();
+    if raw_bound > MAX_TRANSPORT_ARTIFACT_BYTES {
+        return Err("requested tallies exceed the 16 MiB raw-artifact budget".into());
+    }
+
+    let variant = manifest
+        .variants
+        .iter()
+        .find(|v| v.id == request.variant_id)
+        .ok_or("mesh preflight variant missing")?;
+    let mut normalized_results = Vec::with_capacity(request.responses.len());
+    for response in &request.responses {
+        let (unit, integrated_unit) = match &response.score {
+            ScoreDefinition::Flux => (
+                PhysicalUnit::NeutronsPerSquareMetreSecond,
+                PhysicalUnit::NeutronMetresPerSecond,
+            ),
+            ScoreDefinition::ReactionRate { .. } => (
+                PhysicalUnit::ReactionsPerCubicMetreSecond,
+                PhysicalUnit::ReactionsPerSecond,
+            ),
+            ScoreDefinition::ParticleProduction { .. } => (
+                PhysicalUnit::ParticlesPerCubicMetreSecond,
+                PhysicalUnit::ParticlesPerSecond,
+            ),
+            ScoreDefinition::Heating { .. } => {
+                (PhysicalUnit::WattsPerCubicMetre, PhysicalUnit::Watts)
+            }
+        };
+        let domain_volume = match &response.domain {
+            ResponseDomain::Mesh { .. } => request
+                .responses
+                .iter()
+                .find(|r| r.domain == response.domain)
+                .map(|_| 1.0)
+                .unwrap_or(1.0),
+            ResponseDomain::WholeModel => 1.0,
+            ResponseDomain::Component { component_id } => variant
+                .components
+                .iter()
+                .find(|c| &c.id == component_id)
+                .map(|c| c.full_torus_volume_m3)
+                .unwrap_or(1.0),
+        };
+        normalized_results.push(NormalizedTally {
+            response_id: response.id.clone(),
+            domain: response.domain.clone(),
+            score: response.score.clone(),
+            estimator: match &response.score {
+                ScoreDefinition::Heating { .. } => TallyEstimator::Collision,
+                _ => TallyEstimator::Tracklength,
+            },
+            mean: max,
+            standard_error: max,
+            unit,
+            integrated_mean: max,
+            integrated_standard_error: max,
+            integrated_unit,
+            volume_m3: domain_volume,
+            volume_standard_error_m3: max,
+        });
+    }
+    let normalized = NormalizedTransportResult {
+        schema_version: "faris-normalized-transport/v0.1".into(),
+        scenario_id: request.scenario_id.clone(),
+        scenario_sha256: request.scenario_sha256.clone(),
+        variant_id: request.variant_id.clone(),
+        source: request.source.clone(),
+        solver: artifact.solver.clone(),
+        nuclear_data: artifact.nuclear_data.clone(),
+        histories: artifact.histories,
+        source_reaction_rate_per_s: max,
+        source_neutron_rate_per_s: max,
+        results: normalized_results,
+    };
+    let run_bound = serde_json::to_vec_pretty(&normalized)?
+        .len()
+        .saturating_add(64 * 1024);
+    if run_bound > MAX_JSON_BYTES as usize {
+        return Err("normalized run record exceeds the 16 MiB JSON budget".into());
+    }
+    let spectrum_bound = request_bytes.saturating_add(
+        request
+            .responses
+            .iter()
+            .filter(|r| {
+                matches!(&r.score, ScoreDefinition::Flux)
+                    && matches!(&r.domain, ResponseDomain::Component { .. })
+            })
+            .count()
+            .saturating_mul(
+                if request
+                    .responses
+                    .iter()
+                    .any(|r| matches!(r.score, ScoreDefinition::Heating { .. }))
+                {
+                    2
+                } else {
+                    1
+                },
+            )
+            .saturating_mul(2 * (11 * 48 + 1024)),
+    );
+    let package_bound = input_json_bytes
+        .saturating_add(raw_bound)
+        .saturating_add(run_bound)
+        .saturating_add(spectrum_bound)
+        .saturating_add(4 * 1024 * 1024);
+    if package_bound > 32 * 1024 * 1024 {
+        return Err("mesh request exceeds the 32 MiB evidence-package content budget".into());
+    }
+    Ok(MeshPreflight {
+        request_json_bytes: request_bytes,
+        raw_artifact_upper_bound_bytes: raw_bound,
+        run_json_upper_bound_bytes: run_bound,
+        package_content_upper_bound_bytes: package_bound,
+    })
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -141,6 +423,8 @@ pub struct ReactorRun {
     pub scientific_scope: ScientificScope,
     pub sampling: SamplingPlan,
     pub mesh: FieldMesh,
+    #[serde(default)]
+    pub mesh_preflight: Option<MeshPreflight>,
     pub execution: Option<JobResult>,
     pub import_error: Option<String>,
     pub raw_artifact_sha256: Option<String>,
@@ -153,6 +437,15 @@ pub struct ReactorRun {
     pub notice: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MeshPreflight {
+    pub request_json_bytes: usize,
+    pub raw_artifact_upper_bound_bytes: usize,
+    pub run_json_upper_bound_bytes: usize,
+    pub package_content_upper_bound_bytes: usize,
+}
+
 pub struct ReactorJob<'a> {
     pub scenario: &'a LoadedScenario,
     pub physics: &'a PhysicsCase,
@@ -162,6 +455,7 @@ pub struct ReactorJob<'a> {
     pub openmc: &'a Path,
     pub output: &'a Path,
     pub sampling: SamplingPlan,
+    pub mesh: Option<FieldMesh>,
     pub timeout: Duration,
     /// Embedded worker supplied by the client. Its exact bytes are preserved.
     pub adapter: &'a [u8],
@@ -379,25 +673,27 @@ pub fn request_for_case(
     scenario: &LoadedScenario,
     physics: &PhysicsCase,
 ) -> Result<(TransportRequest, FieldMesh), ReactorError> {
+    let manifest = build_manifest(scenario)?;
+    let mesh = FieldMesh::for_preset(&manifest, MeshPreset::Coarse)?;
+    request_for_case_with_mesh(scenario, physics, mesh)
+}
+
+pub fn request_for_case_with_mesh(
+    scenario: &LoadedScenario,
+    physics: &PhysicsCase,
+    mesh: FieldMesh,
+) -> Result<(TransportRequest, FieldMesh), ReactorError> {
     physics.validate_against(scenario)?;
     let manifest = build_manifest(scenario)?;
+    mesh.validate(&manifest)?;
     let variant = manifest
         .variants
         .iter()
         .find(|v| v.id == physics.variant_id)
         .ok_or("unknown variant")?;
-    let outer = variant
-        .components
-        .last()
-        .ok_or("empty variant")?
-        .outer_minor_radius_m;
-    let extent = manifest.major_radius_m + outer;
-    let mesh = FieldMesh {
-        id: "neutron-flux".into(),
-        dimensions: [12, 8, 12],
-        lower_left_m: [-extent, -outer, -extent],
-        upper_right_m: [extent, outer, extent],
-    };
+    if variant.components.is_empty() {
+        return Err("empty variant".into());
+    }
     let mut responses = vec![ResponseDefinition {
         id: "total-tritium-production".into(),
         domain: ResponseDomain::WholeModel,
@@ -460,7 +756,11 @@ pub fn request_for_case(
     }
     for bin in 0..mesh.bins() {
         responses.push(ResponseDefinition {
-            id: format!("mesh-flux-{bin}"),
+            id: if mesh.id == "neutron-flux-outboard-port-window" && bin == 0 {
+                "outboard-port-window-flux".into()
+            } else {
+                format!("mesh-flux-{bin}")
+            },
             domain: ResponseDomain::Mesh {
                 mesh_id: mesh.id.clone(),
                 bin: bin as u64,
@@ -599,7 +899,9 @@ pub fn run_reactor(
         &serde_json::from_slice(&audit_bytes)?,
         &cross_sections,
     )?;
-    let (request, mesh) = request_for_case(job.scenario, &physics)?;
+    let default_mesh = FieldMesh::for_preset(&build_manifest(job.scenario)?, MeshPreset::Coarse)?;
+    let requested_mesh = job.mesh.clone().unwrap_or(default_mesh);
+    let (request, mesh) = request_for_case_with_mesh(job.scenario, &physics, requested_mesh)?;
     let nuclear_data_digest = format!(
         "sha256:{}",
         digest(&serde_json::to_vec(&physics.nuclear_data)?)
@@ -616,6 +918,10 @@ pub fn run_reactor(
         nuclear_data_digest,
     };
     let input_bytes = serde_json::to_vec_pretty(&input)?;
+    if input_bytes.len() > MAX_JSON_BYTES as usize {
+        return Err("serialized reactor input exceeds 16 MiB".into());
+    }
+    let mesh_preflight = mesh_payload_preflight(&request, &input.manifest, input_bytes.len())?;
     let output = std::path::absolute(job.output)?;
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
@@ -659,7 +965,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh,execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -748,8 +1054,11 @@ pub fn load_reactor_run(
     let (request, mesh) = if input_request.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION {
         legacy_request_for_case(scenario, &physics)?
     } else {
-        request_for_case(scenario, &physics)?
+        let mesh: FieldMesh = serde_json::from_value(input["mesh"].clone())?;
+        request_for_case_with_mesh(scenario, &physics, mesh)?
     };
+    let expected_preflight =
+        mesh_payload_preflight(&request, &build_manifest(scenario)?, input_bytes.len())?;
     if digest(&serde_json::to_vec(&physics)?) != record.physics_sha256
         || serde_json::from_value::<SamplingPlan>(input["sampling"].clone())? != record.sampling
         || !record
@@ -757,6 +1066,10 @@ pub fn load_reactor_run(
             .as_ref()
             .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded)
         || mesh != record.mesh
+        || record
+            .mesh_preflight
+            .as_ref()
+            .is_some_and(|saved| saved != &expected_preflight)
         || physics.variant_id != record.variant_id
         || physics.scientific_scope != record.scientific_scope
         || input_request != request
@@ -903,5 +1216,77 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+
+    #[test]
+    fn mesh_presets_are_bounded_and_local_pair_shares_exact_bounds() {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let manifest = build_manifest(&scenario).unwrap();
+        let coarse = FieldMesh::for_preset(&manifest, MeshPreset::Coarse).unwrap();
+        let local_coarse =
+            FieldMesh::for_preset(&manifest, MeshPreset::OutboardLocalCoarse).unwrap();
+        let local_fine = FieldMesh::for_preset(&manifest, MeshPreset::OutboardLocal).unwrap();
+        let port_window = FieldMesh::for_preset(&manifest, MeshPreset::OutboardPortWindow).unwrap();
+        assert_eq!(coarse.dimensions, [12, 8, 12]);
+        assert_eq!(local_coarse.lower_left_m, local_fine.lower_left_m);
+        assert_eq!(local_coarse.upper_right_m, local_fine.upper_right_m);
+        assert_eq!(local_coarse.bins(), 864);
+        assert_eq!(local_fine.bins(), 6912);
+        assert_eq!(port_window.bins(), 1);
+        assert!((port_window.bin_volume_m3() - 1.24 * 0.3 * 0.3).abs() < 1.0e-12);
+        assert!(local_fine.validate(&manifest).is_ok());
+
+        let invalid = FieldMesh {
+            dimensions: [usize::MAX, 2, 2],
+            ..local_fine.clone()
+        };
+        assert!(invalid.validate(&manifest).is_err());
+        let too_many = FieldMesh {
+            dimensions: [64, 64, 64],
+            ..local_fine.clone()
+        };
+        assert!(too_many.validate(&manifest).is_err());
+        let inverted = FieldMesh {
+            upper_right_m: local_fine.lower_left_m,
+            ..local_fine
+        };
+        assert!(inverted.validate(&manifest).is_err());
+    }
+
+    #[test]
+    fn local_mesh_json_preflight_fits_explicit_artifact_and_package_budgets() {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics = load_physics_case(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scenarios/arc-inspired/cold-coupled-control.reference.physics.json"
+            )),
+            &scenario,
+        )
+        .unwrap();
+        let manifest = build_manifest(&scenario).unwrap();
+        let mesh = FieldMesh::for_preset(&manifest, MeshPreset::OutboardLocal).unwrap();
+        let (request, _) = request_for_case_with_mesh(&scenario, &physics, mesh).unwrap();
+        let preflight = mesh_payload_preflight(&request, &manifest, 128 * 1024).unwrap();
+        assert!(preflight.request_json_bytes < MAX_JSON_BYTES as usize);
+        assert!(preflight.raw_artifact_upper_bound_bytes < MAX_TRANSPORT_ARTIFACT_BYTES);
+        assert!(preflight.run_json_upper_bound_bytes < MAX_JSON_BYTES as usize);
+        assert!(preflight.package_content_upper_bound_bytes < 32 * 1024 * 1024);
+        assert!(mesh_payload_preflight(&request, &manifest, 64 * 1024 * 1024).is_err());
+        let window = FieldMesh::for_preset(&manifest, MeshPreset::OutboardPortWindow).unwrap();
+        let (window_request, _) = request_for_case_with_mesh(&scenario, &physics, window).unwrap();
+        assert!(
+            window_request
+                .responses
+                .iter()
+                .any(|r| r.id == "outboard-port-window-flux")
+        );
+        assert!(mesh_payload_preflight(&window_request, &manifest, 128 * 1024).is_ok());
     }
 }

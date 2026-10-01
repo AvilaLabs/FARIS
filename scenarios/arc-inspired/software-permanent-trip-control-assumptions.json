@@ -1,0 +1,43 @@
+{
+  "schema_version": "faris-operating-history/v0.1",
+  "horizon_s": 259200,
+  "maximum_step_s": 1200,
+  "snapshot_interval_s": 86400,
+  "initial_available_tritium_kg": 1.0,
+  "initial_in_process_tritium_kg": 0.0,
+  "initial_in_process_release_s": 0.0,
+  "startup_reserve_kg": 0.1,
+  "restart_inventory_kg": 0.2,
+  "recovery_fraction": 0.95,
+  "processing_delay_s": 86400,
+  "operation": [
+    {
+      "start_s": 0,
+      "end_s": 259200,
+      "power_fraction": 1.0
+    }
+  ],
+  "planned_outages": [],
+  "imports": [],
+  "service_limits": [
+    {
+      "component_id": "magnets",
+      "class": "permanent",
+      "response_id": "magnets-flux",
+      "metric": "energy_integrated_component_average_neutron_flux",
+      "unit": "neutrons/m\u00b2",
+      "limit": 1e+24,
+      "replacement_duration_s": null,
+      "provenance": "Software-control trigger selected to test permanent-stop event sequencing against an explicitly synthetic high component flux; this number has no materials or plant meaning."
+    }
+  ],
+  "energy": {
+    "alpha_deposition_fraction": 1.0,
+    "transport_heat_recovery_fraction": 0.9,
+    "thermal_to_electric_efficiency": 0.4,
+    "auxiliary_power_mw_while_operating": 60.0,
+    "auxiliary_power_mw_while_off": 5.0,
+    "provenance": "Synthetic energy numbers are included only to exercise deterministic serialization; they have no physical meaning."
+  },
+  "provenance": "SOFTWARE-ONLY DETERMINISTIC EVENT TEST. Synthetic typed rates in the paired fixture are deliberately not from a reactor simulation. The sole purpose is to verify permanent service-trip transition ordering and completion. No OpenMC run, nuclear data, physical component flux, or engineering interpretation is represented."
+}
