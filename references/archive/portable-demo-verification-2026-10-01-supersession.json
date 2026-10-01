@@ -1,0 +1,16 @@
+{
+  "schema_version": "faris-portable-demo-supersession/v0.1",
+  "status": "SUPERSEDED_DELIVERY_DIAGNOSTIC_NOT_FINAL_DEMO_ACCEPTANCE",
+  "original_receipt": "references/archive/portable-demo-verification-2026-10-01-superseded-5203f0d6.json",
+  "original_receipt_sha256": "c600cdb4bc3aa74e751f78b682a008ce030bf70024eb7e7560a3628ba0547f94",
+  "original_package_index_sha256": "5203f0d60adacc4483486e3121e3a95fab6e2a97b7180dbae098eb2887f6e627",
+  "preserved_package_directory": "dist/FARIS-demo-2026-10-01.superseded-unindexed-pycache-5203f0d6",
+  "valid_scope": "The original relocated archive inspection/export/tamper checks passed with the recorded binaries and original index. Original receipt bytes are unchanged.",
+  "supersession_reasons": [
+    "Actual packaged launch imported Python modules before inventory validation and wrote unindexed __pycache__ files; launch was rejected before GUI startup.",
+    "Mandatory baseline planned-outage-duration sensitivity was not included.",
+    "Native frame throughput target remains unresolved at this binary.",
+    "Complete native dependency and embedded-font notices added for the replacement distribution."
+  ],
+  "corrective_work": "Disable bytecode writes before imports, route generated runs outside indexed distribution, add baseline-bound outage histories, measure and optimize native frame updates, include pinned dependency notices, rebuild and repeat final acceptance."
+}

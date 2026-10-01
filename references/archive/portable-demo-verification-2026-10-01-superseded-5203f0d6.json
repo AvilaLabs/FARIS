@@ -1,0 +1,250 @@
+{
+  "binaries": {
+    "avila-core": {
+      "bytes": 25066584,
+      "path": "bin/avila-core",
+      "sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+      "version": "avila-core 0.1.0"
+    },
+    "faris": {
+      "bytes": 4597512,
+      "path": "bin/faris",
+      "sha256": "sha256:6cf167d61369f16c735df4e5ed6c51a4f82b2d6634944daf63cf404754c744ba",
+      "version": "faris 0.0.1"
+    },
+    "faris-app": {
+      "bytes": 22091440,
+      "path": "bin/faris-app",
+      "sha256": "sha256:fc5d55dd04b8a2218688b8e77d6cf740a9979358c78e5ef3692064d597a3513c",
+      "version": "faris-app 0.0.1"
+    }
+  },
+  "distribution": {
+    "compressed_case_workspace_archive_bytes": 48081577,
+    "expanded_case_workspace_bytes": 803549619,
+    "expanded_case_workspace_directory_count": 76,
+    "expanded_limits": {
+      "directory_count": 8192,
+      "file_count": 8192,
+      "per_tree_bytes": 536870912,
+      "total_bytes": 1610612736
+    },
+    "indexed_compressed_bytes": 237166956,
+    "indexed_file_count": 127,
+    "local_path": "dist/FARIS-demo-2026-10-01",
+    "outer_limits": {
+      "file_count": 2048,
+      "package_bytes": 536870912,
+      "per_file_bytes": 67108864
+    },
+    "package_index_sha256": "sha256:5203f0d60adacc4483486e3121e3a95fab6e2a97b7180dbae098eb2887f6e627",
+    "package_schema": "faris-recorded-demo-package/v0.4",
+    "package_status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED"
+  },
+  "runtime_and_license": {
+    "fresh_transport_dependencies": [
+      "OpenMC 0.15.3-compatible runtime",
+      "audited external nuclear data; acquisition instructions are in support/docs/PHOTON_LIBRARY_ACQUISITION.md"
+    ],
+    "licenses": {
+      "licenses/core-LICENSE": "sha256:0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "licenses/core-LICENSES/Apache-2.0.txt": "sha256:cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "licenses/core-LICENSES/BSD-3-Clause.txt": "sha256:f711641875bb0e7ad4ce582eb785c69ffa3308cf717a113a5cd132d16e729c33",
+      "licenses/core-THIRD_PARTY_NOTICES.md": "sha256:21e34399aa3891514dff12b47ed7d8738c805ea27f9cce9b5008ba331ffdafdb",
+      "licenses/faris-LICENSE": "sha256:0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    },
+    "not_required_for_opening_recorded_demo": [
+      "OpenMC",
+      "nuclear data"
+    ],
+    "notices": "The package includes FARIS/Core license texts and Core third-party notices.",
+    "nuclear_data_included": false,
+    "platform": {
+      "machine": "x86_64",
+      "sys_platform": "linux"
+    },
+    "source_and_rebuild_provenance_path": "SOURCE_PROVENANCE.md"
+  },
+  "schema_version": "faris-portable-demo-verification/v0.1",
+  "scope": {
+    "note": "Saved Core receipts and exact exports verify workflow identity/reopening only; transport and reactor physics remain unqualified.",
+    "physical_results_authentication": "NOT_CLAIMED",
+    "scientific_qualification": "NOT_EVALUATED"
+  },
+  "source_provenance": {
+    "core": {
+      "binary_profile": "debug",
+      "checkout_head": "2f8f838c081ae375f2ff3d542e986d0f4c104f96",
+      "commit": "2f8f838c081ae375f2ff3d542e986d0f4c104f96",
+      "repository": "https://github.com/AvilaLabs/Avila-Core.git",
+      "working_tree_clean_at_packaging": true
+    },
+    "faris": {
+      "commit": "a1cb46ebbb93852138b621c1b085e38606c27b67",
+      "repository": "https://github.com/AvilaLabs/FARIS.git",
+      "working_tree_clean": true
+    },
+    "rebuild": [
+      "FARIS: check out the recorded commit, then run cargo build --release --locked --bin faris --bin faris-app.",
+      "Packaged Core: check out the recorded commit, run cargo build --locked --bin avila-core, copy target/debug/avila-core to the distribution, then run strip --strip-debug on that copy.",
+      "Optional Core release build: cargo build --release --locked --bin avila-core; it is compatible but has a different binary hash.",
+      "These instructions identify the source and toolchain command; they do not claim bit-for-bit reproducibility."
+    ]
+  },
+  "verification": {
+    "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED",
+    "command": "python3 scripts/verify_recorded_demo.py --package dist/FARIS-demo-2026-10-01 --faris target/release/faris --core /tmp/faris-demo-avila-core --relocated-copy /tmp/FARIS-demo-relocated-2026-10-01",
+    "cryptographic_scope": "SHA-256 values support byte-identity checks; they are not signatures or authenticity attestations.",
+    "inspected_saved_case_count": 4,
+    "relocated_copy": {
+      "distribution_included": false,
+      "location": "local temporary path /tmp/FARIS-demo-relocated-2026-10-01"
+    },
+    "saved_cases": [
+      {
+        "core_export_report": {
+          "export_sha256": "sha256:1911977de457c81cc7ecf4f5b7196811404bda564e6010ca41425aa44a061c61",
+          "path": "control/core-exports/reference/export-report.json",
+          "sha256": "sha256:c0b2dcdad6d640d47e1d8189e2293c517927dffb25a0351e63d0d159b3c32839",
+          "status": "exported"
+        },
+        "raw_artifact_sha256": "6f5392b4dda6af8ccd1bab78b553878e8f28f701f60305bf969d1a96eefbacd0",
+        "run_record_sha256": "sha256:51af9b9fd1d36ece2d7b3f90b5a3ac80648f5a96a146b5f3c9d25198cf617c83",
+        "saved_case_inspection": {
+          "binding_status": "verified",
+          "case_id": "FARIS-arc-cold-coupled-control-001-reference",
+          "compiler_id": "avila.core/compiler-rust@0.1.0",
+          "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+          "execution_status": "executed",
+          "path": "control/inspections/reference.saved-case-inspection.json",
+          "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
+          "semantic_profile": "avila.core/semantic/0.2-draft",
+          "sha256": "sha256:e7c4ed3c843c2e8110ed8efe20cede89eaf3b969865d587b43372322615186d5",
+          "verified_receipt_count": 4
+        },
+        "scenario_id": "arc-cold-coupled-control-001",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "scientific_qualification": "NOT_EVALUATED",
+        "transport_bundle": {
+          "path": "control/bundles/reference.transport-bundle.json",
+          "sha256": "sha256:54692f4a697067dafadc0ef3f5edbb855739e10cdb5e5f269ccb932dc152fbf4"
+        },
+        "variant_id": "reference"
+      },
+      {
+        "core_export_report": {
+          "export_sha256": "sha256:8a374600bce01fbec75d447a648d4b92968b258a022c001e53bcad8a7446838f",
+          "path": "control/core-exports/breeder-emphasis/export-report.json",
+          "sha256": "sha256:d7c19c9aa902e8198431463cf6f5b43a71579c76cf5d75db20c8d3eef1857e21",
+          "status": "exported"
+        },
+        "raw_artifact_sha256": "d7d273fd49388d40dcc17304cbfded608b1aa529a23835fac97ac9c678f20771",
+        "run_record_sha256": "sha256:70fcf2e51d0246cf222fbc405434a5b3bea893fad0705124b6e2ab2aeffa82f4",
+        "saved_case_inspection": {
+          "binding_status": "verified",
+          "case_id": "FARIS-arc-cold-coupled-control-001-breeder-emphasis",
+          "compiler_id": "avila.core/compiler-rust@0.1.0",
+          "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+          "execution_status": "executed",
+          "path": "control/inspections/breeder-emphasis.saved-case-inspection.json",
+          "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
+          "semantic_profile": "avila.core/semantic/0.2-draft",
+          "sha256": "sha256:00eba0253353ae6e9d09b26c496b92901224f41570818b8059c82656dbad791d",
+          "verified_receipt_count": 4
+        },
+        "scenario_id": "arc-cold-coupled-control-001",
+        "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+        "scientific_qualification": "NOT_EVALUATED",
+        "transport_bundle": {
+          "path": "control/bundles/breeder-emphasis.transport-bundle.json",
+          "sha256": "sha256:1cfe8084e80b89625870369db11d9382d812ce6d1391a2c9b91aa733f98553fa"
+        },
+        "variant_id": "breeder-emphasis"
+      },
+      {
+        "core_export_report": {
+          "export_sha256": "sha256:8445cb8a2999dba27959db287fbb4ceb44dc57344441557c825d4ed611132f5b",
+          "path": "port/core-exports/reference/export-report.json",
+          "sha256": "sha256:81335c1278de1c4aefb36534d5e81512f17ed6cc771c03bd8a220a8e3dfa374c",
+          "status": "exported"
+        },
+        "port_geometry_ownership_report": {
+          "path": "port/geometry/reference-ownership-audit.json",
+          "sha256": "sha256:894e04733acd0d4f4cf419bcad3bedee7e3a9e1fb4035f2813ee293c801801c0",
+          "worker_result_sha256": "sha256:d33a1d2a1adc57a8ddb5586324bc0ddd9b18cf49b7f6e4abee6b1fc539188d30"
+        },
+        "port_volume_report": {
+          "path": "port/geometry/reference-volume-check.json",
+          "sha256": "sha256:e23676de8911a8d81deb653727b742bf4657a6eee347a2055042afe9c8e83501"
+        },
+        "raw_artifact_sha256": "ba52475da6961b15990eb83ca089c093168f709cb53c2f8b410094b6f13db872",
+        "run_record_sha256": "sha256:6bcbd6b324e10db9fe75bbe11ecd10b9a5e6f2fbedea4f446ba7e2bdda508b5a",
+        "saved_case_inspection": {
+          "binding_status": "verified",
+          "case_id": "FARIS-arc-cold-reference-port-001-reference",
+          "compiler_id": "avila.core/compiler-rust@0.1.0",
+          "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+          "execution_status": "executed",
+          "path": "port/inspections/reference.saved-case-inspection.json",
+          "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
+          "semantic_profile": "avila.core/semantic/0.2-draft",
+          "sha256": "sha256:1c9dcd19ba520e367644dc68582c67032c90b841b6507d3e66aa9b90a6c5aa67",
+          "verified_receipt_count": 4
+        },
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "scientific_qualification": "NOT_EVALUATED",
+        "transport_bundle": {
+          "path": "port/bundles/reference.transport-bundle.json",
+          "sha256": "sha256:b5de93e00581ee8bfc58cbbe3526fa8f727268ee4b539dc4bd5ea9f66d62565e"
+        },
+        "variant_id": "reference"
+      },
+      {
+        "core_export_report": {
+          "export_sha256": "sha256:d672222c65ec6837c90bacc292a3cee3633e6c6d2913622712e2426dfed913c3",
+          "path": "port/core-exports/breeder-emphasis/export-report.json",
+          "sha256": "sha256:d4340c7e37d58b6a906a113fa5eef88cab3897efaf406d1e0d50822dc2867ba2",
+          "status": "exported"
+        },
+        "port_geometry_ownership_report": {
+          "path": "port/geometry/breeder-emphasis-ownership-audit.json",
+          "sha256": "sha256:2967ec79131bc9ceabdd4e97a1d7f5f9468b5e9d6fea92c17bcd7adeaa44cc99",
+          "worker_result_sha256": "sha256:dce4c422bcedafaca5c24a33ed3bbca7f3c1b0446a2bf1309fe17f484eb8f2e6"
+        },
+        "port_volume_report": {
+          "path": "port/geometry/breeder-emphasis-volume-check.json",
+          "sha256": "sha256:a69d1dfbdff0a2de62b443f9a130ccc6561b367365cf91122112a3061c829a1f"
+        },
+        "raw_artifact_sha256": "5790cbe30800be380cc7343ca715219eef763cbef406ff960167cf75e2edd4d3",
+        "run_record_sha256": "sha256:7653bd521af768da235bca1e7c30758b8cea36d6a5eded98dcc531e0274a9e46",
+        "saved_case_inspection": {
+          "binding_status": "verified",
+          "case_id": "FARIS-arc-cold-reference-port-001-breeder-emphasis",
+          "compiler_id": "avila.core/compiler-rust@0.1.0",
+          "core_executable_sha256": "sha256:fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+          "execution_status": "executed",
+          "path": "port/inspections/breeder-emphasis.saved-case-inspection.json",
+          "record_integrity": "UNSIGNED_IDENTITY_REVALIDATED",
+          "semantic_profile": "avila.core/semantic/0.2-draft",
+          "sha256": "sha256:0703550f3e9b3e30cef0bcc9c0958c2cea14766fe2f67d92e995fdae2907054f",
+          "verified_receipt_count": 4
+        },
+        "scenario_id": "arc-cold-reference-port-001",
+        "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+        "scientific_qualification": "NOT_EVALUATED",
+        "transport_bundle": {
+          "path": "port/bundles/breeder-emphasis.transport-bundle.json",
+          "sha256": "sha256:865cd245d7bca242dd516386d8bdfb45c067c6e5c46e7666beee7e4d871eaa34"
+        },
+        "variant_id": "breeder-emphasis"
+      }
+    ],
+    "tamper_control": {
+      "original_distribution_preserved": true,
+      "result": "EXPECTED_REJECTION",
+      "tampered_copy_path": "README.md"
+    }
+  },
+  "verification_date_utc": "2026-10-01"
+}
