@@ -1,4 +1,6 @@
 mod archive_panel;
+#[allow(dead_code)] // Shared widget; unused variants are kept for consistent status vocabulary.
+mod badge;
 mod camera;
 mod history_panel;
 mod interface_check;
