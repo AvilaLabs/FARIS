@@ -126,7 +126,24 @@ pub fn generate_study(
             )),
         ),
     ];
+    if selection.shielding {
+        roles.push(role(
+            "faris.magnet-neutron-flux",
+            Some(("faris.neutron_flux", "faris.neutron_flux.units@1")),
+        ));
+    }
     roles.sort_by_key(|r| r["role"]["id"].as_str().unwrap_or_default().to_owned());
+    let mut normalize_outputs = vec![
+        output("normalized", "faris.normalized-transport", false),
+        output("tbr", "faris.tbr", true),
+    ];
+    if selection.shielding {
+        normalize_outputs.push(output(
+            "magnet-neutron-flux",
+            "faris.magnet-neutron-flux",
+            true,
+        ));
+    }
     let capabilities = vec![
         json!({"capability_type":reference("faris.openmc-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"seeded_stochastic"},
@@ -135,7 +152,7 @@ pub fn generate_study(
         json!({"capability_type":reference("faris.normalize-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("raw","faris.raw-transport"),input("scenario","faris.scenario"),input("physics","faris.physics")],
-            "outputs":[output("normalized","faris.normalized-transport",false),output("tbr","faris.tbr",true)]}),
+            "outputs":normalize_outputs}),
         json!({"capability_type":reference("faris.operating-history"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("rates","faris.normalized-transport"),input("scenario","faris.scenario")],
@@ -145,10 +162,17 @@ pub fn generate_study(
             "inputs":[input("history","faris.history"),input("scenario","faris.scenario")],
             "outputs":[output("energy","faris.energy",false)]}),
     ];
+    let mut kinds = vec![
+        json!({"kind_id":"faris.tritium_breeding_ratio","canonical_unit":"1","unit_class":"faris.tritium_breeding_ratio.units@1",
+        "owner":"avila-labs.faris","units":[{"symbol":"1","factor":"1"}]}),
+    ];
+    if selection.shielding {
+        kinds.push(json!({"kind_id":"faris.neutron_flux","canonical_unit":"neutrons/m²/s","unit_class":"faris.neutron_flux.units@1",
+            "owner":"avila-labs.faris","units":[{"symbol":"neutrons/m²/s","factor":"1"}]}));
+    }
     let registry = json!({"schema_version":"avila.core/registry-snapshot/v0.2-draft",
         "semantic_profile":"avila.core/semantic/0.2-draft","registry_id":"faris.demo.registry","revision":1,
-        "kinds":[{"kind_id":"faris.tritium_breeding_ratio","canonical_unit":"1","unit_class":"faris.tritium_breeding_ratio.units@1",
-            "owner":"avila-labs.faris","units":[{"symbol":"1","factor":"1"}]}],
+        "kinds":kinds,
         "purposes":[{"purpose":reference("faris.conditional-research-comparison"),"owner":"avila-labs.faris",
             "description":"Comparison conditional on authored geometry/material/source/history inputs; not a qualified reactor claim."}],
         "roles":roles,"capability_types":capabilities});
@@ -176,10 +200,24 @@ pub fn generate_study(
     } else {
         vec![]
     };
+    let mut requested_responses = Vec::new();
+    if selection.breeding {
+        requested_responses.push("tritium breeding ratio".to_owned());
+    }
+    if selection.shielding {
+        requested_responses
+            .push("component-average neutron flux in the magnet (neutrons/m²/s)".to_owned());
+    }
+    if selection.fuel_history {
+        requested_responses.push("declared operating-history response".to_owned());
+    }
+    if selection.electricity {
+        requested_responses.push("net-energy response".to_owned());
+    }
     let contract = json!({"schema_version":"avila.core/evidence-contract/v0.2-draft",
         "semantic_profile":"avila.core/semantic/0.2-draft","contract_id":format!("faris.{}.{}",manifest.scenario_id,variant_id),
         "revision":1,"status":"draft",
-        "question":"How do the selected blanket/shield allocation and declared operating assumptions affect the selected research responses?",
+        "question":format!("How do the selected blanket/shield allocation and declared operating assumptions affect {}?", requested_responses.join(" and ")),
         "assumptions":manifest.assumptions,"execution_policy":{"require_qualification":true},
         "inputs":[{"input_id":"scenario","role":reference("faris.scenario"),"media_type":"application/json","claim_model":{"model":"unquantified"}},
             {"input_id":"physics","role":reference("faris.physics"),"media_type":"application/json","claim_model":{"model":"unquantified"}},
@@ -210,20 +248,12 @@ fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-/// Call the actual external compiler in an owned worker workspace. A rejection
-/// is a successfully obtained compiler report, not a transport or physics FAIL.
-pub fn compile_study(
-    study: &GeneratedStudy,
-    executable: &Path,
-    output: &Path,
-    cancellation: &Cancellation,
-) -> Result<CoreCompilation, Box<dyn std::error::Error + Send + Sync>> {
-    let executable = executable.canonicalize()?;
-    let metadata = executable.metadata()?;
+fn executable_digest(path: &Path) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let metadata = path.metadata()?;
     if !metadata.is_file() || metadata.len() > 512 * 1024 * 1024 {
         return Err("Core executable must be a regular file below 512 MiB".into());
     }
-    let mut binary = File::open(&executable)?.take(512 * 1024 * 1024 + 1);
+    let mut binary = File::open(path)?.take(512 * 1024 * 1024 + 1);
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 65536];
     let mut length = 0_u64;
@@ -238,12 +268,74 @@ pub fn compile_study(
         }
         hasher.update(&buffer[..count]);
     }
-    let executable_sha256 = format!("{hasher:x}", hasher = hasher.finalize());
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn replace_file(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let temporary = path.with_extension("json.tmp");
+    let mut file = File::options()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    std::fs::rename(temporary, path)?;
+    Ok(())
+}
+
+/// Call the actual external compiler in an owned worker workspace. A rejection
+/// is a successfully obtained compiler report, not a transport or physics FAIL.
+pub fn compile_study(
+    study: &GeneratedStudy,
+    executable: &Path,
+    output: &Path,
+    cancellation: &Cancellation,
+) -> Result<CoreCompilation, Box<dyn std::error::Error + Send + Sync>> {
     let output = std::path::absolute(output)?;
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::create_dir(&output)?;
+    let receipt = output.join("compilation.json");
+    new_file(
+        &receipt,
+        &serde_json::to_vec_pretty(&json!({
+            "schema_version":"faris-core-compilation-receipt/v0.1",
+            "status":"not_available", "execution_status":"NOT_STARTED",
+            "executable_path":executable, "binding_checked":false,
+            "reason":"Compilation has not produced a validated Core report."
+        }))?,
+    )?;
+    let result = compile_study_inner(study, executable, &output, cancellation);
+    match result {
+        Ok(result) => {
+            if let Err(error) = replace_file(&receipt, &serde_json::to_vec_pretty(&result)?) {
+                return Err(format!(
+                    "compilation completed but its receipt could not be finalized: {error}"
+                )
+                .into());
+            }
+            Ok(result)
+        }
+        Err(error) => {
+            let failure = json!({"schema_version":"faris-core-compilation-receipt/v0.1",
+                "status":"not_available","execution_status":"NOT_AVAILABLE",
+                "executable_path":executable,"binding_checked":false,
+                "reason":error.to_string()});
+            replace_file(&receipt, &serde_json::to_vec_pretty(&failure)?)?;
+            Err(error)
+        }
+    }
+}
+
+fn compile_study_inner(
+    study: &GeneratedStudy,
+    executable: &Path,
+    output: &Path,
+    cancellation: &Cancellation,
+) -> Result<CoreCompilation, Box<dyn std::error::Error + Send + Sync>> {
+    let executable = executable.canonicalize()?;
+    let executable_sha256 = executable_digest(&executable)?;
     let contract = serde_json::to_vec_pretty(&study.contract)?;
     let registry = serde_json::to_vec_pretty(&study.registry)?;
     let contract_path = output.join("contract.json");
@@ -255,7 +347,7 @@ pub fn compile_study(
         &serde_json::to_vec_pretty(study)?,
     )?;
     let spec = JobSpec {
-        program: executable,
+        program: executable.clone(),
         arguments: vec![
             "compile".into(),
             "--contract".into(),
@@ -263,13 +355,22 @@ pub fn compile_study(
             "--registry".into(),
             registry_path.into_os_string(),
         ],
-        working_directory: output.clone(),
+        working_directory: output.to_path_buf(),
         environment: vec![],
         timeout: Duration::from_secs(30),
         capture_limit_bytes: 4 * 1024 * 1024,
     };
-    let execution = run_job(&spec, cancellation)?;
-    let report = if matches!(
+    let pre_execution_sha256 = executable_digest(&executable)?;
+    if pre_execution_sha256 != executable_sha256 {
+        return Err(
+            "Core executable changed before execution; compilation was not launched".into(),
+        );
+    }
+    let execution_result = run_job(&spec, cancellation);
+    let post_execution_sha256 = executable_digest(&executable).ok();
+    let identity_stable = post_execution_sha256.as_deref() == Some(executable_sha256.as_str());
+    let execution = execution_result?;
+    let mut report = if matches!(
         execution.execution_status,
         ExecutionStatus::Succeeded | ExecutionStatus::Failed
     ) && matches!(execution.exit_code, Some(0 | 1))
@@ -294,6 +395,24 @@ pub fn compile_study(
     } else {
         json!({"status":"not_available","reason":"Compiler execution did not produce a completed report."})
     };
+    if identity_stable {
+        if let Some(object) = report.as_object_mut() {
+            object.insert("executable_identity_check".into(), json!({
+                "initial_sha256":executable_sha256,
+                "pre_execution_sha256":pre_execution_sha256,
+                "post_execution_sha256":post_execution_sha256,
+                "binding_checked":true,
+                "scope":"Path-content consistency checks before and after execution; not a signed attestation or proof of loaded executable bytes."
+            }));
+        }
+    } else {
+        report = json!({"status":"not_available",
+            "reason":"Core executable identity changed or became unavailable across execution; compiler report invalidated.",
+            "executable_identity_check":{"initial_sha256":executable_sha256,
+                "pre_execution_sha256":pre_execution_sha256,"post_execution_sha256":post_execution_sha256,
+                "binding_checked":false,
+                "scope":"Path-content consistency checks only; not a signed attestation or proof of loaded executable bytes."}});
+    }
     let result = CoreCompilation {
         schema_version: "faris-core-compilation/v0.1".into(),
         executable_sha256,
@@ -302,10 +421,6 @@ pub fn compile_study(
         execution,
         report,
     };
-    new_file(
-        &output.join("compilation.json"),
-        &serde_json::to_vec_pretty(&result)?,
-    )?;
     Ok(result)
 }
 
@@ -366,6 +481,68 @@ mod tests {
     }
 
     #[test]
+    fn shielding_selection_declares_magnet_flux_without_a_threshold() {
+        let no_shield = StudySelection {
+            shielding: false,
+            ..StudySelection::default()
+        };
+        let without = generate_study(&manifest(), "reference", &no_shield).unwrap();
+        let with = generate_study(
+            &manifest(),
+            "reference",
+            &StudySelection {
+                breeding: false,
+                shielding: true,
+                fuel_history: false,
+                electricity: false,
+                minimum_tbr: "1".into(),
+            },
+        )
+        .unwrap();
+        let has_flux = |study: &GeneratedStudy| {
+            study.registry["capability_types"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|cap| cap["capability_type"]["id"] == "faris.normalize-transport")
+                .unwrap()["outputs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|out| {
+                    out["slot_id"] == "magnet-neutron-flux"
+                        && out["role"]["id"] == "faris.magnet-neutron-flux"
+                })
+        };
+        assert!(!has_flux(&without));
+        assert!(has_flux(&with));
+        assert!(
+            !without.registry["kinds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|kind| kind["kind_id"] == "faris.neutron_flux")
+        );
+        assert_ne!(without.contract, with.contract);
+        assert!(
+            with.contract["question"]
+                .as_str()
+                .unwrap()
+                .contains("component-average neutron flux in the magnet (neutrons/m²/s)")
+        );
+        assert_eq!(with.contract["requirements"].as_array().unwrap().len(), 0);
+        assert_eq!(
+            with.registry["kinds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|kind| kind["kind_id"] == "faris.neutron_flux")
+                .unwrap()["canonical_unit"],
+            "neutrons/m²/s"
+        );
+    }
+
+    #[test]
     #[cfg(unix)]
     fn malformed_compiler_output_preserves_execution_without_inventing_compilation() {
         use std::os::unix::fs::PermissionsExt;
@@ -387,5 +564,46 @@ mod tests {
         assert_eq!(result.report["status"], "not_available");
         assert!(output.join("compilation.json").is_file());
         assert!(compile_study(&study, &executable, &output, &Cancellation::default()).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn compilation_io_error_preserves_unavailable_receipt() {
+        let directory = tempfile::tempdir().unwrap();
+        let study = generate_study(&manifest(), "reference", &StudySelection::default()).unwrap();
+        let output = directory.path().join("evidence");
+        let missing = directory.path().join("no-such-core");
+        assert!(compile_study(&study, &missing, &output, &Cancellation::default()).is_err());
+        let receipt: Value =
+            serde_json::from_slice(&std::fs::read(output.join("compilation.json")).unwrap())
+                .unwrap();
+        assert_eq!(receipt["status"], "not_available");
+        assert_eq!(receipt["binding_checked"], false);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn executable_change_invalidates_core_report() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let executable = directory.path().join("mutable-test-compiler");
+        std::fs::write(
+            &executable,
+            "#!/bin/sh\nprintf '%s' '{\"schema_version\":\"avila.core/compile-report/v0.2-draft\",\"status\":\"compiled\"}'\nprintf '#!/bin/sh\\nexit 2\\n' > \"$0\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let study = generate_study(&manifest(), "reference", &StudySelection::default()).unwrap();
+        let output = directory.path().join("evidence");
+        let result = compile_study(&study, &executable, &output, &Cancellation::default()).unwrap();
+        assert_eq!(
+            result.execution.execution_status,
+            ExecutionStatus::Succeeded
+        );
+        assert_eq!(result.report["status"], "not_available");
+        assert_eq!(
+            result.report["executable_identity_check"]["binding_checked"],
+            false
+        );
     }
 }

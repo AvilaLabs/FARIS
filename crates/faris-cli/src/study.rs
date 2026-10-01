@@ -148,8 +148,12 @@ pub fn run(command: StudyCommand) -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             let interrupts = control::interrupt_cancellation()?;
+            #[cfg(unix)]
+            let cancellation = &interrupts.cancellation;
+            #[cfg(not(unix))]
+            let cancellation = &interrupts;
             let output = std::path::absolute(output)?;
-            let result = study::compile_study(&generated, &core, &output, &interrupts.cancellation)
+            let result = study::compile_study(&generated, &core, &output, cancellation)
                 .map_err(|error| std::io::Error::other(error.to_string()))?;
             let compiler_status = result.report["status"].as_str().unwrap_or("not_available");
             println!(

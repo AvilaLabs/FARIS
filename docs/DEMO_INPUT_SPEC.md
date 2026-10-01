@@ -11,8 +11,14 @@ against an identified `cross_sections.xml` before preparing a transport job.
 ## Recommended candidate case
 
 Use OpenMC 0.15.3 continuous-energy fixed-source transport with the cached local
-FENDL-3.2 HDF5 candidate. Assign all model regions `293.6 K` and the exact
-294 K data group. **The FLiBe-like salt is then solid Li2BeF4, not a liquid
+FENDL-3.2 HDF5 candidate. Physical material temperatures are unspecified; the
+physics case targets the numeric stored nuclear-data temperature nearest
+`293.6 K`, which the audited files report as `293.59430848016336 K`. OpenMC
+0.15.3 accesses that dataset through its rounded `294K` group label. The worker
+checks actual kT against the target within 0.1 K, then uses a separate 1 K
+OpenMC label-selection window because its runtime lookup uses the rounded label.
+That is label handling, not thermal interpolation or an assertion that the
+materials are at exactly 294 K. **The FLiBe-like salt is then solid Li2BeF4, not a liquid
 operating blanket.** This deliberately narrow case is suitable for checking
 that the Rust scenario, OpenMC export, source, atom densities, geometry regions,
 reaction responses, unit conversion, and variant comparison work end to end.
@@ -23,7 +29,7 @@ data:
 
 | Region | Candidate recipe and density | Status and limit |
 | --- | --- | --- |
-| Solid breeder-like salt | Li2BeF4 stoichiometry, 90 atom% Li-6 / 10 atom% Li-7; one Li2BeF4 formula unit has atom fractions Li-6 0.2571428571, Li-7 0.0285714286, Be-9 0.1428571429, F-19 0.5714285714. Set `rho = 2137 kg/m3` as an authored model assumption. | The 2025 X-ray density trend for **solid** Li2BeF4 was 2179.1(3) - 0.114(1) T_C kg/m3 at 7Li/6Li = 10500(500), with natural Be/F and BeF2 mole fraction 1/3 over 20–449°C. At 293.6 K, the published isotope-basis value is ~2176.8 kg/m3. The candidate value mass-reweights the formula unit to 90%-Li6 at fixed measured crystal-cell volume. It is not a measured 90%-Li6 density; isotope-related lattice change, batch chemistry, impurities, and uncertainty of this transfer are unquantified. The source measured a crystal, so it also does not establish a homogenized operating blanket bulk density. ARC separately tabulates 1940 kg/m3 at 950 K for FLiBe; its isotope/composition basis is not specified well enough to replace this cold-state model assumption. |
+| Solid breeder-like salt | Li2BeF4 stoichiometry, 90 atom% Li-6 / 10 atom% Li-7; one Li2BeF4 formula unit has atom fractions Li-6 0.2571428571, Li-7 0.0285714286, Be-9 0.1428571429, F-19 0.5714285714. Set `rho = 2137.175 kg/m3` as an authored model assumption. | The 2025 X-ray density trend for **solid** Li2BeF4 was 2179.1(3) - 0.114(1) T_C kg/m3 at 7Li/6Li = 10500(500), with natural Be/F and BeF2 mole fraction 1/3 over 20–449°C. At 293.6 K, the published isotope-basis value is ~2176.8 kg/m3. The candidate value mass-reweights the formula unit to 90%-Li6 at fixed measured crystal-cell volume. It is not a measured 90%-Li6 density; isotope-related lattice change, batch chemistry, impurities, and uncertainty of this transfer are unquantified. The source measured a crystal, so it also does not establish a homogenized operating blanket bulk density. ARC separately tabulates 1940 kg/m3 at 950 K for FLiBe; its isotope/composition basis is not specified well enough to replace this cold-state model assumption. |
 | First-wall armor | Natural-isotope elemental tungsten, `rho = 19,300 kg/m3`. | Pure dense W proxy, sourced at near-room temperature from NIST. Does not encode tile joints, coating, texture, impurities, or high-temperature expansion. ARC used 1 cm W in one design calculation; its thickness is a precedent, not this case's validated requirement. |
 | Structure | Natural-isotope pure iron shell, `rho = 7,874 kg/m3`. | Deliberate composition surrogate for the ARC-named Inconel 718 structure; it is **not Inconel 718**. NIST's reported pure Fe density is 7.874 ±0.001 g/cm3. Alloying/ribbing/welds/structural qualification are excluded. |
 | Separate neutron multiplier | Natural Be, represented by Be-9, `rho = 1,850 kg/m3`. | Dense elemental Be reference from NIST. The ARC paper's separate multiplier is a 1 cm non-structural layer; any implemented thickness must be explicitly identified as the selected FARIS model value. It is distinct from Be already present in the salt. |

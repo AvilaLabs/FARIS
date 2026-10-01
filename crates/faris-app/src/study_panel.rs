@@ -13,6 +13,7 @@ use std::{
 };
 
 struct PendingCompilation {
+    handle: Option<std::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<CoreCompilation, String>>,
     variant_id: String,
@@ -64,7 +65,10 @@ impl StudyPanel {
                 Err("Compiler worker ended without a result.".into())
             }
         };
-        let pending = self.pending.take().expect("pending worker exists");
+        let mut pending = self.pending.take().expect("pending worker exists");
+        if let Some(handle) = pending.handle.take() {
+            let _ = handle.join();
+        }
         self.output = Some(pending.output);
         self.compiled_variant = Some(pending.variant_id);
         self.compiled_selection = Some(pending.selection);
@@ -123,9 +127,10 @@ impl StudyPanel {
                 let _ = sender.send(result);
                 ctx.request_repaint();
             }) {
-            Ok(_) => {
+            Ok(handle) => {
                 self.attempted = true;
                 self.pending = Some(PendingCompilation {
+                    handle: Some(handle),
                     cancellation,
                     receiver,
                     variant_id: variant_id.into(),
@@ -137,7 +142,7 @@ impl StudyPanel {
         }
     }
 
-    pub fn controls(&mut self, ui: &mut egui::Ui, variant_id: &str) {
+    pub fn controls(&mut self, ui: &mut egui::Ui, variant_id: &str, readiness: &str) {
         ui.strong("Study analyses");
         ui.checkbox(&mut self.selection.breeding, "Tritium breeding");
         ui.checkbox(&mut self.selection.shielding, "Magnet-region shielding");
@@ -215,8 +220,8 @@ impl StudyPanel {
                 ui.monospace(output.display().to_string());
             });
         }
-        ui.label("Run readiness: inputs not bound");
-        ui.small("Materials, nuclear data and transport execution must be bound separately.");
+        ui.label(format!("Run readiness: {readiness}"));
+        ui.small("Compile and transport inputs are not yet bound as a Core execution package.");
         if self.selection.fuel_history || self.selection.electricity {
             ui.small("History and electricity stages are declared; their adapters are pending.");
         }
@@ -226,8 +231,11 @@ impl StudyPanel {
 
 impl Drop for StudyPanel {
     fn drop(&mut self) {
-        if let Some(pending) = &self.pending {
+        if let Some(pending) = &mut self.pending {
             pending.cancellation.cancel();
+            if let Some(handle) = pending.handle.take() {
+                let _ = handle.join();
+            }
         }
     }
 }

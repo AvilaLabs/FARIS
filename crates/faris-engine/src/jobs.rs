@@ -4,7 +4,7 @@
 //! group; cancellation terminates that group, including ordinary solver children.
 //! This is not a sandbox for hostile executables and does not limit RAM or disk.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     io::{Read, Result as IoResult},
@@ -48,7 +48,7 @@ impl Cancellation {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ExecutionStatus {
     Succeeded,
@@ -58,7 +58,8 @@ pub enum ExecutionStatus {
     OutputLimit,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct JobResult {
     pub execution_status: ExecutionStatus,
     pub exit_code: Option<i32>,

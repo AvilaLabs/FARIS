@@ -32,13 +32,25 @@ Blender's workspace layout.
 - Typed material, source, and nuclear-data inputs bound to exact scenario bytes.
 - Generated study dependencies, actual external Avila Core compilation, saved
   compiler reports, and a native Compile study button with cancellation.
+- Real OpenMC torus transport for an explicit cold-data surrogate: component
+  tritium production, neutron flux, energy spectra, and a 3D Cartesian flux mesh.
+- Checked record replay, native transport execution/cancellation, component
+  flux coloring, and horizontal spatial-flux slices using calculated values.
+- An identified ITER_1D execution reference; code-to-code comparison remains
+  unavailable without traceable reference responses.
 
-**The desktop remains a geometry scaffold.** Reactor transport, activation,
-ageing, fuel inventory, maintenance, and power production are not implemented. Their result
-records say `NOT_EVALUATED`; the app leaves their values empty. Component
-colors identify layers and do not represent calculated physical fields.
-The bundled starting scenario has unassigned materials. The idealized circular
+**The functional demo is in progress.** The default scene is a geometry preview;
+the explicit cold-reference workflow runs transport and displays its results.
+Activation, ageing, fuel inventory, maintenance, and power production remain
+unimplemented. Scientific qualification stays `NOT_EVALUATED`, including for
+completed transport. Material colors identify layers; calculated field modes
+are labeled separately. The bundled starting scenario has unassigned materials. The idealized circular
 tori and magnet envelope do not reproduce the published ARC engineering design.
+
+![Native component-flux view of recorded cold-reference results](docs/images/cold-reference-component-flux.png)
+
+Recorded numerical results from two million-history runs. Monte Carlo sampling
+errors remain visible; scientific qualification is `NOT_EVALUATED`.
 
 ## Run the desktop
 
@@ -69,6 +81,13 @@ Select analyses in the left panel and use **Compile study** in the upper right.
 Choose an external Core executable in compiler settings or pass `--core`.
 Compilation, run readiness, and scientific assessment are separate. See
 [generated Core studies](docs/CORE_STUDIES.md) for the CLI and recorded evidence.
+
+For real transport, use the [cold-reference workflow](docs/COLD_REFERENCE.md).
+Provide its scenario, both `--physics` files, the audited data XML, and existing
+OpenMC Python/executable paths. The desktop runs the same engine as the CLI.
+`--run /path/to/run.json` replays checked local results; `--field-view
+flux-slice` starts with calculated spatial fields. Source geometry remains a
+full torus. The display cutaway does not change transport.
 
 ## Use the CLI
 

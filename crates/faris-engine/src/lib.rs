@@ -3,6 +3,7 @@
 
 pub mod jobs;
 pub mod mesh;
+pub mod reactor;
 pub mod study;
 pub mod transport;
 
@@ -68,6 +69,7 @@ pub struct ComponentGeometry {
 }
 
 pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioError> {
+    loaded.validate_identity()?;
     let scenario = &loaded.scenario;
     scenario.validate()?;
     let geometry = &scenario.geometry;

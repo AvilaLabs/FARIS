@@ -1,0 +1,199 @@
+{
+  "schema": "faris.reference-registration/1.0.0",
+  "reference_id": "iaea-nds-iter-1d-openmc",
+  "reference_kind": "code_to_code",
+  "benchmark": {
+    "name": "ITER_1D",
+    "publisher": "IAEA Nuclear Data Section",
+    "repository": "https://github.com/IAEA-NDS/open-benchmarks",
+    "local_version": "OpenMC input 1.1",
+    "license": "CC BY 4.0, per upstream repository LICENSE",
+    "license_url": "https://github.com/IAEA-NDS/open-benchmarks/blob/main/LICENSE",
+    "files_are_external_not_vendored": true
+  },
+  "input_identity": {
+    "local_root": "/home/connoravila/Documents/Avila-Labs/development/iaea-open-benchmarks/jade_open_benchmarks/inputs/ITER_1D/ITER_1D/openmc",
+    "benchmark_metadata": {
+      "path": "/home/connoravila/Documents/Avila-Labs/development/iaea-open-benchmarks/jade_open_benchmarks/inputs/ITER_1D/benchmark_metadata.json",
+      "sha256": "1d7d7a81535cfe8779a99caa447cd0ab4c3a4f9f84991cd70c45b983093a4c59"
+    },
+    "geometry_xml": {
+      "sha256": "80bef907daab030cf2175e54383c20a0cbf92b5b1a8aa26e9bc88b744fbb6228",
+      "bytes": 13938
+    },
+    "materials_xml": {
+      "sha256": "8219dd5bacc7bfdde4c5a11e222665986ecdcfe70663f5cd1f942163ad0351ea",
+      "bytes": 16799
+    },
+    "iter_1d_source_cpp": {
+      "sha256": "06862214422bb3c09f93b0107f0b4badac1bda1796019f704ff4547a7f5c2779",
+      "bytes": 2191
+    },
+    "cmakelists_txt": {
+      "sha256": "f658b9a4688ac6c15378cbc09f7378874265a0b39d6476704f43853761b01541",
+      "bytes": 222
+    },
+    "source_library_policy": "The bundled libsource.so is not trusted or loaded. The source C++ law is text-checked and represented by the documented OpenMC IndependentSource API; its hash is retained in every run receipt."
+  },
+  "source_model": {
+    "kind": "fixed_source",
+    "particle": "neutron",
+    "candidate_space": {
+      "distribution": "uniform Cartesian box",
+      "lower_left_cm": [-1115.2, -1115.2, -1000.2],
+      "upper_right_cm": [1115.2, 1115.2, 1000.2]
+    },
+    "domain_constraint": {
+      "cell_id": 51,
+      "material": "void",
+      "geometry_region": "-55 56 27 -28",
+      "cell_bounds_cm": {
+        "r_inner": 506.6,
+        "r_outer": 1115.0,
+        "z_min": -1000.0,
+        "z_max": 1000.0
+      },
+      "accepted_site_weight": 1.0
+    },
+    "direction": "isotropic over 4π",
+    "energy": {
+      "distribution": "normal, not truncated",
+      "mean_eV": 14055843.863040961,
+      "standard_deviation_eV": 238635.74091114037
+    },
+    "finite_rejection_limit_difference": "The C++ source returns a zero-weight site after 100000 failed box proposals; the IndependentSource domain constraint resamples until acceptance. Based on exact cell/box volumes, per-proposal acceptance is 0.6229173834875004 and log10 probability of 100000 consecutive rejects is -42356.348808420196. This makes the finite cap operationally negligible for this geometry, not mathematically identical.",
+    "equivalence_scope": "Same declared source probability law apart from finite-cap branch; different RNG stream; this is not bytewise source-bank equivalence."
+  },
+  "geometry_control": {
+    "cell_count": 105,
+    "material_cell_count": 97,
+    "outer_vacuum_cylinder_radius_cm": 1389.5,
+    "reflective_z_planes_cm": [-1000.0, 1000.0],
+    "cell_volume_method": "Exact analytic annular volume from each cell's simple signed z-cylinder/z-plane halfspaces; all cells must form a contiguous nonoverlapping radial partition from r=0 to outer vacuum boundary and share the reflective z extent.",
+    "partition_volume_cm3": 12131010275.221025,
+    "enclosing_cylinder_volume_cm3": 12131010275.221025,
+    "volume_partition_check": "PASS"
+  },
+  "response_plan": [
+    {
+      "response": "neutron_flux",
+      "score": "flux",
+      "estimator": "tracklength",
+      "filter": "CellFilter over 97 material-filled cells",
+      "raw_unit": "particle-cm per source neutron per cell",
+      "derived_response": "divide by exact cell volume [cm^3] for volume-average particle/cm^2 per source neutron"
+    },
+    {
+      "response": "neutron_absorption",
+      "score": "absorption",
+      "estimator": "analog",
+      "filter": "CellFilter over 97 material-filled cells",
+      "raw_unit": "reactions per source neutron per cell",
+      "derived_response": "divide by exact cell volume [cm^3] for reactions/cm^3 per source neutron"
+    }
+  ],
+  "sampling_plan": {
+    "default_seed": 1,
+    "default_histories": 1000000,
+    "batches": 100,
+    "default_threads": 1,
+    "history_cap": 10000000,
+    "wall_clock_cap_seconds": 600,
+    "criterion": "Input/statepoint/estimator/shape and finite nonnegative finite tally mean/error validation only; no sampling-sigma pass band is used for physics qualification.",
+    "covariance": "Tallies use the same histories and are correlated. Different estimators avoid a direct estimator-algebra identity, but this control does not claim independent samples; per-bin standard errors are retained and never summed as if independent."
+  },
+  "temperature_treatment": {
+    "benchmark_settings_file": "not supplied",
+    "worker_default_kelvin": 293.6,
+    "method": "nearest",
+    "tolerance_kelvin": 10.0,
+    "data_available_kelvin": 294.0,
+    "basis": "The worker makes the OpenMC room-temperature default explicit; this does not bound reactor operating temperatures."
+  },
+  "data_identity": {
+    "candidate": "FENDL-3.2 OpenMC HDF5 distribution from existing local cache",
+    "cross_sections_xml": {
+      "path": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/cross_sections.xml",
+      "sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674"
+    },
+    "per_material_neutron_files": "Every run receipt identifies each neutron data file selected for nuclides appearing in the benchmark materials by path and SHA-256.",
+    "limits": [
+      "The local data audit found one 294 K evaluation temperature; this is not a temperature-bounding demonstration.",
+      "Acquisition/redistribution terms and publisher archive checksum are unresolved; data are not copied into this repository.",
+      "Data presence does not qualify any response or validate experimental agreement."
+    ]
+  },
+  "solver_identity": {
+    "required_openmc_python_api": "0.15.3",
+    "version_check": "OpenMC Python API, executable --version, and statepoint version must agree; executable/Python/data identities are recorded per run.",
+    "run_mode": "fixed source",
+    "photon_transport": false
+  },
+  "comparison": {
+    "status": "NOT_EVALUATED",
+    "comparison_target": null,
+    "reason": "No provenance-qualified reference response set is configured. A local JADE dummy ITER_1D statepoint has metadata (OpenMC 0.15.3, 100 realizations, seed 1, FENDL 3.2b) but lacks the exact run settings and hashed source/geometry/material/tally inputs. It is retained as a lead only, not a numeric acceptance target.",
+    "qualification_status": "NOT_EVALUATED",
+    "statistical_rule": null
+  },
+  "unqualified_local_candidate": {
+    "kind": "JADE tests/dummy_structure statepoint",
+    "path": "/home/connoravila/Documents/Avila-Labs/development/JADE/tests/dummy_structure/simulations/_openmc_-_FENDL 3.2b_/ITER_1D/ITER_1D/statepoint.100.h5",
+    "metadata_sha256": "e42096097ebf2304c12ad1bbf8d799e384e3a6e21a10870b9a5ce4f415ffc4df",
+    "statepoint_sha256": "3d087d47a9693e83c187f22a29822b3acd317af5fff034f128b9921d749e9810",
+    "tallies_sha256": "b89fdbd7edd1c5eb828a6cf920dd08d5d7366274bef50d7793b0d5dbbb72e8ca",
+    "statepoint_observations": {
+      "openmc_version": "0.15.3",
+      "run_mode": "fixed source",
+      "seed": 1,
+      "realizations": 100,
+      "contains_tallies": ["cell-filtered neutron flux", "cell-filtered photon flux", "neutron heating", "photon heating"]
+    },
+    "use": "Provenance investigation only. Do not use as the comparison target unless the producing input and run receipts are recovered and verified."
+  },
+  "pilot_evidence": {
+    "path": "/tmp/faris-iter1d-pilot-20260930-e/reference-result.json",
+    "sha256": "0d5aab332f9077c92d8f749ef23137b9570c7392c0f8a7be71bc0b90a1372748",
+    "statepoint_path": "/tmp/faris-iter1d-pilot-20260930-e/statepoint.100.h5",
+    "statepoint_sha256": "680abe3715588febbfdc114a9d2ace5908dc545743057a7170c71a0bda9ade9b",
+    "worker_sha256": "0bbbd57ec625c1a88b35702c3523a5e7e0b8e3be05087ba5697c7afdcbe20458",
+    "status": "COMPLETED_CURRENT_WORKER",
+    "histories": 10000,
+    "batches": 100,
+    "seed": 1,
+    "threads": 1,
+    "runtime_seconds": 23.57602478697663,
+    "data_nuclides_hashed": 87,
+    "volume_partition_check": "PASS",
+    "lost_particle_count": null,
+    "lost_particle_status": "NOT_REPORTED",
+    "caveat": "This is a 10000-history integration pilot, not a precision or benchmark acceptance result; code-to-code qualification remains NOT_EVALUATED."
+  },
+  "references": [
+    {
+      "title": "OpenMC 0.15.3 tally API",
+      "url": "https://docs.openmc.org/en/v0.15.3/pythonapi/generated/openmc.Tally.html",
+      "use": "Estimator identities and tally-bin response API"
+    },
+    {
+      "title": "OpenMC 0.15.0 IndependentSource API",
+      "url": "https://docs.openmc.org/en/v0.15.0/pythonapi/generated/openmc.IndependentSource.html",
+      "use": "IndependentSource source domain constraints"
+    },
+    {
+      "title": "OpenMC 0.15.0 Box distribution API",
+      "url": "https://docs.openmc.org/en/v0.15.0/pythonapi/generated/openmc.stats.Box.html",
+      "use": "Uniform box source distribution"
+    },
+    {
+      "title": "IAEA-NDS open-benchmarks license",
+      "url": "https://github.com/IAEA-NDS/open-benchmarks/blob/main/LICENSE",
+      "use": "CC BY 4.0 reuse terms for benchmark repository"
+    },
+    {
+      "title": "OpenMC FENDL data",
+      "url": "https://openmc.org/data/",
+      "use": "Upstream candidate data distribution context"
+    }
+  ]
+}

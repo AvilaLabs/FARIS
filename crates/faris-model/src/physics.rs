@@ -219,6 +219,9 @@ impl PhysicsCase {
     /// Success does not qualify the assumptions or the model physically.
     pub fn validate_against(&self, loaded: &LoadedScenario) -> Result<(), PhysicsCaseError> {
         let fail = |message: String| PhysicsCaseError::Invalid(message);
+        loaded
+            .validate_identity()
+            .map_err(|error| fail(error.to_string()))?;
         let scenario = &loaded.scenario;
         scenario.validate().map_err(|e| fail(e.to_string()))?;
         if self.schema_version != PHYSICS_CASE_VERSION {

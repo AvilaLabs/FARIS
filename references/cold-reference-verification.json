@@ -1,0 +1,47 @@
+{
+  "schema_version": "faris-cold-reference-verification/v0.1",
+  "arithmetic_control": "PASS",
+  "arithmetic_scope": "50-digit Decimal source-rate, raw-unit conversions and volume-normalization checks; independent high-precision pi torus and Cartesian-bin volumes. Relative tolerance 1e-12. This checks arithmetic of solver-reported values, not their physical validity.",
+  "scientific_qualification": "NOT_EVALUATED",
+  "reactor_prediction": "NOT_QUALIFIED",
+  "sampling_scope": "Separate seeds describe separate Monte Carlo runs; sampling standard errors exclude nuclear-data/material/source/model discrepancy. Outer-region responses are insufficiently sampled for a shielding conclusion.",
+  "adapter_revision_note": "The 1M cases predate log-streaming and additional statepoint receipt checks. Their preserved adapter bytes and hashes remain bound; source, geometry, materials, scoring and explicit estimators match the final worker. A separate final 30k smoke exercises the hardened worker.",
+  "runs": [
+    {
+      "run_directory": "runs/cold-reference-1m-001",
+      "variant_id": "reference",
+      "histories": 1000000,
+      "seed": 123456789,
+      "threads": 1,
+      "elapsed_seconds": 257.257263665,
+      "run_record_sha256": "bc4248d25523645f186485081061fceb27cde94b13c0c0f67b222ea6005d6bf2",
+      "raw_artifact_sha256": "2420ec3c8ebba9486013dedd26ae579a8fc25505590271e082d0e2bcca247389",
+      "input_sha256": "ca3c62394a6d32a77591afd3f41f26f4dca182fd549b9ea8364ea95f16eeb023",
+      "statepoint_sha256": "c72a0ebb7cde4425a71683b540a64984734ec907c728be91d61a0d8924a1244e",
+      "independent_source_neutron_rate_per_s": "186181378641585248243.32537016980023280912824406192",
+      "checked_tallies": 1164,
+      "checked_values": 4656,
+      "max_relative_normalization_difference": "4.7792224526694215216253907467242545788579657633645E-16",
+      "max_relative_volume_difference": "3.1502445686943557767997075824286250214818362313401E-15",
+      "magnet_flux_relative_standard_error": "0.51889973715054684269843577230978465810532590674591"
+    },
+    {
+      "run_directory": "runs/cold-breeder-1m-001",
+      "variant_id": "breeder-emphasis",
+      "histories": 1000000,
+      "seed": 987654321,
+      "threads": 1,
+      "elapsed_seconds": 263.935927096,
+      "run_record_sha256": "f80bd2b29be4dba77c4f7e494592f5ddfe14f0d163379d9dbcf2fd7869aa360a",
+      "raw_artifact_sha256": "f625662ecd59c62ef0544cf4a4d80c69f98d4cefd1a72712508a1e8e91c1c822",
+      "input_sha256": "a0c649e8e1abaf073d220abfd258b2cd6fbc3743563f997fe70658b7b4f39682",
+      "statepoint_sha256": "2ecc1ec0e2cf8b2db4618baedd6ae2bffaf4b9ebdc87ce1274a7ecb37a1c0d6e",
+      "independent_source_neutron_rate_per_s": "186181378641585248243.32537016980023280912824406192",
+      "checked_tallies": 1164,
+      "checked_values": 4656,
+      "max_relative_normalization_difference": "5.2610259878565764403020986165104019255587599089744E-16",
+      "max_relative_volume_difference": "3.1502445686943557767997075824286250214818362313401E-15",
+      "magnet_flux_relative_standard_error": "0.53459850038316777669828894598769270106049327395643"
+    }
+  ]
+}

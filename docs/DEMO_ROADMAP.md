@@ -2,7 +2,8 @@
 
 Status: implementation plan, 2026-09-30. This document covers the first demo only.
 Requirements describe the target; they do not claim implemented features.
-The existing application is a geometry scaffold, not the finished demo.
+The application now includes a working numerical transport increment; it is
+not the finished demo.
 
 Implementation has begun on M1 and the independent foundations of M2/M3:
 the [scientific baseline](SCIENTIFIC_BASELINE.md) records a benchmark route;
@@ -10,12 +11,21 @@ the [data audit](../references/openmc-fendl-readiness.json) identifies existing
 OpenMC/FENDL inputs and unresolved provenance/temperature coverage. Strict
 transport schemas and Rust normalization are implemented, with a bounded
 external runner and a real [OpenMC numerical control](NUMERICAL_CONTROLS.md).
-These increments do not complete M1, M2 or M3. Reactor materials/source choices,
-experimental benchmark reproduction, the production adapter, and desktop
-transport/results integration still need implementation. Generated Core studies,
-real semantic compilation in the CLI/native app, and explicit typed physics
-inputs are now implemented. These are partial M2 deliverables; Core execution
-and evidence/qualification binding remain pending.
+These increments do not complete M1, M2 or M3. An explicit cold-data surrogate
+now assigns materials/source, runs real OpenMC transport, and integrates
+checked results into the desktop. Generated Core studies and actual semantic
+compilation work in the CLI/native app. Core stage execution/evidence binding,
+hot-state/data applicability, experimental/reference response qualification,
+and operating inputs remain pending. See [the implemented transport boundary](COLD_REFERENCE.md).
+
+| Milestone | Current implementation status |
+| --- | --- |
+| M0 | Complete: starting capabilities and demo boundary recorded |
+| M1 | In progress: audited cold-data materials/source and reference route; operating assumptions and qualification gaps remain |
+| M2 | In progress: typed transport inputs/results, workers, cancellation, planner and real Core compile; history/evidence formats remain |
+| M3 | In progress: both allocations run real OpenMC, normalize in Rust, and replay in the app; prediction qualification remains unresolved |
+| M4 | Initial field presentation implemented; penetration/control geometry and spatial validation remain |
+| M5–M7 | Pending |
 
 ## The result we are building
 
@@ -78,7 +88,7 @@ the CLI; the Core experience is a required part of the finished desktop demo.
 
 ## Starting point and unresolved choices
 
-| Area | Actual starting state |
+| Area | M0 starting state (historical) |
 | --- | --- |
 | Rust model/engine/CLI | Scenario validation, source identity, geometry metadata, deterministic export |
 | Desktop | Working cutaway, orbit/zoom, picking, visibility, arrangement selection, inspector |

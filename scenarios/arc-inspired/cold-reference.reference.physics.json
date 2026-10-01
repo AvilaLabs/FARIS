@@ -1,0 +1,276 @@
+{
+  "schema_version": "faris-physics-case/v0.1",
+  "id": "arc-cold-reference-reference-v1",
+  "scenario_id": "arc-cold-reference-001",
+  "scenario_sha256": "4820b92e1e8b2ca8dfc63142cf80fd63a6c68346e14fcb380a8eff2e55e19c7d",
+  "variant_id": "reference",
+  "materials": [
+    {
+      "id": "tungsten-natural",
+      "recipe": {
+        "kind": "nuclide_mixture",
+        "density_kg_m3": 19300.0,
+        "material_temperature_k": null,
+        "nuclear_data_temperature_k": 293.6,
+        "nuclides": [
+          {
+            "nuclide": "W180",
+            "atom_fraction": 0.0012
+          },
+          {
+            "nuclide": "W182",
+            "atom_fraction": 0.265
+          },
+          {
+            "nuclide": "W183",
+            "atom_fraction": 0.1431
+          },
+          {
+            "nuclide": "W184",
+            "atom_fraction": 0.3064
+          },
+          {
+            "nuclide": "W186",
+            "atom_fraction": 0.2843
+          }
+        ],
+        "provenance": {
+          "origin": "literature_input",
+          "reference_id": "nist-density",
+          "locator": "NIST ESTAR tungsten composition, density 19.3 g/cm3"
+        }
+      }
+    },
+    {
+      "id": "flibe-cold-solid",
+      "recipe": {
+        "kind": "nuclide_mixture",
+        "density_kg_m3": 2137.175,
+        "material_temperature_k": null,
+        "nuclear_data_temperature_k": 293.6,
+        "nuclides": [
+          {
+            "nuclide": "Li6",
+            "atom_fraction": 0.2571428571428571
+          },
+          {
+            "nuclide": "Li7",
+            "atom_fraction": 0.02857142857142857
+          },
+          {
+            "nuclide": "Be9",
+            "atom_fraction": 0.14285714285714285
+          },
+          {
+            "nuclide": "F19",
+            "atom_fraction": 0.5714285714285714
+          }
+        ],
+        "provenance": {
+          "origin": "authored_assumption",
+          "description": "Solid Li2BeF4 density 2137.175 kg/m3 is a fixed-crystal-volume isotope-mass reweighting from Gardner et al. Li7-rich X-ray fit; not measured at 90% Li6."
+        }
+      }
+    },
+    {
+      "id": "ti-hydride-shield-surrogate",
+      "recipe": {
+        "kind": "nuclide_mixture",
+        "density_kg_m3": 3750.0,
+        "material_temperature_k": null,
+        "nuclear_data_temperature_k": 293.6,
+        "nuclides": [
+          {
+            "nuclide": "H1",
+            "atom_fraction": 0.66656284
+          },
+          {
+            "nuclide": "H2",
+            "atom_fraction": 0.0001038266666667
+          },
+          {
+            "nuclide": "Ti46",
+            "atom_fraction": 0.0275
+          },
+          {
+            "nuclide": "Ti47",
+            "atom_fraction": 0.0248
+          },
+          {
+            "nuclide": "Ti48",
+            "atom_fraction": 0.2457333333333
+          },
+          {
+            "nuclide": "Ti49",
+            "atom_fraction": 0.0180333333333
+          },
+          {
+            "nuclide": "Ti50",
+            "atom_fraction": 0.0172666666667
+          }
+        ],
+        "provenance": {
+          "origin": "authored_assumption",
+          "description": "Ideal stoichiometric TiH2 and theoretical crystalline density 3750 kg/m3; not packed-bed density."
+        }
+      }
+    },
+    {
+      "id": "pure-iron-surrogate",
+      "recipe": {
+        "kind": "nuclide_mixture",
+        "density_kg_m3": 7874.0,
+        "material_temperature_k": null,
+        "nuclear_data_temperature_k": 293.6,
+        "nuclides": [
+          {
+            "nuclide": "Fe54",
+            "atom_fraction": 0.05845
+          },
+          {
+            "nuclide": "Fe56",
+            "atom_fraction": 0.91754
+          },
+          {
+            "nuclide": "Fe57",
+            "atom_fraction": 0.02119
+          },
+          {
+            "nuclide": "Fe58",
+            "atom_fraction": 0.00282
+          }
+        ],
+        "provenance": {
+          "origin": "literature_input",
+          "reference_id": "nist-density",
+          "locator": "Pure iron density 7.874 +/- 0.001 g/cm3; elemental surrogate for alloy vessel."
+        }
+      }
+    },
+    {
+      "id": "void",
+      "recipe": {
+        "kind": "void",
+        "provenance": {
+          "origin": "authored_assumption",
+          "description": "Explicit geometric clearance void; not a material density."
+        }
+      }
+    },
+    {
+      "id": "copper-magnet-response-surrogate",
+      "recipe": {
+        "kind": "nuclide_mixture",
+        "density_kg_m3": 8960.0,
+        "material_temperature_k": null,
+        "nuclear_data_temperature_k": 293.6,
+        "nuclides": [
+          {
+            "nuclide": "Cu63",
+            "atom_fraction": 0.6915
+          },
+          {
+            "nuclide": "Cu65",
+            "atom_fraction": 0.3085
+          }
+        ],
+        "provenance": {
+          "origin": "literature_input",
+          "reference_id": "nist-density",
+          "locator": "NIST selected-metal density 8.96 g/cm3 at 295 K; response surrogate only, not coil material."
+        }
+      }
+    }
+  ],
+  "component_assignments": [
+    {
+      "component_id": "first-wall",
+      "material_id": "tungsten-natural"
+    },
+    {
+      "component_id": "blanket",
+      "material_id": "flibe-cold-solid"
+    },
+    {
+      "component_id": "shield",
+      "material_id": "ti-hydride-shield-surrogate"
+    },
+    {
+      "component_id": "vessel",
+      "material_id": "pure-iron-surrogate"
+    },
+    {
+      "component_id": "magnet-gap",
+      "material_id": "void"
+    },
+    {
+      "component_id": "magnets",
+      "material_id": "copper-magnet-response-surrogate"
+    }
+  ],
+  "source": {
+    "energy_per_reaction_ev": 17600000.0,
+    "neutron_energy_ev": 14100000.0,
+    "neutrons_per_reaction": 1.0,
+    "energy_distribution": "monoenergetic",
+    "spatial_distribution": "uniform_circular_plasma_torus",
+    "angular_distribution": "isotropic",
+    "provenance": {
+      "origin": "authored_assumption",
+      "description": "Uniform-volume, isotropic, monoenergetic 14.1 MeV neutron source; D-T Q=17.6 MeV and 1 neutron/reaction for normalization. Not ARC source phase space."
+    }
+  },
+  "nuclear_data": {
+    "state": "unselected"
+  },
+  "scientific_scope": {
+    "kind": "numerical_reference",
+    "reference_kind": "cold_data_numerical_reference",
+    "description": "Cold-data numerical reference for implementation and conditional variant response comparison only. Scientific qualification and experimental validation NOT_EVALUATED."
+  },
+  "assumptions": [
+    "Physical material temperature is unspecified (null); 293.6 K is the nuclear-data selection target only.",
+    "Data target tolerance is 0.1 K against numeric stored temperatures; no interpolation or hot-data extrapolation.",
+    "Full circular torus; no ports, blanket flow, plasma evolution, coupled photons, or resolved magnet.",
+    "Tritium tally represents gross H3 births only; not recovered fuel or engineering TBR qualification.",
+    "Copper is a magnet-response surrogate; no coil failure or service-life inference."
+  ],
+  "references": [
+    {
+      "id": "arc-2015",
+      "title": "ARC conceptual design",
+      "url": "https://arxiv.org/abs/1409.3540",
+      "use": "Concept inspiration only; this scenario does not reproduce ARC geometry or performance."
+    },
+    {
+      "id": "arc-exhaust-2018",
+      "title": "Conceptual design study for heat exhaust management in ARC",
+      "url": "https://arxiv.org/abs/1809.10555",
+      "use": "Nominal 3.3 m major radius and 525 MW fusion power; other dimensions are authored demo assumptions."
+    },
+    {
+      "id": "solid-flibe-density",
+      "title": "Solid structure of Li2BeF4 from room temperature to melting",
+      "url": "https://doi.org/10.1107/S1600576725000548",
+      "use": "Solid-state density precedent on Li7-rich salt; 90%-Li6 density is reweighted model assumption."
+    },
+    {
+      "id": "nist-density",
+      "title": "NIST elemental density references",
+      "url": "https://www.nist.gov/document/srd71usersguidev1-2pdf",
+      "use": "Room-temperature elemental reference densities only."
+    },
+    {
+      "id": "ti-hydride-density",
+      "title": "Cold compaction behavior of unsaturated titanium hydride powders",
+      "url": "https://doi.org/10.3390/met13020360",
+      "use": "Theoretical crystalline TiH2 density, not powder-bed bulk density."
+    },
+    {
+      "id": "fendl",
+      "title": "FENDL evaluated nuclear data library",
+      "url": "https://www-nds.iaea.org/fendl/",
+      "use": "Potential data source family; local cache provenance and license unresolved."
+    }
+  ]
+}

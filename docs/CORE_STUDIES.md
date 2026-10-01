@@ -46,3 +46,14 @@ compiled, and a deliberately malformed exact-number limit was rejected with
 integration only. No reactor prediction, stage execution receipt, or scientific
 qualification is supplied by compilation. Evidence execution and qualification
 binding remain later demo work.
+
+Shielding declares a magnet-region mean-neutron-flux output with units
+`neutrons/m²/s`. It has no invented acceptance threshold. The current Core
+profile requires at least one requirement: a shielding-only study is therefore
+rejected with `CORE-S1102` at `/requirements`. FARIS preserves that diagnostic.
+An analysis may still run independently through the transport workflow.
+
+Compiler hashes are checked before and after execution. A changed executable
+invalidates the report; unavailable execution retains an error receipt when
+the output directory can be written. These are local consistency checks, not
+signed attestation or a guarantee against adversarial file replacement.

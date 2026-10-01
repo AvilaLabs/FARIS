@@ -80,6 +80,7 @@ pub struct Reference {
 pub struct LoadedScenario {
     pub scenario: Scenario,
     pub source_sha256: String,
+    source_bytes: Vec<u8>,
 }
 
 impl LoadedScenario {
@@ -93,7 +94,25 @@ impl LoadedScenario {
         Ok(Self {
             scenario,
             source_sha256: format!("{:x}", Sha256::digest(bytes)),
+            source_bytes: bytes.to_vec(),
         })
+    }
+
+    pub fn source_bytes(&self) -> &[u8] {
+        &self.source_bytes
+    }
+
+    /// Detect in-memory changes that would otherwise keep an old file identity.
+    pub fn validate_identity(&self) -> Result<(), ScenarioError> {
+        let original: Scenario = serde_json::from_slice(&self.source_bytes)?;
+        if format!("{:x}", Sha256::digest(&self.source_bytes)) != self.source_sha256
+            || serde_json::to_value(&original)? != serde_json::to_value(&self.scenario)?
+        {
+            return Err(invalid(
+                "loaded scenario was changed without updating its source identity",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -294,5 +313,15 @@ mod tests {
         bytes.push(b'\n');
         let changed = LoadedScenario::from_bytes(&bytes).unwrap();
         assert_ne!(original.source_sha256, changed.source_sha256);
+    }
+
+    #[test]
+    fn changed_memory_cannot_retain_the_original_source_identity() {
+        let mut loaded = LoadedScenario::from_bytes(CASE).unwrap();
+        assert_eq!(loaded.source_bytes(), CASE);
+        assert!(loaded.validate_identity().is_ok());
+        loaded.scenario.operating_plan.fusion_power_mw *= 2.0;
+        assert!(loaded.scenario.validate().is_ok());
+        assert!(loaded.validate_identity().is_err());
     }
 }

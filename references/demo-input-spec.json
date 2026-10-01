@@ -1855,14 +1855,14 @@
     },
     "tallies": [
       {
-        "domain": "blanket and any separate salt channel cells only",
+        "domain": "blanket breeder only; the component-level `blanket-tritium` response",
         "id": "gross-tritium-births",
         "normalization": "tritium nuclei per source neutron; with exactly one source neutron per D-T reaction, gross T births per source are the idealized TBR for modeled Li material",
         "nuclides": [
           "Li6",
           "Li7"
         ],
-        "scope_limit": "gross production only; no extraction, recovery, decay, retention or startup inventory",
+        "scope_limit": "gross production only; no extraction/recovery/decay/retention/startup inventory. The whole-model aggregate includes all modeled regions, including a trace possible H3 contribution from TiH2 shield hydrogen, so do not treat that aggregate as breeder-only TBR.",
         "score": "H3-production",
         "status": "score route data present; actual tally, per-nuclide mechanism, uncertainty and normalization must be verified by OpenMC run"
       },
@@ -1898,9 +1898,25 @@
         "id": "total-local-heating",
         "score": "heating-local",
         "status": "NOT_EVALUATED; MT901 absent from every target neutron file"
+      },
+      {
+        "domain": "all OpenMC model cells; whole-model aggregate response",
+        "id": "whole-model-tritium-diagnostic",
+        "normalization": "tritium nuclei per source neutron",
+        "scope_limit": "includes non-breeder regions and may include H3 from shield hydrogen; fuel/history calculations must use the breeder component response unless separately justified.",
+        "score": "H3-production",
+        "status": "raw aggregate requested to reconcile region totals; not equivalent to breeder-only TBR"
       }
     ],
     "temperature_limit": "All audited target nuclides have only 294K data. No hot-case temperature interpolation/broadening is asserted.",
+    "temperature_selection": {
+      "audited_stored_kT_temperature_K": 293.59430848016336,
+      "meaning": "Compare against numeric stored kT at 0.1 K. OpenMC 0.15.3 accesses this table via rounded integer label 294K and needs separate 1 K label-selection tolerance. This is not physical material temperature, interpolation, or hot-data extrapolation.",
+      "openmc_label_selection_tolerance_K": 1.0,
+      "physics_case_matching_tolerance_K": 0.1,
+      "physics_case_requested_data_temperature_K": 293.6,
+      "rounded_openmc_group_label": "294K"
+    },
     "thermal_scattering": "No thermal-scattering library entries are present in candidate cross_sections.xml. Bound molecular/crystalline scatter laws for solid FLiBe/TiH2 are absent; any default free-gas use must be disclosed. Low-energy spectra and breeding sensitivity require a bound-scattering appropriateness study before design-level claims.",
     "tool": "OpenMC",
     "version": "0.15.3"

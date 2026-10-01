@@ -4,6 +4,7 @@ use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
 mod control;
+mod reactor;
 mod study;
 mod transport;
 
@@ -46,6 +47,11 @@ enum Command {
         #[command(subcommand)]
         command: study::StudyCommand,
     },
+    /// Execute a fixed-source cold-data numerical reference through OpenMC.
+    Reactor {
+        #[command(subcommand)]
+        command: reactor::ReactorCommand,
+    },
 }
 
 fn main() -> std::process::ExitCode {
@@ -70,6 +76,7 @@ fn main() -> std::process::ExitCode {
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
     match arguments.command {
         Command::Control { command } => control::run(command)?,
+        Command::Reactor { command } => reactor::run(command)?,
         Command::Study { command } => study::run(command)?,
         Command::Transport { command } => transport::run(command)?,
         Command::Validate { scenario } => {
