@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+target/
+build/
+dist/
+runs/*
+!runs/.gitkeep
+data/raw/*
+!data/raw/.gitkeep
+customer-data/
+.env
+.env.*
+!.env.example
+.DS_Store

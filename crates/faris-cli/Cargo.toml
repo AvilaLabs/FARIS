@@ -1,0 +1,22 @@
+[package]
+name = "faris-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Headless FARIS scenario and geometry operations"
+
+[[bin]]
+name = "faris"
+path = "src/main.rs"
+
+[dependencies]
+faris-model.workspace = true
+faris-engine.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "faris-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Native egui desktop workspace with a wgpu 3D viewport"
+
+[dependencies]
+faris-model.workspace = true
+faris-engine.workspace = true
+eframe.workspace = true
+bytemuck.workspace = true
+clap.workspace = true
+image = { version = "=0.25.10", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

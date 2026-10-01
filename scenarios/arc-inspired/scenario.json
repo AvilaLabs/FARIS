@@ -1,0 +1,51 @@
+{
+  "schema_version": "faris-scenario/v0.1",
+  "id": "arc-inspired-001",
+  "title": "A compact tokamak, through time",
+  "description": "A geometry scaffold for comparing blanket and shield allocations in a fixed radial envelope.",
+  "geometry": {
+    "major_radius_m": 3.3,
+    "plasma_minor_radius_m": 1.0,
+    "plasma_to_first_wall_gap_m": 0.08,
+    "radial_build_m": 1.2
+  },
+  "operating_plan": {"fusion_power_mw": 525.0, "horizon_years": 30.0},
+  "variants": [
+    {
+      "id": "reference",
+      "label": "Reference allocation",
+      "layers": [
+        {"id": "first-wall", "label": "First wall", "material_id": "first-wall-unassigned", "thickness_m": 0.03, "color": "#D88D56"},
+        {"id": "blanket", "label": "Breeding blanket", "material_id": "breeder-unassigned", "thickness_m": 0.45, "color": "#59A5A0"},
+        {"id": "shield", "label": "Neutron shield", "material_id": "shield-unassigned", "thickness_m": 0.45, "color": "#8196B4"},
+        {"id": "vessel", "label": "Vacuum vessel", "material_id": "vessel-unassigned", "thickness_m": 0.05, "color": "#A6AFBD"},
+        {"id": "magnet-gap", "label": "Magnet clearance", "material_id": "void", "thickness_m": 0.06, "color": "#DCE3ED"},
+        {"id": "magnets", "label": "Magnet envelope", "material_id": "magnet-unassigned", "thickness_m": 0.16, "color": "#6859B8"}
+      ]
+    },
+    {
+      "id": "breeder-emphasis",
+      "label": "More breeder, less shield",
+      "layers": [
+        {"id": "first-wall", "label": "First wall", "material_id": "first-wall-unassigned", "thickness_m": 0.03, "color": "#D88D56"},
+        {"id": "blanket", "label": "Breeding blanket", "material_id": "breeder-unassigned", "thickness_m": 0.55, "color": "#59A5A0"},
+        {"id": "shield", "label": "Neutron shield", "material_id": "shield-unassigned", "thickness_m": 0.35, "color": "#8196B4"},
+        {"id": "vessel", "label": "Vacuum vessel", "material_id": "vessel-unassigned", "thickness_m": 0.05, "color": "#A6AFBD"},
+        {"id": "magnet-gap", "label": "Magnet clearance", "material_id": "void", "thickness_m": 0.06, "color": "#DCE3ED"},
+        {"id": "magnets", "label": "Magnet envelope", "material_id": "magnet-unassigned", "thickness_m": 0.16, "color": "#6859B8"}
+      ]
+    }
+  ],
+  "references": [
+    {"id": "arc-2015", "title": "ARC conceptual design", "url": "https://arxiv.org/abs/1409.3540", "use": "Concept inspiration only; this scenario does not reproduce ARC geometry or performance."},
+    {"id": "arc-exhaust-2018", "title": "Conceptual design study for heat exhaust management in ARC", "url": "https://arxiv.org/abs/1809.10555", "use": "Nominal 3.3 m major radius and 525 MW fusion power; other dimensions are authored demo assumptions."}
+  ],
+  "assumptions": [
+    "Circular concentric full tori are idealized geometry, with no resolved ports, divertor, coolant channels, coil packs, or supports.",
+    "All layer dimensions, the 1.0 m plasma minor radius, clearance, and the 30-year horizon are authored scaffold assumptions.",
+    "Material identifiers ending in unassigned have no density, composition, temperature, or evaluated nuclear data attached.",
+    "The magnet layer is a geometric envelope, not a resolved superconducting magnet design.",
+    "The viewer cutaway removes a sector for display only; manifest volumes describe the complete torus.",
+    "No breeding ratio, exposure, activation, service limit, lifetime, or electricity result has been calculated."
+  ]
+}
