@@ -1,0 +1,39 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "checkpoint",
+      "name": "minimum window 200 percent preserves a usable viewport",
+      "expected": {
+        "/interface_scale": 2.0,
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 1.0,
+      "type": "button",
+      "x": 430,
+      "y": 33,
+      "pressed": true
+    },
+    {
+      "time_s": 1.2,
+      "type": "button",
+      "x": 430,
+      "y": 33,
+      "pressed": false
+    },
+    {
+      "time_s": 5,
+      "type": "checkpoint",
+      "name": "compact header runs actual Core compilation",
+      "expected": {
+        "/core/compile_attempted": true,
+        "/core/compilation_status": "compiled",
+        "/core/compile_pending": false
+      }
+    }
+  ]
+}

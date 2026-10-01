@@ -1,0 +1,15 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.5,
+      "type": "checkpoint",
+      "name": "minimum window larger interface with bound saved case",
+      "expected": {
+        "/interface_scale": 1.5,
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    }
+  ]
+}

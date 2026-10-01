@@ -51,7 +51,7 @@ struct Arguments {
     window_width: u32,
     #[arg(long, default_value_t = 900)]
     window_height: u32,
-    /// Interface magnification for display/accessibility checks.
+    /// Initial interface magnification, relative to native desktop display scaling.
     #[arg(long, default_value_t = 1.0)]
     interface_scale: f32,
     /// External Avila Core executable used by Compile study.
@@ -257,6 +257,33 @@ fn scenario_from_bundle(
     Ok(LoadedScenario::from_bytes(
         bundle.files["scenario.json"].as_bytes(),
     )?)
+}
+
+fn interface_size_menu(ui: &mut egui::Ui) {
+    let current = ui.ctx().zoom_factor();
+    ui.menu_button(format!("Interface size: {:.0}%", current * 100.0), |ui| {
+        ui.label("Scale text, controls, panels, and plots");
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0] {
+            if ui
+                .selectable_label(
+                    (current - scale).abs() < 0.001,
+                    format!("{:.0}%", scale * 100.0),
+                )
+                .clicked()
+            {
+                ui.ctx().set_zoom_factor(scale);
+                ui.close();
+            }
+        }
+        ui.separator();
+        egui::gui_zoom::zoom_menu_buttons(ui);
+        ui.separator();
+        ui.label("100% follows your desktop's display scaling.");
+    })
+    .response
+    .on_hover_text(
+        "Resize the whole interface. Ctrl/Cmd + or − adjusts size; Ctrl/Cmd 0 resets it.",
+    );
 }
 
 struct ComponentMesh {
@@ -785,76 +812,106 @@ impl eframe::App for FarisApp {
             year_before_frame,
         );
         egui::Panel::top("menu").show(ui, |ui| {
+            let compact = ui.available_width() < 900.0;
             ui.horizontal(|ui| {
                 ui.strong("FARIS");
                 ui.weak("Avila Labs");
                 ui.separator();
-                ui.label("Scene");
-                ui.separator();
-                ui.label("Research workspace");
+                interface_size_menu(ui);
+                if !compact {
+                    ui.separator();
+                    ui.label("Research workspace");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self.study.header(
+                            ui,
+                            &self.manifest,
+                            &self.manifest.variants[self.variant].id,
+                        );
+                    });
+                }
+            });
+            if compact {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     self.study
                         .header(ui, &self.manifest, &self.manifest.variants[self.variant].id);
                 });
-            });
+            }
         });
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.small(&self.message);
         });
+        let workspace_width = ui.available_width();
+        let timeline_max_height = (ui.available_height() * 0.45).clamp(85.0, 360.0);
         egui::Panel::bottom("timeline")
             .resizable(true)
-            .default_size(if self.show_history { 270.0 } else { 110.0 })
-            .size_range(85.0..=360.0)
+            .default_size(
+                (if self.show_history { 270.0_f32 } else { 110.0 }).min(timeline_max_height),
+            )
+            .size_range(85.0..=timeline_max_height)
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.show_history, true, "Operating history");
-                    ui.selectable_value(&mut self.show_history, false, "Transport comparison");
-                });
-                if self.show_history {
-                    self.history.timeline(
-                        ui,
-                        &self.manifest.source_sha256,
-                        &self.manifest.variants[self.variant].id,
-                        &mut self.year,
-                        self.manifest.horizon_years,
-                    );
-                    return;
-                }
-                if self.transport.has_results() {
-                    egui::ScrollArea::both().show(ui, |ui| {
-                        self.transport.comparison(ui);
-                        if let Some((_, panel)) = &self.paired {
-                            ui.separator();
-                            panel.comparison(ui);
+                let content_width = ui.available_width();
+                egui::ScrollArea::both()
+                    .id_salt("timeline-content")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_width(content_width);
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut self.show_history, true, "Operating history");
+                            ui.selectable_value(
+                                &mut self.show_history,
+                                false,
+                                "Transport comparison",
+                            );
+                        });
+                        if self.show_history {
+                            self.history.timeline(
+                                ui,
+                                &self.manifest.source_sha256,
+                                &self.manifest.variants[self.variant].id,
+                                &mut self.year,
+                                self.manifest.horizon_years,
+                            );
+                            return;
                         }
+                        if self.transport.has_results() {
+                            egui::ScrollArea::both().show(ui, |ui| {
+                                self.transport.comparison(ui);
+                                if let Some((_, panel)) = &self.paired {
+                                    ui.separator();
+                                    panel.comparison(ui);
+                                }
+                            });
+                            return;
+                        }
+                        ui.horizontal(|ui| {
+                            ui.strong("Operating history");
+                            ui.separator();
+                            ui.label(format!("Year {:.1}", self.year));
+                            ui.weak("Timeline preview · ageing model pending");
+                        });
+                        ui.add(
+                            egui::Slider::new(&mut self.year, 0.0..=self.manifest.horizon_years)
+                                .text("years")
+                                .show_value(false),
+                        );
+                        ui.horizontal(|ui| {
+                            ui.label("Tritium inventory  —");
+                            ui.separator();
+                            ui.label("Net electricity  —");
+                            ui.separator();
+                            ui.label("Replacement events  —");
+                        });
                     });
-                    return;
-                }
-                ui.horizontal(|ui| {
-                    ui.strong("Operating history");
-                    ui.separator();
-                    ui.label(format!("Year {:.1}", self.year));
-                    ui.weak("Timeline preview · ageing model pending");
-                });
-                ui.add(
-                    egui::Slider::new(&mut self.year, 0.0..=self.manifest.horizon_years)
-                        .text("years")
-                        .show_value(false),
-                );
-                ui.horizontal(|ui| {
-                    ui.label("Tritium inventory  —");
-                    ui.separator();
-                    ui.label("Net electricity  —");
-                    ui.separator();
-                    ui.label("Replacement events  —");
-                });
             });
+        let left_max_width = (workspace_width * 0.28).clamp(150.0, 320.0);
         egui::Panel::left("scenario")
             .resizable(true)
-            .default_size(220.0)
-            .size_range(175.0..=320.0)
+            .default_size(220.0_f32.min(left_max_width))
+            .size_range(140.0..=left_max_width)
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                let content_width = ui.available_width();
+                egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.set_width(content_width);
                     ui.heading("Scenario");
                     ui.add_space(8.0);
                     ui.label(&self.manifest.title);
@@ -925,12 +982,15 @@ impl eframe::App for FarisApp {
                     });
                 });
             });
+        let right_max_width = (workspace_width * 0.32).clamp(180.0, 400.0);
         egui::Panel::right("properties")
             .resizable(true)
-            .default_size(285.0)
-            .size_range(230.0..=400.0)
+            .default_size(285.0_f32.min(right_max_width))
+            .size_range(160.0..=right_max_width)
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
+                let content_width = ui.available_width();
+                egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.set_width(content_width);
                 ui.heading("Outliner");
                 ui.add_space(8.0);
                 let variant = &self.manifest.variants[self.variant];
@@ -1013,9 +1073,18 @@ impl eframe::App for FarisApp {
                 }
                 });
             });
+        let mut viewport_points = [0.0; 2];
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(egui::Color32::from_rgb(47, 50, 57)))
             .show(ui, |ui| {
+                let content_width = ui.available_width();
+                let controls_max_height = (ui.available_height() * 0.4).max(42.0);
+                egui::ScrollArea::both()
+                    .id_salt("viewport-controls")
+                    .max_height(controls_max_height)
+                    .auto_shrink([false, true])
+                    .show(ui, |ui| {
+                        ui.set_width(content_width);
                 ui.horizontal_wrapped(|ui| {
                     ui.strong("3D viewport");
                     ui.separator();
@@ -1027,7 +1096,12 @@ impl eframe::App for FarisApp {
                             self.camera.frame_bounds(record.mesh.lower_left_m.map(|x| x as f32), record.mesh.upper_right_m.map(|x| x as f32));
                         }
                     }
-                    ui.weak("Drag to orbit · Shift-drag to pan · scroll to zoom · click to select");
+                    let help = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select";
+                    if ui.available_width() > 450.0 {
+                        ui.weak(help);
+                    } else {
+                        ui.weak("Navigation help").on_hover_text(help);
+                    }
                 });
                 ui.horizontal_wrapped(|ui| {
                     let has_history=self.history.result(&self.manifest.source_sha256,&self.manifest.variants[self.variant].id).is_some();
@@ -1042,8 +1116,10 @@ impl eframe::App for FarisApp {
                     if self.transport.view!=transport_panel::FieldView::Materials {ui.weak(match self.transport.view {transport_panel::FieldView::FluxSlice=>"Sampling uncertainty only · click a spatial bin to inspect",transport_panel::FieldView::ComponentFluence=>"Conditional history · component mean · uncertainty not propagated",_=>"Sampling uncertainty only · component volume averages"});}
                 });
                 self.transport.field_legend(ui);
+                    });
                 let (rect, response) =
-                    ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
+                    ui.allocate_exact_size(ui.available_size().max(egui::vec2(1.0, 1.0)), egui::Sense::click_and_drag());
+                viewport_points = [rect.width(), rect.height()];
                 if response.dragged() {
                     let delta = ctx.input(|input| input.pointer.delta());
                     if ctx.input(|input| input.modifiers.shift) {
@@ -1109,8 +1185,11 @@ impl eframe::App for FarisApp {
                     egui::Color32::from_gray(180),
                     (rect.width() - 32.0).max(1.0),
                 );
-                let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
-                ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
+                if rect.width() >= 200.0 && rect.height() >= 200.0 && galley.size().y + 32.0 <= rect.height() {
+                    let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
+                    ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
+                }
+                response.on_hover_text(caption);
             });
         if let Some(check) = &mut self.interface_check {
             let variant = &self.manifest.variants[self.variant].id;
@@ -1124,6 +1203,9 @@ impl eframe::App for FarisApp {
                 "scenario_sha256":self.manifest.source_sha256,
                 "window_points":ctx.input(|i|{let size=i.content_rect().size();[size.x,size.y]}),
                 "pixels_per_point":ctx.pixels_per_point(),
+                "interface_scale":ctx.zoom_factor(),
+                "native_pixels_per_point":ctx.native_pixels_per_point(),
+                "viewport_points":viewport_points,
                 "variant_id":variant, "field_view":format!("{:?}",self.transport.view),
                 "selected_component":self.selected, "hidden_components":self.hidden,
                 "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},

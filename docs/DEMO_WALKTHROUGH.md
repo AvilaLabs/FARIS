@@ -39,6 +39,15 @@ The short native demonstration is:
    These authored ranges are not lifetime
    confidence bounds. The result can remain an unresolved engineering tradeoff.
 
+Current source builds include **Interface size** in the top bar. It scales text,
+controls, panels, and plots; Ctrl/Cmd + or − also adjusts size, and Ctrl/Cmd 0
+resets it to the desktop-scaled default. `--interface-scale 1.25` starts at 125%.
+For normal review, preserve native display detection: avoid forcing X11 or
+`WINIT_X11_SCALE_FACTOR=1`, which made the original review session too small
+on this workstation's high-DPI desktop. The frozen indexed distribution retains
+its original binary and keyboard zoom; the new visible menu is in the updated
+source-built app.
+
 Fresh transport and reproducible CLI/export instructions follow below. It takes
 substantially longer than recorded exploration, and its sampling quality must
 be checked independently of successful execution.

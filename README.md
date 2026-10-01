@@ -115,6 +115,12 @@ Linux source builds may need `pkg-config`, `libxkbcommon-dev`, and
 `libwayland-dev` from the system package manager. Windows and macOS builds
 require their usual Rust native linker/toolchain setup.
 
+Use **Interface size** in the top bar to enlarge text, controls, panels, and
+plots together. Ctrl/Cmd + or − adjusts size; Ctrl/Cmd 0 resets it. The 100%
+setting follows the desktop's display scaling. To start larger, pass
+`--interface-scale 1.25`. Leave display-backend and DPI overrides unset during
+normal use so a high-DPI desktop can report its native scale.
+
 Select analyses in the left panel and use **Compile study** in the upper right.
 Choose an external Core executable in compiler settings or pass `--core`.
 Compilation, run readiness, and scientific assessment are separate. See

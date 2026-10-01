@@ -1,0 +1,127 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "native desktop scale and four-case study ready",
+      "expected": {
+        "/interface_scale": 1.25,
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 210,
+      "y": 11,
+      "pressed": true
+    },
+    {
+      "time_s": 0.65,
+      "type": "button",
+      "x": 210,
+      "y": 11,
+      "pressed": false
+    },
+    {
+      "time_s": 2,
+      "type": "checkpoint",
+      "name": "interface-size menu available",
+      "expected": {
+        "/interface_scale": 1.25
+      }
+    },
+    {
+      "time_s": 2.5,
+      "type": "button",
+      "x": 160,
+      "y": 95,
+      "pressed": true
+    },
+    {
+      "time_s": 2.65,
+      "type": "button",
+      "x": 160,
+      "y": 95,
+      "pressed": false
+    },
+    {
+      "time_s": 3.2,
+      "type": "checkpoint",
+      "name": "150 percent selected through visible menu",
+      "expected": {
+        "/interface_scale": 1.5,
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 3.7,
+      "type": "key",
+      "key": "0",
+      "pressed": true,
+      "control": true
+    },
+    {
+      "time_s": 3.8,
+      "type": "key",
+      "key": "0",
+      "pressed": false,
+      "control": true
+    },
+    {
+      "time_s": 4.2,
+      "type": "checkpoint",
+      "name": "keyboard reset returns to native desktop scaling",
+      "expected": {
+        "/interface_scale": 1.0
+      }
+    },
+    {
+      "time_s": 4.7,
+      "type": "key",
+      "key": "Equals",
+      "pressed": true,
+      "control": true
+    },
+    {
+      "time_s": 4.8,
+      "type": "key",
+      "key": "Equals",
+      "pressed": false,
+      "control": true
+    },
+    {
+      "time_s": 5.2,
+      "type": "checkpoint",
+      "name": "keyboard increases complete interface",
+      "expected": {
+        "/interface_scale": 1.100000023841858
+      }
+    },
+    {
+      "time_s": 5.7,
+      "type": "key",
+      "key": "Minus",
+      "pressed": true,
+      "control": true
+    },
+    {
+      "time_s": 5.8,
+      "type": "key",
+      "key": "Minus",
+      "pressed": false,
+      "control": true
+    },
+    {
+      "time_s": 6.2,
+      "type": "checkpoint",
+      "name": "keyboard decreases complete interface",
+      "expected": {
+        "/interface_scale": 1.0
+      }
+    }
+  ]
+}

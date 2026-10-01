@@ -1,0 +1,37 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {
+      "time_s": 0.1,
+      "type": "checkpoint",
+      "name": "native desktop scale and four-case study ready",
+      "expected": {
+        "/interface_scale": 1.25,
+        "/history_loaded": true,
+        "/core/saved_core_verified": true
+      }
+    },
+    {
+      "time_s": 0.5,
+      "type": "button",
+      "x": 210,
+      "y": 11,
+      "pressed": true
+    },
+    {
+      "time_s": 0.65,
+      "type": "button",
+      "x": 210,
+      "y": 11,
+      "pressed": false
+    },
+    {
+      "time_s": 2,
+      "type": "checkpoint",
+      "name": "interface-size menu available",
+      "expected": {
+        "/interface_scale": 1.25
+      }
+    }
+  ]
+}

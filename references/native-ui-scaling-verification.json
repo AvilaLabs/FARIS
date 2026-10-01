@@ -1,0 +1,161 @@
+{
+  "schema_version": "faris-native-ui-scaling-verification/v0.1",
+  "recorded_at_utc": "2026-10-01",
+  "purpose": "Correct the forced-1x high-DPI review launch and provide visible runtime magnification with bounded scrolling/panels.",
+  "native_app_sha256": "14159f4c51b00af34aec279e59700a9facc0c72264ebd9cbbdb9f6fbfcc98f99",
+  "cli_sha256": "240bae4b3a2562aefd50712725e2a89fbe6bd5c67bfdeadad840254af79b8377",
+  "core_sha256": "fc44a78e1bf5767f3e5f6a89ddaf42087daafcc6569da14f2d97b3c8eaf55397",
+  "canonical_package_index_sha256": "dbe3d1913e7173c1e720969d44635b88d53024a254d1050b8637541be03ef0d0",
+  "deployment": "Source-built updated app uses the unchanged indexed four recorded transport cases and hash-identical copied saved Core evidence. The immutable original packet and its baseline native reports remain unchanged.",
+  "checks": [
+    {
+      "name": "native-menu",
+      "input_checkpoint_status": "PASS",
+      "viewport_points": [
+        [
+          487.0,
+          285.875
+        ],
+        [
+          487.0,
+          285.875
+        ]
+      ],
+      "evidence": {
+        "plan": {
+          "path": "references/native-ui-scale-checks/2026-10-01/native-menu.plan.json",
+          "sha256": "ceaddc583de1a98d5b4ae449f273abd026951deb603a3290b2206425d3df8795"
+        },
+        "report": {
+          "path": "references/native-ui-scale-checks/2026-10-01/native-menu.report.json",
+          "sha256": "6b32d6b3c761c93f7fe89fe6d0fe75783066713645bebdd992c3ee353dc697e3"
+        }
+      },
+      "local_capture": "/tmp/faris-ui-scale-native-menu-v3.png",
+      "capture_sha256": "6fe9997bc6e7c66064ab7a653d32e56f79a11fa3c913e13efd8a837a429693e0",
+      "layout_status": "VISUALLY_INSPECTED_READABLE_PANELS_AND_VIEWPORT"
+    },
+    {
+      "name": "native-menu-change",
+      "input_checkpoint_status": "PASS",
+      "viewport_points": [
+        [
+          487.0,
+          285.875
+        ],
+        [
+          487.0,
+          285.875
+        ],
+        [
+          335.1875,
+          200.0
+        ],
+        [
+          755.1875,
+          515.8125
+        ],
+        [
+          640.65625,
+          439.4375
+        ],
+        [
+          755.1875,
+          515.8125
+        ]
+      ],
+      "evidence": {
+        "plan": {
+          "path": "references/native-ui-scale-checks/2026-10-01/native-menu-change.plan.json",
+          "sha256": "438c37291612e4e5f3ec877743c8bdb0c38b1e8b03083ae84c84908b638ed435"
+        },
+        "report": {
+          "path": "references/native-ui-scale-checks/2026-10-01/native-menu-change.report.json",
+          "sha256": "aee45a61f510907cf0cab04bce3efb8e3a49fba8bf0f78257391c75294c75a85"
+        }
+      },
+      "local_capture": "/tmp/faris-ui-scale-native-menu-change-v3.png",
+      "capture_sha256": "25fab2c274a36b44beebd470575231353277ef77fa6ad3d58853b5faf1236c0c",
+      "layout_status": "VISUALLY_INSPECTED_READABLE_PANELS_AND_VIEWPORT"
+    },
+    {
+      "name": "minimum-large",
+      "input_checkpoint_status": "PASS",
+      "viewport_points": [
+        [
+          245.25,
+          120.5625
+        ]
+      ],
+      "evidence": {
+        "plan": {
+          "path": "references/native-ui-scale-checks/2026-10-01/minimum-large.plan.json",
+          "sha256": "00e36256741a065d3ef09735a69bd062154a14ec8b4b98f379fdf55aea9dcfdb"
+        },
+        "report": {
+          "path": "references/native-ui-scale-checks/2026-10-01/minimum-large.report.json",
+          "sha256": "74432a46535517e6f6a57b52eed337a38f6aea693cf9d5b09011001113acc68a"
+        }
+      },
+      "local_capture": "/tmp/faris-ui-scale-minimum-large-v3.png",
+      "capture_sha256": "f07e4c5923278b1184ae4035adfef12eefccffc5bcc561a5446582a97a2a0d26",
+      "layout_status": "VISUALLY_INSPECTED_READABLE_PANELS_AND_VIEWPORT"
+    },
+    {
+      "name": "minimum-largest",
+      "input_checkpoint_status": "PASS",
+      "viewport_points": [
+        [
+          143.90625,
+          57.84375
+        ],
+        [
+          143.90625,
+          57.84375
+        ]
+      ],
+      "evidence": {
+        "plan": {
+          "path": "references/native-ui-scale-checks/2026-10-01/minimum-largest.plan.json",
+          "sha256": "bf7e806d476a556140f5684cc93fbe08909998dba419aca72a8ce4faeecd6f37"
+        },
+        "report": {
+          "path": "references/native-ui-scale-checks/2026-10-01/minimum-largest.report.json",
+          "sha256": "b2e857386fab032b530876e59b18e7a3c60046a6bbcb7036ded184abdcd551a5"
+        }
+      },
+      "local_capture": "/tmp/faris-ui-scale-minimum-largest-v3.png",
+      "capture_sha256": "d46e72061e7160600b61674a538985ceb95d7cdd6cedf245d6263881ed6c6fad",
+      "layout_status": "LIMITED_AT_200_PERCENT_MINIMUM_WINDOW",
+      "raw_checkpoint_label_correction": "The unchanged raw checkpoint label says 'preserves a usable viewport', but its assertions check only 200% magnification, loaded history, and saved Core verification. Its PASS is not a viewport usability result. The separately measured viewport fails the supplemental 120x80-point layout screen."
+    }
+  ],
+  "readable_start": {
+    "native_pixels_per_point": 1.6666666269302368,
+    "interface_magnification": 1.25,
+    "effective_pixels_per_point": 2.0833332538604736,
+    "old_review_forced_scale": 1.0,
+    "interface_scaling_multiplier_vs_original_review": 2.0833332538604736
+  },
+  "native_menu_capture": {
+    "path": "docs/images/interface-size-menu.png",
+    "sha256": "6fe9997bc6e7c66064ab7a653d32e56f79a11fa3c913e13efd8a837a429693e0"
+  },
+  "validation": {
+    "cargo_fmt": "PASS",
+    "cargo_clippy_app_all_targets_warnings_denied": "PASS",
+    "cargo_test_app": "13 passed",
+    "optimized_native_build": "PASS",
+    "native_menu_preset_selection": "125 to150 percent; PASS",
+    "keyboard_zoom": "Reset to100, increase to110, decrease to100 percent; PASS",
+    "minimum_150_percent_layout": "245.25 by120.5625 logical-point viewport; visually inspected separate panels",
+    "minimum_200_percent_layout": "143.90625 by57.84375 logical-point viewport; actual Core compilation PASS; viewport remains small and does not meet the supplemental 120x80-point layout screen. Enlarge the window or reduce magnification for more viewport space."
+  },
+  "rejected_trials": [
+    "Initial 150% small-window layout consumed the viewport; subsequent responsive layout was tested.",
+    "Intermediate vertical-only scroll areas expanded into adjacent panels; final bidirectional bounded areas corrected that visual issue.",
+    "The first keyboard-zoom assertion used decimal1.1 rather than the serialized f32 value; final plan checks the actual representable value.",
+    "The preflight rejected the unsupported development key name Num0 before launch; the corrected plan uses0."
+  ],
+  "scope": "Bounded synthetic native egui input, actual Core executable, and unmodified native captures. No OS-input-routing or new physical-qualification claim. Desktop scaling remains platform-reported; magnification is an additional user multiplier."
+}
