@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 
 pub const OPERATING_HISTORY_VERSION: &str = "faris-operating-history/v0.1";
 /// Maximum nominal integration intervals for a bounded, cancellable history.
-pub const MAX_HISTORY_NOMINAL_STEPS: f64 = 2_000_000.0;
+pub const MAX_HISTORY_NOMINAL_STEPS: f64 = 4_000_000.0;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -121,7 +121,7 @@ impl OperatingHistoryAssumptions {
             return Err("history event and component lists are bounded at 10,000 entries".into());
         }
         if (self.horizon_s / self.maximum_step_s).ceil() > MAX_HISTORY_NOMINAL_STEPS {
-            return Err("history exceeds the 2,000,000-step nominal bound".into());
+            return Err("history exceeds the 4,000,000-step nominal bound".into());
         }
         if (self.horizon_s / self.snapshot_interval_s).ceil() > 50_000.0 {
             return Err("history exceeds the 50,000 routine-snapshot bound".into());

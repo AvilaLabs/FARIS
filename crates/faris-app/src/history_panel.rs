@@ -146,6 +146,11 @@ impl HistoryPanel {
         run: &ReactorRun,
         reference_power_mw: f64,
     ) -> Result<(), String> {
+        if history.processing_model.as_deref()
+            != Some(faris_engine::history::HISTORY_PROCESSING_MODEL_ID)
+        {
+            return Err("Saved history uses an earlier processing method; recalculating with continuous delayed release.".into());
+        }
         let normalized = run
             .normalized
             .as_ref()

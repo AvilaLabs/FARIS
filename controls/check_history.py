@@ -115,6 +115,191 @@ def verify_energy_ledger(result):
             "meaning": "conditional ledger arithmetic only; no heat-cycle or engineering qualification"}
 
 
+def verify_continuous_processing_interval(result, phase="on-delayed-on"):
+    """Check one smooth CLI interval against an independent Decimal DDE solution."""
+    if result.get("processing_model") != "continuous-delayed-release-v2":
+        return {"status": "NOT_EVALUATED_METHOD_IDENTITY_UNAVAILABLE"}
+    assumptions, rates = result["assumptions"], result["driving_rates"]
+    if assumptions["initial_in_process_tritium_kg"] > 0:
+        return {"status": "NOT_EVALUATED_INITIAL_POINT_COHORT_PRESENT"}
+    snapshots = result["snapshots"]
+    events = result["events"]
+    delay = D(str(assumptions["processing_delay_s"]))
+    recovery = D(str(assumptions["recovery_fraction"]))
+    lam = D(str(result["tritium_decay_constant_per_s"]))
+    atom = D(str(result["tritium_atom_mass_kg"]))
+    production_full = (D(str(rates["breeder_h3_per_source_neutron"]["mean"]))
+                       * D(str(rates["neutron_source_rate_per_s"])) * atom)
+    burn_full = D(str(rates["fusion_reaction_rate_per_s"])) * atom
+
+    def exp_decay(dt):
+        return (-lam * dt).exp()
+
+    def integral(dt):
+        return dt if lam == 0 else (D(1) - exp_decay(dt)) / lam
+
+    def power_at(t):
+        if t < 0:
+            return D(0)
+        prior = [s for s in snapshots if D(str(s["time_s"])) <= t]
+        return D(str(prior[-1]["power_fraction"])) if prior else D(0)
+
+    def has_event_between(left, right):
+        # Left-boundary state is already represented by snapshot a; an event at
+        # the right boundary changes the state used by snapshot b.
+        return any(left < D(str(e["time_s"])) <= right for e in events)
+
+    selected = None
+    for a, b in zip(snapshots, snapshots[1:]):
+        t0, t1 = D(str(a["time_s"])), D(str(b["time_s"]))
+        dt = t1 - t0
+        if dt <= 0 or has_event_between(t0, t1):
+            continue
+        p0, p1 = D(str(a["power_fraction"])), D(str(b["power_fraction"]))
+        if p0 != p1:
+            continue
+        delayed0, delayed1 = power_at(t0 - delay), power_at(t1 - delay)
+        if delayed0 != delayed1 or has_event_between(t0 - delay, t1 - delay):
+            continue
+        current_on, delayed_on = p0 > 0, delayed0 > 0
+        phase_matches = {
+            "on-delayed-on": current_on and delayed_on,
+            "off-delayed-on": not current_on and delayed_on,
+            "on-delayed-off": current_on and not delayed_on,
+            "off-delayed-off": not current_on and not delayed_on,
+        }.get(phase)
+        if phase_matches is None:
+            raise ValueError(f"unknown delayed-processing phase: {phase}")
+        if t0 > delay and phase_matches:
+            selected = (a, b, t0, dt, p0, delayed0)
+            break
+    if selected is None:
+        return {"status": "NOT_EVALUATED_NO_SMOOTH_POST_DELAY_INTERVAL"}
+
+    a, b, t0, dt, power, delayed_power = selected
+    produced_rate = production_full * power
+    release_rate = production_full * delayed_power * exp_decay(delay)
+    burn_rate = burn_full * power
+    i0, a0 = D(str(a["in_process_tritium_kg"])), D(str(a["available_tritium_kg"]))
+    expected_i1 = i0 * exp_decay(dt) + (produced_rate - release_rate) * integral(dt)
+    expected_a1 = a0 * exp_decay(dt) + (recovery * release_rate - burn_rate) * integral(dt)
+    expected_process_decay = lam * i0 * integral(dt) + (produced_rate - release_rate) * (dt - integral(dt))
+    expected_available_decay = lam * a0 * integral(dt) + (recovery * release_rate - burn_rate) * (dt - integral(dt))
+    observed = {
+        "in_process_tritium_kg": D(str(b["in_process_tritium_kg"])),
+        "available_tritium_kg": D(str(b["available_tritium_kg"])),
+        "production_kg": D(str(b["cumulative_production_kg"])) - D(str(a["cumulative_production_kg"])),
+        "burn_kg": D(str(b["cumulative_burn_kg"])) - D(str(a["cumulative_burn_kg"])),
+        "processing_loss_kg": D(str(b["cumulative_processing_loss_kg"])) - D(str(a["cumulative_processing_loss_kg"])),
+        "decay_kg": D(str(b["cumulative_decay_kg"])) - D(str(a["cumulative_decay_kg"])),
+    }
+    expected = {
+        "in_process_tritium_kg": expected_i1,
+        "available_tritium_kg": expected_a1,
+        "production_kg": produced_rate * dt,
+        "burn_kg": burn_rate * dt,
+        "processing_loss_kg": (D(1) - recovery) * release_rate * dt,
+        "decay_kg": expected_process_decay + expected_available_decay,
+    }
+    for key in expected:
+        close(observed[key], expected[key], f"independent continuous-processing {key}",
+              rtol=D("2e-8"), atol=D("2e-13"))
+    return {"status": "PASS", "method": "independent Decimal constant-rate delayed-release solution",
+            "phase": phase,
+            "interval_start_s": str(t0), "interval_duration_s": str(dt),
+            "processing_delay_s": str(delay), "current_power_fraction": str(power),
+            "delayed_source_power_fraction": str(delayed_power),
+            "observed": {k: str(v) for k, v in observed.items()},
+            "expected": {k: str(v) for k, v in expected.items()},
+            "scope": "software/mathematical control only; no reactor qualification"}
+
+
+def verify_processing_delay_boundaries(result):
+    """Integrate process inventory at aligned source-change-plus-delay boundaries."""
+    if result.get("processing_model") != "continuous-delayed-release-v2":
+        return {"status": "NOT_EVALUATED_METHOD_IDENTITY_UNAVAILABLE"}
+    assumptions, rates = result["assumptions"], result["driving_rates"]
+    if assumptions["initial_in_process_tritium_kg"] > 0:
+        return {"status": "NOT_EVALUATED_INITIAL_POINT_COHORT_PRESENT"}
+    delay = D(str(assumptions["processing_delay_s"]))
+    if delay <= 0:
+        return {"status": "NOT_APPLICABLE_ZERO_DELAY"}
+    lam, atom = D(str(result["tritium_decay_constant_per_s"])), D(str(result["tritium_atom_mass_kg"]))
+    production_full = D(str(rates["breeder_h3_per_source_neutron"]["mean"])) * D(str(rates["neutron_source_rate_per_s"])) * atom
+    snapshots = result["snapshots"]
+    boundaries = sorted({
+        D(str(e["time_s"])) + delay for e in result["events"]
+        if e["kind"] in ("operation_started", "operation_stopped")
+        and D(str(e["time_s"])) + delay <= D(str(snapshots[-1]["time_s"]))
+    })
+    checked = []
+    for boundary in boundaries:
+        snap = next((s for s in snapshots if D(str(s["time_s"])) == boundary), None)
+        if snap is None:
+            continue
+        window_start, expected = boundary - delay, D(0)
+        for a, b in zip(snapshots, snapshots[1:]):
+            ta, tb = D(str(a["time_s"])), D(str(b["time_s"]))
+            lo, hi = max(ta, window_start), min(tb, boundary)
+            if hi <= lo:
+                continue
+            overlap, age = hi - lo, boundary - hi
+            factor = overlap if lam == 0 else (D(1) - (-lam * overlap).exp()) / lam
+            expected += production_full * D(str(a["power_fraction"])) * (-lam * age).exp() * factor
+        observed = D(str(snap["in_process_tritium_kg"]))
+        close(observed, expected, f"delayed-release boundary process inventory at t={boundary}",
+              rtol=D("2e-8"), atol=D("1e-10"))
+        checked.append({"time_s": str(boundary), "observed_in_process_kg": str(observed),
+                        "expected_in_process_kg": str(expected)})
+    return {"status": "PASS" if checked else "NOT_EVALUATED_NO_ALIGNED_DELAY_BOUNDARY",
+            "checked_boundaries": checked,
+            "scope": "software/math boundary control; no reactor qualification"}
+
+
+def verify_restart_crossing(result):
+    """Solve the first synthetic off-state restart from its delayed source analytically."""
+    if result.get("processing_model") != "continuous-delayed-release-v2":
+        return {"status": "NOT_EVALUATED_METHOD_IDENTITY_UNAVAILABLE"}
+    assumptions, rates = result["assumptions"], result["driving_rates"]
+    unavailable = next((e for e in result["events"] if e["kind"] == "fuel_unavailable"), None)
+    available = next((e for e in result["events"] if e["kind"] == "fuel_available"), None)
+    if unavailable is None or available is None:
+        return {"status": "NOT_EVALUATED_NO_OFF_RESTART_CYCLE"}
+    t_off, t_restart = D(str(unavailable["time_s"])), D(str(available["time_s"]))
+    delay = D(str(assumptions["processing_delay_s"]))
+    if not (D(0) < t_off < delay < t_restart < t_off + delay):
+        return {"status": "NOT_EVALUATED_FIRST_RESTART_NOT_SINGLE_DELAYED_PULSE"}
+    lam, atom = D(str(result["tritium_decay_constant_per_s"])), D(str(result["tritium_atom_mass_kg"]))
+    recovery = D(str(assumptions["recovery_fraction"]))
+    production = D(str(rates["breeder_h3_per_source_neutron"]["mean"])) * D(str(rates["neutron_source_rate_per_s"])) * atom
+    burn = D(str(rates["fusion_reaction_rate_per_s"])) * atom
+    opening, restart_floor = D(str(assumptions["initial_available_tritium_kg"])), D(str(assumptions["restart_inventory_kg"]))
+    threshold = restart_floor + D("2e-13") * max(restart_floor, D(1))
+    exp_decay = lambda dt: (-lam * dt).exp()
+    flow = lambda dt: (D(1) - exp_decay(dt)) / lam if lam else dt
+    stock_off = opening * exp_decay(t_off) - burn * flow(t_off)
+    off_snapshot = next((s for s in result["snapshots"] if D(str(s["time_s"])) == t_off), None)
+    if off_snapshot is None:
+        raise AssertionError("fuel-stop event lacks exact state snapshot")
+    close(off_snapshot["available_tritium_kg"], stock_off, "analytic fuel-stop stock",
+          rtol=D("2e-8"), atol=D("2e-13"))
+    stock_at_release = stock_off * exp_decay(delay - t_off)
+    release_rate = production * exp_decay(delay)
+    lo, hi = D(0), t_restart - delay
+    for _ in range(160):
+        mid = (lo + hi) / 2
+        stock = stock_at_release * exp_decay(mid) + recovery * release_rate * flow(mid)
+        if stock < threshold:
+            lo = mid
+        else:
+            hi = mid
+    predicted = delay + hi
+    close(t_restart, predicted, "analytic delayed-recovery restart time", rtol=D(0), atol=D("2e-6"))
+    return {"status": "PASS", "fuel_off_time_s": str(t_off), "observed_restart_time_s": str(t_restart),
+            "predicted_restart_time_s": str(predicted), "restart_threshold_kg": str(threshold),
+            "scope": "synthetic software/math control only; not a physical result"}
+
+
 def verify_transport_binding(history, run_path):
     run = json.load(open(run_path, encoding="utf-8"))
     if run.get("execution", {}).get("execution_status") != "SUCCEEDED" or not run.get("normalized"):
@@ -205,9 +390,16 @@ def verify_engine_history(path, run_path=None):
             if abs(expected - snapshot["cumulative_net_electricity_mwh"]) > 1e-10 * max(1.0, abs(gross), abs(auxiliary)):
                 raise AssertionError("gross minus auxiliary electricity does not close to net")
     energy_audit = verify_energy_ledger(result)
+    processing_audits = {
+        phase: verify_continuous_processing_interval(result, phase)
+        for phase in ("on-delayed-on", "off-delayed-on", "on-delayed-off", "off-delayed-off")
+    }
+    processing_boundaries = verify_processing_delay_boundaries(result)
+    restart_audit = verify_restart_crossing(result)
     binding_audit = verify_transport_binding(result, run_path) if run_path else None
     return {
         "source_file": path,
+        "processing_model": result.get("processing_model"),
         "outcome": result["outcome"],
         "snapshot_count": len(result["snapshots"]),
         "event_count": len(result["events"]),
@@ -216,6 +408,9 @@ def verify_engine_history(path, run_path=None):
         "mass_balance_tolerance_kg": result["mass_balance_tolerance_kg"],
         "independent_source_rate_production_burn_checks": "PASS",
         "energy_audit": energy_audit,
+        "continuous_processing_phase_audits": processing_audits,
+        "processing_delay_boundary_audit": processing_boundaries,
+        "restart_crossing_audit": restart_audit,
         "transport_binding_audit": binding_audit,
         "scientific_scope": "numerical audit only; no engineering qualification",
     }, result
@@ -224,6 +419,9 @@ def verify_engine_history(path, run_path=None):
 def compare_refinement(coarse, fine):
     # Criterion extension recorded before corrected-geometry 1M primary outputs.
     # Preserve prior v1 control reports separately; they did not assess all displayed outputs.
+    if (coarse.get("processing_model") != "continuous-delayed-release-v2"
+            or fine.get("processing_model") != coarse.get("processing_model")):
+        raise AssertionError("refinement requires identical current processing-model identities")
     coarse_assumptions = dict(coarse["assumptions"])
     fine_assumptions = dict(fine["assumptions"])
     coarse_step = coarse_assumptions.pop("maximum_step_s", None)
@@ -242,6 +440,8 @@ def compare_refinement(coarse, fine):
         "cumulative_decay_kg",
     )
     abs_changes = {key: abs(b[key] - a[key]) for key in abs_keys}
+    if any(not math.isfinite(value) for value in (*rel_changes.values(), *abs_changes.values())):
+        raise AssertionError("step refinement contains a nonfinite mass or energy state")
     if max(rel_changes.values()) > 1e-4 or max(abs_changes.values()) > 1e-4:
         raise AssertionError("step-refinement change exceeds frozen aggregate tolerances")
     ea, eb = coarse["events"], fine["events"]
@@ -300,7 +500,10 @@ def compare_refinement(coarse, fine):
         net_scaled_change = abs(net_b - net_a) / energy_scale_mwh
         if not math.isfinite(net_scaled_change) or net_scaled_change > 1e-4:
             raise AssertionError("step-refinement signed net-energy change exceeds 1e-4 on gross/auxiliary scale")
-    max_event_time_delta = max((abs(x["time_s"] - y["time_s"]) for x, y in zip(ea, eb)), default=0.0)
+    event_time_deltas = [abs(x["time_s"] - y["time_s"]) for x, y in zip(ea, eb)]
+    if any(not math.isfinite(value) for value in event_time_deltas):
+        raise AssertionError("step refinement contains a nonfinite event time")
+    max_event_time_delta = max(event_time_deltas, default=0.0)
     if max_event_time_delta > coarse_step + 1e-9:
         raise AssertionError("event timing moved by more than the coarse time resolution")
     return {"criteria_version": "extended-displayed-output-v2",
@@ -317,6 +520,66 @@ def compare_refinement(coarse, fine):
 
 
 class HistoryControlTests(unittest.TestCase):
+    def test_decimal_oracle_checks_continuous_delayed_cli_interval_shape(self):
+        lam = D(str(math.log(2.0) / float(HALF_LIFE_Y * YEAR_S)))
+        delay, dt = D(100), D(10)
+        production_rate, burn_rate = D("2e-9"), D("1e-9")
+        atom = ATOM_KG
+        source = D("1e20")
+        tbr = production_rate / (source * atom)
+        recovery = D("0.9")
+        exp = lambda t: (-lam * t).exp()
+        flow = lambda t: (D(1) - exp(t)) / lam
+        release_rate = production_rate * exp(delay)
+        i0 = production_rate * flow(delay)
+        a0 = D("0.5")
+        i1 = i0 * exp(dt) + (production_rate - release_rate) * flow(dt)
+        a1 = a0 * exp(dt) + (recovery * release_rate - burn_rate) * flow(dt)
+        process_decay = lam * i0 * flow(dt) + (production_rate - release_rate) * (dt - flow(dt))
+        available_decay = lam * a0 * flow(dt) + (recovery * release_rate - burn_rate) * (dt - flow(dt))
+        blank = {
+            "available_tritium_kg": a0,
+            "in_process_tritium_kg": i0,
+            "cumulative_production_kg": D("0.1"),
+            "cumulative_burn_kg": D("0.05"),
+            "cumulative_processing_loss_kg": D("0.01"),
+            "cumulative_decay_kg": D("0.02"),
+            "time_s": D(200),
+            "power_fraction": D(1),
+        }
+        final = {
+            "available_tritium_kg": a1,
+            "in_process_tritium_kg": i1,
+            "cumulative_production_kg": D("0.1") + production_rate * dt,
+            "cumulative_burn_kg": D("0.05") + burn_rate * dt,
+            "cumulative_processing_loss_kg": D("0.01") + (D(1) - recovery) * release_rate * dt,
+            "cumulative_decay_kg": D("0.02") + process_decay + available_decay,
+            "time_s": D(210),
+            "power_fraction": D(1),
+        }
+        result = {
+            "processing_model": "continuous-delayed-release-v2",
+            "assumptions": {"initial_in_process_tritium_kg": 0,
+                            "processing_delay_s": float(delay),
+                            "recovery_fraction": float(recovery)},
+            "driving_rates": {
+                "breeder_h3_per_source_neutron": {"mean": str(tbr)},
+                "neutron_source_rate_per_s": str(source),
+                "fusion_reaction_rate_per_s": str(burn_rate / atom),
+            },
+            "tritium_decay_constant_per_s": str(lam),
+            "tritium_atom_mass_kg": str(atom),
+            "events": [],
+            "snapshots": [
+                {**blank, "time_s": 0.0},
+                {**blank, "time_s": 100.0},
+                blank,
+                final,
+            ],
+        }
+        audit = verify_continuous_processing_interval(result)
+        self.assertEqual(audit["status"], "PASS")
+
     def refinement_fixture(self):
         snapshot = {
             "cumulative_production_kg": 1.0,
@@ -336,6 +599,7 @@ class HistoryControlTests(unittest.TestCase):
             "cumulative_net_electricity_mwh": 0.0001,
         }
         coarse = {
+            "processing_model": "continuous-delayed-release-v2",
             "assumptions": {"maximum_step_s": 600.0, "horizon_s": 100_000.0},
             "driving_rates": {"source_rate": 1.0},
             "outcome": "horizon_completed",
@@ -366,6 +630,11 @@ class HistoryControlTests(unittest.TestCase):
 
     def test_refinement_rejects_component_fluence_and_driver_changes(self):
         coarse, fine = self.refinement_fixture()
+        fine["processing_model"] = "continuous-delayed-release-v1"
+        with self.assertRaisesRegex(AssertionError, "processing-model identities"):
+            compare_refinement(coarse, fine)
+
+        coarse, fine = self.refinement_fixture()
         fine["snapshots"][0]["component_fluence_n_m2"]["blanket"] *= 1.001
         with self.assertRaisesRegex(AssertionError, "component-fluence"):
             compare_refinement(coarse, fine)
@@ -373,6 +642,11 @@ class HistoryControlTests(unittest.TestCase):
         coarse, fine = self.refinement_fixture()
         fine["driving_rates"]["source_rate"] *= 1.001
         with self.assertRaisesRegex(AssertionError, "identical assumptions and driving rates"):
+            compare_refinement(coarse, fine)
+
+        coarse, fine = self.refinement_fixture()
+        coarse["snapshots"][0]["cumulative_fusion_energy_mwh"] = float("nan")
+        with self.assertRaisesRegex(AssertionError, "nonfinite mass or energy"):
             compare_refinement(coarse, fine)
 
     def test_half_life_decay_and_conservation(self):

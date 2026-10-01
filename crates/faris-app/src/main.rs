@@ -1,6 +1,7 @@
 mod archive_panel;
 mod camera;
 mod history_panel;
+mod interface_check;
 mod study_panel;
 mod transport_panel;
 mod viewport;
@@ -30,6 +31,12 @@ struct Arguments {
     /// Capture this application's window to PNG and exit (development check).
     #[arg(long)]
     capture: Option<PathBuf>,
+    /// Deliver a bounded development input plan through eframe's raw-input hook.
+    #[arg(long, requires = "interface_check_output")]
+    interface_check: Option<PathBuf>,
+    /// Exclusive output report for the development interface check.
+    #[arg(long, requires = "interface_check")]
+    interface_check_output: Option<PathBuf>,
     /// Measure native frame throughput and exit. Includes startup separately.
     #[arg(long, value_parser = clap::value_parser!(f64))]
     benchmark_seconds: Option<f64>,
@@ -100,6 +107,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("benchmark duration must be finite and in 2..=120 seconds".into());
     }
     let launch_started = Instant::now();
+    let interface_check = args
+        .interface_check
+        .as_deref()
+        .map(|plan| {
+            interface_check::InterfaceCheck::load(
+                plan,
+                args.interface_check_output
+                    .as_deref()
+                    .expect("required output"),
+            )
+        })
+        .transpose()?;
     if !(980..=3840).contains(&args.window_width)
         || !(640..=2160).contains(&args.window_height)
         || !args.interface_scale.is_finite()
@@ -202,6 +221,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             app.started = launch_started;
             app.year = args.initial_year;
+            app.interface_check = interface_check;
             app.study
                 .archive
                 .queue_descriptors(args.saved_study)
@@ -272,6 +292,7 @@ struct FarisApp {
     show_history: bool,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
+    interface_check: Option<interface_check::InterfaceCheck>,
 }
 
 impl FarisApp {
@@ -312,6 +333,7 @@ impl FarisApp {
             show_history,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
+            interface_check: None,
         };
         if app.transport.has_results() {
             app.message="Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.".into();
@@ -448,13 +470,16 @@ impl FarisApp {
                     *value = (*value * 1.1 + 0.12).min(1.0);
                 }
             }
-            if self.transport.view == transport_panel::FieldView::ComponentFlux
-                && let Some(response) = self.transport.response(
-                    &self.manifest.variants[self.variant].id,
-                    &format!("{}-flux", component.id),
-                )
-            {
-                color = transport_panel::flux_color(response.mean, response.standard_error);
+            if self.transport.view == transport_panel::FieldView::ComponentFlux {
+                color = self
+                    .transport
+                    .response(
+                        &self.manifest.variants[self.variant].id,
+                        &format!("{}-flux", component.id),
+                    )
+                    .map_or([0.75, 0.10, 0.65], |response| {
+                        transport_panel::flux_color(response.mean, response.standard_error)
+                    });
             }
             if self.transport.view == transport_panel::FieldView::NuclearHeating {
                 color = self
@@ -568,6 +593,7 @@ impl FarisApp {
             && !self.capture_requested
             && !self.history.is_pending()
             && !self.study.archive.is_loading()
+            && self.interface_check.as_ref().is_none_or(|c| c.finished())
             && self.started.elapsed().as_secs_f64() >= 1.0
         {
             self.capture_requested = true;
@@ -600,7 +626,13 @@ impl FarisApp {
                 Err(error) => eprintln!("FARIS capture failed: {error}"),
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        } else if self.started.elapsed().as_secs() > 20 {
+        } else if self.started.elapsed().as_secs()
+            > if self.interface_check.is_some() {
+                170
+            } else {
+                20
+            }
+        {
             eprintln!("FARIS capture timed out");
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         } else {
@@ -610,6 +642,12 @@ impl FarisApp {
 }
 
 impl eframe::App for FarisApp {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        if let Some(check) = &mut self.interface_check {
+            check.inject(ctx, input);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let year_before_frame = self.year.to_bits();
@@ -949,7 +987,7 @@ impl eframe::App for FarisApp {
                     ui.add_space(12.0);
                     ui.separator();
                     if let Some(response)=self.transport.response(&variant.id,&format!("{}-flux",component.id)) {
-                        ui.label(format!("Mean neutron flux: {:.3e} neutrons/m²/s",response.mean));
+                        ui.label(format!("Reference neutron flux: {:.3e} neutrons/m²/s",response.mean));
                         ui.small(format!("Standard error: {:.2e} neutrons/m²/s",response.standard_error));
                         ui.small("Component volume average. Sampling uncertainty only.");
                         if response.mean == 0.0 && response.standard_error == 0.0 {ui.colored_label(egui::Color32::YELLOW,"No sampled tracks. This does not establish zero flux or an upper bound.");}
@@ -957,7 +995,7 @@ impl eframe::App for FarisApp {
                         ui.small(format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
                     } else {ui.label("Mean neutron flux  —");}
                     if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
-                        ui.label(format!("Nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
+                        ui.label(format!("Reference nuclear heating: {:.3} MW", heating.integrated_mean / 1e6));
                         ui.small(format!("Sampling SE: {:.3} MW · coupled neutron/photon", heating.integrated_standard_error / 1e6));
                         ui.small("Deposition includes material reaction energy and can exceed D–T source power. Full physical energy closure is not evaluated; heat recovery is an authored assumption.");
                     } else { ui.label("Nuclear heating  —"); }
@@ -1060,6 +1098,37 @@ impl eframe::App for FarisApp {
                 let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
                 ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
             });
+        if let Some(check) = &mut self.interface_check {
+            let variant = &self.manifest.variants[self.variant].id;
+            let snapshot = self.history.snapshot(
+                &self.manifest.source_sha256,
+                variant,
+                self.year * faris_engine::history::JULIAN_YEAR_SECONDS,
+            );
+            let state = serde_json::json!({
+                "scenario_id":self.manifest.scenario_id,
+                "scenario_sha256":self.manifest.source_sha256,
+                "window_points":ctx.input(|i|{let size=i.content_rect().size();[size.x,size.y]}),
+                "pixels_per_point":ctx.pixels_per_point(),
+                "variant_id":variant, "field_view":format!("{:?}",self.transport.view),
+                "selected_component":self.selected, "hidden_components":self.hidden,
+                "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},
+                "year":self.year, "history_pending":self.history.is_pending(),
+                "history_loaded":snapshot.is_some(), "source_on":snapshot.map(|s|s.operating),
+                "core":self.study.interface_status(&self.manifest.source_sha256, variant),
+                "transport":self.transport.interface_status(variant),
+                "cutaway":self.cutaway, "scene_revision":self.revision, "message":self.message,
+            });
+            let ready =
+                self.frames >= 8 && !self.history.is_pending() && !self.study.archive.is_loading();
+            if let Err(error) = check.observe(state, ready) {
+                eprintln!("FARIS interface check report failed: {error}");
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            if check.finished() && self.capture.is_none() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
         self.capture_frame(&ctx);
     }
 }

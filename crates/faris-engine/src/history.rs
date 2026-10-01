@@ -7,7 +7,7 @@ use faris_model::transport::{
     HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain, ScoreDefinition,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 pub const TRITIUM_HALF_LIFE_YEARS: f64 = 12.32;
 pub const JULIAN_YEAR_SECONDS: f64 = 365.25 * 86_400.0;
@@ -15,11 +15,12 @@ pub const TRITIUM_MOLAR_MASS_KG_PER_MOL: f64 = 3.016_049_277_9e-3;
 pub const AVOGADRO_CONSTANT_PER_MOL: f64 = 6.022_140_76e23;
 pub const ELEMENTARY_CHARGE_J_PER_EV: f64 = 1.602_176_634e-19;
 pub const MASS_BALANCE_RELATIVE_TOLERANCE: f64 = 1e-10;
-// The input horizon/step pair is separately bounded to <=2,000,000 nominal
-// segments. Event-driven transitions and delayed-cohort releases can subdivide
-// those intervals, so allow a measured, explicit 3,000,000 runtime-segment cap.
-const MAX_HISTORY_SEGMENTS: usize = 3_000_000;
+// The input horizon/step pair is separately bounded to <=4,000,000 nominal
+// segments. Event-driven transitions can subdivide those intervals. A reviewed
+// 6,000,000 runtime-segment ceiling bounds that additional work.
+const MAX_HISTORY_SEGMENTS: usize = 6_000_000;
 const MAX_HISTORY_EVENTS: usize = 20_000;
+const MAX_HISTORY_PRODUCTION_INTERVALS: usize = 100_000;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -334,6 +335,9 @@ pub struct HistoryResult {
     pub integration_segment_count: Option<usize>,
     #[serde(default)]
     pub integration_segment_limit: Option<usize>,
+    /// Missing in legacy histories produced with midpoint production cohorts.
+    #[serde(default)]
+    pub processing_model: Option<String>,
     pub events: Vec<HistoryEvent>,
     pub snapshots: Vec<HistorySnapshot>,
     pub energy_unavailable_reason: Option<String>,
@@ -345,6 +349,80 @@ struct Cohort {
     mass_kg: f64,
     updated_s: f64,
     release_s: f64,
+}
+
+#[derive(Clone)]
+struct ProductionInterval {
+    start_s: f64,
+    end_s: f64,
+    rate_kg_s: f64,
+}
+
+pub const HISTORY_PROCESSING_MODEL_ID: &str = "continuous-delayed-release-v2";
+
+fn production_rate_at(intervals: &VecDeque<ProductionInterval>, time_s: f64) -> f64 {
+    intervals
+        .front()
+        .filter(|i| i.start_s <= time_s && time_s < i.end_s)
+        .map_or(0.0, |i| i.rate_kg_s)
+}
+
+fn prune_production_intervals(
+    intervals: &mut VecDeque<ProductionInterval>,
+    time_s: f64,
+    delay_s: f64,
+) {
+    let cutoff = time_s - delay_s;
+    while intervals.front().is_some_and(|i| i.end_s <= cutoff + 1e-9) {
+        intervals.pop_front();
+    }
+}
+
+fn next_production_release_boundary(
+    intervals: &VecDeque<ProductionInterval>,
+    delay_s: f64,
+    time_s: f64,
+) -> Option<f64> {
+    let interval = intervals.front()?;
+    [interval.start_s + delay_s, interval.end_s + delay_s]
+        .into_iter()
+        .filter(|boundary| *boundary > time_s + 1e-9)
+        .min_by(f64::total_cmp)
+}
+
+fn add_production_interval(
+    intervals: &mut VecDeque<ProductionInterval>,
+    start_s: f64,
+    end_s: f64,
+    rate_kg_s: f64,
+) -> Result<(), String> {
+    if end_s <= start_s || rate_kg_s <= 0.0 {
+        return Ok(());
+    }
+    if let Some(last) = intervals.back_mut()
+        && (last.end_s - start_s).abs() <= 1e-9
+        && last.rate_kg_s == rate_kg_s
+    {
+        last.end_s = end_s;
+    } else {
+        if intervals
+            .back()
+            .is_some_and(|last| last.end_s > start_s + 1e-9)
+        {
+            return Err("production intervals must be chronological and non-overlapping".into());
+        }
+        if intervals.len() >= MAX_HISTORY_PRODUCTION_INTERVALS {
+            return Err(format!(
+                "history exceeded the {MAX_HISTORY_PRODUCTION_INTERVALS}-interval production-history bound"
+            ));
+        }
+        intervals.push_back(ProductionInterval {
+            start_s,
+            end_s,
+            rate_kg_s,
+        });
+    }
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -386,6 +464,28 @@ fn stock_crossing_time(
     for _ in 0..80 {
         let mid = (lo + hi) * 0.5;
         if evolve_stock(stock, inflow, burn, lambda, mid) > reserve {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    Some(hi)
+}
+
+fn stock_rising_crossing_time(
+    stock: f64,
+    threshold: f64,
+    inflow: f64,
+    lambda: f64,
+    dt: f64,
+) -> Option<f64> {
+    if stock >= threshold || evolve_stock(stock, inflow, 0.0, lambda, dt) < threshold {
+        return None;
+    }
+    let (mut lo, mut hi) = (0.0, dt);
+    for _ in 0..80 {
+        let mid = (lo + hi) * 0.5;
+        if evolve_stock(stock, inflow, 0.0, lambda, mid) < threshold {
             lo = mid;
         } else {
             hi = mid;
@@ -498,6 +598,8 @@ pub fn run_operating_history_cancellable(
     let energy_unavailable_reason = (!energy_ready).then(|| "net electricity requires explicit alpha deposition, the OpenMC whole-model heating response, thermal conversion efficiency, and operating/off auxiliary loads; unavailable terms remain absent".to_owned());
     let mut available = assumptions.initial_available_tritium_kg;
     let mut cohorts = Vec::new();
+    let mut production_intervals: VecDeque<ProductionInterval> = VecDeque::new();
+    let mut continuous_in_process = 0.0;
     if assumptions.initial_in_process_tritium_kg > 0.0 {
         cohorts.push(Cohort {
             mass_kg: assumptions.initial_in_process_tritium_kg,
@@ -531,7 +633,6 @@ pub fn run_operating_history_cancellable(
     let mut alpha_recovered_heat_mwh = energy_ready.then_some(0.0);
     let mut gross_electricity_mwh = energy_ready.then_some(0.0);
     let mut auxiliary_electricity_mwh = energy_ready.then_some(0.0);
-    let mut net_electricity_mwh = energy_ready.then_some(0.0);
     let mut import_index = 0usize;
     let mut time = 0.0;
     let mut previous_operating = false;
@@ -550,7 +651,7 @@ pub fn run_operating_history_cancellable(
         if cancellation.is_cancelled() {
             return Err("operating history canceled; partial history is not valid".into());
         }
-        // Simultaneous event order: delayed process releases; replacement completion;
+        // Simultaneous event order: initial-inventory point releases; replacement completion;
         // external imports; then operation/outage state changes and limit trips.
         for cohort in &mut cohorts {
             let dt = (time - cohort.updated_s).max(0.0);
@@ -572,6 +673,16 @@ pub fn run_operating_history_cancellable(
             }
         }
         cohorts = keep;
+        if assumptions.processing_delay_s > 0.0 {
+            prune_production_intervals(
+                &mut production_intervals,
+                time,
+                assumptions.processing_delay_s,
+            );
+        } else {
+            production_intervals.clear();
+            continuous_in_process = 0.0;
+        }
         for (component_id, state) in &mut components {
             if state.down_until > 0.0 && state.down_until <= time + 1e-9 {
                 state.fluence = 0.0;
@@ -676,7 +787,7 @@ pub fn run_operating_history_cancellable(
             )?;
             previous_operating = requested > 0.0;
         }
-        let in_process_at_time = current_in_process(&cohorts, time, lambda);
+        let in_process_at_time = current_in_process(&cohorts, time, lambda) + continuous_in_process;
         let site_at_time = available + in_process_at_time;
         let residual_at_time = site_at_time - opening_site_inventory - produced - imported
             + burned
@@ -748,7 +859,9 @@ pub fn run_operating_history_cancellable(
                 cumulative_alpha_recovered_heat_mwh: alpha_recovered_heat_mwh,
                 cumulative_gross_electricity_mwh: gross_electricity_mwh,
                 cumulative_auxiliary_electricity_mwh: auxiliary_electricity_mwh,
-                cumulative_net_electricity_mwh: net_electricity_mwh,
+                cumulative_net_electricity_mwh: gross_electricity_mwh
+                    .zip(auxiliary_electricity_mwh)
+                    .map(|(gross, auxiliary)| gross - auxiliary),
                 component_fluence_n_m2: components
                     .iter()
                     .map(|(id, s)| (id.clone(), s.fluence))
@@ -799,6 +912,15 @@ pub fn run_operating_history_cancellable(
                 next = next.min(cohort.release_s);
             }
         }
+        if assumptions.processing_delay_s > 0.0
+            && let Some(release_boundary) = next_production_release_boundary(
+                &production_intervals,
+                assumptions.processing_delay_s,
+                time,
+            )
+        {
+            next = next.min(release_boundary);
+        }
         for import in assumptions.imports.iter().skip(import_index) {
             if import.at_s > time + 1e-9 {
                 next = next.min(import.at_s);
@@ -815,11 +937,35 @@ pub fn run_operating_history_cancellable(
         }
 
         // Bound the active segment by fuel reserve and every traceable exposure limit.
-        let immediate_inflow = if assumptions.processing_delay_s == 0.0 {
-            breeder_h3_rate * requested * assumptions.recovery_fraction
+        let released_h3_rate = if assumptions.processing_delay_s == 0.0 {
+            breeder_h3_rate * requested
         } else {
-            0.0
+            production_rate_at(&production_intervals, time - assumptions.processing_delay_s)
+                * decay_factor(lambda, assumptions.processing_delay_s)
         };
+        let recovered_inflow = released_h3_rate * assumptions.recovery_fraction;
+        if requested == 0.0
+            && scheduled_power > 0.0
+            && fuel_unavailable
+            && !permanent_limit
+            && !down
+            && outage.is_none()
+        {
+            let restart_threshold = assumptions.restart_inventory_kg
+                + 2.0e-13 * assumptions.restart_inventory_kg.max(1.0);
+            if let Some(cross) = stock_rising_crossing_time(
+                available,
+                restart_threshold,
+                recovered_inflow,
+                lambda,
+                dt,
+            ) && cross > 1e-9
+                && cross < dt - 1e-9
+            {
+                dt = cross;
+                next = time + dt;
+            }
+        }
         let active_burn = burn_rate * requested;
         let mut active_duration = dt;
         let mut truncate_at_event = false;
@@ -827,7 +973,7 @@ pub fn run_operating_history_cancellable(
             if let Some(cross) = stock_crossing_time(
                 available,
                 assumptions.startup_reserve_kg,
-                immediate_inflow,
+                recovered_inflow,
                 active_burn,
                 lambda,
                 active_duration,
@@ -856,26 +1002,16 @@ pub fn run_operating_history_cancellable(
         if truncate_at_event {
             dt = active_duration;
         }
-        let start_available = available;
         if active_duration > 0.0 {
             let gross = breeder_h3_rate * requested * active_duration;
             produced += gross;
             burned += active_burn * active_duration;
-            if assumptions.processing_delay_s == 0.0 {
-                process_loss += gross * (1.0 - assumptions.recovery_fraction);
-            } else if gross > 0.0 {
-                // Represent constant production by a cohort born at the interval midpoint.
-                // Apply the exact mean decay survival over that birth interval; temporal
-                // placement error is at most half a step and step <= delay/24 is validated.
-                let survival = flow_integral(lambda, active_duration) / active_duration;
-                let surviving = gross * survival;
-                decay += gross - surviving;
-                cohorts.push(Cohort {
-                    mass_kg: surviving,
-                    updated_s: time + active_duration,
-                    release_s: time + active_duration / 2.0 + assumptions.processing_delay_s,
-                });
-            }
+            add_production_interval(
+                &mut production_intervals,
+                time,
+                time + active_duration,
+                breeder_h3_rate * requested,
+            )?;
             full_power_seconds += requested * active_duration;
             fusion_energy_mwh +=
                 rates.reference_fusion_power_mw * requested * active_duration / 3600.0;
@@ -914,40 +1050,39 @@ pub fn run_operating_history_cancellable(
                 if let Some(v) = auxiliary_electricity_mwh.as_mut() {
                     *v += aux_mw * active_duration / 3600.0;
                 }
-                if let Some(v) = net_electricity_mwh.as_mut() {
-                    *v += (gross_electric_mw - aux_mw) * active_duration / 3600.0;
-                }
             }
         }
-        let rest = dt - active_duration;
-        let inflow = immediate_inflow;
-        available = evolve_stock(available, inflow, active_burn, lambda, active_duration);
-        // Add current cohort only after it has been produced; it is in process at this endpoint.
-        let available_after_active = available;
-        available *= decay_factor(lambda, rest);
-        let available_decay = (available_after_active - available).max(0.0);
+        // Delayed continuous release, recovery, scrap and burn are constant rates
+        // over this event-bounded interval. Exponential inventory integration is exact.
+        let available_start = available;
+        let available_integral = flow_integral(lambda, dt);
+        available = evolve_stock(available, recovered_inflow, active_burn, lambda, dt);
+        let available_decay = (lambda * available_start * available_integral
+            + (recovered_inflow - active_burn) * (dt - available_integral))
+            .max(0.0);
         decay += available_decay;
+        if assumptions.processing_delay_s == 0.0 {
+            process_loss += released_h3_rate * (1.0 - assumptions.recovery_fraction) * dt;
+        } else {
+            process_loss += released_h3_rate * (1.0 - assumptions.recovery_fraction) * dt;
+            let production_rate = breeder_h3_rate * requested;
+            let in_process_start = continuous_in_process;
+            let in_process_integral = flow_integral(lambda, dt);
+            continuous_in_process = (in_process_start * decay_factor(lambda, dt)
+                + (production_rate - released_h3_rate) * in_process_integral)
+                .max(0.0);
+            let process_decay = (lambda * in_process_start * in_process_integral
+                + (production_rate - released_h3_rate) * (dt - in_process_integral))
+                .max(0.0);
+            decay += process_decay;
+        }
         if energy_ready {
             let off_aux = assumptions.energy.auxiliary_power_mw_while_off.unwrap();
             let off_duration = dt - active_duration;
             if let Some(v) = auxiliary_electricity_mwh.as_mut() {
                 *v += off_aux * off_duration / 3600.0;
             }
-            if let Some(v) = net_electricity_mwh.as_mut() {
-                *v -= off_aux * off_duration / 3600.0;
-            }
         }
-        let available_decay_active = (start_available + immediate_inflow * active_duration
-            - active_burn * active_duration
-            - evolve_stock(
-                start_available,
-                immediate_inflow,
-                active_burn,
-                lambda,
-                active_duration,
-            ))
-        .max(0.0);
-        decay += available_decay_active;
         let mut ordered_limits: Vec<&ServiceLimit> = assumptions.service_limits.iter().collect();
         ordered_limits.sort_by(|a, b| {
             let rank = |c: ComponentClass| {
@@ -1021,6 +1156,7 @@ pub fn run_operating_history_cancellable(
         tritium_decay_constant_per_s: lambda, tritium_atom_mass_kg: atom_mass,
         mass_balance_tolerance_kg: MASS_BALANCE_RELATIVE_TOLERANCE*scale.max(1.0), events, snapshots,
         integration_segment_count: Some(segments), integration_segment_limit: Some(MAX_HISTORY_SEGMENTS),
+        processing_model: Some(HISTORY_PROCESSING_MODEL_ID.into()),
         energy_unavailable_reason,
         notice: "Conditional deterministic history from the exact recorded transport driving rates and authored assumptions. Monte Carlo standard errors and assumption/model uncertainty are retained as provenance but not propagated into a qualified bound. No service-life or net-electricity claim is qualified.".into(),
     })
@@ -1170,8 +1306,11 @@ mod tests {
         fine.maximum_step_s = 500.0;
         assert!(fine.validate().is_ok());
 
-        fine.maximum_step_s = 400.0;
-        assert!(fine.validate().unwrap_err().contains("2,000,000-step"));
+        fine.maximum_step_s = 250.0;
+        assert!(fine.validate().is_ok());
+
+        fine.maximum_step_s = 200.0;
+        assert!(fine.validate().unwrap_err().contains("4,000,000-step"));
     }
 
     #[test]
@@ -1186,9 +1325,11 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("integration_segment_limit");
+        value.as_object_mut().unwrap().remove("processing_model");
         let legacy: HistoryResult = serde_json::from_value(value).unwrap();
         assert_eq!(legacy.integration_segment_count, None);
         assert_eq!(legacy.integration_segment_limit, None);
+        assert_eq!(legacy.processing_model, None);
     }
 
     #[test]
@@ -1390,6 +1531,17 @@ mod tests {
         assert!(unavailable.time_s < 100.0);
         assert!(available.time_s >= 86_400.0);
         assert!(available.time_s > unavailable.time_s);
+        let mut finer = a.clone();
+        finer.maximum_step_s = 1800.0;
+        let finer_result = run_operating_history(&finer, &r).unwrap();
+        let finer_available = finer_result
+            .events
+            .iter()
+            .find(|e| e.kind == EventKind::FuelAvailable)
+            .unwrap();
+        assert!((available.time_s - finer_available.time_s).abs() < 1e-6);
+        assert!((available.time_s % 3600.0) > 1e-6);
+        assert!(available.time_s < unavailable.time_s + a.processing_delay_s - 1e-4);
         assert!(
             result
                 .snapshots
@@ -1402,6 +1554,129 @@ mod tests {
                 .iter()
                 .all(|s| s.mass_balance_residual_kg.abs() <= result.mass_balance_tolerance_kg)
         );
+    }
+
+    #[test]
+    fn delayed_constant_production_matches_continuous_release_solution() {
+        let mut a = assumptions(200.0);
+        a.maximum_step_s = 2.5;
+        a.snapshot_interval_s = 10.0;
+        a.initial_available_tritium_kg = 1.0;
+        a.startup_reserve_kg = 0.0;
+        a.restart_inventory_kg = 0.0;
+        a.processing_delay_s = 60.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 100.0,
+            power_fraction: 1.0,
+        }];
+        let mut r = rates();
+        let atom_mass = TRITIUM_MOLAR_MASS_KG_PER_MOL / AVOGADRO_CONSTANT_PER_MOL;
+        let production_rate = 2.0e-9;
+        r.breeder_h3_per_source_neutron.mean =
+            production_rate / (r.neutron_source_rate_per_s * atom_mass);
+        let result = run_operating_history(&a, &r).unwrap();
+        assert_eq!(
+            result.processing_model.as_deref(),
+            Some(HISTORY_PROCESSING_MODEL_ID)
+        );
+
+        let lambda = result.tritium_decay_constant_per_s;
+        let delayed_survival = decay_factor(lambda, a.processing_delay_s);
+        let release_rate = production_rate * delayed_survival;
+        let burn_rate = r.fusion_reaction_rate_per_s * atom_mass;
+        let expected_available = evolve_stock(
+            evolve_stock(
+                evolve_stock(
+                    evolve_stock(1.0, 0.0, burn_rate, lambda, 60.0),
+                    release_rate,
+                    burn_rate,
+                    lambda,
+                    40.0,
+                ),
+                release_rate,
+                0.0,
+                lambda,
+                60.0,
+            ),
+            0.0,
+            0.0,
+            lambda,
+            40.0,
+        );
+        let at = |time: f64| result.snapshots.iter().find(|s| s.time_s == time).unwrap();
+        let expected_inventory = production_rate * flow_integral(lambda, 60.0);
+        assert!((at(60.0).in_process_tritium_kg - expected_inventory).abs() < 1e-18);
+        assert!((at(100.0).in_process_tritium_kg - expected_inventory).abs() < 1e-18);
+        assert!(at(160.0).in_process_tritium_kg.abs() < 1e-18);
+        assert!((at(200.0).available_tritium_kg - expected_available).abs() < 1e-12);
+        assert!(at(200.0).mass_balance_residual_kg.abs() <= result.mass_balance_tolerance_kg);
+    }
+
+    #[test]
+    fn production_interval_history_is_bounded_but_merges_contiguous_equal_rates() {
+        let mut intervals = VecDeque::new();
+        for index in 0..MAX_HISTORY_PRODUCTION_INTERVALS {
+            intervals.push_back(ProductionInterval {
+                start_s: index as f64 * 2.0,
+                end_s: index as f64 * 2.0 + 1.0,
+                rate_kg_s: index as f64 + 1.0,
+            });
+        }
+        assert!(
+            add_production_interval(
+                &mut intervals,
+                MAX_HISTORY_PRODUCTION_INTERVALS as f64 * 2.0 - 1.0,
+                MAX_HISTORY_PRODUCTION_INTERVALS as f64 * 2.0,
+                MAX_HISTORY_PRODUCTION_INTERVALS as f64,
+            )
+            .is_ok()
+        );
+        assert_eq!(intervals.len(), MAX_HISTORY_PRODUCTION_INTERVALS);
+        assert!(
+            add_production_interval(
+                &mut intervals,
+                MAX_HISTORY_PRODUCTION_INTERVALS as f64 * 2.0,
+                MAX_HISTORY_PRODUCTION_INTERVALS as f64 * 2.0 + 1.0,
+                f64::from(MAX_HISTORY_PRODUCTION_INTERVALS as u32) + 1.0,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn production_interval_queue_front_handles_gaps_and_future_release_boundaries() {
+        let intervals = VecDeque::from([
+            ProductionInterval {
+                start_s: 0.0,
+                end_s: 2.0,
+                rate_kg_s: 1.0,
+            },
+            ProductionInterval {
+                start_s: 5.0,
+                end_s: 7.0,
+                rate_kg_s: 2.0,
+            },
+        ]);
+        assert_eq!(production_rate_at(&intervals, 1.0), 1.0);
+        assert_eq!(production_rate_at(&intervals, 3.0), 0.0);
+        assert_eq!(
+            next_production_release_boundary(&intervals, 3.0, 0.0),
+            Some(3.0)
+        );
+        assert_eq!(
+            next_production_release_boundary(&intervals, 3.0, 3.0),
+            Some(5.0)
+        );
+        let mut pruned = intervals.clone();
+        prune_production_intervals(&mut pruned, 6.0, 3.0);
+        assert_eq!(pruned.len(), 1);
+        assert_eq!(production_rate_at(&pruned, 3.0), 0.0);
+        assert_eq!(
+            next_production_release_boundary(&pruned, 3.0, 6.0),
+            Some(8.0)
+        );
+        assert!(add_production_interval(&mut pruned, 6.5, 8.0, 3.0).is_err());
     }
 
     #[test]

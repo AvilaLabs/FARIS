@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import platform
 from pathlib import Path, PurePosixPath
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -16,6 +18,7 @@ SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 from port_geometry_contract import validate_ownership_audits
+from recorded_bundle_contract import validate_recorded_bundle
 
 INDEX = "package-index.json"
 CHECKSUM = "package-index.sha256"
@@ -73,6 +76,30 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
         raise ValueError("selected FARIS executable differs from the package pin")
     if digest(core.resolve(strict=True)) != index.get("core_executable_sha256"):
         raise ValueError("selected Core executable differs from the package pin")
+    runtime = index.get("local_runtime")
+    if (not isinstance(runtime, dict)
+            or runtime.get("schema_version") != "faris-local-runtime/v0.1"
+            or runtime.get("platform") != {"sys_platform": sys.platform, "machine": platform.machine()}):
+        raise ValueError("package local runtime is missing or targets another platform")
+    executables = runtime.get("executables")
+    if not isinstance(executables, dict) or set(executables) != {"faris", "faris-app", "avila-core"}:
+        raise ValueError("package executable manifest is malformed")
+    expected_binaries = {"faris": index.get("faris_cli_sha256"),
+                         "faris-app": index.get("faris_app_sha256"),
+                         "avila-core": index.get("core_executable_sha256")}
+    for name, record in executables.items():
+        relative = record.get("path") if isinstance(record, dict) else None
+        binary_path = safe_package_path(root, relative)
+        if (digest(binary_path) != record.get("sha256")
+                or digest(binary_path) != expected_binaries[name]
+                or binary_path.stat().st_size != record.get("bytes")
+                or not binary_path.stat().st_mode & 0o111):
+            raise ValueError(f"package-pinned executable changed: {name}")
+    for role in ("launcher", "verifier"):
+        descriptor = runtime.get(role)
+        launcher_path = safe_package_path(root, descriptor.get("path") if isinstance(descriptor, dict) else None)
+        if digest(launcher_path) != descriptor.get("sha256"):
+            raise ValueError(f"package {role} script digest mismatch")
     files = index.get("files")
     if not isinstance(files, list) or not files or len(files) > 2048:
         raise ValueError("package index has an empty or excessive file inventory")
@@ -91,8 +118,35 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
             raise ValueError(f"indexed package file failed size or SHA-256 check: {relative}")
         total_bytes += size
         inventory[relative] = item
+    license_files = runtime.get("license_files")
+    expected_license_files = {
+        "licenses/faris-LICENSE", "licenses/core-LICENSE",
+        "licenses/core-THIRD_PARTY_NOTICES.md",
+    }
+    if (not isinstance(license_files, dict)
+            or not expected_license_files <= set(license_files)
+            or not any(path.startswith("licenses/core-LICENSES/") for path in license_files)
+            or any(path not in inventory or inventory[path].get("sha256") != expected_sha
+                   for path, expected_sha in license_files.items())
+            or "SOURCE_PROVENANCE.md" not in inventory):
+        raise ValueError("package does not include its pinned source provenance and licenses")
+    if any(Path(path).name == "DEMO_ACCEPTANCE.md" for path in inventory):
+        raise ValueError("package contains a stale DEMO_ACCEPTANCE snapshot")
+    sources = runtime.get("source_provenance")
+    for role in ("faris", "core"):
+        source = sources.get(role) if isinstance(sources, dict) else None
+        if not isinstance(source, dict):
+            raise ValueError(f"package source provenance is missing for {role}")
+        commit = source.get("commit")
+        if (not isinstance(source.get("repository"), str) or not source["repository"]
+                or not isinstance(commit, str) or len(commit) != 40
+                or any(character not in "0123456789abcdef" for character in commit.lower())):
+            raise ValueError(f"package source provenance is malformed for {role}")
     if total_bytes > 512 * 1024 * 1024:
         raise ValueError("package exceeds the declared 512 MiB bound")
+    if (index.get("package_file_count") != len(files)
+            or index.get("package_bytes") != total_bytes):
+        raise ValueError("package index total file count/byte measurement is incorrect")
     actual = set()
     tree_entries = 0
     for path in root.rglob("*"):
@@ -106,11 +160,52 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
         missing = sorted(set(inventory) - actual)
         extra = sorted(actual - set(inventory))
         raise ValueError(f"package file inventory differs (missing={missing}, extra={extra})")
+    support_ref = index.get("support")
+    support_path = safe_package_path(root, support_ref.get("path") if isinstance(support_ref, dict) else None)
+    if digest(support_path) != support_ref.get("sha256"):
+        raise ValueError("support manifest digest mismatch")
+    support_manifest = json.loads(support_path.read_text(encoding="utf-8"))
+    support_files = support_manifest.get("files")
+    if (support_manifest.get("schema_version") != "faris-recorded-demo-support/v0.1"
+            or support_manifest.get("demo_acceptance_snapshot_included") is not False
+            or support_ref.get("demo_acceptance_snapshot_included") is not False
+            or not isinstance(support_files, list)
+            or support_ref.get("file_count") != len(support_files)):
+        raise ValueError("support manifest is malformed or includes a stale acceptance snapshot")
+    if digest(safe_package_path(root, "support/README.md")) != support_manifest.get("support_readme_sha256"):
+        raise ValueError("support README digest mismatch")
+    for item in support_files:
+        relative = item.get("package_path") if isinstance(item, dict) else None
+        if (not isinstance(relative, str)
+                or relative.endswith("/DEMO_ACCEPTANCE.md")):
+            raise ValueError("support manifest contains an unsafe or forbidden acceptance path")
+        packaged = safe_package_path(root, relative)
+        source_sha = item.get("source_sha256")
+        source_sha_bare = source_sha.removeprefix("sha256:") if isinstance(source_sha, str) else ""
+        if (relative not in inventory
+                or digest(packaged) != item.get("package_sha256")
+                or len(source_sha_bare) != 64
+                or any(character not in "0123456789abcdefABCDEF" for character in source_sha_bare)):
+            raise ValueError(f"packaged scientific support identity mismatch: {relative}")
     return index, inventory
 
 
 def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dict[str, str]]:
     root = package.resolve(strict=True)
+    event_ref = index.get("event_assumptions")
+    grid_ref = index.get("sensitivity_grid")
+    event_path = safe_package_path(root, event_ref.get("path") if isinstance(event_ref, dict) else None)
+    grid_path = safe_package_path(root, grid_ref.get("path") if isinstance(grid_ref, dict) else None)
+    if digest(event_path) != event_ref.get("sha256") or digest(grid_path) != grid_ref.get("sha256"):
+        raise ValueError("event assumptions or sensitivity grid digest mismatch")
+    event_assumptions = json.loads(event_path.read_text(encoding="utf-8"))
+    sensitivity_grid = json.loads(grid_path.read_text(encoding="utf-8"))
+    if grid_ref.get("points_per_run") != 27:
+        raise ValueError("package does not identify the complete 27-point sensitivity grid")
+    main_assumptions = safe_package_path(root, "operating-assumptions.json")
+    if digest(main_assumptions) != index.get("operating_assumptions_sha256"):
+        raise ValueError("base operating assumptions digest mismatch")
+    main_assumptions_data = json.loads(main_assumptions.read_text(encoding="utf-8"))
     pairs = index.get("scenario_pairs")
     if not isinstance(pairs, list) or len(pairs) != 2:
         raise ValueError("package must contain feature-free and port scenario pairs")
@@ -201,6 +296,74 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dic
                     or any(item != "not_evaluated"
                            for item in arrangement.get("core_requirement_verdicts", []))):
                 raise ValueError(f"{pair_id}/{variant} contains an evaluated physical verdict")
+            bundle_rel = arrangement.get("transport_bundle")
+            bundle_path = safe_package_path(root, bundle_rel)
+            if digest(bundle_path) != arrangement.get("transport_bundle_sha256"):
+                raise ValueError(f"recorded transport bundle digest mismatch for {pair_id}/{variant}")
+            bundle_summary = validate_recorded_bundle(
+                json.loads(bundle_path.read_text(encoding="utf-8")),
+                scenario_sha256=scenario_sha, variant_id=variant,
+                expected_run_sha256=arrangement.get("run_record_sha256"),
+                expected_raw_artifact_sha256=arrangement.get("raw_artifact_sha256"),
+                mesh_nonzero_flux_bin_count=arrangement.get("mesh_nonzero_flux_bin_count"))
+            if bundle_summary != arrangement.get("offline_field_and_spectrum_identity"):
+                raise ValueError(f"field/spectrum identity summary mismatch for {pair_id}/{variant}")
+            event_ref = arrangement.get("event_history")
+            sensitivity_ref = arrangement.get("sensitivity_study")
+            if not isinstance(event_ref, dict) or not isinstance(sensitivity_ref, dict):
+                raise ValueError(f"missing event/sensitivity artifact references for {pair_id}/{variant}")
+            event_history_path = safe_package_path(root, event_ref.get("history_path"))
+            rates_path = safe_package_path(root, event_ref.get("rates_path"))
+            event_provenance_path = safe_package_path(root, event_ref.get("provenance_path"))
+            if (digest(event_history_path) != event_ref.get("history_sha256")
+                    or digest(rates_path) != event_ref.get("rates_sha256")
+                    or digest(event_provenance_path) != event_ref.get("provenance_sha256")):
+                raise ValueError(f"event history content digest mismatch for {pair_id}/{variant}")
+            event_history = json.loads(event_history_path.read_text(encoding="utf-8"))
+            event_rates = json.loads(rates_path.read_text(encoding="utf-8"))
+            event_provenance = json.loads(event_provenance_path.read_text(encoding="utf-8"))
+            if (event_history.get("schema_version") != "faris-history-result/v0.1"
+                    or event_history.get("assumptions") != event_assumptions
+                    or event_history.get("driving_rates", {}).get("scenario_sha256")
+                    != event_provenance.get("scenario_sha256")
+                    or event_history.get("driving_rates", {}).get("transport_artifact_sha256")
+                    != arrangement.get("raw_artifact_sha256")
+                    or event_rates.get("transport_artifact_sha256") != arrangement.get("raw_artifact_sha256")
+                    or not {"planned_outage_started", "planned_outage_ended"}
+                    <= {event.get("kind") for event in event_history.get("events", [])}
+                    or event_provenance.get("schema_version") != "faris-packaged-event-history-provenance/v0.1"
+                    or event_provenance.get("history_sha256") != event_ref.get("history_sha256")
+                    or event_provenance.get("rates_sha256") != event_ref.get("rates_sha256")
+                    or event_provenance.get("run_record_sha256") != arrangement.get("run_record_sha256")
+                    or event_provenance.get("raw_artifact_sha256") != arrangement.get("raw_artifact_sha256")
+                    or event_provenance.get("variant_id") != variant
+                    or event_provenance.get("scenario_sha256") != scenario_sha
+                    or event_provenance.get("assumptions_sha256") != event_ref.get("assumptions_sha256")):
+                raise ValueError(f"event history is not bound to the indexed run/assumptions for {pair_id}/{variant}")
+            sensitivity_path = safe_package_path(root, sensitivity_ref.get("sensitivity_path"))
+            sensitivity_provenance_path = safe_package_path(root, sensitivity_ref.get("provenance_path"))
+            if (digest(sensitivity_path) != sensitivity_ref.get("sensitivity_sha256")
+                    or digest(sensitivity_provenance_path) != sensitivity_ref.get("provenance_sha256")):
+                raise ValueError(f"sensitivity content digest mismatch for {pair_id}/{variant}")
+            sensitivity = json.loads(sensitivity_path.read_text(encoding="utf-8"))
+            sensitivity_provenance = json.loads(sensitivity_provenance_path.read_text(encoding="utf-8"))
+            if (sensitivity.get("schema_version") != "faris-history-sensitivity/v0.1"
+                    or sensitivity.get("grid") != sensitivity_grid
+                    or sensitivity.get("base_assumptions") != main_assumptions_data
+                    or len(sensitivity.get("points", [])) != 27
+                    or sensitivity.get("driving_rates", {}).get("scenario_sha256") != scenario_sha
+                    or sensitivity.get("driving_rates", {}).get("transport_artifact_sha256")
+                    != arrangement.get("raw_artifact_sha256")
+                    or sensitivity_provenance.get("schema_version")
+                    != "faris-packaged-history-sensitivity-provenance/v0.1"
+                    or sensitivity_provenance.get("sensitivity_sha256") != sensitivity_ref.get("sensitivity_sha256")
+                    or sensitivity_provenance.get("run_record_sha256") != arrangement.get("run_record_sha256")
+                    or sensitivity_provenance.get("raw_artifact_sha256") != arrangement.get("raw_artifact_sha256")
+                    or sensitivity_provenance.get("grid_sha256") != grid_ref.get("sha256")
+                    or sensitivity_provenance.get("assumptions_sha256") != index.get("operating_assumptions_sha256")
+                    or sensitivity_provenance.get("variant_id") != variant
+                    or sensitivity_provenance.get("scenario_sha256") != scenario_sha):
+                raise ValueError(f"sensitivity study is not bound to its run/grid for {pair_id}/{variant}")
             if pair_id == "port":
                 volume_path = arrangement.get("port_volume_report", {}).get("path")
                 volume_report_path = safe_package_path(root, volume_path)
@@ -243,6 +406,36 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path) -> list[dic
                     raise ValueError(f"port ownership audit failed strict replay for {variant}: {error}") from error
             inspected.append({"pair": pair_id, "variant": variant,
                               "case_id": fresh["case_id"], "record_integrity": fresh["record_integrity"]})
+        comparison_ref = pair.get("paired_history_comparison")
+        if not isinstance(comparison_ref, dict):
+            raise ValueError(f"paired history comparison missing for {pair_id}")
+        comparison_path = safe_package_path(root, comparison_ref.get("comparison_path"))
+        comparison_provenance_path = safe_package_path(root, comparison_ref.get("provenance_path"))
+        if (digest(comparison_path) != comparison_ref.get("comparison_sha256")
+                or digest(comparison_provenance_path) != comparison_ref.get("provenance_sha256")):
+            raise ValueError(f"paired comparison digest mismatch for {pair_id}")
+        comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+        comparison_provenance = json.loads(comparison_provenance_path.read_text(encoding="utf-8"))
+        run_by_variant = {item["variant_id"]: item for item in arrangements}
+        if (comparison.get("schema_version") != "faris-history-comparison/v0.1"
+                or comparison.get("left_label") != "reference"
+                or comparison.get("right_label") != "breeder-emphasis"
+                or comparison_provenance.get("schema_version") != "faris-packaged-history-comparison-provenance/v0.1"
+                or comparison_provenance.get("comparison_sha256") != comparison_ref.get("comparison_sha256")
+                or comparison_provenance.get("assumptions_sha256") != index.get("operating_assumptions_sha256")
+                or comparison_provenance.get("scenario_sha256") != scenario_sha):
+            raise ValueError(f"paired comparison is invalid for {pair_id}")
+        for side, variant in (("left", "reference"), ("right", "breeder-emphasis")):
+            arrangement = run_by_variant[variant]
+            rates = comparison.get(side, {}).get("driving_rates", {})
+            provenance = comparison_provenance.get(side, {})
+            if (rates.get("scenario_sha256") != scenario_sha
+                    or rates.get("transport_artifact_sha256") != arrangement.get("raw_artifact_sha256")
+                    or provenance.get("scenario_sha256") != scenario_sha
+                    or provenance.get("variant_id") != variant
+                    or provenance.get("run_record_sha256") != arrangement.get("run_record_sha256")
+                    or provenance.get("raw_artifact_sha256") != arrangement.get("raw_artifact_sha256")):
+                raise ValueError(f"paired comparison source identity mismatch for {pair_id}/{variant}")
     if seen_variants != {(pair, variant) for pair in ("control", "port")
                          for variant in ("reference", "breeder-emphasis")}:
         raise ValueError("package does not contain the complete four-case matrix")
@@ -270,12 +463,11 @@ def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> d
         if not content:
             raise ValueError("cannot tamper with an empty indexed artifact")
         content[len(content) // 2] ^= 0x01
+        victim.chmod(victim.stat().st_mode | stat.S_IWUSR)
         victim.write_bytes(content)
         try:
             verify_package(target, faris, core)
-        except ValueError as error:
-            if "indexed package file failed size or SHA-256 check" not in str(error):
-                raise
+        except ValueError:
             if digest(safe_package_path(source.resolve(strict=True), chosen)) != original_bytes_sha:
                 raise ValueError("tamper negative control unexpectedly modified the source package")
             return {"tamper_control": "EXPECTED_REJECTION", "tampered_copy_path": chosen,

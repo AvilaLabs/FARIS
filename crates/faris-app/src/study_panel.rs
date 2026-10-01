@@ -201,6 +201,21 @@ impl StudyPanel {
         }
     }
 
+    pub fn interface_status(&self, scenario_sha256: &str, variant_id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "compile_attempted":self.attempted, "compile_pending":self.pending.is_some(),
+            "compilation_status":self.completed.as_ref().and_then(|c|c.report["status"].as_str()),
+            "compilation_stale":self.completed.is_some() && (
+                self.compiled_variant.as_deref()!=Some(variant_id)
+                || self.compiled_selection.as_ref()!=Some(&self.selection)
+                || self.compiled_scenario.as_deref()!=Some(scenario_sha256)),
+            "has_error":self.error.is_some(), "evidence_pending":self.pending_evidence.is_some(),
+            "error":self.error,
+            "evidence_completed":self.evidence.as_ref().is_some_and(|e|e.completed()),
+            "saved_core_verified":self.archive.core_tooltip(scenario_sha256,variant_id).is_some(),
+        })
+    }
+
     fn start(&mut self, ctx: egui::Context, manifest: &DemoManifest, variant_id: &str) {
         self.error = None;
         self.completed = None;
@@ -293,7 +308,7 @@ impl StudyPanel {
         });
         ui.add_space(8.0);
         if self.pending.is_some() {
-            ui.label("Compilation: running");
+            ui.label("Current draft: compiling");
         } else if let Some(compilation) = &self.completed {
             let stale = self.compiled_variant.as_deref() != Some(variant_id)
                 || self.compiled_selection.as_ref() != Some(&self.selection)
@@ -302,9 +317,9 @@ impl StudyPanel {
                 .as_str()
                 .unwrap_or("not_available");
             ui.label(format!(
-                "Compilation: {}{}",
+                "Current draft: {}{}",
                 status,
-                if stale { " · selections changed" } else { "" }
+                if stale { " · study changed" } else { "" }
             ));
             ui.collapsing("Compiler findings", |ui| {
                 if let Some(findings) = compilation.report["findings"].as_array() {
@@ -333,7 +348,7 @@ impl StudyPanel {
                 }
             });
         } else {
-            ui.label("Compilation: not attempted");
+            ui.label("Current draft: not compiled");
         }
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);

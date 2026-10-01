@@ -57,6 +57,7 @@ pub struct TransportPanel {
     sampling: SamplingPlan,
     mesh_preset: MeshPreset,
     pending: Option<Pending>,
+    last_attempt: Option<(faris_engine::jobs::ExecutionStatus, PathBuf)>,
     error: Option<String>,
     revision: u64,
     pub view: FieldView,
@@ -151,6 +152,7 @@ impl TransportPanel {
             sampling: SamplingPlan::default(),
             mesh_preset: MeshPreset::Coarse,
             pending: None,
+            last_attempt: None,
             error: None,
             revision: 0,
             view: FieldView::default(),
@@ -180,6 +182,17 @@ impl TransportPanel {
     }
     pub fn render_key(&self) -> (u64, FieldView, usize) {
         (self.revision, self.view, self.slice)
+    }
+    pub fn interface_status(&self, variant: &str) -> serde_json::Value {
+        serde_json::json!({
+            "pending":self.pending.is_some(), "has_error":self.error.is_some(),
+            "error":self.error,
+            "readiness":self.readiness(variant),
+            "completed_record_available":self.record(variant).is_some_and(|r|r.normalized.is_some()),
+            "last_attempt_status":self.last_attempt.as_ref().map(|(s,_)|s),
+            "last_attempt_directory":self.last_attempt.as_ref().map(|(_,p)|p),
+            "slice":self.slice,
+        })
     }
     pub fn mesh_response(&self, variant: &str, bin: usize) -> Option<&NormalizedTally> {
         let record = self.record(variant)?;
@@ -292,6 +305,9 @@ impl TransportPanel {
         }
         match result {
             Ok(record) => {
+                if let Some(execution) = &record.execution {
+                    self.last_attempt = Some((execution.execution_status, pending.output.clone()));
+                }
                 if record.normalized.is_none() {
                     self.error = Some(record.import_error.clone().unwrap_or_else(|| {
                         format!(
@@ -299,11 +315,12 @@ impl TransportPanel {
                             pending.output.join("run.json").display()
                         )
                     }));
+                } else {
+                    self.locations
+                        .insert(record.variant_id.clone(), pending.output.join("run.json"));
+                    self.records.insert(record.variant_id.clone(), record);
+                    self.revision += 1;
                 }
-                self.locations
-                    .insert(record.variant_id.clone(), pending.output.join("run.json"));
-                self.records.insert(record.variant_id.clone(), record);
-                self.revision += 1;
             }
             Err(error) => self.error = Some(error),
         }
@@ -429,6 +446,13 @@ impl TransportPanel {
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);
         }
+        if let Some((status, directory)) = &self.last_attempt {
+            ui.small(format!("Latest attempt: {status:?}"));
+            ui.collapsing("Attempt diagnostics", |ui| {
+                ui.monospace(directory.display().to_string());
+                ui.small("Input, logs and execution state are retained here. Completed results remain available after cancellation or failure.");
+            });
+        }
         if let Some(record) = self.record(variant) {
             ui.label(format!(
                 "Execution: {}",
@@ -451,6 +475,28 @@ impl TransportPanel {
                 "{} histories",
                 u64::from(record.sampling.batches) * u64::from(record.sampling.particles_per_batch)
             ));
+            if let Some(precision) = &record.sampling_precision_summary {
+                if precision.all_goals_met {
+                    ui.small("Exploratory sampling goals met.");
+                } else {
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        format!(
+                            "{} / {} sampling checks unresolved",
+                            precision.checks_unmet, precision.check_count,
+                        ),
+                    );
+                }
+                ui.small(format!(
+                    "Targets: {:.0}% integrated · {:.0}% local relative SE",
+                    precision.integrated_goal * 100.0,
+                    precision.local_goal * 100.0,
+                ));
+                ui.small("Sampling review only. Local goals may remain unresolved even when whole-model rates are precise.")
+                    .on_hover_text(format!("{}\n{}\n{}", precision.plan_id, precision.purpose, precision.estimator));
+            } else {
+                ui.small("Sampling-goal receipt unavailable for this historical record.");
+            }
             if let Some(tally) = self.response(variant, "total-tritium-production") {
                 let rate = record
                     .normalized
@@ -523,6 +569,13 @@ impl TransportPanel {
                     );
                 });
             });
+        if matches!(
+            self.view,
+            FieldView::ComponentFlux | FieldView::FluxSlice | FieldView::NuclearHeating
+        ) {
+            ui.small("Stationary reference-source rate")
+                .on_hover_text("These transport fields use the recorded source strength. They stay fixed during history outages; accumulated fluence follows the timeline. Instantaneous fields and decay heat are not shown here.");
+        }
         if self.view == FieldView::FluxSlice {
             let last_slice = self
                 .record(variant)
@@ -578,7 +631,7 @@ impl TransportPanel {
         let Some(spectra) = &record.normalized_spectra else {
             return;
         };
-        ui.collapsing("Energy-group spectra",|ui|{
+        ui.collapsing("Reference-source energy-group spectra",|ui|{
             for spectrum in spectra.iter().filter(|s|s.component_id==component) {
                 ui.strong(format!("{} group flux",spectrum.particle));
                 let (rect,_)=ui.allocate_exact_size(egui::vec2(ui.available_width(),100.0),egui::Sense::hover());

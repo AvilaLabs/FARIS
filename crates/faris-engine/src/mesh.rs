@@ -104,7 +104,15 @@ pub fn torus_shell_with_prism_cut(
     for triangle in base.as_chunks::<3>().0 {
         refine_triangle(*triangle, minimum_xyz, maximum_xyz, 0, &mut output);
     }
-    append_prism_walls(major, inner, outer, minimum_xyz, maximum_xyz, &mut output);
+    append_prism_walls(
+        major,
+        inner,
+        outer,
+        sweep,
+        minimum_xyz,
+        maximum_xyz,
+        &mut output,
+    );
     Ok(output)
 }
 
@@ -163,6 +171,7 @@ fn append_prism_walls(
     major: f32,
     inner: f32,
     outer: f32,
+    sweep: f32,
     min: [f32; 3],
     max: [f32; 3],
     out: &mut Vec<MeshVertex>,
@@ -208,13 +217,44 @@ fn append_prism_walls(
                 let corners = [make(x0, o0), make(x1, o0), make(x1, o1), make(x0, o1)];
                 let reverse = (axis == 1 && fixed_sign < 0.0) || (axis == 2 && fixed_sign > 0.0);
                 if reverse {
-                    quad(out, [corners[0], corners[3], corners[2], corners[1]]);
+                    append_visible_quad(
+                        out,
+                        [corners[0], corners[3], corners[2], corners[1]],
+                        sweep,
+                    );
                 } else {
-                    quad(out, corners);
+                    append_visible_quad(out, corners, sweep);
                 }
             }
         }
     }
+}
+
+/// Emit only tunnel-wall triangles fully contained in the displayed toroidal
+/// wedge. Dropping a boundary triangle is conservative by at most one wall
+/// grid cell and avoids floating tunnel patches in the cutaway quadrant.
+fn append_visible_quad(out: &mut Vec<MeshVertex>, corners: [MeshVertex; 4], sweep: f32) {
+    for indices in [[0, 1, 2], [0, 2, 3]] {
+        let triangle = [
+            corners[indices[0]],
+            corners[indices[1]],
+            corners[indices[2]],
+        ];
+        if triangle
+            .iter()
+            .all(|vertex| within_toroidal_sweep(vertex.position, sweep))
+        {
+            out.extend(triangle);
+        }
+    }
+}
+
+fn within_toroidal_sweep(position: [f32; 3], sweep: f32) -> bool {
+    let mut phi = position[2].atan2(position[0]);
+    if phi < 0.0 {
+        phi += TAU;
+    }
+    phi <= sweep + 1.0e-6
 }
 
 fn position(major: f32, radius: f32, phi: f32, theta: f32) -> [f32; 3] {
@@ -321,5 +361,51 @@ mod tests {
             }
         }
         assert!(wall_triangles > 0);
+    }
+
+    #[test]
+    fn cutaway_port_walls_do_not_extend_into_the_hidden_toroidal_quadrant() {
+        let min = [4.34, -0.15, -0.15];
+        let max = [5.59, 0.15, 0.15];
+        let vertices =
+            torus_shell_with_prism_cut(3.3, 1.08, 1.11, CUTAWAY_SWEEP, min, max).unwrap();
+        let triangles = vertices.as_chunks::<3>().0;
+        assert!(!triangles.is_empty());
+        for triangle in triangles {
+            for vertex in triangle {
+                assert!(within_toroidal_sweep(vertex.position, CUTAWAY_SWEEP));
+            }
+        }
+
+        let is_tunnel_wall = |triangle: &[MeshVertex; 3]| {
+            [1, 2].into_iter().any(|axis| {
+                [min[axis], max[axis]].into_iter().any(|plane| {
+                    triangle.iter().all(|vertex| {
+                        (vertex.position[axis] - plane).abs() < 1e-6
+                            && (min[0]..=max[0]).contains(&vertex.position[0])
+                            && (min[1]..=max[1]).contains(&vertex.position[1])
+                            && (min[2]..=max[2]).contains(&vertex.position[2])
+                    })
+                })
+            })
+        };
+        let visible_wall_count = triangles
+            .iter()
+            .filter(|triangle| is_tunnel_wall(triangle))
+            .count();
+        assert!(
+            visible_wall_count > 0,
+            "the included-side tunnel walls remain visible"
+        );
+        let hidden_negative_z_wall_count = triangles
+            .iter()
+            .filter(|triangle| {
+                is_tunnel_wall(triangle)
+                    && triangle
+                        .iter()
+                        .all(|vertex| (vertex.position[2] - min[2]).abs() < 1e-6)
+            })
+            .count();
+        assert_eq!(hidden_negative_z_wall_count, 0);
     }
 }

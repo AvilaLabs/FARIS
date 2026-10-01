@@ -182,7 +182,10 @@ port intersection is confirmed void in the final geometry:
 ```bash
 python3 scripts/package_recorded_demo.py \
   --faris target/release/faris \
-  --core /path/to/avila-core \
+  --faris-app target/release/faris-app \
+  --core /tmp/faris-demo-avila-core \
+  --core-source-repo ../project-north-star \
+  --core-source-revision 2f8f838c081ae375f2ff3d542e986d0f4c104f96 \
   --control-scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --control-reference-run runs/<control-reference>/run.json \
   --control-breeder-run runs/<control-breeder>/run.json \
@@ -192,6 +195,8 @@ python3 scripts/package_recorded_demo.py \
   --port-reference-volume-report runs/<port-reference>/volume-check.json \
   --port-breeder-volume-report runs/<port-breeder>/volume-check.json \
   --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
+  --event-assumptions scenarios/arc-inspired/demo-event-assumptions.json \
+  --sensitivity-grid scenarios/arc-inspired/demo-operating-sensitivity.json \
   --output demo/recorded-study
 ```
 
@@ -208,21 +213,38 @@ existing output directory. It excludes statepoints, HDF5, ENDF, ZIPs, and
 nuclear-data files; recipients need compatible external data for fresh runs.
 Recorded results remain inspectable offline, but identity checks and Core
 workflow completion are not scientific qualification.
+The package copies a bounded allowlist of scientific background, acquisition
+instructions, independent controls, and support metadata. Add final campaign
+verification summaries with repeatable `--support-report LABEL=JSON_PATH` only
+after those reports bind to the fresh run identities; absolute workstation paths
+are redacted in packaged support JSON. `DEMO_ACCEPTANCE.md` is not copied as a
+snapshot because the final package and its verifier define release acceptance.
+
+The package retains each recorded bundle's raw and normalized energy spectra,
+worker receipt, and all normalized mesh-bin fields, with hashes checked against
+the run record. It also produces two paired history comparisons, four event-
+control histories, and four 27-point sensitivity records from the selected
+release CLI and exact fresh run records. Their provenance binds the scenario,
+run record, raw tally artifact, assumptions, and grid. The index reports total
+file count and bytes and the verifier enforces the 512 MiB / 2,048-file package
+caps. These deterministic history probes are authored scenario studies, not
+probability distributions or lifetime uncertainty bounds.
+
+The local Linux distribution includes hash-pinned, read-only copies of the
+release FARIS CLI, native app, and Core executable. Launch the offline four-case
+workspace with `demo/recorded-study/launch.sh`; run
+`demo/recorded-study/verify.sh` to rehash the package, reopen all four Core
+cases, and exercise a tamper-negative copy. These binaries target the recorded
+OS and architecture and may require compatible system libraries. Their hashes
+check byte identity only; they are unsigned and do not establish authenticity.
+The package copies FARIS's AGPL license and Core's license/third-party notices
+from the declared source revisions, and records the repository commits plus
+the build commands in `SOURCE_PROVENANCE.md`.
 
 Open the port arrangement and its feature-free control from that package with:
 
 ```bash
-cargo run -p faris-app -- \
-  --bundle demo/recorded-study/port/bundles/reference.transport-bundle.json \
-  --bundle demo/recorded-study/port/bundles/breeder-emphasis.transport-bundle.json \
-  --control-scenario demo/recorded-study/control/scenario.json \
-  --control-bundle demo/recorded-study/control/bundles/reference.transport-bundle.json \
-  --control-bundle demo/recorded-study/control/bundles/breeder-emphasis.transport-bundle.json \
-  --assumptions demo/recorded-study/operating-assumptions.json \
-  --saved-study demo/recorded-study/saved-study-port-reference.json \
-  --saved-study demo/recorded-study/saved-study-port-breeder-emphasis.json \
-  --saved-study demo/recorded-study/saved-study-control-reference.json \
-  --saved-study demo/recorded-study/saved-study-control-breeder-emphasis.json
+demo/recorded-study/launch.sh
 ```
 
 Each saved-study descriptor identifies one exact prepared Core case, its

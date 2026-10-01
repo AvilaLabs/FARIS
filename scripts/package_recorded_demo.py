@@ -12,22 +12,56 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
+import platform
 from pathlib import Path
+from pathlib import PurePosixPath
 import shutil
 import subprocess
 import sys
 import tempfile
+import re
 from datetime import datetime, timezone
 SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 from port_geometry_contract import validate_ownership_audits
+from recorded_bundle_contract import validate_recorded_bundle
 
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
 ANALYSES = "breeding,shielding,fuel-history,electricity"
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
+SUPPORT_SOURCE_FILES = (
+    "docs/COLD_REFERENCE.md",
+    "docs/DEMO_INPUT_SPEC.md",
+    "docs/LITHIUM_CAPTURE_CONTROL.md",
+    "docs/NUMERICAL_CONTROLS.md",
+    "docs/OPERATING_HISTORY.md",
+    "docs/PHOTON_LIBRARY_ACQUISITION.md",
+    "controls/check_history.py",
+    "controls/check_lithium_capture.py",
+    "controls/check_port_geometry.py",
+    "controls/check_transport_arithmetic.py",
+    "controls/test_lithium_capture.py",
+    "integrations/openmc/assemble_fendl_photon_overlay.py",
+    "integrations/openmc/audit_library.py",
+    "integrations/openmc/convert_endfbvii1_photon.py",
+    "integrations/openmc/lithium_capture_control.py",
+    "references/fendl-neutron-provenance-crosscheck.json",
+    "references/lithium-capture-control-verification.json",
+    "references/openmc-library-audit.json",
+    "references/operating-history-continuous-processing-control.json",
+    "references/operating-history-processing-control-phases-assumptions.json",
+    "references/operating-history-processing-control-phases-history.json",
+    "references/operating-history-processing-control-rates.json",
+    "references/operating-history-processing-control-restart-assumptions.json",
+    "references/operating-history-processing-control-restart-history.json",
+    "references/photon-library-provenance.json",
+)
+LOCAL_PATH_KEYS = {"data_root", "source_root", "source_fendl_path",
+                   "local_prior_environment_path"}
 
 
 def sha256(path: Path) -> str:
@@ -71,6 +105,9 @@ def verify_run(faris: Path, scenario: Path, run_path: Path, expected_variant: st
     if not REQUIRED_RESPONSES <= identities:
         raise RuntimeError(f"{run_path}: missing required integrated responses "
                            f"{sorted(REQUIRED_RESPONSES - identities)}")
+    bins = report.get("mesh_nonzero_flux_bin_count")
+    if not isinstance(bins, int) or bins <= 0:
+        raise RuntimeError(f"{run_path}: revalidated run has no nonzero spatial flux bins")
     return report
 
 
@@ -171,6 +208,216 @@ def verify_saved_case(faris: Path, case: Path, report: Path, workspace: Path,
     return inspection
 
 
+def bare_sha256(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise RuntimeError(f"{label}: missing SHA-256 identity")
+    result = value.removeprefix("sha256:")
+    if len(result) != 64:
+        raise RuntimeError(f"{label}: malformed SHA-256 identity")
+    try:
+        bytes.fromhex(result)
+    except ValueError as error:
+        raise RuntimeError(f"{label}: malformed SHA-256 identity") from error
+    return result
+
+
+def verify_finite_json(value: object, label: str) -> None:
+    if isinstance(value, float) and not math.isfinite(value):
+        raise RuntimeError(f"{label}: non-finite numeric value")
+    if isinstance(value, dict):
+        for child in value.values():
+            verify_finite_json(child, label)
+    elif isinstance(value, list):
+        for child in value:
+            verify_finite_json(child, label)
+
+
+def write_bounded_json(path: Path, value: dict) -> None:
+    encoded = (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
+    if len(encoded) > MAX_PACKAGE_FILE_BYTES:
+        raise RuntimeError(f"refusing to write oversized package artifact: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        raise RuntimeError(f"refusing to overwrite package artifact: {path}")
+    path.write_bytes(encoded)
+
+
+def source_run_identity(run_path: Path, scenario_sha: str, variant_id: str) -> dict:
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    if (run.get("scenario_sha256") != scenario_sha
+            or run.get("variant_id") != variant_id
+            or run.get("execution", {}).get("execution_status") != "SUCCEEDED"):
+        raise RuntimeError(f"{run_path}: source run identity/status differs from the selected case")
+    return {
+        "run_record_sha256": sha256(run_path),
+        "raw_artifact_sha256": bare_sha256(run.get("raw_artifact_sha256"), str(run_path)),
+        "input_sha256": bare_sha256(run.get("input_sha256"), str(run_path)),
+        "scenario_sha256": scenario_sha,
+        "variant_id": variant_id,
+        "sampling": run.get("sampling"),
+    }
+
+
+def add_event_history(faris: Path, branch: Path, scenario: Path, run_path: Path,
+                      assumptions: Path, scenario_sha: str, variant_id: str) -> dict:
+    identity = source_run_identity(run_path, scenario_sha, variant_id)
+    history_path = branch / "event-histories" / f"{variant_id}.json"
+    rates_path = branch / "event-histories" / f"{variant_id}.rates.json"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    invoke([str(faris), "history", "from-run", "--scenario", str(scenario),
+            "--run", str(run_path), "--assumptions", str(assumptions),
+            "--output", str(history_path), "--rates-output", str(rates_path)], timeout=600)
+    history = json.loads(history_path.read_text(encoding="utf-8"))
+    rates = json.loads(rates_path.read_text(encoding="utf-8"))
+    assumptions_data = json.loads(assumptions.read_text(encoding="utf-8"))
+    verify_finite_json(history, str(history_path))
+    if (history.get("schema_version") != "faris-history-result/v0.1"
+            or history.get("assumptions") != assumptions_data
+            or bare_sha256(history.get("driving_rates", {}).get("scenario_sha256"), str(history_path)) != scenario_sha
+            or bare_sha256(history.get("driving_rates", {}).get("transport_artifact_sha256"), str(history_path))
+            != identity["raw_artifact_sha256"]
+            or bare_sha256(rates.get("transport_artifact_sha256"), str(rates_path))
+            != identity["raw_artifact_sha256"]
+            or not history.get("snapshots") or not history.get("events")):
+        raise RuntimeError(f"{history_path}: event history is incomplete or bound to another run")
+    kinds = sorted({event.get("kind") for event in history["events"]})
+    if not {"planned_outage_started", "planned_outage_ended"} <= set(kinds):
+        raise RuntimeError(f"{history_path}: event history does not exercise planned outage transitions")
+    provenance = {
+        "schema_version": "faris-packaged-event-history-provenance/v0.1",
+        "generator_faris_cli_sha256": sha256(faris),
+        **identity,
+        "assumptions_sha256": sha256(assumptions),
+        "history_sha256": sha256(history_path),
+        "rates_sha256": sha256(rates_path),
+        "event_kinds": kinds,
+        "outcome": history.get("outcome"),
+        "event_count": len(history["events"]),
+        "snapshot_count": len(history["snapshots"]),
+        "scientific_scope": "Authored event-control history using the exact identified run rates; scenario thresholds are not physical material limits.",
+    }
+    provenance_path = branch / "event-histories" / f"{variant_id}.provenance.json"
+    write_bounded_json(provenance_path, provenance)
+    return {"history_path": history_path.relative_to(branch.parent).as_posix(),
+            "history_sha256": sha256(history_path),
+            "rates_path": rates_path.relative_to(branch.parent).as_posix(),
+            "rates_sha256": sha256(rates_path),
+            "provenance_path": provenance_path.relative_to(branch.parent).as_posix(),
+            "provenance_sha256": sha256(provenance_path),
+            "assumptions_sha256": sha256(assumptions)}
+
+
+def add_sensitivity(faris: Path, branch: Path, scenario: Path, run_path: Path,
+                    assumptions: Path, grid_path: Path, scenario_sha: str,
+                    variant_id: str) -> dict:
+    identity = source_run_identity(run_path, scenario_sha, variant_id)
+    sensitivity_path = branch / "sensitivities" / f"{variant_id}.json"
+    sensitivity_path.parent.mkdir(parents=True, exist_ok=True)
+    invoke([str(faris), "history", "sensitivity", "--scenario", str(scenario),
+            "--run", str(run_path), "--assumptions", str(assumptions),
+            "--grid", str(grid_path), "--output", str(sensitivity_path)], timeout=1800)
+    result = json.loads(sensitivity_path.read_text(encoding="utf-8"))
+    verify_finite_json(result, str(sensitivity_path))
+    grid = json.loads(grid_path.read_text(encoding="utf-8"))
+    expected_points = (len(grid["recovery_fraction_levels"])
+                      * len(grid["delay_multipliers"])
+                      * len(grid["service_limit_multipliers"]))
+    if (result.get("schema_version") != "faris-history-sensitivity/v0.1"
+            or result.get("grid") != grid
+            or result.get("base_assumptions") != json.loads(assumptions.read_text(encoding="utf-8"))
+            or len(result.get("points", [])) != expected_points
+            or not result.get("points")
+            or bare_sha256(result.get("driving_rates", {}).get("scenario_sha256"), str(sensitivity_path)) != scenario_sha
+            or bare_sha256(result.get("driving_rates", {}).get("transport_artifact_sha256"), str(sensitivity_path))
+            != identity["raw_artifact_sha256"]):
+        raise RuntimeError(f"{sensitivity_path}: sensitivity is incomplete or identity-mismatched")
+    provenance = {
+        "schema_version": "faris-packaged-history-sensitivity-provenance/v0.1",
+        "generator_faris_cli_sha256": sha256(faris),
+        **identity,
+        "assumptions_sha256": sha256(assumptions),
+        "grid_sha256": sha256(grid_path),
+        "sensitivity_sha256": sha256(sensitivity_path),
+        "point_count": len(result["points"]),
+        "scope": "Full deterministic history reruns under an authored bounded grid; grid levels are not probability distributions or confidence intervals.",
+    }
+    provenance_path = branch / "sensitivities" / f"{variant_id}.provenance.json"
+    write_bounded_json(provenance_path, provenance)
+    return {"sensitivity_path": sensitivity_path.relative_to(branch.parent).as_posix(),
+            "sensitivity_sha256": sha256(sensitivity_path),
+            "provenance_path": provenance_path.relative_to(branch.parent).as_posix(),
+            "provenance_sha256": sha256(provenance_path),
+            "point_count": expected_points}
+
+
+def add_history_comparison(faris: Path, branch: Path, scenario: Path,
+                           left_run: Path, right_run: Path, assumptions: Path,
+                           scenario_sha: str) -> dict:
+    left_identity = source_run_identity(left_run, scenario_sha, "reference")
+    right_identity = source_run_identity(right_run, scenario_sha, "breeder-emphasis")
+    controlled_difference = (
+        "Reference and breeder-emphasis material allocation differ under the same scenario and authored assumptions; "
+        "runs have independent seeds; deterministic history differences are descriptive and transport covariance is not estimated."
+    )
+    comparison_path = branch / "comparisons" / "reference-vs-breeder-emphasis.json"
+    comparison_path.parent.mkdir(parents=True, exist_ok=True)
+    invoke([str(faris), "history", "compare-runs", "--scenario", str(scenario),
+            "--left-run", str(left_run), "--left-label", "reference",
+            "--right-run", str(right_run), "--right-label", "breeder-emphasis",
+            "--assumptions", str(assumptions), "--controlled-difference", controlled_difference,
+            "--output", str(comparison_path)], timeout=1200)
+    cli_provenance_path = Path(str(comparison_path) + ".provenance.json")
+    comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+    cli_provenance = json.loads(cli_provenance_path.read_text(encoding="utf-8"))
+    verify_finite_json(comparison, str(comparison_path))
+    if (comparison.get("schema_version") != "faris-history-comparison/v0.1"
+            or comparison.get("left_label") != "reference"
+            or comparison.get("right_label") != "breeder-emphasis"
+            or comparison.get("controlled_difference") != controlled_difference
+            or not comparison.get("left", {}).get("events")
+            or not comparison.get("right", {}).get("events")):
+        raise RuntimeError(f"{comparison_path}: comparison report is incomplete")
+    if bare_sha256(cli_provenance.get("comparison_sha256"), str(cli_provenance_path)) != sha256(comparison_path).removeprefix("sha256:"):
+        raise RuntimeError(f"{cli_provenance_path}: comparison artifact digest mismatch")
+    for side, identity in (("left_run", left_identity), ("right_run", right_identity)):
+        source = cli_provenance.get(side, {})
+        if (bare_sha256(source.get("run_record_sha256"), str(cli_provenance_path))
+                != bare_sha256(identity["run_record_sha256"], str(left_run))
+                or bare_sha256(source.get("raw_artifact_sha256"), str(cli_provenance_path))
+                != identity["raw_artifact_sha256"]
+                or bare_sha256(source.get("scenario_sha256"), str(cli_provenance_path)) != scenario_sha):
+            raise RuntimeError(f"{cli_provenance_path}: source identity mismatch for {side}")
+    for side, identity in (("left", left_identity), ("right", right_identity)):
+        rates = comparison.get(side, {}).get("driving_rates", {})
+        if (bare_sha256(rates.get("scenario_sha256"), str(comparison_path)) != scenario_sha
+                or bare_sha256(rates.get("transport_artifact_sha256"), str(comparison_path))
+                != identity["raw_artifact_sha256"]):
+            raise RuntimeError(f"{comparison_path}: comparison rates differ from the selected source run")
+    if (bare_sha256(cli_provenance.get("assumptions_sha256"), str(cli_provenance_path))
+            != bare_sha256(sha256(assumptions), str(assumptions))
+            or bare_sha256(cli_provenance.get("scenario_sha256"), str(cli_provenance_path)) != scenario_sha):
+        raise RuntimeError(f"{cli_provenance_path}: assumptions or scenario identity mismatch")
+    provenance_path = branch / "comparisons" / "reference-vs-breeder-emphasis.provenance.json"
+    provenance = {
+        "schema_version": "faris-packaged-history-comparison-provenance/v0.1",
+        "generator_faris_cli_sha256": sha256(faris),
+        "comparison_sha256": sha256(comparison_path),
+        "assumptions_sha256": sha256(assumptions),
+        "scenario_sha256": scenario_sha,
+        "left": left_identity,
+        "right": right_identity,
+        "dependence_note": comparison.get("dependence_note"),
+        "controlled_difference": controlled_difference,
+        "scope": "Descriptive deterministic comparison; independent seeds do not estimate correlated transport uncertainty.",
+    }
+    cli_provenance_path.unlink()
+    write_bounded_json(provenance_path, provenance)
+    return {"comparison_path": comparison_path.relative_to(branch.parent).as_posix(),
+            "comparison_sha256": sha256(comparison_path),
+            "provenance_path": provenance_path.relative_to(branch.parent).as_posix(),
+            "provenance_sha256": sha256(provenance_path)}
+
+
 def scan_package(root: Path) -> list[dict]:
     records = []
     total_bytes = 0
@@ -191,9 +438,306 @@ def scan_package(root: Path) -> list[dict]:
     return records
 
 
+def git_output(repository: Path, *arguments: str) -> str:
+    result = subprocess.run(["git", "-C", str(repository), *arguments],
+                            capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(f"cannot read source provenance from {repository}: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def executable_version(path: Path) -> str:
+    result = subprocess.run([str(path), "--version"], capture_output=True, text=True,
+                            check=False, timeout=10)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(f"cannot obtain version from packaged executable: {path}")
+    return result.stdout.strip()
+
+
+def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
+                          core_source_repo: Path, core_source_revision: str,
+                          *, require_clean_faris_source: bool = True) -> dict:
+    if sys.platform != "linux":
+        raise RuntimeError("the recorded local launcher currently targets Linux only")
+    bin_dir = staging / "bin"
+    bin_dir.mkdir()
+    installed = {}
+    for name, source in (("faris", faris), ("faris-app", app), ("avila-core", core)):
+        target = bin_dir / name
+        shutil.copyfile(source, target)
+        target.chmod(0o555)
+        installed[name] = {"path": target.relative_to(staging).as_posix(),
+                           "sha256": sha256(target), "bytes": target.stat().st_size,
+                           "version": executable_version(target)}
+
+    scripts_dir = staging / "scripts"
+    scripts_dir.mkdir()
+    for name in ("verify_recorded_demo.py", "recorded_bundle_contract.py",
+                 "port_geometry_contract.py", "verify_binary_manifest.py"):
+        source = Path(__file__).with_name(name)
+        shutil.copyfile(source, scripts_dir / name)
+
+    faris_repo = Path(__file__).resolve().parents[1]
+    core_license_root = core_source_repo.resolve(strict=True)
+    licenses_dir = staging / "licenses"
+    licenses_dir.mkdir()
+    core_license_files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+    license_tree = git_output(core_license_root, "ls-tree", "-r", "--name-only",
+                              core_source_revision, "--", "LICENSES")
+    core_license_files.extend(path for path in license_tree.splitlines() if path)
+    for relative in core_license_files:
+        path = PurePosixPath(relative)
+        allowed_root_file = relative in {"LICENSE", "THIRD_PARTY_NOTICES.md"}
+        allowed_license_file = relative.startswith("LICENSES/")
+        if path.is_absolute() or ".." in path.parts or not (allowed_root_file or allowed_license_file):
+            raise RuntimeError(f"unsafe Core license path at source revision: {relative}")
+        output_name = ({"LICENSE": "core-LICENSE",
+                        "THIRD_PARTY_NOTICES.md": "core-THIRD_PARTY_NOTICES.md"}.get(relative)
+                       or str(PurePosixPath("core-LICENSES") / path.relative_to("LICENSES")))
+        source = subprocess.run(["git", "-C", str(core_license_root), "show",
+                                 f"{core_source_revision}:{relative}"],
+                                capture_output=True, check=False)
+        if source.returncode != 0:
+            raise RuntimeError(f"Core source revision lacks license material: {relative}")
+        target = licenses_dir / output_name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.stdout)
+    shutil.copyfile(faris_repo / "LICENSE", licenses_dir / "faris-LICENSE")
+
+    faris_revision = git_output(faris_repo, "rev-parse", "HEAD")
+    core_revision_resolved = git_output(core_license_root, "rev-parse", f"{core_source_revision}^{{commit}}")
+    if core_revision_resolved != core_source_revision:
+        raise RuntimeError("Core source revision must be a full canonical commit SHA")
+    core_remote = git_output(core_license_root, "remote", "get-url", "origin")
+    faris_remote = git_output(faris_repo, "remote", "get-url", "origin")
+    faris_clean = not bool(git_output(faris_repo, "status", "--porcelain", "--untracked-files=all"))
+    if require_clean_faris_source and not faris_clean:
+        raise RuntimeError("refusing to distribute binaries from a dirty FARIS source tree")
+    source_record = {
+        "faris": {"repository": faris_remote, "commit": faris_revision,
+                  "working_tree_clean": faris_clean},
+        "core": {"repository": core_remote, "commit": core_revision_resolved,
+                 "checkout_head": git_output(core_license_root, "rev-parse", "HEAD"),
+                 "binary_profile": "debug",
+                 "working_tree_clean_at_packaging": not bool(git_output(
+                     core_license_root, "status", "--porcelain", "--untracked-files=all"))},
+        "rebuild": [
+            "FARIS: check out the recorded commit, then run cargo build --release --locked --bin faris --bin faris-app.",
+            "Packaged Core: check out the recorded commit, run cargo build --locked --bin avila-core, copy target/debug/avila-core to the distribution, then run strip --strip-debug on that copy.",
+            "Optional Core release build: cargo build --release --locked --bin avila-core; it is compatible but has a different binary hash.",
+            "These instructions identify the source and toolchain command; they do not claim bit-for-bit reproducibility.",
+        ],
+    }
+    (staging / "SOURCE_PROVENANCE.md").write_text(
+        "# Local runtime provenance\n\n"
+        f"- FARIS repository: `{faris_remote}` at `{faris_revision}`.\n"
+        f"- Avila Core repository: `{core_remote}` at `{core_revision_resolved}`.\n"
+        f"- Packaged FARIS CLI reports: `{installed['faris']['version']}`.\n"
+        f"- Packaged native app reports: `{installed['faris-app']['version']}`.\n"
+        f"- Core executable reports: `{installed['avila-core']['version']}`.\n"
+        "- Rebuild FARIS with `cargo build --release --locked --bin faris --bin faris-app`.\n"
+        "- The packaged Core executable is from the debug profile: build with `cargo build --locked --bin avila-core`, "
+        "copy `target/debug/avila-core`, then apply `strip --strip-debug` to that copy.\n"
+        "- A release-profile Core rebuild is also compatible, using `cargo build --release --locked --bin avila-core`; "
+        "it will have a different hash and is not byte-identical to this package.\n"
+        "- These commands document the build route; no bit-for-bit reproducibility claim is made.\n"
+        "- License texts and Core third-party notices are included under `licenses/`.\n"
+        "- Binary SHA-256 values in the package index identify bytes only; they are unsigned.\n",
+        encoding="utf-8")
+
+    launch = """#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+python3 "$root/scripts/verify_binary_manifest.py" "$root"
+exec "$root/bin/faris-app" \\
+  --core "$root/bin/avila-core" \\
+  --bundle "$root/port/bundles/reference.transport-bundle.json" \\
+  --bundle "$root/port/bundles/breeder-emphasis.transport-bundle.json" \\
+  --control-scenario "$root/control/scenario.json" \\
+  --control-bundle "$root/control/bundles/reference.transport-bundle.json" \\
+  --control-bundle "$root/control/bundles/breeder-emphasis.transport-bundle.json" \\
+  --assumptions "$root/operating-assumptions.json" \\
+  --saved-study "$root/saved-study-port-reference.json" \\
+  --saved-study "$root/saved-study-port-breeder-emphasis.json" \\
+  --saved-study "$root/saved-study-control-reference.json" \\
+  --saved-study "$root/saved-study-control-breeder-emphasis.json" "$@"
+"""
+    launch_path = staging / "launch.sh"
+    launch_path.write_text(launch, encoding="utf-8")
+    launch_path.chmod(0o555)
+    verify = """#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+temporary=$(mktemp -d)
+trap 'rm -rf "$temporary"' EXIT HUP INT TERM
+python3 "$root/scripts/verify_recorded_demo.py" \\
+  --package "$root" \\
+  --relocated-copy "$temporary/relocated-demo" \\
+  --faris "$root/bin/faris" \\
+  --core "$root/bin/avila-core"
+"""
+    verify_path = staging / "verify.sh"
+    verify_path.write_text(verify, encoding="utf-8")
+    verify_path.chmod(0o555)
+    license_files = {
+        path.relative_to(staging).as_posix(): sha256(path)
+        for path in sorted(licenses_dir.rglob("*")) if path.is_file()
+    }
+    return {"schema_version": "faris-local-runtime/v0.1",
+            "platform": {"sys_platform": sys.platform, "machine": platform.machine()},
+            "executables": installed,
+            "license_files": license_files,
+            "source_provenance": source_record,
+            "launcher": {"path": "launch.sh", "sha256": sha256(launch_path)},
+            "verifier": {"path": "verify.sh", "sha256": sha256(verify_path)}}
+
+
+def redact_local_paths(value: object, redactions: list[str], location: str = "$") -> object:
+    if isinstance(value, dict):
+        result = {}
+        for key, child in value.items():
+            child_location = f"{location}.{key}"
+            if key in LOCAL_PATH_KEYS and isinstance(child, str):
+                result[key] = "<local filesystem path omitted>"
+                redactions.append(child_location)
+            else:
+                result[key] = redact_local_paths(child, redactions, child_location)
+        return result
+    if isinstance(value, list):
+        return [redact_local_paths(child, redactions, f"{location}[{index}]")
+                for index, child in enumerate(value)]
+    if isinstance(value, str) and (value.startswith("/") or value.startswith("runs/")):
+        redactions.append(location)
+        return "<local artifact path omitted>"
+    return value
+
+
+def install_support(staging: Path, campaign_reports: list[tuple[str, Path]]) -> dict:
+    repository = Path(__file__).resolve().parents[1]
+    support_root = staging / "support"
+    records = []
+    for relative in SUPPORT_SOURCE_FILES:
+        source = repository / relative
+        if (not source.is_file() or source.stat().st_size > MAX_PACKAGE_FILE_BYTES):
+            raise RuntimeError(f"required bounded demo support source is unavailable: {source}")
+        target_relative = PurePosixPath("support") / PurePosixPath(relative)
+        target = staging / target_relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        original_digest = sha256(source)
+        redactions: list[str] = []
+        if source.suffix.lower() == ".json":
+            try:
+                source_json = json.loads(source.read_text(encoding="utf-8"))
+                sanitized = redact_local_paths(source_json, redactions)
+                target.write_text(json.dumps(sanitized, indent=2, sort_keys=True, allow_nan=False) + "\n",
+                                  encoding="utf-8")
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+                raise RuntimeError(f"support JSON is invalid: {source}") from error
+        else:
+            shutil.copyfile(source, target)
+        if target.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise RuntimeError(f"packaged support file exceeds the 64 MiB bound: {target}")
+        records.append({"source_path": relative, "source_sha256": original_digest,
+                        "package_path": target_relative.as_posix(),
+                        "package_sha256": sha256(target), "redacted_locations": redactions})
+
+    seen_labels: set[str] = set()
+    for label, source in campaign_reports:
+        if (not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", label)
+                or label in seen_labels or not source.is_file()
+                or source.stat().st_size > MAX_PACKAGE_FILE_BYTES):
+            raise RuntimeError(f"invalid, duplicate, or oversized campaign support report: {label}")
+        seen_labels.add(label)
+        try:
+            source_json = json.loads(source.read_text(encoding="utf-8"))
+            redactions = []
+            sanitized = redact_local_paths(source_json, redactions)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"campaign support report is not valid JSON: {source}") from error
+        relative = f"support/campaigns/{label}.json"
+        target = staging / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(sanitized, indent=2, sort_keys=True, allow_nan=False) + "\n",
+                          encoding="utf-8")
+        records.append({"source_name": source.name, "source_sha256": sha256(source),
+                        "package_path": relative, "package_sha256": sha256(target),
+                        "source_location_omitted": True,
+                        "redacted_locations": redactions})
+
+    readme = support_root / "README.md"
+    readme.write_text(
+        "# Scientific scope and support materials\n\n"
+        "This directory contains bounded documentation, independent checking scripts, and metadata. "
+        "It contains no nuclear-data library, ENDF archive, OpenMC statepoint, or Li-control raw statepoint. "
+        "Use the four recorded transport bundles as the exact run inputs and identities. The included cold "
+        "reference and history documents explain model assumptions and limits; their older run summaries "
+        "are not substituted for the run records in this package. Any bundled campaign report is an "
+        "identity-bearing audit artifact with path fields redacted for portability. All physical reactor "
+        "qualification remains NOT_EVALUATED.\n",
+        encoding="utf-8")
+    manifest_path = support_root / "manifest.json"
+    manifest_path.write_text(json.dumps({
+        "schema_version": "faris-recorded-demo-support/v0.1",
+        "files": records,
+        "support_readme_sha256": sha256(readme),
+        "demo_acceptance_snapshot_included": False,
+    }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {"path": "support/manifest.json", "sha256": sha256(manifest_path),
+            "file_count": len(records), "demo_acceptance_snapshot_included": False}
+
+
+def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> None:
+    lines = [
+        "# FARIS recorded coupled-transport demo",
+        "",
+        "This portable package contains four identity-checked fixed-source transport records and four completed Core evidence cases.",
+        "Core execution and receipt revalidation establish workflow completion; every physical qualification status remains NOT_EVALUATED.",
+        "It is a cold-data numerical surrogate, not ARC, a materials qualification, an experimental benchmark, or an engineering prediction.",
+        "",
+        "## Recorded case matrix",
+        "",
+        "| Scenario | Variant | Scenario SHA-256 | Run SHA-256 | Raw artifact SHA-256 | Responses | Nonzero mesh flux bins |",
+        "|---|---|---|---|---|---:|---:|",
+    ]
+    for pair in pairs:
+        for arrangement in pair["arrangements"]:
+            lines.append(
+                f"| {pair['scenario_id']} | {arrangement['variant_id']} | `{pair['scenario_sha256']}` "
+                f"| `{arrangement['run_record_sha256'].removeprefix('sha256:')}` "
+                f"| `{arrangement['raw_artifact_sha256']}` "
+                f"| {arrangement['normalized_response_count']} "
+                f"| {arrangement['mesh_nonzero_flux_bin_count']} |"
+            )
+    lines.extend([
+        "",
+        "Each recorded bundle contains exact run/input/scenario/audit/adapter/raw artifact/worker/spectra bytes.",
+        "It exposes normalized integrated tritium production and all-particle heating, 12 neutron/photon component spectra, and the complete local mesh field.",
+        "The port cases additionally retain independent OpenMC point-ownership/clearance and geometry-volume audit reports.",
+        "",
+        "The package includes two descriptive paired-history comparisons, four event-control histories, and four 27-point sensitivity results from the indexed assumptions and grid.",
+        "Their deterministic results are conditional on the authored ledger model; grid points are not probabilities, confidence limits, material allowables, or lifetime predictions.",
+        "See `support/` for the bounded scientific background, independent checker scripts, data acquisition route, license notes, and included verification metadata.",
+        "The old DEMO_ACCEPTANCE snapshot is intentionally omitted because release acceptance is determined by the final package index and fresh verifier run.",
+        "",
+        "## Offline launch and verification",
+        "",
+        "Run `./launch.sh` to open the four recorded cases. Run `./verify.sh` to rehash all files, relocate/reopen the Core evidence, and check rejection of a separate tampered copy.",
+        "The bundled Linux executables are read-only and hash-pinned, not signed. Their hashes establish byte identity, not authenticity.",
+        "",
+        "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
+        "Package caps: 64 MiB per file, 2,048 indexed files, and 512 MiB total indexed payload. The package index reports the measured final file count and byte total.",
+        "",
+    ])
+    destination = staging / "README.md"
+    destination.write_text("\n".join(lines), encoding="utf-8")
+    if destination.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+        raise RuntimeError("generated package README exceeds the 64 MiB bound")
+
+
 def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
              scenario_path: Path, reference_run: Path, breeder_run: Path,
-             assumptions: Path, port_reports: tuple[Path, Path] | None) -> dict:
+             assumptions: Path, event_assumptions: Path, sensitivity_grid: Path,
+             port_reports: tuple[Path, Path] | None) -> dict:
     scenario_data = json.loads(scenario_path.read_text())
     scenario_sha = hashlib.sha256(scenario_path.read_bytes()).hexdigest()
     branch = staging / pair_id
@@ -204,6 +748,8 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         ("breeder-emphasis", breeder_run),
     )
     run_summaries = []
+    event_summaries = []
+    sensitivity_summaries = []
     for index, (variant_id, run_path) in enumerate(variants):
         inspected = verify_run(faris, scenario_path, run_path, variant_id)
         volume_identity = None
@@ -281,9 +827,24 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         recorded_bundle = case / "inputs" / "recorded.json"
         if not recorded_bundle.is_file():
             raise RuntimeError(f"prepared Core case lacks portable transport bundle: {recorded_bundle}")
+        run_record_data = json.loads(run_path.read_text(encoding="utf-8"))
+        bundle_summary = validate_recorded_bundle(
+            json.loads(recorded_bundle.read_text(encoding="utf-8")),
+            scenario_sha256=scenario_sha, variant_id=variant_id,
+            expected_run_sha256=sha256(run_path),
+            expected_raw_artifact_sha256=run_record_data.get("raw_artifact_sha256"),
+            mesh_nonzero_flux_bin_count=inspected.get("mesh_nonzero_flux_bin_count"))
         bundle_path = branch / "bundles" / f"{variant_id}.transport-bundle.json"
         bundle_path.parent.mkdir(exist_ok=True)
         shutil.copyfile(recorded_bundle, bundle_path)
+        event_identity = add_event_history(
+            faris, branch, scenario_path, run_path, event_assumptions,
+            scenario_sha, variant_id)
+        event_summaries.append(event_identity)
+        sensitivity_identity = add_sensitivity(
+            faris, branch, scenario_path, run_path, assumptions,
+            sensitivity_grid, scenario_sha, variant_id)
+        sensitivity_summaries.append(sensitivity_identity)
         descriptor_path = staging / f"saved-study-{pair_id}-{variant_id}.json"
         descriptor = {
             "case_directory": case.relative_to(staging).as_posix(),
@@ -294,10 +855,12 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         run_summaries.append({
             "variant_id": variant_id,
             "run_record_sha256": sha256(run_path),
+            "raw_artifact_sha256": source_run_identity(run_path, scenario_sha, variant_id)["raw_artifact_sha256"],
             "scenario_sha256": inspected["scenario_sha256"],
             "scientific_qualification": inspected["scientific_qualification"],
             "normalized_response_count": inspected["response_count"],
             "mesh_nonzero_flux_bin_count": inspected.get("mesh_nonzero_flux_bin_count"),
+            "offline_field_and_spectrum_identity": bundle_summary,
             "source_record_name": "run.json",
             "core_execution_report": execution_report.relative_to(staging).as_posix(),
             "core_execution_report_sha256": sha256(execution_report),
@@ -313,12 +876,20 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             "transport_bundle_sha256": sha256(bundle_path),
             "port_volume_report": volume_identity,
             "port_geometry_ownership_report": ownership_identity,
+            "event_history": event_identity,
+            "sensitivity_study": sensitivity_identity,
         })
+    comparison_summary = add_history_comparison(
+        faris, branch, scenario_path, reference_run, breeder_run,
+        assumptions, scenario_sha)
     return {
         "scenario_id": scenario_data.get("id"),
         "scenario_path": (branch / "scenario.json").relative_to(staging).as_posix(),
         "scenario_sha256": scenario_sha,
         "arrangements": run_summaries,
+        "paired_history_comparison": comparison_summary,
+        "event_histories": event_summaries,
+        "sensitivity_studies": sensitivity_summaries,
         "feature": "finite_port" if port_reports else "feature_free_control",
     }
 
@@ -326,7 +897,10 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--faris", required=True, type=Path)
+    parser.add_argument("--faris-app", required=True, type=Path)
     parser.add_argument("--core", required=True, type=Path)
+    parser.add_argument("--core-source-repo", required=True, type=Path)
+    parser.add_argument("--core-source-revision", required=True)
     parser.add_argument("--control-scenario", required=True, type=Path)
     parser.add_argument("--control-reference-run", required=True, type=Path)
     parser.add_argument("--control-breeder-run", required=True, type=Path)
@@ -336,24 +910,63 @@ def main() -> None:
     parser.add_argument("--port-reference-volume-report", required=True, type=Path)
     parser.add_argument("--port-breeder-volume-report", required=True, type=Path)
     parser.add_argument("--assumptions", required=True, type=Path)
+    parser.add_argument("--event-assumptions", required=True, type=Path)
+    parser.add_argument("--sensitivity-grid", required=True, type=Path)
+    parser.add_argument("--support-report", action="append", default=[], metavar="LABEL=JSON_PATH",
+                        help="additional bounded campaign audit report to retain under support/campaigns")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    files = [args.faris, args.core, args.control_scenario, args.control_reference_run,
+    files = [args.faris, args.faris_app, args.core, args.control_scenario, args.control_reference_run,
              args.control_breeder_run, args.port_scenario, args.port_reference_run,
              args.port_breeder_run, args.port_reference_volume_report,
-             args.port_breeder_volume_report, args.assumptions]
+             args.port_breeder_volume_report, args.assumptions,
+             args.event_assumptions, args.sensitivity_grid]
+    support_reports = []
+    for item in args.support_report:
+        label, separator, raw_path = item.partition("=")
+        if not separator or not label or not raw_path:
+            raise SystemExit("--support-report must use LABEL=JSON_PATH")
+        report_path = Path(raw_path)
+        if not report_path.is_file() or report_path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise SystemExit(f"support report is missing or oversized: {report_path}")
+        support_reports.append((label, report_path.resolve()))
     for path in files:
         if not path.is_file():
             raise SystemExit(f"required file is missing: {path}")
+        if path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise SystemExit(f"required input exceeds the 64 MiB bound: {path}")
     output = args.output.absolute()
     if output.exists():
         raise SystemExit(f"output already exists: {output}")
-    faris, core = args.faris.resolve(), args.core.resolve()
+    faris, app, core = args.faris.resolve(), args.faris_app.resolve(), args.core.resolve()
+    core_source_repo = args.core_source_repo.resolve(strict=True)
     assumptions = args.assumptions.resolve()
+    event_assumptions = args.event_assumptions.resolve()
+    sensitivity_grid = args.sensitivity_grid.resolve()
     try:
         assumption_data = json.loads(assumptions.read_text())
         if not isinstance(assumption_data, dict):
             raise ValueError("operating assumptions must be a JSON object")
+        event_assumption_data = json.loads(event_assumptions.read_text())
+        if not isinstance(event_assumption_data, dict):
+            raise ValueError("event-control assumptions must be a JSON object")
+        grid_data = json.loads(sensitivity_grid.read_text())
+        if not isinstance(grid_data, dict):
+            raise ValueError("sensitivity grid must be a JSON object")
+        levels = [grid_data.get("recovery_fraction_levels"),
+                  grid_data.get("delay_multipliers"),
+                  grid_data.get("service_limit_multipliers")]
+        if any(not isinstance(values, list) or len(values) != 3 for values in levels):
+            raise ValueError("final sensitivity artifact must declare three levels per parameter (27 points)")
+        bounds = [(0.0, 1.0), (0.25, 4.0), (0.25, 4.0)]
+        for values, (lower, upper) in zip(levels, bounds, strict=True):
+            if (any(not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not math.isfinite(value) or value < lower or value > upper
+                    for value in values)
+                    or len(set(values)) != len(values)):
+                raise ValueError("sensitivity levels must be finite, distinct, and inside model bounds")
+        if not isinstance(grid_data.get("rationale"), str) or not grid_data["rationale"].strip():
+            raise ValueError("sensitivity grid requires an authored rationale")
         pairs = [
             (args.control_scenario.resolve(), args.control_reference_run.resolve(),
              args.control_breeder_run.resolve(), None),
@@ -381,24 +994,43 @@ def main() -> None:
     staging = Path(tempfile.mkdtemp(prefix=f".{output.name}.staging-", dir=output.parent))
     try:
         shutil.copyfile(assumptions, staging / "operating-assumptions.json")
+        runtime_manifest = install_local_runtime(
+            staging, faris, app, core, core_source_repo, args.core_source_revision)
+        support_manifest = install_support(staging, support_reports)
+        inputs_dir = staging / "inputs"
+        inputs_dir.mkdir()
+        shutil.copyfile(event_assumptions, inputs_dir / "event-assumptions.json")
+        shutil.copyfile(sensitivity_grid, inputs_dir / "sensitivity-grid.json")
         branches = []
         for pair_id, (scenario_path, reference_run, breeder_run, volume_reports) in zip(
                 ("control", "port"), pairs, strict=True):
             branches.append(add_pair(staging, pair_id, faris, core, scenario_path,
-                                     reference_run, breeder_run, assumptions, volume_reports))
-        (staging / "README.txt").write_text(
-            "Recorded FARIS results and actual Core evidence. Inspect package-index.json. "
-            "This bundle establishes artifact identity and workflow completion only. "
-            "Scientific qualification remains NOT_EVALUATED. Nuclear data and statepoints "
-            "are intentionally excluded; see the source repository's acquisition guide.\n")
+                                     reference_run, breeder_run, assumptions,
+                                     event_assumptions, sensitivity_grid, volume_reports))
+        write_package_readme(staging, branches, support_manifest)
+        indexed_files = scan_package(staging)
         index = {
             "schema_version": "faris-recorded-demo-package/v0.3",
             "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
             "faris_cli_sha256": sha256(faris),
+            "faris_app_sha256": sha256(app),
             "core_executable_sha256": sha256(core),
+            "local_runtime": runtime_manifest,
+            "support": support_manifest,
             "operating_assumptions_sha256": sha256(staging / "operating-assumptions.json"),
+            "event_assumptions": {
+                "path": "inputs/event-assumptions.json",
+                "sha256": sha256(inputs_dir / "event-assumptions.json"),
+            },
+            "sensitivity_grid": {
+                "path": "inputs/sensitivity-grid.json",
+                "sha256": sha256(inputs_dir / "sensitivity-grid.json"),
+                "points_per_run": 27,
+            },
+            "package_file_count": len(indexed_files),
+            "package_bytes": sum(item["bytes"] for item in indexed_files),
             "scenario_pairs": branches,
-            "files": scan_package(staging),
+            "files": indexed_files,
             "index_digest_scope": "package-index.json and package-index.sha256 are excluded from files to avoid a self-referential digest.",
             "external_requirements": [
                 "Compatible OpenMC/Python and nuclear data are external and needed for fresh transport.",

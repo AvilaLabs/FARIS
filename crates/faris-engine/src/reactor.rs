@@ -474,8 +474,27 @@ pub struct ReactorRun {
     pub worker_result_sha256: Option<String>,
     #[serde(default)]
     pub normalized_spectra: Option<Vec<NormalizedEnergySpectrum>>,
+    /// Recomputed from the SHA-bound worker receipt; intentionally omitted
+    /// from run.json so established evidence bytes stay immutable.
+    #[serde(skip)]
+    pub sampling_precision_summary: Option<SamplingPrecisionSummary>,
     pub scientific_qualification: String,
     pub notice: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SamplingPrecisionSummary {
+    pub plan_id: String,
+    pub purpose: String,
+    pub estimator: String,
+    pub integrated_goal: f64,
+    pub local_goal: f64,
+    pub check_count: usize,
+    pub checks_met: usize,
+    pub checks_unmet: usize,
+    pub all_goals_met: bool,
+    pub whole_model_tbr_relative_standard_error: Option<f64>,
+    pub whole_model_heating_relative_standard_error: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -554,6 +573,11 @@ pub fn hash_file(path: &Path) -> Result<String, ReactorError> {
         hasher.update(&buffer[..count]);
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn canonicalize_required_input(path: &Path, label: &str) -> Result<PathBuf, ReactorError> {
+    path.canonicalize()
+        .map_err(|error| format!("cannot locate {label} at {}: {error}", path.display()).into())
 }
 fn write_new(path: &Path, bytes: &[u8]) -> Result<(), ReactorError> {
     let mut file = File::options().write(true).create_new(true).open(path)?;
@@ -1095,6 +1119,126 @@ fn validate_geometry_ownership_receipt(
     Ok(())
 }
 
+/// Extract only the bounded summary shown to the UI. The full per-bin check
+/// list stays in the SHA-bound worker artifact; no new run.json fields are
+/// written and these exploratory RSE goals never qualify physical accuracy.
+fn sampling_precision_summary(worker: &Value) -> Result<SamplingPrecisionSummary, ReactorError> {
+    let precision = worker
+        .get("sampling_precision")
+        .ok_or("worker receipt is missing sampling_precision")?;
+    let text = |key: &str| -> Result<String, ReactorError> {
+        let value = precision
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("sampling precision is missing {key}"))?;
+        if value.len() > 512 {
+            return Err(format!("sampling precision {key} exceeds its size bound").into());
+        }
+        Ok(value)
+    };
+    let integrated_goal = precision
+        .get("integrated_goal")
+        .and_then(Value::as_f64)
+        .ok_or("sampling precision integrated goal is missing")?;
+    let local_goal = precision
+        .get("local_goal")
+        .and_then(Value::as_f64)
+        .ok_or("sampling precision local goal is missing")?;
+    if text("plan_id")? != "faris-exploratory-precision-goals/v0.1"
+        || integrated_goal != 0.05
+        || local_goal != 0.1
+    {
+        return Err("sampling precision plan identity or goals differ".into());
+    }
+    let checks = precision
+        .get("checks")
+        .and_then(Value::as_array)
+        .ok_or("sampling precision checks are missing")?;
+    if checks.is_empty() || checks.len() > 32_832 {
+        return Err("sampling precision check count is outside bounds".into());
+    }
+    let mut checks_met = 0;
+    let mut tbr_rse = None;
+    let mut heating_rse = None;
+    for check in checks {
+        let target = check
+            .get("target_relative_standard_error")
+            .and_then(Value::as_f64)
+            .ok_or("sampling precision target is missing")?;
+        let met = check
+            .get("met")
+            .and_then(Value::as_bool)
+            .ok_or("sampling precision check state is missing")?;
+        let observed = check
+            .get("observed_relative_standard_error")
+            .filter(|value| !value.is_null())
+            .and_then(Value::as_f64);
+        if target != integrated_goal && target != local_goal {
+            return Err("sampling precision check uses an undeclared target".into());
+        }
+        if observed.is_some_and(|value| !value.is_finite() || value < 0.0)
+            || met != observed.is_some_and(|value| value <= target)
+        {
+            return Err("sampling precision check state disagrees with its RSE".into());
+        }
+        checks_met += usize::from(met);
+        match (
+            check.get("response_id").and_then(Value::as_str),
+            check.get("quantity").and_then(Value::as_str),
+        ) {
+            (Some("total-tritium-production"), Some("whole-model tritium production"))
+                if target != integrated_goal =>
+            {
+                return Err("whole-model tritium precision check uses the wrong target".into());
+            }
+            (Some("total-tritium-production"), Some("whole-model tritium production"))
+                if tbr_rse.replace(observed).is_some() =>
+            {
+                return Err("whole-model tritium precision check is ambiguous".into());
+            }
+            (Some("total-tritium-production"), Some("whole-model tritium production")) => {
+                tbr_rse = Some(observed);
+            }
+            (Some("heating-total-whole-model"), Some("whole-model deposited heating"))
+                if target != integrated_goal =>
+            {
+                return Err("whole-model heating precision check uses the wrong target".into());
+            }
+            (Some("heating-total-whole-model"), Some("whole-model deposited heating"))
+                if heating_rse.replace(observed).is_some() =>
+            {
+                return Err("whole-model heating precision check is ambiguous".into());
+            }
+            (Some("heating-total-whole-model"), Some("whole-model deposited heating")) => {
+                heating_rse = Some(observed);
+            }
+            _ => {}
+        }
+    }
+    let declared_all = precision
+        .get("all_goals_met")
+        .and_then(Value::as_bool)
+        .ok_or("sampling precision aggregate state is missing")?;
+    let checks_unmet = checks.len() - checks_met;
+    if declared_all != (checks_unmet == 0) || tbr_rse.is_none() || heating_rse.is_none() {
+        return Err("sampling precision aggregate or whole-model checks are inconsistent".into());
+    }
+    Ok(SamplingPrecisionSummary {
+        plan_id: text("plan_id")?,
+        purpose: text("purpose")?,
+        estimator: text("estimator")?,
+        integrated_goal,
+        local_goal,
+        check_count: checks.len(),
+        checks_met,
+        checks_unmet,
+        all_goals_met: declared_all,
+        whole_model_tbr_relative_standard_error: tbr_rse.flatten(),
+        whole_model_heating_relative_standard_error: heating_rse.flatten(),
+    })
+}
+
 pub fn run_reactor(
     job: &ReactorJob<'_>,
     cancellation: &Cancellation,
@@ -1103,13 +1247,18 @@ pub fn run_reactor(
     if job.timeout.is_zero() || job.timeout > Duration::from_secs(3600) {
         return Err("reactor timeout must be 1..3600 seconds".into());
     }
-    let python = job.python.canonicalize()?;
-    let openmc = job.openmc.canonicalize()?;
+    let python = canonicalize_required_input(job.python, "Python interpreter")?;
+    let openmc = canonicalize_required_input(job.openmc, "OpenMC executable")?;
     let python_sha256 = hash_file(&python)?;
     let openmc_sha256 = hash_file(&openmc)?;
-    let cross_sections = job.cross_sections.canonicalize()?;
+    let cross_sections = canonicalize_required_input(job.cross_sections, "cross_sections.xml")?;
     let cross_sections_sha256 = hash_file(&cross_sections)?;
-    let audit_bytes = read_json_bytes(job.audit)?;
+    let audit_bytes = read_json_bytes(job.audit).map_err(|error| {
+        format!(
+            "cannot read OpenMC library audit JSON at {}: {error}",
+            job.audit.display()
+        )
+    })?;
     let physics = bind_audited_library(
         job.physics,
         job.scenario,
@@ -1182,7 +1331,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -1203,6 +1352,7 @@ pub fn run_reactor(
                 job.scenario,
                 &physics,
             )?;
+            let precision_summary = sampling_precision_summary(&worker)?;
             let raw_bytes = read_json_bytes(&output.join("solver/transport-artifact.json"))?;
             let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
             if artifact.histories
@@ -1233,15 +1383,24 @@ pub fn run_reactor(
             Ok((
                 digest(&raw_bytes),
                 digest(&worker_bytes),
+                precision_summary,
                 normalized,
                 digest(&spectra_bytes),
                 normalized_spectra,
             ))
         })();
         match import {
-            Ok((digest, worker_digest, normalized, spectra_digest, normalized_spectra)) => {
+            Ok((
+                digest,
+                worker_digest,
+                precision_summary,
+                normalized,
+                spectra_digest,
+                normalized_spectra,
+            )) => {
                 record.raw_artifact_sha256 = Some(digest);
                 record.worker_result_sha256 = Some(worker_digest);
+                record.sampling_precision_summary = Some(precision_summary);
                 record.normalized = Some(normalized);
                 record.transport_spectra_sha256 = Some(spectra_digest);
                 record.normalized_spectra = Some(normalized_spectra);
@@ -1262,7 +1421,7 @@ pub fn load_reactor_run(
     path: &Path,
     scenario: &LoadedScenario,
 ) -> Result<ReactorRun, ReactorError> {
-    let record: ReactorRun = serde_json::from_slice(&read_json_bytes(path)?)?;
+    let mut record: ReactorRun = serde_json::from_slice(&read_json_bytes(path)?)?;
     if record.schema_version != "faris-reactor-run/v0.1"
         || record.scenario_sha256 != scenario.source_sha256
         || record.scientific_qualification != "NOT_EVALUATED"
@@ -1341,6 +1500,7 @@ pub fn load_reactor_run(
         }
         let worker: Value = serde_json::from_slice(&worker_bytes)?;
         validate_geometry_ownership_receipt(&worker, &record.input_sha256, scenario, &physics)?;
+        record.sampling_precision_summary = Some(sampling_precision_summary(&worker)?);
     } else if record.adapter_sha256 == embedded_worker_sha256() {
         return Err("current worker run is missing its bound geometry-ownership receipt".into());
     }
@@ -1404,6 +1564,103 @@ pub fn load_reactor_run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_solver_executables_fail_early_with_path_context() {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics = load_physics_case(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scenarios/arc-inspired/cold-coupled-control.reference.physics.json"
+            )),
+            &scenario,
+        )
+        .unwrap();
+        let missing_python = std::env::temp_dir().join(format!(
+            "faris-no-python-{}-not-installed",
+            std::process::id()
+        ));
+        let missing_openmc = std::env::temp_dir().join(format!(
+            "faris-no-openmc-{}-not-installed",
+            std::process::id()
+        ));
+        let output =
+            std::env::temp_dir().join(format!("faris-early-path-test-{}", std::process::id()));
+        let audit = Path::new("unused-audit.json");
+        let cross_sections = Path::new("unused-cross-sections.xml");
+        let no_adapter: &[u8] = b"must not execute";
+
+        let python_job = ReactorJob {
+            scenario: &scenario,
+            physics: &physics,
+            audit,
+            cross_sections,
+            python: &missing_python,
+            openmc: &missing_openmc,
+            output: &output,
+            sampling: SamplingPlan::default(),
+            mesh: None,
+            timeout: Duration::from_secs(10),
+            adapter: no_adapter,
+        };
+        let error = run_reactor(&python_job, &Cancellation::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("Python interpreter"));
+        assert!(error.contains(&missing_python.display().to_string()));
+
+        let python = std::env::current_exe().unwrap();
+        let openmc_job = ReactorJob {
+            python: &python,
+            ..python_job
+        };
+        let error = run_reactor(&openmc_job, &Cancellation::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("OpenMC executable"));
+        assert!(error.contains(&missing_openmc.display().to_string()));
+        assert!(
+            !output.exists(),
+            "preflight failures must not create a run directory"
+        );
+    }
+
+    #[test]
+    fn sampling_precision_summary_is_bounded_and_preserves_unresolved_local_checks() {
+        let worker = serde_json::json!({
+            "sampling_precision": {
+                "plan_id": "faris-exploratory-precision-goals/v0.1",
+                "purpose": "numerical sampling review only; not a physics or design acceptance test",
+                "estimator": "one-standard-error relative to the response mean",
+                "integrated_goal": 0.05,
+                "local_goal": 0.1,
+                "all_goals_met": false,
+                "checks": [
+                    {"response_id":"total-tritium-production", "quantity":"whole-model tritium production", "target_relative_standard_error":0.05, "observed_relative_standard_error":0.001, "met":true},
+                    {"response_id":"heating-total-whole-model", "quantity":"whole-model deposited heating", "target_relative_standard_error":0.05, "observed_relative_standard_error":0.002, "met":true},
+                    {"response_id":"mesh-flux-0", "quantity":"magnet or mesh neutron flux", "target_relative_standard_error":0.1, "observed_relative_standard_error":null, "met":false}
+                ]
+            }
+        });
+        let summary = sampling_precision_summary(&worker).unwrap();
+        assert_eq!(summary.check_count, 3);
+        assert_eq!(summary.checks_met, 2);
+        assert_eq!(summary.checks_unmet, 1);
+        assert!(!summary.all_goals_met);
+        assert_eq!(summary.whole_model_tbr_relative_standard_error, Some(0.001));
+        assert_eq!(
+            summary.whole_model_heating_relative_standard_error,
+            Some(0.002)
+        );
+
+        let mut inconsistent = worker;
+        inconsistent["sampling_precision"]["checks"][0]["met"] = serde_json::json!(false);
+        assert!(sampling_precision_summary(&inconsistent).is_err());
+    }
+
     #[test]
     fn mesh_uses_full_bin_volume_and_x_fastest_indexing() {
         let mesh = FieldMesh {
