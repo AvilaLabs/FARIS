@@ -401,8 +401,10 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
                 or provenance.get("not_availability_estimate") is not True):
             raise ValueError("outage-duration provenance is not bound to its exact run and inputs")
         if multiplier == 1.0 and (
-                provenance.get("baseline_anchor_history_sha256") != record.get("history_sha256")
-                or provenance.get("baseline_anchor_rates_sha256") != record.get("rates_sha256")):
+                bare_sha256(provenance.get("baseline_anchor_history_sha256"), str(summary_path))
+                != bare_sha256(record.get("history_sha256"), str(summary_path))
+                or bare_sha256(provenance.get("baseline_anchor_rates_sha256"), str(summary_path))
+                != bare_sha256(record.get("rates_sha256"), str(summary_path))):
             raise ValueError("1.0 outage probe is not byte-bound to its recorded baseline anchor")
     expected = {(pair_id, variant, multiplier)
                 for pair_id, variant in arrangements for multiplier in [0.5, 1.0, 2.0]}

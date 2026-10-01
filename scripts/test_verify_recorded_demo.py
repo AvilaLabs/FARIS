@@ -25,6 +25,22 @@ def write(path: Path, value: bytes | str) -> None:
     path.write_bytes(value.encode() if isinstance(value, str) else value)
 
 
+def reindex_package(root: Path) -> None:
+    """Refresh a fixture inventory after a deliberate semantic mutation."""
+    index_path = root / "package-index.json"
+    index = json.loads(index_path.read_text())
+    inventory = []
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.name not in {"package-index.json", "package-index.sha256"}:
+            inventory.append({"path": path.relative_to(root).as_posix(),
+                              "bytes": path.stat().st_size, "sha256": VERIFY.digest(path)})
+    index["files"] = inventory
+    index["package_file_count"] = len(inventory)
+    index["package_bytes"] = sum(item["bytes"] for item in inventory)
+    write(index_path, json.dumps(index, indent=2) + "\n")
+    write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
+
+
 def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes) -> tuple[str, str, str, dict]:
     scenario_sha = VERIFY.digest(root / pair / "scenario.json").removeprefix("sha256:")
     input_value = {
@@ -442,8 +458,8 @@ def make_package(root: Path, faris: Path, core: Path,
                     "base_operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
                     "baseline_refinement_report_sha256": VERIFY.digest(
                         Path(__file__).resolve().parents[1] / "references/operating-history-primary-refinement-v3.json"),
-                    "baseline_anchor_history_sha256": VERIFY.digest(history_path),
-                    "baseline_anchor_rates_sha256": VERIFY.digest(rates_path),
+                    "baseline_anchor_history_sha256": VERIFY.digest(history_path).removeprefix("sha256:"),
+                    "baseline_anchor_rates_sha256": VERIFY.digest(rates_path).removeprefix("sha256:"),
                     "interpretation": "AUTHORED_SCENARIO_PROBE",
                     "not_probability_distribution": True,
                     "not_physical_uncertainty": True,
@@ -648,6 +664,25 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         write(assumptions_path, json.dumps(assumptions) + "\n")
         with self.assertRaises(ValueError):
             VERIFY.verify_outage_duration_study(self.package, index)
+
+    def test_outage_duration_replay_rejects_wrong_anchor_after_valid_reindex(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        summary_path = self.package / index["outage_duration_sensitivity"]["path"]
+        summary = json.loads(summary_path.read_text())
+        record = next(item for item in summary["records"] if item["duration_multiplier"] == 1.0)
+        provenance_path = self.package / record["provenance_path"]
+        provenance = json.loads(provenance_path.read_text())
+        provenance["baseline_anchor_history_sha256"] = "0" * 64
+        write(provenance_path, json.dumps(provenance) + "\n")
+        record["provenance_sha256"] = VERIFY.digest(provenance_path)
+        write(summary_path, json.dumps(summary) + "\n")
+        index["outage_duration_sensitivity"]["sha256"] = VERIFY.digest(summary_path)
+        write(self.package / "package-index.json", json.dumps(index, indent=2) + "\n")
+        reindex_package(self.package)
+        # Establish that the rejection is semantic: the full file inventory is valid.
+        valid_index, _ = VERIFY.verify_index(self.package, self.faris, self.core)
+        with self.assertRaisesRegex(ValueError, "1.0 outage probe is not byte-bound"):
+            VERIFY.verify_outage_duration_study(self.package, valid_index)
 
     def test_launcher_keeps_private_materialization_alive_for_app_and_cleans_it(self):
         log = self.root / "app-arguments.json"
