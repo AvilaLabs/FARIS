@@ -131,6 +131,91 @@ impl HistoryPanel {
     pub fn result(&self, scenario: &str, variant: &str) -> Option<&HistoryResult> {
         self.results.get(&key(scenario, variant))
     }
+
+    /// Stable read-only state for bounded native interface checks. This exposes
+    /// the exact authored inputs and their current result bindings without
+    /// adding a second history or sensitivity implementation.
+    pub fn interface_status(&self, scenario: &str, variant: &str) -> serde_json::Value {
+        use sha2::{Digest, Sha256};
+
+        let identity = key(scenario, variant);
+        let assumptions_json = self
+            .assumptions
+            .as_ref()
+            .and_then(|value| serde_json::to_vec(value).ok());
+        let assumptions_sha256 = assumptions_json
+            .as_ref()
+            .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
+        let result = self.results.get(&identity);
+        let current_transport_sha256 = self
+            .rates
+            .get(&identity)
+            .map(|rates| rates.transport_artifact_sha256.as_str());
+        let history_transport_sha256 =
+            result.map(|history| history.driving_rates.transport_artifact_sha256.as_str());
+        let assumptions_match =
+            result.map(|history| self.assumptions.as_ref() == Some(&history.assumptions));
+        let history_assumptions_json =
+            result.and_then(|history| serde_json::to_vec(&history.assumptions).ok());
+        let history_assumptions_sha256 = history_assumptions_json
+            .as_ref()
+            .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
+        let transport_matches = result.map(|history| {
+            self.rates
+                .get(&identity)
+                .is_some_and(|rates| rates == &history.driving_rates)
+        });
+        let sensitivity = self.sensitivities.get(&identity);
+        let sensitivity_pending = self
+            .pending_sensitivity
+            .as_ref()
+            .is_some_and(|pending| pending.identity == identity);
+        let sensitivity_assumptions_match =
+            sensitivity.map(|(assumptions, _, _)| self.assumptions.as_ref() == Some(assumptions));
+        let sensitivity_transport_matches = sensitivity
+            .map(|(_, transport, _)| current_transport_sha256 == Some(transport.as_str()));
+        let sensitivity_result_sha256 = sensitivity.and_then(|(_, _, value)| {
+            let mut bytes = serde_json::to_vec_pretty(value).ok()?;
+            bytes.push(b'\n');
+            Some(format!("{:x}", Sha256::digest(bytes)))
+        });
+        let sensitivity_status = if sensitivity_pending {
+            "pending"
+        } else if sensitivity.is_none() {
+            "not_run"
+        } else if sensitivity_assumptions_match == Some(true)
+            && sensitivity_transport_matches == Some(true)
+        {
+            "current"
+        } else {
+            "earlier_inputs"
+        };
+
+        serde_json::json!({
+            "scenario_sha256": scenario,
+            "variant_id": variant,
+            "preset_index": self.preset_index,
+            "preset_name": self.presets.get(self.preset_index).map(|preset| preset.0.as_str()),
+            "current_assumptions": self.assumptions,
+            "current_assumptions_sha256": assumptions_sha256,
+            "history_assumptions": result.map(|history| &history.assumptions),
+            "history_assumptions_sha256": history_assumptions_sha256,
+            "history_pending": self.pending.is_some(),
+            "history_requested": self.requested,
+            "history_status": if result.is_none() { "not_loaded" } else if assumptions_match == Some(true) && transport_matches == Some(true) { "current" } else { "earlier_inputs" },
+            "history_assumptions_match": assumptions_match,
+            "history_transport_matches": transport_matches,
+            "current_transport_artifact_sha256": current_transport_sha256,
+            "history_transport_artifact_sha256": history_transport_sha256,
+            "sensitivity_pending": sensitivity_pending,
+            "sensitivity_status": sensitivity_status,
+            "sensitivity_point_count": sensitivity.map_or(0, |(_, _, value)| value.points.len()),
+            "sensitivity_assumptions_match": sensitivity_assumptions_match,
+            "sensitivity_transport_matches": sensitivity_transport_matches,
+            "sensitivity_transport_artifact_sha256": sensitivity.map(|(_, transport, _)| transport.as_str()),
+            "sensitivity_result_sha256": sensitivity_result_sha256,
+        })
+    }
     pub fn is_pending(&self) -> bool {
         self.pending.is_some()
     }

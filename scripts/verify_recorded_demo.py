@@ -309,6 +309,19 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
     if digest(base_path) != base_sha:
         raise ValueError("base operating assumptions digest mismatch for outage-duration axis")
     base = json.loads(base_path.read_text(encoding="utf-8"))
+    baseline_report_sha = summary.get("baseline_refinement_report_sha256")
+    support_ref = index.get("support")
+    support_manifest_path = safe_package_path(
+        root, support_ref.get("path") if isinstance(support_ref, dict) else None)
+    support_manifest = json.loads(support_manifest_path.read_text(encoding="utf-8"))
+    baseline_support_record = next((item for item in support_manifest.get("files", [])
+                                    if (item.get("source_path")
+                                        == "references/operating-history-primary-refinement-v3.json"
+                                        or item.get("source_name")
+                                        == "operating-history-primary-refinement-v3.json")), None)
+    if (not isinstance(baseline_support_record, dict)
+            or baseline_support_record.get("source_sha256") != baseline_report_sha):
+        raise ValueError("outage-duration anchor is not bound to the packaged independent baseline report")
     base_outages = base.get("planned_outages")
     if not isinstance(base_outages, list) or not base_outages:
         raise ValueError("base operating assumptions lack the annual outage schedule")
@@ -381,11 +394,16 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
                 or provenance.get("history_sha256") != record.get("history_sha256")
                 or provenance.get("rates_sha256") != record.get("rates_sha256")
                 or provenance.get("base_operating_assumptions_sha256") != base_sha
+                or provenance.get("baseline_refinement_report_sha256") != baseline_report_sha
                 or provenance.get("interpretation") != "AUTHORED_SCENARIO_PROBE"
                 or provenance.get("not_probability_distribution") is not True
                 or provenance.get("not_physical_uncertainty") is not True
                 or provenance.get("not_availability_estimate") is not True):
             raise ValueError("outage-duration provenance is not bound to its exact run and inputs")
+        if multiplier == 1.0 and (
+                provenance.get("baseline_anchor_history_sha256") != record.get("history_sha256")
+                or provenance.get("baseline_anchor_rates_sha256") != record.get("rates_sha256")):
+            raise ValueError("1.0 outage probe is not byte-bound to its recorded baseline anchor")
     expected = {(pair_id, variant, multiplier)
                 for pair_id, variant in arrangements for multiplier in [0.5, 1.0, 2.0]}
     if seen != expected:

@@ -5,6 +5,7 @@ struct Camera {
     forward: vec4<f32>,
     projection: vec4<f32>,
     display: vec4<f32>,
+    color: vec4<f32>,
 }
 @group(0) @binding(0) var<uniform> camera: Camera;
 
@@ -30,6 +31,25 @@ fn vertex_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>,
     );
     surface.normal = normal;
     surface.color = color;
+    surface.world_position = position;
+    return surface;
+}
+
+@vertex
+fn component_vertex_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>) -> Surface {
+    let relative = position - camera.eye.xyz;
+    let depth = dot(relative, camera.forward.xyz);
+    let near = camera.projection.z;
+    let far = camera.projection.w;
+    var surface: Surface;
+    surface.position = vec4<f32>(
+        dot(relative, camera.right.xyz) / (camera.projection.x * camera.projection.y),
+        dot(relative, camera.up.xyz) / camera.projection.y,
+        far * depth / (far - near) - far * near / (far - near),
+        depth
+    );
+    surface.normal = normal;
+    surface.color = camera.color.xyz;
     surface.world_position = position;
     return surface;
 }

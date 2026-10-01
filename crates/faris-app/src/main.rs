@@ -262,6 +262,7 @@ fn scenario_from_bundle(
 struct ComponentMesh {
     id: String,
     vertices: Arc<[MeshVertex]>,
+    color: [f32; 3],
 }
 
 struct Benchmark {
@@ -412,7 +413,6 @@ impl FarisApp {
             return Ok(());
         }
         let sweep = if self.cutaway { CUTAWAY_SWEEP } else { TAU };
-        let mut vertices = Vec::new();
         for component in &self.manifest.variants[self.variant].components {
             if component.material_id == "void" || self.hidden.contains(&component.id) {
                 continue;
@@ -509,17 +509,16 @@ impl FarisApp {
                         transport_panel::scalar_color(*v, 0.0, 18.0, 28.0)
                     });
             }
-            vertices.extend(mesh.iter().map(|vertex| viewport::Vertex {
-                position: vertex.position,
-                normal: vertex.normal,
-                color,
-            }));
             self.meshes.push(ComponentMesh {
                 id: component.id.clone(),
                 vertices: mesh,
+                color,
             });
         }
-        self.vertices = vertices.into();
+        // Component fields change a few colors, while the scenario-derived
+        // geometry stays in its cached MeshVertex buffers. Spatial slices retain
+        // their separately colored per-bin vertex path above.
+        self.vertices = Arc::from([]);
         self.revision += 1;
         Ok(())
     }
@@ -697,7 +696,7 @@ impl eframe::App for FarisApp {
                         .unwrap_or_default();
                     eprintln!(
                         "{}",
-                        serde_json::json!({"schema_version":"faris-native-frame-benchmark/v0.1", "measurement":"egui frame throughput; not GPU presentation FPS", "first_measured_frame_seconds": ready_at.duration_since(b.launch_started).as_secs_f64(), "elapsed_seconds":elapsed,"interval_count":intervals.len(),"mean_frames_per_second":intervals.len() as f64/elapsed,"p95_frame_interval_ms":p95*1000.0,"orbit_and_scrub":b.motion,"window_points":ctx.input(|i|i.viewport().inner_rect.map(|r|[r.width(),r.height()])),"pixels_per_point":ctx.pixels_per_point()})
+                        serde_json::json!({"schema_version":"faris-native-frame-benchmark/v0.1", "measurement":"egui frame throughput; not GPU presentation FPS", "first_measured_frame_seconds": ready_at.duration_since(b.launch_started).as_secs_f64(), "elapsed_seconds":elapsed,"interval_count":intervals.len(),"mean_frames_per_second":intervals.len() as f64/elapsed,"p95_frame_interval_ms":p95*1000.0,"orbit_and_scrub":b.motion,"window_points":ctx.input(|i|{let size=i.content_rect().size();[size.x,size.y]}),"pixels_per_point":ctx.pixels_per_point()})
                     );
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
@@ -1080,13 +1079,17 @@ impl eframe::App for FarisApp {
                 {
                     self.message = error.to_string();
                 }
-                ui.painter().add(viewport::paint(
-                    rect,
-                    self.camera,
-                    self.vertices.clone(),
-                    self.revision,
-                    self.transport.view != transport_panel::FieldView::Materials,
-                ));
+                let flat_color = self.transport.view != transport_panel::FieldView::Materials;
+                let callback = if self.transport.view == transport_panel::FieldView::FluxSlice {
+                    viewport::paint(rect, self.camera, self.vertices.clone(), self.revision, flat_color)
+                } else {
+                    let components = self.meshes.iter().map(|mesh| viewport::ComponentDraw {
+                        vertices: mesh.vertices.clone(),
+                        color: mesh.color,
+                    }).collect::<Vec<_>>();
+                    viewport::paint_components(rect, self.camera, components.into(), self.revision, flat_color)
+                };
+                ui.painter().add(callback);
                 let caption = match self.transport.view {
                         transport_panel::FieldView::Materials => {
                             "X red · Y green · Z blue · metre grid · material identities"
@@ -1126,6 +1129,7 @@ impl eframe::App for FarisApp {
                 "camera":{"yaw":self.camera.yaw,"pitch":self.camera.pitch,"distance":self.camera.distance,"target":self.camera.target},
                 "year":self.year, "history_pending":self.history.is_pending(),
                 "history_stale":self.history.is_stale(), "history_snapshot":snapshot,
+                "history_controls":self.history.interface_status(&self.manifest.source_sha256, variant),
                 "history_loaded":snapshot.is_some(), "source_on":snapshot.map(|s|s.operating),
                 "core":self.study.interface_status(&self.manifest.source_sha256, variant),
                 "transport":self.transport.interface_status(variant),

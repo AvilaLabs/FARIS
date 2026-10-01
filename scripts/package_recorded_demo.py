@@ -408,6 +408,18 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
                               variant_id: str) -> list[dict]:
     identity = source_run_identity(run_path, scenario_sha, variant_id)
     base = json.loads(base_assumptions.read_text(encoding="utf-8"))
+    baseline_report = Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"
+    if not baseline_report.is_file():
+        raise RuntimeError("the independent 600-second baseline refinement report is required for outage-axis anchoring")
+    baseline_report_sha = sha256(baseline_report)
+    baseline = json.loads(baseline_report.read_text(encoding="utf-8"))
+    driver_id = f"{pair_id}-{('reference' if variant_id == 'reference' else 'breeder')}"
+    baseline_output = baseline.get("primary_drivers", {}).get(driver_id, {}).get("history_outputs", {}).get("600")
+    if (baseline.get("schema_version") != "faris-operating-history-primary-refinement-v3"
+            or not isinstance(baseline_output, dict)
+            or baseline_output.get("assumptions_sha256")
+            != sha256(base_assumptions).removeprefix("sha256:")):
+        raise RuntimeError(f"baseline refinement report is not bound to the frozen assumptions/driver {driver_id}")
     records = []
     for multiplier in OUTAGE_DURATION_MULTIPLIERS:
         adjusted = scale_outage_durations(base, multiplier)
@@ -435,6 +447,10 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
                 != identity["raw_artifact_sha256"]
                 or not history.get("snapshots")):
             raise RuntimeError(f"outage history is incomplete or bound to another run: {history_path}")
+        if multiplier == 1.0 and (
+                sha256(history_path).removeprefix("sha256:") != baseline_output.get("history_sha256")
+                or sha256(rates_path).removeprefix("sha256:") != baseline_output.get("rates_sha256")):
+            raise RuntimeError(f"1.0 outage probe differs from audited 600-second baseline for {driver_id}")
         provenance = {
             "schema_version": "faris-outage-duration-provenance/v0.1",
             "pair_id": pair_id,
@@ -444,6 +460,7 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
                                               for item in adjusted["planned_outages"]}),
             **identity,
             "base_operating_assumptions_sha256": sha256(base_assumptions),
+            "baseline_refinement_report_sha256": baseline_report_sha,
             "adjusted_assumptions_sha256": sha256(assumptions_path),
             "history_sha256": sha256(history_path),
             "rates_sha256": sha256(rates_path),
@@ -455,6 +472,8 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
             "not_probability_distribution": True,
             "not_physical_uncertainty": True,
             "not_availability_estimate": True,
+            "baseline_anchor_history_sha256": baseline_output.get("history_sha256"),
+            "baseline_anchor_rates_sha256": baseline_output.get("rates_sha256"),
         }
         provenance_path = directory / "provenance.json"
         write_bounded_json(provenance_path, provenance)
@@ -1121,6 +1140,10 @@ def main() -> None:
         if not report_path.is_file() or report_path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
             raise SystemExit(f"support report is missing or oversized: {report_path}")
         support_reports.append((label, report_path.resolve()))
+    baseline_report_source = Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"
+    if not any(label == "history-refinement" and path == baseline_report_source.resolve()
+               for label, path in support_reports):
+        raise SystemExit("--support-report history-refinement=<exact v3 baseline refinement report> is required")
     for path in files:
         if not path.is_file():
             raise SystemExit(f"required file is missing: {path}")
@@ -1210,6 +1233,8 @@ def main() -> None:
                                "transport source rates", "scenario", "variant", "operating history horizon"],
                      "maximum_outage_below_annual_spacing": True},
             "scope": "One-factor authored scenario probes; levels are not probability distributions, physical uncertainty ranges, maintenance forecasts, or availability claims.",
+            "baseline_refinement_report_sha256": sha256(
+                Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"),
             "interpretation": "AUTHORED_SCENARIO_PROBE",
             "not_probability_distribution": True,
             "not_physical_uncertainty": True,

@@ -1,5 +1,6 @@
 use crate::camera::{Camera, VERTICAL_FOV_RADIANS};
 use eframe::{egui, egui_wgpu, wgpu};
+use faris_engine::mesh::MeshVertex;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
@@ -20,17 +21,41 @@ struct Uniform {
     forward: [f32; 4],
     projection: [f32; 4],
     display: [f32; 4],
+    color: [f32; 4],
+}
+
+#[derive(Clone)]
+pub struct ComponentDraw {
+    pub vertices: Arc<[MeshVertex]>,
+    pub color: [f32; 3],
+}
+
+struct ComponentUniform {
+    buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
 }
 
 struct Resources {
     pipeline: wgpu::RenderPipeline,
+    component_pipeline: wgpu::RenderPipeline,
+    component_bind_layout: wgpu::BindGroupLayout,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    vertex_buffer: wgpu::Buffer,
+    geometry_buffer: wgpu::Buffer,
+    color_buffer: wgpu::Buffer,
     vertex_count: u32,
     context_buffer: wgpu::Buffer,
+    context_color_buffer: wgpu::Buffer,
     context_count: u32,
+    context_mode: Option<bool>,
     revision: u64,
+    previous_vertices: Arc<[Vertex]>,
+    color_buffer_bytes: u64,
+    component_geometry_buffer: wgpu::Buffer,
+    component_vertex_count: u32,
+    component_ranges: Vec<(u32, u32)>,
+    previous_component_vertices: Vec<Arc<[MeshVertex]>>,
+    component_uniforms: Vec<ComponentUniform>,
 }
 
 pub fn initialize(state: &egui_wgpu::RenderState) {
@@ -77,10 +102,55 @@ pub fn initialize(state: &egui_wgpu::RenderState) {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vertex_main"),
+            buffers: &[
+                Some(wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<[f32; 6]>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3],
+                }),
+                Some(wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<[f32; 3]>() as u64,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![2 => Float32x3],
+                }),
+            ],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fragment_main"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: state.target_format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            cull_mode: None,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: Default::default(),
+            bias: Default::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    });
+    let component_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("FARIS component palette pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("component_vertex_main"),
             buffers: &[Some(wgpu::VertexBufferLayout {
-                array_stride: std::mem::size_of::<Vertex>() as u64,
+                array_stride: std::mem::size_of::<[f32; 6]>() as u64,
                 step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x3],
+                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3],
             })],
             compilation_options: Default::default(),
         },
@@ -109,27 +179,57 @@ pub fn initialize(state: &egui_wgpu::RenderState) {
         multiview_mask: None,
         cache: None,
     });
-    let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("FARIS empty mesh"),
+    let geometry_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("FARIS static component geometry"),
+        size: 4,
+        usage: wgpu::BufferUsages::VERTEX,
+        mapped_at_creation: false,
+    });
+    let color_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("FARIS component colors"),
+        size: 4,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    let component_geometry_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("FARIS component palette geometry"),
         size: 4,
         usage: wgpu::BufferUsages::VERTEX,
         mapped_at_creation: false,
     });
     let context_vertices = world_reference_geometry(-2.5, 6.0);
+    let (context_geometry, context_colors) = split_vertex_attributes(&context_vertices);
     let context_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("FARIS world grid and orientation axes"),
-        contents: bytemuck::cast_slice(&context_vertices),
+        contents: bytemuck::cast_slice(&context_geometry),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+    let context_color_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("FARIS world grid and orientation colors"),
+        contents: bytemuck::cast_slice(&context_colors),
         usage: wgpu::BufferUsages::VERTEX,
     });
     state.renderer.write().callback_resources.insert(Resources {
         pipeline,
+        component_pipeline,
+        component_bind_layout: bind_layout,
         camera_buffer,
         camera_bind_group,
-        vertex_buffer,
+        geometry_buffer,
+        color_buffer,
         vertex_count: 0,
         context_buffer,
+        context_color_buffer,
         context_count: context_vertices.len() as u32,
+        context_mode: None,
         revision: u64::MAX,
+        previous_vertices: Arc::from([]),
+        color_buffer_bytes: 4,
+        component_geometry_buffer,
+        component_vertex_count: 0,
+        component_ranges: Vec::new(),
+        previous_component_vertices: Vec::new(),
+        component_uniforms: Vec::new(),
     });
 }
 
@@ -159,6 +259,41 @@ pub fn paint(
                     100.0,
                 ],
                 display: [if flat_color { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
+                color: [1.0, 1.0, 1.0, 1.0],
+            },
+            components: None,
+        },
+    )
+}
+
+pub fn paint_components(
+    rect: egui::Rect,
+    camera: Camera,
+    components: Arc<[ComponentDraw]>,
+    revision: u64,
+    flat_color: bool,
+) -> egui::PaintCallback {
+    let (eye, right, up, forward) = camera.basis();
+    let extend = |v: [f32; 3]| [v[0], v[1], v[2], 0.0];
+    egui_wgpu::Callback::new_paint_callback(
+        rect,
+        ViewportCallback {
+            vertices: Arc::from([]),
+            components: Some(components),
+            revision,
+            uniform: Uniform {
+                eye: extend(eye),
+                right: extend(right),
+                up: extend(up),
+                forward: extend(forward),
+                projection: [
+                    rect.width() / rect.height().max(1.0),
+                    (VERTICAL_FOV_RADIANS * 0.5).tan(),
+                    0.1,
+                    100.0,
+                ],
+                display: [if flat_color { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
+                color: [1.0, 1.0, 1.0, 1.0],
             },
         },
     )
@@ -166,6 +301,7 @@ pub fn paint(
 
 struct ViewportCallback {
     vertices: Arc<[Vertex]>,
+    components: Option<Arc<[ComponentDraw]>>,
     revision: u64,
     uniform: Uniform,
 }
@@ -182,25 +318,151 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         let resources = resources
             .get_mut::<Resources>()
             .expect("viewport resources initialized at startup");
-        if resources.revision != self.revision {
-            if !self.vertices.is_empty() {
-                resources.vertex_buffer =
+        if let Some(components) = &self.components {
+            let same_geometry = resources.previous_component_vertices.len() == components.len()
+                && resources
+                    .previous_component_vertices
+                    .iter()
+                    .zip(components.iter())
+                    .all(|(previous, current)| Arc::ptr_eq(previous, &current.vertices));
+            if !same_geometry {
+                let mut geometry = Vec::<[f32; 6]>::new();
+                let mut ranges = Vec::with_capacity(components.len());
+                for component in components.iter() {
+                    let start = geometry.len() as u32;
+                    geometry.extend(component.vertices.iter().map(mesh_geometry_attributes));
+                    ranges.push((start, geometry.len() as u32));
+                }
+                if !geometry.is_empty() {
+                    resources.component_geometry_buffer =
+                        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("FARIS component palette geometry"),
+                            contents: bytemuck::cast_slice(&geometry),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
+                }
+                resources.component_vertex_count = geometry.len() as u32;
+                resources.component_ranges = ranges;
+            }
+            if (!same_geometry || resources.context_mode != Some(true)) && !components.is_empty() {
+                let (grid_y, extent) = world_reference_bounds_positions(
+                    components
+                        .iter()
+                        .flat_map(|component| component.vertices.iter().map(|v| v.position)),
+                );
+                let context_vertices = world_reference_geometry(grid_y, extent);
+                let (context_geometry, context_colors) = split_vertex_attributes(&context_vertices);
+                resources.context_buffer =
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("FARIS component meshes"),
-                        contents: bytemuck::cast_slice(&self.vertices),
+                        label: Some("FARIS world grid and orientation axes"),
+                        contents: bytemuck::cast_slice(&context_geometry),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+                resources.context_color_buffer =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("FARIS world grid and orientation colors"),
+                        contents: bytemuck::cast_slice(&context_colors),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+                resources.context_count = context_vertices.len() as u32;
+            }
+            resources.context_mode = Some(true);
+            while resources.component_uniforms.len() < components.len() {
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("FARIS component color and camera"),
+                    size: std::mem::size_of::<Uniform>() as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("FARIS component color bind group"),
+                    layout: &resources.component_bind_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                });
+                resources
+                    .component_uniforms
+                    .push(ComponentUniform { buffer, bind_group });
+            }
+            resources.component_uniforms.truncate(components.len());
+            for (component, binding) in components.iter().zip(&resources.component_uniforms) {
+                let mut uniform = self.uniform;
+                uniform.color = [
+                    component.color[0],
+                    component.color[1],
+                    component.color[2],
+                    1.0,
+                ];
+                queue.write_buffer(&binding.buffer, 0, bytemuck::bytes_of(&uniform));
+            }
+            resources.previous_component_vertices = components
+                .iter()
+                .map(|component| Arc::clone(&component.vertices))
+                .collect();
+            resources.revision = self.revision;
+        } else if resources.revision != self.revision {
+            let same_geometry = resources.previous_vertices.len() == self.vertices.len()
+                && resources
+                    .previous_vertices
+                    .iter()
+                    .zip(self.vertices.iter())
+                    .all(|(a, b)| a.position == b.position && a.normal == b.normal);
+            if !same_geometry && !self.vertices.is_empty() {
+                let geometry: Vec<[f32; 6]> =
+                    self.vertices.iter().map(geometry_attributes).collect();
+                resources.geometry_buffer =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("FARIS static component geometry"),
+                        contents: bytemuck::cast_slice(&geometry),
                         usage: wgpu::BufferUsages::VERTEX,
                     });
             }
+            if (!same_geometry || resources.context_mode != Some(false))
+                && !self.vertices.is_empty()
+            {
+                let (grid_y, extent) = world_reference_bounds(&self.vertices);
+                let context_vertices = world_reference_geometry(grid_y, extent);
+                let (context_geometry, context_colors) = split_vertex_attributes(&context_vertices);
+                resources.context_buffer =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("FARIS world grid and orientation axes"),
+                        contents: bytemuck::cast_slice(&context_geometry),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+                resources.context_color_buffer =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("FARIS world grid and orientation colors"),
+                        contents: bytemuck::cast_slice(&context_colors),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+                resources.context_count = context_vertices.len() as u32;
+            }
+            resources.context_mode = Some(false);
+            let colors_changed = resources.previous_vertices.len() != self.vertices.len()
+                || resources
+                    .previous_vertices
+                    .iter()
+                    .zip(self.vertices.iter())
+                    .any(|(a, b)| a.color != b.color);
+            if colors_changed && !self.vertices.is_empty() {
+                let colors: Vec<[f32; 3]> = self.vertices.iter().map(|v| v.color).collect();
+                let color_bytes = std::mem::size_of_val(colors.as_slice()) as u64;
+                if color_bytes > resources.color_buffer_bytes {
+                    resources.color_buffer =
+                        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("FARIS component colors"),
+                            contents: bytemuck::cast_slice(&colors),
+                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                        });
+                    resources.color_buffer_bytes = color_bytes;
+                } else {
+                    queue.write_buffer(&resources.color_buffer, 0, bytemuck::cast_slice(&colors));
+                }
+            }
             resources.vertex_count = self.vertices.len() as u32;
-            let (grid_y, extent) = world_reference_bounds(&self.vertices);
-            let context_vertices = world_reference_geometry(grid_y, extent);
-            resources.context_buffer =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("FARIS world grid and orientation axes"),
-                    contents: bytemuck::cast_slice(&context_vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-            resources.context_count = context_vertices.len() as u32;
+            resources.previous_vertices = Arc::clone(&self.vertices);
             resources.revision = self.revision;
         }
         queue.write_buffer(
@@ -220,16 +482,66 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
         let resources = resources
             .get::<Resources>()
             .expect("viewport resources initialized at startup");
-        if resources.vertex_count == 0 {
-            return;
+        if let Some(components) = &self.components {
+            if resources.component_vertex_count == 0 {
+                return;
+            }
+            pass.set_pipeline(&resources.pipeline);
+            pass.set_bind_group(0, &resources.camera_bind_group, &[]);
+            pass.set_vertex_buffer(0, resources.context_buffer.slice(..));
+            pass.set_vertex_buffer(1, resources.context_color_buffer.slice(..));
+            pass.draw(0..resources.context_count, 0..1);
+            pass.set_pipeline(&resources.component_pipeline);
+            pass.set_vertex_buffer(0, resources.component_geometry_buffer.slice(..));
+            for (index, &(start, end)) in resources.component_ranges.iter().enumerate() {
+                if start == end || components.get(index).is_none() {
+                    continue;
+                }
+                pass.set_bind_group(0, &resources.component_uniforms[index].bind_group, &[]);
+                pass.draw(start..end, 0..1);
+            }
+        } else {
+            if resources.vertex_count == 0 {
+                return;
+            }
+            pass.set_pipeline(&resources.pipeline);
+            pass.set_bind_group(0, &resources.camera_bind_group, &[]);
+            pass.set_vertex_buffer(0, resources.context_buffer.slice(..));
+            pass.set_vertex_buffer(1, resources.context_color_buffer.slice(..));
+            pass.draw(0..resources.context_count, 0..1);
+            pass.set_vertex_buffer(0, resources.geometry_buffer.slice(..));
+            pass.set_vertex_buffer(1, resources.color_buffer.slice(..));
+            pass.draw(0..resources.vertex_count, 0..1);
         }
-        pass.set_pipeline(&resources.pipeline);
-        pass.set_bind_group(0, &resources.camera_bind_group, &[]);
-        pass.set_vertex_buffer(0, resources.context_buffer.slice(..));
-        pass.draw(0..resources.context_count, 0..1);
-        pass.set_vertex_buffer(0, resources.vertex_buffer.slice(..));
-        pass.draw(0..resources.vertex_count, 0..1);
     }
+}
+
+fn geometry_attributes(vertex: &Vertex) -> [f32; 6] {
+    [
+        vertex.position[0],
+        vertex.position[1],
+        vertex.position[2],
+        vertex.normal[0],
+        vertex.normal[1],
+        vertex.normal[2],
+    ]
+}
+
+fn mesh_geometry_attributes(vertex: &MeshVertex) -> [f32; 6] {
+    [
+        vertex.position[0],
+        vertex.position[1],
+        vertex.position[2],
+        vertex.normal[0],
+        vertex.normal[1],
+        vertex.normal[2],
+    ]
+}
+
+fn split_vertex_attributes(vertices: &[Vertex]) -> (Vec<[f32; 6]>, Vec<[f32; 3]>) {
+    let geometry = vertices.iter().map(geometry_attributes).collect();
+    let colors = vertices.iter().map(|vertex| vertex.color).collect();
+    (geometry, colors)
 }
 
 /// Static world reference in metres: a one-metre grid below the modeled torus
@@ -293,10 +605,13 @@ fn world_reference_bounds(vertices: &[Vertex]) -> (f32, f32) {
     if vertices.is_empty() {
         return (-2.5, 6.0);
     }
+    world_reference_bounds_positions(vertices.iter().map(|vertex| vertex.position))
+}
+
+fn world_reference_bounds_positions(positions: impl Iterator<Item = [f32; 3]>) -> (f32, f32) {
     let mut minimum_y = f32::INFINITY;
     let mut horizontal_extent = 0.0_f32;
-    for vertex in vertices {
-        let p = vertex.position;
+    for p in positions {
         if !p.into_iter().all(f32::is_finite) {
             continue;
         }

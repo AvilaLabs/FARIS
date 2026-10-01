@@ -440,6 +440,10 @@ def make_package(root: Path, faris: Path, core: Path,
                     "history_sha256": VERIFY.digest(history_path),
                     "rates_sha256": VERIFY.digest(rates_path),
                     "base_operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
+                    "baseline_refinement_report_sha256": VERIFY.digest(
+                        Path(__file__).resolve().parents[1] / "references/operating-history-primary-refinement-v3.json"),
+                    "baseline_anchor_history_sha256": VERIFY.digest(history_path),
+                    "baseline_anchor_rates_sha256": VERIFY.digest(rates_path),
                     "interpretation": "AUTHORED_SCENARIO_PROBE",
                     "not_probability_distribution": True,
                     "not_physical_uncertainty": True,
@@ -462,6 +466,8 @@ def make_package(root: Path, faris: Path, core: Path,
     outage_summary = {
         "schema_version": "faris-outage-duration-study/v0.1",
         "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
+        "baseline_refinement_report_sha256": VERIFY.digest(
+            Path(__file__).resolve().parents[1] / "references/operating-history-primary-refinement-v3.json"),
         "interpretation": "AUTHORED_SCENARIO_PROBE",
         "not_probability_distribution": True,
         "not_physical_uncertainty": True,
@@ -502,7 +508,11 @@ def make_package(root: Path, faris: Path, core: Path,
     campaign_source = root.parent / "campaign-fixture.json"
     write(campaign_source, json.dumps({"status": "software_fixture",
                                       "raw_path": "/tmp/private/run.json"}) + "\n")
-    support = PACKAGE.install_support(root, [("fixture-campaign", campaign_source)])
+    support = PACKAGE.install_support(root, [
+        ("fixture-campaign", campaign_source),
+        ("history-refinement", Path(__file__).resolve().parents[1]
+         / "references/operating-history-primary-refinement-v3.json"),
+    ])
     (root / "README.md").write_text("Fixture demo package.\n")
     expanded_records = [arrangement[key]
                         for pair in pairs for arrangement in pair["arrangements"]
