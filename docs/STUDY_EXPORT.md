@@ -38,8 +38,8 @@ PDF text is real text in the fonts the app uses: Ubuntu Light (proportional,
 Ubuntu Font Licence 1.0, embedding in documents is permitted) and Hack
 (monospace, MIT with Bitstream Vera terms), subset and embedded. Headings gain
 weight from a thin stroke because Ubuntu Light is the only proportional face.
-Licence texts are in `licenses/ubuntu-font-licence-1.0.txt` and
-`licenses/hack-font-licence.txt`, and in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+Licence texts sit next to the font files (`crates/faris-report/fonts/UFL.txt`
+and `Hack-LICENSE.md`), are also in `licenses/`, and are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 through `epaint_default_fonts`.
 
 ## API

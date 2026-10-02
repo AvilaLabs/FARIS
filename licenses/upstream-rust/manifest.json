@@ -70,5 +70,21 @@
     "url": "https://raw.githubusercontent.com/brendanzab/gl-rs/f150967b1c44ae888e6676f93f639ebc82771bdc/LICENSE",
     "file": "brendanzab--gl-rs--f150967b1c44ae888e6676f93f639ebc82771bdc--LICENSE",
     "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "repository": "LaurenzV/krilla",
+    "commit": "3ffdf0588cf98050aad6edba51ca70162e1fb5b5",
+    "name": "LICENSE_MIT",
+    "url": "https://raw.githubusercontent.com/LaurenzV/krilla/3ffdf0588cf98050aad6edba51ca70162e1fb5b5/LICENSE_MIT",
+    "file": "LaurenzV--krilla--3ffdf0588cf98050aad6edba51ca70162e1fb5b5--LICENSE_MIT",
+    "sha256": "9d1eb142840c7acfd5511b4dd298cece3f0053f5809228906445cd8a3365592f"
+  },
+  {
+    "repository": "LaurenzV/krilla",
+    "commit": "3ffdf0588cf98050aad6edba51ca70162e1fb5b5",
+    "name": "LICENSE_APACHE",
+    "url": "https://raw.githubusercontent.com/LaurenzV/krilla/3ffdf0588cf98050aad6edba51ca70162e1fb5b5/LICENSE_APACHE",
+    "file": "LaurenzV--krilla--3ffdf0588cf98050aad6edba51ca70162e1fb5b5--LICENSE_APACHE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
   }
 ]

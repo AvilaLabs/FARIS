@@ -67,7 +67,7 @@ def main() -> None:
             local_files.append((path.relative_to(root).as_posix(), sha))
         # Some crates publish no workspace-root license file. Pin those upstream
         # supplements to the source commit recorded inside the actual crate.
-        if not local_files or package['name'].startswith(('egui', 'epaint', 'eframe', 'ecolor', 'emath')):
+        if not local_files or package['name'].startswith(('egui', 'epaint', 'eframe', 'ecolor', 'emath', 'krilla')):
             matches = [record for record in supplements if record['commit'] == commit]
             for record in matches:
                 path = args.supplements / record['file']
