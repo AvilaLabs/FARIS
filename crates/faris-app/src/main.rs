@@ -195,6 +195,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         scripted || args.study.is_some(),
         tour_marker.as_deref().is_some_and(|p| p.exists()),
     );
+    // No first-visit sign-in prompt in scripted runs (capture, benchmark,
+    // interface check, export), as the tour's auto mode; nor while it plays.
+    let sign_in_prompt = !scripted;
     let interface_check = args
         .interface_check
         .as_deref()
@@ -256,7 +259,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         multisampling: 0,
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([args.window_width as f32, args.window_height as f32])
-            .with_min_inner_size([980.0, 640.0]),
+            .with_min_inner_size([980.0, 640.0])
+            .with_icon(app_icon()),
         ..Default::default()
     };
     eframe::run_native(
@@ -300,6 +304,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.step = args.step;
             app.interface_check = interface_check;
             app.tour_marker = tour_marker;
+            app.suite = Some(avila_account::ui_desktop::DesktopSuite::new(
+                &cc.egui_ctx,
+                "faris",
+            ));
+            app.sign_in_prompt = sign_in_prompt;
             if play_tour {
                 app.start_tour(args.tour_stop.map_or(0, |n| n as usize - 1));
             }
@@ -319,6 +328,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
     Ok(())
+}
+
+/// The 256 px tile icon for the window and taskbar.
+fn app_icon() -> egui::IconData {
+    eframe::icon_data::from_png_bytes(include_bytes!("../assets/faris-icon-256.png"))
+        .expect("the bundled application icon is a valid PNG")
 }
 
 /// Everything needed to load one study's arrangements and assumptions. Built
@@ -526,6 +541,10 @@ struct FarisApp {
     interface_check: Option<interface_check::InterfaceCheck>,
     tour: tour::Tour,
     tour_marker: Option<PathBuf>,
+    /// Optional Avila Labs account controls; built once the egui context exists.
+    suite: Option<avila_account::ui_desktop::DesktopSuite>,
+    /// Whether the first-visit sign-in prompt may appear (not in scripted runs).
+    sign_in_prompt: bool,
     file: study_file::FileState,
     export: export_panel::ExportPanel,
     /// Screen rectangle of the 3D viewport in the last frame, for the export picture.
@@ -573,6 +592,8 @@ impl FarisApp {
             interface_check: None,
             tour: tour::Tour::default(),
             tour_marker: None,
+            suite: None,
+            sign_in_prompt: false,
             file: study_file::FileState::default(),
             export: export_panel::ExportPanel::new(None),
             viewport_rect: None,
@@ -1785,7 +1806,7 @@ impl eframe::App for FarisApp {
         }
         let export_blocked = self.export_blocked();
         let mut export_clicked = false;
-        egui::Panel::top("menu").show(ui, |ui| {
+        let bar = egui::Panel::top("menu").show(ui, |ui| {
             let compact = ui.available_width() < 900.0;
             ui.horizontal(|ui| {
                 ui.strong("FARIS");
@@ -1807,6 +1828,9 @@ impl eframe::App for FarisApp {
                 }
                 if !compact {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if let Some(suite) = &mut self.suite {
+                            suite.controls(ui);
+                        }
                         self.study.header(
                             ui,
                             &self.manifest,
@@ -1819,6 +1843,9 @@ impl eframe::App for FarisApp {
             if compact {
                 ui.horizontal_wrapped(|ui| self.step_bar(ui));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(suite) = &mut self.suite {
+                        suite.controls(ui);
+                    }
                     self.study.header(
                         ui,
                         &self.manifest,
@@ -1828,6 +1855,16 @@ impl eframe::App for FarisApp {
                 });
             }
         });
+        let bar_bottom = bar.response.rect.bottom();
+        if self.sign_in_prompt
+            && !self.tour.active
+            && let Some(suite) = &mut self.suite
+        {
+            suite.show(&ctx, bar_bottom);
+            if let Some(notice) = suite.take_notice() {
+                self.message = notice;
+            }
+        }
         if export_clicked {
             self.begin_export(&ctx);
         }
