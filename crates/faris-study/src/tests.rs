@@ -671,17 +671,19 @@ fn evidence_paths_must_be_safe_relative_paths() {
 
 /// Round-trips the real review-demo inputs: port and control bundles, the
 /// allocation sweep, assumptions and the four saved Core studies. Run with
-/// `--ignored --nocapture`; set FARIS_DEMO_DIR and FARIS_SWEEP_DIR if the
-/// inputs live elsewhere.
+/// `--ignored --nocapture` with FARIS_DEMO_DIR and FARIS_SWEEP_DIR set.
 #[test]
 #[ignore = "needs the packaged demo inputs and the sweep bundles on disk"]
 fn real_demo_inputs_round_trip_with_sizes() {
-    let demo = PathBuf::from(std::env::var("FARIS_DEMO_DIR").unwrap_or_else(|_| {
-        "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01".into()
-    }));
-    let sweep_dir = PathBuf::from(std::env::var("FARIS_SWEEP_DIR").unwrap_or_else(|_| {
-        "/home/connoravila/Documents/Avila-Labs/project-faris/runs/allocation-sweep/bundles".into()
-    }));
+    let (Some(demo), Some(sweep_dir)) = (
+        std::env::var_os("FARIS_DEMO_DIR").map(PathBuf::from),
+        std::env::var_os("FARIS_SWEEP_DIR").map(PathBuf::from),
+    ) else {
+        eprintln!(
+            "skipped: set FARIS_DEMO_DIR (packaged demo) and FARIS_SWEEP_DIR (sweep bundles)"
+        );
+        return;
+    };
     let bundles = |role: &str| -> Vec<PathBuf> {
         ["reference", "breeder-emphasis"]
             .iter()

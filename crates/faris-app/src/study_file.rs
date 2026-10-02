@@ -1140,17 +1140,21 @@ mod tests {
 
     /// Writes the real review-demo study, opens it the way the app does, and
     /// restores its view. Needs the packaged demo and the sweep bundles; run
-    /// with `--release -- --ignored --nocapture` (checking seven sweep bundles
+    /// with FARIS_DEMO_DIR and FARIS_SWEEP_DIR set and `--release -- --ignored
+    /// --nocapture` (checking seven sweep bundles
     /// plus four arrangements is slow in debug builds).
     #[test]
     #[ignore = "needs the packaged demo inputs and the sweep bundles on disk"]
     fn the_real_demo_study_saves_opens_and_restores_its_view() {
-        let demo = PathBuf::from(
-            "/home/connoravila/Documents/Avila-Labs/project-faris/dist/FARIS-demo-2026-10-01",
-        );
-        let sweep_dir = PathBuf::from(
-            "/home/connoravila/Documents/Avila-Labs/project-faris/runs/allocation-sweep/bundles",
-        );
+        let (Some(demo), Some(sweep_dir)) = (
+            std::env::var_os("FARIS_DEMO_DIR").map(PathBuf::from),
+            std::env::var_os("FARIS_SWEEP_DIR").map(PathBuf::from),
+        ) else {
+            eprintln!(
+                "skipped: set FARIS_DEMO_DIR (packaged demo) and FARIS_SWEEP_DIR (sweep bundles)"
+            );
+            return;
+        };
         let bundles = |role: &str| -> Vec<PathBuf> {
             ["reference", "breeder-emphasis"]
                 .iter()
