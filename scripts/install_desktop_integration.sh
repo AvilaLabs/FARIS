@@ -8,13 +8,16 @@
 # Installs, under ${XDG_DATA_HOME:-~/.local/share}:
 #   mime/packages/avila-labs-faris-study.xml   MIME type application/vnd.avila-labs.faris-study
 #   applications/faris.desktop                 "Open with FARIS" entry running <app> %f
+#   icons/hicolor/256x256/apps/faris.png       the application icon
 # then refreshes the MIME and desktop databases. Nothing outside that
-# directory is touched; --uninstall removes exactly these two files.
+# directory is touched; --uninstall removes exactly these three files.
 set -euo pipefail
 
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 mime_xml="$data_home/mime/packages/avila-labs-faris-study.xml"
 desktop_file="$data_home/applications/faris.desktop"
+icon_file="$data_home/icons/hicolor/256x256/apps/faris.png"
+icon_source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../crates/faris-app/assets/faris-icon-256.png"
 
 refresh() {
     if command -v update-mime-database >/dev/null; then
@@ -30,9 +33,9 @@ refresh() {
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-    rm -f -- "$mime_xml" "$desktop_file"
+    rm -f -- "$mime_xml" "$desktop_file" "$icon_file"
     refresh
-    echo "Removed $mime_xml and $desktop_file"
+    echo "Removed $mime_xml, $desktop_file and $icon_file"
     exit 0
 fi
 
@@ -53,7 +56,10 @@ case "$app" in
         ;;
 esac
 
-mkdir -p "$(dirname "$mime_xml")" "$(dirname "$desktop_file")"
+mkdir -p "$(dirname "$mime_xml")" "$(dirname "$desktop_file")" "$(dirname "$icon_file")"
+if [ -f "$icon_source" ]; then
+    cp -- "$icon_source" "$icon_file"
+fi
 
 cat >"$mime_xml" <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -79,10 +85,11 @@ Name=FARIS
 GenericName=Fusion blanket study workspace
 Comment=Open and save FARIS study files
 Exec=$app %f
+Icon=$icon_file
 Terminal=false
 Categories=Science;Engineering;
 MimeType=application/vnd.avila-labs.faris-study;
 DESKTOP
 
 refresh
-echo "Installed $mime_xml and $desktop_file"
+echo "Installed $mime_xml, $desktop_file and $icon_file"
