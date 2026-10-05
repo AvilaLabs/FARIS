@@ -120,7 +120,7 @@ impl HistoryPanel {
                     EnsembleStatus::Evaluated => "evaluated".into(),
                     EnsembleStatus::NotEvaluated { .. } => "not_evaluated".into(),
                 },
-                Status::Failed(_) => "failed".into(),
+                Status::Failed(why) => format!("failed: {why}"),
             }
         };
         serde_json::json!({
@@ -136,6 +136,8 @@ impl HistoryPanel {
     #[cfg(feature = "uncertainty-fixture")]
     pub fn enable_uncertainty_fixture(&mut self) {
         self.uncertainty = Uncertainty::default().with_rates_transform(fixture_rates);
+        // Few samples: a development build runs a long history slowly.
+        self.uncertainty.set_samples(12);
     }
 
     /// True while any arrangement's ensemble is still to be calculated, so an
@@ -403,8 +405,26 @@ impl HistoryPanel {
 /// standard errors (correlation 0.4 between every pair).
 #[cfg(feature = "uncertainty-fixture")]
 fn fixture_rates(rates: &TransportDrivingRates) -> TransportDrivingRates {
+    // A short smoke run can have errors wide enough that draws go negative and
+    // the ensemble is rightly refused; the fixture caps them at 1 % so the
+    // evaluated views can be seen.
     let mut fixed = rates.clone();
-    fixed.covariance = Some(faris_engine::fixtures::synthetic_covariance(rates, 0.4));
+    let cap = |r: &mut faris_engine::history::ScalarRate| {
+        r.standard_error = r.standard_error.map(|e| e.min(0.01 * r.mean.abs()));
+    };
+    cap(&mut fixed.breeder_h3_per_source_neutron);
+    fixed
+        .component_average_flux_n_m2_s
+        .values_mut()
+        .for_each(cap);
+    fixed
+        .region_flux_n_m2_s
+        .values_mut()
+        .for_each(|r| cap(&mut r.rate));
+    if let Some(h) = fixed.transport_deposited_heat_w.as_mut() {
+        cap(h);
+    }
+    fixed.covariance = Some(faris_engine::fixtures::synthetic_covariance(&fixed, 0.4));
     fixed
 }
 
