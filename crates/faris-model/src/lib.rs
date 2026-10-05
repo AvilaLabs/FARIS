@@ -10,6 +10,11 @@ use std::{collections::BTreeSet, path::Path};
 
 pub const SCENARIO_VERSION: &str = "faris-scenario/v0.1";
 
+/// The statement every FARIS output carries (requirement LEG-040). Defined
+/// here once; exports, charts and the desktop all read this constant.
+pub const RESEARCH_SCREENING_STATEMENT: &str =
+    "Research screening only. These results are not a licensing, safety or design basis.";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ScenarioError {
     #[error("scenario file: {0}")]

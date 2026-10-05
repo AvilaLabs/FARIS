@@ -460,15 +460,8 @@ fn load_sweep(
 fn scenario_from_bundle(
     path: &std::path::Path,
 ) -> Result<LoadedScenario, Box<dyn std::error::Error>> {
-    let bundle: faris_engine::core_evidence::RecordedTransportBundle = serde_json::from_slice(
-        &faris_engine::core_evidence::read_stage(path)
-            .map_err(|e| std::io::Error::other(e.to_string()))?,
-    )?;
-    bundle
-        .validate()
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-    Ok(LoadedScenario::from_bytes(
-        bundle.files["scenario.json"].as_bytes(),
+    Ok(faris_engine::core_evidence::scenario_from_bundle_file(
+        path,
     )?)
 }
 
@@ -1535,12 +1528,7 @@ impl FarisApp {
     /// The name the export folder and PDF title carry: the study file's name
     /// once saved or opened.
     fn export_study_name(&self) -> String {
-        self.file
-            .path
-            .as_deref()
-            .and_then(std::path::Path::file_stem)
-            .map(|stem| stem.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Outboard port and allocation study".into())
+        faris_report::study_name_from_path(self.file.path.as_deref())
     }
 
     /// Why the export cannot start now, if it cannot.
@@ -1559,60 +1547,34 @@ impl FarisApp {
     }
 
     /// Everything the export needs, copied from the engine results on screen.
+    /// The selection and layout of the data is `faris_report::assemble_report_input`,
+    /// shared with `faris study-file export`.
     fn export_input(&self) -> Result<faris_report::ReportInput, String> {
-        use faris_engine::brief::Arrangement;
-        let paired = self.paired.as_ref().map(|(m, p)| (m, p));
-        // The same orientation as the compare view: the ported case first.
-        let (port, control) = match paired {
-            Some((_, other)) if self.manifest.penetration.is_none() => {
-                (other, Some(&self.transport))
-            }
-            _ => (&self.transport, paired.map(|(_, p)| p)),
-        };
-        let mut arrangements = Vec::new();
-        for (panel, is_port) in [(Some(port), true), (control, false)] {
-            let Some(panel) = panel else { continue };
-            for (index, variant) in compare_panel::VARIANTS.iter().enumerate() {
-                let record = panel.record(variant);
-                arrangements.push(faris_report::ArrangementInput {
-                    arrangement: Arrangement {
-                        port: is_port,
-                        breeder: index == 1,
-                    },
-                    transport: record
-                        .filter(|r| r.normalized.is_some())
-                        .map(|_| panel.summary(variant)),
-                    sampling: record.map(|r| faris_report::Sampling {
-                        seed: r.sampling.seed,
-                        histories: u64::from(r.sampling.batches)
-                            * u64::from(r.sampling.particles_per_batch),
-                    }),
-                    history: record
-                        .and_then(|r| self.history.result(&r.scenario_sha256, variant))
-                        .cloned(),
-                });
+        fn arrangement<'a>(
+            manifest: &'a DemoManifest,
+            panel: &'a transport_panel::TransportPanel,
+        ) -> faris_report::LoadedArrangement<'a> {
+            faris_report::LoadedArrangement {
+                manifest,
+                records: panel.records(),
             }
         }
-        let port_volume_unvalidated = std::iter::once(&self.manifest)
-            .chain(self.paired.iter().map(|(m, _)| m))
-            .any(|m| {
-                m.penetration.is_some()
-                    && m.geometry_volume_status
-                        == faris_engine::GeometryVolumeStatus::PenetrationEstimateNotIndependentlyValidated
-            });
-        Ok(faris_report::ReportInput {
-            study_name: self.export_study_name(),
-            arrangements,
-            sweep: self.sweep.as_ref().and_then(|s| s.export_data()),
-            preset_label: self.history.preset_label().to_owned(),
-            preset_magnet_limit: self.history.preset_magnet_limit(),
-            fusion_power_mw: self.manifest.fusion_power_mw,
-            port_volume_unvalidated,
-            study_file: self.export_study_file_stamp(),
-            view_image: None,
-            view_image_note: None,
-            generated_unix_s: faris_report::now_unix_s(),
-        })
+        let paired = self.paired.as_ref().map(|(m, p)| arrangement(m, p));
+        Ok(faris_report::assemble_report_input(
+            arrangement(&self.manifest, &self.transport),
+            paired,
+            |scenario, variant| self.history.result(scenario, variant),
+            faris_report::ReportContext {
+                study_name: self.export_study_name(),
+                sweep: self.sweep.as_ref().and_then(|s| s.export_data()),
+                preset_label: self.history.preset_label().to_owned(),
+                preset_magnet_limit: self.history.preset_magnet_limit(),
+                fusion_power_mw: self.manifest.fusion_power_mw,
+                study_file: self.export_study_file_stamp(),
+                view_image_note: None,
+                generated_unix_s: faris_report::now_unix_s(),
+            },
+        ))
     }
 
     fn begin_export(&mut self, ctx: &egui::Context) {
@@ -1868,6 +1830,17 @@ impl eframe::App for FarisApp {
         if export_clicked {
             self.begin_export(&ctx);
         }
+        // LEG-040: every result view sits above this line, whichever step is open.
+        egui::Panel::bottom("screening").show(ui, |ui| {
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(faris_model::RESEARCH_SCREENING_STATEMENT)
+                        .small()
+                        .weak(),
+                )
+                .truncate(),
+            );
+        });
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.transport.has_results() {

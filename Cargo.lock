@@ -870,6 +870,7 @@ dependencies = [
  "clap",
  "faris-engine",
  "faris-model",
+ "faris-report",
  "faris-study",
  "serde",
  "serde_json",

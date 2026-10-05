@@ -13,6 +13,7 @@ use faris_engine::{
         TransportDrivingRates, run_operating_history_cancellable,
     },
     jobs::Cancellation,
+    presets::{operating_presets, resolve_view, service_limit},
     reactor::ReactorRun,
 };
 use faris_model::history::OperatingHistoryAssumptions;
@@ -168,47 +169,17 @@ impl HistoryPanel {
                 Ok(value)
             })
             .transpose()?;
-        let mut presets = Vec::new();
-        if let Some(loaded) = &assumptions {
-            let mut push = |name: &str, a: OperatingHistoryAssumptions, extra: Option<&str>| {
-                let note = preset_note(&a, extra);
-                presets.push(Preset {
-                    name: name.into(),
-                    assumptions: a,
-                    note,
-                });
-            };
-            let bundled = |bytes: &[u8]| -> Result<OperatingHistoryAssumptions, String> {
-                let a: OperatingHistoryAssumptions =
-                    serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-                a.validate()?;
-                Ok(a)
-            };
-            push(
-                "Demountable magnets · REBCO fluence limit",
-                bundled(include_bytes!(
-                    "../../../scenarios/arc-inspired/demountable-magnet-assumptions.json"
-                ))?,
-                None,
-            );
-            push("Loaded assumptions", loaded.clone(), None);
-            push(
-                "Baseline authored scenario",
-                bundled(include_bytes!(
-                    "../../../scenarios/arc-inspired/demo-operating-assumptions.json"
-                ))?,
-                None,
-            );
-            push(
-                "Permanent-trip test (numerical control)",
-                bundled(include_bytes!(
-                    "../../../scenarios/arc-inspired/demo-event-assumptions.json"
-                ))?,
-                Some(
-                    "Numerical control only: it deliberately trips the magnets permanently to exercise the replacement and shutdown logic. This preset ends with negative net electricity and is not a plant scenario.",
-                ),
-            );
-        }
+        let presets: Vec<Preset> = match &assumptions {
+            Some(loaded) => operating_presets(loaded)?
+                .into_iter()
+                .map(|p| Preset {
+                    note: preset_note(&p.assumptions, p.extra_note),
+                    name: p.name,
+                    assumptions: p.assumptions,
+                })
+                .collect(),
+            None => Vec::new(),
+        };
         // The demountable-magnet story is the default whenever presets exist.
         let assumptions = presets.first().map(|p| p.assumptions.clone());
         Ok(Self {
@@ -369,17 +340,20 @@ impl HistoryPanel {
         what_if: Option<&OperatingHistoryAssumptions>,
         plot: &str,
     ) {
-        if let Some(index) =
-            preset.and_then(|name| self.presets.iter().position(|p| p.name == name))
+        let named: Vec<_> = self
+            .presets
+            .iter()
+            .map(|p| faris_engine::presets::Preset {
+                name: p.name.clone(),
+                assumptions: p.assumptions.clone(),
+                extra_note: None,
+            })
+            .collect();
+        if let Some((index, assumptions)) =
+            resolve_view(&named, preset, what_if).filter(|_| self.assumptions.is_some())
         {
             self.preset_index = index;
-            self.assumptions = Some(self.presets[index].assumptions.clone());
-        }
-        if let Some(values) = what_if
-            && self.assumptions.is_some()
-            && values.validate().is_ok()
-        {
-            self.assumptions = Some(values.clone());
+            self.assumptions = Some(assumptions);
         }
         if let Some(plot) = Plot::from_name(plot) {
             self.plot = plot;
@@ -1632,14 +1606,6 @@ fn snapshot_at(history: &HistoryResult, time_s: f64) -> Option<&HistorySnapshot>
         .partition_point(|s| s.time_s <= time_s)
         .saturating_sub(1);
     history.snapshots.get(i)
-}
-
-fn service_limit(assumptions: &OperatingHistoryAssumptions, component: &str) -> Option<f64> {
-    assumptions
-        .service_limits
-        .iter()
-        .find(|l| l.component_id == component)
-        .map(|l| l.limit)
 }
 
 fn replacement_days(assumptions: &OperatingHistoryAssumptions, component: &str) -> Option<f64> {

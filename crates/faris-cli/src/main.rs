@@ -8,6 +8,7 @@ mod evidence;
 mod history;
 mod reactor;
 mod study;
+mod study_export;
 mod study_file;
 mod transport;
 

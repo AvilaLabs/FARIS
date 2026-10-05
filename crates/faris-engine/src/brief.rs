@@ -66,6 +66,9 @@ impl StatusKind {
     }
 }
 
+/// Variant ids of the two allocations, in `Arrangement` order.
+pub const VARIANTS: [&str; 2] = ["reference", "breeder-emphasis"];
+
 /// One of the four recorded arrangements: with or without the outboard port,
 /// reference or breeder-heavy blanket/shield allocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -6,10 +6,18 @@
 //! history statements are conditional on the selected authored assumptions.
 
 use crate::{
-    history::{EventKind, HistoryResult, JULIAN_YEAR_SECONDS},
+    history::{
+        EventKind, HistoryResult, JULIAN_YEAR_SECONDS, TransportDrivingRates,
+        run_operating_history_cancellable,
+    },
+    jobs::Cancellation,
     reactor::ReactorRun,
 };
-use faris_model::{Variant, history::ComponentClass};
+use faris_model::{
+    LoadedScenario, Variant,
+    history::{ComponentClass, OperatingHistoryAssumptions},
+};
+use std::collections::BTreeMap;
 
 const MWH_PER_TWH: f64 = 1.0e6;
 
@@ -293,6 +301,54 @@ pub fn history_findings(
         ));
     }
     findings
+}
+
+/// The component whose service life the sweep summaries follow.
+pub const MAGNET_COMPONENT: &str = "magnets";
+
+/// Extract every completed point (ascending blanket thickness) and its
+/// history driving rates from the loaded sweep records.
+pub fn collect_points(
+    records: &BTreeMap<String, ReactorRun>,
+    scenario: &LoadedScenario,
+    fusion_power_mw: f64,
+) -> Result<(Vec<TransportPoint>, Vec<TransportDrivingRates>), String> {
+    let mut rows = Vec::new();
+    for variant in &scenario.scenario.variants {
+        let Some(run) = records.get(&variant.id) else {
+            continue;
+        };
+        let Some(normalized) = &run.normalized else {
+            continue;
+        };
+        let point = transport_point(run, variant)?;
+        let raw = run
+            .raw_artifact_sha256
+            .as_deref()
+            .ok_or("A sweep record has no raw identity.")?;
+        let rates = TransportDrivingRates::from_normalized(normalized, fusion_power_mw, raw)?;
+        rows.push((point, rates));
+    }
+    if rows.is_empty() {
+        return Err("no completed transport records in the sweep bundles".into());
+    }
+    rows.sort_by(|a, b| a.0.blanket_m.total_cmp(&b.0.blanket_m));
+    Ok(rows.into_iter().unzip())
+}
+
+/// One operating history per sweep point, summarised for the magnets.
+pub fn summarize_sweep(
+    rates: &[TransportDrivingRates],
+    assumptions: &OperatingHistoryAssumptions,
+    cancellation: &Cancellation,
+) -> Result<Vec<HistorySummary>, String> {
+    rates
+        .iter()
+        .map(|rates| {
+            run_operating_history_cancellable(assumptions, rates, cancellation)
+                .map(|history| summarize_history(&history, MAGNET_COMPONENT))
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ use faris_engine::brief::{
     REFERENCE_BLANKET_M, compare_study, summarize_arrangement,
 };
 
-pub const VARIANTS: [&str; 2] = ["reference", "breeder-emphasis"];
+pub use faris_engine::brief::VARIANTS;
 
 fn build_cell(history: &HistoryPanel, panel: Option<&TransportPanel>, variant: &str) -> Cell {
     let Some((panel, record)) = panel.and_then(|p| p.record(variant).map(|r| (p, r))) else {

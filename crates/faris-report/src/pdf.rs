@@ -11,6 +11,7 @@ use faris_engine::brief::{
     AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast, REFERENCE_BLANKET_M,
     StatusKind, StudyComparison,
 };
+use faris_model::RESEARCH_SCREENING_STATEMENT;
 use krilla::{
     Document,
     color::rgb,
@@ -456,6 +457,7 @@ fn page_footer(cv: &mut Canvas, text: &str, page: usize) {
         MUTED,
         FontKind::Body,
     );
+    cv.body(MARGIN, 786.0, RESEARCH_SCREENING_STATEMENT, 6.6, MUTED);
 }
 
 /// Page one. Returns the y reached.

@@ -124,23 +124,11 @@ impl TransportPanel {
             records.insert(record.variant_id.clone(), record);
         }
         for path in config.bundles {
-            let bundle: faris_engine::core_evidence::RecordedTransportBundle =
-                serde_json::from_slice(
-                    &faris_engine::core_evidence::read_stage(&path).map_err(|e| e.to_string())?,
-                )
-                .map_err(|e| e.to_string())?;
-            let directory = bundle.materialize().map_err(|e| e.to_string())?;
-            let record = load_reactor_run(&directory.path().join("run.json"), &scenario)
-                .map_err(|e| e.to_string())?;
+            let loaded = faris_engine::core_evidence::load_recorded_bundle(&path, &scenario)?;
+            let (record, case, directory) = (loaded.record, loaded.case, loaded.directory);
             if records.contains_key(&record.variant_id) {
                 return Err("Duplicate transport record for an arrangement.".into());
             }
-            let input: serde_json::Value =
-                serde_json::from_str(&bundle.files["input.json"]).map_err(|e| e.to_string())?;
-            let case: PhysicsCase =
-                serde_json::from_value(input["physics"].clone()).map_err(|e| e.to_string())?;
-            case.validate_against(&scenario)
-                .map_err(|e| e.to_string())?;
             if let Some(configured) = cases.get(&case.variant_id)
                 && serde_json::to_value(configured).map_err(|e| e.to_string())?
                     != serde_json::to_value(&case).map_err(|e| e.to_string())?

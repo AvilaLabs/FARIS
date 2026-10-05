@@ -16,6 +16,7 @@ path = "src/main.rs"
 faris-model.workspace = true
 faris-engine.workspace = true
 faris-study.workspace = true
+faris-report.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 serde.workspace = true
