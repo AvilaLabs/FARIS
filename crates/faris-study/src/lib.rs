@@ -20,15 +20,17 @@ pub use descriptor::evidence_from_descriptor;
 pub use error::StudyError;
 pub use manifest::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
-    EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT, Layers, MIMETYPE, Manifest, ViewState,
+    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT,
+    Layers, MIMETYPE, Manifest, ViewState,
 };
 pub use read::{
     ArrangementFiles, BlobInfo, EvidenceFile, EvidenceMiss, EvidenceState, Materialized,
-    MissReason, StudyReader, sha256_file,
+    MissReason, StoredEnsemble, StudyReader, sha256_file,
 };
 pub use tar::{ExtractReport, extract_tar_gz};
 pub use write::{
-    ArrangementDraft, DEFAULT_ZSTD_LEVEL, EvidenceDraft, StudyDraft, WriteReport, write_study,
+    ArrangementDraft, DEFAULT_ZSTD_LEVEL, EnsembleDraft, EvidenceDraft, StudyDraft, WriteReport,
+    write_study,
 };
 
 use sha2::{Digest, Sha256};

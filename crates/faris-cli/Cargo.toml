@@ -23,6 +23,9 @@ serde.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 
+[dev-dependencies]
+faris-engine = { workspace = true, features = ["fixtures"] }
+
 [target.'cfg(unix)'.dependencies]
 signal-hook.workspace = true
 

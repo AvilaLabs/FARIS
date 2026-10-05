@@ -121,6 +121,7 @@ fn arrangement(arrangement: Arrangement, tbr: f64, flux: f64) -> ArrangementInpu
             histories: 1_000_000,
         }),
         history: Some(history),
+        ensemble: EnsembleInput::None,
     }
 }
 
@@ -289,7 +290,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     let mut lines = csv.lines();
     assert_eq!(
         lines.next().unwrap(),
-        "arrangement,calendar_year,state,magnet_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps"
+        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps"
     );
     let source = input();
     let expected: usize = source
@@ -313,9 +314,15 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
         cells[3].parse::<f64>().unwrap(),
         last.component_fluence_n_m2["magnets"]
     );
-    assert_eq!(cells[5].parse::<f64>().unwrap(), last.available_tritium_kg);
+    // The magnet's exposure toward its limit; with an energy-integrated limit
+    // it is the same fluence.
     assert_eq!(
-        cells[6].parse::<f64>().unwrap(),
+        cells[4].parse::<f64>().unwrap(),
+        last.component_fluence_n_m2["magnets"]
+    );
+    assert_eq!(cells[6].parse::<f64>().unwrap(), last.available_tritium_kg);
+    assert_eq!(
+        cells[7].parse::<f64>().unwrap(),
         last.cumulative_net_electricity_mwh.unwrap() / 1.0e6
     );
     assert!(
@@ -639,6 +646,352 @@ fn write_sample_export_when_asked() {
     pixmap.fill(resvg::tiny_skia::Color::from_rgba8(40, 44, 54, 255));
     source.view_image = Some(pixmap.encode_png().unwrap());
     export_study(&source, &dir).unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// History ensembles in the export
+
+mod ensembles {
+    use super::*;
+    use faris_engine::{
+        fixtures::synthetic_covariance,
+        history_ensemble::{EnsembleSettings, run_history_ensemble},
+        jobs::Cancellation,
+    };
+    use std::sync::Arc;
+
+    const SAMPLES: u32 = 6;
+
+    fn ensemble(tbr: f64, flux: f64, artifact: char, seed: u64, covariance: bool) -> EnsembleInput {
+        let mut r = rates(tbr, flux);
+        r.transport_artifact_sha256 = artifact.to_string().repeat(64);
+        if covariance {
+            r.covariance = Some(synthetic_covariance(&r, 0.4));
+        }
+        EnsembleInput::Ready(Arc::new(
+            run_history_ensemble(
+                &r,
+                &assumptions(12.0, 1.5e22),
+                &EnsembleSettings {
+                    samples: SAMPLES,
+                    seed: Some(seed),
+                    threads: Some(2),
+                },
+                &Cancellation::default(),
+                &|_, _| {},
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// Two evaluated ensembles, one not evaluated (no covariance) and one
+    /// arrangement without any.
+    fn with_ensembles() -> ReportInput {
+        // The ensembles are the slow part: calculate them once.
+        static ONCE: std::sync::OnceLock<ReportInput> = std::sync::OnceLock::new();
+        ONCE.get_or_init(|| {
+            let mut source = input();
+            source.arrangements[0].ensemble =
+                ensemble(1.18, 3.0e14, 'b', 18_446_744_073_709_551_000, true);
+            source.arrangements[1].ensemble = ensemble(1.25, 1.6e14, 'c', 7, true);
+            source.arrangements[2].ensemble = ensemble(1.21, 3.4e14, 'd', 8, false);
+            source
+        })
+        .clone()
+    }
+
+    fn exported_with_ensembles() -> (tempfile::TempDir, ExportOutcome) {
+        static ONCE: std::sync::OnceLock<ExportOutcome> = std::sync::OnceLock::new();
+        let outcome = ONCE.get_or_init(|| {
+            let dir = std::env::temp_dir().join("faris-report-shared-export-ensembles");
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            export_study(&with_ensembles(), &dir).unwrap()
+        });
+        let own = tempfile::tempdir().unwrap();
+        let target = own.path().join(outcome.folder.file_name().unwrap());
+        copy_dir(&outcome.folder, &target);
+        (
+            own,
+            ExportOutcome {
+                folder: target,
+                files: outcome.files.clone(),
+                view_image_included: outcome.view_image_included,
+            },
+        )
+    }
+
+    #[test]
+    fn the_samples_csv_has_one_row_per_sample_per_evaluated_arrangement() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let csv = table(&outcome.folder, "data/history-ensemble-samples.csv");
+        let mut lines = csv.lines();
+        assert_eq!(
+            lines.next().unwrap(),
+            "arrangement,sample,rejected_draws,breeder_h3_per_source_neutron,flux_magnets_n_m2_s,heating_w,outcome,terminal_time_years,full_power_time_years,final_usable_tritium_kg,final_in_process_tritium_kg,gross_electricity_twh,auxiliary_electricity_twh,net_electricity_twh,replacements_magnets,first_replacement_year_magnets,first_trigger_magnets"
+        );
+        let body: Vec<Vec<&str>> = lines.map(|l| l.split(',').collect()).collect();
+        // Two evaluated arrangements; the not-evaluated and the missing ones
+        // contribute no samples.
+        assert_eq!(body.len(), 2 * SAMPLES as usize);
+        assert!(body.iter().all(|r| r.len() == 17));
+        let ids: Vec<&str> = body.iter().map(|r| r[0]).collect();
+        assert!(ids[..6].iter().all(|i| *i == "port-reference"));
+        assert!(ids[6..].iter().all(|i| *i == "no-port-reference"));
+        let samples: Vec<&str> = body[..6].iter().map(|r| r[1]).collect();
+        assert_eq!(samples, ["1", "2", "3", "4", "5", "6"]);
+        // The sampled rates differ between samples, and the outcome is named.
+        let fluxes: std::collections::BTreeSet<&str> = body[..6].iter().map(|r| r[4]).collect();
+        assert!(fluxes.len() > 1);
+        assert!(body.iter().all(|r| matches!(
+            r[6],
+            "horizon_completed" | "fuel_limited_at_horizon" | "permanent_component_limit"
+        )));
+        // Full precision: the value is the engine's.
+        let first = match &with_ensembles().arrangements[0].ensemble {
+            EnsembleInput::Ready(e) => e.samples[0].rates.component_average_flux_n_m2_s["magnets"],
+            _ => unreachable!(),
+        };
+        assert_eq!(body[0][4], format!("{first}"));
+    }
+
+    #[test]
+    fn the_summary_csv_carries_ranges_distributions_and_the_reasons() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let csv = table(&outcome.folder, "data/history-ensemble-summary.csv");
+        assert_eq!(
+            csv.lines().next().unwrap(),
+            "arrangement,ensemble_status,output,unit,statistic,category,value,ci95_low,ci95_high,n,note"
+        );
+        let rows: Vec<Vec<String>> = csv
+            .lines()
+            .skip(1)
+            .map(|l| l.split(',').map(String::from).collect())
+            .collect();
+        let find = |arrangement: &str, output: &str, statistic: &str| {
+            rows.iter()
+                .find(|r| r[0] == arrangement && r[2] == output && r[4] == statistic)
+        };
+        // An evaluated arrangement: the nominal value and the quantiles in years.
+        for stat in ["nominal", "mean", "p5", "p50", "p95"] {
+            let row = find("port-reference", "full_power_time", stat).unwrap();
+            assert_eq!(row[1], "evaluated");
+            assert_eq!(row[3], "years");
+        }
+        let p50 = find("port-reference", "full_power_time", "p50").unwrap();
+        assert_eq!(p50[9], SAMPLES.to_string());
+        assert!(find("port-reference", "cumulative_net_electricity", "p95").unwrap()[3] == "TWh");
+        // Shares of a discrete output carry Wilson intervals.
+        let share = rows
+            .iter()
+            .find(|r| r[0] == "port-reference" && r[2] == "replacements:magnets" && r[4] == "share")
+            .unwrap();
+        assert!(
+            share[6].parse::<f64>().is_ok()
+                && share[7].parse::<f64>().is_ok()
+                && share[8].parse::<f64>().is_ok()
+        );
+        let shares: f64 = rows
+            .iter()
+            .filter(|r| r[0] == "port-reference" && r[2] == "terminal_status" && r[4] == "share")
+            .map(|r| r[6].parse::<f64>().unwrap())
+            .sum();
+        assert!((shares - 1.0).abs() < 1e-12);
+        // The not-evaluated arrangement keeps its nominal values and says why.
+        let nominal = find("port-breeder-heavy", "full_power_time", "nominal").unwrap();
+        assert_eq!(nominal[1], "not_evaluated");
+        let raw = csv
+            .lines()
+            .find(|l| {
+                l.starts_with("port-breeder-heavy,not_evaluated,full_power_time,years,nominal")
+            })
+            .unwrap();
+        assert!(raw.contains("\"no uncertainty range: This transport record has standard errors but no covariance"), "{raw}");
+        assert!(raw.contains("Next step: Rerun transport"), "{raw}");
+        assert!(find("port-breeder-heavy", "full_power_time", "p5").is_none());
+        // One with no ensemble at all says so.
+        let none = find("no-port-breeder-heavy", "full_power_time", "nominal").unwrap();
+        assert_eq!(none[1], "not_calculated");
+    }
+
+    #[test]
+    fn the_manifest_records_method_seed_samples_rejections_and_status() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&read(&outcome.folder, "export-manifest.json")).unwrap();
+        let records = manifest["history_ensembles"].as_array().unwrap();
+        assert_eq!(records.len(), 4);
+        let by = |id: &str| records.iter().find(|r| r["arrangement"] == id).unwrap();
+        let a = by("port-reference");
+        assert_eq!(a["status"], "evaluated");
+        assert_eq!(a["method"], "faris-history-ensemble/v1");
+        // The seed is text: it is above 2^53 and must not pass through a float.
+        assert_eq!(a["seed"], "18446744073709551000");
+        assert_eq!(a["samples_requested"], SAMPLES);
+        assert_eq!(a["samples_accepted"], SAMPLES);
+        assert_eq!(a["rejections"], 0);
+        assert!(
+            a["scope"]
+                .as_str()
+                .unwrap()
+                .contains("sampling uncertainty only")
+        );
+        let n = by("port-breeder-heavy");
+        assert_eq!(n["status"], "not_evaluated");
+        assert!(n["why"].as_str().unwrap().contains("no covariance"));
+        assert!(
+            n["next_step"]
+                .as_str()
+                .unwrap()
+                .starts_with("Rerun transport")
+        );
+        assert_eq!(by("no-port-breeder-heavy")["status"], "not_calculated");
+        // Without ensembles the key is an empty list, not absent.
+        let (_guard, plain) = exported();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&read(&plain.folder, "export-manifest.json")).unwrap();
+        let records = manifest["history_ensembles"].as_array().unwrap();
+        assert!(records.iter().all(|r| r["status"] == "not_calculated"));
+    }
+
+    #[test]
+    fn charts_draw_the_band_and_the_new_chart_files_exist() {
+        let (_dir, outcome) = exported_with_ensembles();
+        for name in [
+            "charts/history-tritium-bands.svg",
+            "charts/history-tritium-bands.png",
+            "charts/history-net-electricity-bands.svg",
+            "charts/history-net-electricity-bands.png",
+        ] {
+            assert!(outcome.folder.join(name).is_file(), "{name}");
+        }
+        let band_paths = |svg: &str| svg.matches("fill-opacity=\"0.220\"").count();
+        // Two evaluated arrangements: two bands on each chart.
+        assert_eq!(
+            band_paths(&text(&outcome.folder, "charts/history-tritium-bands.svg")),
+            2
+        );
+        assert_eq!(
+            band_paths(&text(&outcome.folder, "charts/magnet-fluence-timeline.svg")),
+            2
+        );
+        let timeline = text(&outcome.folder, "charts/magnet-fluence-timeline.svg");
+        assert!(timeline.contains("P5-P95 band"));
+        // A plain export draws no band.
+        let (_guard, plain) = exported();
+        assert_eq!(
+            band_paths(&text(&plain.folder, "charts/magnet-fluence-timeline.svg")),
+            0
+        );
+        assert!(
+            !plain
+                .folder
+                .join("charts/history-tritium-bands.svg")
+                .exists()
+        );
+    }
+
+    // Verifies: LEG-040
+    #[test]
+    fn the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let statement = faris_model::RESEARCH_SCREENING_STATEMENT;
+        for name in ["samples", "summary"] {
+            let csv = text(
+                &outcome.folder,
+                &format!("data/history-ensemble-{name}.csv"),
+            );
+            assert_eq!(
+                csv.lines().next().unwrap(),
+                format!("# {statement}"),
+                "{name}"
+            );
+        }
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&read(&outcome.folder, "export-manifest.json")).unwrap();
+        assert_eq!(manifest["research_screening"], statement);
+        assert!(
+            tool_available("pdftotext"),
+            "pdftotext is needed to read the PDF"
+        );
+        let out = Command::new("pdftotext")
+            .args(["-f", "3", "-l", "3"])
+            .arg(outcome.folder.join("summary.pdf"))
+            .arg("-")
+            .output()
+            .unwrap();
+        let flat = String::from_utf8_lossy(&out.stdout).replace('\n', " ");
+        assert!(flat.contains(statement), "{flat}");
+    }
+
+    #[test]
+    fn a_plain_export_has_no_ensemble_files() {
+        let (_guard, plain) = exported();
+        for name in [
+            "data/history-ensemble-samples.csv",
+            "data/history-ensemble-summary.csv",
+        ] {
+            assert!(!plain.folder.join(name).exists(), "{name}");
+        }
+    }
+
+    #[test]
+    fn the_pdf_gains_a_third_page_that_fits_and_shows_ranges_beside_nominal_values() {
+        let source = with_ensembles();
+        let prepared = prepare(&source).unwrap();
+        let order: Vec<&ArrangementData> = prepared.data.iter().collect();
+        let draw = timeline_fn(&prepared);
+        let content = pdf_content(&source, &prepared, &order, &draw);
+        let extent = pdf::measure(&content).unwrap();
+        assert!(extent.page_one_bottom <= 756.0, "{extent:?}");
+        assert!(extent.page_three_bottom.unwrap() <= 756.0, "{extent:?}");
+
+        let (_dir, outcome) = exported_with_ensembles();
+        if !tool_available("pdfinfo") || !tool_available("pdftotext") {
+            return;
+        }
+        let pdf = outcome.folder.join("summary.pdf");
+        let info = Command::new("pdfinfo").arg(&pdf).output().unwrap();
+        let info = String::from_utf8_lossy(&info.stdout).to_string();
+        let pages = info
+            .lines()
+            .find_map(|l| l.strip_prefix("Pages:"))
+            .map(str::trim);
+        assert_eq!(pages, Some("3"), "{info}");
+        let out = Command::new("pdftotext")
+            .arg("-layout")
+            .arg(&pdf)
+            .arg("-")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        assert!(text.contains("Page 3 of 3"));
+        assert!(text.contains("Uncertainty in the operating history"));
+        assert!(
+            text.contains("transport Monte Carlo sampling uncertainty only")
+                || text.contains("Transport Monte Carlo sampling uncertainty only")
+        );
+        assert!(text.contains("nominal "));
+        assert!(text.contains("P5–P95"));
+        assert!(text.contains("Magnet swaps: "));
+        // The not-evaluated arrangement: its reason and next step are text.
+        let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flat.contains("no covariance between its results"), "{flat}");
+        assert!(flat.contains("Next step: Rerun transport with this FARIS version"));
+        assert!(flat.contains("no uncertainty range"));
+    }
+
+    /// Development aid: keep the three-page export for visual review.
+    #[test]
+    fn write_sample_ensemble_export_when_asked() {
+        let Some(dir) = std::env::var_os("FARIS_REPORT_SAMPLE_DIR") else {
+            return;
+        };
+        let dir = PathBuf::from(dir).join("with-ensembles");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        export_study(&with_ensembles(), &dir).unwrap();
+    }
 }
 
 // Verifies: LEG-040

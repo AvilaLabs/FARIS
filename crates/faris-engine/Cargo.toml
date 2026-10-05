@@ -19,6 +19,11 @@ tempfile.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
 
+[features]
+# Small synthetic histories and ensembles for tests and development checks.
+# Off in every normal build.
+fixtures = []
+
 [dev-dependencies]
 tempfile.workspace = true
 

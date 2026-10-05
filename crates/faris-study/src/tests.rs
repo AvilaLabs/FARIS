@@ -824,3 +824,275 @@ fn real_demo_inputs_round_trip_with_sizes() {
     );
     assert!(packed_report.file_bytes < report.file_bytes + 60_000_000);
 }
+
+// ---------------------------------------------------------------------------
+// Derived history ensembles
+
+mod ensembles {
+    use super::*;
+    use faris_engine::fixtures::{assumptions, ensemble, rates_with_covariance};
+    use faris_engine::history_ensemble::{EnsembleStatus, HistoryEnsemble};
+    use faris_engine::history_uncertainty::EnsembleKey;
+    use std::sync::Arc;
+
+    fn key(samples: u32, artifact: char) -> EnsembleKey {
+        EnsembleKey::new(
+            &rates_with_covariance(0.06, 0.4, artifact),
+            &assumptions(),
+            samples,
+        )
+        .unwrap()
+    }
+
+    /// An ensemble of `samples` samples with the key that describes it.
+    fn stored(samples: u32, artifact: char) -> (EnsembleKey, HistoryEnsemble) {
+        let k = key(samples, artifact);
+        (k.clone(), ensemble(samples, k.seed, artifact))
+    }
+
+    fn ensemble_draft(variant: &str, key: EnsembleKey, value: HistoryEnsemble) -> EnsembleDraft {
+        EnsembleDraft {
+            scenario_sha256: "a".repeat(64),
+            variant: variant.into(),
+            key,
+            ensemble: Arc::new(value),
+        }
+    }
+
+    #[test]
+    fn a_study_stores_ensembles_and_reuses_one_only_on_an_exact_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut study = draft(dir.path());
+        let (ka, ea) = stored(6, 'a');
+        let (kb, eb) = stored(6, 'b');
+        study.ensembles = vec![
+            ensemble_draft("reference", ka.clone(), ea.clone()),
+            ensemble_draft("breeder-emphasis", kb.clone(), eb.clone()),
+            // The same key twice is stored once.
+            ensemble_draft("reference", ka.clone(), ea.clone()),
+        ];
+        let target = dir.path().join("e.faris");
+        write_study(&target, &study).unwrap();
+        let mut reader = StudyReader::open(&target).unwrap();
+        assert_eq!(reader.manifest.ensembles.len(), 2);
+        reader.verify().unwrap();
+        let all = reader.ensembles().unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].ensemble, ea);
+        assert_eq!(all[0].variant, "reference");
+
+        assert_eq!(reader.ensemble_for(&ka).unwrap(), Some(ea));
+        assert_eq!(reader.ensemble_for(&kb).unwrap(), Some(eb));
+        // Any difference in the key finds nothing: the caller recomputes.
+        assert_eq!(reader.ensemble_for(&key(7, 'a')).unwrap(), None);
+        let mut other_rates = ka.clone();
+        other_rates.rates_sha256 = "0".repeat(64);
+        assert_eq!(reader.ensemble_for(&other_rates).unwrap(), None);
+        let mut other_assumptions = ka.clone();
+        other_assumptions.assumptions_sha256 = "0".repeat(64);
+        assert_eq!(reader.ensemble_for(&other_assumptions).unwrap(), None);
+        let mut other_seed = ka.clone();
+        other_seed.seed ^= 1;
+        assert_eq!(reader.ensemble_for(&other_seed).unwrap(), None);
+        let mut other_method = ka;
+        other_method.method.push('x');
+        assert_eq!(reader.ensemble_for(&other_method).unwrap(), None);
+    }
+
+    #[test]
+    fn a_not_evaluated_ensemble_round_trips_with_its_reasons() {
+        let dir = tempfile::tempdir().unwrap();
+        let (k, mut value) = stored(4, 'a');
+        value.status = EnsembleStatus::NotEvaluated {
+            why: "no covariance".into(),
+            next_step: "rerun transport".into(),
+        };
+        value.samples.clear();
+        value.nominal = None;
+        value.summary = None;
+        let mut study = draft(dir.path());
+        study.ensembles = vec![ensemble_draft("reference", k.clone(), value.clone())];
+        let target = dir.path().join("n.faris");
+        write_study(&target, &study).unwrap();
+        let mut reader = StudyReader::open(&target).unwrap();
+        assert_eq!(reader.ensemble_for(&k).unwrap(), Some(value));
+    }
+
+    #[test]
+    fn files_without_ensembles_still_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("old.faris");
+        write_study(&target, &draft(dir.path())).unwrap();
+        let mut reader = StudyReader::open(&target).unwrap();
+        assert!(reader.manifest.ensembles.is_empty());
+        assert!(reader.ensembles().unwrap().is_empty());
+        assert_eq!(reader.ensemble_for(&key(6, 'a')).unwrap(), None);
+        let tiny = Tiny::new();
+        let mut reader = open_raw(&tiny.good()).unwrap();
+        assert!(reader.ensembles().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_writer_refuses_an_ensemble_that_does_not_match_its_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let (k, e) = stored(6, 'a');
+        let mut wrong = k;
+        wrong.samples = 7;
+        let mut study = draft(dir.path());
+        study.ensembles = vec![ensemble_draft("reference", wrong, e)];
+        let result = write_study(&dir.path().join("w.faris"), &study);
+        assert!(matches!(result, Err(StudyError::Input(_))), "{result:?}");
+        assert!(!dir.path().join("w.faris").exists());
+    }
+
+    /// A container holding one ensemble blob and a manifest naming it with
+    /// `key`, built by hand so each part can be damaged.
+    fn container(
+        key: &serde_json::Value,
+        blob: &[u8],
+        repeat_record: bool,
+    ) -> Vec<(String, Vec<u8>)> {
+        let sha = sha256_hex(blob);
+        let record = serde_json::json!({
+            "blob": sha, "scenario_sha256": "a".repeat(64), "variant": "reference", "key": key,
+        });
+        let records = if repeat_record {
+            vec![record.clone(), record]
+        } else {
+            vec![record]
+        };
+        let manifest = serde_json::to_vec(&serde_json::json!({
+            "format": "faris-study/1",
+            "ensembles": records,
+            "blobs": [{"sha256": sha, "bytes": blob.len(), "media_type": ENSEMBLE_MEDIA_TYPE, "encoding": "verbatim"}],
+        }))
+        .unwrap();
+        vec![
+            ("mimetype".into(), MIMETYPE.as_bytes().to_vec()),
+            ("manifest.json".into(), manifest),
+            (format!("blobs/{sha}"), blob.to_vec()),
+        ]
+    }
+
+    #[test]
+    fn a_damaged_ensemble_record_refuses_the_file() {
+        let (k, e) = stored(6, 'a');
+        let key_json = serde_json::to_value(&k).unwrap();
+        let blob = serde_json::to_vec(&e).unwrap();
+
+        // The good hand-built container reads.
+        let mut reader = open_raw(&container(&key_json, &blob, false)).unwrap();
+        assert_eq!(reader.ensembles().unwrap().len(), 1);
+
+        // The same key listed twice.
+        assert!(open_raw(&container(&key_json, &blob, true)).is_err());
+
+        // A key that disagrees with the ensemble's own sample count.
+        let mut lying = key_json.clone();
+        lying["samples"] = 99.into();
+        let mut reader = open_raw(&container(&lying, &blob, false)).unwrap();
+        assert!(matches!(reader.ensembles(), Err(StudyError::Corrupt(_))));
+        assert!(reader.verify().is_err());
+
+        // A blob that is not an ensemble, or that carries a field this reader
+        // does not know, is refused rather than skipped.
+        let mut reader =
+            open_raw(&container(&key_json, b"{\"not\":\"an ensemble\"}", false)).unwrap();
+        assert!(matches!(reader.ensembles(), Err(StudyError::Corrupt(_))));
+        let mut extra: serde_json::Value = serde_json::from_slice(&blob).unwrap();
+        extra["surprise"] = true.into();
+        let extra = serde_json::to_vec(&extra).unwrap();
+        let mut reader = open_raw(&container(&key_json, &extra, false)).unwrap();
+        assert!(matches!(reader.ensembles(), Err(StudyError::Corrupt(_))));
+
+        // A key with an unknown part or a seed that is not text.
+        let mut unknown = key_json.clone();
+        unknown["extra"] = 1.into();
+        assert!(open_raw(&container(&unknown, &blob, false)).is_err());
+        let mut numeric = key_json.clone();
+        numeric["seed"] = 5.into();
+        assert!(open_raw(&container(&numeric, &blob, false)).is_err());
+
+        // A record naming a blob the file does not hold.
+        let mut entries = container(&key_json, &blob, false);
+        entries.pop();
+        assert!(open_raw(&entries).is_err());
+
+        // An altered blob fails its hash and is named.
+        let mut entries = container(&key_json, &blob, false);
+        let sha = sha256_hex(&blob);
+        let last = entries.len() - 1;
+        entries[last].1[0] = b' ';
+        let mut reader = open_raw(&entries).unwrap();
+        match reader.ensembles() {
+            Err(StudyError::HashMismatch { blob, .. }) => assert_eq!(blob, sha),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+const BATCH_VALUES: &str = "solver/transport-batch-values.json";
+
+/// A bundle written the way the OpenMC adapter now writes it: the optional
+/// per-batch values file sits beside the other recorded outputs.
+fn write_bundle_with_batch_values(dir: &Path, name: &str, tag: &str) -> PathBuf {
+    let mut bundle = bundle(tag);
+    bundle.files.insert(
+        BATCH_VALUES.into(),
+        format!("{{\"values\":{{\"flux\":[1.0,2.0,3.0]}},\"tag\":\"{tag}\"}}\n"),
+    );
+    let path = dir.join(format!("{name}.transport-bundle.json"));
+    std::fs::write(&path, serde_json::to_vec_pretty(&bundle).unwrap()).unwrap();
+    path
+}
+
+fn single_bundle_draft(bundle: PathBuf) -> StudyDraft {
+    StudyDraft {
+        port: Some(ArrangementDraft {
+            scenario: None,
+            physics: vec![],
+            bundles: vec![bundle],
+        }),
+        zstd_level: 3,
+        ..StudyDraft::default()
+    }
+}
+
+#[test]
+fn batch_values_are_packed_as_a_blob_and_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = write_bundle_with_batch_values(dir.path(), "reference", "p1");
+    let target = dir.path().join("a.faris");
+    let report = write_study(&target, &single_bundle_draft(original.clone())).unwrap();
+    // Six required members plus the batch values file.
+    assert_eq!(report.blob_count, 7);
+    let mut reader = StudyReader::open(&target).unwrap();
+    assert_eq!(reader.verify().unwrap(), report.blob_count);
+    let record = reader.manifest.arrangements.port.as_ref().unwrap().bundles[0].clone();
+    let digest = &record.files[BATCH_VALUES];
+    assert_eq!(digest.len(), 64);
+    let restored = reader.bundle(&record).unwrap();
+    assert!(restored.files[BATCH_VALUES].contains("\"flux\""));
+    assert_eq!(sha256_hex(restored.files[BATCH_VALUES].as_bytes()), *digest);
+    let out = dir.path().join("out");
+    std::fs::create_dir(&out).unwrap();
+    let files = reader.materialize(&out, None).unwrap();
+    assert_eq!(
+        std::fs::read(&files.port.unwrap().bundles[0]).unwrap(),
+        std::fs::read(&original).unwrap()
+    );
+}
+
+#[test]
+fn an_older_bundle_without_batch_values_still_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = write_bundle(dir.path(), "reference", "p1");
+    let target = dir.path().join("old.faris");
+    write_study(&target, &single_bundle_draft(original)).unwrap();
+    let mut reader = StudyReader::open(&target).unwrap();
+    reader.verify().unwrap();
+    let record = reader.manifest.arrangements.port.as_ref().unwrap().bundles[0].clone();
+    assert!(!record.files.contains_key(BATCH_VALUES));
+    let restored = reader.bundle(&record).unwrap();
+    assert!(!restored.files.contains_key(BATCH_VALUES));
+}

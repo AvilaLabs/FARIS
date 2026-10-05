@@ -10,6 +10,7 @@ use faris_engine::{
     DemoManifest, build_manifest,
     core_evidence::{load_recorded_bundle, scenario_from_bundle_file},
     history::{HistoryResult, TransportDrivingRates, run_operating_history_cancellable},
+    history_uncertainty::{EnsembleKey, SAMPLE_CHOICES, choose_samples},
     jobs::Cancellation,
     presets::{operating_presets, resolve_view, service_limit},
     reactor::{ReactorRun, read_json_bytes},
@@ -17,10 +18,10 @@ use faris_engine::{
 };
 use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
 use faris_report::{
-    LoadedArrangement, NO_VIEW_ON_COMMAND_LINE, ReportContext, ReportInput, StudyFileStamp,
-    SweepInput, assemble_report_input, study_name_from_path,
+    EnsembleInput, LoadedArrangement, NO_VIEW_ON_COMMAND_LINE, ReportContext, ReportInput,
+    StudyFileStamp, SweepInput, assemble_report_input, study_name_from_path,
 };
-use faris_study::{ArrangementFiles, StudyReader, ViewState};
+use faris_study::{ArrangementFiles, StoredEnsemble, StudyReader, ViewState};
 use std::{collections::BTreeMap, path::Path};
 
 type Failure = Box<dyn std::error::Error>;
@@ -115,6 +116,30 @@ struct StudyData {
     paired: Option<Loaded>,
     sweep: Option<LoadedSweep>,
     assumptions: OperatingHistoryAssumptions,
+    /// History ensembles stored in the file; none is ever calculated here.
+    ensembles: Vec<StoredEnsemble>,
+}
+
+/// The stored ensemble for one history, found the way the desktop finds it
+/// after opening the file: by the full key of the history's own rates and
+/// assumptions at the file's sample setting. Anything else is "none".
+fn stored_ensemble(
+    stored: &[StoredEnsemble],
+    samples: u32,
+    history: Option<&HistoryResult>,
+) -> EnsembleInput {
+    let Some(history) = history else {
+        return EnsembleInput::None;
+    };
+    let Ok(key) = EnsembleKey::new(&history.driving_rates, &history.assumptions, samples) else {
+        return EnsembleInput::None;
+    };
+    stored
+        .iter()
+        .find(|s| s.key == key && key.describes(&s.ensemble))
+        .map_or(EnsembleInput::None, |s| {
+            EnsembleInput::Ready(std::sync::Arc::new(s.ensemble.clone()))
+        })
 }
 
 fn read_study(file: &Path) -> Result<StudyData, Failure> {
@@ -128,6 +153,7 @@ fn read_study(file: &Path) -> Result<StudyData, Failure> {
         .materialize(workspace.path(), Some(near))
         .map_err(convert)?;
     let view = reader.manifest.view.clone();
+    let ensembles = reader.ensembles().map_err(convert)?;
 
     // The desktop's first arrangement is the port when there is one; a second
     // exists only when both do.
@@ -166,6 +192,7 @@ fn read_study(file: &Path) -> Result<StudyData, Failure> {
         paired,
         sweep,
         assumptions: loaded_assumptions,
+        ensembles,
     })
 }
 
@@ -173,6 +200,18 @@ fn read_study(file: &Path) -> Result<StudyData, Failure> {
 /// assemble the report input: what the desktop would export from the same
 /// file once everything has calculated, minus the 3D view.
 fn report_input(data: &StudyData, generated_unix_s: i64) -> Result<ReportInput, Failure> {
+    report_input_with(data, generated_unix_s, histories)
+}
+
+type Calculated = BTreeMap<(String, String), HistoryResult>;
+
+/// `report_input` with the history calculation supplied (tests stand in for
+/// recorded transport that cannot be built here).
+fn report_input_with(
+    data: &StudyData,
+    generated_unix_s: i64,
+    calculate: impl FnOnce(&[&Loaded], &OperatingHistoryAssumptions) -> Result<Calculated, Failure>,
+) -> Result<ReportInput, Failure> {
     let presets = operating_presets(&data.assumptions)?;
     let (index, assumptions) = resolve_view(
         &presets,
@@ -184,7 +223,7 @@ fn report_input(data: &StudyData, generated_unix_s: i64) -> Result<ReportInput, 
 
     let mut all = vec![&data.current];
     all.extend(data.paired.as_ref());
-    let calculated = histories(&all, &assumptions)?;
+    let calculated = calculate(&all, &assumptions)?;
 
     let sweep = data
         .sweep
@@ -200,6 +239,8 @@ fn report_input(data: &StudyData, generated_unix_s: i64) -> Result<ReportInput, 
         })
         .transpose()?;
 
+    let samples =
+        choose_samples(data.ensembles.iter().map(|s| s.key.samples)).unwrap_or(SAMPLE_CHOICES[0]);
     fn arrangement(loaded: &Loaded) -> LoadedArrangement<'_> {
         LoadedArrangement {
             manifest: &loaded.manifest,
@@ -210,6 +251,13 @@ fn report_input(data: &StudyData, generated_unix_s: i64) -> Result<ReportInput, 
         arrangement(&data.current),
         data.paired.as_ref().map(arrangement),
         |scenario, variant| calculated.get(&(scenario.to_owned(), variant.to_owned())),
+        |scenario, variant| {
+            stored_ensemble(
+                &data.ensembles,
+                samples,
+                calculated.get(&(scenario.to_owned(), variant.to_owned())),
+            )
+        },
         ReportContext {
             study_name: study_name_from_path(Some(&data.file)),
             sweep,
@@ -241,6 +289,7 @@ pub fn export(file: &Path, parent: &Path) -> Result<serde_json::Value, Failure> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use faris_engine::history::run_operating_history_cancellable;
     use faris_engine::reactor::FieldMesh;
     use faris_model::physics::ScientificScope;
 
@@ -321,11 +370,49 @@ mod tests {
             paired: None,
             sweep: None,
             assumptions: loaded,
+            ensembles: Vec::new(),
         };
         let generated = 1_800_000_000;
 
+        // Histories and stored ensembles for both recorded arrangements, as
+        // calculation and the study file would supply them.
+        let history_assumptions = faris_engine::fixtures::assumptions();
+        let mut calculated: Calculated = BTreeMap::new();
+        let mut stored = Vec::new();
+        for (variant, artifact) in [("reference", 'b'), ("breeder-emphasis", 'c')] {
+            let rates = faris_engine::fixtures::rates_with_covariance(0.06, 0.4, artifact);
+            let history = run_operating_history_cancellable(
+                &history_assumptions,
+                &rates,
+                &Cancellation::default(),
+            )
+            .unwrap();
+            let key = EnsembleKey::new(&rates, &history_assumptions, SAMPLE_CHOICES[0]).unwrap();
+            let ensemble = faris_engine::history_ensemble::run_history_ensemble(
+                &rates,
+                &history_assumptions,
+                &faris_engine::fixtures::settings(key.samples, key.seed),
+                &Cancellation::default(),
+                &|_, _| {},
+            )
+            .unwrap();
+            let scenario = data.current.records[variant].scenario_sha256.clone();
+            calculated.insert((scenario.clone(), variant.to_owned()), history);
+            stored.push(StoredEnsemble {
+                scenario_sha256: scenario,
+                variant: variant.to_owned(),
+                key,
+                ensemble,
+            });
+        }
+        let data = StudyData {
+            ensembles: stored.clone(),
+            ..data
+        };
+
         // The command line's path: everything after reading the file.
-        let from_cli = report_input(&data, generated).unwrap();
+        let history_map = calculated.clone();
+        let from_cli = report_input_with(&data, generated, move |_, _| Ok(history_map)).unwrap();
         // The desktop's path: the same shared assembly over the panels' records.
         let presets = operating_presets(&data.assumptions).unwrap();
         let from_app = assemble_report_input(
@@ -334,7 +421,16 @@ mod tests {
                 records: &data.current.records,
             },
             None,
-            |_, _| None,
+            |scenario, variant| calculated.get(&(scenario.to_owned(), variant.to_owned())),
+            // The desktop holds the same finished ensembles in memory.
+            |scenario, variant| {
+                stored
+                    .iter()
+                    .find(|s| s.scenario_sha256 == scenario && s.variant == variant)
+                    .map_or(EnsembleInput::None, |s| {
+                        EnsembleInput::Ready(std::sync::Arc::new(s.ensemble.clone()))
+                    })
+            },
             ReportContext {
                 study_name: study_name_from_path(Some(&file)),
                 sweep: None,
@@ -360,7 +456,15 @@ mod tests {
             faris_report::export_study(&from_cli, &a).unwrap(),
             faris_report::export_study(&from_app, &b).unwrap(),
         );
+        assert!(
+            from_cli
+                .arrangements
+                .iter()
+                .any(|a| matches!(a.ensemble, EnsembleInput::Ready(_)))
+        );
         for csv in [
+            "history-ensemble-samples",
+            "history-ensemble-summary",
             "histories",
             "comparison",
             "differences",
@@ -370,6 +474,7 @@ mod tests {
         ] {
             let name = format!("data/{csv}.csv");
             let read = |folder: &Path| std::fs::read(folder.join(&name));
+            assert!(read(&a_out.folder).is_ok(), "{name}");
             assert_eq!(read(&a_out.folder).ok(), read(&b_out.folder).ok(), "{name}");
         }
         let (mut left, mut right) = (

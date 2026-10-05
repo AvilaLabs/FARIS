@@ -319,7 +319,7 @@ pub struct SampleOutcome {
 
 impl SampleOutcome {
     /// Every numeric output by name; replacement counts are `replacements:<id>`.
-    fn scalar_outputs(&self) -> BTreeMap<String, f64> {
+    pub fn scalar_outputs(&self) -> BTreeMap<String, f64> {
         let mut out = BTreeMap::new();
         out.insert("full_power_time_s".into(), self.full_power_time_s);
         out.insert("terminal_time_s".into(), self.terminal_time_s);
@@ -637,6 +637,22 @@ fn outcome_of(
     }
 }
 
+/// The nominal outcome of an already calculated history, in the same form as
+/// the ensemble's own nominal sample (index 0, no draws), so a display can set
+/// the nominal value beside an ensemble range or without one.
+pub fn nominal_sample(history: &HistoryResult) -> Option<SampleOutcome> {
+    if history.snapshots.is_empty() {
+        return None;
+    }
+    let rates = &history.driving_rates;
+    let values: Vec<f64> = rates
+        .covariance_entries()
+        .iter()
+        .map(|e| e.1.mean)
+        .collect();
+    Some(outcome_of(0, &values, rates, 0, history))
+}
+
 fn time_grid(horizon_s: f64) -> Vec<f64> {
     let last = (SERIES_GRID_POINTS - 1) as f64;
     (0..SERIES_GRID_POINTS)
@@ -658,6 +674,26 @@ fn series_of(run: &HistoryResult, grid: &[f64]) -> Series {
             snapshots
                 .iter()
                 .map(|s| s.as_ref().map(|s| s.component_fluence_n_m2[id]))
+                .collect(),
+        );
+    }
+    // The exposure toward the region limits, for components that have them.
+    let limited: BTreeSet<&str> = run
+        .assumptions
+        .service_limits
+        .iter()
+        .filter(|l| l.metric == crate::history::FAST_FLUX_REGION_METRIC)
+        .map(|l| l.component_id.as_str())
+        .collect();
+    for id in limited {
+        series.insert(
+            format!("limit_fluence_n_m2:{id}"),
+            snapshots
+                .iter()
+                .map(|s| {
+                    s.as_ref()
+                        .and_then(|s| crate::history::limit_exposure_n_m2(&run.assumptions, id, s))
+                })
                 .collect(),
         );
     }

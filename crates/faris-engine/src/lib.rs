@@ -4,9 +4,12 @@ pub mod brief;
 pub mod case_archive;
 pub mod comparison;
 pub mod core_evidence;
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures;
 pub mod geometry;
 pub mod history;
 pub mod history_ensemble;
+pub mod history_uncertainty;
 pub mod jobs;
 pub mod mesh;
 pub mod presets;

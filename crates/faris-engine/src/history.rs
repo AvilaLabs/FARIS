@@ -715,10 +715,16 @@ struct ProductionInterval {
 
 pub const HISTORY_PROCESSING_MODEL_ID: &str = "continuous-delayed-release-v2";
 
-fn production_rate_at(intervals: &VecDeque<ProductionInterval>, time_s: f64) -> f64 {
+// Release windows are compared as `start + delay` and `end + delay` against the
+// ledger clock everywhere: rate lookup, pruning and step boundaries. Comparing
+// `time - delay` against `end` instead rounds differently at late times
+// (~1e8 s), so a window could be treated as open by the rate lookup after the
+// step bound had already passed it, releasing a full step of tritium that was
+// no longer in process.
+fn release_rate_at(intervals: &VecDeque<ProductionInterval>, delay_s: f64, time_s: f64) -> f64 {
     intervals
         .front()
-        .filter(|i| i.start_s <= time_s && time_s < i.end_s)
+        .filter(|i| i.start_s + delay_s <= time_s + 1e-9 && i.end_s + delay_s > time_s + 1e-9)
         .map_or(0.0, |i| i.rate_kg_s)
 }
 
@@ -727,8 +733,10 @@ fn prune_production_intervals(
     time_s: f64,
     delay_s: f64,
 ) {
-    let cutoff = time_s - delay_s;
-    while intervals.front().is_some_and(|i| i.end_s <= cutoff + 1e-9) {
+    while intervals
+        .front()
+        .is_some_and(|i| i.end_s + delay_s <= time_s + 1e-9)
+    {
         intervals.pop_front();
     }
 }
@@ -799,6 +807,34 @@ fn limit_flux_mean(rates: &TransportDrivingRates, limit: &ServiceLimit) -> f64 {
     } else {
         rates.component_average_flux_n_m2_s[&limit.component_id].mean
     }
+}
+
+/// The fluence a component has accumulated toward its service limits, as one
+/// number to plot against the lowest limit. A component with fast-flux region
+/// limits has one track per region; the value is the highest of them, each
+/// scaled to the lowest limit (equal to the track itself when the limits
+/// agree). Any other component reports its energy-integrated fluence.
+pub fn limit_exposure_n_m2(
+    assumptions: &OperatingHistoryAssumptions,
+    component: &str,
+    snapshot: &HistorySnapshot,
+) -> Option<f64> {
+    let tracks: Vec<&ServiceLimit> = assumptions
+        .service_limits
+        .iter()
+        .filter(|l| {
+            l.component_id == component
+                && l.metric == FAST_FLUX_REGION_METRIC
+                && snapshot.limit_fluence_n_m2.contains_key(&l.response_id)
+        })
+        .collect();
+    let Some(lowest) = tracks.iter().map(|l| l.limit).reduce(f64::min) else {
+        return snapshot.component_fluence_n_m2.get(component).copied();
+    };
+    tracks
+        .iter()
+        .map(|l| snapshot.limit_fluence_n_m2[&l.response_id] * lowest / l.limit)
+        .reduce(f64::max)
 }
 
 fn limit_fluence(state: &ComponentState, limit: &ServiceLimit) -> f64 {
@@ -1348,7 +1384,7 @@ pub fn run_operating_history_cancellable(
         let released_h3_rate = if assumptions.processing_delay_s == 0.0 {
             breeder_h3_rate * requested
         } else {
-            production_rate_at(&production_intervals, time - assumptions.processing_delay_s)
+            release_rate_at(&production_intervals, assumptions.processing_delay_s, time)
                 * decay_factor(lambda, assumptions.processing_delay_s)
         };
         let recovered_inflow = released_h3_rate * assumptions.recovery_fraction;
@@ -2083,8 +2119,8 @@ mod tests {
                 rate_kg_s: 2.0,
             },
         ]);
-        assert_eq!(production_rate_at(&intervals, 1.0), 1.0);
-        assert_eq!(production_rate_at(&intervals, 3.0), 0.0);
+        assert_eq!(release_rate_at(&intervals, 3.0, 4.0), 1.0);
+        assert_eq!(release_rate_at(&intervals, 3.0, 6.0), 0.0);
         assert_eq!(
             next_production_release_boundary(&intervals, 3.0, 0.0),
             Some(3.0)
@@ -2096,12 +2132,67 @@ mod tests {
         let mut pruned = intervals.clone();
         prune_production_intervals(&mut pruned, 6.0, 3.0);
         assert_eq!(pruned.len(), 1);
-        assert_eq!(production_rate_at(&pruned, 3.0), 0.0);
+        assert_eq!(release_rate_at(&pruned, 3.0, 6.0), 0.0);
         assert_eq!(
             next_production_release_boundary(&pruned, 3.0, 6.0),
             Some(8.0)
         );
         assert!(add_production_interval(&mut pruned, 6.5, 8.0, 3.0).is_err());
+    }
+
+    // Verifies: VAL-014
+    #[test]
+    fn release_window_closes_at_the_step_bound_despite_rounding() {
+        // end + delay rounds down to a clock value whose `time - delay` is still
+        // below end; the window must nevertheless be closed at that clock value.
+        let end = 134_181_213.953_541_95;
+        let delay = 86_400.0;
+        let time = end + delay;
+        assert!(time - delay < end);
+        let intervals = VecDeque::from([ProductionInterval {
+            start_s: 128_822_400.0,
+            end_s: end,
+            rate_kg_s: 1.0e-6,
+        }]);
+        assert_eq!(release_rate_at(&intervals, delay, time), 0.0);
+        assert_eq!(
+            next_production_release_boundary(&intervals, delay, time),
+            None
+        );
+        let mut pruned = intervals.clone();
+        prune_production_intervals(&mut pruned, time, delay);
+        assert!(pruned.is_empty());
+    }
+
+    // Verifies: VAL-014
+    #[test]
+    fn demountable_history_with_perturbed_rates_conserves_tritium() {
+        // One ensemble draw that tripped the mass-balance check before the
+        // release-window comparisons were made consistent.
+        let assumptions: OperatingHistoryAssumptions = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/demountable-magnet-assumptions.json"
+        )))
+        .unwrap();
+        let rates: TransportDrivingRates = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/history-release-rounding-rates.json"
+        )))
+        .unwrap();
+        for step in [600.0, 3600.0] {
+            let mut a = assumptions.clone();
+            a.maximum_step_s = step;
+            let run = run_operating_history(&a, &rates).unwrap();
+            let worst = run
+                .snapshots
+                .iter()
+                .map(|s| s.mass_balance_residual_kg.abs())
+                .fold(0.0, f64::max);
+            assert!(
+                worst <= run.mass_balance_tolerance_kg,
+                "step {step}: {worst}"
+            );
+        }
     }
 
     #[test]
@@ -2455,5 +2546,64 @@ mod tests {
         );
         r.region_flux_n_m2_s.clear();
         assert_eq!(r.covariance_entries().len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod exposure_tests {
+    use super::*;
+    use crate::fixtures::{assumptions, rates_without_covariance};
+
+    fn limit(component: &str, response: &str, metric: &str, value: f64) -> ServiceLimit {
+        ServiceLimit {
+            component_id: component.into(),
+            class: ComponentClass::Replaceable,
+            response_id: response.into(),
+            metric: metric.into(),
+            unit: "neutrons/m\u{b2}".into(),
+            limit: value,
+            replacement_duration_s: Some(1.0),
+            provenance: "test".into(),
+        }
+    }
+
+    fn snapshot(tracks: &[(&str, f64)], legacy: f64) -> HistorySnapshot {
+        let history =
+            run_operating_history(&assumptions(), &rates_without_covariance(0.06, 'a')).unwrap();
+        let mut s = history.snapshots[0].clone();
+        s.component_fluence_n_m2.insert("magnets".into(), legacy);
+        s.limit_fluence_n_m2 = tracks.iter().map(|(k, v)| ((*k).into(), *v)).collect();
+        s
+    }
+
+    fn with_limits(limits: Vec<ServiceLimit>) -> OperatingHistoryAssumptions {
+        let mut a = assumptions();
+        a.service_limits = limits;
+        a
+    }
+
+    #[test]
+    fn exposure_is_the_highest_region_track_scaled_to_the_lowest_limit() {
+        let region = FAST_FLUX_REGION_METRIC;
+        let a = with_limits(vec![
+            limit("magnets", "r-in", region, 2.0e22),
+            limit("magnets", "r-port", region, 4.0e22),
+        ]);
+        let s = snapshot(&[("r-in", 1.0e22), ("r-port", 3.0e22)], 9.0e99);
+        // r-in is at 0.5 of its limit, r-port at 0.75 of its: 0.75 of the lowest.
+        let v = limit_exposure_n_m2(&a, "magnets", &s).unwrap();
+        assert!((v - 1.5e22).abs() < 1.0e7, "{v}");
+    }
+
+    #[test]
+    fn a_component_without_region_limits_reports_its_energy_integrated_fluence() {
+        let a = with_limits(vec![limit(
+            "magnets",
+            "magnets-flux",
+            ENERGY_INTEGRATED_FLUX_METRIC,
+            2.0e22,
+        )]);
+        let s = snapshot(&[], 7.0e21);
+        assert_eq!(limit_exposure_n_m2(&a, "magnets", &s), Some(7.0e21));
     }
 }

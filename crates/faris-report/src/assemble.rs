@@ -2,7 +2,7 @@
 //! histories. The desktop and `faris study-file export` both call
 //! `assemble_report_input`, so the two exports cannot differ in what they pick.
 
-use crate::{ArrangementInput, ReportInput, Sampling, StudyFileStamp, SweepInput};
+use crate::{ArrangementInput, EnsembleInput, ReportInput, Sampling, StudyFileStamp, SweepInput};
 use faris_engine::{
     DemoManifest, GeometryVolumeStatus,
     brief::{Arrangement, VARIANTS, transport_summary},
@@ -36,12 +36,15 @@ pub struct ReportContext {
 /// Build the export input. `current` and `paired` are the arrangements as the
 /// desktop holds them; the ported case is always reported first, as in the
 /// compare view. `history` finds a calculated history by scenario SHA-256 and
-/// variant id. The 3D view is never captured here; callers that have a
+/// variant id, and `ensemble` finds the stored or in-memory ensemble the same
+/// way (`EnsembleInput::None` when there is none; none is ever calculated
+/// here). The 3D view is never captured here; callers that have a
 /// capture set `view_image` afterwards.
 pub fn assemble_report_input<'a>(
     current: LoadedArrangement<'a>,
     paired: Option<LoadedArrangement<'a>>,
     history: impl Fn(&str, &str) -> Option<&'a HistoryResult>,
+    ensemble: impl Fn(&str, &str) -> EnsembleInput,
     context: ReportContext,
 ) -> ReportInput {
     let (port, control) = match paired {
@@ -69,6 +72,9 @@ pub fn assemble_report_input<'a>(
                 history: record
                     .and_then(|r| history(&r.scenario_sha256, variant))
                     .cloned(),
+                ensemble: record.map_or(EnsembleInput::None, |r| {
+                    ensemble(&r.scenario_sha256, variant)
+                }),
             });
         }
     }

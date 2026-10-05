@@ -1,6 +1,9 @@
 //! Native presentation of the shared Rust history engine. No UI-owned physics.
 
-use crate::badge::{self, Kind};
+use crate::{
+    badge::{self, Kind},
+    uncertainty::{SAMPLE_CHOICES, Status, Uncertainty},
+};
 use eframe::egui;
 use faris_engine::{
     brief::{Arrangement, decimate, limits_differ as differs, magnet_limit},
@@ -10,7 +13,13 @@ use faris_engine::{
     },
     history::{
         EventKind, HistoryEvent, HistoryResult, HistorySnapshot, JULIAN_YEAR_SECONDS,
-        TransportDrivingRates, run_operating_history_cancellable,
+        TransportDrivingRates, limit_exposure_n_m2, run_operating_history_cancellable,
+    },
+    history_ensemble::{EnsembleStatus, HistoryEnsemble, SeriesBand},
+    history_uncertainty::{
+        BAND_FLUENCE_MAGNETS, BAND_LIMIT_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM,
+        SCOPE_DETAIL, SCOPE_LINE, UncertaintyRow, band_coverage_note, history_rows,
+        not_evaluated_text, progress_text,
     },
     jobs::Cancellation,
     presets::{operating_presets, resolve_view, service_limit},
@@ -23,6 +32,8 @@ use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
     time::{Duration, Instant},
 };
+
+mod uncertainty_view;
 
 /// Quiet period after the last what-if edit before all histories recalculate.
 const DEBOUNCE: Duration = Duration::from_millis(350);
@@ -57,9 +68,9 @@ enum Plot {
 }
 
 impl Plot {
-    fn value(self, s: &HistorySnapshot) -> Option<f64> {
+    fn value(self, history: &HistoryResult, s: &HistorySnapshot) -> Option<f64> {
         match self {
-            Plot::MagnetFluence => s.component_fluence_n_m2.get("magnets").copied(),
+            Plot::MagnetFluence => limit_exposure_n_m2(&history.assumptions, "magnets", s),
             Plot::Electricity => s.cumulative_net_electricity_mwh.map(|v| v / 1e6),
             Plot::Tritium => Some(s.available_tritium_kg),
             Plot::FullPower => Some(s.cumulative_full_power_seconds / JULIAN_YEAR_SECONDS),
@@ -84,9 +95,19 @@ impl Plot {
         .into_iter()
         .find(|plot| plot.name() == name)
     }
+    /// The ensemble series that bands this plot, and the factor from the
+    /// engine's unit to the plotted one. Full-power time has no band series.
+    fn band(self) -> Option<(&'static str, f64)> {
+        match self {
+            Plot::MagnetFluence => Some((BAND_FLUENCE_MAGNETS, 1.0)),
+            Plot::Electricity => Some((BAND_NET_ELECTRICITY, 1.0e-6)),
+            Plot::Tritium => Some((BAND_TRITIUM, 1.0)),
+            Plot::FullPower => None,
+        }
+    }
     fn title(self) -> &'static str {
         match self {
-            Plot::MagnetFluence => "Magnet fluence · component-average, n/m²",
+            Plot::MagnetFluence => "Magnet fluence toward its service limit, n/m²",
             Plot::Electricity => "Cumulative signed net electricity · TWh",
             Plot::Tritium => "Usable tritium inventory · kg",
             Plot::FullPower => "Cumulative full-power time · years",
@@ -151,6 +172,27 @@ pub struct HistoryPanel {
     hidden: BTreeSet<String>,
     cache: BTreeMap<String, CachedSeries>,
     cache_revision: u64,
+    uncertainty: Uncertainty,
+    /// The arrangement drawn in 3D; its ensemble is calculated first.
+    selected: String,
+}
+
+/// The ensemble band of `plot` in an evaluated ensemble: the time grid and the
+/// band, with the factor into the plotted unit.
+fn plot_band(plot: Plot, ensemble: &HistoryEnsemble) -> Option<(&[f64], &SeriesBand, f64)> {
+    let summary = ensemble.summary.as_ref()?;
+    let (mut name, scale) = plot.band()?;
+    // A magnet with region limits plots its exposure toward them.
+    if plot == Plot::MagnetFluence
+        && summary
+            .series_bands
+            .iter()
+            .any(|b| b.name == BAND_LIMIT_FLUENCE_MAGNETS)
+    {
+        name = BAND_LIMIT_FLUENCE_MAGNETS;
+    }
+    let band = summary.series_bands.iter().find(|b| b.name == name)?;
+    Some((&summary.time_grid_s, band, scale))
 }
 
 pub fn key(scenario: &str, variant: &str) -> String {
@@ -203,6 +245,8 @@ impl HistoryPanel {
             hidden: BTreeSet::new(),
             cache: BTreeMap::new(),
             cache_revision: 0,
+            uncertainty: Uncertainty::default(),
+            selected: String::new(),
         })
     }
 
@@ -292,6 +336,7 @@ impl HistoryPanel {
             "sensitivity_transport_matches": sensitivity_transport_matches,
             "sensitivity_transport_artifact_sha256": sensitivity.map(|(_, transport, _)| transport.as_str()),
             "sensitivity_result_sha256": sensitivity_result_sha256,
+            "uncertainty": self.interface_uncertainty(&identity),
         })
     }
     pub fn is_pending(&self) -> bool {
@@ -384,6 +429,7 @@ impl HistoryPanel {
         if let Some(pending) = &self.pending {
             pending.cancellation.cancel();
         }
+        self.uncertainty.invalidate();
     }
 
     pub fn revision(&self) -> u64 {
@@ -714,6 +760,11 @@ impl HistoryPanel {
         ui.strong("What if…");
         ui.small("Authored assumptions: drag to recalculate every history.");
 
+        let magnets_before = a
+            .service_limits
+            .iter()
+            .find(|l| l.component_id == "magnets")
+            .map(|l| (l.limit, l.replacement_duration_s));
         let base_magnet = base.and_then(|b| service_limit(b, "magnets"));
         let base_magnet_swap = base.and_then(|b| replacement_days(b, "magnets"));
         if let Some(limit) = a
@@ -784,6 +835,25 @@ impl HistoryPanel {
             }
         } else {
             ui.small("This preset declares no magnet service limit.");
+        }
+        // The magnet may carry one limit per named region: one slider moves
+        // them all, and they must share the replacement duration.
+        if let Some(first) = magnets_before
+            && let Some(now) = a
+                .service_limits
+                .iter()
+                .find(|l| l.component_id == "magnets")
+                .map(|l| (l.limit, l.replacement_duration_s))
+            && now != first
+        {
+            for limit in a
+                .service_limits
+                .iter_mut()
+                .filter(|l| l.component_id == "magnets")
+            {
+                limit.limit = now.0;
+                limit.replacement_duration_s = now.1;
+            }
         }
 
         let base_blanket = base.and_then(|b| service_limit(b, "blanket"));
@@ -874,6 +944,8 @@ impl HistoryPanel {
             if let Some(pending) = &self.pending {
                 pending.cancellation.cancel();
             }
+            // Any edit that invalidates the history also stops its ensemble.
+            self.uncertainty.invalidate();
             match self.assumptions.as_ref().map(|a| a.validate()) {
                 Some(Err(error)) => {
                     self.validation = Some(error);
@@ -964,7 +1036,10 @@ impl HistoryPanel {
                 let raw: Vec<[f64; 2]> = history
                     .snapshots
                     .iter()
-                    .filter_map(|s| plot.value(s).map(|v| [s.time_s / JULIAN_YEAR_SECONDS, v]))
+                    .filter_map(|s| {
+                        plot.value(history, s)
+                            .map(|v| [s.time_s / JULIAN_YEAR_SECONDS, v])
+                    })
                     .collect();
                 decimate(raw, MAX_PLOT_POINTS)
             });
@@ -1000,6 +1075,7 @@ impl HistoryPanel {
             if self.pending.is_some() || self.debounce.is_some() {
                 ui.spinner();
             }
+            self.uncertainty_header(ui, scenario, variant);
             if self.edited {
                 ui.colored_label(egui::Color32::YELLOW, "Earlier history inputs")
                     .on_hover_text("Displayed history belongs to earlier transport or operating inputs. Recalculation applies the current inputs.");
@@ -1261,6 +1337,11 @@ impl HistoryPanel {
         if let Some((value, _)) = &limit {
             hi = hi.max(*value * 1.12);
         }
+        // The uncertainty bands may reach beyond every nominal curve.
+        if let Some((band_lo, band_hi)) = self.band_extent(plot) {
+            lo = lo.min(band_lo);
+            hi = hi.max(band_hi);
+        }
         if !hi.is_finite() || hi <= lo {
             hi = lo + 1.0;
         }
@@ -1325,7 +1406,7 @@ impl HistoryPanel {
             font.clone(),
             text_color,
         );
-        painter.text(
+        let title_rect = painter.text(
             outer.left_top() + egui::vec2(10.0, 6.0),
             egui::Align2::LEFT_TOP,
             plot.title(),
@@ -1371,6 +1452,16 @@ impl HistoryPanel {
             .filter(|s| !self.hidden.contains(&s.key))
             .collect();
         ordered.sort_by_key(|s| s.key == active);
+
+        // Shaded P5-P95 uncertainty bands under the nominal curves.
+        for s in &ordered {
+            let color = arrangement_color(s.port, s.breeder).gamma_multiply(if s.key == active {
+                0.30
+            } else {
+                0.18
+            });
+            self.draw_band(&painter, &s.key, plot, color, &map_x, &map_y);
+        }
         for s in &ordered {
             let Some(points) = self.cache.get(&s.key).and_then(|c| c.points.get(&plot)) else {
                 continue;
@@ -1436,10 +1527,15 @@ impl HistoryPanel {
             ],
             egui::Stroke::new(1.5, egui::Color32::from_gray(235)),
         );
+        let label = format!("{:.1} y", *year);
+        let label_size = painter
+            .layout_no_wrap(label.clone(), font.clone(), egui::Color32::WHITE)
+            .size();
+        let label_rect = cursor_label_rect(outer, area, title_rect, cursor_x, label_size);
         painter.text(
-            egui::pos2(cursor_x, area.top() - 2.0),
-            egui::Align2::CENTER_BOTTOM,
-            format!("{:.1} y", *year),
+            label_rect.left_top(),
+            egui::Align2::LEFT_TOP,
+            label,
             font.clone(),
             egui::Color32::from_gray(235),
         );
@@ -1448,8 +1544,7 @@ impl HistoryPanel {
             if let Some(v) = self
                 .results
                 .get(&s.key)
-                .and_then(|h| snapshot_at(h, t_cursor))
-                .and_then(|snap| plot.value(snap))
+                .and_then(|h| snapshot_at(h, t_cursor).and_then(|snap| plot.value(h, snap)))
             {
                 painter.circle_filled(
                     egui::pos2(cursor_x, map_y(v)),
@@ -1478,13 +1573,13 @@ impl HistoryPanel {
                     let value = self
                         .results
                         .get(&s.key)
-                        .and_then(|h| snapshot_at(h, t))
-                        .and_then(|snap| plot.value(snap));
+                        .and_then(|h| snapshot_at(h, t).and_then(|snap| plot.value(h, snap)));
                     ui.horizontal(|ui| {
                         ui.colored_label(color, if s.port { "—" } else { "- -" });
                         ui.label(arrangement_label(s.port, s.breeder));
                         ui.strong(value.map_or("—".to_string(), |v| plot.format(v)));
                     });
+                    self.band_hover(ui, &s.key, plot, hover_year, color);
                     let spans = self
                         .cache
                         .get(&s.key)
@@ -1549,18 +1644,25 @@ impl HistoryPanel {
             ));
         }
         if let Some(history) = self.result(scenario, variant) {
-            if let Some(limit) = history
+            let limits: Vec<_> = history
                 .assumptions
                 .service_limits
                 .iter()
-                .find(|l| l.component_id == component)
-            {
+                .filter(|l| l.component_id == component)
+                .collect();
+            for limit in &limits {
+                let region = limit
+                    .response_id
+                    .strip_prefix(&format!("{component}-"))
+                    .filter(|_| limits.len() > 1)
+                    .map_or(String::new(), |r| format!(" ({r})"));
                 ui.label(format!(
-                    "Authored {:?} trigger: {:.3e} {}",
+                    "Authored {:?} trigger{region}: {:.3e} {}",
                     limit.class, limit.limit, limit.unit
                 ));
                 ui.small(&limit.provenance);
-            } else {
+            }
+            if limits.is_empty() {
                 ui.weak("No service trigger declared for this component.");
             }
             ui.collapsing("Operating events", |ui| {
@@ -1578,7 +1680,7 @@ impl HistoryPanel {
                     ui.small(&event.note);
                 }
             });
-            ui.small("Conditional scenario history; sampling and model uncertainty are not propagated as a qualified lifetime bound.");
+            ui.small("Conditional scenario history. Transport sampling uncertainty is shown separately; model uncertainty is not propagated. Not a qualified lifetime bound.");
         }
     }
 }
@@ -1814,9 +1916,44 @@ fn fmt_tick(plot: Plot, v: f64, step: f64) -> String {
     format!("{v:.decimals$}")
 }
 
+/// Where the cursor-year label goes: centred on the cursor above the plot
+/// area, shifted sideways to stay inside `outer`; if that would touch the
+/// title it drops just inside the plot area instead.
+fn cursor_label_rect(
+    outer: egui::Rect,
+    area: egui::Rect,
+    title: egui::Rect,
+    cursor_x: f32,
+    size: egui::Vec2,
+) -> egui::Rect {
+    let max_left = (outer.right() - size.x).max(outer.left());
+    let left = (cursor_x - size.x / 2.0).clamp(outer.left(), max_left);
+    let above = egui::Rect::from_min_size(egui::pos2(left, area.top() - 2.0 - size.y), size);
+    if above.top() >= outer.top() && !above.intersects(title.expand(2.0)) {
+        return above;
+    }
+    egui::Rect::from_min_size(egui::pos2(left, area.top() + 2.0), size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cursor_label_never_overlaps_title_and_stays_inside() {
+        let outer = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(600.0, 300.0));
+        let area = egui::Rect::from_min_max(egui::pos2(78.0, 26.0), egui::pos2(582.0, 266.0));
+        let title = egui::Rect::from_min_size(egui::pos2(10.0, 6.0), egui::vec2(260.0, 14.0));
+        let size = egui::vec2(28.0, 12.0);
+        for step in 0..=100 {
+            let x = area.left() + area.width() * step as f32 / 100.0;
+            let r = cursor_label_rect(outer, area, title, x, size);
+            assert!(!r.intersects(title), "overlaps title at x={x}");
+            assert!(outer.contains_rect(r), "outside plot at x={x}");
+        }
+        let at_zero = cursor_label_rect(outer, area, title, area.left(), size);
+        assert!(at_zero.top() >= area.top());
+    }
 
     #[test]
     fn scientific_notation_uses_superscripts() {

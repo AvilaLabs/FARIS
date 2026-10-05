@@ -45,12 +45,71 @@ impl ChartSvg {
     }
 }
 
-/// Magnet-fluence curve of one arrangement and its swap outages in years.
+/// A P5-P95 band on a common time grid. A point without a value breaks it.
+#[derive(Clone, Debug)]
+pub struct Band {
+    pub years: Vec<f64>,
+    pub low: Vec<Option<f64>>,
+    pub high: Vec<Option<f64>>,
+}
+
+impl Band {
+    /// The largest and smallest value the band reaches, if it has any.
+    fn extent(&self) -> Option<(f64, f64)> {
+        let values = self.low.iter().chain(&self.high).flatten();
+        values.fold(None, |acc, v| {
+            Some(acc.map_or((*v, *v), |(lo, hi): (f64, f64)| (lo.min(*v), hi.max(*v))))
+        })
+    }
+
+    /// One closed shape per run of consecutive points that have values.
+    fn shapes(&self, xs: &Scale, ys: &Scale) -> Vec<Vec<(f32, f32)>> {
+        let mut shapes = Vec::new();
+        let mut run: Vec<usize> = Vec::new();
+        let n = self.years.len().min(self.low.len()).min(self.high.len());
+        let mut close = |run: &mut Vec<usize>| {
+            if run.len() >= 2 {
+                let mut shape: Vec<(f32, f32)> = run
+                    .iter()
+                    .filter_map(|k| Some((xs.px(self.years[*k]), ys.px(self.low[*k]?))))
+                    .collect();
+                shape.extend(
+                    run.iter()
+                        .rev()
+                        .filter_map(|k| Some((xs.px(self.years[*k]), ys.px(self.high[*k]?)))),
+                );
+                shapes.push(shape);
+            }
+            run.clear();
+        };
+        for k in 0..n {
+            if self.low[k].is_some() && self.high[k].is_some() {
+                run.push(k);
+            } else {
+                close(&mut run);
+            }
+        }
+        close(&mut run);
+        shapes
+    }
+}
+
+/// Magnet-fluence curve of one arrangement and its swap outages in years, with
+/// the P5-P95 band of its ensemble when one was calculated.
 #[derive(Clone, Debug)]
 pub struct TimelineSeries {
     pub arrangement: Arrangement,
     pub points: Vec<[f64; 2]>,
     pub swap_spans_years: Vec<(f64, f64)>,
+    pub band: Option<Band>,
+}
+
+/// A nominal curve with its band, for the tritium and electricity charts.
+#[derive(Clone, Debug)]
+pub struct BandSeries {
+    pub arrangement: Arrangement,
+    pub nominal: Vec<[f64; 2]>,
+    pub band: Band,
 }
 
 /// The service-limit line of the timeline.
@@ -62,6 +121,8 @@ pub struct LimitLine {
 
 pub const TIMELINE_SIZE: (f32, f32) = (540.0, 250.0);
 pub const SWEEP_SIZE: (f32, f32) = (178.0, 176.0);
+/// Height of the tritium and net-electricity band charts.
+pub const BAND_CHART_HEIGHT: f32 = 150.0;
 
 /// Swatch width, how to draw the swatch at (x, baseline y), and the label.
 type LegendEntry = (f32, Box<dyn Fn(&mut Svg, f32, f32)>, String);
@@ -200,6 +261,15 @@ pub fn timeline_chart(
         }),
         "magnet swap outage".into(),
     ));
+    if series.iter().any(|s| s.band.is_some()) {
+        entries.push((
+            14.0,
+            Box::new(|svg: &mut Svg, x: f32, y: f32| {
+                svg.rect(x, y - 7.0, 9.0, 8.0, Some(([232, 104, 52], 0.30)), None);
+            }),
+            "P5-P95 band · transport sampling only".into(),
+        ));
+    }
     let mut x = 4.0;
     let mut y = sub + 12.0;
     for (swatch_w, draw, label) in &entries {
@@ -217,7 +287,12 @@ pub fn timeline_chart(
     let (pl, pr, pt, pb) = (left, w - right, top, h - bottom);
     let data_max = series
         .iter()
-        .flat_map(|s| s.points.iter().map(|p| p[1]))
+        .flat_map(|s| {
+            s.points
+                .iter()
+                .map(|p| p[1])
+                .chain(s.band.as_ref().and_then(Band::extent).map(|e| e.1))
+        })
         .fold(0.0, f64::max);
     let top_value = limit.map_or(0.0, |l| l.value * 1.12).max(data_max * 1.05);
     let (ticks, _) = nice_ticks(0.0, top_value, 5);
@@ -272,6 +347,14 @@ pub fn timeline_chart(
             );
         }
     }
+    // Bands under the curves.
+    for s in series {
+        if let Some(band) = &s.band {
+            for shape in band.shapes(&xs, &ys) {
+                svg.polygon(&shape, s.arrangement.rgb(), 0.22);
+            }
+        }
+    }
     if let Some(l) = limit {
         let ly = ys.px(l.value);
         let color = darken(StatusKind::Literature.rgb(), 0.62);
@@ -315,6 +398,155 @@ pub fn timeline_chart(
     );
     ChartSvg {
         name: "magnet-fluence-timeline",
+        width: w,
+        height: h,
+        svg: svg.finish(),
+    }
+}
+
+/// A quantity over the horizon for each arrangement: the nominal curve and its
+/// shaded P5-P95 band from the history ensemble.
+pub fn band_chart(
+    name: &'static str,
+    title: &str,
+    y_label: &str,
+    series: &[BandSeries],
+    horizon_years: f64,
+    height: f32,
+) -> ChartSvg {
+    let (w, h) = (TIMELINE_SIZE.0, height);
+    if series.iter().all(|s| s.nominal.is_empty()) {
+        return placeholder(
+            name,
+            (w, h),
+            title,
+            "No calculated operating history is available, so there is no curve to draw.",
+        );
+    }
+    let mut svg = Svg::new(w, h);
+    let sub = title_block(
+        &mut svg,
+        4.0,
+        title,
+        &[
+            "line: nominal history · shaded: P5-P95 of the Monte Carlo ensemble, transport sampling uncertainty only",
+        ],
+    );
+    let mut x = 4.0;
+    let mut y = sub + 12.0;
+    for s in series {
+        let color = s.arrangement.rgb();
+        let dashed = !s.arrangement.port;
+        let label = s.arrangement.label();
+        let lw = text_width(FontKind::Body, label, LABEL);
+        if x + 22.0 + lw > w - 4.0 && x > 4.0 {
+            x = 4.0;
+            y += 10.5;
+        }
+        svg.line(
+            x,
+            y - 2.4,
+            x + 17.0,
+            y - 2.4,
+            color,
+            1.8,
+            dashed.then_some("4 2.5"),
+        );
+        svg.text(x + 22.0, y, label, TextStyle::new(LABEL, INK));
+        x += 22.0 + lw + 12.0;
+    }
+    let (left, right, top, bottom) = (52.0, 12.0, y + 9.0, 32.0);
+    let (pl, pr, pt, pb) = (left, w - right, top, h - bottom);
+    let mut lo = 0.0_f64;
+    let mut hi = f64::MIN;
+    for s in series {
+        for p in &s.nominal {
+            lo = lo.min(p[1]);
+            hi = hi.max(p[1]);
+        }
+        if let Some((a, b)) = s.band.extent() {
+            lo = lo.min(a);
+            hi = hi.max(b);
+        }
+    }
+    if !hi.is_finite() || hi <= lo {
+        hi = lo + 1.0;
+    }
+    let (ticks, step) = nice_ticks(lo, hi, 5);
+    let y_lo = ticks.first().copied().unwrap_or(lo).min(lo);
+    let y_hi = ticks.last().copied().unwrap_or(hi).max(hi);
+    let ys = Scale {
+        lo: y_lo,
+        hi: y_hi,
+        log: false,
+        from_px: pb,
+        to_px: pt,
+    };
+    let xs = Scale {
+        lo: 0.0,
+        hi: horizon_years.max(1.0),
+        log: false,
+        from_px: pl,
+        to_px: pr,
+    };
+    for t in &ticks {
+        let ty = ys.px(*t);
+        svg.line(pl, ty, pr, ty, GRID, 0.6, None);
+        svg.text(
+            pl - 4.0,
+            ty + 2.4,
+            &format!("{:.*}", decimals(step), t),
+            TextStyle::new(TICK, MUTED).anchor(Anchor::End),
+        );
+    }
+    let (xticks, _) = nice_ticks(0.0, xs.hi, 6);
+    for t in &xticks {
+        let tx = xs.px(*t);
+        svg.line(tx, pt, tx, pb, GRID, 0.6, None);
+        svg.line(tx, pb, tx, pb + 3.0, AXIS, 0.8, None);
+        svg.text(
+            tx,
+            pb + 11.0,
+            &format!("{t:.0}"),
+            TextStyle::new(TICK, MUTED).anchor(Anchor::Middle),
+        );
+    }
+    for s in series {
+        for shape in s.band.shapes(&xs, &ys) {
+            svg.polygon(&shape, s.arrangement.rgb(), 0.22);
+        }
+    }
+    for s in series {
+        let pts: Vec<(f32, f32)> = s
+            .nominal
+            .iter()
+            .map(|p| (xs.px(p[0]), ys.px(p[1])))
+            .collect();
+        svg.polyline(
+            &pts,
+            s.arrangement.rgb(),
+            if s.arrangement.port { 1.5 } else { 1.3 },
+            (!s.arrangement.port).then_some("4 2.5"),
+        );
+    }
+    svg.line(pl, pb, pr, pb, AXIS, 0.9, None);
+    svg.line(pl, pt, pl, pb, AXIS, 0.9, None);
+    svg.text(
+        (pl + pr) / 2.0,
+        h - 5.0,
+        "Calendar year of operation",
+        TextStyle::new(LABEL, MUTED).anchor(Anchor::Middle),
+    );
+    svg.text(
+        10.0,
+        (pt + pb) / 2.0,
+        y_label,
+        TextStyle::new(LABEL, MUTED)
+            .anchor(Anchor::Middle)
+            .rotate(-90.0),
+    );
+    ChartSvg {
+        name,
         width: w,
         height: h,
         svg: svg.finish(),
@@ -766,6 +998,7 @@ mod tests {
                     .map(|i| [f64::from(i) * 0.3, (f64::from(i) % 25.0) * 1.0e21])
                     .collect(),
                 swap_spans_years: vec![(7.0, 7.3), (14.0, 14.3)],
+                band: None,
             })
             .collect();
         let chart = timeline_chart(
@@ -795,6 +1028,7 @@ mod tests {
                 arrangement: Arrangement::ORDER[0],
                 points: vec![[0.0, 0.0], [5.0, 1.0e22]],
                 swap_spans_years: vec![],
+                band: None,
             }],
             Some(LimitLine {
                 value: 1.0e25,

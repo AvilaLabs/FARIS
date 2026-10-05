@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 10 of 1408 requirements.
+Traced: 11 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -15,7 +15,7 @@ Traced: 10 of 1408 requirements.
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 0 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 0 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 0 |
-| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 0 |
+| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 1 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 1 |
 | [08-performance.md](08-performance.md) | 37 | 0 |
 | [09-usability.md](09-usability.md) | 71 | 0 |
@@ -38,6 +38,7 @@ Traced: 10 of 1408 requirements.
 
 | ID | Phase | Tests |
 | --- | --- | --- |
+| VAL-014 | F1 | `crates/faris-engine/src/history.rs::demountable_history_with_perturbed_rates_conserves_tritium`<br>`crates/faris-engine/src/history.rs::release_window_closes_at_the_step_bound_despite_rounding` |
 | UNC-011 | F2 | `crates/faris-engine/src/history_ensemble/tests.rs::driving_covariance_selects_scales_and_separates_volume_variance`<br>`crates/faris-engine/src/history_ensemble/tests.rs::missing_covariance_is_not_evaluated_with_exact_text` |
 | CFG-074 | F1 | `crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
 | PRV-040 | F1 | `crates/faris-study/src/tests.rs::packed_evidence_is_stored_and_restored`<br>`crates/faris-study/src/tests.rs::referenced_evidence_records_hashes_without_the_bytes` |
@@ -47,4 +48,4 @@ Traced: 10 of 1408 requirements.
 | REL-021 | F1 | `crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
 | SEC-002 | F1 | `crates/faris-study/src/tests.rs::evidence_paths_must_be_safe_relative_paths`<br>`crates/faris-study/src/tests.rs::tar_gz_refuses_traversal_links_duplicates_and_damage`<br>`crates/faris-study/src/tests.rs::unsafe_bundle_names_in_the_manifest_are_refused` |
 | SEC-004 | F1 | `crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
-| LEG-040 | F1 | `crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |
+| LEG-040 | F1 | `crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |

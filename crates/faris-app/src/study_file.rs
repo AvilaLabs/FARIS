@@ -171,6 +171,9 @@ struct OpenedStudy {
     sweep: Vec<PathBuf>,
     descriptors: Vec<PathBuf>,
     marker: Option<PathBuf>,
+    /// History ensembles stored in the file, offered to the history panel;
+    /// each is used only where its key equals the key of the loaded inputs.
+    ensembles: Vec<faris_study::StoredEnsemble>,
     workspace: tempfile::TempDir,
 }
 
@@ -320,6 +323,9 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
         .materialize(workspace.path(), Some(near))
         .map_err(|e| e.to_string())?;
     let view = reader.manifest.view.clone();
+    // Read through the hash check and parsed strictly: a stored ensemble the
+    // reader cannot interpret refuses the file like any other blob.
+    let ensembles = reader.ensembles().map_err(|e| e.to_string())?;
 
     let first = files.port.as_ref().or(files.control.as_ref());
     let second = files.port.as_ref().and(files.control.as_ref());
@@ -439,6 +445,7 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
             sweep: files.sweep,
             descriptors,
             marker,
+            ensembles,
             workspace,
         },
     ))
@@ -534,6 +541,7 @@ impl FarisApp {
         self.paired = session.control;
         self.transport = session.transport;
         self.history = session.history;
+        self.history.restore_ensembles(opened.ensembles);
         self.file.workspace = Some(opened.workspace);
         if !opened.sweep.is_empty() {
             let (paths, runs) = (opened.sweep.clone(), self.file.runs_directory.clone());
@@ -607,6 +615,8 @@ impl FarisApp {
         let mut draft = self.file.inputs.draft.clone();
         draft.view = view.clone();
         draft.pack_evidence = self.file.include_evidence && !draft.evidence.is_empty();
+        // Calculated ensembles go in as derived blobs under their input keys.
+        draft.ensembles = self.history.ensemble_drafts();
         let (sender, receiver) = mpsc::channel();
         let (target, context) = (path.clone(), ctx.clone());
         let spawned = std::thread::Builder::new()
