@@ -30,6 +30,11 @@ The first phase is the immediate focus. Later phases can overlap where their
 dependencies are satisfied; their detailed requirements will be written around
 concrete research questions and available validation evidence.
 
+The measurable targets each phase must meet, across physics, accuracy, performance,
+usability, accessibility, configurability, interoperability, reliability, security and
+quality, are in [requirements/](requirements/README.md). A phase gate is not passed while any
+of its requirements is provisional, unmet or unmeasured.
+
 | Phase | Result | Main dependencies |
 | --- | --- | --- |
 | F0 — Functional narrow demo | A real blanket/shield tradeoff study with transport fields, fuel/exposure/energy history, native 3D exploration, and the Core study experience | Complete the separate demo roadmap |

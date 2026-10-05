@@ -1,0 +1,121 @@
+# Configurability
+
+How people and sites change FARIS without editing code, and how FARIS keeps that safe: settings layers, validation, units, keybindings, layouts, numerical controls, data and adapter selection, administrator policy, schema versions and diffs. The rule behind the whole file is that there is no hidden configuration: anything that can change a number is visible, typed, documented and recorded with the result. Where numbers depend on hardware, see [the index](README.md#reference-hardware-and-models). Settings that change physics belong to the study; settings that change only appearance belong to the user.
+
+## Settings model and layers
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-001 | FARIS shall resolve every setting through four layers in a fixed order: built-in default, site policy, user, project (study), then a command-line or API override on top. | Precedence order is documented, and a table test of 5 layers × 20 settings gives the documented winner in 100 % of cases. Site-locked settings (CFG-062) cannot be overridden by any lower layer. | Precedence table test; lock test. | VS Code scopes user/workspace/folder [U]; Hydra override order [U] | F1 | No: no settings layer exists; one marker file under the config directory (tour completed) |
+| CFG-002 | FARIS shall show, for any setting, which layer supplied its effective value. | `faris config get <key> --show-origin` and a UI badge name the layer and file for 100 % of settings. | Enumeration test over the registry. | bluemira ParameterFrame stores value, unit and source per parameter [U] | F1 | No |
+| CFG-003 | Every setting shall live in one machine-readable registry with a stable key. | 100 % of settings in the registry; a lint fails the build if code reads a setting that is not registered. Keys never change meaning once released (CFG-072). | Registry lint in CI. | FARIS choice | F1 | No |
+| CFG-004 | Each setting shall declare a type, unit, valid range, default, effect class and one-sentence description. | 100 % of registry entries have all six fields; descriptions ≤ 200 characters; docs build fails on a gap. | Registry completeness test. | JSON Schema 2020-12 [U]; PERF-021 already requires a cost class for editable parameters | F1 | No |
+| CFG-005 | Each setting shall carry an effect class: appearance, behaviour, or result-changing. | 100 % classified; result-changing settings are included in the cache key (AUTO-033) and in the result record. | Registry lint; mutation test from AUTO-033. | FARIS choice; Trap: a setting that changes numbers but is not in the key gives false cache hits | F1 | No |
+| CFG-006 | Result-changing settings shall live in the project, not in user preferences. | 0 result-changing settings accepted from the user layer; the same study opened on two machines with different user settings gives identical result hashes. | Cross-profile reproduction test. | Reproducibility rule: input hashes identify results [internal] | F1 | Partial: study inputs are in the .faris file; no user settings exist to test against |
+| CFG-007 | Settings files shall be plain text in a canonical form. | Sorted keys, one setting per line, LF, shortest round-trip floats, trailing newline; parse then write is byte-identical on a 100-file corpus. | Round-trip test. | git-friendly text rule [U]; YAML implicit typing is a known hazard [U] | F1 | No |
+| CFG-008 | Settings files shall follow the platform's directory rules. | Linux: XDG config, data and cache directories (100 % of user files under them, 0 in the home root); macOS and Windows native equivalents at PLAT gate. | File-system audit after a scripted session. | XDG Base Directory spec [U] | F1 (Linux), F6 (others) | Partial: the tour marker uses XDG_CONFIG_HOME; nothing else persists |
+| CFG-009 | FARIS shall keep no configuration outside the registry and the study. | 0 hidden files, environment variables or registry keys that change behaviour, other than those listed in the registry; an audit lists every environment variable read. | Static scan for `env::var` against the registry; strace audit of a scripted session. | Trap: environment variables are hidden settings [R4] | F1 | No |
+
+## Discoverability and validation
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-010 | Every setting shall be findable in the app by name or description. | Settings search returns the right entry in the top 3 for 100 % of registry keys by exact name and for ≥ 90 % by a paraphrase in a 50-query test; latency P95 ≤ 50 ms on RL. | Query test set; latency timing. | VS Code settings search [U] | F1 | No |
+| CFG-011 | Every setting shall be documented on one page that is generated from the registry. | 100 % of settings have a reference entry with type, unit, range, default, effect and an example; page and registry never diverge (CI diff = fail). | Docs generation diff. | FARIS choice | F1 | No |
+| CFG-012 | Every user-authored file type shall have a published JSON Schema. | 100 % of file types (scenario, physics inputs, assumptions, settings, keybindings, layout, policy) have a schema in the release; generated from the Rust types; a diff against the committed schema fails CI. | Schema generation job. | JSON Schema 2020-12, schemars [U] | F1 | No: types exist in `faris-model`; no schema is published |
+| CFG-013 | Validation errors shall say where, what was expected, what was found and what to do. | 100 % of errors in a ≥ 100-file malformed corpus carry file, line, key path, expected, found and a suggestion; unknown keys are rejected, never ignored. | Negative-corpus test. | rustc-style diagnostics [U] | F1 | Partial: scenario loading rejects bad input with messages; no corpus, no line numbers |
+| CFG-014 | Out-of-range values shall be blocked or labelled, never silently clamped. | 100 % of numeric settings have a range; out-of-range is an error, or an explicit override that is recorded and stamped on every result it touches. | Range fuzz over every numeric setting (≥ 500 injected values). | Fail-closed house rule | F1 | No |
+| CFG-015 | Ranges shall carry a reason and a warning level. | Each range states hard limit (error) and soft limit (warning), with a one-line physical or numerical justification, for 100 % of result-changing settings. | Registry completeness test. | FARIS choice | F1 | No |
+| CFG-016 | Illegal combinations shall be rejected by the schema, not documented as caveats. | Every documented dependency between two settings is a machine-checked rule; 0 prose-only caveats in the settings reference. | Docs lint for "must not be used with" text; rule count equals caveat count. | Trap: configuration creep multiplies the test matrix [R4] | F2 | No |
+| CFG-017 | Validation shall run before any job starts and name every problem at once. | A run with 5 injected bad settings reports all 5 in one message in ≤ 1 s, and starts nothing. | Fault-injection test. | FARIS choice | F1 | Partial: `faris validate` checks scenarios; not settings, not all-at-once |
+| CFG-018 | A setting's current value shall be shown with its unit and kind label where it feeds a number. | 100 % of result-changing settings show unit and one of calculated, authored, literature, conditional, not-evaluated. | UI enumeration test. | House rule: every number carries a kind label | F1 | Partial: kind labels exist on results and assumptions, not on settings |
+
+## Export, import and reset
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-020 | Settings shall be exportable and importable as one file. | Export then import on a clean profile gives byte-identical effective settings for 100 % of keys; export contains 0 secrets, absolute home paths or machine names. | Round-trip test; secret and path scanner over exports. | VS Code Settings Sync pitfalls [U]; Trap: portable preferences leak paths [R4] | F1 | No |
+| CFG-021 | Every setting shall be resettable, singly or by group. | Reset to default for 100 % of settings in ≤ 2 clicks and by `faris config reset <key or group>`; a full factory reset keeps projects untouched. | UI automation; CLI test; project hash check after reset. | Blender factory reset [U] | F1 | No |
+| CFG-022 | Imports shall be checked, previewed and applied atomically. | A file with one bad value changes 0 settings; the preview lists each change as old, new, unit; apply is one undoable step. | Fault-injection; undo test. | FARIS choice | F1 | No |
+| CFG-023 | Settings shall be editable in the app and as text, with the same result. | A change made in either route appears in the other within 1 s; 0 settings editable only in the UI or only in text, except locked ones. | Parity test over the registry. | VS Code UI plus JSON settings [U] | F1 | No |
+| CFG-024 | The effective configuration of any run shall be exportable. | `faris config resolve` writes a complete file; re-running with it gives the same result hash on 20 golden studies. | Reproduction test. | Hydra and Nextflow config dump [U] | F1 | No |
+| CFG-025 | Settings changes shall be undoable and shown in an activity list. | Last 100 changes listed with time, key, old, new, layer; undo restores the exact prior state. | Undo test; log check. | FARIS choice | F2 | No |
+
+## Keybindings, layouts and appearance
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-030 | Every command shall be rebindable to a key chord. | 100 % of registered commands rebindable; bindings stored as a text file; reserved system chords listed. | Command registry enumeration. | VS Code keybindings.json, Blender keymap editor [U] | F2 | No |
+| CFG-031 | Conflicting bindings shall be detected when set. | 100 % of conflicts in the same context flagged at edit time with the two commands named; 0 silent overrides. | Conflict-injection test over all command pairs. | FARIS choice | F2 | No |
+| CFG-032 | FARIS shall ship a default keymap and at least one alternative. | ≥ 2 shipped keymaps; switching applies without restart in ≤ 1 s; every shipped binding appears in the in-app shortcut sheet. | Keymap diff test; UI test. | Blender keymap presets [U] | F2 | No |
+| CFG-033 | Keybindings shall be importable and exportable and shall work across keyboard layouts. | Round-trip lossless; bindings stored by physical key or character as chosen, tested on 3 layouts (US, UK, DE). | Layout matrix test. | FARIS choice | F2 | No |
+| CFG-034 | Layouts and workspaces shall be saved, named, restored, shared and reset. | Restore returns the exact panel arrangement, sizes and camera on 20 of 20 restarts; layout exports as a file; reset returns to the shipped layout in one action. | Restart test; file round trip. | Blender workspaces [U]; PERF-005 covers session restore time | F2 | Partial: workflow step and view are saved in the .faris view state; no named layouts |
+| CFG-035 | At least three themes (light, dark, high contrast) shall be built in and user themes shall load from files. | Every built-in theme passes the contrast checks in A11Y; a user theme with a bad token is rejected with the token named. | Automated contrast check; malformed-theme test. | WCAG 2.2 AA text 4.5:1 [U]; see 10-accessibility-and-localisation | F2 | No |
+| CFG-036 | UI scale and font size shall be configurable from 50 % to 300 %. | No clipped or overlapping controls at 200 % on a 1366×768 display and at 100 % on RL's 3024×2016 display; scale applies without restart. | UI snapshot test at 5 scales. | egui supports a pixels-per-point setting [U] | F1 | Unmeasured |
+| CFG-037 | Number and date display formats shall be configurable, while stored files stay locale independent. | Files parse identically under de_DE and ja_JP locales; display separators follow the setting in 100 % of numeric widgets. | Locale matrix test. | Trap: locale decimals cause silent changes [R4] | F2 | No |
+
+## Units
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-040 | FARIS shall offer unit systems: SI, a fusion practical set (MW, keV, cm, GWd, dpa) and per-quantity overrides. | 100 % of displayed and entered quantities honour the choice; stored values stay in one internal unit system; changing unit never changes a result hash. | UI snapshot tests across 3 unit sets; hash check. | Blender scene units, FreeCAD unit schemas [U] | F2 | No: fixed practical units in the demo |
+| CFG-041 | Every dimensional input shall carry a unit and be dimension-checked. | 0 unitless dimensional values accepted; a wrong-dimension value is a hard error; ≥ 500 injected wrong-dimension values all rejected. | Property test; unit fuzz. | Mars Climate Orbiter loss, 1999 [U: NASA lesson page not opened]; pint, uom [U] | F1 | Partial: units are named in field and file names; no dimension checker |
+| CFG-042 | Unit conversion shall be exact to a stated tolerance and round-trip. | Relative error ≤ 1e-12 for f64 round trips on every supported unit; offset units (degC) and percent versus fraction tested explicitly. | Property test. | UDUNITS, pint [U]; Trap: offset and percent units fail most often | F2 | No |
+| CFG-043 | Unit labels shall be shown wherever a number is shown, including chart axes, exports and error messages. | 100 % of numbers in the UI, PDF brief, CSV headers and chart axes carry a unit. | Snapshot scan of every view and export. | FARIS choice | F1 | Partial: charts and CSV name units in most places; no audit |
+| CFG-044 | Non-SI domain units shall be defined once in a registry with their exact definitions. | barn, dpa, MWd/kg, GWd, full-power year each defined with conversion factor and source; 0 ad-hoc conversion constants in calculation crates (lint). | Static lint; registry test. | FARIS choice | F2 | No |
+
+## Numerical controls, data and adapters
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-050 | FARIS shall expose every numerical control that changes results, each with a safe default. | 100 % of controls (histories, batches, seeds, tolerances, step sizes, group counts, mesh resolution, trigger thresholds) in the registry with a default that passes the study's own checks. | Registry enumeration; run of every default on RM-S. | Documented controls today in docs/NUMERICAL_CONTROLS.md | F2 | Partial: controls are documented and settable per run for the absorber control; most are fixed in code |
+| CFG-051 | Each numerical control shall state its effect on accuracy, run time and memory before it is changed. | 100 % of controls show a three-part effect line; changing a control shows the predicted cost class (PERF-021) and, where known, the predicted error (PERF-026). | Registry lint; UI test. | FARIS choice | F2 | No |
+| CFG-052 | Defaults shall be conservative and justified by a recorded convergence study. | Every default links to a convergence record (value versus result change) showing the default is within 1 standard error or 1 % of a 4× refinement. | Convergence record check in CI. | FARIS choice (provisional: threshold to be tuned per quantity; confirm before F2 gate) | F2 | No |
+| CFG-053 | Changing a numerical control away from its default shall be visible on every result. | 100 % of results list non-default result-changing controls in the header and the PDF brief; the compare view flags a mismatch between two results. | Report snapshot test; compare test. | FARIS choice | F2 | Partial: histories and seed are recorded in bundles; no non-default flag |
+| CFG-054 | A seed shall always be explicit. | 100 % of stochastic runs record a seed; a missing seed is generated once, stored, and shown; 0 ambient random sources in calculation crates (lint). | Lint; run-record check. | FARIS choice; research note: time and randomness injected, not ambient [R4] | F1 | Partial: demo runs use a fixed seed in the request; no lint |
+| CFG-055 | Nuclear and material data libraries shall be selectable by name, with identity shown. | Library name, version and SHA-256 recorded in 100 % of results; selecting a library not installed gives an error that names where to get it; switching library changes the cache key (AUTO-033). | Selection test; cache mutation. | Library identity must be in results [R4 INT-9] | F2 | Partial: FENDL-3.2 and ENDF/B-VII.1 photons fixed; hash recorded per run |
+| CFG-056 | Every data library choice shall state what it covers and what it does not. | 100 % of selectable libraries show energy range, particle types and known gaps; picking a library that cannot serve the study blocks the run. | Coverage-check test. | Fail-closed house rule | F2 | No |
+| CFG-057 | Adapter settings (tool path, version range, thread count, memory cap, timeout) shall be configured through the registry. | 100 % of adapter settings registered, typed and validated; `faris adapters check` verifies the path and version in ≤ 5 s per adapter. | CLI test with fake adapter versions. | VS Code `engines` range, Blender minimum version [U] | F1 | Partial: tool paths accepted per command; PATH presence check only in `faris doctor` |
+| CFG-058 | Resource defaults (concurrent jobs, memory cap, threads) shall be set by detection and overridable. | Default 1 transport job (PERF-043); memory cap detected from the cgroup or free memory minus margin; changes logged in the activity list. | Cgroup test; log check. | Laptop memory rule [internal] | F1 | Partial: one-at-a-time by convention |
+
+## Site policy for administrators
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-060 | A site administrator shall be able to set policy in a file that FARIS reads at start. | One policy file in a documented system directory; applies to all users; absent file means no policy. | Start test with and without a policy. | VS Code policies, Chrome enterprise policy [U] | F6 | No |
+| CFG-061 | Policy shall be able to restrict adapters, data libraries, network use, plugin loading and export destinations. | Each of the 5 areas has at least one enforceable rule; a blocked action fails with the policy named. | Negative tests for each rule. | FARIS choice | F6 | No |
+| CFG-062 | Locked settings shall be visible, explained and unchangeable. | 100 % of locked settings show a lock, the policy file and the reason; user, project and API overrides are rejected with the same message; 0 bypasses in a 100-case bypass test. | Bypass test across UI, CLI, API and file edit. | FARIS choice | F6 | No |
+| CFG-063 | Policy files shall be signed or hash-pinned. | An unsigned or altered policy file is refused when the site requires it; the policy hash is stamped on every result. | Tamper test. | Fail-closed house rule | F6 | No |
+| CFG-064 | Policy shall never change a number silently. | A policy that alters a result-changing setting appears in the result record; 0 results without the policy hash when a policy is active. | Provenance check with active policy. | Trap: site policy as a hidden setting | F6 | No |
+
+## Schema versions and migration
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-070 | Every on-disk format shall carry its own version. | 100 % of file types (scenario, settings, keybindings, layout, policy, study, export manifest, cache record) include a version field; a lint fails a new type without one. | Enumeration test. | Versioned schemas practice [U] | F1 | Partial: study `faris-study/1`, export `faris-export/1`, history and bundles carry versions; settings do not exist yet |
+| CFG-071 | Every released version shall migrate forward to the current one. | Migration from every archived version passes validation; golden file per version; the original file is preserved untouched. | Migration test over all archived fixtures. | Django and Flyway style migrations [U] | F1 | No |
+| CFG-072 | Migrations shall be reported and recorded. | Each migration writes from-version, to-version and the list of changes into the project record; 0 silent migrations. | Migration log test. | Trap: silent migration breaks reproducibility [R4] | F1 | No |
+| CFG-073 | A migration that changes a physics default shall change the result hash and say so. | 100 % of migrations that alter a result-changing default flag the study as "inputs changed by migration" and require a re-run before any verdict is shown. | Migration test with a changed-default fixture. | Fail-closed house rule | F1 | No |
+| CFG-074 | A file newer than the program shall be refused with the required version named. | 100 % refused, 0 partial loads, over a fixture set of future versions. | Future-version test. | Fail-closed house rule | F1 | Met: `StudyReader` rejects an unsupported major study version with a message (crates/faris-study/src/error.rs); other formats unchecked |
+| CFG-075 | Unknown optional fields from a newer minor version shall be ignored for display and preserved on save. | Round trip of a file with injected unknown fields keeps them byte for byte. | Round-trip test. | Protobuf forward-compatibility rule [U] | F1 | No |
+| CFG-076 | Settings keys shall never be reused for a different meaning. | Retired keys are listed in a registry file with their replacement; a CI check fails if a retired key reappears. | Registry history lint. | FARIS choice | F1 | No |
+
+## Transparency and diff
+
+| ID | Requirement | Target | Verification | Basis | Phase | Now |
+| --- | --- | --- | --- | --- | --- | --- |
+| CFG-080 | Every effective parameter shall show whether it is user-set, default, derived or literature, with its source. | 100 % of effective parameters carry an origin tag; `faris params explain <id>` prints the origin chain. | Enumeration test. | bluemira ParameterFrame [U] | F1 | Partial: kind labels exist on displayed numbers; origin chain missing |
+| CFG-081 | FARIS shall compare any two configurations and list every difference. | `faris config diff a b` and a UI view list each changed key with old, new, unit and layer; 0 false changes on re-save; exit code 0 only when identical. | Diff test on 20 pairs, including re-saved copies. | nbdime and git diff practice [U] | F2 | No |
+| CFG-082 | A configuration diff shall state which differences change results. | Each difference carries its effect class (CFG-005); the diff header gives a count of result-changing differences. | Diff test with mixed classes. | FARIS choice | F2 | No |
+| CFG-083 | FARIS shall report any setting whose value was changed since the last result. | Stale results are marked with the setting that made them stale in 100 % of cases (fail closed: no verdict on a stale result). | Edit-after-run test. | Fail-closed house rule | F1 | Partial: edits that need new transport are flagged by the demo; no general rule |
+| CFG-084 | The registry shall be the only place defaults are written. | 0 default values duplicated in UI code, docs or the CLI; a lint compares them. | Duplicate-default lint. | Trap: defaults copied into several places drift apart | F1 | No |
+
+## Traps
+
+- A settings count or "everything is configurable" claim is not the goal. Each extra option multiplies the test matrix. The measure is the share of options that are typed, ranged, tested and documented, and the share of illegal combinations the schema rejects (CFG-016).
+- A setting that changes a number but is missing from the cache key gives wrong results that look right. CFG-005 and AUTO-033 exist to close that gap.
+- Display-only unit labels are not unit checking. Offset units, percent versus fraction, and custom units (barn, dpa, MWd/kg) are where real failures occur.
+- Auto-migration that quietly changes a physics default makes old and new results look comparable when they are not. Migration must change the hash and say so.
+- Portable settings can leak paths, machine names and secrets. Exports are scanned, not trusted.
+- Site policy is a hidden input unless its hash is stamped on every result.
+- A UI badge for "default" is worthless if the default itself is not justified. CFG-052 asks for the convergence record behind each default.
