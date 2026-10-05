@@ -465,6 +465,7 @@ mod tests {
         for csv in [
             "history-ensemble-samples",
             "history-ensemble-summary",
+            "history-ensemble-comparison",
             "histories",
             "comparison",
             "differences",

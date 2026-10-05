@@ -13,10 +13,12 @@ use crate::{
 use faris_engine::{
     brief::Arrangement,
     history::JULIAN_YEAR_SECONDS,
-    history_ensemble::{EnsembleStatus, HistoryEnsemble, nominal_sample},
+    history_ensemble::{
+        EnsembleComparison, EnsembleStatus, HistoryEnsemble, compare_ensembles, nominal_sample,
+    },
     history_uncertainty::{
         BAND_FLUENCE_MAGNETS, BAND_LIMIT_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM,
-        UncertaintyRow, history_rows, not_evaluated_text,
+        CONTRASTS, HistoryContrast, UncertaintyRow, history_rows, not_evaluated_text,
     },
 };
 use serde::Serialize;
@@ -281,6 +283,125 @@ pub(crate) fn manifest_records(data: &[ArrangementData]) -> Vec<EnsembleRecord> 
                     record.why = Some("No ensemble was calculated before the export.".into());
                     record.next_step =
                         Some("Wait for the uncertainty to finish, then export again.".into());
+                }
+            }
+            record
+        })
+        .collect()
+}
+
+/// One of the four contrasts of the comparison view with the paired
+/// comparison of its two ensembles, or why there is none.
+#[derive(Clone, Debug)]
+pub(crate) struct ContrastComparison {
+    pub contrast: HistoryContrast,
+    pub outcome: Result<EnsembleComparison, NotComparable>,
+}
+
+/// Why a contrast has no paired comparison, and what to do about it.
+#[derive(Clone, Debug)]
+pub(crate) struct NotComparable {
+    pub why: String,
+    pub next_step: String,
+}
+
+/// The paired comparison of each of the engine's `CONTRASTS`, the same four
+/// pairs the compare view shows, second arrangement minus first. Uses only the
+/// ensembles already in the input; none is calculated here. Empty when no
+/// arrangement offered an ensemble (there is then no uncertainty section).
+pub(crate) fn contrast_comparisons(data: &[ArrangementData]) -> Vec<ContrastComparison> {
+    if data
+        .iter()
+        .all(|d| matches!(d.input.ensemble, EnsembleInput::None))
+    {
+        return Vec::new();
+    }
+    let find = |a: Arrangement| data.iter().find(|d| d.input.arrangement == a);
+    CONTRASTS
+        .iter()
+        .map(|contrast| {
+            let outcome = match (find(contrast.a), find(contrast.b)) {
+                (Some(a), Some(b)) => compare_inputs(&a.input.ensemble, &b.input.ensemble),
+                _ => Err(NotComparable {
+                    why: "an arrangement of this pair is not recorded".into(),
+                    next_step: "Record both arrangements, then export again".into(),
+                }),
+            };
+            ContrastComparison {
+                contrast: *contrast,
+                outcome,
+            }
+        })
+        .collect()
+}
+
+fn compare_inputs(
+    a: &EnsembleInput,
+    b: &EnsembleInput,
+) -> Result<EnsembleComparison, NotComparable> {
+    let missing = |why: String, next: &str| NotComparable {
+        why,
+        next_step: next.into(),
+    };
+    let ready = |e: &EnsembleInput| match e {
+        EnsembleInput::Ready(e) => match not_evaluated_text(e) {
+            None => Ok(e.clone()),
+            Some((why, next)) => Err(missing(
+                format!("an ensemble was not evaluated: {why}"),
+                next,
+            )),
+        },
+        EnsembleInput::Failed(why) => Err(missing(
+            format!("an ensemble could not be calculated: {why}"),
+            "Recalculate the study and export again",
+        )),
+        EnsembleInput::None => Err(missing(
+            "an ensemble is missing".into(),
+            "Wait for the uncertainty to finish in the desktop app, then export again",
+        )),
+    };
+    let (a, b) = (ready(a)?, ready(b)?);
+    compare_ensembles(&a, &b).map_err(|why| NotComparable {
+        why,
+        next_step: "Recalculate the ensembles from independent transport runs, then export again"
+            .into(),
+    })
+}
+
+/// The manifest's line for one contrast.
+#[derive(Serialize)]
+pub(crate) struct ComparisonRecord {
+    pub contrast: &'static str,
+    pub status: &'static str,
+    pub method: Option<String>,
+    pub pairs: Option<u32>,
+    pub why: Option<String>,
+    pub next_step: Option<String>,
+    pub scope: &'static str,
+}
+
+pub(crate) fn comparison_records(comparisons: &[ContrastComparison]) -> Vec<ComparisonRecord> {
+    comparisons
+        .iter()
+        .map(|c| {
+            let mut record = ComparisonRecord {
+                contrast: c.contrast.title,
+                status: "compared",
+                method: None,
+                pairs: None,
+                why: None,
+                next_step: None,
+                scope: faris_engine::history_uncertainty::SCOPE_LINE,
+            };
+            match &c.outcome {
+                Ok(found) => {
+                    record.method = Some(found.method.clone());
+                    record.pairs = Some(found.pairs);
+                }
+                Err(n) => {
+                    record.status = "not_compared";
+                    record.why = Some(n.why.clone());
+                    record.next_step = Some(n.next_step.clone());
                 }
             }
             record
