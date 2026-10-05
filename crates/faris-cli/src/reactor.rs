@@ -38,7 +38,7 @@ pub enum ReactorCommand {
         seed: u64,
         #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=32))]
         threads: u32,
-        #[arg(long, default_value_t = 3600, value_parser = clap::value_parser!(u64).range(1..=3600))]
+        #[arg(long, default_value_t = 3600, value_parser = clap::value_parser!(u64).range(1..=faris_engine::reactor::MAX_RUN_TIMEOUT_SECONDS))]
         timeout_seconds: u64,
         /// Spatial flux tally resolution; local variants use the same outboard bounds.
         #[arg(long, default_value = "coarse", value_parser = ["coarse", "outboard-local-coarse", "outboard-local", "outboard-port-window"])]

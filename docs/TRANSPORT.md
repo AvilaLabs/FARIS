@@ -160,7 +160,9 @@ mesh, so a 1000-batch run briefly holds a few hundred MB against the 512 MiB
 artifact cap).
 
 A reactor run accepts 30 to 1000 batches and at most 50 million histories
-(`MAX_RUN_HISTORIES`); wall time is bounded separately by the job deadline.
+(`MAX_RUN_HISTORIES`). Wall time is bounded separately by `--timeout-seconds`
+(default 3,600 s, at most 14,400 s, `MAX_RUN_TIMEOUT_SECONDS`); a 30 million
+history run takes about 68 minutes at 7 threads on the reference laptop.
 Small regions need the upper end without variance reduction: at 10 million
 histories the magnet port-sector fast flux of the no-port control has a 36 to
 54 % relative error, too large for Gaussian ensemble sampling (more than 1 %

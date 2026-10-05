@@ -440,6 +440,18 @@ impl Default for SamplingPlan {
 /// preflight sizes of earlier runs were computed with.
 pub const MAX_RUN_HISTORIES: u64 = 50_000_000;
 const PREFLIGHT_HISTORIES: u64 = 10_000_000;
+/// Longest wall time a reactor run may be given. A run at the history cap takes
+/// about two hours on a 7-thread laptop, so the bound leaves room for slower
+/// machines; a run can always be cancelled sooner.
+pub const MAX_RUN_TIMEOUT_SECONDS: u64 = 14_400;
+
+/// Whether a run timeout is within 1 second ..= `MAX_RUN_TIMEOUT_SECONDS`.
+pub fn validate_run_timeout(timeout: Duration) -> Result<(), ReactorError> {
+    if timeout.is_zero() || timeout > Duration::from_secs(MAX_RUN_TIMEOUT_SECONDS) {
+        return Err(format!("reactor timeout must be 1..{MAX_RUN_TIMEOUT_SECONDS} seconds").into());
+    }
+    Ok(())
+}
 
 impl SamplingPlan {
     pub fn validate(&self) -> Result<(), ReactorError> {
@@ -1380,9 +1392,7 @@ pub fn run_reactor(
     cancellation: &Cancellation,
 ) -> Result<ReactorRun, ReactorError> {
     job.sampling.validate()?;
-    if job.timeout.is_zero() || job.timeout > Duration::from_secs(3600) {
-        return Err("reactor timeout must be 1..3600 seconds".into());
-    }
+    validate_run_timeout(job.timeout)?;
     let python = canonicalize_required_input(job.python, "Python interpreter")?;
     let openmc = canonicalize_required_input(job.openmc, "OpenMC executable")?;
     let python_sha256 = hash_file(&python)?;
@@ -1859,6 +1869,17 @@ mod tests {
         }
     }
     // Verifies: NUC-048
+    #[test]
+    fn run_timeout_admits_a_run_at_the_history_cap() {
+        assert!(validate_run_timeout(Duration::from_secs(1)).is_ok());
+        assert!(validate_run_timeout(Duration::from_secs(MAX_RUN_TIMEOUT_SECONDS)).is_ok());
+        assert!(validate_run_timeout(Duration::ZERO).is_err());
+        assert!(validate_run_timeout(Duration::from_secs(MAX_RUN_TIMEOUT_SECONDS + 1)).is_err());
+        // 30M histories took about 68 min at 7 threads on the reference laptop;
+        // 50M must fit with margin.
+        const { assert!(MAX_RUN_TIMEOUT_SECONDS >= 2 * 68 * 60 * MAX_RUN_HISTORIES / 30_000_000) };
+    }
+
     #[test]
     fn sampling_plan_rejects_unbounded_or_unusable_work() {
         assert_eq!(
