@@ -313,6 +313,7 @@ fn perfectly_correlated_draws_move_together() {
     }
 }
 
+// Verifies: UNC-011
 #[test]
 fn missing_covariance_is_not_evaluated_with_exact_text() {
     let mut rates = rates_with(0.05, 0.0);
@@ -571,6 +572,7 @@ fn settings_are_bounded() {
     assert!(run(&rates, &settings(5, 0)).is_err());
 }
 
+// Verifies: UNC-011
 #[test]
 fn driving_covariance_selects_scales_and_separates_volume_variance() {
     let source_rate = 525.0e6 / (17.6e6 * ELEMENTARY_CHARGE_J_PER_EV);
