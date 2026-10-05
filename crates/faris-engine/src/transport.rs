@@ -1258,4 +1258,167 @@ mod tests {
         }
         assert!(check_positive_semidefinite(&cov, responses).is_ok());
     }
+
+    /// The magnet's whole-component and three regional fast-flux responses,
+    /// each with its own volume (and volume standard error) and a covariance.
+    fn region_fixture() -> (
+        TransportRequest,
+        TransportArtifact,
+        faris_model::LoadedScenario,
+    ) {
+        let (mut request, mut artifact, scenario) = fixture(VolumeUnit::CubicMetre);
+        let w = DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD;
+        let fast = ScoreDefinition::FluxAbove {
+            energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
+        };
+        let region = |region| ResponseDomain::ComponentRegion {
+            component_id: "magnets".into(),
+            region,
+        };
+        let domains = [
+            ResponseDomain::Component {
+                component_id: "magnets".into(),
+            },
+            region(ToroidalRegion::InboardHalf),
+            region(ToroidalRegion::OutboardHalf {
+                excluding_sector_half_width_rad: Some(w),
+            }),
+            region(ToroidalRegion::PortSector { half_width_rad: w }),
+        ];
+        let ids = ["whole", "inboard", "outboard", "port"];
+        request.responses = ids
+            .iter()
+            .zip(&domains)
+            .map(|(id, domain)| ResponseDefinition {
+                id: (*id).into(),
+                domain: domain.clone(),
+                score: fast.clone(),
+            })
+            .collect();
+        // Volumes in m3 with standard errors only where the port removed some.
+        let volumes = [(2.0, 0.0), (0.8, 0.0), (1.1, 0.0), (0.1, 0.002)];
+        let means = [4.0, 1.0, 2.0, 8.0];
+        let ses = [0.2, 0.05, 0.1, 0.5];
+        artifact.request = request.clone();
+        artifact.volumes = domains
+            .iter()
+            .zip(volumes)
+            .map(|(domain, (value, se))| DomainVolume {
+                domain: domain.clone(),
+                value,
+                standard_error: se,
+                unit: VolumeUnit::CubicMetre,
+            })
+            .collect();
+        artifact.tallies = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| RawTally {
+                response_id: (*id).into(),
+                estimator: TallyEstimator::Tracklength,
+                unit: RawTallyUnit::CmPerSource,
+                mean: means[i],
+                standard_error: ses[i],
+            })
+            .collect();
+        // Whole = inboard + outboard + port per batch, so the covariance is
+        // that of a sum: correlated, and the whole's variance is the sum of all
+        // entries among the parts.
+        let parts = [1usize, 2, 3];
+        let mut m = [[0.0_f64; 4]; 4];
+        for &i in &parts {
+            m[i][i] = ses[i] * ses[i];
+        }
+        m[1][2] = 0.2 * ses[1] * ses[2];
+        m[2][1] = m[1][2];
+        for &i in &parts {
+            m[0][i] = parts.iter().map(|&j| m[i][j]).sum();
+            m[i][0] = m[0][i];
+        }
+        m[0][0] = parts
+            .iter()
+            .map(|&i| parts.iter().map(|&j| m[i][j]).sum::<f64>())
+            .sum();
+        artifact.tallies[0].standard_error = m[0][0].sqrt();
+        artifact.response_covariance = Some(RawResponseCovariance {
+            method: RESPONSE_COVARIANCE_METHOD.into(),
+            batches: 10,
+            response_ids: ids.iter().map(|s| (*s).into()).collect(),
+            raw_per_source: m.iter().flatten().copied().collect(),
+            batch_values_file: "transport-batch-values.json".into(),
+            batch_values_sha256: "a".repeat(64),
+        });
+        (request, artifact, scenario)
+    }
+
+    #[test]
+    fn regional_fast_flux_normalizes_per_region_volume_with_volume_error() {
+        let (request, artifact, scenario) = region_fixture();
+        let out = normalize_transport_artifact(&request, &artifact, &scenario).unwrap();
+        let rate = out.source_neutron_rate_per_s;
+        let volumes = [2.0, 0.8, 1.1, 0.1];
+        for (i, r) in out.results.iter().enumerate() {
+            let x = artifact.tallies[i].mean;
+            let u = artifact.tallies[i].standard_error;
+            let expected_integrated = x * rate * 0.01;
+            assert!((r.integrated_mean / expected_integrated - 1.0).abs() < 1e-14);
+            assert_eq!(r.volume_m3, volumes[i]);
+            assert!((r.mean / (expected_integrated / volumes[i]) - 1.0).abs() < 1e-14);
+            assert_eq!(r.unit, PhysicalUnit::NeutronsPerSquareMetreSecond);
+            assert_eq!(r.integrated_unit, PhysicalUnit::NeutronMetresPerSecond);
+            // Standard error: sampling and volume terms in quadrature.
+            let volume_se = artifact.volumes[i].standard_error;
+            let sampling = u * rate * 0.01 / volumes[i];
+            let from_volume = expected_integrated * volume_se / volumes[i].powi(2);
+            let expected_se = sampling.hypot(from_volume);
+            assert!((r.standard_error / expected_se - 1.0).abs() < 1e-12);
+        }
+        // Only the port sector has a stochastic volume.
+        assert_eq!(out.results[1].volume_standard_error_m3, 0.0);
+        assert!(out.results[3].volume_standard_error_m3 > 0.0);
+        assert!(out.results[3].standard_error > out.results[3].integrated_standard_error / 0.1);
+        // Covariance carried for every scalar response, including regions.
+        let cov = out.response_covariance.unwrap();
+        assert_eq!(cov.response_ids, ["whole", "inboard", "outboard", "port"]);
+        let s = rate * 0.01;
+        let raw = artifact.response_covariance.as_ref().unwrap();
+        for i in 0..4 {
+            for j in 0..4 {
+                let want = raw.raw_per_source[i * 4 + j] * s * s;
+                assert!((cov.integrated[i * 4 + j] - want).abs() <= 1e-12 * want.abs().max(1e-300));
+            }
+        }
+        // The whole-component variance is the sum over its parts.
+        assert!(cov.integrated[0] > cov.integrated[5] + cov.integrated[10] + cov.integrated[15]);
+    }
+
+    #[test]
+    fn regional_volumes_are_matched_by_domain_not_by_component() {
+        let (request, mut artifact, scenario) = region_fixture();
+        // A region without its own volume is refused, as is a volume for an
+        // unrequested region or a volume reused under a different width.
+        artifact.volumes.remove(3);
+        assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
+        let (request, mut artifact, scenario) = region_fixture();
+        artifact.volumes[3].domain = ResponseDomain::ComponentRegion {
+            component_id: "magnets".into(),
+            region: ToroidalRegion::PortSector {
+                half_width_rad: 0.3,
+            },
+        };
+        assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
+        // The echoed request must carry the same region definitions.
+        let (request, mut artifact, scenario) = region_fixture();
+        artifact.request.responses[3].domain = ResponseDomain::ComponentRegion {
+            component_id: "magnets".into(),
+            region: ToroidalRegion::PortSector {
+                half_width_rad: 0.3,
+            },
+        };
+        assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
+        // A flux-above tally must report cm per source, not events.
+        let (request, mut artifact, scenario) = region_fixture();
+        artifact.tallies[1].unit = RawTallyUnit::EventsPerSource;
+        assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
+    }
 }

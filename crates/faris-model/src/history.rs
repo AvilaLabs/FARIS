@@ -222,10 +222,27 @@ impl OperatingHistoryAssumptions {
                 return Err("import provenance is required".into());
             }
         }
-        let mut components = BTreeSet::new();
+        // A component may carry several limits, each on its own response
+        // (for example one per named region); the component is replaced when
+        // any of them is reached, so they must agree on class and duration.
+        let mut pairs = BTreeSet::new();
+        let mut shared: std::collections::BTreeMap<&str, (ComponentClass, Option<u64>)> =
+            std::collections::BTreeMap::new();
         for limit in &self.service_limits {
-            if limit.component_id.trim().is_empty() || !components.insert(&limit.component_id) {
-                return Err("service limits need unique nonempty component IDs".into());
+            if limit.component_id.trim().is_empty()
+                || !pairs.insert((&limit.component_id, &limit.response_id))
+            {
+                return Err(
+                    "service limits need nonempty component IDs and unique component/response pairs"
+                        .into(),
+                );
+            }
+            let key = (limit.class, limit.replacement_duration_s.map(f64::to_bits));
+            if *shared.entry(&limit.component_id).or_insert(key) != key {
+                return Err(
+                    "service limits on one component must share class and replacement duration"
+                        .into(),
+                );
             }
             if limit.response_id.trim().is_empty()
                 || limit.metric.trim().is_empty()
@@ -288,5 +305,64 @@ impl OperatingHistoryAssumptions {
             return Err("assumption provenance is required".into());
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ASSUMPTIONS: &str =
+        include_str!("../../../scenarios/arc-inspired/demountable-magnet-assumptions.json");
+
+    fn limit(response_id: &str) -> ServiceLimit {
+        ServiceLimit {
+            component_id: "magnets".into(),
+            class: ComponentClass::Replaceable,
+            response_id: response_id.into(),
+            metric: "fast_neutron_flux_region_average".into(),
+            unit: "neutrons/m\u{b2}".into(),
+            limit: 3e22,
+            replacement_duration_s: Some(1e7),
+            provenance: "authored test limit".into(),
+        }
+    }
+
+    #[test]
+    fn several_limits_on_one_component_validate_when_consistent() {
+        let mut a: OperatingHistoryAssumptions = serde_json::from_str(ASSUMPTIONS).unwrap();
+        a.service_limits = vec![limit("r-a"), limit("r-b"), limit("r-c")];
+        a.validate().unwrap();
+        // The same response twice on one component is a duplicate.
+        a.service_limits.push(limit("r-a"));
+        assert!(a.validate().is_err());
+        a.service_limits.pop();
+        // Limits on one component must agree on class and replacement duration.
+        a.service_limits[1].replacement_duration_s = Some(2e7);
+        assert!(a.validate().is_err());
+        a.service_limits[1].replacement_duration_s = Some(1e7);
+        a.service_limits[2].class = ComponentClass::Permanent;
+        a.service_limits[2].replacement_duration_s = None;
+        assert!(a.validate().is_err());
+    }
+
+    #[test]
+    fn demountable_preset_carries_three_regional_fast_flux_limits() {
+        let a: OperatingHistoryAssumptions = serde_json::from_str(ASSUMPTIONS).unwrap();
+        a.validate().unwrap();
+        let magnets: Vec<_> = a
+            .service_limits
+            .iter()
+            .filter(|l| l.component_id == "magnets")
+            .collect();
+        assert_eq!(magnets.len(), 3);
+        for l in magnets {
+            assert_eq!(l.limit, 3e22);
+            assert_eq!(l.metric, "fast_neutron_flux_region_average");
+            assert!(l.provenance.contains("arXiv:1409.3540"));
+        }
+        assert!(a.service_limits.iter().all(|l| l.metric
+            != "energy_integrated_component_average_neutron_flux"
+            || l.component_id != "magnets"));
     }
 }

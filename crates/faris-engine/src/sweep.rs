@@ -493,6 +493,7 @@ mod tests {
                 response_id: "blanket-tritium".into(),
             },
             component_average_flux_n_m2_s: flux,
+            region_flux_n_m2_s: Default::default(),
             transport_deposited_heat_w: None,
             scenario_sha256: "0".repeat(64),
             transport_artifact_sha256: "0".repeat(64),
