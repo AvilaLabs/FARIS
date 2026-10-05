@@ -75,6 +75,49 @@ temperature, and neutron heating alone is not whole-plant recoverable heat.
 
 These dimensions follow the [OpenMC 0.15.3 tally specification](https://github.com/openmc-dev/openmc/blob/v0.15.3/docs/source/usersguide/tallies.rst).
 
+## Response covariance
+
+Each new run records the Monte Carlo sampling covariance between its scalar
+response means (every non-mesh response), so correlated transport results can be
+sampled later instead of assuming independence. The worker asks OpenMC for a
+statepoint after every batch, reads each scalar tally's cumulative `sum`, and
+takes consecutive differences as per-batch values `x_b`. Before using them it
+checks against the final statepoint that `mean(x_b)` equals OpenMC's tally mean
+(relative 1e-12) and `sqrt(var(x_b, ddof=1) / n)` equals its standard deviation
+(relative 1e-9). This relies on OpenMC 0.15.3 defining `mean = sum / n` and
+`std_dev = sqrt((sum_sq / n - mean^2) / (n - 1))` (`openmc/tallies.py`). The
+covariance of the batch means is the sample covariance of the per-batch
+vectors (ddof = 1) divided by `n`; method id `batch-means-sample-covariance/v1`.
+At least 2 batches are required. Only the final statepoint is kept; the
+intermediate ones are deleted after reading (about 0.3 MB each for the coarse
+mesh, so a 1000-batch run briefly holds a few hundred MB against the 512 MiB
+artifact cap).
+
+The worker writes `transport-batch-values.json` (response ids, batch count and
+per-batch raw values) and adds `response_covariance` to
+`transport-artifact.json`: method, batches, response ids, the row-major raw
+matrix (raw tally units per source, product units off the diagonal), and the
+batch-values file name and sha256. Rust scales entry `(i, j)` by the same
+per-response factors as `integrated_mean` (`cov_ij * s_i * s_j`) and records it
+as `response_covariance.integrated` in the normalized result. Artifacts without
+the field still parse and give `None`; consumers that need correlations must
+then fail closed.
+
+It covers Monte Carlo sampling between responses of one run. It does not include
+volume-estimate, nuclear-data or model uncertainty, and with fewer batches than
+responses the matrix is rank-deficient (at most `batches - 1` independent
+directions), so the estimated correlations are noisy and can be exactly +/-1.
+
+Normalization rejects the artifact if the method is unknown, the ids do not match
+the scalar results one-to-one, the matrix is not `n * n` or has a non-finite
+entry, it is asymmetric beyond 1e-12 relative, a diagonal entry differs from
+`integrated_standard_error^2` by more than 1e-6 relative, a zero-variance
+response is correlated with another, a correlation is outside `[-1 - 1e-9,
+1 + 1e-9]`, or the correlation matrix is not positive semidefinite (diagonally
+pivoted Cholesky, tolerance 1e-9 on the unit-diagonal scale). The independent
+control `controls/check_response_covariance.py` recomputes the matrix from the
+batch values with exact fractions and checks the integrated scaling.
+
 ## Execution and evidence
 
 `faris-engine::jobs` runs explicit executables with selected environment

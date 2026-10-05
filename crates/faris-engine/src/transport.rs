@@ -663,12 +663,15 @@ fn normalize_response_covariance(
     })
 }
 
-/// Positive-semidefinite check on the correlation matrix by Cholesky.
-/// Zero-variance responses must be uncorrelated with all others. Pivots within
-/// `CORRELATION_TOLERANCE` of zero are treated as exact zero (rank-deficient
-/// covariances are normal when responses outnumber batches); a pivot below
-/// `-CORRELATION_TOLERANCE`, or a correlation outside `[-1 - tol, 1 + tol]`,
-/// rejects.
+/// Positive-semidefinite check on the correlation matrix by diagonally pivoted
+/// Cholesky (Schur-complement form), which stays stable for the rank-deficient
+/// matrices that are normal when responses outnumber batches; an unpivoted
+/// factorization amplifies rounding by dividing by near-zero pivots.
+/// Zero-variance responses must be uncorrelated with all others. Every
+/// remaining diagonal must stay above `-CORRELATION_TOLERANCE`; factorization
+/// stops when the largest remaining diagonal is within `CORRELATION_TOLERANCE`
+/// of zero, and the remaining block must then be within that tolerance too. A
+/// correlation outside `[-1 - tol, 1 + tol]` also rejects.
 fn check_positive_semidefinite(cov: &[f64], n: usize) -> Result<(), &'static str> {
     let mut active = Vec::new();
     for i in 0..n {
@@ -679,36 +682,48 @@ fn check_positive_semidefinite(cov: &[f64], n: usize) -> Result<(), &'static str
         }
     }
     let m = active.len();
-    let mut corr = vec![0.0; m * m];
-    for (a, &i) in active.iter().enumerate() {
-        for (b, &j) in active.iter().enumerate() {
+    let mut a = vec![0.0_f64; m * m];
+    for (p, &i) in active.iter().enumerate() {
+        for (q, &j) in active.iter().enumerate() {
             let r = cov[i * n + j] / (cov[i * n + i] * cov[j * n + j]).sqrt();
             if !r.is_finite() || r.abs() > 1.0 + CORRELATION_TOLERANCE {
                 return Err("correlation coefficient is outside [-1, 1]");
             }
-            corr[a * m + b] = r;
+            a[p * m + q] = r;
         }
     }
-    let mut l = vec![0.0_f64; m * m];
-    for j in 0..m {
-        let pivot = corr[j * m + j] - (0..j).map(|k| l[j * m + k].powi(2)).sum::<f64>();
-        if pivot < -CORRELATION_TOLERANCE {
-            return Err("matrix is not positive semidefinite");
-        }
-        let rest = |i: usize, l: &[f64]| {
-            corr[i * m + j] - (0..j).map(|k| l[i * m + k] * l[j * m + k]).sum::<f64>()
-        };
-        if pivot <= CORRELATION_TOLERANCE {
-            // Singular direction: remaining entries of this column must vanish.
-            if ((j + 1)..m).any(|i| rest(i, &l).abs() > CORRELATION_TOLERANCE) {
+    let mut done = vec![false; m];
+    for _ in 0..m {
+        let mut pivot: Option<usize> = None;
+        for i in (0..m).filter(|&i| !done[i]) {
+            if a[i * m + i] < -CORRELATION_TOLERANCE {
                 return Err("matrix is not positive semidefinite");
             }
-            continue;
+            if pivot.is_none_or(|k| a[i * m + i] > a[k * m + k]) {
+                pivot = Some(i);
+            }
         }
-        let d = pivot.sqrt();
-        l[j * m + j] = d;
-        for i in (j + 1)..m {
-            l[i * m + j] = rest(i, &l) / d;
+        let Some(k) = pivot else { break };
+        let d = a[k * m + k];
+        if d <= CORRELATION_TOLERANCE {
+            // Rank exhausted: the remaining Schur complement must vanish.
+            let leftover_small = (0..m).filter(|&i| !done[i]).all(|i| {
+                (0..m)
+                    .filter(|&j| !done[j])
+                    .all(|j| a[i * m + j].abs() <= CORRELATION_TOLERANCE)
+            });
+            return if leftover_small {
+                Ok(())
+            } else {
+                Err("matrix is not positive semidefinite")
+            };
+        }
+        done[k] = true;
+        for i in (0..m).filter(|&i| !done[i]) {
+            let f = a[i * m + k] / d;
+            for j in (0..m).filter(|&j| !done[j]) {
+                a[i * m + j] -= f * a[k * m + j];
+            }
         }
     }
     Ok(())
@@ -1207,5 +1222,37 @@ mod tests {
             check_positive_semidefinite(&[0.0, 0.1, 0.1, 1.0], 2),
             Err("zero-variance response has nonzero covariance")
         );
+    }
+
+    #[test]
+    fn rank_deficient_sample_covariance_is_accepted() {
+        // 40 responses from 6 batches: a rank-5 matrix, as real runs produce
+        // when responses outnumber batches. Unpivoted Cholesky rejects these.
+        let (responses, batches) = (40, 6);
+        let mut state = 12345_u64;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 11) as f64 / (1_u64 << 53) as f64
+        };
+        let columns: Vec<Vec<f64>> = (0..responses)
+            .map(|_| (0..batches).map(|_| next()).collect())
+            .collect();
+        let means: Vec<f64> = columns
+            .iter()
+            .map(|c| c.iter().sum::<f64>() / batches as f64)
+            .collect();
+        let mut cov = vec![0.0; responses * responses];
+        for i in 0..responses {
+            for j in 0..responses {
+                cov[i * responses + j] = (0..batches)
+                    .map(|b| (columns[i][b] - means[i]) * (columns[j][b] - means[j]))
+                    .sum::<f64>()
+                    / (batches - 1) as f64
+                    / batches as f64;
+            }
+        }
+        assert!(check_positive_semidefinite(&cov, responses).is_ok());
     }
 }
