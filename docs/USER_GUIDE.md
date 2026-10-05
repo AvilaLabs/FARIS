@@ -61,16 +61,16 @@ Run and review transport can run new OpenMC transport. It needs your own OpenMC 
 
 ### 3 Operate
 
-This step edits the operating assumptions and recalculates all four histories. Start with the preset menu, then move the sliders and watch the timeline.
+This step edits the operating assumptions and recalculates the histories of every arrangement and, when present, of the sweep. Start with the preset menu, then move the sliders and watch the timeline.
 
-**Presets.** Hovering a preset shows its key numbers.
+**Presets.** Hovering a preset shows what it is and its key numbers.
 
 | Preset | What it is |
 | --- | --- |
-| Demountable magnets · REBCO fluence limit | The default. The magnet envelope is replaceable at a literature REBCO screening value of 3×10²² n/m² (fast fluence, E > 0.1 MeV). |
+| Demountable magnets | The default. The magnet envelope is replaceable at a literature REBCO screening value of 3×10²² n/m² (fast fluence, E > 0.1 MeV). |
 | Loaded assumptions | The assumptions loaded with the study. |
-| Baseline authored scenario | The authored baseline scenario. |
-| Permanent-trip test (numerical control) | Trips the magnets permanently to exercise the replacement and shutdown logic. It ends with negative net electricity. It is not a plant scenario and is marked as such. |
+| Authored baseline | The authored baseline scenario. |
+| Permanent-trip test | Trips the magnets permanently to exercise the replacement and shutdown logic. It ends with negative net electricity. It is a numerical control, not a plant scenario, and is marked as such. |
 
 **What if… sliders.** Each edit cancels any running calculation and recalculates after a short pause. Each row shows an edited badge and a "revert to preset" button once you move it away from the preset.
 
@@ -130,7 +130,7 @@ Every value carries a badge. Hover it for why it applies and what would settle i
 
 Every not evaluated value, and every missing range, has an explanation: why it is not evaluated and a next step. Hover shows it, and it is also written as text on the screen and in exports. A transport result is also labelled "cold-data surrogate · NOT_EVALUATED": scientific qualification is not evaluated, even for completed transport.
 
-In Compare, each transport difference carries a flag. The difference is compared with 2·√(SE₁²+SE₂²). "resolved (>2σ)" means it exceeds that. "within sampling noise" means it does not. The runs use different seeds and their covariance is not modelled, so this is a screening flag, not a significance test. "Resolved" says nothing about nuclear data, geometry or model form.
+In Compare, each transport difference carries a flag. The difference is compared with 2·√(SE₁²+SE₂²). "beyond 2σ sampling noise" means it exceeds that. "within 2σ sampling noise" means it does not. The runs use different seeds and their covariance is not modelled, so this is a screening flag, not a significance test. "Beyond 2σ sampling noise" says nothing about nuclear data, geometry or model form.
 
 ## 5. Uncertainty
 
@@ -162,7 +162,7 @@ faris history ensemble --assumptions A.json --rates R.json --output E.json \
 
 **Save and open.** File > Save (Ctrl+S) and Save as… (Ctrl+Shift+S) write a `.faris` file. It holds both arrangements, the recorded transport, the allocation sweep, the operating assumptions, any finished ensembles and the view you left open. Calculated histories are not stored and recalculate on opening. Recorded files are checked by hash on every open. Save is greyed out, with a reason on hover, when nothing recorded can be saved. See [STUDY_FILE.md](STUDY_FILE.md).
 
-**Referenced or packed evidence.** By default the Core evidence archives (about 50 MB) are recorded by name and hash and not stored. The study opens fully without them, and the Evidence step says "Core receipts not included", with the reason and next step. To use them, put the archives next to the file at the recorded relative paths and reopen it. Or tick "Include Core evidence in saved files (about +50 MB)" in the File menu and save again.
+**Referenced or packed evidence.** By default the Core evidence archives (the menu item shows their size) are recorded by name and hash and not stored. The study opens fully without them, and the Evidence step says "Core receipts not included", with the reason and next step. To use them, put the archives next to the file at the recorded relative paths and reopen it. Or tick "Include Core evidence in saved files (about +50 MB)" in the File menu and save again.
 
 **Export.** The Export… button in the top bar asks for a folder and writes `<study name>-export/` into it. It never writes into an existing folder. It is unavailable while the histories, uncertainty ranges, sweep or saved evidence are still calculating or loading. Hover it for the reason.
 

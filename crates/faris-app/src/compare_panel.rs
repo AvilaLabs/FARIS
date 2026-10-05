@@ -160,9 +160,9 @@ const CONDITIONAL_NOTE: &str = "Conditional on authored assumptions. Difference 
 
 fn sampled_badge(resolved: bool) -> (Kind, &'static str, &'static str) {
     if resolved {
-        (Kind::Checked, "resolved (>2σ)", NOISE_NOTE)
+        (Kind::Checked, "beyond 2σ sampling noise", NOISE_NOTE)
     } else {
-        (Kind::Partial, "within sampling noise", NOISE_NOTE)
+        (Kind::Partial, "within 2σ sampling noise", NOISE_NOTE)
     }
 }
 

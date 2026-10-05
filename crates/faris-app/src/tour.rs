@@ -147,7 +147,7 @@ pub const STOPS: [Stop; 12] = [
     },
     Stop {
         title: "The answer",
-        body: "All four cases side by side, with every difference flagged as resolved or within sampling noise, and a one-line takeaway written from the current numbers. Scroll down for the seven-point allocation sweep.",
+        body: "All four cases side by side, with every difference flagged as beyond or within 2σ sampling noise, and a one-line takeaway written from the current numbers. Scroll down for the seven-point allocation sweep.",
         anchor: Some("compare-view"),
         step: Some(Step::Compare),
         view: None,

@@ -1059,7 +1059,7 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
             "Replacements and electricity: conditional on {preset}."
         ));
     }
-    ui.weak("Sweep points are independent runs with different seeds, not the same records; differences below ~2\u{3c3} are sampling noise.");
+    ui.weak("Sweep points are independent runs with different seeds, not the same records; differences within ~2\u{3c3} cannot be told apart from sampling noise.");
 }
 
 #[cfg(test)]

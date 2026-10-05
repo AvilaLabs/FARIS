@@ -290,7 +290,7 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
         let verb = if breeding >= 0.0 { "raises" } else { "lowers" };
         format!("{verb} breeding by {:.1} %", breeding.abs())
     } else {
-        format!("changes breeding by {breeding:+.1} % (within sampling noise)")
+        format!("changes breeding by {breeding:+.1} % (within 2σ sampling noise)")
     };
     let mut tail = Vec::new();
     let mut worse_first = false;
@@ -939,7 +939,7 @@ mod tests {
         };
         assert_eq!(
             allocation_takeaway(&flat, 10.0, 30.0).unwrap(),
-            "Shifting 10 cm from shield to blanket changes breeding by +0.4 % (within sampling noise) and leaves the swap count over 30 years unchanged."
+            "Shifting 10 cm from shield to blanket changes breeding by +0.4 % (within 2σ sampling noise) and leaves the swap count over 30 years unchanged."
         );
         assert!(allocation_takeaway(&Contrast::default(), 10.0, 30.0).is_none());
         let port = Contrast {
