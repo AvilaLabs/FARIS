@@ -845,7 +845,7 @@ dependencies = [
 
 [[package]]
 name = "faris-app"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "avila-account",
  "bytemuck",
@@ -865,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "faris-cli"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "clap",
  "faris-engine",
@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "faris-engine"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "faris-model",
  "nix",
@@ -894,7 +894,7 @@ dependencies = [
 
 [[package]]
 name = "faris-model"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -904,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "faris-report"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "faris-engine",
  "faris-model",
@@ -922,7 +922,7 @@ dependencies = [
 
 [[package]]
 name = "faris-study"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "faris-engine",
  "faris-model",
