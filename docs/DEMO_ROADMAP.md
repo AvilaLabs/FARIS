@@ -473,72 +473,105 @@ handwritten curves, or an untraceable solver output alone is insufficient.
 Reuse existing solvers and data where they satisfy this study. Create new FARIS
 tools only where this chain exposes a concrete missing interface or model.
 
-## Next steps (recorded 2026-10-01)
+## Next steps (recorded 2026-10-05, after 0.1.0)
 
-### Where the demo stands
+### Where 0.1.0 stands
 
-A public-source survey of fusion design, neutronics, fuel-cycle and availability
-tools found none that links 3D Monte Carlo transport to a year-by-year operating
-history (fluence-limited replacements and outages, tritium inventory, net
-electricity) in one interactive tool, with instant what-if recalculation, kind
-labels on every number, 2σ-aware comparison, and a reopenable study file with
-hash receipts. The closest overall is FUSE (General Atomics). No surveyed tool
-covers more than about three of those capabilities. Internal company and
-national-programme tools are not visible to such a survey.
+Delivered since the 2026-10-01 plan: transport sampling uncertainty carried
+through the operating history (ensembles with medians, 90 % ranges, event
+probabilities and the 1 % non-physical-draw rule), fast flux above 0.1 MeV in
+three named magnet regions with per-region service limits, `.faris` study
+files, and PDF/CSV/chart export from the desktop and the command line. The
+recorded transport uses 10 million histories per arrangement and sweep point
+and 30 million for the port-free controls, whose port-sector magnet flux is
+otherwise too poorly sampled for Gaussian ensembles.
 
-The novelty is the integration. Each individual model is shallower than the
-specialist tools, and an expert reviewer would raise these points first:
-maintenance timing is governed by activation and shutdown dose, which the demo
-does not model; the magnet check applies a fast-fluence screening limit to
-region-average fluxes (inboard, outboard, port sector), not to a local peak; and
-Monte Carlo uncertainty stops at the transport results.
-The next steps address those three, in order.
+An expert reviewer's first two objections remain: the magnet check uses
+region averages, not the local peak, and maintenance timing ignores
+activation and decay heat. Release 0.2 addresses both, plus the sign-in token
+storage.
 
-### 1. Carry Monte Carlo uncertainty through the operating history
+### One transport campaign for both physics items
 
-Sample the transport results within their recorded standard errors and
-recalculate each 30-year history per sample (about one second per set of four
-histories in a release build). Show magnet swaps and first-swap year as
-distributions ("4 swaps in N % of samples, 5 in M %") and draw the fluence
-timeline as a band. Correlations between quantities from one transport run are
-kept; independent runs stay independent. The first-order first-swap interval
-and the "uncertainty not propagated" caveat are replaced by the sampled result,
-and the export carries the distributions. Sampling runs off the UI thread and
-is cancellable when a slider moves.
+Both items need new transport runs, so they share one campaign:
 
-### 2. Fast flux in named magnet regions instead of the volume average
+- **709-group component spectra.** Component spectra are recorded in 10 coarse
+  groups (edges 1 keV … 20 MeV, then to 1 GeV). ACTINV needs its 709-group
+  structure; rebinning 10 groups would assume the spectrum shape inside each
+  group, and threshold and resonance reaction rates depend on exactly that
+  shape. The runs tally per-component neutron spectra on the 709-group
+  structure directly, so no within-group shape is assumed (ACT-002).
+- **A peak-magnet mesh with weight windows** (next section).
 
-Delivered in the transport request and history: fast-neutron flux above 0.1 MeV
-(the energy the REBCO screening limit refers to) is tallied for the whole magnet
-and for three named regions of it: the inboard half (R < R0), the outboard half
-outside the port sector, and the port sector (R >= R0 within 0.1745 rad of the
-port centre). The demountable-magnet preset applies the 3e22 n/m^2 screening
-value to each region and replaces the magnet when any region reaches it; the
-event and the ensemble name the region that did. The same regions are requested
-for the control arrangements, so a port arrangement and its control compare
-directly. The energy-integrated whole-volume average stays visible for
-comparison. What remains: the four arrangements and the seven sweep points
-must be rerun at 1M histories (about 7 minutes each) to fill the new responses,
-because recorded runs made before this change carry none.
+### Magnet peak with FW-CADIS weight windows
 
-The local peak inside a region is not resolved. A region average dilutes a
-streaming hot spot, so the port-sector value is a lower estimate of the worst
-coil position. Resolving the peak needs a fine mesh or peak cell plus targeted
-variance reduction (weight windows or a CADIS-type importance map), because the
-winding pack sits behind about a metre of shield and a plain analog run scores
-almost nothing in a small cell. That is planned later and is the point at which
-the "average understates the peak" caveat can be retired.
+OpenMC 0.15.3 provides `WeightWindowGenerator(method="fw_cadis")`, driven by a
+random-ray multigroup pass (`Model.convert_to_multigroup`,
+`convert_to_random_ray`, `settings.random_ray` with `adjoint`). Plan:
 
-### 3. Activation and decay heat at each scheduled outage (ACTINV)
+1. A fine mesh over the magnet behind the port and a matching inboard slab,
+   scoring fast flux above 0.1 MeV (a new mesh preset; current presets do not
+   target the magnet).
+2. A separate generation pass builds the multigroup model, runs random ray
+   with that mesh as the FW-CADIS objective, and writes `weight_windows.h5`.
+3. The weight-window file becomes a hashed run input: its SHA-256, generator
+   method and parameters, and the generating run's identity enter the input
+   record, so recorded runs stay verifiable.
+4. The continuous-energy run applies it (`weight_windows_on`), and reports
+   per-bin relative error, variance of the variance and figure of merit. The
+   peak bin and the region average are both shown, each with 2σ.
+5. Cross-check against MAGIC on the same mesh, and against the existing
+   analog region averages.
 
-The transport records already hold the neutron spectra per component. Feed the
-spectrum and the irradiation history up to each outage into ACTINV to obtain
-inventory, activity and decay heat per component at shutdown and during
-cooling. Show them on the timeline at each magnet or blanket swap and on the 3D
-model. This links activation to an operating schedule, which no surveyed tool
-does. Shutdown dose rate needs a second (decay-photon) transport and is a later
-step; until then the Evidence and export caveats state that dose is not
-evaluated.
+Constraints found in the solver: random ray needs isotropic, isothermal
+multigroup data, void as a null-filled cell (FARIS already does this), and a
+discrete-energy source, so the 14.1 MeV line is represented as one group.
+Weighting changes batch statistics, so the batch-means response covariance is
+rechecked for weighted runs before ensembles use it. The generated windows
+depend on the multigroup library and are recorded, not regenerated.
+
+### Activation and decay heat with ACTINV
+
+Run the pinned `actinv` command line as a subprocess (JSON in, JSON out),
+matching how FARIS runs OpenMC:
+
+1. Spectrum per component from the 709-group tally, converted to
+   n cm⁻² s⁻¹ with the run's source rate.
+2. Material per component from the physics file's nuclide mixture, mass from
+   volume and density, plus an authored impurity list per material with its
+   source. Without one, results are labelled a lower bound: the surrogate
+   materials carry none of the impurities (Co, Nb, Mo, Ni, Mn, Ag) that
+   dominate fusion activation.
+3. Irradiation schedule per component from the history events (operating
+   intervals scaled by power fraction, outages as zero-flux steps), cut at
+   that component's replacements. A removed component gets its own run, which
+   gives its inventory at removal. Every lumping rule is recorded and its
+   error checked against an unlumped run (ACT-009, ACT-010).
+4. Results at each outage and replacement and over a cooling grid from 1 s to
+   1e9 s (ACT-019): decay heat, activity and dominant nuclides, on the
+   timeline and the 3D model.
+5. Receipt: transport run, history and spectrum hashes, the ACTINV problem
+   file, its result certificate (library, decay and covariance hashes) and
+   binary version (ACT-001).
+
+Shutdown dose needs a decay-photon transport and stays `NOT_EVALUATED`.
+ACTINV gives cross-section uncertainty only; the spectrum's sampling error
+would enter through the transport ensemble, not through ACTINV.
+
+### Sign-in token storage
+
+SEC-041: store the account token in the operating-system credential store
+where one exists, with an owner-only file fallback. This lives in the account
+crate, not in FARIS.
+
+### Open decisions for 0.2
+
+- Impurity specifications per material, and their source.
+- Which outages and replacements get activation results: all, or those
+  where a component is removed.
+- Whether the patched TENDL-2025 subset or the full library is used.
+- Whether spectrum sampling error is propagated into decay heat in 0.2 or
+  reported separately.
 
 ### Smaller open items
 
