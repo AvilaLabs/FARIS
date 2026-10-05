@@ -1,7 +1,7 @@
 //! Deterministic, event-aware operating-history ledger.
 
 use crate::jobs::Cancellation;
-use crate::transport::{NormalizedTransportResult, PhysicalUnit};
+use crate::transport::{NormalizedTally, NormalizedTransportResult, PhysicalUnit};
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions, ServiceLimit};
 use faris_model::transport::{
     HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain, ScoreDefinition,
@@ -52,6 +52,185 @@ pub struct TransportDrivingRates {
     pub transport_artifact_sha256: String,
     pub solver_digest: String,
     pub nuclear_data_digest: String,
+    /// Monte Carlo covariance between the rates above, from batch-resolved
+    /// transport tallies. None for records without it; correlated sampling is
+    /// then not possible and must fail closed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub covariance: Option<DrivingCovariance>,
+}
+
+/// Sampling covariance between the driving rates, in the rates' own units.
+///
+/// Matrix order is fixed: the breeder H3 rate, each component flux in
+/// component-ID order, then the whole-model heating power when present.
+/// `monte_carlo` is the batch-means covariance of the transport tallies scaled
+/// from integrated units to the driving units (H3 per source neutron: divide by
+/// the source neutron rate; component flux: divide by the component volume;
+/// heating: unchanged).
+///
+/// A component flux standard error in a normalized record also contains the
+/// uncertainty of the stochastic volume estimate, which is independent of the
+/// tallies (separate random streams). That part is kept out of the matrix in
+/// `volume_variance` (same order as `rate_ids`, zero where a rate has no
+/// volume term) and is sampled independently. For every rate,
+/// `monte_carlo[i][i] + volume_variance[i]` equals `standard_error^2`.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DrivingCovariance {
+    /// Estimator identity copied from the transport record's covariance.
+    pub method: String,
+    pub batches: u32,
+    pub rate_ids: Vec<String>,
+    /// Row-major n x n Monte Carlo covariance in driving units.
+    pub monte_carlo: Vec<f64>,
+    /// Independent volume-estimate variance per rate, in driving units squared.
+    pub volume_variance: Vec<f64>,
+}
+
+/// Relative tolerance for covariance diagonals against reported standard errors.
+const COVARIANCE_VARIANCE_RTOL: f64 = 1e-6;
+/// Symmetry tolerance relative to the geometric mean of the two variances.
+const COVARIANCE_SYMMETRY_RTOL: f64 = 1e-9;
+/// Pivots of the correlation matrix at or below this are rank deficiency.
+const COVARIANCE_RANK_TOL: f64 = 1e-9;
+/// Residual Schur-complement entries beyond this mean the matrix is not PSD.
+const COVARIANCE_PSD_TOL: f64 = 1e-8;
+
+/// Factor a symmetric positive semi-definite matrix `a` (row-major n x n) as
+/// `a = L L^T` and return `L` (row-major n x n, trailing columns zero for a
+/// rank-deficient matrix).
+///
+/// Pivoted Cholesky on the correlation matrix, so the tolerances do not depend
+/// on the units of each variable: at each step the largest remaining diagonal
+/// is the pivot; elimination stops when it is at or below 1e-9, and the matrix
+/// is rejected as not positive semi-definite if any residual entry then
+/// exceeds 1e-8 in magnitude. A variable with zero variance must have zero
+/// covariance with every other variable.
+pub fn factor_covariance(a: &[f64], n: usize) -> Result<Vec<f64>, String> {
+    if a.len() != n * n {
+        return Err("covariance matrix must be square".into());
+    }
+    if a.iter().any(|x| !x.is_finite()) {
+        return Err("covariance entries must be finite".into());
+    }
+    let mut sd = Vec::with_capacity(n);
+    for i in 0..n {
+        let d = a[i * n + i];
+        if d < 0.0 {
+            return Err("covariance has a negative variance".into());
+        }
+        sd.push(d.sqrt());
+    }
+    let mut s = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            let (x, y) = (a[i * n + j], a[j * n + i]);
+            if (x - y).abs() > COVARIANCE_SYMMETRY_RTOL * sd[i] * sd[j] + f64::MIN_POSITIVE {
+                return Err("covariance matrix is not symmetric".into());
+            }
+            if sd[i] > 0.0 && sd[j] > 0.0 {
+                s[i * n + j] = x / (sd[i] * sd[j]);
+            } else if x != 0.0 {
+                return Err("a zero-variance rate has nonzero covariance".into());
+            }
+        }
+    }
+    let mut l = vec![0.0; n * n];
+    let mut used = vec![false; n];
+    for k in 0..n {
+        let Some(p) = (0..n)
+            .filter(|i| !used[*i])
+            .max_by(|a, b| s[a * n + a].total_cmp(&s[b * n + b]))
+        else {
+            break;
+        };
+        let pivot = s[p * n + p];
+        if pivot <= COVARIANCE_RANK_TOL {
+            break;
+        }
+        let root = pivot.sqrt();
+        let column: Vec<f64> = (0..n).map(|i| s[i * n + p] / root).collect();
+        for i in 0..n {
+            for j in 0..n {
+                s[i * n + j] -= column[i] * column[j];
+            }
+        }
+        used[p] = true;
+        for i in 0..n {
+            s[p * n + i] = 0.0;
+            s[i * n + p] = 0.0;
+            l[i * n + k] = column[i] * sd[i];
+        }
+    }
+    if s.iter().any(|x| x.abs() > COVARIANCE_PSD_TOL) {
+        return Err("covariance matrix is not positive semi-definite".into());
+    }
+    Ok(l)
+}
+
+impl DrivingCovariance {
+    pub fn dimension(&self) -> usize {
+        self.rate_ids.len()
+    }
+
+    fn validate(&self, rates: &TransportDrivingRates) -> Result<(), String> {
+        let entries = rates.covariance_entries();
+        let n = entries.len();
+        if self.rate_ids.len() != n
+            || entries
+                .iter()
+                .zip(&self.rate_ids)
+                .any(|(entry, id)| entry.0 != id)
+        {
+            return Err("covariance rate IDs must list the breeder rate, each component flux in component order, then heating".into());
+        }
+        if self.method.trim().is_empty() || self.batches < 2 {
+            return Err("covariance needs a method identity and at least two batches".into());
+        }
+        if self.monte_carlo.len() != n * n || self.volume_variance.len() != n {
+            return Err("covariance dimensions do not match the rate list".into());
+        }
+        if self
+            .volume_variance
+            .iter()
+            .any(|v| !v.is_finite() || *v < 0.0)
+        {
+            return Err("volume variance terms must be finite and nonnegative".into());
+        }
+        for (i, (_, rate)) in entries.iter().enumerate() {
+            let se = rate
+                .standard_error
+                .ok_or("a rate with a covariance must carry its standard error")?;
+            let total = self.monte_carlo[i * n + i] + self.volume_variance[i];
+            if (total - se * se).abs() > COVARIANCE_VARIANCE_RTOL * se * se + f64::MIN_POSITIVE {
+                return Err(format!(
+                    "covariance variance for {} does not equal its standard error squared",
+                    rate.response_id
+                ));
+            }
+        }
+        factor_covariance(&self.monte_carlo, n)?;
+        Ok(())
+    }
+}
+
+impl TransportDrivingRates {
+    /// Rates in covariance matrix order, with their response IDs.
+    pub fn covariance_entries(&self) -> Vec<(&str, &ScalarRate)> {
+        let mut entries = vec![(
+            self.breeder_h3_per_source_neutron.response_id.as_str(),
+            &self.breeder_h3_per_source_neutron,
+        )];
+        entries.extend(
+            self.component_average_flux_n_m2_s
+                .values()
+                .map(|r| (r.response_id.as_str(), r)),
+        );
+        if let Some(h) = &self.transport_deposited_heat_w {
+            entries.push((h.response_id.as_str(), h));
+        }
+        entries
+    }
 }
 
 impl TransportDrivingRates {
@@ -150,9 +329,88 @@ impl TransportDrivingRates {
             transport_artifact_sha256: transport_artifact_sha256.into(),
             solver_digest: normalized.solver.digest.clone(),
             nuclear_data_digest: normalized.nuclear_data.digest.clone(),
+            covariance: None,
+        };
+        let covariance = Self::driving_covariance(normalized, &result, breeder, heat)?;
+        let result = Self {
+            covariance,
+            ..result
         };
         result.validate()?;
         Ok(result)
+    }
+
+    /// Select and scale the transport covariance into driving units. None when
+    /// the record has no covariance.
+    fn driving_covariance(
+        normalized: &NormalizedTransportResult,
+        rates: &Self,
+        breeder: &NormalizedTally,
+        heat: Option<&NormalizedTally>,
+    ) -> Result<Option<DrivingCovariance>, String> {
+        let Some(rc) = &normalized.response_covariance else {
+            return Ok(None);
+        };
+        let m = rc.response_ids.len();
+        if m == 0 || rc.integrated.len() != m * m {
+            return Err("transport response covariance has inconsistent dimensions".into());
+        }
+        // (tally, scale from integrated to driving units, independent volume variance)
+        let mut picks: Vec<(&NormalizedTally, f64, f64)> =
+            vec![(breeder, 1.0 / normalized.source_neutron_rate_per_s, 0.0)];
+        for rate in rates.component_average_flux_n_m2_s.values() {
+            let tally = normalized
+                .results
+                .iter()
+                .find(|r| r.response_id == rate.response_id)
+                .ok_or("flux response vanished from normalized transport")?;
+            // mean = integrated_mean / volume; the stored standard error adds
+            // (mean * volume_se / volume)^2 for the independent volume estimate.
+            let volume_variance =
+                (tally.mean * tally.volume_standard_error_m3 / tally.volume_m3).powi(2);
+            picks.push((tally, 1.0 / tally.volume_m3, volume_variance));
+        }
+        if let Some(h) = heat {
+            picks.push((h, 1.0, 0.0));
+        }
+        let n = picks.len();
+        let mut index = Vec::with_capacity(n);
+        for (tally, _, _) in &picks {
+            let position = rc
+                .response_ids
+                .iter()
+                .position(|id| *id == tally.response_id)
+                .ok_or_else(|| {
+                    format!(
+                        "transport covariance has no entry for driving response {}",
+                        tally.response_id
+                    )
+                })?;
+            index.push(position);
+        }
+        let mut monte_carlo = vec![0.0; n * n];
+        for i in 0..n {
+            for j in 0..n {
+                monte_carlo[i * n + j] =
+                    rc.integrated[index[i] * m + index[j]] * picks[i].1 * picks[j].1;
+            }
+            let expected = (picks[i].0.integrated_standard_error * picks[i].1).powi(2);
+            if (monte_carlo[i * n + i] - expected).abs()
+                > COVARIANCE_VARIANCE_RTOL * expected + f64::MIN_POSITIVE
+            {
+                return Err(format!(
+                    "covariance diagonal for {} differs from its tally standard error",
+                    picks[i].0.response_id
+                ));
+            }
+        }
+        Ok(Some(DrivingCovariance {
+            method: rc.method.clone(),
+            batches: rc.batches,
+            rate_ids: picks.iter().map(|p| p.0.response_id.clone()).collect(),
+            monte_carlo,
+            volume_variance: picks.iter().map(|p| p.2).collect(),
+        }))
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -216,6 +474,9 @@ impl TransportDrivingRates {
         )?;
         validate_hash(&self.solver_digest, true, "solver_digest")?;
         validate_hash(&self.nuclear_data_digest, true, "nuclear_data_digest")?;
+        if let Some(covariance) = &self.covariance {
+            covariance.validate(self)?;
+        }
         Ok(())
     }
 }
@@ -1297,6 +1558,7 @@ mod tests {
             transport_artifact_sha256: "b".repeat(64),
             solver_digest: format!("sha256:{}", "c".repeat(64)),
             nuclear_data_digest: format!("sha256:{}", "d".repeat(64)),
+            covariance: None,
         }
     }
 
