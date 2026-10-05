@@ -21,7 +21,8 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 sys.dont_write_bytecode = True
 from port_geometry_contract import validate_ownership_audits
-from recorded_bundle_contract import validate_recorded_bundle
+from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bundle,
+                                      check_sweep_set, SWEEP_BUNDLE_DIRECTORY)
 from recorded_archives import (extract_indexed_trees, MAX_EXPANDED_BYTES, MAX_MEMBERS,
                                MAX_TREE_BYTES, MAX_TREE_FILES, MAX_TREE_MEMBERS,
                                MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES,
@@ -275,6 +276,51 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
                 or any(character not in "0123456789abcdefABCDEF" for character in source_sha_bare)):
             raise ValueError(f"packaged scientific support identity mismatch: {relative}")
     return index, inventory
+
+
+def sweep_bundle_paths(root: Path, index: dict[str, Any]) -> list[Path]:
+    """Return the indexed allocation-sweep bundle paths after a hash check against the index."""
+    sweep = index.get("sweep")
+    if sweep is None:
+        return []
+    runs = sweep.get("runs") if isinstance(sweep, dict) else None
+    if not isinstance(runs, list) or not runs:
+        raise ValueError("package sweep section is malformed or empty")
+    paths = []
+    for run in runs:
+        relative = run.get("transport_bundle") if isinstance(run, dict) else None
+        if (not isinstance(relative, str)
+                or PurePosixPath(relative).parent.as_posix() != SWEEP_BUNDLE_DIRECTORY):
+            raise ValueError("package sweep bundle path is outside sweep/bundles")
+        path = safe_package_path(root, relative)
+        if digest(path) != run.get("transport_bundle_sha256"):
+            raise ValueError(f"sweep transport bundle digest mismatch: {relative}")
+        paths.append(path)
+    return paths
+
+
+def verify_sweep(root: Path, index: dict[str, Any]) -> int:
+    """Revalidate every sweep bundle against the packaged sweep scenario; return the count."""
+    paths = sweep_bundle_paths(root, index)
+    if not paths:
+        return 0
+    sweep = index["sweep"]
+    scenario_path = safe_package_path(root, sweep.get("scenario_path"))
+    if digest(scenario_path) != sweep.get("scenario_sha256"):
+        raise ValueError("sweep scenario digest mismatch")
+    scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
+    scenario_sha = bare_sha256(sweep["scenario_sha256"], "sweep scenario")
+    records = []
+    for run, path in zip(sweep["runs"], paths, strict=True):
+        record = inspect_sweep_bundle(json.loads(path.read_text(encoding="utf-8")),
+                                      scenario_sha256=scenario_sha, scenario=scenario)
+        record["transport_bundle"] = run["transport_bundle"]
+        record["transport_bundle_sha256"] = run["transport_bundle_sha256"]
+        if record != run or path.name != f"{record['variant_id']}.transport-bundle.json":
+            raise ValueError(f"sweep run identity differs from its index entry: {path.name}")
+        records.append(record)
+    check_sweep_set(records)
+    return len(records)
 
 
 def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
@@ -693,6 +739,7 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, _ = verify_index(package, faris, core)
     verify_outage_duration_study(package.resolve(strict=True), index)
+    sweep_count = verify_sweep(package.resolve(strict=True), index)
     expanded = int(index["expanded_case_workspace_bytes"])
     directory_count = int(index["expanded_case_workspace_directory_count"])
     largest_case = max(int(item["case_archive"]["expanded_bytes"])
@@ -708,6 +755,7 @@ def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
         inspected = inspect_cases(package, index, faris, core, extracted)
     return {"package_index_sha256": digest(package / INDEX), "indexed_file_count": len(index["files"]),
             "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
+            "verified_sweep_bundle_count": sweep_count,
             "expanded_case_workspace_bytes": expanded,
             "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED"}
 
@@ -725,6 +773,10 @@ def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> d
         if not index.get("files"):
             raise ValueError("cannot run tamper control on an empty file inventory")
         chosen = index["files"][0]["path"]
+        sweep_files = [item["path"] for item in index["files"]
+                       if item["path"].startswith(SWEEP_BUNDLE_DIRECTORY + "/")]
+        if sweep_files:
+            chosen = sweep_files[0]
         victim = safe_package_path(target.resolve(strict=True), chosen)
         original_bytes_sha = digest(safe_package_path(source.resolve(strict=True), chosen))
         content = bytearray(victim.read_bytes())

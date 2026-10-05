@@ -18,7 +18,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.dont_write_bytecode = True
 from recorded_archives import extract_indexed_trees
-from verify_recorded_demo import verify_index
+from verify_recorded_demo import verify_index, sweep_bundle_paths
 
 
 def split_app_override(arguments: list[str]) -> tuple[str | None, list[str]]:
@@ -87,6 +87,10 @@ def main() -> int:
         raise ValueError("--runs-directory must resolve outside the read-only distribution")
     faris, core, app = (root / "bin/faris", root / "bin/avila-core", root / "bin/faris-app")
     index, _ = verify_index(root, faris, core)
+    sweep_bundles = sweep_bundle_paths(root, index)
+    if not sweep_bundles:
+        print("FARIS demo launcher: this package contains no allocation sweep.",
+              file=sys.stderr, flush=True)
     if app_override is not None:
         app = Path(app_override).resolve(strict=True)
         if not app.is_file() or not os.access(app, os.X_OK):
@@ -168,6 +172,8 @@ def main() -> int:
                    "--control-bundle", str(root / "control/bundles/reference.transport-bundle.json"),
                    "--control-bundle", str(root / "control/bundles/breeder-emphasis.transport-bundle.json"),
                    "--assumptions", str(root / "operating-assumptions.json")]
+        for bundle in sweep_bundles:
+            command.extend(("--sweep-bundle", str(bundle)))
         for descriptor in descriptors:
             command.extend(("--saved-study", str(descriptor)))
         command.extend(("--saved-study-ready-marker", str(marker)))

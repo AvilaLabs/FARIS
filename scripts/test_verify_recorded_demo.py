@@ -16,7 +16,7 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(VERIFY)
 sys.path.insert(0, str(SCRIPT.parent))
 from port_geometry_contract import validate_ownership_audits
-from recorded_bundle_contract import validate_recorded_bundle
+from recorded_bundle_contract import validate_recorded_bundle, inspect_sweep_bundle
 import package_recorded_demo as PACKAGE
 
 
@@ -41,7 +41,8 @@ def reindex_package(root: Path) -> None:
     write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
 
 
-def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes) -> tuple[str, str, str, dict]:
+def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes,
+                seed: int | None = None) -> tuple[str, str, str, dict]:
     scenario_sha = VERIFY.digest(root / pair / "scenario.json").removeprefix("sha256:")
     input_value = {
         "schema_version": "faris-reactor-input/v0.1", "scenario_sha256": scenario_sha,
@@ -102,7 +103,8 @@ def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes) -> t
                                sort_keys=True) + "\n").encode()
     run_value = {
         "schema_version": "faris-reactor-run/v0.1", "scenario_sha256": scenario_sha,
-        "variant_id": variant, "execution": {"execution_status": "SUCCEEDED"},
+        "variant_id": variant,
+        "execution": {"execution_status": "SUCCEEDED", **({} if seed is None else {"seed": seed})},
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "raw_artifact_sha256": hashlib.sha256(artifact_bytes).hexdigest(),
         "audit_sha256": hashlib.sha256(audit_bytes).hexdigest(),
@@ -115,7 +117,8 @@ def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes) -> t
         "normalized": {"results": [
             {"response_id": "total-tritium-production"},
             {"response_id": "heating-total-whole-model"},
-            {"response_id": "mesh-bin-0", "domain": {"kind": "mesh", "mesh_id": "mesh", "bin": 0}},
+            {"response_id": "mesh-bin-0", "mean": 1.0,
+             "domain": {"kind": "mesh", "mesh_id": "mesh", "bin": 0}},
         ]},
     }
     run_bytes = (json.dumps(run_value, sort_keys=True) + "\n").encode()
@@ -578,6 +581,31 @@ def make_package(root: Path, faris: Path, core: Path,
     write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
 
 
+def add_sweep(root: Path, variants: list[tuple[str, float]], seeds: list[int] | None = None) -> None:
+    """Add a synthetic allocation sweep (variant, blanket m) and index it."""
+    layers = lambda blanket: [{"id": "blanket", "thickness_m": blanket},
+                              {"id": "shield", "thickness_m": round(0.9 - blanket, 6)}]
+    scenario = {"id": "allocation-sweep", "variants": [
+        {"id": name, "layers": layers(blanket)} for name, blanket in variants]}
+    scenario_bytes = (json.dumps(scenario, sort_keys=True) + "\n").encode()
+    write(root / "sweep/scenario.json", scenario_bytes)
+    runs = []
+    for position, (name, blanket) in enumerate(variants):
+        seed = (seeds or list(range(100, 100 + len(variants))))[position]
+        rel, run_sha, raw_sha, summary = make_bundle(root, "sweep", name, scenario_bytes, seed)
+        runs.append({"variant_id": name, "blanket_thickness_m": blanket,
+                     "shield_thickness_m": round(0.9 - blanket, 6), "seed": seed,
+                     "run_record_sha256": run_sha, "raw_artifact_sha256": raw_sha,
+                     "offline_field_and_spectrum_identity": summary,
+                     "transport_bundle": rel, "transport_bundle_sha256": VERIFY.digest(root / rel)})
+    index_path = root / "package-index.json"
+    index = json.loads(index_path.read_text())
+    index["sweep"] = {"scenario_id": "allocation-sweep", "scenario_path": "sweep/scenario.json",
+                      "scenario_sha256": VERIFY.digest(root / "sweep/scenario.json"), "runs": runs}
+    write(index_path, json.dumps(index, indent=2) + "\n")
+    reindex_package(root)
+
+
 class RecordedDemoPackageVerificationTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -640,6 +668,111 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertNotIn("/tmp/private/run.json", json.dumps(campaign))
         result = VERIFY.verify_package(relocated, self.faris, self.core)
         self.assertEqual(result["inspected_saved_case_count"], 4)
+
+    def test_package_without_sweep_verifies_and_launches_without_sweep_flags(self):
+        result = VERIFY.verify_package(self.package, self.faris, self.core)
+        self.assertEqual(result["verified_sweep_bundle_count"], 0)
+        log = self.root / "args-none.json"
+        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(self.root / "state"))
+        launched = subprocess.run([str(self.package / "launch.sh")], env=environment,
+                                  text=True, capture_output=True, check=False)
+        self.assertEqual(launched.returncode, 0, launched.stderr)
+        self.assertNotIn("--sweep-bundle", json.loads(log.read_text())["args"])
+        self.assertIn("no allocation sweep", launched.stderr)
+
+    def test_sweep_bundles_are_indexed_verified_and_passed_to_the_app(self):
+        add_sweep(self.package, [("blanket-030cm", 0.30), ("blanket-040cm", 0.40)])
+        result = VERIFY.verify_package(self.package, self.faris, self.core)
+        self.assertEqual(result["verified_sweep_bundle_count"], 2)
+        index = json.loads((self.package / "package-index.json").read_text())
+        indexed = {item["path"] for item in index["files"]}
+        self.assertIn("sweep/bundles/blanket-030cm.transport-bundle.json", indexed)
+        self.assertIn("sweep/scenario.json", indexed)
+        log = self.root / "args-sweep.json"
+        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(self.root / "state"))
+        launched = subprocess.run([str(self.package / "launch.sh")], env=environment,
+                                  text=True, capture_output=True, check=False)
+        self.assertEqual(launched.returncode, 0, launched.stderr)
+        arguments = json.loads(log.read_text())["args"]
+        passed = [arguments[i + 1] for i, item in enumerate(arguments) if item == "--sweep-bundle"]
+        self.assertEqual([Path(item).name for item in passed],
+                         ["blanket-030cm.transport-bundle.json", "blanket-040cm.transport-bundle.json"])
+        self.assertTrue(all(Path(item).is_relative_to(self.package.resolve()) for item in passed))
+
+    def test_tampered_sweep_bundle_is_refused_by_verifier_and_launcher(self):
+        add_sweep(self.package, [("blanket-030cm", 0.30), ("blanket-040cm", 0.40)])
+        victim = self.package / "sweep/bundles/blanket-040cm.transport-bundle.json"
+        victim.chmod(0o644)
+        content = bytearray(victim.read_bytes())
+        content[len(content) // 2] ^= 0x01
+        victim.write_bytes(content)
+        with self.assertRaises(ValueError):
+            VERIFY.verify_package(self.package, self.faris, self.core)
+        launched = subprocess.run([str(self.package / "launch.sh")],
+                                  env=dict(os.environ, XDG_STATE_HOME=str(self.root / "state")),
+                                  text=True, capture_output=True, check=False)
+        self.assertEqual(launched.returncode, 2, launched.stderr)
+
+    def test_tamper_negative_control_targets_a_sweep_file_when_present(self):
+        add_sweep(self.package, [("blanket-030cm", 0.30)])
+        result = VERIFY.mutate_copy_for_negative_control(self.package, self.faris, self.core)
+        self.assertTrue(result["tampered_copy_path"].startswith("sweep/bundles/"))
+
+    def test_reindexed_sweep_with_wrong_identity_is_refused(self):
+        add_sweep(self.package, [("blanket-030cm", 0.30), ("blanket-040cm", 0.40)],
+                  seeds=[7, 7])
+        with self.assertRaisesRegex(ValueError, "seed"):
+            VERIFY.verify_package(self.package, self.faris, self.core)
+        shutil.rmtree(self.package / "sweep")
+        add_sweep(self.package, [("blanket-030cm", 0.30)])
+        index = json.loads((self.package / "package-index.json").read_text())
+        index["sweep"]["runs"][0]["blanket_thickness_m"] = 0.31
+        write(self.package / "package-index.json", json.dumps(index, indent=2) + "\n")
+        reindex_package(self.package)
+        with self.assertRaisesRegex(ValueError, "differs from its index entry"):
+            VERIFY.verify_package(self.package, self.faris, self.core)
+
+    def test_sweep_variant_must_match_pattern_and_scenario(self):
+        scenario = {"variants": [{"id": "blanket-030cm", "layers": [
+            {"id": "blanket", "thickness_m": 0.3}, {"id": "shield", "thickness_m": 0.6}]}]}
+        scenario_bytes = (json.dumps(scenario) + "\n").encode()
+        write(self.root / "x/scenario.json", scenario_bytes)
+        sha = VERIFY.digest(self.root / "x/scenario.json").removeprefix("sha256:")
+        for variant in ("reference", "blanket-070cm"):
+            rel, *_ = make_bundle(self.root, "x", variant, scenario_bytes, 1)
+            bundle = json.loads((self.root / rel).read_text())
+            with self.assertRaises(ValueError, msg=variant):
+                inspect_sweep_bundle(bundle, scenario_sha256=sha, scenario=scenario)
+
+    def test_packager_copies_validates_and_tabulates_sweep_bundles(self):
+        real = Path(__file__).resolve().parents[1] / PACKAGE.SWEEP_SCENARIO_RELATIVE
+        real_bytes = real.read_bytes()
+        write(self.root / "real/scenario.json", real_bytes)
+        sources = []
+        for position, variant in enumerate(("blanket-035cm", "blanket-030cm")):
+            rel, *_ = make_bundle(self.root, "real", variant, real_bytes, 500 + position)
+            sources.append(self.root / rel)
+        staging = self.root / "staging-sweep"
+        staging.mkdir()
+        sweep = PACKAGE.add_sweep(staging, sources)
+        self.assertEqual([run["variant_id"] for run in sweep["runs"]],
+                         ["blanket-030cm", "blanket-035cm"])
+        self.assertEqual(sweep["runs"][0]["blanket_thickness_m"], 0.3)
+        self.assertEqual(sweep["runs"][0]["shield_thickness_m"], 0.6)
+        self.assertTrue((staging / "sweep/bundles/blanket-035cm.transport-bundle.json").is_file())
+        PACKAGE.write_package_readme(staging, [], {}, sweep)
+        readme = (staging / "README.md").read_text()
+        self.assertIn("| blanket-030cm | 0.3 | 0.6 |", readme)
+        self.assertIn(sweep["runs"][1]["raw_artifact_sha256"], readme)
+        self.assertIsNone(PACKAGE.add_sweep(self.root / "unused", []))
+        with self.assertRaisesRegex(ValueError, "repeat a variant"):
+            PACKAGE.check_sweep_set([{"variant_id": "a", "seed": 1}, {"variant_id": "a", "seed": 2}])
+        # a bundle built for a different scenario is refused
+        other = self.root / "other-staging"
+        other.mkdir()
+        add_sweep(self.package, [("blanket-030cm", 0.30)])
+        with self.assertRaises(ValueError):
+            PACKAGE.add_sweep(other, [self.package / "sweep/bundles/blanket-030cm.transport-bundle.json"])
 
     def test_outage_duration_axis_changes_only_interval_lengths(self):
         base = json.loads((self.package / "operating-assumptions.json").read_text())

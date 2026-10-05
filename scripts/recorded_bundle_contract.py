@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from typing import Any
 
 MAX_BUNDLE_BYTES = 32 * 1024 * 1024
@@ -291,6 +292,70 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
         "spectral_curve_count": len(normalized_spectra),
         "normalized_response_count": len(results),
     }
+
+
+SWEEP_VARIANT_PATTERN = re.compile(r"blanket-\d{3}cm")
+SWEEP_BUNDLE_DIRECTORY = "sweep/bundles"
+
+
+def sweep_allocations(scenario: dict[str, Any]) -> dict[str, tuple[float, float]]:
+    """Return {variant id: (blanket m, shield m)} for the allocation-sweep scenario."""
+    allocations: dict[str, tuple[float, float]] = {}
+    for variant in scenario.get("variants") or []:
+        thickness = {layer.get("id"): layer.get("thickness_m") for layer in variant.get("layers") or []}
+        blanket, shield = thickness.get("blanket"), thickness.get("shield")
+        if (not isinstance(variant.get("id"), str) or not _positive_finite(blanket)
+                or not _positive_finite(shield)):
+            raise ValueError("sweep scenario variant lacks blanket and shield thicknesses")
+        allocations[variant["id"]] = (float(blanket), float(shield))
+    return allocations
+
+
+def inspect_sweep_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
+                         scenario: dict[str, Any]) -> dict[str, Any]:
+    """Validate one allocation-sweep bundle and return its identity record.
+
+    The variant, seed and mesh usability come from the bundle's own run record;
+    the full recorded-bundle contract then binds every embedded artifact.
+    """
+    files = bundle.get("files")
+    if not isinstance(files, dict):
+        raise ValueError("recorded transport bundle has missing required files")
+    run_bytes, run = parse_embedded(files, "run.json")
+    variant_id = run.get("variant_id")
+    if not isinstance(variant_id, str) or not SWEEP_VARIANT_PATTERN.fullmatch(variant_id):
+        raise ValueError(f"sweep run variant is not blanket-NNNcm: {variant_id!r}")
+    allocations = sweep_allocations(scenario)
+    if variant_id not in allocations:
+        raise ValueError(f"sweep variant is not declared by the allocation-sweep scenario: {variant_id}")
+    seed = (run.get("execution") or {}).get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError(f"sweep run {variant_id} records no integer transport seed")
+    mesh_id = (run.get("mesh") or {}).get("id")
+    results = (run.get("normalized") or {}).get("results") or []
+    nonzero = sum(1 for item in results
+                  if isinstance(item, dict) and (item.get("domain") or {}).get("kind") == "mesh"
+                  and (item.get("domain") or {}).get("mesh_id") == mesh_id
+                  and _finite(item.get("mean")) and item["mean"] > 0.0)
+    summary = validate_recorded_bundle(
+        bundle, scenario_sha256=scenario_sha256, variant_id=variant_id,
+        mesh_nonzero_flux_bin_count=nonzero)
+    blanket, shield = allocations[variant_id]
+    return {"variant_id": variant_id, "blanket_thickness_m": blanket,
+            "shield_thickness_m": shield, "seed": seed,
+            "run_record_sha256": "sha256:" + digest_bytes(run_bytes),
+            "raw_artifact_sha256": summary["raw_artifact_sha256"],
+            "offline_field_and_spectrum_identity": summary}
+
+
+def check_sweep_set(records: list[dict[str, Any]]) -> None:
+    """Refuse duplicate variants or reused seeds across a set of sweep records."""
+    variants = [item["variant_id"] for item in records]
+    seeds = [item["seed"] for item in records]
+    if len(set(variants)) != len(variants):
+        raise ValueError("sweep bundles repeat a variant")
+    if len(set(seeds)) != len(seeds):
+        raise ValueError("sweep bundles reuse a transport seed")
 
 
 def _finite(value: Any) -> bool:
