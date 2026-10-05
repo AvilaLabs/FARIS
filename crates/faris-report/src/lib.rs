@@ -159,6 +159,8 @@ struct Manifest<'a> {
     /// One entry per arrangement with a history: method, seed (as text),
     /// samples, rejections and status of its ensemble.
     history_ensembles: Vec<uncertainty::EnsembleRecord>,
+    /// One entry per contrast of the compare view: compared, or why not.
+    history_ensemble_comparisons: Vec<uncertainty::ComparisonRecord>,
     files: &'a [FileRecord],
 }
 
@@ -283,6 +285,8 @@ struct Prepared {
     view_image: Option<Vec<u8>>,
     view_note: Option<String>,
     uncertainty: Option<UncertaintyReport>,
+    /// Paired comparison of each contrast; empty with no uncertainty section.
+    comparisons: Vec<uncertainty::ContrastComparison>,
     /// Tritium and net-electricity charts with their bands.
     band_charts: Vec<ChartSvg>,
 }
@@ -481,6 +485,7 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
         ));
     }
     Ok(Prepared {
+        comparisons: uncertainty::contrast_comparisons(&data),
         data,
         study,
         timeline,
@@ -597,6 +602,10 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
             "data/history-ensemble-summary.csv".into(),
             tables::with_statement(tables::ensemble_summary_csv(&order)).into_bytes(),
         ));
+        files.push((
+            "data/history-ensemble-comparison.csv".into(),
+            tables::with_statement(tables::ensemble_comparison_csv(&p.comparisons)).into_bytes(),
+        ));
     }
     files.push((
         "data/assumptions.csv".into(),
@@ -669,6 +678,7 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
             note: prepared.view_note.clone(),
         },
         history_ensembles: uncertainty::manifest_records(&prepared.data),
+        history_ensemble_comparisons: uncertainty::comparison_records(&prepared.comparisons),
         files: &records,
     };
     let mut text =

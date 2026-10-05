@@ -925,11 +925,80 @@ mod ensembles {
     }
 
     #[test]
+    fn the_comparison_csv_has_paired_rows_where_computable_and_a_reason_where_not() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let csv = text(&outcome.folder, "data/history-ensemble-comparison.csv");
+        let mut lines = csv.lines();
+        assert!(lines.next().unwrap().starts_with("# "));
+        assert!(
+            lines
+                .next()
+                .unwrap()
+                .starts_with("contrast,first_arrangement,")
+        );
+        let rows: Vec<&str> = lines.collect();
+        // Port and no-port reference are both evaluated, with different
+        // seeds and artifacts.
+        let compared: Vec<&&str> = rows
+            .iter()
+            .filter(|r| r.starts_with("Port − No port · reference,"))
+            .collect();
+        assert!(!compared.is_empty());
+        assert!(compared.iter().all(|r| r.contains(",compared,")));
+        assert!(
+            compared
+                .iter()
+                .any(|r| r.contains(",final_available_tritium_kg,kg,"))
+        );
+        // The with-port breeder contrast has an unevaluated ensemble: it says why.
+        let missing = rows
+            .iter()
+            .find(|r| r.starts_with("Breeder-heavy − Reference · with port,"))
+            .unwrap();
+        assert!(missing.contains(",not_compared,"));
+        assert!(missing.contains("no paired comparison: "));
+        assert!(missing.contains("Next step: "));
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&read(&outcome.folder, "export-manifest.json")).unwrap();
+        let records = manifest["history_ensemble_comparisons"].as_array().unwrap();
+        assert_eq!(records.len(), 4);
+        assert_eq!(records[2]["status"], "compared");
+        assert_eq!(records[0]["status"], "not_compared");
+        assert!(records[0]["why"].is_string() && records[0]["next_step"].is_string());
+    }
+
+    #[test]
+    fn a_pair_that_cannot_be_compared_records_the_reason_never_silently_dropped() {
+        let mut source = with_ensembles();
+        // Same seed as the first: the engine refuses the pairing.
+        source.arrangements[1].ensemble =
+            ensemble(1.25, 1.6e14, 'c', 18_446_744_073_709_551_000, true);
+        // A failed ensemble and a missing one.
+        source.arrangements[2].ensemble = EnsembleInput::Failed("boom".into());
+        let prepared = prepare(&source).unwrap();
+        let first = &prepared.comparisons[2];
+        let why = &first.outcome.as_ref().unwrap_err().why;
+        assert!(why.contains("different seeds"), "{why}");
+        let csv = tables::ensemble_comparison_csv(&prepared.comparisons);
+        assert!(csv.contains("no paired comparison: paired comparison needs independent"));
+        let records = uncertainty::comparison_records(&prepared.comparisons);
+        assert!(records.iter().all(|r| r.status == "not_compared"));
+        assert!(
+            records
+                .iter()
+                .all(|r| r.why.is_some() && r.next_step.is_some())
+        );
+        // No ensembles at all: no section, no comparison rows.
+        assert!(prepare(&input()).unwrap().comparisons.is_empty());
+    }
+
+    #[test]
     fn a_plain_export_has_no_ensemble_files() {
         let (_guard, plain) = exported();
         for name in [
             "data/history-ensemble-samples.csv",
             "data/history-ensemble-summary.csv",
+            "data/history-ensemble-comparison.csv",
         ] {
             assert!(!plain.folder.join(name).exists(), "{name}");
         }

@@ -178,6 +178,7 @@ pub fn run(command: HistoryCommand) -> Result<(), Box<dyn std::error::Error>> {
             output.display(),
             result.outcome
         );
+        announce_research_screening();
     } else {
         println!("Assumptions and transport driving rates are valid; no history was computed.");
     }
@@ -211,6 +212,7 @@ fn ensemble(
     let result = run_history_ensemble(&rates, &assumptions, &settings, cancellation, &progress)
         .map_err(std::io::Error::other)?;
     write_new_json(&output, &result)?;
+    announce_research_screening();
     match &result.status {
         EnsembleStatus::Evaluated => println!(
             "History ensemble recorded at {} ({} samples, seed {}, {} rejected draws)",
@@ -270,7 +272,16 @@ fn from_run(
         result.outcome,
         run_path.display()
     );
+    announce_research_screening();
     Ok(())
+}
+
+/// The research-screening statement on stderr after a result file is written.
+/// The result files are not changed: `HistoryResult.notice` is part of
+/// receipt-bound bytes, and a comparison's own bytes are hashed into its
+/// provenance record.
+fn announce_research_screening() {
+    eprintln!("{}", faris_model::RESEARCH_SCREENING_STATEMENT);
 }
 
 fn write_new_json<T: serde::Serialize>(
@@ -364,6 +375,7 @@ fn compare_runs(request: CompareRunRequest) -> Result<(), Box<dyn std::error::Er
     });
     write_new_json(&provenance_output, &provenance)?;
     println!("Paired history comparison recorded at {}", output.display());
+    announce_research_screening();
     Ok(())
 }
 
@@ -445,6 +457,7 @@ fn sensitivity(
         result.points.len(),
         output.display()
     );
+    announce_research_screening();
     Ok(())
 }
 

@@ -2,7 +2,10 @@
 //! (shortest round-trip representation); units are in the headers; a kind
 //! column accompanies every value the app shows with a status label.
 
-use crate::{ArrangementData, uncertainty::EnsembleInput};
+use crate::{
+    ArrangementData,
+    uncertainty::{ContrastComparison, EnsembleInput},
+};
 use faris_engine::{
     brief::{
         AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
@@ -641,6 +644,105 @@ pub fn caveats_csv(caveats: &[Caveat]) -> String {
             c.why.clone(),
             c.settle.clone(),
         ]));
+    }
+    out
+}
+
+/// The unit of a paired output, in the engine's units, from its name.
+fn paired_unit_text(name: &str) -> &'static str {
+    if name.ends_with("_s") || name.contains("_time_s:") {
+        "s"
+    } else if name.ends_with("_kg") {
+        "kg"
+    } else if name.ends_with("_mwh") {
+        "MWh"
+    } else if name.starts_with("replacements:") {
+        "count"
+    } else {
+        ""
+    }
+}
+
+/// The paired comparison of each contrast, second arrangement minus first, in
+/// the engine's units: one row per paired output, with the difference's mean,
+/// P5, median and P95 (each with its 95 % sampling interval) and the share of
+/// pairs where the first is below, equal to or above the second. A contrast
+/// that cannot be compared has one row carrying the reason and next step.
+pub(crate) fn ensemble_comparison_csv(comparisons: &[ContrastComparison]) -> String {
+    let mut header = vec![
+        "contrast".to_string(),
+        "first_arrangement".into(),
+        "second_arrangement".into(),
+        "status".into(),
+        "method".into(),
+        "pairs".into(),
+        "output".into(),
+        "unit".into(),
+        "n_pairs".into(),
+        "difference_mean".into(),
+    ];
+    for q in ["p5", "p50", "p95"] {
+        for part in ["", "_ci95_low", "_ci95_high"] {
+            header.push(format!("difference_{q}{part}"));
+        }
+    }
+    for share in ["a_less_than_b", "a_equal_to_b", "a_greater_than_b"] {
+        for part in ["_fraction", "_wilson95_low", "_wilson95_high"] {
+            header.push(format!("{share}{part}"));
+        }
+    }
+    header.push("note".into());
+    let width = header.len();
+    let mut out = row(&header);
+    for c in comparisons {
+        let lead = |status: &str, method: &str, pairs: String| {
+            vec![
+                c.contrast.title.to_string(),
+                c.contrast.a.id().into(),
+                c.contrast.b.id().into(),
+                status.into(),
+                method.into(),
+                pairs,
+            ]
+        };
+        match &c.outcome {
+            Ok(found) => {
+                for p in &found.outputs {
+                    let mut cells = lead("compared", &found.method, found.pairs.to_string());
+                    cells.extend([
+                        p.name.clone(),
+                        paired_unit_text(&p.name).into(),
+                        p.n_pairs.to_string(),
+                        number(p.difference_mean),
+                    ]);
+                    for q in [&p.difference_p5, &p.difference_p50, &p.difference_p95] {
+                        cells.extend([
+                            number(q.value),
+                            optional(q.ci95_low),
+                            optional(q.ci95_high),
+                        ]);
+                    }
+                    for s in [&p.a_less_than_b, &p.a_equal_to_b, &p.a_greater_than_b] {
+                        cells.extend([
+                            number(s.fraction),
+                            number(s.wilson95_low),
+                            number(s.wilson95_high),
+                        ]);
+                    }
+                    cells.push(found.scope.clone());
+                    out.push_str(&row(&cells));
+                }
+            }
+            Err(n) => {
+                let mut cells = lead("not_compared", "", String::new());
+                cells.resize(width - 1, String::new());
+                cells.push(format!(
+                    "no paired comparison: {}. Next step: {}.",
+                    n.why, n.next_step
+                ));
+                out.push_str(&row(&cells));
+            }
+        }
     }
     out
 }
