@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "negation_words": ["not", "no", "never", "nor", "without", "cannot", "nothing", "none"],
+  "negation_window_words": 8,
+  "limiting_following_phrases": ["NOT_EVALUATED", "not evaluated"],
+  "limiting_following_window_words": 4,
+  "forbidden_claims": [
+    "licensed",
+    "licensing",
+    "licensure",
+    "qualified",
+    "qualification",
+    "certified",
+    "certification",
+    "safety[- ]approved",
+    "safety approval",
+    "approved for",
+    "validated design",
+    "fully validated",
+    "regulator[- ]approved"
+  ],
+  "twin_terms": ["twin", "twins"],
+  "verdict_words": {
+    "variant_patterns": ["not[-_ ]?evaluated", "inconclusive", "in-conclusive", "non-conclusive", "non_conclusive"],
+    "canonical_forms": ["NOT_EVALUATED", "not evaluated", "INCONCLUSIVE", "inconclusive"],
+    "sentence_start_forms": ["Not evaluated", "Inconclusive"],
+    "synonyms": ["PASSED", "FAILED", "PASSES", "FAILS", "UNDETERMINED", "INDETERMINATE", "Passed", "Failed"]
+  },
+  "codenames": {
+    "case_insensitive": ["north-star", "north star", "northstar"],
+    "case_sensitive": ["Jev", "OMNIGEN", "Aftermatter", "Astra", "McFly", "ORACLE"]
+  },
+  "allow_list": [
+    {
+      "rule": "LEG-043",
+      "text": "not_evaluated",
+      "reason": "Machine-readable status id in exported CSV/JSON and Core's own lowercase verdict state, matched or written verbatim; display text uses NOT_EVALUATED or 'not evaluated'."
+    },
+    {
+      "rule": "LEG-043",
+      "text": "\"not_evaluated\"",
+      "reason": "The same machine-readable status id inside the package script's JSON handling."
+    },
+    {
+      "rule": "LEG-043",
+      "text": "FAILED",
+      "reason": "Machine status value of the saved-study materialization marker and of the control execution record (beside COMPLETE); not a verdict shown to users."
+    },
+    {
+      "rule": "LEG-041",
+      "text": "FARIS source code and documentation are licensed under the [GNU Affero General Public License, version 3 only](LICENSE) (`AGPL-3.0-only`).",
+      "reason": "States the copyright licence of the FARIS software itself, not a regulatory licensing claim."
+    },
+    {
+      "rule": "LEG-042",
+      "text": "It is not a digital twin.",
+      "reason": "States that FARIS is not a digital twin."
+    }
+  ]
+}

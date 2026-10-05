@@ -1491,7 +1491,7 @@ impl FarisApp {
     }
 
     fn operate_step(&mut self, ui: &mut egui::Ui) {
-        ui.label("Scrub the timeline below; edits recalculate all four histories.");
+        ui.label("Scrub the timeline below; edits recalculate the histories of every arrangement and, when present, of the sweep.");
         ui.add_space(8.0);
         if let Some(what_if) = self.history.controls(ui) {
             self.tour.anchor_in(ui, "what-if", what_if);

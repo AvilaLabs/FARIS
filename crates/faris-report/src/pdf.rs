@@ -438,9 +438,9 @@ fn delta_cells(c: &Contrast) -> [Option<(String, StatusKind, &'static str)>; 5] 
                     StatusKind::Partial
                 },
                 if resolved {
-                    "resolved >2σ"
+                    "beyond 2σ noise"
                 } else {
-                    "within noise"
+                    "within 2σ noise"
                 },
             )
         })

@@ -118,7 +118,7 @@ impl HistoryPanel {
                 Status::Running { done, total } => format!("running {done}/{total}"),
                 Status::Ready(e) => match &e.status {
                     EnsembleStatus::Evaluated => "evaluated".into(),
-                    EnsembleStatus::NotEvaluated { .. } => "not_evaluated".into(),
+                    EnsembleStatus::NotEvaluated { .. } => "not evaluated".into(),
                 },
                 Status::Failed(why) => format!("failed: {why}"),
             }

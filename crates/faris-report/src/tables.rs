@@ -214,8 +214,8 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
 
 fn flag(value: Option<(f64, bool)>) -> (String, String) {
     match value {
-        Some((v, true)) => (number(v), "resolved (>2 sigma)".into()),
-        Some((v, false)) => (number(v), "within sampling noise".into()),
+        Some((v, true)) => (number(v), "beyond 2 sigma sampling noise".into()),
+        Some((v, false)) => (number(v), "within 2 sigma sampling noise".into()),
         None => (String::new(), String::new()),
     }
 }
@@ -273,7 +273,7 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
         "magnet_flux_n_m2_s".into(),
         "magnet_flux_standard_error_n_m2_s".into(),
         "magnet_flux_kind".into(),
-        "breeding_change_vs_previous_resolved_2sigma".into(),
+        "breeding_change_vs_previous_beyond_2sigma_noise".into(),
         "transport_seed".into(),
         "transport_source_histories".into(),
         "magnets_replaceable".into(),

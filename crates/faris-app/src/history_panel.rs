@@ -124,7 +124,9 @@ impl Plot {
 }
 
 struct Preset {
+    id: &'static str,
     name: String,
+    legacy_names: &'static [&'static str],
     assumptions: OperatingHistoryAssumptions,
     note: String,
 }
@@ -215,8 +217,10 @@ impl HistoryPanel {
             Some(loaded) => operating_presets(loaded)?
                 .into_iter()
                 .map(|p| Preset {
-                    note: preset_note(&p.assumptions, p.extra_note),
+                    note: preset_note(&p.assumptions, p.extra_note, p.detail),
+                    id: p.id,
                     name: p.name,
+                    legacy_names: p.legacy_names,
                     assumptions: p.assumptions,
                 })
                 .collect(),
@@ -317,6 +321,7 @@ impl HistoryPanel {
             "scenario_sha256": scenario,
             "variant_id": variant,
             "preset_index": self.preset_index,
+            "preset_id": self.presets.get(self.preset_index).map(|preset| preset.id),
             "preset_name": self.presets.get(self.preset_index).map(|preset| preset.name.as_str()),
             "current_assumptions": self.assumptions,
             "current_assumptions_sha256": assumptions_sha256,
@@ -362,9 +367,9 @@ impl HistoryPanel {
             })
     }
 
-    /// Name of the selected preset, if presets exist (saved in study files).
+    /// Stable id of the selected preset, if presets exist (saved in study files).
     pub fn selected_preset(&self) -> Option<&str> {
-        self.presets.get(self.preset_index).map(|p| p.name.as_str())
+        self.presets.get(self.preset_index).map(|p| p.id)
     }
 
     /// The what-if values as currently edited.
@@ -389,7 +394,10 @@ impl HistoryPanel {
             .presets
             .iter()
             .map(|p| faris_engine::presets::Preset {
+                id: p.id,
                 name: p.name.clone(),
+                legacy_names: p.legacy_names,
+                detail: "",
                 assumptions: p.assumptions.clone(),
                 extra_note: None,
             })
@@ -408,9 +416,13 @@ impl HistoryPanel {
         self.debounce = None;
     }
 
-    /// Select a preset by name and recalculate; false when no such preset exists.
-    pub fn select_preset(&mut self, name: &str) -> bool {
-        match self.presets.iter().position(|preset| preset.name == name) {
+    /// Select a preset by id or name and recalculate; false when no such preset exists.
+    pub fn select_preset(&mut self, key: &str) -> bool {
+        match self
+            .presets
+            .iter()
+            .position(|p| p.id == key || p.name == key || p.legacy_names.contains(&key))
+        {
             Some(index) => {
                 self.preset_index = index;
                 self.apply_preset(index);
@@ -1719,9 +1731,9 @@ fn replacement_days(assumptions: &OperatingHistoryAssumptions, component: &str) 
         .map(|s| (s / DAY_S).round())
 }
 
-/// Hover text for a preset: its key authored numbers and the start of its
-/// provenance statement.
-fn preset_note(a: &OperatingHistoryAssumptions, extra: Option<&str>) -> String {
+/// Hover text for a preset: its detail sentence, its key authored numbers and
+/// the start of its provenance statement.
+fn preset_note(a: &OperatingHistoryAssumptions, extra: Option<&str>, detail: &str) -> String {
     let mut parts = Vec::new();
     for l in &a.service_limits {
         let days = l
@@ -1751,7 +1763,7 @@ fn preset_note(a: &OperatingHistoryAssumptions, extra: Option<&str>) -> String {
         .split_inclusive(". ")
         .take(2)
         .collect::<String>();
-    format!("{note}\n\nProvenance: {}", provenance.trim())
+    format!("{detail}\n{note}\n\nProvenance: {}", provenance.trim())
 }
 
 fn event_label(event: &HistoryEvent) -> String {

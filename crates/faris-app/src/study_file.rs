@@ -40,6 +40,21 @@ fn megabytes(bytes: u64) -> String {
     format!("{:.1} MB", bytes as f64 / 1e6)
 }
 
+/// Label of the File menu option that packs the Core evidence archives into
+/// saved files: the size is the actual total of the open study's archives, and
+/// is left out when they are not known.
+fn evidence_option_label(evidence: &[EvidenceDraft]) -> String {
+    let total: u64 = evidence.iter().map(|e| e.archive.bytes).sum();
+    if evidence.is_empty() || total == 0 {
+        "Include Core evidence in saved files".into()
+    } else {
+        format!(
+            "Include Core evidence in saved files (about +{})",
+            megabytes(total)
+        )
+    }
+}
+
 /// How the evidence layer of an opened or saved file reads in the status bar.
 pub fn evidence_summary(state: &EvidenceState) -> String {
     match state.mode {
@@ -846,10 +861,8 @@ impl FarisApp {
                 ui.close();
             }
             ui.separator();
-            ui.checkbox(
-                &mut self.file.include_evidence,
-                "Include Core evidence in saved files (about +50 MB)",
-            )
+            let evidence_label = evidence_option_label(&self.file.inputs.draft.evidence);
+            ui.checkbox(&mut self.file.include_evidence, evidence_label)
             .on_hover_text(
                 "Off: the file records the Core evidence archives' names and SHA-256 hashes, and opens fully without them. On: the archives are stored inside, so the receipts can be re-checked from this one file. Applies when the study has saved Core receipts.",
             );
@@ -920,6 +933,51 @@ mod tests {
         .unwrap()
     }
 
+    #[test]
+    fn the_evidence_option_shows_the_actual_size_or_none() {
+        let archive = |bytes| EvidenceDraft {
+            archive: EvidenceArchive {
+                arrangement: "port".into(),
+                allocation: "reference".into(),
+                kind: ArchiveKind::Case,
+                file_name: "a.tar.gz".into(),
+                sha256: "0".repeat(64),
+                bytes,
+            },
+            path: None,
+        };
+        assert_eq!(
+            evidence_option_label(&[]),
+            "Include Core evidence in saved files"
+        );
+        assert_eq!(
+            evidence_option_label(&[archive(12_345_678), archive(2_000_000)]),
+            "Include Core evidence in saved files (about +14.3 MB)"
+        );
+    }
+
+    #[test]
+    fn a_file_saved_with_an_old_preset_name_still_restores_that_preset() {
+        let mut app = app();
+        for (old, id) in [
+            ("Baseline authored scenario", "authored-baseline"),
+            (
+                "Demountable magnets · REBCO fluence limit",
+                "demountable-magnets",
+            ),
+            ("Permanent-trip test (numerical control)", "permanent-trip"),
+            ("Loaded assumptions", "loaded"),
+        ] {
+            app.history
+                .restore_view(Some("authored-baseline"), None, "tritium");
+            app.apply_view(&ViewState {
+                preset: Some(old.into()),
+                ..ViewState::default()
+            });
+            assert_eq!(app.history.selected_preset(), Some(id), "{old}");
+        }
+    }
+
     // Verifies: UX-027
     #[test]
     fn title_names_the_file_marks_changes_and_says_unsaved() {
@@ -960,16 +1018,14 @@ mod tests {
         first.transport.view = FieldView::ComponentFlux;
         let mut what_if = first.history.what_if_values().cloned().unwrap();
         what_if.recovery_fraction = 0.8;
-        first.history.restore_view(
-            Some("Baseline authored scenario"),
-            Some(&what_if),
-            "tritium",
-        );
+        first
+            .history
+            .restore_view(Some("authored-baseline"), Some(&what_if), "tritium");
         let saved = first.view_state();
         assert_eq!(saved.step, "compare");
         assert_eq!(saved.field_view, "component-flux");
         assert_eq!(saved.history_tab, "tritium");
-        assert_eq!(saved.preset.as_deref(), Some("Baseline authored scenario"));
+        assert_eq!(saved.preset.as_deref(), Some("authored-baseline"));
         assert_eq!(saved.what_if.as_ref().unwrap().recovery_fraction, 0.8);
 
         let json = serde_json::to_string(&saved).unwrap();

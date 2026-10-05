@@ -203,7 +203,7 @@ pub fn transport_findings(points: &[TransportPoint]) -> Vec<String> {
         first.breeding.mean, last.breeding.mean, first.blanket_m, last.blanket_m
     );
     if !resolved {
-        text.push_str(", a change not resolved at 2\u{3c3}");
+        text.push_str(", a change within 2\u{3c3} sampling noise");
     }
     text.push_str("; ");
     let half = increments.len() / 2;
@@ -225,7 +225,7 @@ pub fn transport_findings(points: &[TransportPoint]) -> Vec<String> {
             first.blanket_m, last.blanket_m, first.magnet_flux.mean, last.magnet_flux.mean
         )
     } else {
-        "Magnet flux differences across the sweep are not resolved at 2\u{3c3} (port streaming dominates)."
+        "Magnet flux differences across the sweep are within 2\u{3c3} sampling noise (port streaming dominates)."
             .into()
     });
     findings
@@ -282,7 +282,7 @@ pub fn history_findings(
                 if flux_resolved {
                     "."
                 } else {
-                    "; the flux differences driving them are not resolved at 2\u{3c3}, so the ordering is not a design signal."
+                    "; the flux differences driving them are within 2\u{3c3} sampling noise, so the ordering is not a design signal."
                 }
             )
         });
@@ -411,7 +411,7 @@ mod tests {
         assert!(findings[0].contains("rises from 1.200 to 1.300"));
         assert!(findings[0].contains("0.30\u{2013}0.45"));
         assert!(findings[0].contains("saturating"));
-        assert!(findings[1].contains("not resolved"));
+        assert!(findings[1].contains("within 2\u{3c3} sampling noise"));
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
         };
         let findings = history_findings(&points, &[summary(2, Some(30.0)), summary(3, Some(28.5))]);
         assert!(findings[0].contains("range from 2 to 3"));
-        assert!(findings[0].contains("not resolved"));
+        assert!(findings[0].contains("within 2\u{3c3} sampling noise"));
         assert!(findings[1].contains("30.00 TWh (0.30 m"));
         assert!(findings[1].contains("28.50 TWh (0.40 m"));
         let same = history_findings(&points, &[summary(0, None), summary(0, None)]);

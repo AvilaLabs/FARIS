@@ -194,7 +194,7 @@ pub fn generate_study(
     }
     let requirements = if selection.breeding {
         vec![json!({
-        "requirement_id":"FARIS-TBR","statement":"Model tritium production per primary D-T neutron meets the declared research criterion; model applicability requires separate qualification.",
+        "requirement_id":"FARIS-TBR","statement":"Model tritium production per primary D-T neutron meets the declared research criterion; the model's applicability is a separate, unassessed question.",
         "purpose":reference("faris.conditional-research-comparison"),"metric":produced("normalize","tbr"),
         "comparison":"greater_than_or_equal","limit":{"kind":"faris.tritium_breeding_ratio","value":selection.minimum_tbr,"unit":"1"},
         "basis":{"kind":"bounded","coverage":"0.95"}})]
