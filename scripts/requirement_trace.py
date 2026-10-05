@@ -24,6 +24,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REQUIREMENTS = ROOT / "docs" / "requirements"
 TRACE = REQUIREMENTS / "TRACE.md"
+INDEX = REQUIREMENTS / "README.md"
+COUNTS_START, COUNTS_END = "<!-- counts:start -->", "<!-- counts:end -->"
+STATUSES = ("Met", "Partial", "Unmeasured", "No")
 SOURCE_DIRS = ["crates", "controls", "scripts", "integrations"]
 SOURCE_SUFFIXES = {".rs", ".py"}
 ROW = re.compile(r"^\| ([A-Z0-9]+-\d{3}) \|")
@@ -51,7 +54,10 @@ def read_requirements() -> dict[str, dict]:
             if rid in found:
                 raise SystemExit(f"duplicate requirement {rid} in {path.name} and {found[rid]['file']}")
             phase = re.match(r"F\d", cells[5])
-            found[rid] = {"file": path.name, "phase": phase.group(0) if phase else "", "now": cells[6].split(":")[0]}
+            now = cells[6].split(":")[0].strip()
+            if now not in STATUSES:
+                raise SystemExit(f"{path.name}: {rid} Now column starts with {now!r}, expected one of {STATUSES}")
+            found[rid] = {"file": path.name, "phase": phase.group(0) if phase else "", "now": now}
     return found
 
 
@@ -120,6 +126,43 @@ def render(requirements: dict[str, dict], trace: dict[str, list[str]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_counts(requirements: dict[str, dict]) -> str:
+    """The index's per-file status table, generated so it cannot drift."""
+    by_file: dict[str, list[str]] = {}
+    for rid, info in requirements.items():
+        by_file.setdefault(info["file"], []).append(rid)
+    lines = [
+        COUNTS_START,
+        "| File | Prefixes | Requirements | Met | Partial | Unmeasured | No |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    totals = dict.fromkeys(STATUSES, 0)
+    for name in sorted(by_file):
+        ids = by_file[name]
+        title = (REQUIREMENTS / name).read_text(encoding="utf-8").splitlines()[0].removeprefix("# ").strip()
+        prefixes = ", ".join(dict.fromkeys(rid.rsplit("-", 1)[0] for rid in ids))
+        counts = {status: sum(1 for r in ids if requirements[r]["now"] == status) for status in STATUSES}
+        for status in STATUSES:
+            totals[status] += counts[status]
+        lines.append(f"| [{title}]({name}) | {prefixes} | {len(ids)} | "
+                     + " | ".join(str(counts[s]) for s in STATUSES) + " |")
+    lines.append(f"| **Total** | | **{len(requirements)}** | "
+                 + " | ".join(f"**{totals[s]}**" for s in STATUSES) + " |")
+    lines += [
+        "",
+        f"Counts are generated from the tables by `scripts/requirement_trace.py`. {totals['Met']} of "
+        f"{len(requirements)} requirements are met today; that is the point of the set. It describes where "
+        "FARIS is going, not where it is.",
+        COUNTS_END,
+    ]
+    return "\n".join(lines)
+
+
+def with_counts(index_text: str, counts: str) -> str:
+    start, end = index_text.index(COUNTS_START), index_text.index(COUNTS_END) + len(COUNTS_END)
+    return index_text[:start] + counts + index_text[end:]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--check", action="store_true", help="verify instead of writing")
@@ -134,11 +177,16 @@ def main() -> int:
         if info["phase"] in PASSED_PHASES and rid not in trace
     ]
     text = render(requirements, trace)
+    index_text = INDEX.read_text(encoding="utf-8")
+    index_new = with_counts(index_text, render_counts(requirements))
     if args.check:
         if not TRACE.exists() or TRACE.read_text(encoding="utf-8") != text:
             problems.append("docs/requirements/TRACE.md is stale; run scripts/requirement_trace.py")
+        if index_new != index_text:
+            problems.append("docs/requirements/README.md status counts are stale; run scripts/requirement_trace.py")
     else:
         TRACE.write_text(text, encoding="utf-8")
+        INDEX.write_text(index_new, encoding="utf-8")
     for problem in problems:
         print(problem, file=sys.stderr)
     print(f"{len(trace)} of {len(requirements)} requirements traced", file=sys.stderr)

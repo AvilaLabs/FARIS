@@ -109,6 +109,7 @@ Its main gaps against these targets:
 
 ## Files
 
+<!-- counts:start -->
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | GEO | 69 | 0 | 26 | 1 | 42 |
@@ -126,17 +127,18 @@ Its main gaps against these targets:
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 0 | 16 | 0 | 58 |
 | [Interoperability](14-interoperability.md) | INT | 59 | 1 | 19 | 3 | 36 |
 | [Design workflows](15-design-workflows.md) | DSN | 75 | 2 | 21 | 0 | 52 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 5 | 19 | 2 | 16 |
-| [Collaboration](17-collaboration.md) | COL | 40 | 2 | 5 | 0 | 33 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 4 | 20 | 2 | 16 |
+| [Collaboration](17-collaboration.md) | COL | 40 | 2 | 6 | 0 | 32 |
 | [Reliability](18-reliability.md) | REL | 38 | 2 | 11 | 1 | 24 |
 | [Security](19-security.md) | SEC | 55 | 8 | 20 | 1 | 26 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 43 | 4 | 18 | 0 | 21 |
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 21 | 1 | 52 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 15 | 1 | 29 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 5 | 12 | 2 | 17 |
-| **Total** | | **1408** | **46** | **402** | **38** | **922** |
+| **Total** | | **1408** | **45** | **404** | **38** | **921** |
 
-Counts are generated from the tables on 2026-10-05. 46 of 1408 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 45 of 1408 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+<!-- counts:end -->
 
 ## Change control
 
