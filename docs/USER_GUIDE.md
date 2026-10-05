@@ -205,16 +205,29 @@ Run `faris COMMAND --help` for every flag. Errors exit with status 2; a file tha
 
 ## 8. Limits of this release
 
-- The scoped demo covers one ARC-inspired compact D-T tokamak. Its idealised circular tori and magnet envelope do not reproduce the published ARC engineering design.
-- Transport is a cold-data surrogate with an authored source and surrogate materials. Scientific qualification is NOT_EVALUATED, including for completed transport.
-- Fuel, maintenance, exposure-triggered service events and electricity are conditional on identified transport results and authored assumptions.
-- Activation and physical degradation models are not included.
-- The magnet limit uses a region average. The local peak is not resolved.
-- Uncertainty ranges cover transport sampling only.
-- The resolved port-window comparison is a declared mixed-volume spatial average. It is not a magnet peak or a qualified plant prediction.
-- Sparse local mesh estimates keep unresolved sampling uncertainty.
-- Code-to-code comparison against ITER_1D is unavailable without traceable reference responses.
-- The package runs on Linux only.
+- **Geometry.** One ARC-inspired compact D-T tokamak, built from idealised
+  concentric tori and one outboard port. It does not reproduce the published
+  ARC engineering design.
+- **Physics inputs.** Transport is a cold-data surrogate with an authored source
+  and surrogate material recipes. Scientific qualification is NOT_EVALUATED,
+  including for completed transport.
+- **Uncertainty.** Only transport sampling uncertainty is propagated.
+  Nuclear-data, geometry, material and model uncertainty are not, so the true
+  uncertainty is larger than the ranges shown.
+- **Magnet fluence.** Limits use regional averages. The local peak is not
+  resolved; it needs variance reduction aimed at the magnet (planned for 0.2).
+- **Activation.** No activation, decay heat or shutdown dose yet (planned for
+  0.2). No physical degradation models.
+- **Assumptions.** Service limits, outage durations, recovery fractions and
+  plant efficiencies are authored or literature screening values, not material
+  allowables or measured plant data. Fuel, maintenance, service events and
+  electricity are conditional on them.
+- **Local fields.** Sparse local mesh estimates keep unresolved sampling
+  uncertainty. The port-window comparison is a declared mixed-volume spatial
+  average, not a magnet peak.
+- **Benchmarks.** Code-to-code comparison against ITER_1D is unavailable
+  without traceable reference responses.
+- **Platforms.** Linux only. The bundled programs are hash-pinned, not signed.
 
 ## 9. Troubleshooting
 
