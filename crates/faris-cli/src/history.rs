@@ -39,6 +39,25 @@ pub enum HistoryCommand {
         #[arg(long)]
         rates_output: Option<PathBuf>,
     },
+    /// Ensemble of histories on transport rates sampled from their recorded
+    /// covariance; carries transport Monte Carlo uncertainty only.
+    Ensemble {
+        #[arg(long)]
+        assumptions: PathBuf,
+        #[arg(long)]
+        rates: PathBuf,
+        /// Number of sampled histories (1 to 2000).
+        #[arg(long, default_value_t = faris_engine::history_ensemble::DEFAULT_SAMPLES)]
+        samples: u32,
+        /// Random seed; default derives from the transport artifact and assumptions.
+        #[arg(long)]
+        seed: Option<u64>,
+        /// Worker threads; default is the available parallelism minus one.
+        #[arg(long)]
+        threads: Option<usize>,
+        #[arg(long)]
+        output: PathBuf,
+    },
     CompareRuns {
         #[arg(long)]
         scenario: PathBuf,
@@ -87,6 +106,25 @@ pub fn run(command: HistoryCommand) -> Result<(), Box<dyn std::error::Error>> {
             rates_output,
         } => {
             return from_run(scenario, run, assumptions, output, rates_output);
+        }
+        HistoryCommand::Ensemble {
+            assumptions,
+            rates,
+            samples,
+            seed,
+            threads,
+            output,
+        } => {
+            return ensemble(
+                assumptions,
+                rates,
+                faris_engine::history_ensemble::EnsembleSettings {
+                    samples,
+                    seed,
+                    threads,
+                },
+                output,
+            );
         }
         HistoryCommand::CompareRuns {
             scenario,
@@ -142,6 +180,49 @@ pub fn run(command: HistoryCommand) -> Result<(), Box<dyn std::error::Error>> {
         );
     } else {
         println!("Assumptions and transport driving rates are valid; no history was computed.");
+    }
+    Ok(())
+}
+
+fn ensemble(
+    assumptions_path: PathBuf,
+    rates_path: PathBuf,
+    settings: faris_engine::history_ensemble::EnsembleSettings,
+    output: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use faris_engine::history_ensemble::{EnsembleStatus, run_history_ensemble};
+    ensure_new_outputs(&output, None)?;
+    let assumptions: OperatingHistoryAssumptions =
+        serde_json::from_slice(&crate::transport::read_bounded(&assumptions_path)?)?;
+    assumptions.validate().map_err(std::io::Error::other)?;
+    let rates: TransportDrivingRates =
+        serde_json::from_slice(&crate::transport::read_bounded(&rates_path)?)?;
+    rates.validate().map_err(std::io::Error::other)?;
+    let interrupts = crate::control::interrupt_cancellation()?;
+    #[cfg(unix)]
+    let cancellation = &interrupts.cancellation;
+    #[cfg(not(unix))]
+    let cancellation = &interrupts;
+    let progress = |done: usize, total: usize| {
+        if done == total || done.is_multiple_of((total / 10).max(1)) {
+            eprintln!("ensemble: {done}/{total} histories");
+        }
+    };
+    let result = run_history_ensemble(&rates, &assumptions, &settings, cancellation, &progress)
+        .map_err(std::io::Error::other)?;
+    write_new_json(&output, &result)?;
+    match &result.status {
+        EnsembleStatus::Evaluated => println!(
+            "History ensemble recorded at {} ({} samples, seed {}, {} rejected draws)",
+            output.display(),
+            result.samples_accepted,
+            result.seed,
+            result.rejections
+        ),
+        EnsembleStatus::NotEvaluated { why, next_step } => println!(
+            "History ensemble NOT EVALUATED, recorded at {}: {why}. Next step: {next_step}.",
+            output.display()
+        ),
     }
     Ok(())
 }
