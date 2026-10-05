@@ -561,12 +561,6 @@ evaluated.
   histories" although sweep histories also recalculate; "resolved (>2σ)" in
   Compare can read as a significance claim (the hover text says it is a
   screening flag).
-- `references/operating-history-comparison-reference-1m.json` describes the
-  contrast as lithium enrichment and multiplier; the arrangements differ in
-  blanket/shield allocation. It is recorded `compare-runs` output with its hash
-  in `references/operating-history-verification.json`, so it is regenerated
-  from the new transport campaign rather than edited by hand.
-
 ## References for implementation
 
 - [Demo question and starting scenario](DEMO.md).
