@@ -1,0 +1,114 @@
+{
+ "reference_fusion_power_mw": 525.0,
+ "fusion_reaction_rate_per_s": 1.8618137864158527e+20,
+ "neutron_source_rate_per_s": 1.8618137864158527e+20,
+ "total_reaction_energy_ev": 17600000.0,
+ "primary_neutron_energy_ev": 14100000.0,
+ "breeder_h3_per_source_neutron": {
+  "mean": 1.3243305333798991,
+  "standard_error": 0.0019649293151906447,
+  "unit": "particles/source_neutron",
+  "response_id": "blanket-tritium"
+ },
+ "component_average_flux_n_m2_s": {
+  "blanket": {
+   "mean": 1.4724059794033093e+18,
+   "standard_error": 2011481605007522.0,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "blanket-flux"
+  },
+  "first-wall": {
+   "mean": 1.2251090110344485e+19,
+   "standard_error": 1.6204026378988816e+16,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "first-wall-flux"
+  },
+  "magnet-gap": {
+   "mean": 258636269043391.62,
+   "standard_error": 88022590337458.25,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "magnet-gap-flux"
+  },
+  "magnets": {
+   "mean": 149154309172120.84,
+   "standard_error": 34101318323062.953,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "magnets-flux"
+  },
+  "shield": {
+   "mean": 9169713628086412.0,
+   "standard_error": 70046562294700.75,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "shield-flux"
+  },
+  "vessel": {
+   "mean": 218703154133311.22,
+   "standard_error": 48031958433889.65,
+   "unit": "neutrons/m\u00b2/s",
+   "response_id": "vessel-flux"
+  }
+ },
+ "region_flux_n_m2_s": {
+  "magnets-fast-flux": {
+   "component_id": "magnets",
+   "energy_min_ev": 100000.0,
+   "rate": {
+    "mean": 76542852047091.14,
+    "standard_error": 16592036315820.232,
+    "unit": "neutrons/m\u00b2/s",
+    "response_id": "magnets-fast-flux"
+   }
+  },
+  "magnets-inboard-fast-flux": {
+   "component_id": "magnets",
+   "region": {
+    "kind": "inboard_half"
+   },
+   "energy_min_ev": 100000.0,
+   "rate": {
+    "mean": 8486170420268.689,
+    "standard_error": 4291763992997.459,
+    "unit": "neutrons/m\u00b2/s",
+    "response_id": "magnets-inboard-fast-flux"
+   }
+  },
+  "magnets-outboard-fast-flux": {
+   "component_id": "magnets",
+   "region": {
+    "kind": "outboard_half",
+    "excluding_sector_half_width_rad": 0.1745
+   },
+   "energy_min_ev": 100000.0,
+   "rate": {
+    "mean": 25285579792327.676,
+    "standard_error": 14870921899318.203,
+    "unit": "neutrons/m\u00b2/s",
+    "response_id": "magnets-outboard-fast-flux"
+   }
+  },
+  "magnets-port-sector-fast-flux": {
+   "component_id": "magnets",
+   "region": {
+    "kind": "port_sector",
+    "half_width_rad": 0.1745
+   },
+   "energy_min_ev": 100000.0,
+   "rate": {
+    "mean": 1306158484993093.0,
+    "standard_error": 369946839533644.2,
+    "unit": "neutrons/m\u00b2/s",
+    "response_id": "magnets-port-sector-fast-flux"
+   }
+  }
+ },
+ "transport_deposited_heat_w": {
+  "mean": 497916059.38069934,
+  "standard_error": 405112.62412115233,
+  "unit": "W",
+  "response_id": "heating-total-whole-model"
+ },
+ "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+ "transport_artifact_sha256": "05d7c4f1e948a0b094bd8c2bb82ae94a31e2253b0ed68eb66eb32bf255d6a9d7",
+ "solver_digest": "sha256:d939af8f885800c8727e687e628c2802138674e7f3b108371ef813a606939f51",
+ "nuclear_data_digest": "sha256:bf1f71bd8388685041fe777afa930bca2de662618f3b2e17b8f9637a124dd1db"
+}

@@ -715,10 +715,16 @@ struct ProductionInterval {
 
 pub const HISTORY_PROCESSING_MODEL_ID: &str = "continuous-delayed-release-v2";
 
-fn production_rate_at(intervals: &VecDeque<ProductionInterval>, time_s: f64) -> f64 {
+// Release windows are compared as `start + delay` and `end + delay` against the
+// ledger clock everywhere: rate lookup, pruning and step boundaries. Comparing
+// `time - delay` against `end` instead rounds differently at late times
+// (~1e8 s), so a window could be treated as open by the rate lookup after the
+// step bound had already passed it, releasing a full step of tritium that was
+// no longer in process.
+fn release_rate_at(intervals: &VecDeque<ProductionInterval>, delay_s: f64, time_s: f64) -> f64 {
     intervals
         .front()
-        .filter(|i| i.start_s <= time_s && time_s < i.end_s)
+        .filter(|i| i.start_s + delay_s <= time_s + 1e-9 && i.end_s + delay_s > time_s + 1e-9)
         .map_or(0.0, |i| i.rate_kg_s)
 }
 
@@ -727,8 +733,10 @@ fn prune_production_intervals(
     time_s: f64,
     delay_s: f64,
 ) {
-    let cutoff = time_s - delay_s;
-    while intervals.front().is_some_and(|i| i.end_s <= cutoff + 1e-9) {
+    while intervals
+        .front()
+        .is_some_and(|i| i.end_s + delay_s <= time_s + 1e-9)
+    {
         intervals.pop_front();
     }
 }
@@ -1376,7 +1384,7 @@ pub fn run_operating_history_cancellable(
         let released_h3_rate = if assumptions.processing_delay_s == 0.0 {
             breeder_h3_rate * requested
         } else {
-            production_rate_at(&production_intervals, time - assumptions.processing_delay_s)
+            release_rate_at(&production_intervals, assumptions.processing_delay_s, time)
                 * decay_factor(lambda, assumptions.processing_delay_s)
         };
         let recovered_inflow = released_h3_rate * assumptions.recovery_fraction;
@@ -2111,8 +2119,8 @@ mod tests {
                 rate_kg_s: 2.0,
             },
         ]);
-        assert_eq!(production_rate_at(&intervals, 1.0), 1.0);
-        assert_eq!(production_rate_at(&intervals, 3.0), 0.0);
+        assert_eq!(release_rate_at(&intervals, 3.0, 4.0), 1.0);
+        assert_eq!(release_rate_at(&intervals, 3.0, 6.0), 0.0);
         assert_eq!(
             next_production_release_boundary(&intervals, 3.0, 0.0),
             Some(3.0)
@@ -2124,12 +2132,67 @@ mod tests {
         let mut pruned = intervals.clone();
         prune_production_intervals(&mut pruned, 6.0, 3.0);
         assert_eq!(pruned.len(), 1);
-        assert_eq!(production_rate_at(&pruned, 3.0), 0.0);
+        assert_eq!(release_rate_at(&pruned, 3.0, 6.0), 0.0);
         assert_eq!(
             next_production_release_boundary(&pruned, 3.0, 6.0),
             Some(8.0)
         );
         assert!(add_production_interval(&mut pruned, 6.5, 8.0, 3.0).is_err());
+    }
+
+    // Verifies: VAL-014
+    #[test]
+    fn release_window_closes_at_the_step_bound_despite_rounding() {
+        // end + delay rounds down to a clock value whose `time - delay` is still
+        // below end; the window must nevertheless be closed at that clock value.
+        let end = 134_181_213.953_541_95;
+        let delay = 86_400.0;
+        let time = end + delay;
+        assert!(time - delay < end);
+        let intervals = VecDeque::from([ProductionInterval {
+            start_s: 128_822_400.0,
+            end_s: end,
+            rate_kg_s: 1.0e-6,
+        }]);
+        assert_eq!(release_rate_at(&intervals, delay, time), 0.0);
+        assert_eq!(
+            next_production_release_boundary(&intervals, delay, time),
+            None
+        );
+        let mut pruned = intervals.clone();
+        prune_production_intervals(&mut pruned, time, delay);
+        assert!(pruned.is_empty());
+    }
+
+    // Verifies: VAL-014
+    #[test]
+    fn demountable_history_with_perturbed_rates_conserves_tritium() {
+        // One ensemble draw that tripped the mass-balance check before the
+        // release-window comparisons were made consistent.
+        let assumptions: OperatingHistoryAssumptions = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/demountable-magnet-assumptions.json"
+        )))
+        .unwrap();
+        let rates: TransportDrivingRates = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/history-release-rounding-rates.json"
+        )))
+        .unwrap();
+        for step in [600.0, 3600.0] {
+            let mut a = assumptions.clone();
+            a.maximum_step_s = step;
+            let run = run_operating_history(&a, &rates).unwrap();
+            let worst = run
+                .snapshots
+                .iter()
+                .map(|s| s.mass_balance_residual_kg.abs())
+                .fold(0.0, f64::max);
+            assert!(
+                worst <= run.mass_balance_tolerance_kg,
+                "step {step}: {worst}"
+            );
+        }
     }
 
     #[test]
