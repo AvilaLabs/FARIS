@@ -479,6 +479,7 @@ mod tests {
         assert!(!should_play(TourMode::Never, false, false));
     }
 
+    // Verifies: CFG-008
     #[test]
     fn marker_path_prefers_xdg_then_home() {
         let some = |s: &str| Some(OsString::from(s));
@@ -542,6 +543,7 @@ mod tests {
         assert!(p.x.is_finite() && p.y.is_finite());
     }
 
+    // Verifies: UX-053
     #[test]
     fn next_back_skip_and_finish_transitions() {
         let mut tour = Tour::default();

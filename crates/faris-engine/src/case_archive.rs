@@ -888,6 +888,7 @@ fn hash_bytes(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
 
+    // Verifies: SEC-002
     #[test]
     fn archive_paths_and_digests_are_strict() {
         assert!(safe_relative_path("inputs/scenario.json").is_ok());
@@ -899,6 +900,7 @@ mod tests {
         assert!(validate_plain_sha256(&"g".repeat(64)).is_err());
     }
 
+    // Verifies: SEC-002
     #[test]
     fn archive_file_reader_rejects_symlink_and_oversize() {
         let temp = tempfile::tempdir().unwrap();

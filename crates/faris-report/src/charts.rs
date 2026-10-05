@@ -988,6 +988,7 @@ mod tests {
         assert!(!svg.contains("NaN") && !svg.contains("inf"));
     }
 
+    // Verifies: PRV-010
     #[test]
     fn timeline_has_the_limit_line_labelled_as_literature_and_every_series() {
         let series: Vec<TimelineSeries> = Arrangement::ORDER
@@ -1021,6 +1022,7 @@ mod tests {
         assert_eq!(chart.svg.matches("fill-opacity=\"0.200\"").count(), 8);
     }
 
+    // Verifies: PRV-010
     #[test]
     fn authored_limits_are_not_called_literature() {
         let chart = timeline_chart(
@@ -1048,6 +1050,7 @@ mod tests {
         assert!(chart.svg.contains("No calculated operating history"));
     }
 
+    // Verifies: UNC-083, DSN-081, VIS-030
     #[test]
     fn sweep_charts_draw_every_point_with_error_bars() {
         let points = sweep();

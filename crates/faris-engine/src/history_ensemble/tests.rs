@@ -205,6 +205,7 @@ fn zero_covariance_reproduces_deterministic_history_exactly() {
     assert_eq!(nominal.outcome, HistoryOutcome::PermanentComponentLimit);
 }
 
+// Verifies: PRV-021
 #[test]
 fn identical_for_any_thread_count() {
     let rates = rates_with(0.2, 0.5);
@@ -223,6 +224,7 @@ fn identical_for_any_thread_count() {
     assert!(times.len() > 1);
 }
 
+// Verifies: UNC-011
 #[test]
 fn drawn_moments_match_mean_and_covariance() {
     let rates = rates_with(0.05, 0.6);
@@ -299,6 +301,7 @@ fn semi_definite_covariance_is_factored_and_sampled() {
     assert!(rates.validate().is_err());
 }
 
+// Verifies: UNC-011
 #[test]
 fn perfectly_correlated_draws_move_together() {
     let rates = rates_with(0.05, 1.0);
@@ -315,7 +318,7 @@ fn perfectly_correlated_draws_move_together() {
     }
 }
 
-// Verifies: UNC-011
+// Verifies: UNC-011, UNC-054
 #[test]
 fn missing_covariance_is_not_evaluated_with_exact_text() {
     let mut rates = rates_with(0.05, 0.0);
@@ -331,6 +334,7 @@ fn missing_covariance_is_not_evaluated_with_exact_text() {
     assert!(ensemble.samples.is_empty() && ensemble.nominal.is_none());
 }
 
+// Verifies: UNC-054
 #[test]
 fn large_relative_errors_fail_closed_on_rejections() {
     // 50 % relative error: a few percent of draws are negative.
@@ -373,6 +377,7 @@ fn wilson_and_order_statistic_intervals_on_known_cases() {
     assert!((quantile_sorted(&sorted, 0.05) - 1.5).abs() < 1e-12);
 }
 
+// Verifies: PERF-024
 #[test]
 fn cancellation_stops_promptly_and_returns_no_partial_result() {
     let rates = rates_with(0.05, 0.3);
@@ -404,6 +409,7 @@ fn cancellation_stops_promptly_and_returns_no_partial_result() {
     );
 }
 
+// Verifies: PERF-022
 #[test]
 fn progress_reports_every_sample() {
     let rates = rates_with(0.05, 0.3);
@@ -425,6 +431,7 @@ fn progress_reports_every_sample() {
     assert_eq!(max_seen.load(Ordering::SeqCst), 8);
 }
 
+// Verifies: CFG-054, PRV-008
 #[test]
 fn seed_derivation_is_stable() {
     let a = assumptions();

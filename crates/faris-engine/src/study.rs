@@ -477,6 +477,7 @@ mod tests {
             "normalize"
         );
     }
+    // Verifies: PRV-014
     #[test]
     fn missing_data_never_becomes_a_compilation_or_physical_result() {
         let study = generate_study(&manifest(), "reference", &StudySelection::default()).unwrap();

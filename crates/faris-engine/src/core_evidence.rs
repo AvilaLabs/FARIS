@@ -831,6 +831,7 @@ mod tests {
         }
         assert!(canonical_decimal(f64::NAN).is_err());
     }
+    // Verifies: SEC-002
     #[test]
     fn portable_record_refuses_path_escape_and_missing_artifacts() {
         let mut bundle = RecordedTransportBundle {
@@ -846,6 +847,7 @@ mod tests {
         bundle.files.insert("../escaped.json".into(), "{}".into());
         assert!(bundle.verify().is_err());
     }
+    // Verifies: PRV-014
     #[test]
     fn completed_workflow_keeps_physical_not_evaluated_and_refuses_missing_receipts() {
         let step = |id: &str| json!({"step_id":id,"state":"executed","receipt":{"status":"completed","exit_status":0},"verification":{"state":"verified"},"outputs":[{"state":"collected","reproduces_bound_artifact":true}]});

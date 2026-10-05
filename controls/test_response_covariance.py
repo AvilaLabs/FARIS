@@ -69,6 +69,7 @@ class WorkerHelperTests(unittest.TestCase):
     def test_per_batch_values_difference_cumulative_sums(self):
         self.assertEqual(WORKER.per_batch_values([1.0, 3.0, 7.0]), [1.0, 2.0, 4.0])
 
+    # Verifies: UNC-011
     def test_covariance_matches_hand_calculation(self):
         matrix = WORKER.batch_mean_covariance([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]])
         # Sample variances 1 and 4, covariance 2, each divided by n = 3.
@@ -148,6 +149,7 @@ class ControlTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differs"):
             CHECK.check(self.run_dir)
 
+    # Verifies: UNC-011
     def test_missing_covariance_is_an_error(self):
         artifact = json.loads((self.solver / "transport-artifact.json").read_text())
         with self.assertRaises(ValueError):

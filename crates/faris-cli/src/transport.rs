@@ -190,6 +190,7 @@ mod tests {
             original
         );
     }
+    // Verifies: SEC-003
     #[test]
     fn special_files_cannot_bypass_input_bounds() {
         #[cfg(unix)]

@@ -28,6 +28,7 @@ class AnalyticControlTests(unittest.TestCase):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 analytic(*args)
 
+    # Verifies: NUC-048
     def test_rejects_invalid_cli_values(self):
         for raw in ("0", "-2", "nan", "inf"):
             with self.subTest(raw=raw), self.assertRaises(argparse.ArgumentTypeError):

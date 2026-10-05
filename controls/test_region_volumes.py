@@ -47,6 +47,7 @@ class RegionVolumeTests(unittest.TestCase):
             control = CHECK.region_volume_m3(Decimal(str(R0)), Decimal(str(A)), Decimal(str(B)), region)
             self.assertAlmostEqual(worker / float(control), 1.0, places=13)
 
+    # Verifies: GEO-031
     def test_regions_sum_to_the_full_torus(self):
         full = 2 * math.pi**2 * R0 * (B * B - A * A)
         halves = WORKER.torus_region_volume_m3(R0, A, B, INBOARD) + WORKER.torus_region_volume_m3(R0, A, B, OUTBOARD)
@@ -55,11 +56,13 @@ class RegionVolumeTests(unittest.TestCase):
         self.assertAlmostEqual(three / full, 1.0, places=14)
         self.assertGreater(WORKER.torus_region_volume_m3(R0, A, B, OUTBOARD), WORKER.torus_region_volume_m3(R0, A, B, INBOARD))
 
+    # Verifies: GEO-030
     def test_formulas_match_numerical_quadrature(self):
         self.assertAlmostEqual(WORKER.torus_region_volume_m3(R0, A, B, INBOARD) / quadrature(False, 2 * math.pi), 1.0, places=5)
         self.assertAlmostEqual(WORKER.torus_region_volume_m3(R0, A, B, OUTBOARD) / quadrature(True, 2 * math.pi), 1.0, places=5)
         self.assertAlmostEqual(WORKER.torus_region_volume_m3(R0, A, B, SECTOR) / quadrature(True, 2 * W), 1.0, places=5)
 
+    # Verifies: GEO-024
     def test_membership_samples_reproduce_analytic_fractions(self):
         # Independent of the formulas: uniform points of the torus shell are
         # classified by position; the fractions match the analytic volumes.
@@ -148,6 +151,7 @@ def run_check(inp, raw, variant, results):
 
 
 class RegionControlTests(unittest.TestCase):
+    # Verifies: GEO-031
     def test_unperforated_regions_partition_and_add(self):
         report = run_check(*synthetic_run())
         self.assertLess(Decimal(report["max_partition_volume_difference"]), Decimal("1e-12"))
@@ -163,6 +167,7 @@ class RegionControlTests(unittest.TestCase):
         # but the three region volumes sum to the perforated component volume.
         self.assertIsNotNone(report["max_partition_volume_difference"])
 
+    # Verifies: GEO-030
     def test_wrong_region_volume_or_flux_sum_is_rejected(self):
         inp, raw, variant, results = synthetic_run()
         bad = copy.deepcopy(raw)

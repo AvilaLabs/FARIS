@@ -24,6 +24,7 @@ class LithiumCaptureControlTests(unittest.TestCase):
         self.assertAlmostEqual(q["Li6_n_t_alpha_mass_defect_eV"], 4_783_471.7419, delta=0.1)
         self.assertAlmostEqual(q["Li6_n_gamma_Li7_mass_defect_eV"], 7_251_093.8806, delta=0.1)
 
+    # Verifies: NUC-013
     def test_response_screen_passes_consistent_tally_moments(self):
         responses = {
             "h3_production": {"mean": 0.999, "standard_error": 0.001},
@@ -42,6 +43,7 @@ class LithiumCaptureControlTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "PASS")
 
+    # Verifies: NUC-013
     def test_response_screen_rejects_inconsistent_h3_or_heat(self):
         responses = {
             "h3_production": {"mean": 0.7, "standard_error": 0.001},

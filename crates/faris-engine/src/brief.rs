@@ -894,6 +894,7 @@ mod tests {
         }
     }
 
+    // Verifies: DSN-050, UNC-084
     #[test]
     fn contrast_is_second_minus_first() {
         let a = cell(1.295, 1.6e14, 4, Some(6.8), 34.13);
@@ -995,6 +996,7 @@ mod tests {
         assert!(limits_differ(3e22, 3.1e22));
     }
 
+    // Verifies: PRV-012
     #[test]
     fn every_caveat_says_why_and_what_would_settle_it() {
         let arrangements: Vec<_> = Arrangement::ORDER

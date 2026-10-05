@@ -294,6 +294,7 @@ mod tests {
         }
     }
 
+    // Verifies: GEO-004
     #[test]
     fn rejects_mesh_domain_errors() {
         assert!(torus_shell(1.0, 0.5, 2.0, TAU).is_err());

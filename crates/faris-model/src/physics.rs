@@ -975,6 +975,7 @@ mod tests {
         }
     }
 
+    // Verifies: GEO-040
     #[test]
     fn exact_scenario_assignment_and_explicit_void_are_required() {
         let (mut c, loaded) = case();
@@ -992,6 +993,7 @@ mod tests {
         assert!(c.validate_against(&loaded).is_err());
     }
 
+    // Verifies: GEO-043
     #[test]
     fn validates_composition_temperature_and_nuclide_syntax() {
         let (mut c, loaded) = case();
@@ -1107,6 +1109,7 @@ mod tests {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
     }
 
+    // Verifies: GEO-041
     #[test]
     fn temperature_rounding_is_tolerated_but_distant_data_is_not() {
         let (mut c, loaded) = case();

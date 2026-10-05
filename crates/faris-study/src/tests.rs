@@ -140,6 +140,7 @@ fn identical_files_are_stored_once() {
     assert_eq!(reader.blob_infos().unwrap().len(), report.blob_count);
 }
 
+// Verifies: INT-002
 #[test]
 fn first_entry_is_the_stored_type_string_at_offset_thirty() {
     let dir = tempfile::tempdir().unwrap();
@@ -150,6 +151,7 @@ fn first_entry_is_the_stored_type_string_at_offset_thirty() {
     assert_eq!(&bytes[30..30 + magic.len()], magic.as_bytes());
 }
 
+// Verifies: REL-010
 #[test]
 fn saving_replaces_atomically_and_leaves_no_temporary_files() {
     let dir = tempfile::tempdir().unwrap();
@@ -263,6 +265,7 @@ fn open_raw(entries: &[(String, Vec<u8>)]) -> Result<StudyReader, StudyError> {
     StudyReader::open(&path)
 }
 
+// Verifies: INT-001
 #[test]
 fn the_hand_built_container_reads_and_ignores_unknown_manifest_fields() {
     let tiny = Tiny::new();
@@ -271,6 +274,7 @@ fn the_hand_built_container_reads_and_ignores_unknown_manifest_fields() {
     assert_eq!(reader.read_blob(&tiny.sha).unwrap(), tiny.content);
 }
 
+// Verifies: PRV-053
 #[test]
 fn a_minor_version_is_accepted() {
     let tiny = Tiny::new();
@@ -278,7 +282,7 @@ fn a_minor_version_is_accepted() {
     open_raw(&e).unwrap();
 }
 
-// Verifies: CFG-074, SEC-004, REL-021
+// Verifies: CFG-074, SEC-004, REL-021, INT-004, INT-083
 #[test]
 fn an_unknown_major_version_is_refused_and_named() {
     let tiny = Tiny::new();
@@ -309,7 +313,7 @@ fn an_unknown_encoding_is_refused() {
     }
 }
 
-// Verifies: REL-020
+// Verifies: REL-020, PRV-004, PRV-005, SEC-010, COL-003, INT-004
 #[test]
 fn an_altered_blob_is_named_and_refused() {
     let tiny = Tiny::new();
@@ -334,6 +338,7 @@ fn a_wrong_recorded_size_is_refused() {
     ));
 }
 
+// Verifies: SEC-003, REL-021
 #[test]
 fn an_entry_larger_than_its_recorded_size_is_refused() {
     let tiny = Tiny::new();
@@ -346,6 +351,7 @@ fn an_entry_larger_than_its_recorded_size_is_refused() {
     ));
 }
 
+// Verifies: SEC-002, SEC-004, REL-021
 #[test]
 fn unexpected_entry_names_are_refused() {
     let tiny = Tiny::new();
@@ -387,6 +393,7 @@ fn mimetype_must_come_first_and_be_right() {
     assert!(open_raw(&e).is_err());
 }
 
+// Verifies: SEC-004, REL-021
 #[test]
 fn a_blob_without_an_entry_or_an_entry_without_a_blob_is_refused() {
     let tiny = Tiny::new();
@@ -398,6 +405,7 @@ fn a_blob_without_an_entry_or_an_entry_without_a_blob_is_refused() {
     assert!(open_raw(&e).is_err());
 }
 
+// Verifies: SEC-003
 #[test]
 fn declared_totals_beyond_the_bound_are_refused() {
     let tiny = Tiny::new();
@@ -418,6 +426,7 @@ fn unsafe_bundle_names_in_the_manifest_are_refused() {
     assert!(open_raw(&tiny.entries(manifest)).is_err());
 }
 
+// Verifies: INT-004
 #[test]
 fn not_a_zip_is_refused() {
     let dir = tempfile::tempdir().unwrap();
@@ -490,7 +499,7 @@ fn packed_evidence_is_stored_and_restored() {
     );
 }
 
-// Verifies: PRV-040
+// Verifies: PRV-040, PRV-042
 #[test]
 fn referenced_evidence_records_hashes_without_the_bytes() {
     let dir = tempfile::tempdir().unwrap();
@@ -605,7 +614,7 @@ fn tar_gz_extracts_regular_files() {
     assert_eq!(std::fs::read(out.join("sub/b.json")).unwrap().len(), 700);
 }
 
-// Verifies: SEC-002
+// Verifies: SEC-002, PRV-044, REL-021
 #[test]
 fn tar_gz_refuses_traversal_links_duplicates_and_damage() {
     let dir = tempfile::tempdir().unwrap();
@@ -859,6 +868,7 @@ mod ensembles {
         }
     }
 
+    // Verifies: AUTO-030, AUTO-033
     #[test]
     fn a_study_stores_ensembles_and_reuses_one_only_on_an_exact_key() {
         let dir = tempfile::tempdir().unwrap();
@@ -974,6 +984,7 @@ mod ensembles {
         ]
     }
 
+    // Verifies: SEC-004, REL-021
     #[test]
     fn a_damaged_ensemble_record_refuses_the_file() {
         let (k, e) = stored(6, 'a');

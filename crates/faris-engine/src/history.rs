@@ -1793,6 +1793,7 @@ mod tests {
         assert_eq!(legacy.processing_model, None);
     }
 
+    // Verifies: FUEL-003
     #[test]
     fn decay_only_history_matches_half_life_and_is_daily_decimated() {
         let mut a = assumptions(TRITIUM_HALF_LIFE_YEARS * JULIAN_YEAR_SECONDS);
@@ -1816,6 +1817,7 @@ mod tests {
         assert!(run_operating_history_cancellable(&a, &rates(), &cancel).is_err());
     }
 
+    // Verifies: FUEL-004
     #[test]
     fn rejects_invalid_transport_bindings_before_history_execution() {
         let mut driving = rates();
@@ -1961,6 +1963,7 @@ mod tests {
         );
     }
 
+    // Verifies: VAL-014
     #[test]
     fn delayed_recovery_restarts_only_after_release_threshold_is_reached() {
         let mut a = assumptions(90_000.0);
@@ -2229,6 +2232,7 @@ mod tests {
         assert_eq!(off.instantaneous_net_electricity_mw, Some(-5.0));
     }
 
+    // Verifies: MAG-025
     #[test]
     fn replaceable_trip_resets_locally_then_permanent_trip_stops() {
         let mut a = assumptions(100.0);
@@ -2332,6 +2336,7 @@ mod tests {
         assert_eq!(at_time[2], EventKind::OperationStopped);
     }
 
+    // Verifies: OPS-002
     #[test]
     fn daily_snapshot_outputs_converge_under_step_refinement() {
         let mut coarse = assumptions(3.0 * 86_400.0);
@@ -2354,6 +2359,7 @@ mod tests {
         assert!((c.mass_balance_residual_kg - f.mass_balance_residual_kg).abs() < 1e-12);
     }
 
+    // Verifies: DSN-004
     #[test]
     fn sensitivity_is_full_reruns_bounded_and_cancellable() {
         let a = assumptions(100.0);
@@ -2442,6 +2448,7 @@ mod tests {
             .collect()
     }
 
+    // Verifies: MAT-018, MAG-020
     #[test]
     fn first_regional_limit_replaces_the_component_and_resets_every_track() {
         // The port sector reaches 3e11 after 10 s; the inboard half is at 2.5e11

@@ -243,6 +243,7 @@ mod tests {
         }
     }
 
+    // Verifies: GEO-030
     #[test]
     fn volume_matches_area_times_centroid_path_length() {
         let result = manifest();
