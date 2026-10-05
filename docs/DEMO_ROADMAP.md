@@ -553,6 +553,14 @@ evaluated.
 - The native interface-check plans in `references/native-demo-checks` click
   fixed positions that moved with the step layout.
 - A `.faris` preview thumbnail is reserved in the format but not written.
+- Interface wording found while writing the user guide: the File menu's
+  "Include Core evidence in saved files (about +50 MB)" states a fixed size that
+  is true only for the demo evidence; preset names mix styles ("Demountable
+  magnets · REBCO fluence limit", "Loaded assumptions", "Permanent-trip test
+  (numerical control)"); the Operate text says edits recalculate "all four
+  histories" although sweep histories also recalculate; "resolved (>2σ)" in
+  Compare can read as a significance claim (the hover text says it is a
+  screening flag).
 - `references/operating-history-comparison-reference-1m.json` describes the
   contrast as lithium enrichment and multiplier; the arrangements differ in
   blanket/shield allocation. It is recorded `compare-runs` output with its hash
