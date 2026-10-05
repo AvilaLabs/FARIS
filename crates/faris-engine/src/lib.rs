@@ -6,6 +6,7 @@ pub mod comparison;
 pub mod core_evidence;
 pub mod geometry;
 pub mod history;
+pub mod history_ensemble;
 pub mod jobs;
 pub mod mesh;
 pub mod reactor;
