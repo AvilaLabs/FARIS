@@ -498,6 +498,7 @@ mod tests {
             transport_artifact_sha256: "0".repeat(64),
             solver_digest: format!("sha256:{}", "1".repeat(64)),
             nuclear_data_digest: format!("sha256:{}", "2".repeat(64)),
+            covariance: None,
         }
     }
 }

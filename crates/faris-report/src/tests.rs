@@ -101,6 +101,7 @@ fn rates(tbr: f64, flux: f64) -> TransportDrivingRates {
         transport_artifact_sha256: "b".repeat(64),
         solver_digest: format!("sha256:{}", "c".repeat(64)),
         nuclear_data_digest: format!("sha256:{}", "d".repeat(64)),
+        covariance: None,
     }
 }
 
