@@ -224,6 +224,32 @@ read their scope statements before treating a passing control as evidence. The
 acceptance matrix in [DEMO_ACCEPTANCE.md](DEMO_ACCEPTANCE.md) identifies what
 remains open.
 
+Before packaging, generate the history refinement report that anchors the
+outage-duration study. It is produced from the same four run records and the same
+`faris` binary that go into the package; the packager requires its multiplier-1.0
+histories to match the report's 600 s histories byte for byte. The history outputs
+do not embed file paths, but they depend on the run records, the scenario and
+assumption values, and the binary:
+
+```bash
+python3 scripts/make_history_refinement_report.py \
+  --faris target/release/faris \
+  --control-scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
+  --port-scenario scenarios/arc-inspired/cold-reference-port.scenario.json \
+  --control-reference-run runs/<control-reference>/run.json \
+  --control-breeder-run runs/<control-breeder>/run.json \
+  --port-reference-run runs/<port-reference>/run.json \
+  --port-breeder-run runs/<port-breeder>/run.json \
+  --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
+  --event-assumptions scenarios/arc-inspired/demo-event-assumptions.json \
+  --work-dir <new scratch directory> \
+  --output references/operating-history-primary-refinement-v4.json
+```
+
+It refuses an existing work directory or output, and writes nothing if any
+independent check or refinement gate fails. The v3 report remains in
+`references/` as a superseded historical record.
+
 The four corrected runs and both independent port-volume reports now exist.
 Use their exact identities to create the portable four-run hash-indexed package. For each port
 run, the packager also requires the worker's OpenMC geometry-ownership audit to
@@ -248,6 +274,7 @@ python3 scripts/package_recorded_demo.py \
   --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
   --event-assumptions scenarios/arc-inspired/demo-event-assumptions.json \
   --sensitivity-grid scenarios/arc-inspired/demo-operating-sensitivity.json \
+  --support-report history-refinement=references/operating-history-primary-refinement-v4.json \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-030cm.transport-bundle.json \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-035cm.transport-bundle.json \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-040cm.transport-bundle.json \

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 
+HISTORY_REFINEMENT_REPORT_NAME = "operating-history-primary-refinement-v4.json"
 SCRIPT = Path(__file__).with_name("verify_recorded_demo.py")
 SPEC = importlib.util.spec_from_file_location("verify_recorded_demo", SCRIPT)
 VERIFY = importlib.util.module_from_spec(SPEC)
@@ -252,6 +253,10 @@ def make_package(root: Path, faris: Path, core: Path,
     grid = {"recovery_fraction_levels": [0.2, 0.5, 0.8],
             "delay_multipliers": [0.5, 1.0, 2.0],
             "service_limit_multipliers": [0.5, 1.0, 1.5], "rationale": "fixture grid"}
+    # The release report is generated from release runs; the fixture only needs the same file name.
+    refinement_report = root.parent / HISTORY_REFINEMENT_REPORT_NAME
+    write(refinement_report, json.dumps({"schema_version": "faris-operating-history-primary-refinement-v4",
+                                         "status": "software_fixture"}) + "\n")
     write(root / "operating-assumptions.json", json.dumps(assumptions) + "\n")
     write(root / "inputs/event-assumptions.json", json.dumps(event_assumptions) + "\n")
     write(root / "inputs/sensitivity-grid.json", json.dumps(grid) + "\n")
@@ -468,8 +473,7 @@ def make_package(root: Path, faris: Path, core: Path,
                     "history_sha256": VERIFY.digest(history_path),
                     "rates_sha256": VERIFY.digest(rates_path),
                     "base_operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
-                    "baseline_refinement_report_sha256": VERIFY.digest(
-                        Path(__file__).resolve().parents[1] / "references/operating-history-primary-refinement-v3.json"),
+                    "baseline_refinement_report_sha256": VERIFY.digest(refinement_report),
                     "baseline_anchor_history_sha256": VERIFY.digest(history_path).removeprefix("sha256:"),
                     "baseline_anchor_rates_sha256": VERIFY.digest(rates_path).removeprefix("sha256:"),
                     "interpretation": "AUTHORED_SCENARIO_PROBE",
@@ -494,8 +498,7 @@ def make_package(root: Path, faris: Path, core: Path,
     outage_summary = {
         "schema_version": "faris-outage-duration-study/v0.1",
         "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
-        "baseline_refinement_report_sha256": VERIFY.digest(
-            Path(__file__).resolve().parents[1] / "references/operating-history-primary-refinement-v3.json"),
+        "baseline_refinement_report_sha256": VERIFY.digest(refinement_report),
         "interpretation": "AUTHORED_SCENARIO_PROBE",
         "not_probability_distribution": True,
         "not_physical_uncertainty": True,
@@ -538,8 +541,7 @@ def make_package(root: Path, faris: Path, core: Path,
                                       "raw_path": "/tmp/private/run.json"}) + "\n")
     support = PACKAGE.install_support(root, [
         ("fixture-campaign", campaign_source),
-        ("history-refinement", Path(__file__).resolve().parents[1]
-         / "references/operating-history-primary-refinement-v3.json"),
+        ("history-refinement", refinement_report),
     ])
     (root / "README.md").write_text("Fixture demo package.\n")
     expanded_records = [arrangement[key]

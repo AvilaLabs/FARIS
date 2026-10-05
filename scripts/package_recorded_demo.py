@@ -43,6 +43,8 @@ MAX_TREE_MEMBERS = 4096
 MAX_EXPANDED_PACKAGE_BYTES = 1536 * 1024 * 1024
 MAX_EXPANDED_PACKAGE_FILES = 8192
 OUTAGE_DURATION_MULTIPLIERS = (0.5, 1.0, 2.0)
+HISTORY_REFINEMENT_REPORT_NAME = "operating-history-primary-refinement-v4.json"
+HISTORY_REFINEMENT_SCHEMA = "faris-operating-history-primary-refinement-v4"
 SUPPORT_SOURCE_FILES = (
     "docs/COLD_REFERENCE.md",
     "docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md",
@@ -410,14 +412,14 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
                               variant_id: str) -> list[dict]:
     identity = source_run_identity(run_path, scenario_sha, variant_id)
     base = json.loads(base_assumptions.read_text(encoding="utf-8"))
-    baseline_report = Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"
+    baseline_report = Path(__file__).resolve().parents[1] / "references" / HISTORY_REFINEMENT_REPORT_NAME
     if not baseline_report.is_file():
         raise RuntimeError("the independent 600-second baseline refinement report is required for outage-axis anchoring")
     baseline_report_sha = sha256(baseline_report)
     baseline = json.loads(baseline_report.read_text(encoding="utf-8"))
     driver_id = f"{pair_id}-{('reference' if variant_id == 'reference' else 'breeder')}"
     baseline_output = baseline.get("primary_drivers", {}).get(driver_id, {}).get("history_outputs", {}).get("600")
-    if (baseline.get("schema_version") != "faris-operating-history-primary-refinement-v3"
+    if (baseline.get("schema_version") != HISTORY_REFINEMENT_SCHEMA
             or not isinstance(baseline_output, dict)
             or baseline_output.get("assumptions_sha256")
             != sha256(base_assumptions).removeprefix("sha256:")):
@@ -1195,10 +1197,10 @@ def main() -> None:
     if not args.sweep_bundle:
         print("NOTE: no --sweep-bundle given; the package will contain no allocation sweep.",
               file=sys.stderr)
-    baseline_report_source = Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"
+    baseline_report_source = Path(__file__).resolve().parents[1] / "references" / HISTORY_REFINEMENT_REPORT_NAME
     if not any(label == "history-refinement" and path == baseline_report_source.resolve()
                for label, path in support_reports):
-        raise SystemExit("--support-report history-refinement=<exact v3 baseline refinement report> is required")
+        raise SystemExit("--support-report history-refinement=<exact v4 baseline refinement report> is required")
     for path in files:
         if not path.is_file():
             raise SystemExit(f"required file is missing: {path}")
@@ -1289,7 +1291,7 @@ def main() -> None:
                      "maximum_outage_below_annual_spacing": True},
             "scope": "One-factor authored scenario probes; levels are not probability distributions, physical uncertainty ranges, maintenance forecasts, or availability claims.",
             "baseline_refinement_report_sha256": sha256(
-                Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"),
+                Path(__file__).resolve().parents[1] / "references" / HISTORY_REFINEMENT_REPORT_NAME),
             "interpretation": "AUTHORED_SCENARIO_PROBE",
             "not_probability_distribution": True,
             "not_physical_uncertainty": True,
