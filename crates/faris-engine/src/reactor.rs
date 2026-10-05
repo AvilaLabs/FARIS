@@ -327,6 +327,7 @@ fn mesh_payload_preflight_with_encoding(
         });
     }
     let normalized = NormalizedTransportResult {
+        response_covariance: None,
         schema_version: "faris-normalized-transport/v0.1".into(),
         scenario_id: request.scenario_id.clone(),
         scenario_sha256: request.scenario_sha256.clone(),

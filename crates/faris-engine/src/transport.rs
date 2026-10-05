@@ -97,6 +97,27 @@ pub struct NormalizedTransportResult {
     pub source_reaction_rate_per_s: f64,
     pub source_neutron_rate_per_s: f64,
     pub results: Vec<NormalizedTally>,
+    /// Sampling covariance between scalar response means of this run, estimated
+    /// from batch-resolved tallies. None for records made before batch-resolved
+    /// tallies existed; consumers that need correlations must then fail closed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_covariance: Option<ResponseCovariance>,
+}
+
+/// Monte Carlo sampling covariance of scalar response means from one transport run.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ResponseCovariance {
+    /// Estimator identity, e.g. "batch-means-sample-covariance/v1": sample
+    /// covariance of per-batch values divided by the number of batches.
+    pub method: String,
+    pub batches: u32,
+    /// Response IDs in matrix order; each names a scalar entry of `results`.
+    pub response_ids: Vec<String>,
+    /// Row-major n x n covariance of `integrated_mean` values, in each
+    /// response's `integrated_unit` (product units off the diagonal).
+    /// Monte Carlo sampling only: volume-estimate uncertainty is not included.
+    pub integrated: Vec<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -503,6 +524,7 @@ pub fn normalize_transport_artifact(
         });
     }
     Ok(NormalizedTransportResult {
+        response_covariance: None,
         schema_version: "faris-normalized-transport/v0.1".into(),
         scenario_id: expected.scenario_id.clone(),
         scenario_sha256: expected.scenario_sha256.clone(),
