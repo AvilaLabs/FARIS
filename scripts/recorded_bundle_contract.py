@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from typing import Any
 
 MAX_BUNDLE_BYTES = 32 * 1024 * 1024
@@ -15,6 +16,7 @@ REQUIRED_FILES = {
     "run.json", "input.json", "scenario.json", "audit.json",
     "reactor_transport.py", "solver/transport-artifact.json",
 }
+BATCH_VALUES_FILE = "solver/transport-batch-values.json"
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 
 
@@ -148,12 +150,13 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
     files = bundle.get("files")
     if not isinstance(files, dict) or not REQUIRED_FILES <= set(files):
         raise ValueError("recorded transport bundle has missing required files")
-    if set(files) - REQUIRED_FILES - {"solver/worker-result.json", "solver/transport-spectra.json"}:
+    if set(files) - REQUIRED_FILES - {"solver/worker-result.json", "solver/transport-spectra.json",
+                                      BATCH_VALUES_FILE}:
         raise ValueError("recorded transport bundle contains undeclared files")
     if any(not isinstance(value, str) for value in files.values()):
         raise ValueError("recorded bundle file contents must all be UTF-8 text")
     size = len(json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-    if size > MAX_BUNDLE_BYTES or len(files) > 8:
+    if size > MAX_BUNDLE_BYTES or len(files) > 9:
         raise ValueError("recorded transport bundle exceeds its file or byte bound")
 
     run_bytes, run = parse_embedded(files, "run.json")
@@ -196,6 +199,15 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
         raise ValueError("recorded worker result does not match run receipt")
     if bare_sha256(run.get("transport_spectra_sha256"), "run spectra") != spectra_sha:
         raise ValueError("recorded spectra do not match run receipt")
+    # Runs recorded since the response covariance carry the per-batch values
+    # behind it; older bundles do not. When present it must be the file the
+    # worker and the transport artifact name.
+    if BATCH_VALUES_FILE in files:
+        batch_sha = digest_bytes(files[BATCH_VALUES_FILE].encode("utf-8"))
+        covariance = artifact.get("response_covariance") or {}
+        if (bare_sha256(worker.get("transport_batch_values_sha256"), "worker batch values") != batch_sha
+                or bare_sha256(covariance.get("batch_values_sha256"), "artifact batch values") != batch_sha):
+            raise ValueError("recorded per-batch values do not match the worker and artifact records")
     if (spectra.get("schema_version") != "faris-transport-spectra/v0.1"
             or spectra.get("scenario_sha256") != scenario_sha256
             or spectra.get("variant_id") != variant_id
@@ -291,6 +303,70 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
         "spectral_curve_count": len(normalized_spectra),
         "normalized_response_count": len(results),
     }
+
+
+SWEEP_VARIANT_PATTERN = re.compile(r"blanket-\d{3}cm")
+SWEEP_BUNDLE_DIRECTORY = "sweep/bundles"
+
+
+def sweep_allocations(scenario: dict[str, Any]) -> dict[str, tuple[float, float]]:
+    """Return {variant id: (blanket m, shield m)} for the allocation-sweep scenario."""
+    allocations: dict[str, tuple[float, float]] = {}
+    for variant in scenario.get("variants") or []:
+        thickness = {layer.get("id"): layer.get("thickness_m") for layer in variant.get("layers") or []}
+        blanket, shield = thickness.get("blanket"), thickness.get("shield")
+        if (not isinstance(variant.get("id"), str) or not _positive_finite(blanket)
+                or not _positive_finite(shield)):
+            raise ValueError("sweep scenario variant lacks blanket and shield thicknesses")
+        allocations[variant["id"]] = (float(blanket), float(shield))
+    return allocations
+
+
+def inspect_sweep_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
+                         scenario: dict[str, Any]) -> dict[str, Any]:
+    """Validate one allocation-sweep bundle and return its identity record.
+
+    The variant, seed and mesh usability come from the bundle's own run record;
+    the full recorded-bundle contract then binds every embedded artifact.
+    """
+    files = bundle.get("files")
+    if not isinstance(files, dict):
+        raise ValueError("recorded transport bundle has missing required files")
+    run_bytes, run = parse_embedded(files, "run.json")
+    variant_id = run.get("variant_id")
+    if not isinstance(variant_id, str) or not SWEEP_VARIANT_PATTERN.fullmatch(variant_id):
+        raise ValueError(f"sweep run variant is not blanket-NNNcm: {variant_id!r}")
+    allocations = sweep_allocations(scenario)
+    if variant_id not in allocations:
+        raise ValueError(f"sweep variant is not declared by the allocation-sweep scenario: {variant_id}")
+    seed = (run.get("sampling") or {}).get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise ValueError(f"sweep run {variant_id} records no integer transport seed")
+    mesh_id = (run.get("mesh") or {}).get("id")
+    results = (run.get("normalized") or {}).get("results") or []
+    nonzero = sum(1 for item in results
+                  if isinstance(item, dict) and (item.get("domain") or {}).get("kind") == "mesh"
+                  and (item.get("domain") or {}).get("mesh_id") == mesh_id
+                  and _finite(item.get("mean")) and item["mean"] > 0.0)
+    summary = validate_recorded_bundle(
+        bundle, scenario_sha256=scenario_sha256, variant_id=variant_id,
+        mesh_nonzero_flux_bin_count=nonzero)
+    blanket, shield = allocations[variant_id]
+    return {"variant_id": variant_id, "blanket_thickness_m": blanket,
+            "shield_thickness_m": shield, "seed": seed,
+            "run_record_sha256": "sha256:" + digest_bytes(run_bytes),
+            "raw_artifact_sha256": summary["raw_artifact_sha256"],
+            "offline_field_and_spectrum_identity": summary}
+
+
+def check_sweep_set(records: list[dict[str, Any]]) -> None:
+    """Refuse duplicate variants or reused seeds across a set of sweep records."""
+    variants = [item["variant_id"] for item in records]
+    seeds = [item["seed"] for item in records]
+    if len(set(variants)) != len(variants):
+        raise ValueError("sweep bundles repeat a variant")
+    if len(set(seeds)) != len(seeds):
+        raise ValueError("sweep bundles reuse a transport seed")
 
 
 def _finite(value: Any) -> bool:

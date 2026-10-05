@@ -27,12 +27,14 @@ SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 from port_geometry_contract import validate_ownership_audits
-from recorded_bundle_contract import validate_recorded_bundle
+from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bundle,
+                                      check_sweep_set, SWEEP_BUNDLE_DIRECTORY)
 from recorded_archives import (create_archive, MAX_PATH_COMPONENTS,
                                MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES)
 
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
+SWEEP_SCENARIO_RELATIVE = "scenarios/arc-inspired/allocation-sweep/scenario.json"
 ANALYSES = "breeding,shielding,fuel-history,electricity"
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
 MAX_TREE_BYTES = 512 * 1024 * 1024
@@ -865,7 +867,36 @@ def install_support(staging: Path, campaign_reports: list[tuple[str, Path]]) -> 
             "file_count": len(records), "demo_acceptance_snapshot_included": False}
 
 
-def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> None:
+def add_sweep(staging: Path, bundle_paths: list[Path]) -> dict | None:
+    """Copy identity-checked allocation-sweep bundles under sweep/ and describe them."""
+    if not bundle_paths:
+        return None
+    scenario_path = Path(__file__).resolve().parents[1] / SWEEP_SCENARIO_RELATIVE
+    scenario_bytes = scenario_path.read_bytes()
+    scenario = json.loads(scenario_bytes)
+    scenario_sha = hashlib.sha256(scenario_bytes).hexdigest()
+    sweep_dir = staging / "sweep"
+    (sweep_dir / "bundles").mkdir(parents=True)
+    shutil.copyfile(scenario_path, sweep_dir / "scenario.json")
+    runs = []
+    for path in bundle_paths:
+        record = inspect_sweep_bundle(json.loads(path.read_text(encoding="utf-8")),
+                                      scenario_sha256=scenario_sha, scenario=scenario)
+        target = staging / SWEEP_BUNDLE_DIRECTORY / f"{record['variant_id']}.transport-bundle.json"
+        if target.exists():
+            raise RuntimeError(f"duplicate sweep variant: {record['variant_id']}")
+        shutil.copyfile(path, target)
+        record["transport_bundle"] = target.relative_to(staging).as_posix()
+        record["transport_bundle_sha256"] = sha256(target)
+        runs.append(record)
+    check_sweep_set(runs)
+    runs.sort(key=lambda item: item["blanket_thickness_m"])
+    return {"scenario_id": scenario.get("id"), "scenario_path": "sweep/scenario.json",
+            "scenario_sha256": scenario_sha, "runs": runs}
+
+
+def write_package_readme(staging: Path, pairs: list[dict], support: dict,
+                         sweep: dict | None = None) -> None:
     expanded_bytes = sum(int(arrangement[key]["expanded_bytes"])
                          for pair in pairs for arrangement in pair["arrangements"]
                          for key in ("case_archive", "workspace_archive"))
@@ -896,6 +927,22 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> Non
                 f"| {arrangement['normalized_response_count']} "
                 f"| {arrangement['mesh_nonzero_flux_bin_count']} |"
             )
+    if sweep:
+        lines.extend([
+            "",
+            f"## Blanket/shield allocation sweep ({len(sweep['runs'])} recorded runs)",
+            "",
+            f"Scenario `{sweep['scenario_id']}` (SHA-256 `{sweep['scenario_sha256']}`) holds the total thickness fixed and moves it between the breeding blanket and the neutron shield. Each run is a recorded transport bundle under `sweep/bundles/`; the launcher passes them to the app. They carry transport identity only (no Core evidence cases) and the same NOT_EVALUATED scope.",
+            "",
+            "| Variant | Blanket (m) | Shield (m) | Run SHA-256 | Raw artifact SHA-256 |",
+            "|---|---:|---:|---|---|",
+        ])
+        for run in sweep["runs"]:
+            lines.append(
+                f"| {run['variant_id']} | {run['blanket_thickness_m']:g} | {run['shield_thickness_m']:g} "
+                f"| `{run['run_record_sha256'].removeprefix('sha256:')}` | `{run['raw_artifact_sha256']}` |")
+    else:
+        lines.extend(["", "This package contains no blanket/shield allocation sweep."])
     lines.extend([
         "",
         "Each recorded bundle contains exact run/input/scenario/audit/adapter/raw artifact/worker/spectra bytes.",
@@ -909,7 +956,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict) -> Non
         "",
         "## Offline launch and verification",
         "",
-        "Run `./launch.sh` to open the four recorded cases. The launcher verifies indexed bytes, expands case/workspace archives into a mode-0700 private temporary directory, and keeps that copy until the app exits. Run `./verify.sh` to relocate the compressed package, expand the archives, revalidate saved Core evidence and export reports, and check rejection of a separate tampered copy.",
+        "Run `./launch.sh` to open the four recorded cases (and the allocation sweep, when the package contains one). The launcher verifies indexed bytes, expands case/workspace archives into a mode-0700 private temporary directory, and keeps that copy until the app exits. Run `./verify.sh` to relocate the compressed package, expand the archives, revalidate saved Core evidence and export reports, and check rejection of a separate tampered copy.",
         "Before launch, the temporary filesystem must have the indexed expanded byte total, one filesystem block per indexed implicit directory, and 64 MiB free. Before `verify.sh`, it must have the relocated compressed package plus those expanded bytes, one largest one-case export copy, directory blocks, and 64 MiB free; the verifier checks this. A later tamper negative control needs a third compressed copy only after expanded scratch is released. No files are expanded inside the read-only distribution.",
         "The bundled Linux executables are read-only and hash-pinned, not signed. Their hashes establish byte identity, not authenticity.",
         "",
@@ -1124,6 +1171,8 @@ def main() -> None:
     parser.add_argument("--sensitivity-grid", required=True, type=Path)
     parser.add_argument("--support-report", action="append", default=[], metavar="LABEL=JSON_PATH",
                         help="additional bounded campaign audit report to retain under support/campaigns")
+    parser.add_argument("--sweep-bundle", action="append", default=[], type=Path, metavar="PATH",
+                        help="portable allocation-sweep RecordedTransportBundle (from `faris transport pack`); repeatable")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     files = [args.faris, args.faris_app, args.core, args.control_scenario, args.control_reference_run,
@@ -1140,6 +1189,12 @@ def main() -> None:
         if not report_path.is_file() or report_path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
             raise SystemExit(f"support report is missing or oversized: {report_path}")
         support_reports.append((label, report_path.resolve()))
+    for bundle_path in args.sweep_bundle:
+        if not bundle_path.is_file() or bundle_path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise SystemExit(f"sweep bundle is missing or oversized: {bundle_path}")
+    if not args.sweep_bundle:
+        print("NOTE: no --sweep-bundle given; the package will contain no allocation sweep.",
+              file=sys.stderr)
     baseline_report_source = Path(__file__).resolve().parents[1] / "references" / "operating-history-primary-refinement-v3.json"
     if not any(label == "history-refinement" and path == baseline_report_source.resolve()
                for label, path in support_reports):
@@ -1243,7 +1298,8 @@ def main() -> None:
         }
         outage_summary_path = staging / "references" / "outage-duration-sensitivity-summary.json"
         write_bounded_json(outage_summary_path, outage_summary)
-        write_package_readme(staging, branches, support_manifest)
+        sweep_manifest = add_sweep(staging, [path.resolve() for path in args.sweep_bundle])
+        write_package_readme(staging, branches, support_manifest, sweep_manifest)
         indexed_files = scan_package(staging)
         expanded_total = sum(
             int(arrangement[key]["expanded_bytes"])
@@ -1309,6 +1365,7 @@ def main() -> None:
             "per_tree_directory_count_cap": MAX_TREE_DIRECTORIES,
             "archive_path_component_count_cap": MAX_PATH_COMPONENTS,
             "scenario_pairs": branches,
+            "sweep": sweep_manifest,
             "files": indexed_files,
             "index_digest_scope": "package-index.json and package-index.sha256 are excluded from files to avoid a self-referential digest.",
             "external_requirements": [

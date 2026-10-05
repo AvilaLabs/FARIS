@@ -248,8 +248,26 @@ python3 scripts/package_recorded_demo.py \
   --assumptions scenarios/arc-inspired/demo-operating-assumptions.json \
   --event-assumptions scenarios/arc-inspired/demo-event-assumptions.json \
   --sensitivity-grid scenarios/arc-inspired/demo-operating-sensitivity.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-030cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-035cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-040cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-045cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-050cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-055cm.transport-bundle.json \
+  --sweep-bundle runs/allocation-sweep/bundles/blanket-060cm.transport-bundle.json \
   --output dist/FARIS-demo-2026-10-01
 ```
+
+Each `--sweep-bundle` is a portable recorded bundle made by `faris transport pack`
+for one variant of `scenarios/arc-inspired/allocation-sweep/scenario.json`. The
+packager validates every one with the recorded-bundle contract (embedded scenario
+hash, `blanket-NNNcm` variant id declared by that scenario, distinct transport
+seeds, no duplicate variant), copies them under `sweep/bundles/`, indexes them,
+and adds a sweep table to the package README. `launch.sh` passes the verified
+bundles to the app as `--sweep-bundle`; `verify.sh` revalidates them and its
+tamper control targets a sweep file when one exists. Omitting the flag is allowed
+and yields a package with no sweep (the packager prints a note). The sweep runs
+carry transport identity only; they have no Core evidence cases.
 
 The packager checks all four scenario/run identities and normalized heating/H3
 responses, requires port geometry reports to bind to each raw artifact, archives
