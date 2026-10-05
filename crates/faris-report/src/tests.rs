@@ -278,7 +278,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     let mut lines = csv.lines();
     assert_eq!(
         lines.next().unwrap(),
-        "arrangement,calendar_year,state,magnet_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps"
+        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps"
     );
     let source = input();
     let expected: usize = source
@@ -302,9 +302,15 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
         cells[3].parse::<f64>().unwrap(),
         last.component_fluence_n_m2["magnets"]
     );
-    assert_eq!(cells[5].parse::<f64>().unwrap(), last.available_tritium_kg);
+    // The magnet's exposure toward its limit; with an energy-integrated limit
+    // it is the same fluence.
     assert_eq!(
-        cells[6].parse::<f64>().unwrap(),
+        cells[4].parse::<f64>().unwrap(),
+        last.component_fluence_n_m2["magnets"]
+    );
+    assert_eq!(cells[6].parse::<f64>().unwrap(), last.available_tritium_kg);
+    assert_eq!(
+        cells[7].parse::<f64>().unwrap(),
         last.cumulative_net_electricity_mwh.unwrap() / 1.0e6
     );
     assert!(
@@ -709,13 +715,13 @@ mod ensembles {
         let mut lines = csv.lines();
         assert_eq!(
             lines.next().unwrap(),
-            "arrangement,sample,rejected_draws,breeder_h3_per_source_neutron,flux_magnets_n_m2_s,heating_w,outcome,terminal_time_years,full_power_time_years,final_usable_tritium_kg,final_in_process_tritium_kg,gross_electricity_twh,auxiliary_electricity_twh,net_electricity_twh,replacements_magnets,first_replacement_year_magnets"
+            "arrangement,sample,rejected_draws,breeder_h3_per_source_neutron,flux_magnets_n_m2_s,heating_w,outcome,terminal_time_years,full_power_time_years,final_usable_tritium_kg,final_in_process_tritium_kg,gross_electricity_twh,auxiliary_electricity_twh,net_electricity_twh,replacements_magnets,first_replacement_year_magnets,first_trigger_magnets"
         );
         let body: Vec<Vec<&str>> = lines.map(|l| l.split(',').collect()).collect();
         // Two evaluated arrangements; the not-evaluated and the missing ones
         // contribute no samples.
         assert_eq!(body.len(), 2 * SAMPLES as usize);
-        assert!(body.iter().all(|r| r.len() == 16));
+        assert!(body.iter().all(|r| r.len() == 17));
         let ids: Vec<&str> = body.iter().map(|r| r[0]).collect();
         assert!(ids[..6].iter().all(|i| *i == "port-reference"));
         assert!(ids[6..].iter().all(|i| *i == "no-port-reference"));

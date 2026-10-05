@@ -357,3 +357,59 @@ fn paired_lines_name_the_arrangements_and_report_swap_shares() {
     assert!(energy.difference.starts_with("median ") && energy.difference.contains("TWh"));
     assert!(energy.sentence.is_none());
 }
+
+#[test]
+fn trigger_regions_read_as_words_and_the_sentence_names_the_first_region() {
+    assert_eq!(
+        trigger_region_text("magnets", "magnets-port-sector-fast-flux"),
+        "port sector"
+    );
+    assert_eq!(
+        trigger_region_text("magnets", "magnets-inboard-fast-flux"),
+        "inboard"
+    );
+    assert_eq!(trigger_region_text("magnets", "none"), "no swap");
+    // An id that does not follow the naming stays as written.
+    assert_eq!(trigger_region_text("magnets", "r-port"), "r port");
+    let d = discrete(
+        "first_trigger:magnets",
+        &[
+            ("magnets-port-sector-fast-flux", 97),
+            ("magnets-inboard-fast-flux", 3),
+            ("none", 0),
+        ],
+    );
+    assert_eq!(
+        trigger_distribution_sentence("magnets", "Magnet swap triggered first by", &d),
+        "Magnet swap triggered first by: port sector in 97 % of samples, inboard in 3 %"
+    );
+    let detail = trigger_distribution_detail("magnets", &d);
+    assert!(
+        detail.contains("port sector: 97 % of samples (97/100;"),
+        "{detail}"
+    );
+    assert!(!detail.contains("no swap"));
+}
+
+#[test]
+fn a_nominal_trigger_gets_a_row_even_without_an_ensemble() {
+    let rates = rates_without_covariance(0.06, 'a');
+    let history = run_operating_history(&assumptions(), &rates).unwrap();
+    let mut nominal = nominal_sample(&history).unwrap();
+    nominal
+        .first_trigger_response
+        .insert("magnets".into(), "magnets-port-sector-fast-flux".into());
+    let rows = trigger_rows(&nominal, None, &["magnets", "magnets"]);
+    assert_eq!(rows.len(), 1);
+    let row = &rows[0];
+    assert_eq!(row.name, "first_trigger:magnets");
+    assert_eq!(row.label, "Magnet swap triggered first by");
+    assert_eq!(row.nominal, "port sector");
+    assert!(row.result.is_none());
+    // A component with a single limit has no region to name.
+    assert!(trigger_rows(&nominal, None, &[]).is_empty());
+    // On a history with a single limit the outcome stays the last row.
+    let rows = history_rows(&history, None);
+    assert!(rows.iter().all(|r| !r.name.starts_with("first_trigger:")));
+    assert_eq!(rows.last().unwrap().name, "terminal_status");
+}

@@ -109,6 +109,7 @@ pub fn rates_without_covariance(relative: f64, artifact: char) -> TransportDrivi
             "blanket-tritium",
         ),
         component_average_flux_n_m2_s: flux,
+        region_flux_n_m2_s: Default::default(),
         transport_deposited_heat_w: Some(scalar(1.0e6, relative, "W", "heating-total")),
         scenario_sha256: artifact.to_string().repeat(64),
         transport_artifact_sha256: artifact.to_ascii_uppercase().to_string().repeat(64),

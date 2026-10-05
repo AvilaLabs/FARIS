@@ -921,6 +921,7 @@ impl FarisApp {
             && !self.capture_requested
             && !self.file.is_busy()
             && !self.history.is_pending()
+            && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
             && self.tour.settled()

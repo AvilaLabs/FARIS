@@ -15,7 +15,8 @@ use faris_engine::{
     history::JULIAN_YEAR_SECONDS,
     history_ensemble::{EnsembleStatus, HistoryEnsemble, nominal_sample},
     history_uncertainty::{
-        BAND_NET_ELECTRICITY, BAND_TRITIUM, UncertaintyRow, not_evaluated_text, uncertainty_rows,
+        BAND_FLUENCE_MAGNETS, BAND_LIMIT_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM,
+        UncertaintyRow, history_rows, not_evaluated_text,
     },
 };
 use serde::Serialize;
@@ -139,9 +140,11 @@ pub(crate) fn build(data: &[ArrangementData]) -> Option<UncertaintyReport> {
                 EnsembleInput::None if nominal.is_some() => (ColumnStatus::NotCalculated, None),
                 EnsembleInput::None => (ColumnStatus::NoHistory, None),
             };
-            let rows = nominal
+            let rows = d
+                .input
+                .history
                 .as_ref()
-                .map(|n| uncertainty_rows(n, ensemble))
+                .map(|h| history_rows(h, ensemble))
                 .unwrap_or_default();
             Column {
                 arrangement: d.input.arrangement,
@@ -177,11 +180,10 @@ fn evaluated(d: &ArrangementData) -> Option<&HistoryEnsemble> {
 
 /// The band of the magnet-fluence timeline for one arrangement.
 pub(crate) fn fluence_band(d: &ArrangementData) -> Option<Band> {
-    band_of(
-        evaluated(d)?,
-        faris_engine::history_uncertainty::BAND_FLUENCE_MAGNETS,
-        1.0,
-    )
+    let ensemble = evaluated(d)?;
+    // A magnet with region limits plots its exposure toward them.
+    band_of(ensemble, BAND_LIMIT_FLUENCE_MAGNETS, 1.0)
+        .or_else(|| band_of(ensemble, BAND_FLUENCE_MAGNETS, 1.0))
 }
 
 /// The tritium and net-electricity charts: nominal curve and band for every

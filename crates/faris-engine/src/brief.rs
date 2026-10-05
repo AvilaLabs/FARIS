@@ -216,10 +216,7 @@ pub fn summarize_arrangement(
             let spans = component_replacement_spans(&h.events, "magnets", horizon_s);
             cell.swaps = Some(spans.len());
             cell.first_swap_y = spans.first().map(|(s, _)| s / JULIAN_YEAR_SECONDS);
-            cell.first_swap_relative_sampling = h
-                .driving_rates
-                .component_average_flux_n_m2_s
-                .get("magnets")
+            cell.first_swap_relative_sampling = first_crossing_flux(h)
                 .and_then(|r| first_crossing_relative_uncertainty(r.mean, r.standard_error));
         }
         if let Some(last) = h.snapshots.last() {
@@ -435,20 +432,44 @@ pub fn decimate(points: Vec<[f64; 2]>, max: usize) -> Vec<[f64; 2]> {
 }
 
 /// The magnet service limit of a history and whether it is a literature value.
-/// A limit moved away from the selected preset (`preset_limit`) is always
-/// called authored.
+/// The magnet may carry one limit per named region; the value is the lowest of
+/// them, and it is called literature only when every one is. A limit moved
+/// away from the selected preset (`preset_limit`) is always called authored.
 pub fn magnet_limit(history: &HistoryResult, preset_limit: Option<f64>) -> Option<(f64, bool)> {
-    let limit = history
+    let limits: Vec<_> = history
         .assumptions
         .service_limits
         .iter()
-        .find(|l| l.component_id == "magnets")?;
-    let moved = preset_limit.is_some_and(|p| limits_differ(p, limit.limit));
-    let literature = limit
-        .provenance
-        .to_ascii_lowercase()
-        .starts_with("literature");
-    Some((limit.limit, literature && !moved))
+        .filter(|l| l.component_id == "magnets")
+        .collect();
+    let lowest = limits.iter().map(|l| l.limit).reduce(f64::min)?;
+    let moved = preset_limit.is_some_and(|p| limits.iter().any(|l| limits_differ(p, l.limit)));
+    let literature = limits
+        .iter()
+        .all(|l| l.provenance.to_ascii_lowercase().starts_with("literature"));
+    Some((lowest, literature && !moved))
+}
+
+/// The flux that brings the magnet to its first service limit: for each limit
+/// the flux of the response it names (the region average of a fast-flux limit,
+/// else the component average), whichever crosses earliest.
+fn first_crossing_flux(history: &HistoryResult) -> Option<&crate::history::ScalarRate> {
+    let rates = &history.driving_rates;
+    history
+        .assumptions
+        .service_limits
+        .iter()
+        .filter(|l| l.component_id == "magnets")
+        .filter_map(|l| {
+            let flux = rates
+                .region_flux_n_m2_s
+                .get(&l.response_id)
+                .map(|r| &r.rate)
+                .or_else(|| rates.component_average_flux_n_m2_s.get("magnets"))?;
+            (flux.mean > 0.0 && flux.mean.is_finite()).then_some((l.limit / flux.mean, flux))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, flux)| flux)
 }
 
 /// Relative inequality used to detect a value edited away from its preset.
@@ -575,8 +596,19 @@ pub fn assumption_rows(
             ComponentClass::Permanent => "permanent",
             ComponentClass::Replaceable => "replaceable",
         };
+        let several = a
+            .service_limits
+            .iter()
+            .filter(|l| l.component_id == limit.component_id)
+            .count()
+            > 1;
+        let region = if several {
+            format!(", {}", limit.response_id)
+        } else {
+            String::new()
+        };
         push(
-            &format!("{} service limit ({class})", limit.component_id),
+            &format!("{} service limit ({class}{region})", limit.component_id),
             limit.limit,
             format!("{:e}", limit.limit),
             "n/m² fluence",
@@ -770,8 +802,8 @@ pub fn caveats(context: &CaveatContext) -> Vec<Caveat> {
     add(
         StatusKind::Conditional,
         "Magnet swaps and first swap",
-        "The authored fluence limit is applied to the component-average neutron flux of the magnet envelope times operating time. A volume average understates the local peak behind the port; total flux overstates the fast flux. Not a qualified lifetime.".into(),
-        "A local peak-flux tally in the winding pack, fast-flux (E>0.1 MeV) scoring, and REBCO irradiation data at operating temperature.",
+        "The authored limit applies to the fast fluence (E > 0.1 MeV) averaged over each named magnet region (inboard, outboard, port sector), each region flux times operating time; the first region to reach it triggers the swap. The local peak within a region is not resolved, so a hot spot can reach the limit sooner. Not a qualified lifetime.".into(),
+        "A local peak-flux tally in the winding pack with variance reduction, and REBCO irradiation data at operating temperature.",
     );
     add(
         StatusKind::Conditional,
@@ -979,5 +1011,77 @@ mod tests {
             list.iter()
                 .any(|c| c.item.contains("without a transport record"))
         );
+    }
+
+    fn regional_history(fluxes: [(f64, f64); 3], limits: [f64; 3]) -> HistoryResult {
+        use crate::history::{RegionFluxRate, ScalarRate, run_operating_history};
+        use faris_model::history::ServiceLimit;
+        let mut rates = crate::fixtures::rates_without_covariance(0.05, 'a');
+        let mut assumptions = crate::fixtures::assumptions();
+        assumptions.service_limits.clear();
+        for ((id, (mean, se)), limit) in
+            ["magnets-inboard", "magnets-outboard", "magnets-port-sector"]
+                .iter()
+                .zip(fluxes)
+                .zip(limits)
+        {
+            let response = format!("{id}-fast-flux");
+            rates.region_flux_n_m2_s.insert(
+                response.clone(),
+                RegionFluxRate {
+                    component_id: "magnets".into(),
+                    region: None,
+                    energy_min_ev: 1.0e5,
+                    rate: ScalarRate {
+                        mean,
+                        standard_error: Some(se),
+                        unit: "neutrons/m\u{b2}/s".into(),
+                        response_id: response.clone(),
+                    },
+                },
+            );
+            assumptions.service_limits.push(ServiceLimit {
+                component_id: "magnets".into(),
+                class: ComponentClass::Replaceable,
+                response_id: response,
+                metric: crate::history::FAST_FLUX_REGION_METRIC.into(),
+                unit: "neutrons/m\u{b2}".into(),
+                limit,
+                replacement_duration_s: Some(1.0e6),
+                provenance: "literature test".into(),
+            });
+        }
+        run_operating_history(&assumptions, &rates).unwrap()
+    }
+
+    #[test]
+    fn the_first_crossing_uses_the_region_that_reaches_its_limit_first() {
+        // The port sector has the highest flux against equal limits, so its
+        // 20 % error is the one carried onto the first swap.
+        let h = regional_history(
+            [(1.0e10, 1.0e8), (2.0e10, 4.0e8), (5.0e10, 1.0e10)],
+            [3.0e11; 3],
+        );
+        let flux = first_crossing_flux(&h).unwrap();
+        assert_eq!(flux.response_id, "magnets-port-sector-fast-flux");
+        // Raising the port limit makes the outboard region the earliest.
+        let h = regional_history(
+            [(1.0e10, 1.0e8), (2.0e10, 4.0e8), (5.0e10, 1.0e10)],
+            [3.0e11, 3.0e11, 3.0e12],
+        );
+        assert_eq!(
+            first_crossing_flux(&h).unwrap().response_id,
+            "magnets-outboard-fast-flux"
+        );
+    }
+
+    #[test]
+    fn the_magnet_limit_is_the_lowest_and_literature_only_when_all_are_unmoved() {
+        let h = regional_history([(1.0e10, 1.0e8); 3], [3.0e11, 2.5e11, 4.0e11]);
+        assert_eq!(magnet_limit(&h, None), Some((2.5e11, true)));
+        // A preset limit that any of them differs from calls it authored.
+        assert_eq!(magnet_limit(&h, Some(3.0e11)), Some((2.5e11, false)));
+        let same = regional_history([(1.0e10, 1.0e8); 3], [3.0e11; 3]);
+        assert_eq!(magnet_limit(&same, Some(3.0e11)), Some((3.0e11, true)));
     }
 }

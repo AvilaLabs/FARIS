@@ -9,7 +9,7 @@ use faris_engine::{
         REFERENCE_BLANKET_M, StatusKind, StudyComparison,
     },
     comparison::{OperatingState, classify_operating_state},
-    history::JULIAN_YEAR_SECONDS,
+    history::{JULIAN_YEAR_SECONDS, limit_exposure_n_m2},
     history_ensemble::{EnsembleStatus, HistoryEnsemble, SampleOutcome, nominal_sample},
     history_uncertainty::{SCOPE_LINE, outcome_category},
     sweep::{HistorySummary, TransportPoint, difference_resolved},
@@ -62,6 +62,7 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
         "calendar_year".into(),
         "state".into(),
         "magnet_fluence_n_m2".into(),
+        "magnet_limit_fluence_n_m2".into(),
         "blanket_fluence_n_m2".into(),
         "usable_tritium_kg".into(),
         "net_electricity_twh".into(),
@@ -85,6 +86,7 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
                 number(s.time_s / JULIAN_YEAR_SECONDS),
                 state_name(state).into(),
                 optional(s.component_fluence_n_m2.get("magnets").copied()),
+                optional(limit_exposure_n_m2(&history.assumptions, "magnets", s)),
                 optional(s.component_fluence_n_m2.get("blanket").copied()),
                 number(s.available_tritium_kg),
                 optional(s.cumulative_net_electricity_mwh.map(|v| v / MWH_PER_TWH)),
@@ -321,8 +323,10 @@ pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
         .collect();
     let mut fluxes = BTreeSet::new();
     let mut replaced = BTreeSet::new();
+    let mut triggered = BTreeSet::new();
     for (_, e) in &ensembles {
         for s in &e.samples {
+            triggered.extend(s.first_trigger_response.keys().cloned());
             fluxes.extend(s.rates.component_average_flux_n_m2_s.keys().cloned());
             replaced.extend(s.replacements.keys().cloned());
         }
@@ -354,6 +358,7 @@ pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
             .iter()
             .map(|id| format!("first_replacement_year_{id}")),
     );
+    header.extend(triggered.iter().map(|id| format!("first_trigger_{id}")));
     let mut out = row(&header);
     for (data, e) in ensembles {
         for s in &e.samples {
@@ -394,6 +399,14 @@ pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
                         .flatten()
                         .map(|t| t / JULIAN_YEAR_SECONDS),
                 )
+            }));
+            // The response whose limit tripped the component first; empty when
+            // it never tripped.
+            cells.extend(triggered.iter().map(|id| {
+                s.first_trigger_response
+                    .get(id)
+                    .cloned()
+                    .unwrap_or_default()
             }));
             out.push_str(&row(&cells));
         }
@@ -520,6 +533,17 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
                 no_ci(),
                 String::new(),
             ));
+            for (component, response) in &n.first_trigger_response {
+                out.push_str(&cell(
+                    &format!("first_trigger:{component}"),
+                    "",
+                    "nominal",
+                    response,
+                    String::new(),
+                    no_ci(),
+                    String::new(),
+                ));
+            }
         }
         let Some(summary) = ensemble.and_then(|e| e.summary.as_ref()) else {
             continue;

@@ -677,6 +677,26 @@ fn series_of(run: &HistoryResult, grid: &[f64]) -> Series {
                 .collect(),
         );
     }
+    // The exposure toward the region limits, for components that have them.
+    let limited: BTreeSet<&str> = run
+        .assumptions
+        .service_limits
+        .iter()
+        .filter(|l| l.metric == crate::history::FAST_FLUX_REGION_METRIC)
+        .map(|l| l.component_id.as_str())
+        .collect();
+    for id in limited {
+        series.insert(
+            format!("limit_fluence_n_m2:{id}"),
+            snapshots
+                .iter()
+                .map(|s| {
+                    s.as_ref()
+                        .and_then(|s| crate::history::limit_exposure_n_m2(&run.assumptions, id, s))
+                })
+                .collect(),
+        );
+    }
     series.insert(
         "available_tritium_kg".into(),
         snapshots

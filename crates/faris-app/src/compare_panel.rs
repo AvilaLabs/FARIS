@@ -100,7 +100,7 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     ui.horizontal(|ui| match (cell.first_swap_y, cell.first_swap_relative_sampling) {
                         (Some(y), Some(rel)) => {
                             ui.monospace(format!("{y:.1} ± {:.1} y", y * rel));
-                            badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the magnet flux carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the volume average, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
+                            badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the fast flux in the magnet region that reaches its limit first, carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the local peak within the region, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
                         }
                         (Some(y), None) => {
                             ui.monospace(format!("{y:.1} y"));

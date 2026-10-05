@@ -238,9 +238,6 @@ impl HistoryPanel {
                 let Some(history) = self.results.get(&active) else {
                     return;
                 };
-                let Some(nominal) = nominal_sample(history) else {
-                    return;
-                };
                 if let Some((why, next_step)) = not_evaluated_text(&ensemble) {
                     ui.colored_label(
                         Kind::Partial.color(),
@@ -253,7 +250,7 @@ impl HistoryPanel {
                     ensemble.samples.len(),
                     self.arrangement_name(&active)
                 ));
-                rows_ui(ui, &uncertainty_rows(&nominal, Some(&ensemble)));
+                rows_ui(ui, &history_rows(history, Some(&ensemble)));
             }
         }
     }

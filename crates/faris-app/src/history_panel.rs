@@ -13,12 +13,13 @@ use faris_engine::{
     },
     history::{
         EventKind, HistoryEvent, HistoryResult, HistorySnapshot, JULIAN_YEAR_SECONDS,
-        TransportDrivingRates, run_operating_history_cancellable,
+        TransportDrivingRates, limit_exposure_n_m2, run_operating_history_cancellable,
     },
-    history_ensemble::{EnsembleStatus, HistoryEnsemble, SeriesBand, nominal_sample},
+    history_ensemble::{EnsembleStatus, HistoryEnsemble, SeriesBand},
     history_uncertainty::{
-        BAND_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM, SCOPE_DETAIL, SCOPE_LINE,
-        UncertaintyRow, band_coverage_note, not_evaluated_text, progress_text, uncertainty_rows,
+        BAND_FLUENCE_MAGNETS, BAND_LIMIT_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM,
+        SCOPE_DETAIL, SCOPE_LINE, UncertaintyRow, band_coverage_note, history_rows,
+        not_evaluated_text, progress_text,
     },
     jobs::Cancellation,
     reactor::ReactorRun,
@@ -66,9 +67,9 @@ enum Plot {
 }
 
 impl Plot {
-    fn value(self, s: &HistorySnapshot) -> Option<f64> {
+    fn value(self, history: &HistoryResult, s: &HistorySnapshot) -> Option<f64> {
         match self {
-            Plot::MagnetFluence => s.component_fluence_n_m2.get("magnets").copied(),
+            Plot::MagnetFluence => limit_exposure_n_m2(&history.assumptions, "magnets", s),
             Plot::Electricity => s.cumulative_net_electricity_mwh.map(|v| v / 1e6),
             Plot::Tritium => Some(s.available_tritium_kg),
             Plot::FullPower => Some(s.cumulative_full_power_seconds / JULIAN_YEAR_SECONDS),
@@ -105,7 +106,7 @@ impl Plot {
     }
     fn title(self) -> &'static str {
         match self {
-            Plot::MagnetFluence => "Magnet fluence · component-average, n/m²",
+            Plot::MagnetFluence => "Magnet fluence toward its service limit, n/m²",
             Plot::Electricity => "Cumulative signed net electricity · TWh",
             Plot::Tritium => "Usable tritium inventory · kg",
             Plot::FullPower => "Cumulative full-power time · years",
@@ -179,7 +180,16 @@ pub struct HistoryPanel {
 /// band, with the factor into the plotted unit.
 fn plot_band(plot: Plot, ensemble: &HistoryEnsemble) -> Option<(&[f64], &SeriesBand, f64)> {
     let summary = ensemble.summary.as_ref()?;
-    let (name, scale) = plot.band()?;
+    let (mut name, scale) = plot.band()?;
+    // A magnet with region limits plots its exposure toward them.
+    if plot == Plot::MagnetFluence
+        && summary
+            .series_bands
+            .iter()
+            .any(|b| b.name == BAND_LIMIT_FLUENCE_MAGNETS)
+    {
+        name = BAND_LIMIT_FLUENCE_MAGNETS;
+    }
     let band = summary.series_bands.iter().find(|b| b.name == name)?;
     Some((&summary.time_grid_s, band, scale))
 }
@@ -776,6 +786,11 @@ impl HistoryPanel {
         ui.strong("What if…");
         ui.small("Authored assumptions: drag to recalculate every history.");
 
+        let magnets_before = a
+            .service_limits
+            .iter()
+            .find(|l| l.component_id == "magnets")
+            .map(|l| (l.limit, l.replacement_duration_s));
         let base_magnet = base.and_then(|b| service_limit(b, "magnets"));
         let base_magnet_swap = base.and_then(|b| replacement_days(b, "magnets"));
         if let Some(limit) = a
@@ -846,6 +861,25 @@ impl HistoryPanel {
             }
         } else {
             ui.small("This preset declares no magnet service limit.");
+        }
+        // The magnet may carry one limit per named region: one slider moves
+        // them all, and they must share the replacement duration.
+        if let Some(first) = magnets_before
+            && let Some(now) = a
+                .service_limits
+                .iter()
+                .find(|l| l.component_id == "magnets")
+                .map(|l| (l.limit, l.replacement_duration_s))
+            && now != first
+        {
+            for limit in a
+                .service_limits
+                .iter_mut()
+                .filter(|l| l.component_id == "magnets")
+            {
+                limit.limit = now.0;
+                limit.replacement_duration_s = now.1;
+            }
         }
 
         let base_blanket = base.and_then(|b| service_limit(b, "blanket"));
@@ -1028,7 +1062,10 @@ impl HistoryPanel {
                 let raw: Vec<[f64; 2]> = history
                     .snapshots
                     .iter()
-                    .filter_map(|s| plot.value(s).map(|v| [s.time_s / JULIAN_YEAR_SECONDS, v]))
+                    .filter_map(|s| {
+                        plot.value(history, s)
+                            .map(|v| [s.time_s / JULIAN_YEAR_SECONDS, v])
+                    })
                     .collect();
                 decimate(raw, MAX_PLOT_POINTS)
             });
@@ -1528,8 +1565,7 @@ impl HistoryPanel {
             if let Some(v) = self
                 .results
                 .get(&s.key)
-                .and_then(|h| snapshot_at(h, t_cursor))
-                .and_then(|snap| plot.value(snap))
+                .and_then(|h| snapshot_at(h, t_cursor).and_then(|snap| plot.value(h, snap)))
             {
                 painter.circle_filled(
                     egui::pos2(cursor_x, map_y(v)),
@@ -1558,8 +1594,7 @@ impl HistoryPanel {
                     let value = self
                         .results
                         .get(&s.key)
-                        .and_then(|h| snapshot_at(h, t))
-                        .and_then(|snap| plot.value(snap));
+                        .and_then(|h| snapshot_at(h, t).and_then(|snap| plot.value(h, snap)));
                     ui.horizontal(|ui| {
                         ui.colored_label(color, if s.port { "—" } else { "- -" });
                         ui.label(arrangement_label(s.port, s.breeder));
@@ -1630,18 +1665,25 @@ impl HistoryPanel {
             ));
         }
         if let Some(history) = self.result(scenario, variant) {
-            if let Some(limit) = history
+            let limits: Vec<_> = history
                 .assumptions
                 .service_limits
                 .iter()
-                .find(|l| l.component_id == component)
-            {
+                .filter(|l| l.component_id == component)
+                .collect();
+            for limit in &limits {
+                let region = limit
+                    .response_id
+                    .strip_prefix(&format!("{component}-"))
+                    .filter(|_| limits.len() > 1)
+                    .map_or(String::new(), |r| format!(" ({r})"));
                 ui.label(format!(
-                    "Authored {:?} trigger: {:.3e} {}",
+                    "Authored {:?} trigger{region}: {:.3e} {}",
                     limit.class, limit.limit, limit.unit
                 ));
                 ui.small(&limit.provenance);
-            } else {
+            }
+            if limits.is_empty() {
                 ui.weak("No service trigger declared for this component.");
             }
             ui.collapsing("Operating events", |ui| {
@@ -1659,7 +1701,7 @@ impl HistoryPanel {
                     ui.small(&event.note);
                 }
             });
-            ui.small("Conditional scenario history; sampling and model uncertainty are not propagated as a qualified lifetime bound.");
+            ui.small("Conditional scenario history. Transport sampling uncertainty is shown separately; model uncertainty is not propagated. Not a qualified lifetime bound.");
         }
     }
 }

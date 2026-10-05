@@ -18,13 +18,13 @@ only when complete.
 | Path | Contents |
 | --- | --- |
 | `summary.pdf` | Two US Letter pages (three when an uncertainty ensemble is offered, see below). Page 1: question, the four-arrangement table with status labels, the generated takeaway, the 2σ flags, the magnet-fluence timeline and, when captured, the 3D view. Page 2: allocation sweep charts and findings, the assumptions table with kind and provenance, caveats and unknowns (each says why and what would settle it), footer with version, date and the study-file hash or "Unsaved study — no study file hash". |
-| `data/histories.csv` | Long format, one row per snapshot per arrangement: calendar year, operating state, magnet and blanket fluence, usable tritium, net electricity, cumulative magnet swaps. |
+| `data/histories.csv` | Long format, one row per snapshot per arrangement: calendar year, operating state, magnet fluence (energy-integrated), the magnet's fluence toward its service limit (the highest region track, scaled to the lowest limit), blanket fluence, usable tritium, net electricity, cumulative magnet swaps. |
 | `data/comparison.csv` | One row per arrangement with standard errors, transport seed and histories, and a kind column per value. |
 | `data/differences.csv` | The four contrasts with 2σ screening flags. |
 | `data/sweep.csv` | One row per sweep allocation. |
 | `data/assumptions.csv` | Every operating assumption: value, unit, kind, full provenance. |
 | `data/caveats.csv` | The caveat list as in the PDF. |
-| `data/history-ensemble-samples.csv` | Only when an ensemble exists: one row per sample per evaluated arrangement, with the sampled rates (breeder H3 per source neutron, component fluxes, heating), the outcome, terminal and full-power time, final tritium, electricity and each component's replacement count and first replacement year. The nominal history is not repeated here. |
+| `data/history-ensemble-samples.csv` | Only when an ensemble exists: one row per sample per evaluated arrangement, with the sampled rates (breeder H3 per source neutron, component fluxes, heating), the outcome, terminal and full-power time, final tritium, electricity and each component's replacement count and first replacement year, and the response (region) that tripped each component first (empty when it never tripped). The nominal history is not repeated here. |
 | `data/history-ensemble-summary.csv` | Only when an ensemble exists: per arrangement and output, the nominal value, mean, P5, P50 and P95 with their 95 % intervals and sample count, the share of samples per discrete outcome with Wilson intervals, and for a not-evaluated arrangement the nominal value with "no uncertainty range: why" and the next step. |
 | `charts/*.svg`, `charts/*.png` | The chart drawings. Each chart is generated once as an SVG string; that string is saved, rasterised to PNG with resvg, and drawn into the PDF as vectors. |
 | `charts/3d-view.png` | The cropped 3D viewport, when the window capture worked. |

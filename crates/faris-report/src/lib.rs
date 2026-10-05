@@ -323,9 +323,8 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
                 .snapshots
                 .iter()
                 .filter_map(|s| {
-                    s.component_fluence_n_m2
-                        .get("magnets")
-                        .map(|v| [s.time_s / JULIAN_YEAR_SECONDS, *v])
+                    faris_engine::history::limit_exposure_n_m2(&h.assumptions, "magnets", s)
+                        .map(|v| [s.time_s / JULIAN_YEAR_SECONDS, v])
                 })
                 .collect();
             Some(TimelineSeries {

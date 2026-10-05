@@ -7,10 +7,12 @@
 //! statement here carries transport Monte Carlo sampling uncertainty only.
 
 use crate::brief::Arrangement;
-use crate::history::{HISTORY_PROCESSING_MODEL_ID, JULIAN_YEAR_SECONDS, TransportDrivingRates};
+use crate::history::{
+    HISTORY_PROCESSING_MODEL_ID, HistoryResult, JULIAN_YEAR_SECONDS, TransportDrivingRates,
+};
 use crate::history_ensemble::{
     ContinuousSummary, DiscreteSummary, EnsembleComparison, EnsembleStatus, HistoryEnsemble,
-    PairedOutput, Proportion, QuantileEstimate, SampleOutcome, derive_seed,
+    PairedOutput, Proportion, QuantileEstimate, SampleOutcome, derive_seed, nominal_sample,
 };
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
@@ -269,10 +271,19 @@ fn ranked(summary: &DiscreteSummary) -> Vec<(&String, &Proportion)> {
 
 /// "Magnet swaps: 4 in 62 % of samples, 5 in 31 %, 3 in 7 %".
 pub fn count_distribution_sentence(label: &str, summary: &DiscreteSummary) -> String {
+    category_sentence(label, summary, &|value| value.to_string())
+}
+
+fn category_sentence(
+    label: &str,
+    summary: &DiscreteSummary,
+    name: &dyn Fn(&str) -> String,
+) -> String {
     let parts: Vec<String> = ranked(summary)
         .iter()
         .enumerate()
         .map(|(i, (value, p))| {
+            let value = name(value);
             if i == 0 {
                 format!("{value} in {} of samples", percent_text(p.fraction))
             } else {
@@ -285,11 +296,16 @@ pub fn count_distribution_sentence(label: &str, summary: &DiscreteSummary) -> St
 
 /// One line per category with its Wilson interval, for the hover.
 pub fn count_distribution_detail(summary: &DiscreteSummary) -> String {
+    category_detail(summary, &|value| value.to_string())
+}
+
+fn category_detail(summary: &DiscreteSummary, name: &dyn Fn(&str) -> String) -> String {
     let mut lines: Vec<String> = ranked(summary)
         .iter()
         .map(|(value, p)| {
             format!(
-                "{value}: {} of samples ({}/{}; {})",
+                "{}: {} of samples ({}/{}; {})",
+                name(value),
                 percent_text(p.fraction),
                 p.count,
                 summary.n,
@@ -299,6 +315,34 @@ pub fn count_distribution_detail(summary: &DiscreteSummary) -> String {
         .collect();
     lines.push("Intervals are Wilson 95 % intervals for the share of samples.".into());
     lines.join("\n")
+}
+
+/// The region a service-limit response names, in words: "port sector" for
+/// `magnets-port-sector-fast-flux`; "no swap" for the samples that never
+/// reached a limit.
+pub fn trigger_region_text(component: &str, response_id: &str) -> String {
+    if response_id == "none" {
+        return "no swap".into();
+    }
+    let trimmed = response_id
+        .strip_prefix(&format!("{component}-"))
+        .unwrap_or(response_id);
+    let trimmed = trimmed.strip_suffix("-fast-flux").unwrap_or(trimmed);
+    trimmed.replace('-', " ")
+}
+
+/// "Magnet swap triggered first by: port sector in 97 % of samples, inboard
+/// in 3 %".
+pub fn trigger_distribution_sentence(
+    component: &str,
+    label: &str,
+    summary: &DiscreteSummary,
+) -> String {
+    category_sentence(label, summary, &|v| trigger_region_text(component, v))
+}
+
+pub fn trigger_distribution_detail(component: &str, summary: &DiscreteSummary) -> String {
+    category_detail(summary, &|v| trigger_region_text(component, v))
 }
 
 fn status_phrase(category: &str) -> &'static str {
@@ -396,6 +440,14 @@ pub fn replacement_label(component: &str) -> String {
         "magnets" => "Magnet swaps".into(),
         "blanket" => "Blanket replacements".into(),
         other => format!("{other} replacements"),
+    }
+}
+
+fn trigger_label(component: &str) -> String {
+    match component {
+        "magnets" => "Magnet swap triggered first by".into(),
+        "blanket" => "Blanket replacement triggered first by".into(),
+        other => format!("{other} replacement triggered first by"),
     }
 }
 
@@ -499,6 +551,70 @@ pub fn uncertainty_rows(
     rows
 }
 
+/// The rows for a calculated history: [`uncertainty_rows`] plus, for each
+/// component with several region service limits, which region reached its
+/// limit first. They sit before the outcome row.
+pub fn history_rows(
+    history: &HistoryResult,
+    ensemble: Option<&HistoryEnsemble>,
+) -> Vec<UncertaintyRow> {
+    let Some(nominal) = nominal_sample(history) else {
+        return Vec::new();
+    };
+    let mut rows = uncertainty_rows(&nominal, ensemble);
+    let regional: Vec<&str> = history
+        .assumptions
+        .service_limits
+        .iter()
+        .filter(|l| l.metric == crate::history::FAST_FLUX_REGION_METRIC)
+        .map(|l| l.component_id.as_str())
+        .collect();
+    let at = rows.len().saturating_sub(1);
+    rows.splice(at..at, trigger_rows(&nominal, ensemble, &regional));
+    rows
+}
+
+/// Rows naming the region that reached its limit first, for the components in
+/// `regional`.
+pub fn trigger_rows(
+    nominal: &SampleOutcome,
+    ensemble: Option<&HistoryEnsemble>,
+    regional: &[&str],
+) -> Vec<UncertaintyRow> {
+    let evaluated = ensemble
+        .filter(|e| e.status == EnsembleStatus::Evaluated)
+        .and_then(|e| e.summary.as_ref());
+    let mut components: Vec<&str> = Vec::new();
+    for id in regional {
+        if !components.contains(id) {
+            components.push(id);
+        }
+    }
+    components
+        .into_iter()
+        .map(|id| {
+            let name = format!("first_trigger:{id}");
+            let label = trigger_label(id);
+            let result = evaluated.and_then(|s| {
+                let d = s.discrete.iter().find(|d| d.name == name)?;
+                Some(RowResult {
+                    text: trigger_distribution_sentence(id, &label, d),
+                    detail: trigger_distribution_detail(id, d),
+                })
+            });
+            UncertaintyRow {
+                name,
+                label,
+                nominal: nominal
+                    .first_trigger_response
+                    .get(id)
+                    .map_or("none in the horizon".into(), |r| trigger_region_text(id, r)),
+                result,
+            }
+        })
+        .collect()
+}
+
 /// The ensemble's why and next step when it was not evaluated.
 pub fn not_evaluated_text(ensemble: &HistoryEnsemble) -> Option<(&str, &str)> {
     match &ensemble.status {
@@ -514,6 +630,8 @@ pub fn progress_text(done: usize, total: usize) -> String {
 
 /// The three plotted series that carry a band, with the engine's series name.
 pub const BAND_FLUENCE_MAGNETS: &str = "fluence_n_m2:magnets";
+/// The magnet exposure toward its fast-flux region limits, when it has them.
+pub const BAND_LIMIT_FLUENCE_MAGNETS: &str = "limit_fluence_n_m2:magnets";
 pub const BAND_TRITIUM: &str = "available_tritium_kg";
 pub const BAND_NET_ELECTRICITY: &str = "cumulative_net_electricity_mwh";
 
