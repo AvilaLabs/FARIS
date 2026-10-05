@@ -42,7 +42,8 @@ def reindex_package(root: Path) -> None:
 
 
 def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes,
-                seed: int | None = None) -> tuple[str, str, str, dict]:
+                seed: int | None = None,
+                batch_values: bool = False) -> tuple[str, str, str, dict]:
     scenario_sha = VERIFY.digest(root / pair / "scenario.json").removeprefix("sha256:")
     input_value = {
         "schema_version": "faris-reactor-input/v0.1", "scenario_sha256": scenario_sha,
@@ -53,9 +54,13 @@ def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes,
     input_bytes = (json.dumps(input_value, sort_keys=True) + "\n").encode()
     audit_bytes = b"{}\n"
     adapter_bytes = b"test adapter bytes\n"
-    artifact_bytes = (json.dumps({"schema_version": "faris-transport-artifact/v0.1",
-                                  "tallies": [{"response_id": "mesh-bin-0"}]},
-                                 sort_keys=True) + "\n").encode()
+    batch_bytes = b'{"batches": 2, "values": [[1.0], [2.0]]}\n'
+    batch_sha = hashlib.sha256(batch_bytes).hexdigest()
+    artifact_value = {"schema_version": "faris-transport-artifact/v0.1",
+                      "tallies": [{"response_id": "mesh-bin-0"}]}
+    if batch_values:
+        artifact_value["response_covariance"] = {"batch_values_sha256": batch_sha}
+    artifact_bytes = (json.dumps(artifact_value, sort_keys=True) + "\n").encode()
     spectrum_items = [{"component_id": "first-wall", "particle": particle,
                        "energy_edges_ev": [0.0, 1.0e9], "mean_cm_per_source_per_bin": [1.0],
                        "standard_error_cm_per_source_per_bin": [0.1]}
@@ -99,12 +104,15 @@ def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes,
         "toroidal_probe_directions_rad": phis,
         "cross_section_probe_directions_rad": thetas,
     }
-    worker_bytes = (json.dumps({"geometry_ownership_audit": geometry_audit},
-                               sort_keys=True) + "\n").encode()
+    worker_value = {"geometry_ownership_audit": geometry_audit}
+    if batch_values:
+        worker_value["transport_batch_values_sha256"] = batch_sha
+    worker_bytes = (json.dumps(worker_value, sort_keys=True) + "\n").encode()
     run_value = {
         "schema_version": "faris-reactor-run/v0.1", "scenario_sha256": scenario_sha,
         "variant_id": variant,
-        "execution": {"execution_status": "SUCCEEDED", **({} if seed is None else {"seed": seed})},
+        "execution": {"execution_status": "SUCCEEDED"},
+        **({} if seed is None else {"sampling": {"seed": seed}}),
         "input_sha256": hashlib.sha256(input_bytes).hexdigest(),
         "raw_artifact_sha256": hashlib.sha256(artifact_bytes).hexdigest(),
         "audit_sha256": hashlib.sha256(audit_bytes).hexdigest(),
@@ -129,6 +137,7 @@ def make_bundle(root: Path, pair: str, variant: str, scenario_bytes: bytes,
         "solver/transport-artifact.json": artifact_bytes.decode(),
         "solver/worker-result.json": worker_bytes.decode(),
         "solver/transport-spectra.json": spectra_bytes.decode(),
+        **({"solver/transport-batch-values.json": batch_bytes.decode()} if batch_values else {}),
     }}
     bundle_rel = f"{pair}/bundles/{variant}.transport-bundle.json"
     write(root / bundle_rel, json.dumps(bundle, sort_keys=True) + "\n")
@@ -731,6 +740,22 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         reindex_package(self.package)
         with self.assertRaisesRegex(ValueError, "differs from its index entry"):
             VERIFY.verify_package(self.package, self.faris, self.core)
+
+    def test_bundle_with_matching_batch_values_is_accepted_and_altered_values_are_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            scenario_bytes = b'{"id": "s"}\n'
+            write(root / "p" / "scenario.json", scenario_bytes.decode())
+            bundle_rel, _, _, _ = make_bundle(root, "p", "reference", scenario_bytes,
+                                              batch_values=True)
+            bundle = json.loads((root / bundle_rel).read_text())
+            scenario_sha = VERIFY.digest(root / "p" / "scenario.json").removeprefix("sha256:")
+            validate_recorded_bundle(bundle, scenario_sha256=scenario_sha, variant_id="reference",
+                                     mesh_nonzero_flux_bin_count=1)
+            bundle["files"]["solver/transport-batch-values.json"] = '{"batches": 2}\n'
+            with self.assertRaisesRegex(ValueError, "per-batch values"):
+                validate_recorded_bundle(bundle, scenario_sha256=scenario_sha,
+                                         variant_id="reference", mesh_nonzero_flux_bin_count=1)
 
     def test_sweep_variant_must_match_pattern_and_scenario(self):
         scenario = {"variants": [{"id": "blanket-030cm", "layers": [

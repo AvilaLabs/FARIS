@@ -16,6 +16,7 @@ REQUIRED_FILES = {
     "run.json", "input.json", "scenario.json", "audit.json",
     "reactor_transport.py", "solver/transport-artifact.json",
 }
+BATCH_VALUES_FILE = "solver/transport-batch-values.json"
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 
 
@@ -149,12 +150,13 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
     files = bundle.get("files")
     if not isinstance(files, dict) or not REQUIRED_FILES <= set(files):
         raise ValueError("recorded transport bundle has missing required files")
-    if set(files) - REQUIRED_FILES - {"solver/worker-result.json", "solver/transport-spectra.json"}:
+    if set(files) - REQUIRED_FILES - {"solver/worker-result.json", "solver/transport-spectra.json",
+                                      BATCH_VALUES_FILE}:
         raise ValueError("recorded transport bundle contains undeclared files")
     if any(not isinstance(value, str) for value in files.values()):
         raise ValueError("recorded bundle file contents must all be UTF-8 text")
     size = len(json.dumps(bundle, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-    if size > MAX_BUNDLE_BYTES or len(files) > 8:
+    if size > MAX_BUNDLE_BYTES or len(files) > 9:
         raise ValueError("recorded transport bundle exceeds its file or byte bound")
 
     run_bytes, run = parse_embedded(files, "run.json")
@@ -197,6 +199,15 @@ def validate_recorded_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
         raise ValueError("recorded worker result does not match run receipt")
     if bare_sha256(run.get("transport_spectra_sha256"), "run spectra") != spectra_sha:
         raise ValueError("recorded spectra do not match run receipt")
+    # Runs recorded since the response covariance carry the per-batch values
+    # behind it; older bundles do not. When present it must be the file the
+    # worker and the transport artifact name.
+    if BATCH_VALUES_FILE in files:
+        batch_sha = digest_bytes(files[BATCH_VALUES_FILE].encode("utf-8"))
+        covariance = artifact.get("response_covariance") or {}
+        if (bare_sha256(worker.get("transport_batch_values_sha256"), "worker batch values") != batch_sha
+                or bare_sha256(covariance.get("batch_values_sha256"), "artifact batch values") != batch_sha):
+            raise ValueError("recorded per-batch values do not match the worker and artifact records")
     if (spectra.get("schema_version") != "faris-transport-spectra/v0.1"
             or spectra.get("scenario_sha256") != scenario_sha256
             or spectra.get("variant_id") != variant_id
@@ -328,7 +339,7 @@ def inspect_sweep_bundle(bundle: dict[str, Any], *, scenario_sha256: str,
     allocations = sweep_allocations(scenario)
     if variant_id not in allocations:
         raise ValueError(f"sweep variant is not declared by the allocation-sweep scenario: {variant_id}")
-    seed = (run.get("execution") or {}).get("seed")
+    seed = (run.get("sampling") or {}).get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool):
         raise ValueError(f"sweep run {variant_id} records no integer transport seed")
     mesh_id = (run.get("mesh") or {}).get("id")
