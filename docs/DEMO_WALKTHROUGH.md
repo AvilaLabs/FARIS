@@ -387,3 +387,39 @@ python3 scripts/verify_recorded_demo.py \
 
 The verifier reports `EXPECTED_REJECTION` for the deliberately changed copy;
 it does not treat matching hashes as authenticity or scientific qualification.
+
+## README media
+
+The README's animated GIF and screenshots come from the app's own frames, not a
+screen recorder. `--record-frames` (hidden, development only) saves the window as
+`frame-00000.png`, ... into an existing empty folder at `--record-fps` (default 15,
+measured on frame time) and stops when the interface-check plan ends, or after
+`--record-seconds` (default 20) with no plan. At most 600 frames are saved. PNGs
+are encoded on a worker thread; frames dropped because its queue was full are
+counted on stderr at exit, and `frames.json` records each frame's capture time.
+A release build records closest to the requested rate; a debug build works but
+runs well under 15 frames per second, and the assembler then resamples by time.
+
+The plan `references/readme-capture/tour.plan.json` presses steps 2, 3 and 4,
+orbits the camera, and moves the year cursor 0 to 30, without any pixel positions
+(plan actions `tap`, `orbit`, `set_year`; `time_s` sets pauses). Start the app on a
+recorded study or the packaged launcher's arguments so Simulate and Operate show
+real fields, for example:
+
+```bash
+mkdir -p /tmp/faris-frames
+target/release/faris-app STUDY.faris \
+  --window-width 1440 --window-height 900 \
+  --interface-check references/readme-capture/tour.plan.json \
+  --interface-check-output /tmp/faris-tour-report.json \
+  --record-frames /tmp/faris-frames
+python3 scripts/make_readme_gif.py /tmp/faris-frames docs/images/faris-tour.gif \
+  --width 960 --fps 12 --max-bytes 8000000
+```
+
+Without a study argument the app opens the geometry demo on Design. The
+assembler builds one global palette (no colour flicker), loops forever, and steps
+the width down 960, 800, 720, 640 if the file exceeds `--max-bytes`. Single
+screenshots use `--capture docs/images/<name>.png` as before (add `--step`,
+`--field-view`, `--initial-year`). Run `python3 -m unittest discover -s scripts
+-p 'test_*.py'` for the assembler's tests.

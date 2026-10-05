@@ -5,6 +5,7 @@ mod compare_panel;
 mod export_panel;
 mod history_panel;
 mod interface_check;
+mod recorder;
 mod study_file;
 mod study_panel;
 mod sweep_panel;
@@ -54,6 +55,16 @@ struct Arguments {
     /// Exclusive output report for the development interface check.
     #[arg(long, requires = "interface_check")]
     interface_check_output: Option<PathBuf>,
+    /// Development: save the window as numbered PNGs into this existing, empty
+    /// folder at a fixed cadence until the interface-check plan ends (README media).
+    #[arg(long, hide = true, conflicts_with_all = ["capture", "benchmark_seconds"])]
+    record_frames: Option<PathBuf>,
+    /// Frames per second of frame time for --record-frames.
+    #[arg(long, hide = true, default_value_t = 15.0, requires = "record_frames")]
+    record_fps: f64,
+    /// Recording length when no interface-check plan is given.
+    #[arg(long, hide = true, default_value_t = 20.0, requires = "record_frames")]
+    record_seconds: f64,
     /// Measure native frame throughput and exit. Includes startup separately.
     #[arg(long, value_parser = clap::value_parser!(f64))]
     benchmark_seconds: Option<f64>,
@@ -191,8 +202,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         return Err("benchmark duration must be finite and in 2..=120 seconds".into());
     }
+    if let Some(dir) = &args.record_frames {
+        recorder::validate(
+            dir,
+            args.record_fps,
+            args.record_seconds,
+            args.interface_check.is_some(),
+        )?;
+    }
     let launch_started = Instant::now();
     let scripted = args.capture.is_some()
+        || args.record_frames.is_some()
         || args.benchmark_seconds.is_some()
         || args.interface_check.is_some()
         || args.export_on_load.is_some();
@@ -318,6 +338,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             app.year = args.initial_year;
             app.step = args.step;
             app.interface_check = interface_check;
+            app.recorder = args.record_frames.map(|dir| {
+                recorder::Recorder::new(
+                    dir,
+                    args.record_fps,
+                    args.record_seconds,
+                    app.interface_check.is_some(),
+                )
+            });
             app.tour_marker = tour_marker;
             app.suite = Some(avila_account::ui_desktop::DesktopSuite::new(
                 &cc.egui_ctx,
@@ -547,6 +575,7 @@ struct FarisApp {
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
     interface_check: Option<interface_check::InterfaceCheck>,
+    recorder: Option<recorder::Recorder>,
     tour: tour::Tour,
     tour_marker: Option<PathBuf>,
     /// Optional Avila Labs account controls; built once the egui context exists.
@@ -598,6 +627,7 @@ impl FarisApp {
             benchmark: None,
             geometry_cache: BTreeMap::new(),
             interface_check: None,
+            recorder: None,
             tour: tour::Tour::default(),
             tour_marker: None,
             suite: None,
@@ -903,6 +933,25 @@ impl FarisApp {
             if minimum.iter().chain(&maximum).all(|x| x.is_finite()) {
                 self.camera.frame_bounds(minimum, maximum);
             }
+        }
+    }
+
+    /// Development frame recording (`--record-frames`): starts once the app is
+    /// settled (the plan's clock, if any) and closes it when recording ends.
+    fn record_frame(&mut self, ctx: &egui::Context) {
+        let ready = self.frames >= 8
+            && !self.file.is_busy()
+            && !self.history.is_pending()
+            && !self.history.uncertainty_pending()
+            && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
+            && !self.study.archive.is_loading()
+            && self.export.development_settled()
+            && self.interface_check.as_ref().is_none_or(|c| c.armed());
+        let plan_done = self.interface_check.as_ref().is_some_and(|c| c.finished());
+        if let Some(recorder) = &mut self.recorder
+            && recorder.frame(ctx, ready, plan_done)
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
     }
 
@@ -1636,7 +1685,11 @@ impl FarisApp {
 impl eframe::App for FarisApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
         if let Some(check) = &mut self.interface_check {
+            check.set_viewport(self.viewport_rect);
             check.inject(ctx, input);
+            if let Some(year) = check.take_year_request() {
+                self.year = year.clamp(0.0, self.manifest.horizon_years);
+            }
         }
     }
 
@@ -2254,7 +2307,7 @@ impl eframe::App for FarisApp {
                 eprintln!("FARIS interface check report failed: {error}");
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
-            if check.finished() && self.capture.is_none() {
+            if check.finished() && self.capture.is_none() && self.recorder.is_none() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
@@ -2269,5 +2322,6 @@ impl eframe::App for FarisApp {
         }
         self.tour.show(&ctx);
         self.capture_frame(&ctx);
+        self.record_frame(&ctx);
     }
 }
