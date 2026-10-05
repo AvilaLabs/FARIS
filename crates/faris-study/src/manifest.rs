@@ -1,3 +1,4 @@
+use faris_engine::history_uncertainty::EnsembleKey;
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -17,6 +18,23 @@ pub struct BlobRecord {
     pub media_type: String,
     /// Text, so an unknown encoding is reported by name rather than as a parse error.
     pub encoding: String,
+}
+
+/// Media type of a stored history ensemble blob (JSON of `HistoryEnsemble`).
+pub const ENSEMBLE_MEDIA_TYPE: &str = "application/vnd.avila-labs.faris-history-ensemble+json";
+
+/// One calculated history ensemble kept as a derived blob. The key is the full
+/// identity of the calculation; a reader reuses the blob only when the key it
+/// computes from the loaded inputs is equal to this one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnsembleRecord {
+    /// Blob holding the ensemble as JSON.
+    pub blob: String,
+    /// Scenario and allocation the ensemble was calculated for (for people;
+    /// the key alone decides reuse).
+    pub scenario_sha256: String,
+    pub variant: String,
+    pub key: EnsembleKey,
 }
 
 /// One recorded-transport bundle: its schema version, notice, and a map from
@@ -142,5 +160,8 @@ pub struct Manifest {
     pub view: ViewState,
     #[serde(default)]
     pub layers: Layers,
+    /// Derived history ensembles. Absent in files written before they existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ensembles: Vec<EnsembleRecord>,
     pub blobs: Vec<BlobRecord>,
 }

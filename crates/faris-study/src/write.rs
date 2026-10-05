@@ -1,15 +1,18 @@
 use crate::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
-    EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT, Layers, MIMETYPE, Manifest, StudyError,
-    ViewState, is_safe_file_name, is_safe_relative_path, is_sha256_hex, read::sha256_file,
-    sha256_hex,
+    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT,
+    Layers, MIMETYPE, Manifest, StudyError, ViewState, is_safe_file_name, is_safe_relative_path,
+    is_sha256_hex, read::sha256_file, sha256_hex,
 };
 use faris_engine::core_evidence::{RecordedTransportBundle, read_stage};
+use faris_engine::history_ensemble::HistoryEnsemble;
+use faris_engine::history_uncertainty::EnsembleKey;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::File,
     io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
@@ -36,6 +39,16 @@ pub struct EvidenceDraft {
     pub path: Option<PathBuf>,
 }
 
+/// A finished history ensemble to store with the study, with the full key of
+/// the inputs it was calculated from.
+#[derive(Clone, Debug)]
+pub struct EnsembleDraft {
+    pub scenario_sha256: String,
+    pub variant: String,
+    pub key: EnsembleKey,
+    pub ensemble: Arc<HistoryEnsemble>,
+}
+
 #[derive(Clone, Debug)]
 pub struct StudyDraft {
     pub port: Option<ArrangementDraft>,
@@ -43,6 +56,8 @@ pub struct StudyDraft {
     pub sweep: Vec<PathBuf>,
     pub assumptions: Option<PathBuf>,
     pub evidence: Vec<EvidenceDraft>,
+    /// Calculated history ensembles, stored as derived blobs.
+    pub ensembles: Vec<EnsembleDraft>,
     /// Store the evidence archives inside the file instead of by reference.
     pub pack_evidence: bool,
     pub view: ViewState,
@@ -57,6 +72,7 @@ impl Default for StudyDraft {
             sweep: Vec::new(),
             assumptions: None,
             evidence: Vec::new(),
+            ensembles: Vec::new(),
             pack_evidence: false,
             view: ViewState::default(),
             zstd_level: DEFAULT_ZSTD_LEVEL,
@@ -268,6 +284,32 @@ fn check_evidence(draft: &StudyDraft, blobs: &mut BlobSet) -> Result<(), StudyEr
     Ok(())
 }
 
+fn add_ensembles(
+    blobs: &mut BlobSet,
+    drafts: &[EnsembleDraft],
+) -> Result<Vec<EnsembleRecord>, StudyError> {
+    let mut records: Vec<EnsembleRecord> = Vec::new();
+    for draft in drafts {
+        if !draft.key.describes(&draft.ensemble) {
+            return Err(StudyError::Input(format!(
+                "the history ensemble for {} does not match the key it was given",
+                draft.variant
+            )));
+        }
+        if records.iter().any(|r| r.key == draft.key) {
+            continue;
+        }
+        let bytes = serde_json::to_vec(&*draft.ensemble)?;
+        records.push(EnsembleRecord {
+            blob: blobs.add(bytes, ENSEMBLE_MEDIA_TYPE),
+            scenario_sha256: draft.scenario_sha256.clone(),
+            variant: draft.variant.clone(),
+            key: draft.key.clone(),
+        });
+    }
+    Ok(records)
+}
+
 fn zip_error(error: zip::result::ZipError) -> StudyError {
     StudyError::from(error)
 }
@@ -293,6 +335,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         .map(|p| Ok::<_, StudyError>(blobs.add(read_small(p)?, "application/json")))
         .transpose()?;
     check_evidence(draft, &mut blobs)?;
+    let ensembles = add_ensembles(&mut blobs, &draft.ensembles)?;
     let evidence = (!draft.evidence.is_empty()).then(|| EvidenceLayer {
         mode: if draft.pack_evidence {
             EvidenceMode::Packed
@@ -311,6 +354,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         layers: Layers {
             evidence: evidence.clone(),
         },
+        ensembles,
         blobs: blobs.table.clone(),
     };
     let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)?;

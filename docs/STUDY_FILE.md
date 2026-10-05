@@ -75,6 +75,9 @@ Blobs are zstd-compressed, except blobs that are already compressed (evidence
 - `view`: workflow step, assumption preset, what-if values, calendar year, field
   view, history tab and selected arrangement and allocation. Calculated
   histories are not stored; they are recalculated on open in about a second.
+- `ensembles`: the finished Monte Carlo ensembles of the operating history, one
+  derived blob each, with the full key of the inputs they were calculated from
+  (see "History ensembles" below). Optional.
 - `layers.evidence`: `packed` or `referenced`, with each archive's role, file
   name, SHA-256 and size either way.
 
@@ -105,6 +108,8 @@ lowercase hexadecimal SHA-256 without a prefix.
   allocation, sweep_blanket_m}`. `what_if` holds the full edited assumption
   values; names are the app's stable kebab-case names; unknown names fall back
   to defaults on opening.
+- `ensembles`: `[{blob, scenario_sha256, variant, key}]`, omitted when there are
+  none. See "History ensembles" below.
 - `layers.evidence`: `{mode: packed|referenced, archives[]}`, each archive
   `{arrangement, allocation, kind: case|workspace, file_name, sha256, bytes}`.
   `file_name` is a relative path of one to four safe components, for example
@@ -117,6 +122,43 @@ lowercase hexadecimal SHA-256 without a prefix.
 
 Packed evidence archives are blobs with media type `application/gzip`, stored
 rather than recompressed.
+
+## History ensembles
+
+The uncertainty ranges beside the operating history come from an ensemble: the
+history re-run on rates drawn from the recorded transport means and covariance
+(`docs/OPERATING_HISTORY.md`). 200 samples of four arrangements take minutes,
+so each finished ensemble is stored as a derived blob and reused on open.
+
+- **Blob.** The `HistoryEnsemble` as JSON (sampled rates, every per-sample
+  outcome, the summaries and the 361-point series bands, or the not-evaluated
+  reason and next step). Media type
+  `application/vnd.avila-labs.faris-history-ensemble+json`, encoding
+  `verbatim`, hashed like every other blob. A not-evaluated ensemble is stored
+  too, with its reasons.
+- **Key.** Each manifest entry carries the full identity of the calculation:
+  `method` (`faris-history-ensemble/v1`), `history_model` (the ledger's
+  processing-model identity), `samples`, `seed` (as a string, so no reader
+  rounds a 64-bit value through a float), `rates_sha256` (SHA-256 of the
+  driving rates as JSON, covariance included) and `assumptions_sha256` (SHA-256
+  of the operating assumptions as JSON). `scenario_sha256` and `variant` say
+  which arrangement it was for; they do not decide reuse.
+- **Reuse.** On open, the application computes the key of each arrangement from
+  the loaded transport and the restored assumptions and uses a stored ensemble
+  only when the key is equal in every part. Any difference (a changed what-if
+  value, another sample count, a transport rerun, another FARIS method or
+  ledger version) is a miss: the ensemble is recomputed in the background and
+  the stored one is left unused. Nothing is ever shown for inputs it was not
+  calculated from.
+- **Fail closed.** A blob that fails its hash, does not parse as an ensemble
+  (unknown fields included), or whose own method, seed or sample count
+  disagrees with its key, refuses the file. Two entries with one key, a key
+  with an unknown part, or an entry naming a blob the file does not hold are
+  refused as well.
+- **Old files.** A file without `ensembles` opens exactly as before and
+  computes its ensembles in the background.
+- **Scope.** The ranges are transport Monte Carlo sampling uncertainty only. The
+  file records that, in the blob's `scope` text, next to every ensemble.
 
 ## Reader limits as built
 
