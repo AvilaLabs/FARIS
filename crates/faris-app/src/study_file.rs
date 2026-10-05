@@ -5,7 +5,7 @@
 
 use crate::{
     Arguments, FarisApp, Session, SessionInputs, Step, badge::Kind, load_sweep, study_panel,
-    sweep_panel, transport_panel::FieldView,
+    sweep_panel, thumbnail, transport_panel::FieldView,
 };
 use clap::ValueEnum;
 use eframe::egui;
@@ -19,7 +19,7 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, TryRecvError},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub const EXTENSION: &str = "faris";
@@ -201,6 +201,15 @@ enum Task {
         progress: Arc<Mutex<String>>,
         receiver: Receiver<OpenResult>,
     },
+    /// Save requested; waiting briefly for the window capture that becomes the
+    /// thumbnail. The study is written without one if it does not arrive.
+    Capturing {
+        path: PathBuf,
+        draft: Box<StudyDraft>,
+        view: Box<ViewState>,
+        viewport: Option<egui::Rect>,
+        since: Instant,
+    },
     Saving {
         path: PathBuf,
         view: Box<ViewState>,
@@ -265,7 +274,7 @@ impl FileState {
     }
 
     fn is_saving(&self) -> bool {
-        matches!(self.task, Task::Saving { .. })
+        matches!(self.task, Task::Saving { .. } | Task::Capturing { .. })
     }
 
     fn is_opening(&self) -> bool {
@@ -632,11 +641,44 @@ impl FarisApp {
         draft.pack_evidence = self.file.include_evidence && !draft.evidence.is_empty();
         // Calculated ensembles go in as derived blobs under their input keys.
         draft.ensembles = self.history.ensemble_drafts();
+        if self.viewport_rect.is_some() {
+            // The thumbnail is the 3D viewport; ask for the window capture and
+            // write when it arrives, or without it after a short wait.
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(
+                thumbnail::SCREENSHOT_TAG,
+            )));
+            ctx.request_repaint();
+            self.message = format!("Saving {}…", open_name(&path));
+            self.file.task = Task::Capturing {
+                path,
+                draft: Box::new(draft),
+                view: Box::new(view),
+                viewport: self.viewport_rect,
+                since: Instant::now(),
+            };
+            return;
+        }
+        self.start_write(ctx, path, draft, view, None);
+    }
+
+    /// Write the study on a worker thread. `capture` is the window screenshot,
+    /// the viewport rectangle and the pixel scale; the thumbnail is made from it
+    /// on the worker, and a failure there only means no thumbnail.
+    fn start_write(
+        &mut self,
+        ctx: &egui::Context,
+        path: PathBuf,
+        mut draft: StudyDraft,
+        view: ViewState,
+        capture: Option<(Arc<egui::ColorImage>, Option<egui::Rect>, f32)>,
+    ) {
         let (sender, receiver) = mpsc::channel();
         let (target, context) = (path.clone(), ctx.clone());
         let spawned = std::thread::Builder::new()
             .name("faris-save-study".into())
             .spawn(move || {
+                draft.preview_png = capture
+                    .and_then(|(shot, rect, scale)| thumbnail::from_screenshot(&shot, rect, scale));
                 let _ = sender.send(write_study(&target, &draft).map_err(|e| e.to_string()));
                 context.request_repaint();
             });
@@ -752,6 +794,32 @@ impl FarisApp {
             match result.and_then(|r| r) {
                 Ok((session, opened)) => self.install_opened(ctx, session, opened),
                 Err(error) => self.message = format!("Cannot open {name}: {error}"),
+            }
+        }
+        if matches!(self.file.task, Task::Capturing { .. }) {
+            let arrived = ctx.input(|i| {
+                i.events.iter().find_map(|event| match event {
+                    egui::Event::Screenshot {
+                        image, user_data, ..
+                    } if thumbnail::is_ours(user_data) => Some(image.clone()),
+                    _ => None,
+                })
+            });
+            let timed_out = matches!(
+                &self.file.task,
+                Task::Capturing { since, .. } if since.elapsed() >= thumbnail::CAPTURE_TIMEOUT
+            );
+            if (arrived.is_some() || timed_out)
+                && let Task::Capturing {
+                    path,
+                    draft,
+                    view,
+                    viewport,
+                    ..
+                } = std::mem::replace(&mut self.file.task, Task::Idle)
+            {
+                let capture = arrived.map(|image| (image, viewport, ctx.pixels_per_point()));
+                self.start_write(ctx, path, *draft, *view, capture);
             }
         }
         let saved = match &self.file.task {

@@ -329,13 +329,14 @@ fn spawn_worker(ctx: &egui::Context, input: ReportInput, destination: Destinatio
     }
 }
 
-/// Crop the window screenshot to the 3D viewport and encode it as PNG. The
-/// error text says why there is no picture.
-fn crop_png(
+/// Crop the window screenshot to the 3D viewport as opaque RGBA bytes and the
+/// cropped size. The error text says why there is no picture. The study
+/// thumbnail uses the same crop.
+pub(crate) fn crop_rgba(
     screenshot: &egui::ColorImage,
     viewport: Option<egui::Rect>,
     pixels_per_point: f32,
-) -> Result<Vec<u8>, String> {
+) -> Result<(Vec<u8>, [usize; 2]), String> {
     let rect = viewport.ok_or("The 3D viewport was not visible when the export started.")?;
     let [width, height] = screenshot.size;
     let clamp = |v: f32, max: usize| ((v * pixels_per_point).round().max(0.0) as usize).min(max);
@@ -353,12 +354,23 @@ fn crop_png(
             [r, g, b, 255]
         })
         .collect();
+    Ok((bytes, cropped.size))
+}
+
+/// Crop the window screenshot to the 3D viewport and encode it as PNG. The
+/// error text says why there is no picture.
+fn crop_png(
+    screenshot: &egui::ColorImage,
+    viewport: Option<egui::Rect>,
+    pixels_per_point: f32,
+) -> Result<Vec<u8>, String> {
+    let (bytes, size) = crop_rgba(screenshot, viewport, pixels_per_point)?;
     let mut png = Vec::new();
     image::ImageEncoder::write_image(
         image::codecs::png::PngEncoder::new(&mut png),
         &bytes,
-        cropped.size[0] as u32,
-        cropped.size[1] as u32,
+        size[0] as u32,
+        size[1] as u32,
         image::ExtendedColorType::Rgba8,
     )
     .map_err(|e| format!("Could not encode the 3D view image: {e}"))?;

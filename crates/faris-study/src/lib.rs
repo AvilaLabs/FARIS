@@ -9,6 +9,7 @@
 mod descriptor;
 mod error;
 mod manifest;
+mod preview;
 mod read;
 mod tar;
 mod write;
@@ -23,6 +24,7 @@ pub use manifest::{
     ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT,
     Layers, MIMETYPE, Manifest, ViewState,
 };
+pub use preview::{MAX_PREVIEW_SIDE, Preview, PreviewStatus, png_dimensions};
 pub use read::{
     ArrangementFiles, BlobInfo, EvidenceFile, EvidenceMiss, EvidenceState, Materialized,
     MissReason, StoredEnsemble, StudyReader, sha256_file,

@@ -549,7 +549,6 @@ evaluated.
   demountable-magnet preset.
 - The native interface-check plans in `references/native-demo-checks` click
   fixed positions that moved with the step layout.
-- A `.faris` preview thumbnail is reserved in the format but not written.
 
 ## References for implementation
 

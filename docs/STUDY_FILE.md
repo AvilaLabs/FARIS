@@ -57,7 +57,7 @@ A zip archive. Entries:
 | `mimetype` | `application/vnd.avila-labs.faris-study`, first entry, stored uncompressed, so the type is detectable from the first bytes |
 | `manifest.json` | format `faris-study/1`, roles, view state, blob table, layers |
 | `blobs/<sha256>` | exact bytes of one file, named by its SHA-256; identical files are stored once |
-| `preview.png` | optional thumbnail (readers accept it; v1 writers do not yet produce one) |
+| `preview.png` | optional thumbnail of the 3D view: PNG, at most 512 px on the long side and 512 KiB (the desktop aims for under 150 kB), stored uncompressed. Written by the desktop app on save; not listed in the manifest |
 
 Blobs are zstd-compressed, except blobs that are already compressed (evidence
 `.tar.gz` archives), which are stored. Each blob entry in the manifest records
@@ -170,6 +170,34 @@ so each finished ensemble is stored as a derived blob and reused on open.
   computes its ensembles in the background.
 - **Scope.** The ranges are transport Monte Carlo sampling uncertainty only. The
   file records that, in the blob's `scope` text, next to every ensemble.
+
+## Preview thumbnail
+
+`preview.png` is a picture of the 3D viewport the author left open, for file
+managers and quick look. Decisions (2026-10-05):
+
+- **No manifest field, no hash.** The format already reserved the entry name and
+  no manifest field, so none is added: old readers that accept the name keep
+  working, and the thumbnail is not evidence (nothing a receipt binds). It is
+  not part of "every blob is hashed".
+- **Optional on both sides.** A file without it is complete. The desktop app
+  writes it on Save when the 3D view is visible and the window capture arrives
+  within 1.5 s; otherwise it saves without one. A failed capture, crop or
+  encode never fails or delays the save beyond that bound.
+- **Size.** Scaled down (never up), aspect kept, to 512 px on the long side,
+  encoded as RGB PNG. If that exceeds 150 kB the writer retries at 384, 256, 192
+  and 128 px. `write_study` stores a draft's thumbnail only when it is a PNG of
+  at most 512 px a side and 512 KiB; anything else is left out silently.
+- **Reading.** The reader never refuses a study for its thumbnail beyond the
+  structural rule below. A thumbnail whose container CRC fails, that is not a
+  PNG, or that is over 512 px or 512 KiB is ignored (`StudyReader::preview`
+  returns nothing and `preview_status` names why). An entry declaring more than
+  16 MiB still refuses the file, as before.
+- **Inspect.** `faris study-file inspect` prints `preview`: `present`, and when
+  present `usable`, `bytes`, `width` and `height`, or `ignored_because`.
+  `study-file create --preview <png>` stores a thumbnail from the command line.
+- **File managers.** Linux managers do not read the entry; showing it there
+  needs a thumbnailer registered with the desktop, which is not done.
 
 ## Reader limits as built
 

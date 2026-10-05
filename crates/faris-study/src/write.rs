@@ -62,6 +62,9 @@ pub struct StudyDraft {
     pub pack_evidence: bool,
     pub view: ViewState,
     pub zstd_level: i64,
+    /// Optional `preview.png` thumbnail. A picture that is not a PNG of at most
+    /// 512 pixels a side and 512 KiB is left out; it never fails the save.
+    pub preview_png: Option<Vec<u8>>,
 }
 
 impl Default for StudyDraft {
@@ -76,6 +79,7 @@ impl Default for StudyDraft {
             pack_evidence: false,
             view: ViewState::default(),
             zstd_level: DEFAULT_ZSTD_LEVEL,
+            preview_png: None,
         }
     }
 }
@@ -88,6 +92,8 @@ pub struct WriteReport {
     /// Sum of the blobs' original sizes.
     pub original_bytes: u64,
     pub evidence: Option<EvidenceMode>,
+    /// Size of the stored thumbnail, if one was written.
+    pub preview_bytes: Option<u64>,
 }
 
 /// Blobs in first-seen order; identical content is held and written once.
@@ -357,6 +363,10 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         ensembles,
         blobs: blobs.table.clone(),
     };
+    let preview = draft
+        .preview_png
+        .as_deref()
+        .filter(|png| crate::preview::is_storable(png));
     let mut manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
     manifest_bytes.push(b'\n');
 
@@ -406,6 +416,11 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
                 }
             }
         }
+        if let Some(png) = preview {
+            zip.start_file("preview.png", stored).map_err(zip_error)?;
+            zip.write_all(png)
+                .map_err(|e| StudyError::io("writing study file", e))?;
+        }
         zip.finish()
             .map_err(zip_error)?
             .into_inner()
@@ -430,6 +445,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         blob_count: blobs.table.len(),
         original_bytes: blobs.table.iter().map(|b| b.bytes).sum(),
         evidence: evidence.map(|e| e.mode),
+        preview_bytes: preview.map(|p| p.len() as u64),
     })
 }
 
