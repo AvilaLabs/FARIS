@@ -274,7 +274,7 @@ fn mesh_payload_preflight_with_encoding(
             version: "local".into(),
             digest: format!("sha256:{}", "0".repeat(64)),
         },
-        histories: 10_000_000,
+        histories: PREFLIGHT_HISTORIES,
         volumes,
         tallies,
         // Not counted in the pinned preflight sizes: the matrix adds only
@@ -432,18 +432,27 @@ impl Default for SamplingPlan {
         }
     }
 }
+/// Upper bound on histories in one fixed-source run. Wall time is bounded
+/// separately by the job deadline; this bound keeps a typo from requesting a
+/// run of days. Small regions (a magnet sector behind no port) need tens of
+/// millions of histories for a usable relative error without variance reduction.
+/// It must keep the digit count of `PREFLIGHT_HISTORIES`, which the recorded
+/// preflight sizes of earlier runs were computed with.
+pub const MAX_RUN_HISTORIES: u64 = 50_000_000;
+const PREFLIGHT_HISTORIES: u64 = 10_000_000;
+
 impl SamplingPlan {
     pub fn validate(&self) -> Result<(), ReactorError> {
         if self.batches < 30
             || self.batches > 1000
             || self.particles_per_batch == 0
-            || u64::from(self.batches) * u64::from(self.particles_per_batch) > 10_000_000
+            || u64::from(self.batches) * u64::from(self.particles_per_batch) > MAX_RUN_HISTORIES
             || self.seed == 0
             || self.seed > i64::MAX as u64
             || self.threads == 0
             || self.threads > 32
         {
-            return Err("sampling requires 30..1000 batches, 1..10M total histories, positive signed-64-bit seed and 1..32 threads".into());
+            return Err("sampling requires 30..1000 batches, 1..50M total histories, positive signed-64-bit seed and 1..32 threads".into());
         }
         Ok(())
     }
@@ -1823,6 +1832,10 @@ mod tests {
     }
     #[test]
     fn sampling_plan_rejects_unbounded_or_unusable_work() {
+        assert_eq!(
+            MAX_RUN_HISTORIES.to_string().len(),
+            PREFLIGHT_HISTORIES.to_string().len()
+        );
         assert!(SamplingPlan::default().validate().is_ok());
         assert!(
             SamplingPlan {
@@ -1834,11 +1847,21 @@ mod tests {
         );
         assert!(
             SamplingPlan {
+                batches: 500,
                 particles_per_batch: 100_001,
                 ..Default::default()
             }
             .validate()
             .is_err()
+        );
+        assert!(
+            SamplingPlan {
+                batches: 300,
+                particles_per_batch: 100_000,
+                ..Default::default()
+            }
+            .validate()
+            .is_ok()
         );
         assert!(
             SamplingPlan {

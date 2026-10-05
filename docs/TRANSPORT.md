@@ -159,6 +159,13 @@ intermediate ones are deleted after reading (about 0.3 MB each for the coarse
 mesh, so a 1000-batch run briefly holds a few hundred MB against the 512 MiB
 artifact cap).
 
+A reactor run accepts 30 to 1000 batches and at most 50 million histories
+(`MAX_RUN_HISTORIES`); wall time is bounded separately by the job deadline.
+Small regions need the upper end without variance reduction: at 10 million
+histories the magnet port-sector fast flux of the no-port control has a 36 to
+54 % relative error, too large for Gaussian ensemble sampling (more than 1 %
+of draws would be negative), and 30 million brings it to about 30 %.
+
 The worker writes `transport-batch-values.json` (response ids, batch count and
 per-batch raw values) and adds `response_covariance` to
 `transport-artifact.json`: method, batches, response ids, the row-major raw
