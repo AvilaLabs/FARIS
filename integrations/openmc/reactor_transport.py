@@ -3,7 +3,8 @@
 
 The Rust model owns inputs and normalization. This adapter builds OpenMC CSG,
 executes the pinned solver, and copies raw per-source means and standard errors
-into the strict transport artifact without source-rate scaling.
+into the strict transport artifact without source-rate scaling. It also records
+the Monte Carlo covariance between scalar responses from per-batch statepoints.
 """
 from __future__ import annotations
 
@@ -31,6 +32,11 @@ SPECTRUM_EDGES_EV = [0.0, 1.0e3, 1.0e4, 1.0e5, 1.0e6, 2.0e6, 5.0e6, 1.0e7, 1.41e
 MAX_SOLVER_LOG_BYTES = 4 * 1024 * 1024
 INTEGRATED_RSE_REVIEW_GOAL = 0.05
 LOCAL_RSE_REVIEW_GOAL = 0.10
+COVARIANCE_METHOD = "batch-means-sample-covariance/v1"
+BATCH_VALUES_SCHEMA = "faris-transport-batch-values/v0.1"
+BATCH_VALUES_FILE = "transport-batch-values.json"
+BATCH_MEAN_REL_TOLERANCE = 1.0e-12
+BATCH_STD_REL_TOLERANCE = 1.0e-9
 
 
 def sha256(path: Path) -> str:
@@ -44,6 +50,92 @@ def sha256(path: Path) -> str:
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def per_batch_values(cumulative_sums: list[float]) -> list[float]:
+    """Per-batch tally value x_b = sum_b - sum_(b-1), with sum_0 = 0."""
+    previous = 0.0
+    values = []
+    for total in cumulative_sums:
+        values.append(total - previous)
+        previous = total
+    return values
+
+
+def verify_batch_values(response_id: str, values: list[float], mean: float, std_dev: float) -> None:
+    """Check batch values against OpenMC's own final mean and standard deviation.
+
+    OpenMC 0.15.3 (openmc/tallies.py, Tally.mean and Tally.std_dev) defines
+    mean = sum / n_realizations and
+    std_dev = sqrt((sum_sq / n - mean**2) / (n - 1)) for nonzero means, where
+    sum and sum_sq are the accumulated per-batch tally value and its square.
+    Hence, for per-batch values x_b, mean = mean(x_b) and
+    std_dev = sqrt(var(x_b, ddof=1) / n). A statepoint written after batch b
+    holds sum over batches 1..b, so consecutive differences recover x_b. The
+    covariance below reuses exactly that estimator, so any disagreement means
+    the assumption above does not hold and the run must not be trusted.
+    OpenMC reports std_dev = 0 for an exactly zero mean; that case is checked
+    only for the mean.
+    """
+    n = len(values)
+    require(n >= 2, f"response {response_id}: at least 2 batches are required")
+    require(all(math.isfinite(v) for v in values), f"response {response_id}: non-finite batch value")
+    batch_mean = math.fsum(values) / n
+    scale = abs(mean) if mean != 0.0 else max(abs(v) for v in values)
+    require(
+        abs(batch_mean - mean) <= BATCH_MEAN_REL_TOLERANCE * scale,
+        f"response {response_id}: mean of batch values {batch_mean!r} differs from OpenMC mean {mean!r}",
+    )
+    if mean == 0.0:
+        return
+    variance = math.fsum((v - batch_mean) ** 2 for v in values) / (n - 1)
+    batch_se = math.sqrt(variance / n)
+    require(
+        abs(batch_se - std_dev) <= BATCH_STD_REL_TOLERANCE * max(std_dev, batch_se),
+        f"response {response_id}: batch standard error {batch_se!r} differs from OpenMC std_dev {std_dev!r}",
+    )
+
+
+def batch_mean_covariance(columns: list[list[float]]) -> list[list[float]]:
+    """Covariance of the batch-mean estimators: sample covariance (ddof=1) / n."""
+    require(columns, "no responses for covariance")
+    n = len(columns[0])
+    require(n >= 2 and all(len(c) == n for c in columns), "covariance needs equal columns of at least 2 batches")
+    means = [math.fsum(c) / n for c in columns]
+    size = len(columns)
+    matrix = [[0.0] * size for _ in range(size)]
+    for i in range(size):
+        for j in range(i, size):
+            total = math.fsum((columns[i][b] - means[i]) * (columns[j][b] - means[j]) for b in range(n))
+            matrix[i][j] = matrix[j][i] = total / (n - 1) / n
+    return matrix
+
+
+def read_batch_sums(openmc, out: Path, n_batches: int, tally_names: list[str]) -> dict[str, list[float]]:
+    """Read cumulative scalar tally sums from every per-batch statepoint.
+
+    Intermediate statepoints are deleted as soon as they are read; only the
+    final one remains, as the rest of the worker and its checks expect.
+    """
+    files = {}
+    for path in out.glob("statepoint.*.h5"):
+        files[int(path.name.split(".")[1])] = path
+    require(sorted(files) == list(range(1, n_batches + 1)), "per-batch statepoints do not cover batches 1..N exactly")
+    sums = {name: [] for name in tally_names}
+    try:
+        for batch in range(1, n_batches + 1):
+            with openmc.StatePoint(str(files[batch])) as sp:
+                require(int(sp.current_batch) == batch and int(sp.n_realizations) == batch, f"statepoint for batch {batch} has unexpected realization count")
+                for name in tally_names:
+                    values = sp.get_tally(name=name).sum.ravel()
+                    require(len(values) == 1, f"{name} did not produce one scalar in batch {batch}")
+                    sums[name].append(float(values[0]))
+            if batch < n_batches:
+                files[batch].unlink()
+    finally:
+        for batch in range(1, n_batches):
+            files[batch].unlink(missing_ok=True)
+    return sums
 
 
 def sampling_precision_report(request: dict, tallies: list[dict], volumes: list[dict]) -> dict:
@@ -433,6 +525,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     require(physics["source"]["spatial_distribution"] == "uniform_circular_plasma_torus", "unsupported spatial source")
     require(physics["source"]["angular_distribution"] == "isotropic" and physics["source"]["energy_distribution"] == "monoenergetic", "unsupported source recipe")
     require(all(physics["source"][k] == request["source"][k] for k in ("energy_per_reaction_ev", "neutron_energy_ev", "neutrons_per_reaction")), "source/request mismatch")
+    require(sampling["batches"] >= 2, "at least 2 batches are required: response covariance is estimated from batch-resolved tallies")
     require(sampling["threads"] >= 1 and sampling["batches"] >= 1 and sampling["particles_per_batch"] >= 1, "sampling values must be positive integers")
 
     material_defs = {m["id"]: m["recipe"] for m in physics["materials"]}
@@ -639,6 +732,9 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     settings = openmc.Settings()
     settings.run_mode = "fixed source"
     settings.batches = int(sampling["batches"])
+    # One statepoint per batch gives batch-resolved scalar tallies for the
+    # response covariance; the worker deletes all but the final statepoint.
+    settings.statepoint = {"batches": list(range(1, int(sampling["batches"]) + 1))}
     settings.particles = int(sampling["particles_per_batch"])
     settings.seed = int(sampling["seed"])
     coupled_heating_required = any(r["score"]["kind"] == "heating" for r in request["responses"])
@@ -826,6 +922,8 @@ def main() -> int:
         require(solver_output["return_code"] == 0, f"OpenMC exited {solver_output['return_code']}; inspect bounded output logs")
         log = (out / "openmc.stdout.log").read_bytes() + b"\n" + (out / "openmc.stderr.log").read_bytes()
         require(not re.search(rb"(?i)particle\s+\d+\s+was lost|lost particles?", log), "OpenMC reported lost particles")
+        n_batches = int(inp["sampling"]["batches"])
+        batch_sums = read_batch_sums(openmc, out, n_batches, list(response_by_tally))
         statepoints = sorted(out.glob("statepoint.*.h5"))
         require(statepoints, "OpenMC produced no statepoint")
         require(len(statepoints) == 1, "expected exactly one final statepoint")
@@ -841,6 +939,7 @@ def main() -> int:
             require(int(sp.n_realizations) == int(inp["sampling"]["batches"]), "statepoint realization count differs from requested batches")
             require(int(sp.n_particles) == int(inp["sampling"]["particles_per_batch"]), "statepoint particles per batch differs from request")
             raw_tallies = []
+            batch_columns = {}
             for name, response in response_by_tally.items():
                 tally = sp.get_tally(name=name)
                 expected_estimator = "collision" if response["score"]["kind"] == "heating" else "tracklength"
@@ -849,6 +948,9 @@ def main() -> int:
                 errors = tally.std_dev.ravel()
                 require(len(means) == 1 and len(errors) == 1, f"response {response['id']} did not produce one scalar")
                 mean, se = float(means[0]), float(errors[0])
+                batch_values = per_batch_values(batch_sums[name])
+                verify_batch_values(response["id"], batch_values, mean, se)
+                batch_columns[response["id"]] = batch_values
                 signed_heating = response["score"]["kind"] == "heating"
                 require(math.isfinite(mean) and (signed_heating or mean >= 0) and math.isfinite(se) and se >= 0, f"response {response['id']} has an invalid mean or standard error")
                 domain = response["domain"]
@@ -861,6 +963,26 @@ def main() -> int:
                 score = response["score"]["kind"]
                 unit = "ev_per_source" if score == "heating" else ("cm_per_source" if score == "flux" else ("particles_per_source" if score == "particle_production" else "events_per_source"))
                 raw_tallies.append({"response_id": response["id"], "estimator": tally.estimator, "unit": unit, "mean": mean, "standard_error": se})
+            covariance_ids = list(batch_columns)
+            covariance = batch_mean_covariance([batch_columns[i] for i in covariance_ids])
+            batch_values_doc = {
+                "schema_version": BATCH_VALUES_SCHEMA,
+                "method": COVARIANCE_METHOD,
+                "input_sha256": sha256(args.input),
+                "n_batches": n_batches,
+                "response_ids": covariance_ids,
+                "unit": "raw tally units per source neutron, per batch (difference of consecutive cumulative statepoint sums)",
+                "values": batch_columns,
+            }
+            (out / BATCH_VALUES_FILE).write_text(json.dumps(batch_values_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            response_covariance = {
+                "method": COVARIANCE_METHOD,
+                "batches": n_batches,
+                "response_ids": covariance_ids,
+                "raw_per_source": [v for row in covariance for v in row],
+                "batch_values_file": BATCH_VALUES_FILE,
+                "batch_values_sha256": sha256(out / BATCH_VALUES_FILE),
+            }
             if mesh_tally is not None:
                 tally = sp.get_tally(name=mesh_tally.name)
                 require(tally.estimator == "tracklength", "spatial flux estimator is not explicitly tracklength")
@@ -902,13 +1024,13 @@ def main() -> int:
                     raise ValueError(f"unsupported volume domain: {d['kind']}")
                 if not any(item["domain"] == d for item in volumes):
                     volumes.append({"domain": d, "value": v, "standard_error": se, "unit": "cubic_centimetre"})
-            artifact = {"schema_version": ARTIFACT_SCHEMA, "request": inp["request"], "solver": {"name": "OpenMC", "version": openmc.__version__, "digest": f"sha256:{sha256(exe)}"}, "nuclear_data": {"name": inp["physics"].get("nuclear_data", {}).get("name", "external cross_sections.xml"), "version": inp["physics"].get("nuclear_data", {}).get("version", "unselected-local-library"), "digest": data_digest}, "histories": int(sp.n_realizations)*int(inp["sampling"]["particles_per_batch"]), "volumes": volumes, "tallies": raw_tallies}
+            artifact = {"schema_version": ARTIFACT_SCHEMA, "request": inp["request"], "solver": {"name": "OpenMC", "version": openmc.__version__, "digest": f"sha256:{sha256(exe)}"}, "nuclear_data": {"name": inp["physics"].get("nuclear_data", {}).get("name", "external cross_sections.xml"), "version": inp["physics"].get("nuclear_data", {}).get("version", "unselected-local-library"), "digest": data_digest}, "histories": int(sp.n_realizations)*int(inp["sampling"]["particles_per_batch"]), "volumes": volumes, "tallies": raw_tallies, "response_covariance": response_covariance}
             (out / "transport-artifact.json").write_text(json.dumps(artifact, indent=2, sort_keys=True)+"\n", encoding="utf-8")
             (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:
