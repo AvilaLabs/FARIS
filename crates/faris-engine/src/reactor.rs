@@ -1595,19 +1595,47 @@ pub fn load_reactor_run(
     } else {
         true
     };
-    if digest(&serde_json::to_vec(&physics)?) != record.physics_sha256
-        || serde_json::from_value::<SamplingPlan>(input["sampling"].clone())? != record.sampling
-        || !record
-            .execution
-            .as_ref()
-            .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded)
-        || mesh != record.mesh
-        || !saved_preflight_matches
-        || physics.variant_id != record.variant_id
-        || physics.scientific_scope != record.scientific_scope
-        || input_request != request
-    {
-        return Err("recorded case, mesh or response definitions differ".into());
+    let checks = [
+        (
+            digest(&serde_json::to_vec(&physics)?) == record.physics_sha256,
+            "physics input",
+        ),
+        (
+            serde_json::from_value::<SamplingPlan>(input["sampling"].clone())? == record.sampling,
+            "sampling plan",
+        ),
+        (
+            record
+                .execution
+                .as_ref()
+                .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded),
+            "execution status (the run did not succeed)",
+        ),
+        (mesh == record.mesh, "field mesh"),
+        (saved_preflight_matches, "mesh size preflight"),
+        (physics.variant_id == record.variant_id, "arrangement"),
+        (
+            physics.scientific_scope == record.scientific_scope,
+            "scientific scope",
+        ),
+        (
+            input_request == request,
+            "transport request (geometry, tallies or responses)",
+        ),
+    ];
+    let differing: Vec<&str> = checks
+        .iter()
+        .filter(|(same, _)| !same)
+        .map(|(_, what)| *what)
+        .collect();
+    if !differing.is_empty() {
+        return Err(format!(
+            "recorded case, mesh or response definitions differ from this FARIS build: {}. \
+             The run was probably recorded by an earlier version; rerun the transport \
+             case with this build to use it",
+            differing.join(", ")
+        )
+        .into());
     }
     let raw_bytes = read_json_bytes(&parent.join("solver/transport-artifact.json"))?;
     if digest(&read_json_bytes(&parent.join("audit.json"))?) != record.audit_sha256
