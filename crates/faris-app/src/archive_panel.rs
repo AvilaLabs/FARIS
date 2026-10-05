@@ -193,31 +193,8 @@ impl ArchivePanel {
         }
         // Keyed by the saved count so the section opens once background reopening finishes.
         egui::CollapsingHeader::new("Reopen saved study").id_salt(("reopen-saved-study", self.saved.len())).default_open(!self.saved.is_empty()).show(ui, |ui| {
-            for (label, value) in [
-                ("Case directory", &mut self.case_directory),
-                ("Saved execution report", &mut self.execution_report),
-                ("Execution workspace", &mut self.execution_workspace),
-            ] {
-                ui.label(label);
-                ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
-            }
-            if ui
-                .add_enabled(
-                    !self.is_loading(),
-                    egui::Button::new("Open and verify saved case"),
-                )
-                .clicked()
-            {
-                self.errors.clear();
-                let locations = Locations {
-                    case_directory: self.case_directory.clone().into(),
-                    execution_report: self.execution_report.clone().into(),
-                    execution_workspace: self.execution_workspace.clone().into(),
-                };
-                self.start(ui.ctx().clone(), move |_| vec![inspect(locations)]);
-            }
-            if self.is_loading() {
-                ui.small("Checking saved inputs, outputs, contract and receipts…");
+            if self.saved.is_empty() && !self.is_loading() {
+                ui.small("No saved study is open. Saved studies open from a descriptor file given on the command line; to point at the files yourself, use the section below.");
             }
             for error in &self.errors {
                 ui.colored_label(egui::Color32::LIGHT_RED, error);
@@ -283,6 +260,34 @@ impl ArchivePanel {
                     }
                 });
             }
+            ui.collapsing("Advanced: enter paths by hand", |ui| {
+                for (label, value) in [
+                    ("Case directory", &mut self.case_directory),
+                    ("Saved execution report", &mut self.execution_report),
+                    ("Execution workspace", &mut self.execution_workspace),
+                ] {
+                    ui.label(label);
+                    ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+                }
+                if ui
+                    .add_enabled(
+                        !self.is_loading(),
+                        egui::Button::new("Open and verify saved case"),
+                    )
+                    .clicked()
+                {
+                    self.errors.clear();
+                    let locations = Locations {
+                        case_directory: self.case_directory.clone().into(),
+                        execution_report: self.execution_report.clone().into(),
+                        execution_workspace: self.execution_workspace.clone().into(),
+                    };
+                    self.start(ui.ctx().clone(), move |_| vec![inspect(locations)]);
+                }
+                if self.is_loading() {
+                    ui.small("Checking saved inputs, outputs, contract and receipts…");
+                }
+            });
         });
     }
 }

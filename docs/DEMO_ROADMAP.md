@@ -551,11 +551,12 @@ evaluated.
   demountable-magnet preset.
 - The native interface-check plans in `references/native-demo-checks` click
   fixed positions that moved with the step layout.
-- The saved-study panel shows manual path fields first.
-- The "0.0 y" cursor label overlaps the plot title at year 0.
-- `references/operating-history-comparison-reference-1m.json` still carries
-  the stale `controlled_difference` label.
 - A `.faris` preview thumbnail is reserved in the format but not written.
+- `references/operating-history-comparison-reference-1m.json` describes the
+  contrast as lithium enrichment and multiplier; the arrangements differ in
+  blanket/shield allocation. It is recorded `compare-runs` output with its hash
+  in `references/operating-history-verification.json`, so it is regenerated
+  from the new transport campaign rather than edited by hand.
 
 ## References for implementation
 

@@ -1030,3 +1030,69 @@ mod ensembles {
         }
     }
 }
+
+const BATCH_VALUES: &str = "solver/transport-batch-values.json";
+
+/// A bundle written the way the OpenMC adapter now writes it: the optional
+/// per-batch values file sits beside the other recorded outputs.
+fn write_bundle_with_batch_values(dir: &Path, name: &str, tag: &str) -> PathBuf {
+    let mut bundle = bundle(tag);
+    bundle.files.insert(
+        BATCH_VALUES.into(),
+        format!("{{\"values\":{{\"flux\":[1.0,2.0,3.0]}},\"tag\":\"{tag}\"}}\n"),
+    );
+    let path = dir.join(format!("{name}.transport-bundle.json"));
+    std::fs::write(&path, serde_json::to_vec_pretty(&bundle).unwrap()).unwrap();
+    path
+}
+
+fn single_bundle_draft(bundle: PathBuf) -> StudyDraft {
+    StudyDraft {
+        port: Some(ArrangementDraft {
+            scenario: None,
+            physics: vec![],
+            bundles: vec![bundle],
+        }),
+        zstd_level: 3,
+        ..StudyDraft::default()
+    }
+}
+
+#[test]
+fn batch_values_are_packed_as_a_blob_and_round_trip() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = write_bundle_with_batch_values(dir.path(), "reference", "p1");
+    let target = dir.path().join("a.faris");
+    let report = write_study(&target, &single_bundle_draft(original.clone())).unwrap();
+    // Six required members plus the batch values file.
+    assert_eq!(report.blob_count, 7);
+    let mut reader = StudyReader::open(&target).unwrap();
+    assert_eq!(reader.verify().unwrap(), report.blob_count);
+    let record = reader.manifest.arrangements.port.as_ref().unwrap().bundles[0].clone();
+    let digest = &record.files[BATCH_VALUES];
+    assert_eq!(digest.len(), 64);
+    let restored = reader.bundle(&record).unwrap();
+    assert!(restored.files[BATCH_VALUES].contains("\"flux\""));
+    assert_eq!(sha256_hex(restored.files[BATCH_VALUES].as_bytes()), *digest);
+    let out = dir.path().join("out");
+    std::fs::create_dir(&out).unwrap();
+    let files = reader.materialize(&out, None).unwrap();
+    assert_eq!(
+        std::fs::read(&files.port.unwrap().bundles[0]).unwrap(),
+        std::fs::read(&original).unwrap()
+    );
+}
+
+#[test]
+fn an_older_bundle_without_batch_values_still_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = write_bundle(dir.path(), "reference", "p1");
+    let target = dir.path().join("old.faris");
+    write_study(&target, &single_bundle_draft(original)).unwrap();
+    let mut reader = StudyReader::open(&target).unwrap();
+    reader.verify().unwrap();
+    let record = reader.manifest.arrangements.port.as_ref().unwrap().bundles[0].clone();
+    assert!(!record.files.contains_key(BATCH_VALUES));
+    let restored = reader.bundle(&record).unwrap();
+    assert!(!restored.files.contains_key(BATCH_VALUES));
+}
