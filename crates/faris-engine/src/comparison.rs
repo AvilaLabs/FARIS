@@ -388,6 +388,7 @@ mod tests {
             order: 0,
             kind,
             component_id: component.map(Into::into),
+            response_id: None,
             mass_kg: None,
             note: String::new(),
         }

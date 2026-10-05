@@ -183,12 +183,32 @@
     {
       "component_id": "magnets",
       "class": "replaceable",
-      "response_id": "magnets-flux",
-      "metric": "energy_integrated_component_average_neutron_flux",
+      "response_id": "magnets-inboard-fast-flux",
+      "metric": "fast_neutron_flux_region_average",
       "unit": "neutrons/m\u00b2",
       "limit": 3e+22,
       "replacement_duration_s": 10368000,
-      "provenance": "Literature-anchored REBCO tape fast-neutron fluence screening value of 3e18 n/cm2 (3e22 n/m2, E>0.1 MeV) cited by Sorbom et al. 2015 (ARC conceptual design, arXiv:1409.3540). Applied here to the total energy-integrated component-average neutron flux of the magnet envelope: total flux overstates fast flux (conservative), while a volume average understates the local peak behind the port (non-conservative). Demountable-coil replacement and its 120-day duration are authored assumptions, not ARC estimates."
+      "provenance": "Literature-anchored REBCO tape fast-neutron fluence screening value of 3e18 n/cm2 (3e22 n/m2, E>0.1 MeV) cited by Sorbom et al. 2015 (ARC conceptual design, arXiv:1409.3540). Applied to the average fast-neutron (E>0.1 MeV) fluence of the inboard half of the magnet envelope (major radius below R0, whole toroidal circumference); the local peak within a region is not resolved, so a hot spot inside it can exceed this average. Demountable-coil replacement and its 120-day duration are authored assumptions, not ARC estimates; the magnet is replaced when any of its three regions reaches the screening value."
+    },
+    {
+      "component_id": "magnets",
+      "class": "replaceable",
+      "response_id": "magnets-outboard-fast-flux",
+      "metric": "fast_neutron_flux_region_average",
+      "unit": "neutrons/m\u00b2",
+      "limit": 3e+22,
+      "replacement_duration_s": 10368000,
+      "provenance": "Literature-anchored REBCO tape fast-neutron fluence screening value of 3e18 n/cm2 (3e22 n/m2, E>0.1 MeV) cited by Sorbom et al. 2015 (ARC conceptual design, arXiv:1409.3540). Applied to the average fast-neutron (E>0.1 MeV) fluence of the outboard half of the magnet envelope outside the port sector (major radius at or above R0, more than the port sector half width from the port centre); the local peak within a region is not resolved, so a hot spot inside it can exceed this average. Demountable-coil replacement and its 120-day duration are authored assumptions, not ARC estimates; the magnet is replaced when any of its three regions reaches the screening value."
+    },
+    {
+      "component_id": "magnets",
+      "class": "replaceable",
+      "response_id": "magnets-port-sector-fast-flux",
+      "metric": "fast_neutron_flux_region_average",
+      "unit": "neutrons/m\u00b2",
+      "limit": 3e+22,
+      "replacement_duration_s": 10368000,
+      "provenance": "Literature-anchored REBCO tape fast-neutron fluence screening value of 3e18 n/cm2 (3e22 n/m2, E>0.1 MeV) cited by Sorbom et al. 2015 (ARC conceptual design, arXiv:1409.3540). Applied to the average fast-neutron (E>0.1 MeV) fluence of the toroidal sector of the outboard magnet envelope behind the port (major radius at or above R0, within the port sector half width of the port centre; 0.1745 rad = 10 degrees); the local peak within a region is not resolved, so a hot spot inside it can exceed this average. The sector is wider than the port itself, so the average dilutes the streaming peak directly behind it. Demountable-coil replacement and its 120-day duration are authored assumptions, not ARC estimates; the magnet is replaced when any of its three regions reaches the screening value."
     }
   ],
   "energy": {
@@ -199,6 +219,6 @@
     "provenance": "All values are authored scenario controls for a transparent arithmetic demonstration, not plant design estimates. Alpha deposition, whole-model total-particle transport heating recovery, gross-cycle efficiency, and on/off auxiliary load are unresolved physically.",
     "transport_heat_recovery_fraction": 0.9
   },
-  "provenance": "Demountable-magnet lifetime story: the baseline authored scenario with the magnet envelope made replaceable at a literature REBCO fluence screening value. Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years.",
+  "provenance": "Demountable-magnet lifetime story: the baseline authored scenario with the magnet envelope made replaceable at a literature REBCO fast-fluence screening value applied to named inboard, outboard and port-sector regions. Authored illustrative control scenario, frozen before production outputs. The selected inventory, reserve, 1-day processing delay, 95% recovery, 30-day annual outages, service trip thresholds, 60-day replacement, and energy conversion assumptions are tunable scenario inputs only. No value is a measured, optimized, or qualified ARC parameter; all inventory, availability, self-sufficiency, materials, thermal-cycle, and net-energy interpretations are conditional. Restart hysteresis is set to 0.6 kg to prevent arbitrarily short fuel-starved restart pulses around the 0.5 kg reserve. Decay constant uses NUBASE2020 Table I, article page 030001-19 (PDF page 20), tritium row, 12.32(2) Julian years.",
   "restart_inventory_kg": 0.6
 }

@@ -11,6 +11,13 @@ pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.2";
 pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.1";
 pub const MAX_TRANSPORT_RESPONSES: usize = 8192;
 pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
+/// Lower energy bound of the fast-neutron flux screening responses, in eV.
+pub const FAST_NEUTRON_ENERGY_MIN_EV: f64 = 1.0e5;
+/// Highest lower energy bound a flux-above response may declare, in eV. The
+/// worker's energy filters end at 1 GeV, far above any D-T source energy.
+pub const MAX_FLUX_ABOVE_ENERGY_EV: f64 = 2.0e7;
+/// Default half width of the port toroidal sector (10 degrees), in radians.
+pub const DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD: f64 = 0.1745;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -46,18 +53,73 @@ pub struct ResponseDefinition {
     pub score: ScoreDefinition,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ResponseDomain {
     WholeModel,
-    Component { component_id: String },
-    Mesh { mesh_id: String, bin: u64 },
+    Component {
+        component_id: String,
+    },
+    /// A named region of a toroidal-shell component, defined by the major
+    /// radius and the toroidal angle about the torus axis. Angle zero is the
+    /// +x axis, the centre of the outboard penetration.
+    ComponentRegion {
+        component_id: String,
+        region: ToroidalRegion,
+    },
+    Mesh {
+        mesh_id: String,
+        bin: u64,
+    },
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+// Region widths are validated finite, so equality is reflexive.
+impl Eq for ResponseDomain {}
+
+/// Region of a toroidal shell. With major radius `R0`, cylindrical radius `R`
+/// about the torus axis and toroidal angle `phi` measured from the +x axis:
+/// the inboard half is `R < R0`, the outboard half is `R >= R0`, and the port
+/// sector is `R >= R0` with `|phi| <= half width`. Regions are cut at the
+/// shell's own cross-section, so they partition the component (inboard,
+/// port sector, and outboard excluding the port sector sum to the whole).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ToroidalRegion {
+    InboardHalf,
+    OutboardHalf {
+        /// When present, the outboard half without the port sector of this
+        /// half width; absent means the whole outboard half.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        excluding_sector_half_width_rad: Option<f64>,
+    },
+    PortSector {
+        half_width_rad: f64,
+    },
+}
+
+impl Eq for ToroidalRegion {}
+
+impl ToroidalRegion {
+    /// Half width of the toroidal sector this region is cut by, if any.
+    pub fn sector_half_width_rad(&self) -> Option<f64> {
+        match self {
+            Self::InboardHalf => None,
+            Self::OutboardHalf {
+                excluding_sector_half_width_rad,
+            } => *excluding_sector_half_width_rad,
+            Self::PortSector { half_width_rad } => Some(*half_width_rad),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ScoreDefinition {
     Flux,
+    /// Neutron flux integrated over energies above `energy_min_ev`.
+    FluxAbove {
+        energy_min_ev: f64,
+    },
     ReactionRate {
         reaction: String,
     },
@@ -71,6 +133,9 @@ pub enum ScoreDefinition {
         particle_scope: HeatingParticleScope,
     },
 }
+
+// Energy bounds are validated finite, so equality is reflexive.
+impl Eq for ScoreDefinition {}
 
 /// Which incident particle histories contribute to an OpenMC `heating` tally.
 /// `Total` is directly tallied without a particle filter so it retains the
@@ -153,6 +218,7 @@ impl TransportRequest {
             return Err("responses must contain 1 to 8192 definitions".into());
         }
         let mut ids = std::collections::BTreeSet::new();
+        let mut sector_by_component = std::collections::BTreeMap::new();
         for r in &self.responses {
             nonempty(&r.id, "response id")?;
             if !ids.insert(&r.id) {
@@ -168,9 +234,58 @@ impl TransportRequest {
                         return Err(format!("unknown component_id: {component_id}"));
                     }
                 }
+                ResponseDomain::ComponentRegion {
+                    component_id,
+                    region,
+                } => {
+                    nonempty(component_id, "component_id")?;
+                    if !s.variants.iter().any(|v| {
+                        v.id == self.variant_id && v.layers.iter().any(|l| l.id == *component_id)
+                    }) {
+                        return Err(format!("unknown component_id: {component_id}"));
+                    }
+                    if self.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION {
+                        return Err("legacy v0.1 requests cannot declare component regions".into());
+                    }
+                    if !matches!(r.score, ScoreDefinition::FluxAbove { .. }) {
+                        return Err("component regions support only flux-above scores".into());
+                    }
+                    if let Some(w) = region.sector_half_width_rad() {
+                        if !w.is_finite() || w <= 0.0 || w >= std::f64::consts::FRAC_PI_2 {
+                            return Err(
+                                "region sector half width must be in (0, pi/2) radians".into()
+                            );
+                        }
+                        if sector_by_component
+                            .insert(component_id.as_str(), w)
+                            .is_some_and(|previous| previous != w)
+                        {
+                            return Err(format!(
+                                "component {component_id} declares two different region sector half widths"
+                            ));
+                        }
+                    }
+                }
                 ResponseDomain::Mesh { mesh_id, .. } => nonempty(mesh_id, "mesh_id")?,
             }
             match &r.score {
+                ScoreDefinition::FluxAbove { energy_min_ev } => {
+                    if self.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION {
+                        return Err("legacy v0.1 requests cannot declare flux-above scores".into());
+                    }
+                    if !energy_min_ev.is_finite()
+                        || *energy_min_ev <= 0.0
+                        || *energy_min_ev >= MAX_FLUX_ABOVE_ENERGY_EV
+                    {
+                        return Err(
+                            "flux-above energy_min_ev must be finite, positive and below 20 MeV"
+                                .into(),
+                        );
+                    }
+                    if matches!(r.domain, ResponseDomain::Mesh { .. }) {
+                        return Err("flux-above scores are not defined on mesh bins".into());
+                    }
+                }
                 ScoreDefinition::Heating { .. }
                     if self.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION =>
                 {
@@ -404,5 +519,185 @@ mod tests {
             };
             r.validate_against(&s).unwrap();
         }
+    }
+
+    fn region_response(id: &str, region: ToroidalRegion) -> ResponseDefinition {
+        ResponseDefinition {
+            id: id.into(),
+            domain: ResponseDomain::ComponentRegion {
+                component_id: "magnets".into(),
+                region,
+            },
+            score: ScoreDefinition::FluxAbove {
+                energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
+            },
+        }
+    }
+
+    fn region_request() -> (TransportRequest, crate::LoadedScenario) {
+        let (mut r, s) = request();
+        r.responses = vec![
+            ResponseDefinition {
+                id: "magnets-fast-flux".into(),
+                domain: ResponseDomain::Component {
+                    component_id: "magnets".into(),
+                },
+                score: ScoreDefinition::FluxAbove {
+                    energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
+                },
+            },
+            region_response("magnets-inboard-fast-flux", ToroidalRegion::InboardHalf),
+            region_response(
+                "magnets-outboard-fast-flux",
+                ToroidalRegion::OutboardHalf {
+                    excluding_sector_half_width_rad: Some(DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD),
+                },
+            ),
+            region_response(
+                "magnets-port-sector-fast-flux",
+                ToroidalRegion::PortSector {
+                    half_width_rad: DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD,
+                },
+            ),
+        ];
+        (r, s)
+    }
+
+    #[test]
+    fn region_and_flux_above_responses_round_trip_and_validate() {
+        let (r, s) = region_request();
+        r.validate_against(&s).unwrap();
+        let text = serde_json::to_string(&r).unwrap();
+        let back: TransportRequest = serde_json::from_str(&text).unwrap();
+        assert_eq!(back, r);
+        assert!(text.contains(r#""kind":"component_region""#));
+        assert!(text.contains(r#""kind":"flux_above""#));
+        assert!(text.contains(r#""kind":"inboard_half""#));
+        // The whole outboard half carries no exclusion field at all.
+        let whole = serde_json::to_string(&ToroidalRegion::OutboardHalf {
+            excluding_sector_half_width_rad: None,
+        })
+        .unwrap();
+        assert_eq!(whole, r#"{"kind":"outboard_half"}"#);
+        let parsed: ToroidalRegion = serde_json::from_str(&whole).unwrap();
+        assert_eq!(parsed.sector_half_width_rad(), None);
+    }
+
+    #[test]
+    fn region_contract_is_strict() {
+        for bad in [r#"{"kind":"port_sector"}"#, r#"{"kind":"middle_third"}"#] {
+            assert!(
+                serde_json::from_str::<ToroidalRegion>(bad).is_err(),
+                "{bad}"
+            );
+        }
+        assert!(serde_json::from_str::<ScoreDefinition>(r#"{"kind":"flux_above"}"#).is_err());
+        assert!(
+            serde_json::from_str::<ScoreDefinition>(
+                r#"{"kind":"flux_above","energy_min_ev":1e5,"extra":0}"#
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn existing_domains_and_scores_still_parse_unchanged() {
+        let domain: ResponseDomain =
+            serde_json::from_str(r#"{"kind":"component","component_id":"blanket"}"#).unwrap();
+        assert_eq!(
+            domain,
+            ResponseDomain::Component {
+                component_id: "blanket".into()
+            }
+        );
+        let score: ScoreDefinition = serde_json::from_str(r#"{"kind":"flux"}"#).unwrap();
+        assert_eq!(score, ScoreDefinition::Flux);
+    }
+
+    #[test]
+    fn region_validation_rejects_unsound_definitions() {
+        let (r0, s) = region_request();
+        let mutate = |f: &dyn Fn(&mut TransportRequest)| {
+            let mut r = r0.clone();
+            f(&mut r);
+            r.validate_against(&s)
+        };
+        assert!(mutate(&|r| r.schema_version = TRANSPORT_REQUEST_LEGACY_VERSION.into()).is_err());
+        for w in [
+            0.0,
+            -0.1,
+            f64::NAN,
+            f64::INFINITY,
+            std::f64::consts::FRAC_PI_2,
+            2.0,
+        ] {
+            assert!(
+                mutate(&|r| {
+                    r.responses[3].domain = ResponseDomain::ComponentRegion {
+                        component_id: "magnets".into(),
+                        region: ToroidalRegion::PortSector { half_width_rad: w },
+                    }
+                })
+                .is_err(),
+                "accepted half width {w}"
+            );
+        }
+        // One sector per component: a different exclusion width is refused.
+        assert!(
+            mutate(&|r| {
+                r.responses[2].domain = ResponseDomain::ComponentRegion {
+                    component_id: "magnets".into(),
+                    region: ToroidalRegion::OutboardHalf {
+                        excluding_sector_half_width_rad: Some(0.3),
+                    },
+                }
+            })
+            .is_err()
+        );
+        assert!(
+            mutate(&|r| {
+                r.responses[1].domain = ResponseDomain::ComponentRegion {
+                    component_id: "missing".into(),
+                    region: ToroidalRegion::InboardHalf,
+                }
+            })
+            .is_err()
+        );
+        // Regions are only defined for the fast-flux score.
+        assert!(mutate(&|r| r.responses[1].score = ScoreDefinition::Flux).is_err());
+        for e in [0.0, -1.0, f64::NAN, 2.0e7, 1.0e9] {
+            assert!(
+                mutate(&|r| r.responses[0].score = ScoreDefinition::FluxAbove { energy_min_ev: e })
+                    .is_err(),
+                "accepted energy {e}"
+            );
+        }
+        assert!(
+            mutate(&|r| {
+                r.responses[0].domain = ResponseDomain::Mesh {
+                    mesh_id: "m".into(),
+                    bin: 0,
+                }
+            })
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn region_domains_with_different_widths_are_distinct_volume_keys() {
+        let a = ResponseDomain::ComponentRegion {
+            component_id: "magnets".into(),
+            region: ToroidalRegion::PortSector {
+                half_width_rad: 0.1,
+            },
+        };
+        let b = ResponseDomain::ComponentRegion {
+            component_id: "magnets".into(),
+            region: ToroidalRegion::PortSector {
+                half_width_rad: 0.2,
+            },
+        };
+        assert_ne!(a, b);
+        assert_eq!(a, a.clone());
     }
 }

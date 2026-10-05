@@ -5,6 +5,7 @@ use crate::transport::{NormalizedTally, NormalizedTransportResult, PhysicalUnit}
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions, ServiceLimit};
 use faris_model::transport::{
     HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain, ScoreDefinition,
+    ToroidalRegion,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
@@ -15,6 +16,11 @@ pub const TRITIUM_MOLAR_MASS_KG_PER_MOL: f64 = 3.016_049_277_9e-3;
 pub const AVOGADRO_CONSTANT_PER_MOL: f64 = 6.022_140_76e23;
 pub const ELEMENTARY_CHARGE_J_PER_EV: f64 = 1.602_176_634e-19;
 pub const MASS_BALANCE_RELATIVE_TOLERANCE: f64 = 1e-10;
+/// Service-limit metric tracking the energy-integrated component-average flux.
+pub const ENERGY_INTEGRATED_FLUX_METRIC: &str = "energy_integrated_component_average_neutron_flux";
+/// Service-limit metric tracking a fast-neutron flux averaged over a named
+/// component region (or the whole component) from a flux-above response.
+pub const FAST_FLUX_REGION_METRIC: &str = "fast_neutron_flux_region_average";
 // The input horizon/step pair is separately bounded to <=4,000,000 nominal
 // segments. Event-driven transitions can subdivide those intervals. A reviewed
 // 6,000,000 runtime-segment ceiling bounds that additional work.
@@ -43,6 +49,11 @@ pub struct TransportDrivingRates {
     pub breeder_h3_per_source_neutron: ScalarRate,
     /// Component-average, energy-integrated neutron flux at reference power.
     pub component_average_flux_n_m2_s: BTreeMap<String, ScalarRate>,
+    /// Region-average fast-neutron flux responses by response ID, in
+    /// neutrons/m²/s at reference power; absent in records made before regional
+    /// fast-flux responses existed.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub region_flux_n_m2_s: BTreeMap<String, RegionFluxRate>,
     /// Whole-model integrated nuclear heating power from the declared total-particle
     /// heating response (including its neutron, photon, electron, and positron scores).
     /// None means no total nuclear-heat or net-electricity result is available.
@@ -59,10 +70,25 @@ pub struct TransportDrivingRates {
     pub covariance: Option<DrivingCovariance>,
 }
 
+/// A fast-neutron flux averaged over one named region of a component, or over
+/// the whole component when `region` is absent. The local peak inside the
+/// region is not resolved.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RegionFluxRate {
+    pub component_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<ToroidalRegion>,
+    /// Lower neutron energy bound of the flux, in eV.
+    pub energy_min_ev: f64,
+    pub rate: ScalarRate,
+}
+
 /// Sampling covariance between the driving rates, in the rates' own units.
 ///
 /// Matrix order is fixed: the breeder H3 rate, each component flux in
-/// component-ID order, then the whole-model heating power when present.
+/// component-ID order, each region flux in response-ID order, then the
+/// whole-model heating power when present.
 /// `monte_carlo` is the batch-means covariance of the transport tallies scaled
 /// from integrated units to the driving units (H3 per source neutron: divide by
 /// the source neutron rate; component flux: divide by the component volume;
@@ -182,7 +208,7 @@ impl DrivingCovariance {
                 .zip(&self.rate_ids)
                 .any(|(entry, id)| entry.0 != id)
         {
-            return Err("covariance rate IDs must list the breeder rate, each component flux in component order, then heating".into());
+            return Err("covariance rate IDs must list the breeder rate, each component flux in component order, each region flux in response order, then heating".into());
         }
         if self.method.trim().is_empty() || self.batches < 2 {
             return Err("covariance needs a method identity and at least two batches".into());
@@ -225,6 +251,11 @@ impl TransportDrivingRates {
             self.component_average_flux_n_m2_s
                 .values()
                 .map(|r| (r.response_id.as_str(), r)),
+        );
+        entries.extend(
+            self.region_flux_n_m2_s
+                .values()
+                .map(|r| (r.rate.response_id.as_str(), &r.rate)),
         );
         if let Some(h) = &self.transport_deposited_heat_w {
             entries.push((h.response_id.as_str(), h));
@@ -293,6 +324,40 @@ impl TransportDrivingRates {
                 }
             }
         }
+        let mut region_flux = BTreeMap::new();
+        for response in &normalized.results {
+            let ScoreDefinition::FluxAbove { energy_min_ev } = response.score else {
+                continue;
+            };
+            let (component_id, region) = match &response.domain {
+                ResponseDomain::Component { component_id } => (component_id, None),
+                ResponseDomain::ComponentRegion {
+                    component_id,
+                    region,
+                } => (component_id, Some(region.clone())),
+                _ => continue,
+            };
+            if response.unit != PhysicalUnit::NeutronsPerSquareMetreSecond {
+                return Err(format!(
+                    "fast flux {} has an unexpected normalized unit",
+                    response.response_id
+                ));
+            }
+            region_flux.insert(
+                response.response_id.clone(),
+                RegionFluxRate {
+                    component_id: component_id.clone(),
+                    region,
+                    energy_min_ev,
+                    rate: ScalarRate {
+                        mean: response.mean,
+                        standard_error: Some(response.standard_error),
+                        unit: "neutrons/m²/s".into(),
+                        response_id: response.response_id.clone(),
+                    },
+                },
+            );
+        }
         let heat = normalized
             .results
             .iter()
@@ -324,6 +389,7 @@ impl TransportDrivingRates {
                 response_id: breeder.response_id.clone(),
             },
             component_average_flux_n_m2_s: flux,
+            region_flux_n_m2_s: region_flux,
             transport_deposited_heat_w,
             scenario_sha256: normalized.scenario_sha256.clone(),
             transport_artifact_sha256: transport_artifact_sha256.into(),
@@ -366,6 +432,16 @@ impl TransportDrivingRates {
                 .ok_or("flux response vanished from normalized transport")?;
             // mean = integrated_mean / volume; the stored standard error adds
             // (mean * volume_se / volume)^2 for the independent volume estimate.
+            let volume_variance =
+                (tally.mean * tally.volume_standard_error_m3 / tally.volume_m3).powi(2);
+            picks.push((tally, 1.0 / tally.volume_m3, volume_variance));
+        }
+        for rate in rates.region_flux_n_m2_s.values() {
+            let tally = normalized
+                .results
+                .iter()
+                .find(|r| r.response_id == rate.rate.response_id)
+                .ok_or("region flux response vanished from normalized transport")?;
             let volume_variance =
                 (tally.mean * tally.volume_standard_error_m3 / tally.volume_m3).powi(2);
             picks.push((tally, 1.0 / tally.volume_m3, volume_variance));
@@ -463,6 +539,16 @@ impl TransportDrivingRates {
             // upper bound on the true flux.
             check_rate(rate, "neutrons/m²/s", false)?;
         }
+        for (id, region) in &self.region_flux_n_m2_s {
+            if region.component_id.trim().is_empty()
+                || *id != region.rate.response_id
+                || !region.energy_min_ev.is_finite()
+                || region.energy_min_ev <= 0.0
+            {
+                return Err(format!("region flux {id} is not a valid fast-flux rate"));
+            }
+            check_rate(&region.rate, "neutrons/m²/s", false)?;
+        }
         if let Some(rate) = &self.transport_deposited_heat_w {
             check_rate(rate, "W", true)?;
         }
@@ -546,6 +632,10 @@ pub struct HistoryEvent {
     pub order: u32,
     pub kind: EventKind,
     pub component_id: Option<String>,
+    /// For a service-limit event, the response whose limit was reached, which
+    /// names the triggering region of the component.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_id: Option<String>,
     pub mass_kg: Option<f64>,
     pub note: String,
 }
@@ -578,6 +668,10 @@ pub struct HistorySnapshot {
     pub cumulative_auxiliary_electricity_mwh: Option<f64>,
     pub cumulative_net_electricity_mwh: Option<f64>,
     pub component_fluence_n_m2: BTreeMap<String, f64>,
+    /// Fluence of each region-limit track by response ID (neutrons/m²); empty
+    /// when no limit tracks a region response.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub limit_fluence_n_m2: BTreeMap<String, f64>,
     pub component_replacements: BTreeMap<String, u32>,
     pub mass_balance_residual_kg: f64,
 }
@@ -688,10 +782,42 @@ fn add_production_interval(
 
 #[derive(Clone)]
 struct ComponentState {
+    /// Energy-integrated component-average fluence (the legacy exposure track).
     fluence: f64,
+    /// Fluence of every region-limit track on this component, by response ID.
+    region_fluence: BTreeMap<String, f64>,
     down_until: f64,
     replacement_count: u32,
     tripped: bool,
+}
+
+/// Flux driving a limit's exposure track, at reference power. Limits were
+/// checked against the rates before the run, so the lookups cannot miss.
+fn limit_flux_mean(rates: &TransportDrivingRates, limit: &ServiceLimit) -> f64 {
+    if limit.metric == FAST_FLUX_REGION_METRIC {
+        rates.region_flux_n_m2_s[&limit.response_id].rate.mean
+    } else {
+        rates.component_average_flux_n_m2_s[&limit.component_id].mean
+    }
+}
+
+fn limit_fluence(state: &ComponentState, limit: &ServiceLimit) -> f64 {
+    if limit.metric == FAST_FLUX_REGION_METRIC {
+        state.region_fluence[&limit.response_id]
+    } else {
+        state.fluence
+    }
+}
+
+fn limit_fluence_mut<'a>(state: &'a mut ComponentState, limit: &ServiceLimit) -> &'a mut f64 {
+    if limit.metric == FAST_FLUX_REGION_METRIC {
+        state
+            .region_fluence
+            .get_mut(&limit.response_id)
+            .expect("region-limit track exists")
+    } else {
+        &mut state.fluence
+    }
 }
 
 fn decay_factor(lambda: f64, dt: f64) -> f64 {
@@ -796,6 +922,7 @@ fn push_event(
         order,
         kind,
         component_id,
+        response_id: None,
         mass_kg,
         note: note.into(),
     });
@@ -827,10 +954,16 @@ pub fn run_operating_history_cancellable(
             ));
         }
         let rate = &rates.component_average_flux_n_m2_s[&limit.component_id];
-        if rate.response_id != limit.response_id
-            || limit.metric != "energy_integrated_component_average_neutron_flux"
-            || limit.unit != "neutrons/m²"
-        {
+        let compatible = limit.unit == "neutrons/m²"
+            && match limit.metric.as_str() {
+                ENERGY_INTEGRATED_FLUX_METRIC => rate.response_id == limit.response_id,
+                FAST_FLUX_REGION_METRIC => rates
+                    .region_flux_n_m2_s
+                    .get(&limit.response_id)
+                    .is_some_and(|r| r.component_id == limit.component_id),
+                _ => false,
+            };
+        if !compatible {
             return Err(format!(
                 "service limit for {} is incompatible with the supplied exposure response",
                 limit.component_id
@@ -876,6 +1009,13 @@ pub fn run_operating_history_cancellable(
                 id.clone(),
                 ComponentState {
                     fluence: 0.0,
+                    // One track per region limit on this component.
+                    region_fluence: assumptions
+                        .service_limits
+                        .iter()
+                        .filter(|l| l.component_id == *id && l.metric == FAST_FLUX_REGION_METRIC)
+                        .map(|l| (l.response_id.clone(), 0.0))
+                        .collect(),
                     down_until: 0.0,
                     replacement_count: 0,
                     tripped: false,
@@ -946,7 +1086,10 @@ pub fn run_operating_history_cancellable(
         }
         for (component_id, state) in &mut components {
             if state.down_until > 0.0 && state.down_until <= time + 1e-9 {
+                // Replacement installs a new component: every exposure track
+                // of it, whichever region limit tracks it, starts again at zero.
                 state.fluence = 0.0;
+                state.region_fluence.values_mut().for_each(|f| *f = 0.0);
                 state.down_until = 0.0;
                 state.replacement_count += 1;
                 state.tripped = false;
@@ -1127,6 +1270,10 @@ pub fn run_operating_history_cancellable(
                     .iter()
                     .map(|(id, s)| (id.clone(), s.fluence))
                     .collect(),
+                limit_fluence_n_m2: components
+                    .values()
+                    .flat_map(|s| s.region_fluence.iter().map(|(id, f)| (id.clone(), *f)))
+                    .collect(),
                 component_replacements: components
                     .iter()
                     .map(|(id, s)| (id.clone(), s.replacement_count))
@@ -1248,9 +1395,8 @@ pub fn run_operating_history_cancellable(
                 if state.tripped || state.down_until > time {
                     continue;
                 }
-                let flux =
-                    rates.component_average_flux_n_m2_s[&limit.component_id].mean * requested;
-                let until = (limit.limit - state.fluence).max(0.0) / flux;
+                let flux = limit_flux_mean(rates, limit) * requested;
+                let until = (limit.limit - limit_fluence(state, limit)).max(0.0) / flux;
                 if flux > 0.0 && until < active_duration - 1e-9 {
                     active_duration = until;
                     truncate_at_event = true;
@@ -1279,6 +1425,11 @@ pub fn run_operating_history_cancellable(
             for (id, state) in &mut components {
                 if let Some(flux) = rates.component_average_flux_n_m2_s.get(id) {
                     state.fluence += flux.mean * requested * active_duration;
+                }
+                for (response_id, fluence) in &mut state.region_fluence {
+                    *fluence += rates.region_flux_n_m2_s[response_id].rate.mean
+                        * requested
+                        * active_duration;
                 }
             }
             if energy_ready {
@@ -1356,12 +1507,17 @@ pub fn run_operating_history_cancellable(
             rank(a.class)
                 .cmp(&rank(b.class))
                 .then(a.component_id.cmp(&b.component_id))
+                .then(a.response_id.cmp(&b.response_id))
         });
         for limit in ordered_limits {
             if requested > 0.0 {
                 let state = components.get_mut(&limit.component_id).unwrap();
-                if state.fluence + 1e-10 * limit.limit >= limit.limit && !state.tripped {
-                    state.fluence = limit.limit;
+                // The first limit of a component to be reached trips it; the
+                // other limits of that component are then moot until replacement.
+                if limit_fluence(state, limit) + 1e-10 * limit.limit >= limit.limit
+                    && !state.tripped
+                {
+                    *limit_fluence_mut(state, limit) = limit.limit;
                     state.tripped = true;
                     push_event(
                         &mut events,
@@ -1370,10 +1526,13 @@ pub fn run_operating_history_cancellable(
                         Some(limit.component_id.clone()),
                         None,
                         format!(
-                            "{} {} reached; applicability is conditional on authored limit",
-                            limit.metric, limit.unit
+                            "{} {} reached on {}; applicability is conditional on authored limit",
+                            limit.metric, limit.unit, limit.response_id
                         ),
                     )?;
+                    if let Some(event) = events.last_mut() {
+                        event.response_id = Some(limit.response_id.clone());
+                    }
                     match limit.class {
                         ComponentClass::Permanent => {
                             permanent_limit = true;
@@ -1491,6 +1650,9 @@ pub fn interpolate_snapshot(run: &HistoryResult, time_s: f64) -> Option<HistoryS
     for (id, v) in &mut s.component_fluence_n_m2 {
         *v = lerp(a.component_fluence_n_m2[id], b.component_fluence_n_m2[id]);
     }
+    for (id, v) in &mut s.limit_fluence_n_m2 {
+        *v = lerp(a.limit_fluence_n_m2[id], b.limit_fluence_n_m2[id]);
+    }
     s.mass_balance_residual_kg = lerp(a.mass_balance_residual_kg, b.mass_balance_residual_kg);
     Some(s)
 }
@@ -1553,6 +1715,7 @@ mod tests {
                 response_id: "blanket-tritium".into(),
             },
             component_average_flux_n_m2_s: BTreeMap::new(),
+            region_flux_n_m2_s: BTreeMap::new(),
             transport_deposited_heat_w: None,
             scenario_sha256: "a".repeat(64),
             transport_artifact_sha256: "b".repeat(64),
@@ -2127,5 +2290,170 @@ mod tests {
         excessive.delay_multipliers = vec![0.5, 1.0, 2.0, 4.0];
         excessive.service_limit_multipliers = vec![0.5, 1.0, 2.0, 4.0];
         assert!(crate::comparison::run_history_sensitivity(&a, &rates(), &excessive).is_err());
+    }
+
+    fn scalar(mean: f64, response_id: &str) -> ScalarRate {
+        ScalarRate {
+            mean,
+            standard_error: Some(0.0),
+            unit: "neutrons/m²/s".into(),
+            response_id: response_id.into(),
+        }
+    }
+
+    /// A magnet with three regional fast-flux limits of 3e11 n/m² and the given
+    /// region fluxes (inboard, outboard, port sector) in n/m²/s.
+    fn regional_case(fluxes: [f64; 3]) -> (OperatingHistoryAssumptions, TransportDrivingRates) {
+        let mut a = assumptions(100.0);
+        a.maximum_step_s = 10.0;
+        a.snapshot_interval_s = 10.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 100.0,
+            power_fraction: 1.0,
+        }];
+        let names = ["r-inboard", "r-outboard", "r-port"];
+        a.service_limits = names
+            .iter()
+            .map(|id| ServiceLimit {
+                component_id: "magnet".into(),
+                class: ComponentClass::Replaceable,
+                response_id: (*id).into(),
+                metric: FAST_FLUX_REGION_METRIC.into(),
+                unit: "neutrons/m²".into(),
+                limit: 3.0e11,
+                replacement_duration_s: Some(10.0),
+                provenance: "test".into(),
+            })
+            .collect();
+        let mut r = rates();
+        r.component_average_flux_n_m2_s
+            .insert("magnet".into(), scalar(1.0e10, "flux-magnet"));
+        for (id, flux) in names.iter().zip(fluxes) {
+            r.region_flux_n_m2_s.insert(
+                (*id).into(),
+                RegionFluxRate {
+                    component_id: "magnet".into(),
+                    region: None,
+                    energy_min_ev: 1.0e5,
+                    rate: scalar(flux, id),
+                },
+            );
+        }
+        (a, r)
+    }
+
+    fn trips(run: &HistoryResult) -> Vec<(f64, String)> {
+        run.events
+            .iter()
+            .filter(|e| e.kind == EventKind::ServiceLimitReached)
+            .map(|e| (e.time_s, e.response_id.clone().unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn first_regional_limit_replaces_the_component_and_resets_every_track() {
+        // The port sector reaches 3e11 after 10 s; the inboard half is at 2.5e11
+        // by then and would trip 2 s into the next period if its track survived.
+        let (a, r) = regional_case([2.5e10, 5.0e9, 3.0e10]);
+        let run = run_operating_history(&a, &r).unwrap();
+        let trips = trips(&run);
+        assert_eq!(trips.len(), 5, "{trips:?}");
+        assert!(trips.iter().all(|t| t.1 == "r-port"));
+        assert!((trips[0].0 - 10.0).abs() < 1e-6 && (trips[1].0 - 30.0).abs() < 1e-6);
+        // Replacement started at the first trip and finished 10 s later.
+        let started: Vec<_> = run
+            .events
+            .iter()
+            .filter(|e| e.kind == EventKind::ReplacementStarted)
+            .collect();
+        assert!((started[0].time_s - 10.0).abs() < 1e-6);
+        let done = run
+            .events
+            .iter()
+            .find(|e| e.kind == EventKind::ReplacementCompleted)
+            .unwrap();
+        assert!((done.time_s - 20.0).abs() < 1e-6);
+        // Every track of the component restarted at zero.
+        let reset = run
+            .snapshots
+            .iter()
+            .find(|s| (s.time_s - 20.0).abs() < 1e-6)
+            .unwrap();
+        assert_eq!(reset.component_fluence_n_m2["magnet"], 0.0);
+        assert!(reset.limit_fluence_n_m2.values().all(|f| *f == 0.0));
+        assert_eq!(reset.limit_fluence_n_m2.len(), 3);
+        // Just before the trip the inboard track held 2.5e11 and the port track its limit.
+        let before = run
+            .snapshots
+            .iter()
+            .find(|s| (s.time_s - 10.0).abs() < 1e-6)
+            .unwrap();
+        assert!((before.limit_fluence_n_m2["r-inboard"] - 2.5e11).abs() < 1.0);
+        assert!((before.limit_fluence_n_m2["r-port"] - 3.0e11).abs() < 1.0);
+        assert_eq!(
+            run.snapshots.last().unwrap().component_replacements["magnet"],
+            5
+        );
+        // Mass balance is untouched by which limit trips.
+        let last = run.snapshots.last().unwrap();
+        assert!(last.mass_balance_residual_kg.abs() <= run.mass_balance_tolerance_kg);
+    }
+
+    #[test]
+    fn triggering_region_follows_the_fastest_track() {
+        for (fluxes, expected) in [
+            ([3.0e10, 5.0e9, 1.0e10], "r-inboard"),
+            ([5.0e9, 3.0e10, 1.0e10], "r-outboard"),
+            ([5.0e9, 1.0e10, 3.0e10], "r-port"),
+        ] {
+            let (a, r) = regional_case(fluxes);
+            let run = run_operating_history(&a, &r).unwrap();
+            let first = &trips(&run)[0];
+            assert!((first.0 - 10.0).abs() < 1e-6, "{first:?}");
+            assert_eq!(first.1, expected);
+            let event = run
+                .events
+                .iter()
+                .find(|e| e.kind == EventKind::ServiceLimitReached)
+                .unwrap();
+            assert!(event.note.contains(expected));
+        }
+    }
+
+    #[test]
+    fn region_limits_are_checked_against_the_supplied_responses() {
+        let (a, mut r) = regional_case([1.0e10; 3]);
+        run_operating_history(&a, &r).unwrap();
+        r.region_flux_n_m2_s.remove("r-outboard");
+        assert!(run_operating_history(&a, &r).is_err());
+        let (a, mut r) = regional_case([1.0e10; 3]);
+        r.region_flux_n_m2_s.get_mut("r-port").unwrap().component_id = "other".into();
+        assert!(run_operating_history(&a, &r).is_err());
+        let (mut a, r) = regional_case([1.0e10; 3]);
+        a.service_limits[0].metric = "peak_neutron_flux".into();
+        assert!(run_operating_history(&a, &r).is_err());
+    }
+
+    #[test]
+    fn region_flux_adds_to_the_covariance_after_component_flux() {
+        let (_, mut r) = regional_case([1.0e10; 3]);
+        let ids: Vec<_> = r
+            .covariance_entries()
+            .iter()
+            .map(|e| e.0.to_owned())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "blanket-tritium",
+                "flux-magnet",
+                "r-inboard",
+                "r-outboard",
+                "r-port"
+            ]
+        );
+        r.region_flux_n_m2_s.clear();
+        assert_eq!(r.covariance_entries().len(), 2);
     }
 }

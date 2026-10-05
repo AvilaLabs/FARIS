@@ -18,9 +18,10 @@ use faris_model::{
         ScientificScope,
     },
     transport::{
-        HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDefinition,
-        ResponseDomain, ScoreDefinition, TRANSPORT_ARTIFACT_VERSION,
-        TRANSPORT_REQUEST_LEGACY_VERSION, TRANSPORT_REQUEST_VERSION, TransportRequest,
+        DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD, FAST_NEUTRON_ENERGY_MIN_EV, HeatingConvention,
+        HeatingParticleScope, ProducedParticle, ResponseDefinition, ResponseDomain,
+        ScoreDefinition, TRANSPORT_ARTIFACT_VERSION, TRANSPORT_REQUEST_LEGACY_VERSION,
+        TRANSPORT_REQUEST_VERSION, ToroidalRegion, TransportRequest,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -218,6 +219,16 @@ fn mesh_payload_preflight_with_encoding(
             ResponseDomain::WholeModel => (0_u8, String::new(), 0_u64),
             ResponseDomain::Component { component_id } => (1_u8, component_id.clone(), 0_u64),
             ResponseDomain::Mesh { mesh_id, bin } => (2_u8, mesh_id.clone(), *bin),
+            // The region is part of the volume identity; its serialization
+            // is unique per distinct region and width.
+            ResponseDomain::ComponentRegion {
+                component_id,
+                region,
+            } => (
+                3_u8,
+                format!("{component_id}/{}", serde_json::to_string(region)?),
+                0_u64,
+            ),
         };
         if volume_domains.insert(domain_key) {
             volumes.push(DomainVolume {
@@ -228,7 +239,9 @@ fn mesh_payload_preflight_with_encoding(
             });
         }
         let (estimator, unit) = match &response.score {
-            ScoreDefinition::Flux => (TallyEstimator::Tracklength, RawTallyUnit::CmPerSource),
+            ScoreDefinition::Flux | ScoreDefinition::FluxAbove { .. } => {
+                (TallyEstimator::Tracklength, RawTallyUnit::CmPerSource)
+            }
             ScoreDefinition::ReactionRate { .. } => {
                 (TallyEstimator::Tracklength, RawTallyUnit::EventsPerSource)
             }
@@ -285,7 +298,7 @@ fn mesh_payload_preflight_with_encoding(
     let mut normalized_results = Vec::with_capacity(request.responses.len());
     for response in &request.responses {
         let (unit, integrated_unit) = match &response.score {
-            ScoreDefinition::Flux => (
+            ScoreDefinition::Flux | ScoreDefinition::FluxAbove { .. } => (
                 PhysicalUnit::NeutronsPerSquareMetreSecond,
                 PhysicalUnit::NeutronMetresPerSecond,
             ),
@@ -304,7 +317,8 @@ fn mesh_payload_preflight_with_encoding(
         let domain_volume = match &response.domain {
             ResponseDomain::Mesh { .. } => 1.0,
             ResponseDomain::WholeModel => 1.0,
-            ResponseDomain::Component { component_id } => variant
+            ResponseDomain::Component { component_id }
+            | ResponseDomain::ComponentRegion { component_id, .. } => variant
                 .components
                 .iter()
                 .find(|c| &c.id == component_id)
@@ -758,6 +772,63 @@ pub fn request_for_case_with_mesh(
     physics: &PhysicsCase,
     mesh: FieldMesh,
 ) -> Result<(TransportRequest, FieldMesh), ReactorError> {
+    request_for_case_with_regions(scenario, physics, mesh, DEFAULT_PORT_SECTOR_HALF_WIDTH_RAD)
+}
+
+/// Component whose fast-flux regions are requested for the magnet service check.
+pub const MAGNET_COMPONENT_ID: &str = "magnets";
+
+/// Fast-flux (E > 0.1 MeV) responses for the whole component and its named
+/// regions: inboard half, outboard half outside the port sector, and the port
+/// sector of the given half width about toroidal angle 0 (the +x axis). The
+/// same set is requested with and without a penetration so a port arrangement
+/// and its control are directly comparable.
+pub fn fast_flux_region_responses(
+    component_id: &str,
+    port_sector_half_width_rad: f64,
+) -> Vec<ResponseDefinition> {
+    let fast = ScoreDefinition::FluxAbove {
+        energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
+    };
+    let region = |suffix: &str, region: ToroidalRegion| ResponseDefinition {
+        id: format!("{component_id}-{suffix}-fast-flux"),
+        domain: ResponseDomain::ComponentRegion {
+            component_id: component_id.into(),
+            region,
+        },
+        score: fast.clone(),
+    };
+    vec![
+        ResponseDefinition {
+            id: format!("{component_id}-fast-flux"),
+            domain: ResponseDomain::Component {
+                component_id: component_id.into(),
+            },
+            score: fast.clone(),
+        },
+        region("inboard", ToroidalRegion::InboardHalf),
+        region(
+            "outboard",
+            ToroidalRegion::OutboardHalf {
+                excluding_sector_half_width_rad: Some(port_sector_half_width_rad),
+            },
+        ),
+        region(
+            "port-sector",
+            ToroidalRegion::PortSector {
+                half_width_rad: port_sector_half_width_rad,
+            },
+        ),
+    ]
+}
+
+/// As [`request_for_case_with_mesh`] with a chosen port sector half width.
+pub fn request_for_case_with_regions(
+    scenario: &LoadedScenario,
+    physics: &PhysicsCase,
+    mesh: FieldMesh,
+    port_sector_half_width_rad: f64,
+) -> Result<(TransportRequest, FieldMesh), ReactorError> {
     physics.validate_against(scenario)?;
     let manifest = build_manifest(scenario)?;
     mesh.validate(&manifest)?;
@@ -802,6 +873,12 @@ pub fn request_for_case_with_mesh(
             domain: domain.clone(),
             score: ScoreDefinition::Flux,
         });
+        if component.id == MAGNET_COMPONENT_ID {
+            responses.extend(fast_flux_region_responses(
+                &component.id,
+                port_sector_half_width_rad,
+            ));
+        }
         if component.material_id != "void" {
             responses.push(ResponseDefinition {
                 id: format!("{}-tritium", component.id),
@@ -862,9 +939,12 @@ fn legacy_request_for_case(
 ) -> Result<(TransportRequest, FieldMesh), ReactorError> {
     let (mut request, mesh) = request_for_case(scenario, physics)?;
     request.schema_version = TRANSPORT_REQUEST_LEGACY_VERSION.into();
-    request
-        .responses
-        .retain(|response| !matches!(response.score, ScoreDefinition::Heating { .. }));
+    request.responses.retain(|response| {
+        !matches!(
+            response.score,
+            ScoreDefinition::Heating { .. } | ScoreDefinition::FluxAbove { .. }
+        )
+    });
     request.validate_against(scenario)?;
     Ok((request, mesh))
 }
@@ -905,40 +985,83 @@ fn check_geometric_volumes(
             );
         }
     }
+    let affected: &[String] = match penetration {
+        Some(faris_model::Penetration::OutboardRectangularPrism {
+            affected_component_ids,
+            ..
+        }) => affected_component_ids,
+        None => &[],
+    };
     for response in &result.results {
-        let expected = match &response.domain {
-            ResponseDomain::WholeModel => {
-                2.0 * std::f64::consts::PI.powi(2) * manifest.major_radius_m * outer.powi(2)
-            }
+        // Expected volume and, for volumes reduced by the port, the numerical
+        // refinement difference of the independent port-intersection estimate.
+        let (expected, refinement_delta) = match &response.domain {
+            ResponseDomain::WholeModel => (
+                2.0 * std::f64::consts::PI.powi(2) * manifest.major_radius_m * outer.powi(2),
+                None,
+            ),
             ResponseDomain::Component { component_id } => {
                 let component = variant
                     .components
                     .iter()
                     .find(|c| &c.id == component_id)
                     .ok_or("unknown component volume")?;
-                port_component_geometry
-                    .get(component_id.as_str())
-                    .map(|entry| entry.0)
-                    .unwrap_or(component.full_torus_volume_m3)
+                let entry = port_component_geometry.get(component_id.as_str());
+                (
+                    entry.map_or(component.full_torus_volume_m3, |entry| entry.0),
+                    penetration
+                        .map(|_| {
+                            entry.map(|entry| entry.1).ok_or(
+                                "missing port geometry volume estimate for affected component",
+                            )
+                        })
+                        .transpose()?,
+                )
+            }
+            ResponseDomain::ComponentRegion {
+                component_id,
+                region,
+            } => {
+                let component = variant
+                    .components
+                    .iter()
+                    .find(|c| &c.id == component_id)
+                    .ok_or("unknown component volume")?;
+                let full = crate::geometry::torus_shell_region_volume_m3(
+                    manifest.major_radius_m,
+                    component.inner_minor_radius_m,
+                    component.outer_minor_radius_m,
+                    region,
+                );
+                match penetration {
+                    Some(faris_model::Penetration::OutboardRectangularPrism {
+                        bounds_m, ..
+                    }) if affected.contains(component_id) => {
+                        let removed =
+                            crate::geometry::estimate_torus_shell_box_region_intersection(
+                                manifest.major_radius_m,
+                                component.inner_minor_radius_m,
+                                component.outer_minor_radius_m,
+                                region,
+                                &bounds_m.minimum_xyz_m,
+                                &bounds_m.maximum_xyz_m,
+                            )
+                            .ok_or("port region intersection needs a prism at positive x")?;
+                        (full - removed.volume_m3, Some(removed.refinement_delta_m3))
+                    }
+                    _ => (full, None),
+                }
             }
             ResponseDomain::Mesh { mesh_id, bin }
                 if mesh_id == &mesh.id && *bin < mesh.bins() as u64 =>
             {
-                mesh.bin_volume_m3()
+                (mesh.bin_volume_m3(), None)
             }
             _ => return Err("unknown field volume".into()),
         };
-        let tolerance = if let (Some(penetration), ResponseDomain::Component { component_id }) =
-            (penetration, &response.domain)
-        {
-            let _ = penetration;
-            let refinement_delta = port_component_geometry
-                .get(component_id.as_str())
-                .map(|entry| entry.1)
-                .ok_or("missing port geometry volume estimate for affected component")?;
-            (3.0 * response.volume_standard_error_m3.hypot(refinement_delta)).max(1.0e-8)
-        } else {
-            1.0e-10 * expected
+        let tolerance = match refinement_delta {
+            Some(delta) => (3.0 * response.volume_standard_error_m3.hypot(delta)).max(1.0e-8),
+            None => 1.0e-10 * expected,
         };
         if (response.volume_m3 - expected).abs() > tolerance {
             return Err(format!(
@@ -1826,10 +1949,10 @@ mod tests {
             old,
             MeshPreflight {
                 serialization_method: "compact-json-v1".into(),
-                request_json_bytes: 130_229,
-                raw_artifact_upper_bound_bytes: 500_241,
-                run_json_upper_bound_bytes: 620_698,
-                package_content_upper_bound_bytes: 5_649_173,
+                request_json_bytes: 130_991,
+                raw_artifact_upper_bound_bytes: 502_313,
+                run_json_upper_bound_bytes: 622_940,
+                package_content_upper_bound_bytes: 5_653_487,
             }
         );
         let current = mesh_payload_preflight(&request, &manifest, 296_682).unwrap();
@@ -1837,10 +1960,10 @@ mod tests {
             current,
             MeshPreflight {
                 serialization_method: "pretty-json-v2".into(),
-                request_json_bytes: 235_600,
-                raw_artifact_upper_bound_bytes: 783_214,
-                run_json_upper_bound_bytes: 812_095,
-                package_content_upper_bound_bytes: 6_359_143,
+                request_json_bytes: 236_831,
+                raw_artifact_upper_bound_bytes: 786_389,
+                run_json_upper_bound_bytes: 815_094,
+                package_content_upper_bound_bytes: 6_366_548,
             }
         );
     }

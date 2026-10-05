@@ -489,8 +489,9 @@ national-programme tools are not visible to such a survey.
 The novelty is the integration. Each individual model is shallower than the
 specialist tools, and an expert reviewer would raise these points first:
 maintenance timing is governed by activation and shutdown dose, which the demo
-does not model; the magnet check compares a volume-average fluence with a
-peak-fluence limit; and Monte Carlo uncertainty stops at the transport results.
+does not model; the magnet check applies a fast-fluence screening limit to
+region-average fluxes (inboard, outboard, port sector), not to a local peak; and
+Monte Carlo uncertainty stops at the transport results.
 The next steps address those three, in order.
 
 ### 1. Carry Monte Carlo uncertainty through the operating history
@@ -505,15 +506,28 @@ and the "uncertainty not propagated" caveat are replaced by the sampled result,
 and the export carries the distributions. Sampling runs off the UI thread and
 is cancellable when a slider moves.
 
-### 2. Peak magnet fluence instead of the volume average
+### 2. Fast flux in named magnet regions instead of the volume average
 
-Add a local tally on the magnet winding pack (fine mesh or peak cell, plus the
-fast-flux component above 0.1 MeV that the REBCO screening limit refers to) and
-rerun the four arrangements and the seven sweep points at 1M histories, about
-7 minutes each. The service-limit check uses the peak with its uncertainty. The
-average stays visible for comparison, and the scenario records which quantity
-the limit applies to. The current caveat that the volume average understates
-the local peak is retired only when this lands.
+Delivered in the transport request and history: fast-neutron flux above 0.1 MeV
+(the energy the REBCO screening limit refers to) is tallied for the whole magnet
+and for three named regions of it: the inboard half (R < R0), the outboard half
+outside the port sector, and the port sector (R >= R0 within 0.1745 rad of the
+port centre). The demountable-magnet preset applies the 3e22 n/m^2 screening
+value to each region and replaces the magnet when any region reaches it; the
+event and the ensemble name the region that did. The same regions are requested
+for the control arrangements, so a port arrangement and its control compare
+directly. The energy-integrated whole-volume average stays visible for
+comparison. What remains: the four arrangements and the seven sweep points
+must be rerun at 1M histories (about 7 minutes each) to fill the new responses,
+because recorded runs made before this change carry none.
+
+The local peak inside a region is not resolved. A region average dilutes a
+streaming hot spot, so the port-sector value is a lower estimate of the worst
+coil position. Resolving the peak needs a fine mesh or peak cell plus targeted
+variance reduction (weight windows or a CADIS-type importance map), because the
+winding pack sits behind about a metre of shield and a plain analog run scores
+almost nothing in a small cell. That is planned later and is the point at which
+the "average understates the peak" caveat can be retired.
 
 ### 3. Activation and decay heat at each scheduled outage (ACTINV)
 
