@@ -169,6 +169,23 @@ impl Svg {
         self.body.push_str("/>\n");
     }
 
+    /// A filled closed shape without an outline.
+    pub fn polygon(&mut self, points: &[(f32, f32)], fill: Rgb, opacity: f32) {
+        if points.len() < 3 {
+            return;
+        }
+        let mut d = String::with_capacity(points.len() * 14);
+        for (i, (x, y)) in points.iter().enumerate() {
+            let _ = write!(d, "{}{x:.2} {y:.2} ", if i == 0 { "M" } else { "L" });
+        }
+        let _ = writeln!(
+            self.body,
+            "<path d=\"{}Z\" fill=\"{}\" fill-opacity=\"{opacity:.3}\" stroke=\"none\"/>",
+            d,
+            hex(fill)
+        );
+    }
+
     pub fn circle(&mut self, cx: f32, cy: f32, r: f32, fill: Rgb, stroke: Rgb, width: f32) {
         let _ = writeln!(
             self.body,

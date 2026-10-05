@@ -6,6 +6,7 @@
 //! functions, so the wording and the numbers cannot differ between them. Every
 //! statement here carries transport Monte Carlo sampling uncertainty only.
 
+use crate::brief::Arrangement;
 use crate::history::{HISTORY_PROCESSING_MODEL_ID, JULIAN_YEAR_SECONDS, TransportDrivingRates};
 use crate::history_ensemble::{
     ContinuousSummary, DiscreteSummary, EnsembleComparison, EnsembleStatus, HistoryEnsemble,
@@ -528,6 +529,53 @@ pub fn band_coverage_note(n_at_point: u32, samples: u32) -> Option<String> {
 
 // ---------------------------------------------------------------------------
 // Paired comparison
+
+/// One of the four contrasts of the comparison: the second arrangement minus
+/// the first, with names that read in a sentence.
+#[derive(Clone, Copy, Debug)]
+pub struct HistoryContrast {
+    pub title: &'static str,
+    pub a: Arrangement,
+    pub b: Arrangement,
+    pub a_name: &'static str,
+    pub b_name: &'static str,
+}
+
+const fn arrangement(port: bool, breeder: bool) -> Arrangement {
+    Arrangement { port, breeder }
+}
+
+/// The contrasts of the comparison view and the exported brief, in their order.
+pub const CONTRASTS: [HistoryContrast; 4] = [
+    HistoryContrast {
+        title: "Breeder-heavy − Reference · with port",
+        a: arrangement(true, false),
+        b: arrangement(true, true),
+        a_name: "Reference with port",
+        b_name: "Breeder-heavy with port",
+    },
+    HistoryContrast {
+        title: "Breeder-heavy − Reference · no port",
+        a: arrangement(false, false),
+        b: arrangement(false, true),
+        a_name: "Reference without port",
+        b_name: "Breeder-heavy without port",
+    },
+    HistoryContrast {
+        title: "Port − No port · reference",
+        a: arrangement(false, false),
+        b: arrangement(true, false),
+        a_name: "Reference without port",
+        b_name: "Reference with port",
+    },
+    HistoryContrast {
+        title: "Port − No port · breeder-heavy",
+        a: arrangement(false, true),
+        b: arrangement(true, true),
+        a_name: "Breeder-heavy without port",
+        b_name: "Breeder-heavy with port",
+    },
+];
 
 /// One line of the history comparison between two arrangements.
 #[derive(Clone, Debug, PartialEq)]

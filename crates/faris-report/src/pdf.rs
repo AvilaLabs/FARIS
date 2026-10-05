@@ -6,10 +6,14 @@ use crate::{
     charts::{ChartSvg, wrap_lines},
     fonts::{BODY_FONT, FontKind, MONO_FONT, font_database, text_width},
     svg::{INK, MUTED, Rgb, darken, tint},
+    uncertainty::{ColumnStatus, UncertaintyReport},
 };
-use faris_engine::brief::{
-    AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast, REFERENCE_BLANKET_M,
-    StatusKind, StudyComparison,
+use faris_engine::{
+    brief::{
+        AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
+        REFERENCE_BLANKET_M, StatusKind, StudyComparison,
+    },
+    history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
 };
 use krilla::{
     Document,
@@ -52,6 +56,11 @@ pub struct PdfContent<'a> {
     pub caveats: &'a [Caveat],
     pub footer: String,
     pub view_image: Option<&'a [u8]>,
+    /// The history ensembles of the arrangements; a third page when present.
+    pub uncertainty: Option<&'a UncertaintyReport>,
+    /// The tritium and net-electricity band charts, drawn under the table
+    /// when they fit.
+    pub band_charts: Vec<&'a ChartSvg>,
 }
 
 struct Canvas<'a, 's> {
@@ -445,13 +454,13 @@ fn delta_cells(c: &Contrast) -> [Option<(String, StatusKind, &'static str)>; 5] 
     ]
 }
 
-fn page_footer(cv: &mut Canvas, text: &str, page: usize) {
+fn page_footer(cv: &mut Canvas, text: &str, page: usize, pages: usize) {
     cv.hline(MARGIN, PAGE_W - MARGIN, 768.0, RULE, 0.6);
     cv.body(MARGIN, 778.0, &fit_text(text, 440.0, 6.6), 6.6, MUTED);
     cv.right(
         PAGE_W - MARGIN,
         778.0,
-        &format!("Page {page} of 2"),
+        &format!("Page {page} of {pages}"),
         6.6,
         MUTED,
         FontKind::Body,
@@ -623,6 +632,16 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         y += row_h;
     }
     cv.hline(MARGIN, PAGE_W - MARGIN, y - 1.0, RULE, 0.6);
+    if c.uncertainty.is_some() {
+        cv.body(
+            MARGIN + 4.0,
+            y + 6.2,
+            "Monte Carlo ranges for the history values above, and their distributions, are on page 3 (transport sampling uncertainty only).",
+            6.2,
+            MUTED,
+        );
+        y += 9.0;
+    }
     y += 8.0;
 
     // What changes.
@@ -891,6 +910,175 @@ fn page_two(cv: &mut Canvas, c: &PdfContent, k: f32) -> f32 {
     y
 }
 
+/// Page three: every history output beside its Monte Carlo range or
+/// distribution, one column per arrangement. Returns the y reached.
+fn page_three(cv: &mut Canvas, c: &PdfContent, report: &UncertaintyReport) -> f32 {
+    let mut y = MARGIN;
+    cv.bold(
+        MARGIN,
+        y + 10.0,
+        "Uncertainty in the operating history",
+        10.0,
+        INK,
+    );
+    y += 17.0;
+    cv.pill(
+        MARGIN,
+        y - 1.0,
+        "transport sampling only",
+        StatusKind::Partial,
+        6.2,
+    );
+    cv.body(
+        MARGIN + 82.0,
+        y + 5.6,
+        &fit_text(SCOPE_LINE, CONTENT_W - 82.0, 6.8),
+        6.8,
+        MUTED,
+    );
+    y += 12.0;
+    y = cv.paragraph(
+        MARGIN,
+        y,
+        CONTENT_W,
+        &format!(
+            "{SCOPE_DETAIL} P5 and P95 are the 5th and 95th percentiles of the sampled histories; the median sits between them. A count is shown as the share of samples that reach it."
+        ),
+        6.6,
+        8.4,
+        MUTED,
+    );
+    y += 4.0;
+    for (arrangements, why, next) in report.not_evaluated_notes() {
+        let text = format!(
+            "No uncertainty range for {}: {why}. Next step: {next}.",
+            arrangements.join(", ")
+        );
+        let lines = wrap_lines(&text, CONTENT_W - 16.0, 7.0);
+        let h = lines.len() as f32 * 9.0 + 7.0;
+        cv.rect(
+            MARGIN,
+            y,
+            CONTENT_W,
+            h,
+            3.0,
+            Some((STRIPE, 1.0)),
+            Some((RULE, 0.6)),
+        );
+        let mut ty = y + 4.0;
+        for line in &lines {
+            cv.body(MARGIN + 8.0, ty + 7.0, line, 7.0, INK);
+            ty += 9.0;
+        }
+        y += h + 5.0;
+    }
+    y += 2.0;
+
+    let label_w = 112.0;
+    let n = report.columns.len().max(1);
+    let col_w = (CONTENT_W - label_w) / n as f32;
+    for (i, column) in report.columns.iter().enumerate() {
+        let x = MARGIN + label_w + col_w * i as f32;
+        cv.rect(
+            x + 2.0,
+            y,
+            col_w - 4.0,
+            3.0,
+            1.2,
+            Some((column.arrangement.rgb(), 1.0)),
+            None,
+        );
+        cv.bold(x + 4.0, y + 12.0, column.arrangement.label(), 7.4, INK);
+        let status = match &column.status {
+            ColumnStatus::Evaluated { samples, .. } => format!("{samples} samples"),
+            ColumnStatus::NotEvaluated { .. } => "not evaluated".into(),
+            ColumnStatus::Failed(_) => "not calculated".into(),
+            ColumnStatus::NotCalculated => "not calculated".into(),
+            ColumnStatus::NoHistory => "no history".into(),
+        };
+        cv.body(x + 4.0, y + 20.0, &status, 6.0, MUTED);
+    }
+    y += 25.0;
+    cv.hline(MARGIN, PAGE_W - MARGIN, y, RULE, 0.6);
+    let size = 6.5;
+    let lead = 7.8;
+    for (r, (name, label)) in report.row_labels().iter().enumerate() {
+        // Wrap every cell first so the row is as tall as its tallest.
+        let cells: Vec<(String, Vec<String>)> = report
+            .columns
+            .iter()
+            .map(|column| {
+                column
+                    .rows
+                    .iter()
+                    .find(|row| row.name == *name)
+                    .map_or_else(
+                        || ("—".to_string(), Vec::new()),
+                        |row| {
+                            let lines = match &row.result {
+                                Some(result) => wrap_lines(&result.text, col_w - 8.0, size),
+                                None => vec!["no uncertainty range".into()],
+                            };
+                            (format!("nominal {}", row.nominal), lines)
+                        },
+                    )
+            })
+            .collect();
+        let lines_max = cells.iter().map(|(_, l)| l.len()).max().unwrap_or(0);
+        let h = (lines_max as f32 + 1.0) * lead + 5.0;
+        if y + h > BOTTOM {
+            break;
+        }
+        if r % 2 == 0 {
+            cv.rect(
+                MARGIN,
+                y + 0.5,
+                CONTENT_W,
+                h,
+                0.0,
+                Some((STRIPE, 1.0)),
+                None,
+            );
+        }
+        let label_lines = wrap_lines(label, label_w - 8.0, 7.2);
+        let mut ly = y + 2.0;
+        for line in &label_lines {
+            cv.bold(MARGIN + 4.0, ly + 7.2, line, 7.2, INK);
+            ly += 8.6;
+        }
+        for (i, (nominal, lines)) in cells.iter().enumerate() {
+            let x = MARGIN + label_w + col_w * i as f32 + 4.0;
+            cv.text(
+                x,
+                y + 2.0 + 6.6,
+                &fit_text_in(FontKind::Mono, nominal, col_w - 8.0, 6.6),
+                6.6,
+                INK,
+                FontKind::Mono,
+                false,
+            );
+            let muted = lines.first().is_some_and(|l| l == "no uncertainty range");
+            let mut ty = y + 2.0 + lead;
+            for line in lines {
+                cv.body(x, ty + size, line, size, if muted { MUTED } else { INK });
+                ty += lead;
+            }
+        }
+        y += h;
+    }
+    cv.hline(MARGIN, PAGE_W - MARGIN, y + 0.5, RULE, 0.6);
+    y += 8.0;
+    // The band charts, when both fit under the table.
+    let needed: f32 = c.band_charts.iter().map(|b| b.height + 4.0).sum();
+    if !c.band_charts.is_empty() && y + needed <= BOTTOM {
+        for chart in &c.band_charts {
+            cv.svg(chart, MARGIN, y);
+            y += chart.height + 4.0;
+        }
+    }
+    y
+}
+
 /// Largest font scale at which page two fits above the footer.
 fn page_two_scale(c: &PdfContent, body: &Font, mono: &Font) -> f32 {
     for k in [1.0, 0.95, 0.9, 0.86, 0.82, 0.78] {
@@ -913,6 +1101,7 @@ pub struct Extent {
     pub page_one_bottom: f32,
     pub page_two_bottom: f32,
     pub page_two_scale: f32,
+    pub page_three_bottom: Option<f32>,
 }
 
 #[cfg(test)]
@@ -926,10 +1115,12 @@ pub fn measure(c: &PdfContent) -> Result<Extent, String> {
     let page_one_bottom = page_one(&mut dry, c);
     let k = page_two_scale(c, &body, &mono);
     let page_two_bottom = page_two(&mut dry, c, k);
+    let page_three_bottom = c.uncertainty.map(|u| page_three(&mut dry, c, u));
     Ok(Extent {
         page_one_bottom,
         page_two_bottom,
         page_two_scale: k,
+        page_three_bottom,
     })
 }
 
@@ -942,6 +1133,7 @@ fn fonts() -> Result<(Font, Font), String> {
 pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
     let (body, mono) = fonts()?;
     let k = page_two_scale(c, &body, &mono);
+    let pages = if c.uncertainty.is_some() { 3 } else { 2 };
     let mut document = Document::new();
     document.set_metadata(
         Metadata::new()
@@ -958,7 +1150,7 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
             mono: mono.clone(),
         };
         page_one(&mut cv, c);
-        page_footer(&mut cv, &c.footer, 1);
+        page_footer(&mut cv, &c.footer, 1, pages);
         surface.finish();
         page.finish();
     }
@@ -968,11 +1160,25 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
         let mut surface = page.surface();
         let mut cv = Canvas {
             surface: Some(&mut surface),
+            body: body.clone(),
+            mono: mono.clone(),
+        };
+        page_two(&mut cv, c, k);
+        page_footer(&mut cv, &c.footer, 2, pages);
+        surface.finish();
+        page.finish();
+    }
+    if let Some(report) = c.uncertainty {
+        let mut page = document
+            .start_page_with(PageSettings::from_wh(PAGE_W, PAGE_H).ok_or("page size rejected")?);
+        let mut surface = page.surface();
+        let mut cv = Canvas {
+            surface: Some(&mut surface),
             body,
             mono,
         };
-        page_two(&mut cv, c, k);
-        page_footer(&mut cv, &c.footer, 2);
+        page_three(&mut cv, c, report);
+        page_footer(&mut cv, &c.footer, 3, pages);
         surface.finish();
         page.finish();
     }

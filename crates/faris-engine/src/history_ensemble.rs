@@ -304,7 +304,7 @@ pub struct SampleOutcome {
 
 impl SampleOutcome {
     /// Every numeric output by name; replacement counts are `replacements:<id>`.
-    fn scalar_outputs(&self) -> BTreeMap<String, f64> {
+    pub fn scalar_outputs(&self) -> BTreeMap<String, f64> {
         let mut out = BTreeMap::new();
         out.insert("full_power_time_s".into(), self.full_power_time_s);
         out.insert("terminal_time_s".into(), self.terminal_time_s);

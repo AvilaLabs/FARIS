@@ -10,8 +10,10 @@ mod fonts;
 mod pdf;
 mod svg;
 mod tables;
+mod uncertainty;
 
-pub use charts::{ChartSvg, LimitLine, TimelineSeries};
+pub use charts::{Band, BandSeries, ChartSvg, LimitLine, TimelineSeries};
+pub use uncertainty::{Column, ColumnStatus, EnsembleInput, UncertaintyReport};
 
 use faris_engine::{
     brief::{
@@ -68,6 +70,8 @@ pub struct ArrangementInput {
     pub transport: Option<TransportSummary>,
     pub sampling: Option<Sampling>,
     pub history: Option<HistoryResult>,
+    /// The Monte Carlo ensemble of the history, when one was calculated.
+    pub ensemble: EnsembleInput,
 }
 
 /// The allocation sweep: transport points and the history summaries aligned
@@ -134,6 +138,9 @@ struct Manifest<'a> {
     study_name: &'a str,
     study_file: Option<&'a StudyFileStamp>,
     view_image: ViewImageRecord,
+    /// One entry per arrangement with a history: method, seed (as text),
+    /// samples, rejections and status of its ensemble.
+    history_ensembles: Vec<uncertainty::EnsembleRecord>,
     files: &'a [FileRecord],
 }
 
@@ -257,6 +264,9 @@ struct Prepared {
     caveats: Vec<Caveat>,
     view_image: Option<Vec<u8>>,
     view_note: Option<String>,
+    uncertainty: Option<UncertaintyReport>,
+    /// Tritium and net-electricity charts with their bands.
+    band_charts: Vec<ChartSvg>,
 }
 
 fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
@@ -329,6 +339,7 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
                 .into_iter()
                 .map(|(a, b)| (a / JULIAN_YEAR_SECONDS, b / JULIAN_YEAR_SECONDS))
                 .collect(),
+                band: uncertainty::fluence_band(d),
             })
         })
         .collect();
@@ -429,6 +440,29 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
             },
         );
     }
+    let uncertainty_report = uncertainty::build(&data);
+    let (tritium_bands, electricity_bands) = uncertainty::band_series(&data);
+    let mut band_charts = Vec::new();
+    if !tritium_bands.is_empty() {
+        band_charts.push(charts::band_chart(
+            "history-tritium-bands",
+            &format!("Usable tritium over {horizon_years:.0} years of operation"),
+            "Usable tritium (kg)",
+            &tritium_bands,
+            horizon_years,
+            charts::BAND_CHART_HEIGHT,
+        ));
+    }
+    if !electricity_bands.is_empty() {
+        band_charts.push(charts::band_chart(
+            "history-net-electricity-bands",
+            &format!("Cumulative signed net electricity over {horizon_years:.0} years"),
+            "Net electricity (TWh)",
+            &electricity_bands,
+            horizon_years,
+            charts::BAND_CHART_HEIGHT,
+        ));
+    }
     Ok(Prepared {
         data,
         study,
@@ -443,6 +477,8 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
         caveats: list,
         view_image,
         view_note,
+        uncertainty: uncertainty_report,
+        band_charts,
     })
 }
 
@@ -499,6 +535,8 @@ fn pdf_content<'a>(
         caveats: &p.caveats,
         footer: footer(input),
         view_image: p.view_image.as_deref(),
+        uncertainty: p.uncertainty.as_ref(),
+        band_charts: p.band_charts.iter().collect(),
     }
 }
 
@@ -530,6 +568,16 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
         |s| tables::sweep_csv(&s.points, &s.summaries),
     );
     files.push(("data/sweep.csv".into(), sweep_csv.into_bytes()));
+    if p.uncertainty.is_some() {
+        files.push((
+            "data/history-ensemble-samples.csv".into(),
+            tables::ensemble_samples_csv(&order).into_bytes(),
+        ));
+        files.push((
+            "data/history-ensemble-summary.csv".into(),
+            tables::ensemble_summary_csv(&order).into_bytes(),
+        ));
+    }
     files.push((
         "data/assumptions.csv".into(),
         tables::assumptions_csv(&p.assumptions).into_bytes(),
@@ -543,6 +591,7 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
     if let Some(sweep) = &p.sweep_charts {
         all_charts.extend(sweep.iter().map(|c| (c, 4.0)));
     }
+    all_charts.extend(p.band_charts.iter().map(|c| (c, 3.0)));
     for (chart, scale) in all_charts {
         files.push((
             format!("charts/{}.svg", chart.name),
@@ -597,6 +646,7 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
             included: prepared.view_image.is_some(),
             note: prepared.view_note.clone(),
         },
+        history_ensembles: uncertainty::manifest_records(&prepared.data),
         files: &records,
     };
     let mut text =
