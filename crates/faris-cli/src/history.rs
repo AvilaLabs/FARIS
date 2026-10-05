@@ -222,7 +222,7 @@ fn ensemble(
             result.rejections
         ),
         EnsembleStatus::NotEvaluated { why, next_step } => println!(
-            "History ensemble NOT EVALUATED, recorded at {}: {why}. Next step: {next_step}.",
+            "History ensemble NOT_EVALUATED, recorded at {}: {why}. Next step: {next_step}.",
             output.display()
         ),
     }

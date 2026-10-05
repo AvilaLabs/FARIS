@@ -28,3 +28,5 @@ jobs:
         run: python3 -m unittest discover -s controls -p 'test_*.py'
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
+      - name: Wording lint over user-facing text
+        run: python3 scripts/wording_lint.py

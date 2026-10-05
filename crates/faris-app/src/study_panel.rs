@@ -444,7 +444,7 @@ impl StudyPanel {
             "Scientific verdict",
             Kind::NotEvaluated,
             "NOT_EVALUATED",
-            "No scientific assessment has been made at this level. Compilation and readiness do not establish one; a verdict needs executed, verified evidence stages with qualified bounds.",
+            "No scientific assessment has been made at this level. Compilation and readiness do not establish one; a verdict needs executed, verified evidence stages that give bounded physical ranges.",
         );
         self.status_rect = Some(egui::Rect::from_min_max(
             egui::pos2(ui.max_rect().left(), status_top),
@@ -494,7 +494,7 @@ impl StudyPanel {
                 if let Some(findings)=evidence.report["findings"].as_array(){for f in findings{ui.small(format!("{}: {}",f["code"].as_str().unwrap_or("finding"),f["message"].as_str().unwrap_or("See record")));}}
             }
             if let Some(path)=&self.evidence_output{ui.small(format!("Evidence: {}",path.display()));}
-            badge::badge(ui,Kind::Conditional,"qualified bounds unavailable","Transport stage verifies the prior OpenMC run; normalization/history/energy execute through the bound Rust CLI. Qualified physical bounds remain unavailable.");
+            badge::badge(ui,Kind::Conditional,"physical bounds unavailable","Transport stage verifies the prior OpenMC run; normalization/history/energy execute through the bound Rust CLI. Bounded physical ranges remain unavailable.");
         });
     }
 

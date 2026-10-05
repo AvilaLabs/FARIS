@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 90 of 1408 requirements.
+Traced: 94 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -32,7 +32,7 @@ Traced: 90 of 1408 requirements.
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 43 | 0 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 0 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 0 |
-| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 1 |
+| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 5 |
 
 ## Traced requirements
 
@@ -128,3 +128,7 @@ Traced: 90 of 1408 requirements.
 | SEC-061 | F1 | `crates/faris-engine/src/jobs.rs::inherited_address_space_limit_bounds_child_allocation`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_killed_by_inherited_file_size_limit` |
 | SEC-063 | F2 | `crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly` |
 | LEG-040 | F1 | `crates/faris-cli/tests/history_screening.rs::history_run_and_ensemble_print_the_statement_without_changing_the_file`<br>`crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |
+| LEG-041 | F1 | `scripts/test_wording_lint.py::test_allow_list_is_exact_sentence_and_must_be_used`<br>`scripts/test_wording_lint.py::test_claims_are_flagged`<br>`scripts/test_wording_lint.py::test_negated_and_limited_uses_are_allowed`<br>`scripts/test_wording_lint.py::test_negation_must_be_in_the_same_sentence_and_close` |
+| LEG-042 | F1 | `scripts/test_wording_lint.py::test_twin_is_flagged`<br>`scripts/test_wording_lint.py::test_twin_only_in_allow_listed_sentence` |
+| LEG-043 | F1 | `scripts/test_wording_lint.py::test_canonical_words_and_ordinary_english_are_clean`<br>`scripts/test_wording_lint.py::test_title_case_only_allowed_at_sentence_start`<br>`scripts/test_wording_lint.py::test_variant_spellings_are_flagged` |
+| LEG-044 | F1 | `scripts/test_wording_lint.py::test_codenames_are_flagged`<br>`scripts/test_wording_lint.py::test_codenames_are_whole_word_and_case_sensitive`<br>`scripts/test_wording_lint.py::test_file_names_are_checked` |
