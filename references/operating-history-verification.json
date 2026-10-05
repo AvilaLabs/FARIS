@@ -239,10 +239,10 @@
   ],
   "comparison_artifact": {
     "path": "references/operating-history-comparison-reference-1m.json",
-    "sha256": "0eaa93223a8c6483116250775b39598e3ca1ed6969ee3a3da335e4eabf398924",
-    "size_bytes": 57365,
+    "sha256": "05432d6b2ed7a889f003c203e350dc2d8ff55c41986d8e2d2823e249b5e4d201",
+    "size_bytes": 57509,
     "qualification": "descriptive deterministic conditional comparison; distinct seeds; no covariance/inferential conclusion",
-    "controlled_difference": "blanket lithium enrichment and neutron multiplier differ; distinct seeds, descriptive comparison only"
+    "controlled_difference": "Reference and breeder-emphasis blanket/shield geometry allocations differ (blanket +0.10 m, shield −0.10 m), with material compositions, source and data held fixed under the same scenario and authored assumptions; transport seeds are distinct."
   },
   "event_demonstrations": {
     "reference": {

@@ -2,7 +2,7 @@
   "schema_version": "faris-history-comparison/v0.1",
   "left_label": "reference",
   "right_label": "breeder",
-  "controlled_difference": "blanket lithium enrichment and neutron multiplier differ; distinct seeds, descriptive comparison only",
+  "controlled_difference": "Reference and breeder-emphasis blanket/shield geometry allocations differ (blanket +0.10 m, shield −0.10 m), with material compositions, source and data held fixed under the same scenario and authored assumptions; transport seeds are distinct.",
   "dependence_note": "Both deterministic histories use the same authored assumptions. Transport Monte Carlo responses may share histories and their covariance is not inferred here; differences are descriptive point estimates, not uncertainty-qualified effects.",
   "left": {
     "outcome": "horizon_completed",

@@ -1351,7 +1351,7 @@ impl HistoryPanel {
             font.clone(),
             text_color,
         );
-        painter.text(
+        let title_rect = painter.text(
             outer.left_top() + egui::vec2(10.0, 6.0),
             egui::Align2::LEFT_TOP,
             plot.title(),
@@ -1462,10 +1462,15 @@ impl HistoryPanel {
             ],
             egui::Stroke::new(1.5, egui::Color32::from_gray(235)),
         );
+        let label = format!("{:.1} y", *year);
+        let label_size = painter
+            .layout_no_wrap(label.clone(), font.clone(), egui::Color32::WHITE)
+            .size();
+        let label_rect = cursor_label_rect(outer, area, title_rect, cursor_x, label_size);
         painter.text(
-            egui::pos2(cursor_x, area.top() - 2.0),
-            egui::Align2::CENTER_BOTTOM,
-            format!("{:.1} y", *year),
+            label_rect.left_top(),
+            egui::Align2::LEFT_TOP,
+            label,
             font.clone(),
             egui::Color32::from_gray(235),
         );
@@ -1848,9 +1853,44 @@ fn fmt_tick(plot: Plot, v: f64, step: f64) -> String {
     format!("{v:.decimals$}")
 }
 
+/// Where the cursor-year label goes: centred on the cursor above the plot
+/// area, shifted sideways to stay inside `outer`; if that would touch the
+/// title it drops just inside the plot area instead.
+fn cursor_label_rect(
+    outer: egui::Rect,
+    area: egui::Rect,
+    title: egui::Rect,
+    cursor_x: f32,
+    size: egui::Vec2,
+) -> egui::Rect {
+    let max_left = (outer.right() - size.x).max(outer.left());
+    let left = (cursor_x - size.x / 2.0).clamp(outer.left(), max_left);
+    let above = egui::Rect::from_min_size(egui::pos2(left, area.top() - 2.0 - size.y), size);
+    if above.top() >= outer.top() && !above.intersects(title.expand(2.0)) {
+        return above;
+    }
+    egui::Rect::from_min_size(egui::pos2(left, area.top() + 2.0), size)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cursor_label_never_overlaps_title_and_stays_inside() {
+        let outer = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(600.0, 300.0));
+        let area = egui::Rect::from_min_max(egui::pos2(78.0, 26.0), egui::pos2(582.0, 266.0));
+        let title = egui::Rect::from_min_size(egui::pos2(10.0, 6.0), egui::vec2(260.0, 14.0));
+        let size = egui::vec2(28.0, 12.0);
+        for step in 0..=100 {
+            let x = area.left() + area.width() * step as f32 / 100.0;
+            let r = cursor_label_rect(outer, area, title, x, size);
+            assert!(!r.intersects(title), "overlaps title at x={x}");
+            assert!(outer.contains_rect(r), "outside plot at x={x}");
+        }
+        let at_zero = cursor_label_rect(outer, area, title, area.left(), size);
+        assert!(at_zero.top() >= area.top());
+    }
 
     #[test]
     fn scientific_notation_uses_superscripts() {

@@ -115,6 +115,17 @@ lowercase hexadecimal SHA-256 without a prefix.
   both match; one that exists with a different hash is reported as such, never used.
 - `blobs`: `[{sha256, bytes, media_type, encoding}]`, one per distinct file.
 
+Recorded-transport members are whatever the bundle holds: six required files
+and three optional ones, `solver/worker-result.json`,
+`solver/transport-spectra.json` and `solver/transport-batch-values.json`. The
+last is the per-batch response values behind the recorded response covariance.
+Like every member it is stored as a content-addressed blob and hashed on read.
+It is optional on both sides: bundles recorded before the adapter wrote it
+have no such member and load unchanged, and a reader accepts a file either
+way. This needs no new format version, because unknown manifest fields and
+member names inside the bundle's own allowed list are already covered by the
+minor-version rule above (`files` is a free map of member name to digest).
+
 Packed evidence archives are blobs with media type `application/gzip`, stored
 rather than recompressed.
 

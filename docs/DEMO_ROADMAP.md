@@ -554,10 +554,6 @@ evaluated.
   demountable-magnet preset.
 - The native interface-check plans in `references/native-demo-checks` click
   fixed positions that moved with the step layout.
-- The saved-study panel shows manual path fields first.
-- The "0.0 y" cursor label overlaps the plot title at year 0.
-- `references/operating-history-comparison-reference-1m.json` still carries
-  the stale `controlled_difference` label.
 - A `.faris` preview thumbnail is reserved in the format but not written.
 
 ## References for implementation
