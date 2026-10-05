@@ -31,6 +31,7 @@ from recorded_archives import (extract_indexed_trees, MAX_EXPANDED_BYTES, MAX_ME
 INDEX = "package-index.json"
 CHECKSUM = "package-index.sha256"
 MAX_FILE_BYTES = 64 * 1024 * 1024
+HISTORY_REFINEMENT_REPORT = "references/operating-history-primary-refinement-v4.json"
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
 
 
@@ -362,9 +363,9 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
     support_manifest = json.loads(support_manifest_path.read_text(encoding="utf-8"))
     baseline_support_record = next((item for item in support_manifest.get("files", [])
                                     if (item.get("source_path")
-                                        == "references/operating-history-primary-refinement-v3.json"
+                                        == HISTORY_REFINEMENT_REPORT
                                         or item.get("source_name")
-                                        == "operating-history-primary-refinement-v3.json")), None)
+                                        == Path(HISTORY_REFINEMENT_REPORT).name)), None)
     if (not isinstance(baseline_support_record, dict)
             or baseline_support_record.get("source_sha256") != baseline_report_sha):
         raise ValueError("outage-duration anchor is not bound to the packaged independent baseline report")
