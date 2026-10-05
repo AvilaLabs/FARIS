@@ -273,6 +273,7 @@ development artifacts, not simulation evidence.
 | `docs/TOOLING.md` | Open-source tools and planned integration roles |
 | `docs/SCIENTIFIC_BASELINE.md` | Benchmark selection, validation scope, uncertainty rules and unresolved scientific inputs |
 | `docs/MATERIAL_BASELINE.md` | Primary-source material candidates and inputs that still need resolution |
+| `docs/USER_GUIDE.md` | User guide for the desktop app and command line (release 0.1.0) |
 | `docs/STUDY_FILE.md` | The `.faris` study file: container, size policy, reading rules |
 | `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
 | `controls/` | Independent analytic controls and external OpenMC numerical checks |
