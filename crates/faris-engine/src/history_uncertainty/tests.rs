@@ -16,6 +16,7 @@ fn key(samples: u32) -> EnsembleKey {
     .unwrap()
 }
 
+// Verifies: AUTO-030
 #[test]
 fn the_same_inputs_give_the_same_key_and_hit_the_cache() {
     let a = key(10);
@@ -28,6 +29,7 @@ fn the_same_inputs_give_the_same_key_and_hit_the_cache() {
     assert_eq!(cache.len(), 1);
 }
 
+// Verifies: AUTO-033
 #[test]
 fn changing_any_component_of_the_key_misses() {
     let base = key(10);

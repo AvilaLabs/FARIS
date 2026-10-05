@@ -779,6 +779,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
         self.assertEqual(after, before)
 
+    # Verifies: PRV-005
     def test_tampered_copy_is_rejected_without_changing_source(self):
         original_hash = VERIFY.digest(self.package / "package-index.json")
         original_file = VERIFY.digest(self.package / "control" / "scenario.json")
@@ -813,6 +814,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("outside the read-only distribution", result.stderr)
 
+    # Verifies: SEC-002
     def test_index_rejects_extra_unindexed_file_and_path_traversal(self):
         extra = self.package / "unexpected.txt"
         write(extra, "unindexed\n")
@@ -821,6 +823,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             VERIFY.safe_package_path(self.package.resolve(), "../outside")
 
+    # Verifies: GEO-022
     def test_port_geometry_contract_rejects_material_in_clearance(self):
         ownership_path = self.package / "port" / "geometry" / "reference-ownership-audit.json"
         ownership = json.loads(ownership_path.read_text())
@@ -840,6 +843,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
             validate_ownership_audits(ownership["geometry_ownership_audit"],
                                       ownership["penetration_volume_audit"], **kwargs)
 
+    # Verifies: GEO-046
     def test_bundle_rejects_oversized_mesh_before_range_allocation(self):
         bundle_path = self.package / "control" / "bundles" / "reference.transport-bundle.json"
         bundle = json.loads(bundle_path.read_text())

@@ -920,6 +920,7 @@ mod tests {
         .unwrap()
     }
 
+    // Verifies: UX-027
     #[test]
     fn title_names_the_file_marks_changes_and_says_unsaved() {
         let path = Path::new("/home/x/ports/study.faris");
@@ -930,6 +931,7 @@ mod tests {
         assert_eq!(window_title(None, true), "FARIS — unsaved study");
     }
 
+    // Verifies: UX-027
     #[test]
     fn a_changed_view_marks_the_title_until_it_is_saved_again() {
         let mut state = FileState::default();
@@ -948,6 +950,7 @@ mod tests {
         assert!(state.dirty(&view));
     }
 
+    // Verifies: VIS-074, CFG-034
     #[test]
     fn the_view_round_trips_through_a_fresh_app() {
         let mut first = app();
@@ -1061,6 +1064,7 @@ mod tests {
         }
     }
 
+    // Verifies: PRV-041, PRV-042, PRV-012
     #[test]
     fn missing_referenced_evidence_explains_why_and_the_next_step() {
         let missing = |name: &str, kind| EvidenceMiss {

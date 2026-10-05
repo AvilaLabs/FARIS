@@ -830,6 +830,7 @@ mod tests {
         (req, art, scenario)
     }
 
+    // Verifies: NUC-003, SRC-001, PWR-012
     #[test]
     fn power_and_units_scale_exactly_and_cm3_equals_m3() {
         let (r, a, s) = fixture(VolumeUnit::CubicMetre);
@@ -853,6 +854,7 @@ mod tests {
         assert!(normalized.results[0].integrated_standard_error > 0.0);
     }
 
+    // Verifies: NUC-003, FUEL-004, UNC-001
     #[test]
     fn flux_reaction_particle_production_and_heating_have_distinct_units() {
         let (mut request, mut artifact, scenario) = fixture(VolumeUnit::CubicMetre);
@@ -992,6 +994,7 @@ mod tests {
         );
     }
 
+    // Verifies: NUC-004, FUEL-004
     #[test]
     fn validates_volume_domains_units_and_exact_echo() {
         let (r, mut a, s) = fixture(VolumeUnit::CubicMetre);
@@ -1029,6 +1032,7 @@ mod tests {
         assert!(normalize_transport_artifact(&r, &a, &s).is_err());
     }
 
+    // Verifies: NUC-004
     #[test]
     fn component_volume_must_be_explicit_not_derived_or_guessed() {
         let (r, mut a, s) = fixture(VolumeUnit::CubicMetre);
@@ -1109,6 +1113,7 @@ mod tests {
             .to_string()
     }
 
+    // Verifies: UNC-011
     #[test]
     fn covariance_is_scaled_like_integrated_means() {
         let (request, artifact, scenario) = covariance_fixture();
@@ -1351,6 +1356,7 @@ mod tests {
         (request, artifact, scenario)
     }
 
+    // Verifies: NUC-017, UNC-011
     #[test]
     fn regional_fast_flux_normalizes_per_region_volume_with_volume_error() {
         let (request, artifact, scenario) = region_fixture();

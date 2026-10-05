@@ -899,6 +899,7 @@ mod tests {
         assert!(project(&camera, rect, behind).is_none());
     }
 
+    // Verifies: VIS-007
     #[test]
     fn pointer_pick_selects_the_nearest_component() {
         let square = |z: f32| -> Arc<[MeshVertex]> {

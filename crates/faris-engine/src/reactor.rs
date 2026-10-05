@@ -1858,6 +1858,7 @@ mod tests {
             assert_eq!(before.to_bits(), after.to_bits());
         }
     }
+    // Verifies: NUC-048
     #[test]
     fn sampling_plan_rejects_unbounded_or_unusable_work() {
         assert_eq!(
@@ -1901,6 +1902,7 @@ mod tests {
         );
     }
 
+    // Verifies: GEO-046
     #[test]
     fn mesh_presets_are_bounded_and_local_pair_shares_exact_bounds() {
         let scenario = LoadedScenario::from_bytes(include_bytes!(

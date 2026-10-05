@@ -466,6 +466,7 @@ mod tests {
         };
         (dir, spec)
     }
+    // Verifies: NUC-004
     #[test]
     fn preserves_exit_code_and_does_not_infer_a_scientific_verdict() {
         let (_dir, spec) = shell("printf 'raw tally'; printf 'solver note' >&2; exit 7");
@@ -475,6 +476,7 @@ mod tests {
         assert_eq!(result.stdout, "raw tally");
         assert_eq!(result.stderr, "solver note");
     }
+    // Verifies: AUTO-040, REL-006
     #[test]
     fn timeout_cleans_up_descendants_holding_the_output_pipe() {
         let (_dir, mut spec) = shell("/bin/sleep 30 & wait");
@@ -483,6 +485,7 @@ mod tests {
         assert_eq!(result.execution_status, ExecutionStatus::TimedOut);
         assert!(result.elapsed_seconds < 3.0);
     }
+    // Verifies: AUTO-040
     #[test]
     fn cancellation_terminates_a_running_job() {
         let (_dir, spec) = shell("/bin/sleep 30 & wait");
@@ -496,6 +499,7 @@ mod tests {
             ExecutionStatus::Cancelled
         );
     }
+    // Verifies: AUTO-040, SEC-063
     #[test]
     fn oversized_output_is_bounded_even_when_a_process_exits_quickly() {
         let (_dir, mut spec) = shell("/usr/bin/head -c 4096 /dev/zero");
@@ -548,6 +552,7 @@ mod tests {
         assert!(!dir.path().join("should-not-exist").exists());
     }
 
+    // Verifies: AUTO-040, SEC-061
     #[test]
     fn inherited_address_space_limit_bounds_child_allocation() {
         let dir = tempfile::tempdir().unwrap();
@@ -565,6 +570,7 @@ mod tests {
         );
     }
 
+    // Verifies: AUTO-040, SEC-061
     #[test]
     fn oversized_single_file_is_killed_by_inherited_file_size_limit() {
         let dir = tempfile::tempdir().unwrap();
@@ -591,6 +597,7 @@ mod tests {
         assert_eq!(result.artifact_bytes_observed, 64 * 1024);
     }
 
+    // Verifies: AUTO-040
     #[test]
     fn aggregate_artifact_bytes_are_checked_even_for_short_jobs() {
         let (dir, mut spec) = shell(

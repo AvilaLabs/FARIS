@@ -394,6 +394,7 @@ mod tests {
         }
     }
 
+    // Verifies: NUC-046, UNC-084
     #[test]
     fn two_sigma_resolution_uses_combined_standard_error() {
         // Combined SE = 5, threshold 10.

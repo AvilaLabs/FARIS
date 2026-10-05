@@ -469,6 +469,7 @@ mod tests {
         assert!(serde_json::from_value::<TransportRequest>(v).is_err());
     }
 
+    // Verifies: SRC-003
     #[test]
     fn source_requires_physical_dt_energy_and_single_neutron_yield() {
         let (mut r, s) = request();

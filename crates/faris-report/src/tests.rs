@@ -241,6 +241,7 @@ fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
+// Verifies: COL-006
 #[test]
 fn export_writes_the_documented_folder_layout() {
     let (_guard, outcome) = exported();
@@ -335,6 +336,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     );
 }
 
+// Verifies: INT-040, PRV-010
 #[test]
 fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     let (_guard, outcome) = exported();
@@ -388,6 +390,7 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     assert_eq!(differences.lines().count(), 5);
 }
 
+// Verifies: INT-009
 #[test]
 fn manifest_hashes_match_the_files() {
     let (_guard, outcome) = exported();
@@ -421,6 +424,7 @@ fn manifest_hashes_match_the_files() {
     assert!(files.iter().all(|f| f["path"] != "export-manifest.json"));
 }
 
+// Verifies: PRV-030
 #[test]
 fn study_file_stamp_is_named_in_the_manifest_and_the_pdf_footer() {
     let dir = tempfile::tempdir().unwrap();
@@ -448,6 +452,7 @@ fn study_file_stamp_is_named_in_the_manifest_and_the_pdf_footer() {
     }
 }
 
+// Verifies: PRV-030
 #[test]
 fn unsaved_study_says_so_in_the_pdf() {
     let (_guard, outcome) = exported();
@@ -532,6 +537,7 @@ fn a_failed_export_leaves_no_folder_behind() {
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
 }
 
+// Verifies: VIS-041
 #[test]
 fn charts_are_written_as_svg_and_png_from_the_same_drawing() {
     let (_guard, outcome) = exported();
@@ -556,6 +562,7 @@ fn charts_are_written_as_svg_and_png_from_the_same_drawing() {
     assert!(usvg::Tree::from_str(&svg, &options).is_ok());
 }
 
+// Verifies: L10N-033
 #[test]
 fn pdf_embeds_fonts_and_keeps_text_as_text() {
     let (_guard, outcome) = exported();
@@ -605,6 +612,7 @@ fn a_supplied_view_image_is_included_and_a_bad_one_is_reported() {
     );
 }
 
+// Verifies: PRV-012
 #[test]
 fn a_partial_study_exports_with_explained_gaps() {
     let dir = tempfile::tempdir().unwrap();
@@ -755,6 +763,7 @@ mod ensembles {
         assert_eq!(body[0][4], format!("{first}"));
     }
 
+    // Verifies: PRV-012, UNC-080
     #[test]
     fn the_summary_csv_carries_ranges_distributions_and_the_reasons() {
         let (_dir, outcome) = exported_with_ensembles();
@@ -814,6 +823,7 @@ mod ensembles {
         assert_eq!(none[1], "not_calculated");
     }
 
+    // Verifies: CFG-054
     #[test]
     fn the_manifest_records_method_seed_samples_rejections_and_status() {
         let (_dir, outcome) = exported_with_ensembles();
@@ -854,6 +864,7 @@ mod ensembles {
         assert!(records.iter().all(|r| r["status"] == "not_calculated"));
     }
 
+    // Verifies: UNC-083
     #[test]
     fn charts_draw_the_band_and_the_new_chart_files_exist() {
         let (_dir, outcome) = exported_with_ensembles();
@@ -935,6 +946,7 @@ mod ensembles {
         }
     }
 
+    // Verifies: PRV-012, UNC-080
     #[test]
     fn the_pdf_gains_a_third_page_that_fits_and_shows_ranges_beside_nominal_values() {
         let source = with_ensembles();

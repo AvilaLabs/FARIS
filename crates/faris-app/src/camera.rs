@@ -219,6 +219,7 @@ mod tests {
         assert!(dot(to_port, forward) > 0.0);
     }
 
+    // Verifies: VIS-002
     #[test]
     fn camera_basis_stays_orthonormal_at_extreme_inputs() {
         let camera = Camera {

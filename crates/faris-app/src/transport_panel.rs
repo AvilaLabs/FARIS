@@ -813,6 +813,7 @@ mod colormap_tests {
         0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
     }
 
+    // Verifies: VIS-020
     #[test]
     fn scale_is_monotonic_in_luminance_and_saturates_at_the_limits() {
         let mut previous = -1.0;
@@ -831,6 +832,7 @@ mod colormap_tests {
         );
     }
 
+    // Verifies: VIS-026
     #[test]
     fn zero_scores_are_gray_and_unavailable_is_not_a_data_color() {
         assert_eq!(scalar_color(0.0, 0.0, 10.0, 20.0), [0.18; 3]);
@@ -844,6 +846,7 @@ mod colormap_tests {
         }
     }
 
+    // Verifies: VIS-032
     #[test]
     fn imprecise_bins_are_pulled_toward_neutral_gray() {
         let sharp = scalar_color(1e15, 1e13, 10.0, 20.0);

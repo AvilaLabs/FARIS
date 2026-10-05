@@ -380,6 +380,7 @@ mod tests {
         assert_eq!(estimate(10.0, 1.5).interval_2sigma(), (7.0, 13.0));
     }
 
+    // Verifies: NUC-046, UNC-084, DSN-083
     #[test]
     fn resolution_uses_combined_standard_error() {
         // Combined SE = 5; threshold 10.
@@ -397,6 +398,7 @@ mod tests {
         ));
     }
 
+    // Verifies: DSN-083
     #[test]
     fn saturating_breeding_is_described_from_the_increments() {
         let points = [
@@ -454,6 +456,7 @@ mod tests {
         assert!(transport_findings(&[]).is_empty());
     }
 
+    // Verifies: DSN-083
     #[test]
     fn history_findings_flag_unresolved_flux_behind_replacement_differences() {
         let points = [

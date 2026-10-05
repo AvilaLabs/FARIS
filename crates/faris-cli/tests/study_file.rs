@@ -156,6 +156,7 @@ fn create_inspect_verify_unpack_round_trip() {
     assert_eq!(code(&again), 2, "{}", text(&again));
 }
 
+// Verifies: INT-004, REL-020, AUTO-004
 #[test]
 fn a_damaged_file_fails_verification_with_status_one() {
     let f = created();
@@ -168,6 +169,7 @@ fn a_damaged_file_fails_verification_with_status_one() {
     assert_eq!(code(&output), 1, "{}", text(&output));
 }
 
+// Verifies: INT-004, AUTO-004
 #[test]
 fn a_file_that_is_not_a_study_is_a_verification_failure_and_a_missing_one_an_input_error() {
     let dir = tempfile::tempdir().unwrap();
@@ -246,6 +248,7 @@ fn evidence(dir: &Path) -> PathBuf {
     descriptor
 }
 
+// Verifies: PRV-040
 #[test]
 fn evidence_is_referenced_by_default_and_packed_on_request() {
     let dir = tempfile::tempdir().unwrap();
@@ -384,6 +387,7 @@ fn export_refuses_recorded_files_that_are_not_real_transport_and_writes_nothing(
     assert_eq!(std::fs::read_dir(&out).unwrap().count(), 0);
 }
 
+// Verifies: INT-004
 #[test]
 fn export_of_a_damaged_study_file_exits_one() {
     let dir = tempfile::tempdir().unwrap();

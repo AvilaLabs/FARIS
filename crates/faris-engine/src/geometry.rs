@@ -198,6 +198,7 @@ mod tests {
     const MIN: [f64; 3] = [4.34, -0.15, -0.15];
     const MAX: [f64; 3] = [5.59, 0.15, 0.15];
 
+    // Verifies: GEO-031
     #[test]
     fn prism_intersection_estimate_is_bounded_and_partition_conserving() {
         let pieces = [
@@ -221,6 +222,7 @@ mod tests {
         assert!(!combined.independently_validated);
     }
 
+    // Verifies: GEO-030
     #[test]
     fn midpoint_estimates_match_independent_scipy_adaptive_controls() {
         // Constants were computed independently with scipy.integrate.dblquad
@@ -272,6 +274,7 @@ mod tests {
         sum * dphi
     }
 
+    // Verifies: GEO-030, GEO-031
     #[test]
     fn region_volumes_sum_to_the_full_torus_and_match_quadrature() {
         let (r0, a, b) = (3.3, 2.12, 2.28);
@@ -302,6 +305,7 @@ mod tests {
         assert!((sector - quadrature(r0, a, b, true, 2.0 * w)).abs() < 1e-6 * sector);
     }
 
+    // Verifies: GEO-031
     #[test]
     fn region_volumes_close_for_a_thick_low_aspect_shell() {
         // A shell reaching close to the axis makes the inboard/outboard

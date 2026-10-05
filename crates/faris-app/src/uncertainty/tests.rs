@@ -98,6 +98,7 @@ fn the_job_waits_for_the_quiet_period_then_runs_the_selected_arrangement_first()
     }
 }
 
+// Verifies: PERF-027, AUTO-030
 #[test]
 fn an_unchanged_key_never_reruns() {
     let (a, b) = (history('a', 1.0), history('b', 1.0));
@@ -230,6 +231,7 @@ fn a_record_without_covariance_is_not_evaluated_at_once_without_a_job() {
     assert_eq!(log.calls().len(), 1);
 }
 
+// Verifies: AUTO-033, PERF-027
 #[test]
 fn stored_ensembles_are_reused_only_under_an_exact_key() {
     let a = history('a', 1.0);

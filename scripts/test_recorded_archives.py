@@ -55,6 +55,7 @@ class RecordedArchiveTests(unittest.TestCase):
         extract_archive(archive, manifest, extracted)
         self.assertEqual((extracted / relative).read_bytes(), content)
 
+    # Verifies: SEC-002
     def test_rejects_unsafe_and_noncanonical_paths_before_writing(self):
         for name in ("../escape", "/absolute", "a//b", "a/./b", "a/../b", "C:/drive", "a\\b"):
             with self.subTest(name=name):
@@ -92,6 +93,7 @@ class RecordedArchiveTests(unittest.TestCase):
                     extract_archive(archive, manifest_path, self.root / f"out-{index}")
                 self.assertFalse((self.root / f"out-{index}").exists())
 
+    # Verifies: PRV-044
     def test_rejects_links_special_files_and_extension_metadata(self):
         cases = (
             [("ok", b"valid", tarfile.REGTYPE), ("link", b"target", tarfile.SYMTYPE)],
@@ -153,6 +155,7 @@ class RecordedArchiveTests(unittest.TestCase):
             tarfile.TarFile.addfile = original_addfile
         self.assertFalse(archive.exists())
 
+    # Verifies: SEC-002
     def test_index_pair_and_variant_ids_cannot_escape_extraction_root(self):
         package = self.root / "package"
         package.mkdir()

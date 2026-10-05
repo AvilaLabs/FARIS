@@ -412,6 +412,7 @@ mod tests {
         assert!(LoadedScenario::from_bytes(text.as_bytes()).is_err());
     }
 
+    // Verifies: GEO-004
     #[test]
     fn refuses_invalid_dimensions_and_changed_envelope() {
         for value in [f64::NAN, f64::INFINITY, 0.0, -1.0, 2.0] {
