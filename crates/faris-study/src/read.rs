@@ -4,6 +4,8 @@ use crate::{
     is_safe_relative_path, is_sha256_hex, sha256_hex,
 };
 use faris_engine::core_evidence::RecordedTransportBundle;
+use faris_engine::history_ensemble::HistoryEnsemble;
+use faris_engine::history_uncertainty::EnsembleKey;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -94,6 +96,16 @@ pub fn sha256_file(path: &Path) -> std::io::Result<(String, u64)> {
         total += n as u64;
     }
     Ok((format!("{:x}", digest.finalize()), total))
+}
+
+/// A history ensemble read back from a study file with the key it was stored
+/// under.
+#[derive(Clone, Debug)]
+pub struct StoredEnsemble {
+    pub scenario_sha256: String,
+    pub variant: String,
+    pub key: EnsembleKey,
+    pub ensemble: HistoryEnsemble,
 }
 
 #[derive(Clone, Debug)]
@@ -316,6 +328,15 @@ impl StudyReader {
         if let Some(a) = &m.assumptions {
             known(a)?;
         }
+        let mut keys = BTreeSet::new();
+        for record in &m.ensembles {
+            known(&record.blob)?;
+            if !keys.insert(&record.key) {
+                return Err(StudyError::corrupt(
+                    "the manifest lists one history ensemble key twice",
+                ));
+            }
+        }
         if let Some(EvidenceLayer { mode, archives }) = &m.layers.evidence {
             let mut roles = BTreeSet::new();
             for archive in archives {
@@ -410,8 +431,53 @@ impl StudyReader {
         Ok(hashes.len())
     }
 
+    /// Every stored history ensemble, each read through the hash check and
+    /// parsed strictly. A blob that does not parse as an ensemble, or whose
+    /// own method, seed or sample count disagrees with its recorded key,
+    /// refuses the file: the reader never skips data it cannot interpret.
+    pub fn ensembles(&mut self) -> Result<Vec<StoredEnsemble>, StudyError> {
+        let mut stored = Vec::new();
+        for record in self.manifest.ensembles.clone() {
+            let bytes = self.read_blob(&record.blob)?;
+            let ensemble: HistoryEnsemble = serde_json::from_slice(&bytes).map_err(|e| {
+                StudyError::corrupt(format!(
+                    "history ensemble blob {} is not a valid ensemble: {e}",
+                    record.blob
+                ))
+            })?;
+            if !record.key.describes(&ensemble) {
+                return Err(StudyError::corrupt(format!(
+                    "history ensemble blob {} disagrees with the key recorded for it",
+                    record.blob
+                )));
+            }
+            stored.push(StoredEnsemble {
+                scenario_sha256: record.scenario_sha256,
+                variant: record.variant,
+                key: record.key,
+                ensemble,
+            });
+        }
+        Ok(stored)
+    }
+
+    /// The stored ensemble for exactly this key, if there is one. A key that
+    /// differs in any part (rates, covariance, assumptions, samples, seed or
+    /// method) finds nothing, and the caller recomputes.
+    pub fn ensemble_for(
+        &mut self,
+        key: &EnsembleKey,
+    ) -> Result<Option<HistoryEnsemble>, StudyError> {
+        Ok(self
+            .ensembles()?
+            .into_iter()
+            .find(|stored| stored.key == *key)
+            .map(|stored| stored.ensemble))
+    }
+
     /// Reconstruct every bundle; catches members a bundle must not hold.
     fn verify_structure(&mut self) -> Result<(), StudyError> {
+        self.ensembles()?;
         let mut bundles: Vec<BundleRecord> = self.manifest.sweep.clone();
         for a in [
             &self.manifest.arrangements.port,

@@ -801,6 +801,34 @@ fn limit_flux_mean(rates: &TransportDrivingRates, limit: &ServiceLimit) -> f64 {
     }
 }
 
+/// The fluence a component has accumulated toward its service limits, as one
+/// number to plot against the lowest limit. A component with fast-flux region
+/// limits has one track per region; the value is the highest of them, each
+/// scaled to the lowest limit (equal to the track itself when the limits
+/// agree). Any other component reports its energy-integrated fluence.
+pub fn limit_exposure_n_m2(
+    assumptions: &OperatingHistoryAssumptions,
+    component: &str,
+    snapshot: &HistorySnapshot,
+) -> Option<f64> {
+    let tracks: Vec<&ServiceLimit> = assumptions
+        .service_limits
+        .iter()
+        .filter(|l| {
+            l.component_id == component
+                && l.metric == FAST_FLUX_REGION_METRIC
+                && snapshot.limit_fluence_n_m2.contains_key(&l.response_id)
+        })
+        .collect();
+    let Some(lowest) = tracks.iter().map(|l| l.limit).reduce(f64::min) else {
+        return snapshot.component_fluence_n_m2.get(component).copied();
+    };
+    tracks
+        .iter()
+        .map(|l| snapshot.limit_fluence_n_m2[&l.response_id] * lowest / l.limit)
+        .reduce(f64::max)
+}
+
 fn limit_fluence(state: &ComponentState, limit: &ServiceLimit) -> f64 {
     if limit.metric == FAST_FLUX_REGION_METRIC {
         state.region_fluence[&limit.response_id]
@@ -2455,5 +2483,64 @@ mod tests {
         );
         r.region_flux_n_m2_s.clear();
         assert_eq!(r.covariance_entries().len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod exposure_tests {
+    use super::*;
+    use crate::fixtures::{assumptions, rates_without_covariance};
+
+    fn limit(component: &str, response: &str, metric: &str, value: f64) -> ServiceLimit {
+        ServiceLimit {
+            component_id: component.into(),
+            class: ComponentClass::Replaceable,
+            response_id: response.into(),
+            metric: metric.into(),
+            unit: "neutrons/m\u{b2}".into(),
+            limit: value,
+            replacement_duration_s: Some(1.0),
+            provenance: "test".into(),
+        }
+    }
+
+    fn snapshot(tracks: &[(&str, f64)], legacy: f64) -> HistorySnapshot {
+        let history =
+            run_operating_history(&assumptions(), &rates_without_covariance(0.06, 'a')).unwrap();
+        let mut s = history.snapshots[0].clone();
+        s.component_fluence_n_m2.insert("magnets".into(), legacy);
+        s.limit_fluence_n_m2 = tracks.iter().map(|(k, v)| ((*k).into(), *v)).collect();
+        s
+    }
+
+    fn with_limits(limits: Vec<ServiceLimit>) -> OperatingHistoryAssumptions {
+        let mut a = assumptions();
+        a.service_limits = limits;
+        a
+    }
+
+    #[test]
+    fn exposure_is_the_highest_region_track_scaled_to_the_lowest_limit() {
+        let region = FAST_FLUX_REGION_METRIC;
+        let a = with_limits(vec![
+            limit("magnets", "r-in", region, 2.0e22),
+            limit("magnets", "r-port", region, 4.0e22),
+        ]);
+        let s = snapshot(&[("r-in", 1.0e22), ("r-port", 3.0e22)], 9.0e99);
+        // r-in is at 0.5 of its limit, r-port at 0.75 of its: 0.75 of the lowest.
+        let v = limit_exposure_n_m2(&a, "magnets", &s).unwrap();
+        assert!((v - 1.5e22).abs() < 1.0e7, "{v}");
+    }
+
+    #[test]
+    fn a_component_without_region_limits_reports_its_energy_integrated_fluence() {
+        let a = with_limits(vec![limit(
+            "magnets",
+            "magnets-flux",
+            ENERGY_INTEGRATED_FLUX_METRIC,
+            2.0e22,
+        )]);
+        let s = snapshot(&[], 7.0e21);
+        assert_eq!(limit_exposure_n_m2(&a, "magnets", &s), Some(7.0e21));
     }
 }

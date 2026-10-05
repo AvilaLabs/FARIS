@@ -15,11 +15,18 @@ use crate::{
     badge::{self, Kind},
     history_panel::{HistoryPanel, arrangement_color, arrangement_label},
     transport_panel::TransportPanel,
+    uncertainty::Status,
 };
 use eframe::egui;
-use faris_engine::brief::{
-    ArrangementSummary as Cell, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Contrast,
-    REFERENCE_BLANKET_M, compare_study, summarize_arrangement,
+use faris_engine::{
+    brief::{
+        ArrangementSummary as Cell, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Contrast,
+        REFERENCE_BLANKET_M, compare_study, summarize_arrangement,
+    },
+    history_ensemble::HistoryEnsemble,
+    history_uncertainty::{
+        CONTRASTS, SCOPE_DETAIL, SCOPE_LINE, comparison_lines, not_evaluated_text, progress_text,
+    },
 };
 
 pub const VARIANTS: [&str; 2] = ["reference", "breeder-emphasis"];
@@ -93,7 +100,7 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     ui.horizontal(|ui| match (cell.first_swap_y, cell.first_swap_relative_sampling) {
                         (Some(y), Some(rel)) => {
                             ui.monospace(format!("{y:.1} ± {:.1} y", y * rel));
-                            badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the magnet flux carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the volume average, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
+                            badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the fast flux in the magnet region that reaches its limit first, carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the local peak within the region, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
                         }
                         (Some(y), None) => {
                             ui.monospace(format!("{y:.1} y"));
@@ -149,7 +156,7 @@ fn delta_cell(
 }
 
 const NOISE_NOTE: &str = "Compared with twice the combined Monte Carlo standard error, 2·√(SE₁²+SE₂²). Covariance between runs is not modelled and the runs use distinct seeds, so this is a screening flag, not a significance test.";
-const CONDITIONAL_NOTE: &str = "Conditional on authored assumptions. Difference of two histories driven by the same authored assumptions. Sampling and model uncertainty are not propagated; not a qualified result.";
+const CONDITIONAL_NOTE: &str = "Conditional on authored assumptions. Difference of two histories driven by the same authored assumptions. Transport sampling uncertainty is shown separately in the uncertainty section; model uncertainty is not propagated. Not a qualified result.";
 
 fn sampled_badge(resolved: bool) -> (Kind, &'static str, &'static str) {
     if resolved {
@@ -194,6 +201,145 @@ fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
         "Needs a net-electricity ledger for both arrangements.",
     );
     ui.end_row();
+}
+
+/// Scenario and allocation of each arrangement's record, `[port 0 / no port 1]
+/// [reference 0 / breeder-heavy 1]`; None where nothing is recorded.
+type RecordIds = [[Option<(String, &'static str)>; 2]; 2];
+
+fn record_ids(port: &TransportPanel, control: Option<&TransportPanel>) -> RecordIds {
+    let ids = |panel: Option<&TransportPanel>| {
+        [0, 1].map(|i| {
+            panel.and_then(|p| {
+                p.record(VARIANTS[i])
+                    .map(|r| (r.scenario_sha256.clone(), VARIANTS[i]))
+            })
+        })
+    };
+    [ids(Some(port)), ids(control)]
+}
+
+fn id_of(ids: &RecordIds, a: faris_engine::brief::Arrangement) -> Option<(&str, &str)> {
+    ids[usize::from(!a.port)][usize::from(a.breeder)]
+        .as_ref()
+        .map(|(scenario, variant)| (scenario.as_str(), *variant))
+}
+
+/// The history comparison with its Monte Carlo ranges: for each of the four
+/// contrasts, the paired difference between the two arrangements' ensembles.
+/// The 2σ flags above stay as they are; this adds what the sampling noise does
+/// to the history outputs.
+fn history_uncertainty_section(ui: &mut egui::Ui, history: &HistoryPanel, ids: &RecordIds) {
+    ui.strong("Uncertainty in the history comparison");
+    ui.small(SCOPE_LINE).on_hover_ui(|ui| {
+        ui.set_max_width(380.0);
+        ui.label(SCOPE_DETAIL);
+    });
+    ui.small("Each difference is the second arrangement minus the first, sample by sample, from the arrangements' ensembles of the 30-year history. The transport screening flags above are separate.");
+    for contrast in CONTRASTS {
+        ui.add_space(6.0);
+        ui.label(egui::RichText::new(contrast.title).strong());
+        let (Some(a), Some(b)) = (id_of(ids, contrast.a), id_of(ids, contrast.b)) else {
+            ui.weak("Needs both arrangements recorded.");
+            continue;
+        };
+        let (Some(status_a), Some(status_b)) = (
+            history.uncertainty_status(a.0, a.1),
+            history.uncertainty_status(b.0, b.1),
+        ) else {
+            ui.weak("Uncertainty: the histories are being recalculated.");
+            continue;
+        };
+        let (ready_a, ready_b) = match (status_a, status_b) {
+            (Status::Failed(why), _) | (_, Status::Failed(why)) => {
+                ui.colored_label(
+                    egui::Color32::LIGHT_RED,
+                    format!("Uncertainty could not be calculated: {why}"),
+                );
+                continue;
+            }
+            (Status::Ready(a), Status::Ready(b)) => (a, b),
+            (x, y) => {
+                let running = [x, y].into_iter().find_map(|s| match s {
+                    Status::Running { done, total } => Some(progress_text(done, total)),
+                    _ => None,
+                });
+                ui.horizontal_wrapped(|ui| {
+                    ui.spinner();
+                    ui.weak(running.unwrap_or_else(|| {
+                        "Uncertainty: waiting for the ensembles of this pair.".into()
+                    }));
+                });
+                continue;
+            }
+        };
+        if let Some(text) = not_evaluated_pair(&contrast, &ready_a, &ready_b) {
+            ui.colored_label(Kind::Partial.color(), text.0);
+            ui.label(text.1);
+            continue;
+        }
+        match history.ensemble_comparison(a, b) {
+            Some(Ok(comparison)) => {
+                for line in comparison_lines(contrast.a_name, contrast.b_name, &comparison) {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(&line.label);
+                        ui.monospace(&line.difference);
+                    })
+                    .response
+                    .on_hover_ui(|ui| {
+                        ui.set_max_width(380.0);
+                        ui.label(&line.detail);
+                        ui.add_space(4.0);
+                        ui.small(SCOPE_LINE);
+                    });
+                    if let Some(sentence) = &line.sentence {
+                        ui.label(sentence).on_hover_ui(|ui| {
+                            ui.set_max_width(380.0);
+                            ui.label(&line.detail);
+                        });
+                    }
+                }
+            }
+            Some(Err(why)) => {
+                ui.colored_label(
+                    Kind::Partial.color(),
+                    format!("Paired comparison not possible: {why}"),
+                );
+            }
+            None => {
+                ui.weak("Uncertainty: the paired comparison is not available yet.");
+            }
+        }
+    }
+}
+
+/// The two texts shown when either arrangement's ensemble was not evaluated:
+/// the reason and the next step, named per arrangement only when they differ.
+fn not_evaluated_pair(
+    contrast: &faris_engine::history_uncertainty::HistoryContrast,
+    a: &HistoryEnsemble,
+    b: &HistoryEnsemble,
+) -> Option<(String, String)> {
+    match (not_evaluated_text(a), not_evaluated_text(b)) {
+        (None, None) => None,
+        (Some(x), Some(y)) if x == y => Some((
+            format!("No uncertainty range for this comparison: {}", x.0),
+            format!("Next step: {}", x.1),
+        )),
+        (x, y) => {
+            let part = |name: &str, r: Option<(&str, &str)>| {
+                r.map(|(why, next)| format!("{name}: {why}. Next step: {next}."))
+            };
+            let texts: Vec<String> = [part(contrast.a_name, x), part(contrast.b_name, y)]
+                .into_iter()
+                .flatten()
+                .collect();
+            Some((
+                "No uncertainty range for this comparison".into(),
+                texts.join(" "),
+            ))
+        }
+    }
 }
 
 /// Horizontal bars, one row per arrangement, grouped in port / no-port pairs.
@@ -387,6 +533,8 @@ pub fn compare_view(
                     });
             }
 
+            ui.add_space(12.0);
+            history_uncertainty_section(ui, history, &record_ids(port, control));
             ui.add_space(12.0);
             let order = [(true, false), (false, false), (true, true), (false, true)];
             let pick = |f: &dyn Fn(&Cell) -> Option<f64>| -> Vec<(bool, bool, Option<f64>)> {

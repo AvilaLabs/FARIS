@@ -128,6 +128,7 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                 sweep: sweep_bundle,
                 assumptions,
                 evidence: drafts,
+                ensembles: Vec::new(),
                 pack_evidence,
                 zstd_level,
                 view: match view {
