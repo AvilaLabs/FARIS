@@ -168,8 +168,16 @@ fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactU
     let mut usage = ArtifactUsage::default();
     let mut entries_scanned = 0_u64;
     let maximum_entries = limits.artifact_file_count.saturating_mul(8).max(4096);
+    // The worker deletes files while it runs (intermediate statepoints), so an
+    // entry listed by read_dir may be gone before it is examined. A vanished
+    // file or directory holds no space; skip it rather than fail the job.
+    let vanished = |error: &std::io::Error| error.kind() == std::io::ErrorKind::NotFound;
     while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(directory)? {
+        let listing = match fs::read_dir(directory) {
+            Err(error) if vanished(&error) => continue,
+            other => other?,
+        };
+        for entry in listing {
             entries_scanned = entries_scanned.saturating_add(1);
             if entries_scanned > maximum_entries {
                 usage.exceeded_scan_bound = true;
@@ -177,7 +185,10 @@ fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactU
             }
             let entry = entry?;
             let path = entry.path();
-            let metadata = fs::symlink_metadata(&path)?;
+            let metadata = match fs::symlink_metadata(&path) {
+                Err(error) if vanished(&error) => continue,
+                other => other?,
+            };
             let kind = metadata.file_type();
             if kind.is_symlink() {
                 // Exclude external nuclear-data links and never recurse through
@@ -494,6 +505,37 @@ mod tests {
         assert_eq!(result.stdout.len(), 64);
         assert!(result.stdout_truncated);
     }
+    #[test]
+    fn files_deleted_while_the_output_is_measured_do_not_fail_the_job() {
+        // The OpenMC worker deletes per-batch statepoints while the runner
+        // measures the output tree; a file listed and then removed must not
+        // abort the job.
+        let (dir, mut spec) = shell("true");
+        spec.program = PathBuf::from("/usr/bin/python3");
+        spec.arguments = vec![
+            "-c".into(),
+            "import os, shutil, time\n\
+             end = time.time() + 2.5\n\
+             while time.time() < end:\n\
+             \x20   for d in range(8):\n\
+             \x20       os.makedirs(f'churn/{d}', exist_ok=True)\n\
+             \x20       for i in range(40): open(f'churn/{d}/statepoint.{i:03}.h5', 'wb').close()\n\
+             \x20   for d in range(8):\n\
+             \x20       for i in range(40): os.remove(f'churn/{d}/statepoint.{i:03}.h5')\n\
+             \x20       shutil.rmtree(f'churn/{d}')\n"
+                .into(),
+        ];
+        spec.timeout = Duration::from_secs(10);
+        spec.artifact_roots = vec![dir.path().to_owned()];
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(
+            result.execution_status,
+            ExecutionStatus::Succeeded,
+            "{}",
+            result.stderr
+        );
+    }
+
     #[test]
     fn pre_cancelled_job_never_launches() {
         let (dir, spec) = shell("touch should-not-exist");
