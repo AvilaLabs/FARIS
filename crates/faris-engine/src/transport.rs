@@ -487,7 +487,10 @@ pub fn normalize_transport_artifact(
             ));
         }
         let (integrated_unit, average_unit, integrated_scale) = match (&def.score, t.unit) {
-            (ScoreDefinition::Flux, RawTallyUnit::CmPerSource) => (
+            (
+                ScoreDefinition::Flux | ScoreDefinition::FluxAbove { .. },
+                RawTallyUnit::CmPerSource,
+            ) => (
                 PhysicalUnit::NeutronMetresPerSecond,
                 PhysicalUnit::NeutronsPerSquareMetreSecond,
                 neutron_rate * 0.01,
