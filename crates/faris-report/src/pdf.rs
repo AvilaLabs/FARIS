@@ -15,6 +15,7 @@ use faris_engine::{
     },
     history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
 };
+use faris_model::RESEARCH_SCREENING_STATEMENT;
 use krilla::{
     Document,
     color::rgb,
@@ -465,6 +466,7 @@ fn page_footer(cv: &mut Canvas, text: &str, page: usize, pages: usize) {
         MUTED,
         FontKind::Body,
     );
+    cv.body(MARGIN, 786.0, RESEARCH_SCREENING_STATEMENT, 6.6, MUTED);
 }
 
 /// Page one. Returns the y reached.

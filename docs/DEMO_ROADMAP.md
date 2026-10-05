@@ -542,8 +542,9 @@ evaluated.
 
 ### Smaller open items
 
-- `faris export --study <file.faris> --output <dir>` on the CLI, sharing the
-  app's report-input assembly through the engine.
+- Regenerate `docs/THIRD_PARTY_NOTICES.md`. krilla-svg 0.8.1 ships no licence
+  file and needs a pinned supplement (MIT OR Apache-2.0, from the krilla
+  repository at the published commit).
 - File dialogs (Open, Save as, Export) and their keyboard shortcuts have not
   been exercised in a live session.
 - The packaged demo in `dist/` still has the earlier binaries, and its Core

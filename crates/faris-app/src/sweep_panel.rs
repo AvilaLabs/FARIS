@@ -12,11 +12,11 @@ use crate::{
 use eframe::egui;
 use faris_engine::{
     DemoManifest, build_manifest,
-    history::{TransportDrivingRates, run_operating_history_cancellable},
+    history::TransportDrivingRates,
     jobs::Cancellation,
     sweep::{
-        Estimate, HistorySummary, TransportPoint, history_findings, summarize_history,
-        transport_findings, transport_point,
+        Estimate, HistorySummary, TransportPoint, collect_points, history_findings,
+        summarize_sweep, transport_findings,
     },
 };
 use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
@@ -26,7 +26,6 @@ use std::{
 };
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
-const MAGNET_COMPONENT: &str = "magnets";
 /// Named arrangements of the demo, matched by blanket thickness.
 const NAMED: [(f64, &str); 2] = [(0.45, "Reference"), (0.55, "Breeder-heavy")];
 
@@ -179,7 +178,8 @@ impl SweepPanel {
         let panel = self;
         match loaded.and_then(|(transport, scenario)| {
             let manifest = build_manifest(&scenario).map_err(|e| e.to_string())?;
-            let (points, rates) = collect_points(&transport, &scenario, &manifest)?;
+            let (points, rates) =
+                collect_points(transport.records(), &scenario, manifest.fusion_power_mw)?;
             Ok((transport, manifest, points, rates))
         }) {
             Ok((transport, manifest, points, rates)) => {
@@ -292,13 +292,7 @@ impl SweepPanel {
         let spawn = std::thread::Builder::new()
             .name("faris-sweep-histories".into())
             .spawn(move || {
-                let result = rates
-                    .iter()
-                    .map(|rates| {
-                        run_operating_history_cancellable(&assumptions, rates, &worker_cancellation)
-                            .map(|history| summarize_history(&history, MAGNET_COMPONENT))
-                    })
-                    .collect();
+                let result = summarize_sweep(&rates, &assumptions, &worker_cancellation);
                 let _ = sender.send(result);
                 context.request_repaint();
             });
@@ -530,37 +524,6 @@ fn named(blanket_m: f64) -> Option<&'static str> {
         .iter()
         .find(|(m, _)| (m - blanket_m).abs() < 1e-9)
         .map(|(_, name)| *name)
-}
-
-/// Extract every completed point (ascending blanket thickness) and its
-/// history driving rates from the loaded sweep records.
-fn collect_points(
-    transport: &TransportPanel,
-    scenario: &LoadedScenario,
-    manifest: &DemoManifest,
-) -> Result<(Vec<TransportPoint>, Vec<TransportDrivingRates>), String> {
-    let mut rows = Vec::new();
-    for variant in &scenario.scenario.variants {
-        let Some(run) = transport.record(&variant.id) else {
-            continue;
-        };
-        let Some(normalized) = &run.normalized else {
-            continue;
-        };
-        let point = transport_point(run, variant)?;
-        let raw = run
-            .raw_artifact_sha256
-            .as_deref()
-            .ok_or("A sweep record has no raw identity.")?;
-        let rates =
-            TransportDrivingRates::from_normalized(normalized, manifest.fusion_power_mw, raw)?;
-        rows.push((point, rates));
-    }
-    if rows.is_empty() {
-        return Err("no completed transport records in the sweep bundles".into());
-    }
-    rows.sort_by(|a, b| a.0.blanket_m.total_cmp(&b.0.blanket_m));
-    Ok(rows.into_iter().unzip())
 }
 
 #[derive(Clone, Copy, PartialEq)]

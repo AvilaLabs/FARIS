@@ -116,6 +116,48 @@ impl RecordedTransportBundle {
     }
 }
 
+/// The scenario a recorded-transport bundle file carries.
+pub fn scenario_from_bundle_file(path: &Path) -> Result<LoadedScenario, String> {
+    let bundle: RecordedTransportBundle =
+        serde_json::from_slice(&read_stage(path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    bundle.validate().map_err(|e| e.to_string())?;
+    LoadedScenario::from_bytes(bundle.files["scenario.json"].as_bytes()).map_err(|e| e.to_string())
+}
+
+/// A recorded-transport bundle read, materialized and validated against its
+/// scenario: the run record, the physics it was bound to, and the directory the
+/// replay files live in (kept alive by the caller).
+pub struct LoadedBundle {
+    pub record: ReactorRun,
+    pub case: faris_model::physics::PhysicsCase,
+    pub directory: tempfile::TempDir,
+}
+
+/// The one way a bundle file becomes a transport record, shared by the desktop
+/// and the command line.
+pub fn load_recorded_bundle(
+    path: &Path,
+    scenario: &LoadedScenario,
+) -> Result<LoadedBundle, String> {
+    let bundle: RecordedTransportBundle =
+        serde_json::from_slice(&read_stage(path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    let directory = bundle.materialize().map_err(|e| e.to_string())?;
+    let record = load_reactor_run(&directory.path().join("run.json"), scenario)
+        .map_err(|e| e.to_string())?;
+    let input: Value =
+        serde_json::from_str(&bundle.files["input.json"]).map_err(|e| e.to_string())?;
+    let case: faris_model::physics::PhysicsCase =
+        serde_json::from_value(input["physics"].clone()).map_err(|e| e.to_string())?;
+    case.validate_against(scenario).map_err(|e| e.to_string())?;
+    Ok(LoadedBundle {
+        record,
+        case,
+        directory,
+    })
+}
+
 pub fn write_new(path: &Path, bytes: &[u8]) -> Result<(), ReactorError> {
     let parent = path.parent().ok_or("artifact needs a parent directory")?;
     let mut file = tempfile::NamedTempFile::new_in(parent)?;

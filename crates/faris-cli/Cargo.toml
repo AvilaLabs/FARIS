@@ -16,11 +16,15 @@ path = "src/main.rs"
 faris-model.workspace = true
 faris-engine.workspace = true
 faris-study.workspace = true
+faris-report.workspace = true
 clap.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+
+[dev-dependencies]
+faris-engine = { workspace = true, features = ["fixtures"] }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook.workspace = true

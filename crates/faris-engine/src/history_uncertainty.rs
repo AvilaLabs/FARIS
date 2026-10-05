@@ -67,6 +67,18 @@ fn sha256_json<T: Serialize>(value: &T) -> Result<String, String> {
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
+/// The two sample counts the desktop offers; the first is the default.
+pub const SAMPLE_CHOICES: [u32; 2] = [200, 1000];
+
+/// The sample setting a study file's stored ensembles select: the largest
+/// offered count among them, if any is offered.
+pub fn choose_samples(counts: impl IntoIterator<Item = u32>) -> Option<u32> {
+    counts
+        .into_iter()
+        .filter(|count| SAMPLE_CHOICES.contains(count))
+        .max()
+}
+
 impl EnsembleKey {
     /// The key of the ensemble `run_history_ensemble` would run for these
     /// inputs with the default (derived) seed.

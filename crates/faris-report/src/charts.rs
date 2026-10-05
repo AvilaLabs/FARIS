@@ -13,6 +13,7 @@ use faris_engine::{
     brief::{Arrangement, BREEDER_BLANKET_M, REFERENCE_BLANKET_M, StatusKind},
     sweep::{HistorySummary, TransportPoint},
 };
+use faris_model::RESEARCH_SCREENING_STATEMENT;
 
 /// One finished chart: file stem, natural size in points and the SVG text.
 #[derive(Clone, Debug)]
@@ -21,6 +22,27 @@ pub struct ChartSvg {
     pub width: f32,
     pub height: f32,
     pub svg: String,
+}
+
+impl ChartSvg {
+    /// The chart as saved to `charts/`: the drawing above a footer strip
+    /// carrying the research-screening statement. The PDF draws `svg` itself
+    /// and has the statement in its page footer.
+    pub fn export_svg(&self) -> String {
+        const SIZE: f32 = 5.8;
+        let lines = wrap_lines(RESEARCH_SCREENING_STATEMENT, self.width - 8.0, SIZE);
+        let mut svg = Svg::new(self.width, self.height + 3.0 + 7.5 * lines.len() as f32);
+        svg.embed(&self.svg);
+        for (i, line) in lines.iter().enumerate() {
+            svg.text(
+                4.0,
+                self.height + 6.0 + 7.5 * i as f32,
+                line,
+                TextStyle::new(SIZE, MUTED),
+            );
+        }
+        svg.finish()
+    }
 }
 
 /// A P5-P95 band on a common time grid. A point without a value breaks it.

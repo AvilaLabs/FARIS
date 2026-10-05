@@ -480,11 +480,7 @@ impl FarisApp {
         if self.file.saved_view.is_none() || self.file.dirty(&self.view_state()) {
             return None;
         }
-        let bytes = std::fs::read(path).ok()?;
-        Some(faris_report::StudyFileStamp {
-            file_name: path.file_name()?.to_string_lossy().into_owned(),
-            sha256: format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(&bytes)),
-        })
+        faris_report::StudyFileStamp::from_path(path)
     }
 
     pub fn apply_view(&mut self, view: &ViewState) {

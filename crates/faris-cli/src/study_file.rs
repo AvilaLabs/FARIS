@@ -18,7 +18,7 @@ impl std::fmt::Display for StudyFileRejected {
 
 impl std::error::Error for StudyFileRejected {}
 
-fn convert(error: StudyError) -> Box<dyn std::error::Error> {
+pub(crate) fn convert(error: StudyError) -> Box<dyn std::error::Error> {
     if error.is_verification_failure() {
         Box::new(StudyFileRejected(error.to_string()))
     } else {
@@ -74,6 +74,17 @@ pub enum StudyFileCommand {
     Inspect { file: PathBuf },
     /// Rehash every blob and rebuild every bundle; exit 1 if anything fails.
     Verify { file: PathBuf },
+    /// Write the study export folder (PDF, CSV, charts, manifest) from a study file.
+    ///
+    /// Histories are recalculated from the recorded assumptions and rates. The 3D
+    /// view is not captured on the command line; export from the desktop for it.
+    Export {
+        file: PathBuf,
+        /// Folder to create `<study name>-export` in; an existing export folder is
+        /// never written into.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
     /// Write a study's bundles and files back out as ordinary files.
     Unpack {
         file: PathBuf,
@@ -189,6 +200,10 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                     &json!({"file": file, "verified": true, "blobs": count})
                 )?
             );
+        }
+        StudyFileCommand::Export { file, output } => {
+            let summary = crate::study_export::export(&file, &output)?;
+            println!("{}", serde_json::to_string_pretty(&summary)?);
         }
         StudyFileCommand::Unpack { file, directory } => {
             let mut reader = StudyReader::open(&file).map_err(convert)?;

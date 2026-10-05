@@ -365,3 +365,36 @@ fn a_view_file_is_recorded_and_a_bad_one_refused() {
     std::fs::write(&view, b"[1,2]").unwrap();
     assert_eq!(code(&make(&view, &dir.path().join("w.faris"))), 2);
 }
+
+#[test]
+fn export_refuses_recorded_files_that_are_not_real_transport_and_writes_nothing() {
+    // The fixture's bundles carry placeholder members, not a transport run, so
+    // the desktop's validation (shared by the export) must refuse them.
+    let f = created();
+    let out = f.dir.path().join("exports");
+    std::fs::create_dir(&out).unwrap();
+    let output = run(&[
+        "study-file",
+        "export",
+        f.study.to_str().unwrap(),
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(code(&output), 0, "{}", text(&output));
+    assert_eq!(std::fs::read_dir(&out).unwrap().count(), 0);
+}
+
+#[test]
+fn export_of_a_damaged_study_file_exits_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let study = dir.path().join("bad.faris");
+    std::fs::write(&study, b"PK not really").unwrap();
+    let output = run(&[
+        "study-file",
+        "export",
+        study.to_str().unwrap(),
+        "--output",
+        dir.path().to_str().unwrap(),
+    ]);
+    assert_eq!(code(&output), 1, "{}", text(&output));
+}

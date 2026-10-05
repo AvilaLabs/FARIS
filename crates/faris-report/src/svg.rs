@@ -235,6 +235,14 @@ impl Svg {
         let _ = writeln!(self.body, ">{markup}</text>");
     }
 
+    /// Raw markup for a nested drawing (a complete `<svg>` element).
+    pub fn embed(&mut self, markup: &str) {
+        self.body.push_str(markup);
+        if !markup.ends_with('\n') {
+            self.body.push('\n');
+        }
+    }
+
     pub fn finish(self) -> String {
         format!(
             "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\n<rect width=\"{w}\" height=\"{h}\" fill=\"#ffffff\"/>\n{body}</svg>\n",

@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 9 of 1408 requirements.
+Traced: 11 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -26,13 +26,13 @@ Traced: 9 of 1408 requirements.
 | [14-interoperability.md](14-interoperability.md) | 59 | 0 |
 | [15-design-workflows.md](15-design-workflows.md) | 75 | 0 |
 | [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 2 |
-| [17-collaboration.md](17-collaboration.md) | 40 | 0 |
+| [17-collaboration.md](17-collaboration.md) | 40 | 1 |
 | [18-reliability.md](18-reliability.md) | 38 | 2 |
 | [19-security.md](19-security.md) | 55 | 2 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 43 | 0 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 0 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 0 |
-| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 0 |
+| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 1 |
 
 ## Traced requirements
 
@@ -43,7 +43,9 @@ Traced: 9 of 1408 requirements.
 | CFG-074 | F1 | `crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
 | PRV-040 | F1 | `crates/faris-study/src/tests.rs::packed_evidence_is_stored_and_restored`<br>`crates/faris-study/src/tests.rs::referenced_evidence_records_hashes_without_the_bytes` |
 | PRV-042 | F1 | `crates/faris-study/src/tests.rs::packing_needs_the_archives_and_checks_them` |
+| COL-007 | F1 | `crates/faris-cli/src/study_export.rs::cli_and_desktop_assembly_export_identical_csv_and_manifest` |
 | REL-020 | F1 | `crates/faris-study/src/tests.rs::an_altered_blob_is_named_and_refused` |
 | REL-021 | F1 | `crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
 | SEC-002 | F1 | `crates/faris-study/src/tests.rs::evidence_paths_must_be_safe_relative_paths`<br>`crates/faris-study/src/tests.rs::tar_gz_refuses_traversal_links_duplicates_and_damage`<br>`crates/faris-study/src/tests.rs::unsafe_bundle_names_in_the_manifest_are_refused` |
 | SEC-004 | F1 | `crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
+| LEG-040 | F1 | `crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |

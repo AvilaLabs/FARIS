@@ -5,6 +5,7 @@
 //!
 //! All numbers come from `faris-engine`; this crate formats and draws them.
 
+mod assemble;
 mod charts;
 mod fonts;
 mod pdf;
@@ -12,6 +13,10 @@ mod svg;
 mod tables;
 mod uncertainty;
 
+pub use assemble::{
+    LoadedArrangement, NO_VIEW_ON_COMMAND_LINE, ReportContext, assemble_report_input,
+    study_name_from_path,
+};
 pub use charts::{Band, BandSeries, ChartSvg, LimitLine, TimelineSeries};
 pub use uncertainty::{Column, ColumnStatus, EnsembleInput, UncertaintyReport};
 
@@ -54,6 +59,18 @@ pub enum ExportError {
 pub struct StudyFileStamp {
     pub file_name: String,
     pub sha256: String,
+}
+
+impl StudyFileStamp {
+    /// The stamp of the study file at `path`: its file name and the SHA-256
+    /// of its bytes. None when the file cannot be read.
+    pub fn from_path(path: &Path) -> Option<Self> {
+        let bytes = fs::read(path).ok()?;
+        Some(Self {
+            file_name: path.file_name()?.to_string_lossy().into_owned(),
+            sha256: sha256_hex(&bytes),
+        })
+    }
 }
 
 /// Transport sampling identity of one arrangement.
@@ -134,6 +151,7 @@ struct ViewImageRecord {
 struct Manifest<'a> {
     schema: &'static str,
     faris_version: &'static str,
+    research_screening: &'static str,
     generated_utc: String,
     study_name: &'a str,
     study_file: Option<&'a StudyFileStamp>,
@@ -552,38 +570,41 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
 
     files.push((
         "data/histories.csv".into(),
-        tables::histories_csv(&order).into_bytes(),
+        tables::with_statement(tables::histories_csv(&order)).into_bytes(),
     ));
     files.push((
         "data/comparison.csv".into(),
-        tables::comparison_csv(&order).into_bytes(),
+        tables::with_statement(tables::comparison_csv(&order)).into_bytes(),
     ));
     files.push((
         "data/differences.csv".into(),
-        tables::differences_csv(&p.study).into_bytes(),
+        tables::with_statement(tables::differences_csv(&p.study)).into_bytes(),
     ));
     let sweep_csv = input.sweep.as_ref().map_or_else(
         || tables::sweep_csv(&[], &[]),
         |s| tables::sweep_csv(&s.points, &s.summaries),
     );
-    files.push(("data/sweep.csv".into(), sweep_csv.into_bytes()));
+    files.push((
+        "data/sweep.csv".into(),
+        tables::with_statement(sweep_csv).into_bytes(),
+    ));
     if p.uncertainty.is_some() {
         files.push((
             "data/history-ensemble-samples.csv".into(),
-            tables::ensemble_samples_csv(&order).into_bytes(),
+            tables::with_statement(tables::ensemble_samples_csv(&order)).into_bytes(),
         ));
         files.push((
             "data/history-ensemble-summary.csv".into(),
-            tables::ensemble_summary_csv(&order).into_bytes(),
+            tables::with_statement(tables::ensemble_summary_csv(&order)).into_bytes(),
         ));
     }
     files.push((
         "data/assumptions.csv".into(),
-        tables::assumptions_csv(&p.assumptions).into_bytes(),
+        tables::with_statement(tables::assumptions_csv(&p.assumptions)).into_bytes(),
     ));
     files.push((
         "data/caveats.csv".into(),
-        tables::caveats_csv(&p.caveats).into_bytes(),
+        tables::with_statement(tables::caveats_csv(&p.caveats)).into_bytes(),
     ));
 
     let mut all_charts: Vec<(&ChartSvg, f32)> = vec![(&p.timeline, 3.0)];
@@ -592,13 +613,14 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
     }
     all_charts.extend(p.band_charts.iter().map(|c| (c, 3.0)));
     for (chart, scale) in all_charts {
+        let svg = chart.export_svg();
         files.push((
             format!("charts/{}.svg", chart.name),
-            chart.svg.clone().into_bytes(),
+            svg.clone().into_bytes(),
         ));
         files.push((
             format!("charts/{}.png", chart.name),
-            rasterize_png(&chart.svg, scale).map_err(ExportError::Render)?,
+            rasterize_png(&svg, scale).map_err(ExportError::Render)?,
         ));
     }
     if let Some(view) = &p.view_image {
@@ -638,6 +660,7 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
     let manifest = Manifest {
         schema: "faris-export/1",
         faris_version: FARIS_VERSION,
+        research_screening: faris_model::RESEARCH_SCREENING_STATEMENT,
         generated_utc: format_timestamp(input.generated_unix_s),
         study_name: &input.study_name,
         study_file: input.study_file.as_ref(),

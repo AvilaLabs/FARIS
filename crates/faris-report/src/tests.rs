@@ -190,6 +190,18 @@ fn text(folder: &Path, relative: &str) -> String {
     String::from_utf8(read(folder, relative)).unwrap()
 }
 
+/// A CSV file without its leading `# ` comment lines.
+fn table(folder: &Path, relative: &str) -> String {
+    let all = text(folder, relative);
+    let mut lines = all
+        .lines()
+        .skip_while(|l| l.starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    lines.push('\n');
+    lines
+}
+
 fn tool_available(name: &str) -> bool {
     Command::new(name).arg("-v").output().is_ok()
 }
@@ -274,7 +286,7 @@ fn export_writes_the_documented_folder_layout() {
 #[test]
 fn history_csv_has_long_format_headers_and_every_snapshot() {
     let (_guard, outcome) = exported();
-    let csv = text(&outcome.folder, "data/histories.csv");
+    let csv = table(&outcome.folder, "data/histories.csv");
     let mut lines = csv.lines();
     assert_eq!(
         lines.next().unwrap(),
@@ -326,7 +338,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
 #[test]
 fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     let (_guard, outcome) = exported();
-    let comparison = text(&outcome.folder, "data/comparison.csv");
+    let comparison = table(&outcome.folder, "data/comparison.csv");
     let header = comparison.lines().next().unwrap();
     for column in [
         "magnet_flux_n_m2_s",
@@ -350,7 +362,7 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     assert!(cells.contains(&"conditional"));
     assert!(cells.contains(&"calculated"));
 
-    let sweep = text(&outcome.folder, "data/sweep.csv");
+    let sweep = table(&outcome.folder, "data/sweep.csv");
     assert_eq!(sweep.lines().count(), 8);
     assert!(
         sweep
@@ -360,7 +372,7 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
             .contains("net_electricity_twh")
     );
 
-    let assumptions = text(&outcome.folder, "data/assumptions.csv");
+    let assumptions = table(&outcome.folder, "data/assumptions.csv");
     assert_eq!(
         assumptions.lines().next().unwrap(),
         "assumption,value,value_number,unit,kind,provenance"
@@ -372,7 +384,7 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     assert!(limit.contains(",literature,"), "{limit}");
     assert!(assumptions.contains(",authored,"));
 
-    let differences = text(&outcome.folder, "data/differences.csv");
+    let differences = table(&outcome.folder, "data/differences.csv");
     assert_eq!(differences.lines().count(), 5);
 }
 
@@ -531,10 +543,11 @@ fn charts_are_written_as_svg_and_png_from_the_same_drawing() {
     }
     let png = read(&outcome.folder, "charts/magnet-fluence-timeline.png");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-    // 540 x 250 points at 3x.
+    // 540 x 250 points at 3x, plus the research-screening footer strip.
     let width = u32::from_be_bytes(png[16..20].try_into().unwrap());
     let height = u32::from_be_bytes(png[20..24].try_into().unwrap());
-    assert_eq!((width, height), (1620, 750));
+    assert_eq!(width, 1620);
+    assert!((751..800).contains(&height), "{height}");
     // The SVG parses with the same font database the PDF uses.
     let options = usvg::Options {
         fontdb: fonts::font_database(),
@@ -599,7 +612,7 @@ fn a_partial_study_exports_with_explained_gaps() {
     source.arrangements.truncate(2);
     source.sweep = None;
     let outcome = export_study(&source, dir.path()).unwrap();
-    let caveats = text(&outcome.folder, "data/caveats.csv");
+    let caveats = table(&outcome.folder, "data/caveats.csv");
     assert!(caveats.contains("Arrangements without a transport record"));
     assert!(caveats.contains("Allocation sweep"));
     for line in caveats.lines().skip(1) {
@@ -711,7 +724,7 @@ mod ensembles {
     #[test]
     fn the_samples_csv_has_one_row_per_sample_per_evaluated_arrangement() {
         let (_dir, outcome) = exported_with_ensembles();
-        let csv = text(&outcome.folder, "data/history-ensemble-samples.csv");
+        let csv = table(&outcome.folder, "data/history-ensemble-samples.csv");
         let mut lines = csv.lines();
         assert_eq!(
             lines.next().unwrap(),
@@ -745,7 +758,7 @@ mod ensembles {
     #[test]
     fn the_summary_csv_carries_ranges_distributions_and_the_reasons() {
         let (_dir, outcome) = exported_with_ensembles();
-        let csv = text(&outcome.folder, "data/history-ensemble-summary.csv");
+        let csv = table(&outcome.folder, "data/history-ensemble-summary.csv");
         assert_eq!(
             csv.lines().next().unwrap(),
             "arrangement,ensemble_status,output,unit,statistic,category,value,ci95_low,ci95_high,n,note"
@@ -878,6 +891,39 @@ mod ensembles {
         );
     }
 
+    // Verifies: LEG-040
+    #[test]
+    fn the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement() {
+        let (_dir, outcome) = exported_with_ensembles();
+        let statement = faris_model::RESEARCH_SCREENING_STATEMENT;
+        for name in ["samples", "summary"] {
+            let csv = text(
+                &outcome.folder,
+                &format!("data/history-ensemble-{name}.csv"),
+            );
+            assert_eq!(
+                csv.lines().next().unwrap(),
+                format!("# {statement}"),
+                "{name}"
+            );
+        }
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&read(&outcome.folder, "export-manifest.json")).unwrap();
+        assert_eq!(manifest["research_screening"], statement);
+        assert!(
+            tool_available("pdftotext"),
+            "pdftotext is needed to read the PDF"
+        );
+        let out = Command::new("pdftotext")
+            .args(["-f", "3", "-l", "3"])
+            .arg(outcome.folder.join("summary.pdf"))
+            .arg("-")
+            .output()
+            .unwrap();
+        let flat = String::from_utf8_lossy(&out.stdout).replace('\n', " ");
+        assert!(flat.contains(statement), "{flat}");
+    }
+
     #[test]
     fn a_plain_export_has_no_ensemble_files() {
         let (_guard, plain) = exported();
@@ -945,5 +991,93 @@ mod ensembles {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         export_study(&with_ensembles(), &dir).unwrap();
+    }
+}
+
+// Verifies: LEG-040
+#[test]
+fn every_csv_starts_with_the_research_screening_statement() {
+    let (_guard, outcome) = exported();
+    let comment = format!("# {}", faris_model::RESEARCH_SCREENING_STATEMENT);
+    for name in [
+        "histories",
+        "comparison",
+        "differences",
+        "sweep",
+        "assumptions",
+        "caveats",
+    ] {
+        let csv = text(&outcome.folder, &format!("data/{name}.csv"));
+        assert_eq!(csv.lines().next().unwrap(), comment, "{name}.csv");
+        // The table follows the comment line, with its header unchanged.
+        assert!(!csv.lines().nth(1).unwrap().starts_with('#'), "{name}.csv");
+    }
+}
+
+// Verifies: LEG-040
+#[test]
+fn every_chart_svg_and_png_carries_the_research_screening_statement() {
+    let (_guard, outcome) = exported();
+    let statement = faris_model::RESEARCH_SCREENING_STATEMENT;
+    let charts: Vec<_> = outcome
+        .files
+        .iter()
+        .filter(|f| f.path.starts_with("charts/") && f.path.ends_with(".svg"))
+        .collect();
+    assert_eq!(charts.len(), 4);
+    for file in charts {
+        let svg = text(&outcome.folder, &file.path);
+        // The footer lines are the last text elements, in order.
+        let texts: Vec<&str> = svg
+            .lines()
+            .filter(|l| l.starts_with("<text"))
+            .map(|l| l.trim_end_matches("</text>").rsplit('>').next().unwrap())
+            .collect();
+        let words: Vec<&str> = statement.split_whitespace().collect();
+        let tail: Vec<&str> = texts
+            .iter()
+            .flat_map(|t| t.split_whitespace())
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .take(words.len())
+            .rev()
+            .collect();
+        assert_eq!(tail, words, "{}", file.path);
+        // The PNG is rendered from this same string, so it has the strip too.
+        let png = read(&outcome.folder, &file.path.replace(".svg", ".png"));
+        let height = u32::from_be_bytes(png[20..24].try_into().unwrap());
+        let tree = usvg::Tree::from_str(&svg, &usvg::Options::default()).unwrap();
+        let scale = height as f32 / tree.size().height();
+        assert!((scale - scale.round()).abs() < 0.05, "{}", file.path);
+    }
+}
+
+// Verifies: LEG-040
+#[test]
+fn the_manifest_and_both_pdf_pages_carry_the_research_screening_statement() {
+    let (_guard, outcome) = exported();
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&read(&outcome.folder, "export-manifest.json")).unwrap();
+    assert_eq!(
+        manifest["research_screening"],
+        faris_model::RESEARCH_SCREENING_STATEMENT
+    );
+    assert!(
+        tool_available("pdftotext"),
+        "pdftotext is needed to read the PDF"
+    );
+    for page in ["1", "2"] {
+        let out = Command::new("pdftotext")
+            .args(["-f", page, "-l", page])
+            .arg(outcome.folder.join("summary.pdf"))
+            .arg("-")
+            .output()
+            .unwrap();
+        let flat = String::from_utf8_lossy(&out.stdout).replace('\n', " ");
+        assert!(
+            flat.contains(faris_model::RESEARCH_SCREENING_STATEMENT),
+            "page {page}: {flat}"
+        );
     }
 }

@@ -14,9 +14,17 @@ use faris_engine::{
     history_uncertainty::{SCOPE_LINE, outcome_category},
     sweep::{HistorySummary, TransportPoint, difference_resolved},
 };
+use faris_model::RESEARCH_SCREENING_STATEMENT;
 use std::collections::BTreeSet;
 
 const MWH_PER_TWH: f64 = 1.0e6;
+
+/// A CSV file as written: the research-screening statement as a leading `# `
+/// comment line, then the table. Readers skip lines that start with `#`
+/// (for example `pandas.read_csv(comment="#")`).
+pub fn with_statement(table: String) -> String {
+    format!("# {RESEARCH_SCREENING_STATEMENT}\n{table}")
+}
 
 /// RFC 4180 quoting where needed.
 pub fn field(value: &str) -> String {

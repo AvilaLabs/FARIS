@@ -17,7 +17,7 @@ use faris_engine::{
         EnsembleComparison, EnsembleError, EnsembleSettings, EnsembleStatus, HistoryEnsemble,
         compare_ensembles, run_history_ensemble,
     },
-    history_uncertainty::{EnsembleCache, EnsembleKey},
+    history_uncertainty::{EnsembleCache, EnsembleKey, choose_samples},
     jobs::Cancellation,
 };
 use faris_model::history::OperatingHistoryAssumptions;
@@ -37,8 +37,7 @@ use std::{
 type ComparisonResult = Result<Arc<EnsembleComparison>, String>;
 
 pub const DEBOUNCE: Duration = Duration::from_millis(300);
-/// The two sample counts the setting offers.
-pub const SAMPLE_CHOICES: [u32; 2] = [200, 1000];
+pub use faris_engine::history_uncertainty::SAMPLE_CHOICES;
 /// Paired comparisons kept in memory.
 const COMPARISON_LIMIT: usize = 64;
 
@@ -226,17 +225,15 @@ impl Uncertainty {
     /// key does not describe their ensemble are dropped. The sample setting
     /// follows the file when it holds ensembles of one of the offered counts.
     pub fn seed(&mut self, stored: Vec<(EnsembleKey, HistoryEnsemble)>) {
-        let mut chosen = None;
+        let mut counts = Vec::new();
         for (key, ensemble) in stored {
             if !key.describes(&ensemble) {
                 continue;
             }
-            if SAMPLE_CHOICES.contains(&key.samples) {
-                chosen = chosen.max(Some(key.samples));
-            }
+            counts.push(key.samples);
             self.cache.insert(key, Arc::new(ensemble));
         }
-        if let Some(samples) = chosen {
+        if let Some(samples) = choose_samples(counts) {
             self.samples = samples;
         }
     }
