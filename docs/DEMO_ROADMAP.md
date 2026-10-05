@@ -542,9 +542,6 @@ evaluated.
 
 ### Smaller open items
 
-- Regenerate `docs/THIRD_PARTY_NOTICES.md`. krilla-svg 0.8.1 ships no licence
-  file and needs a pinned supplement (MIT OR Apache-2.0, from the krilla
-  repository at the published commit).
 - File dialogs (Open, Save as, Export) and their keyboard shortcuts have not
   been exercised in a live session.
 - The packaged demo in `dist/` still has the earlier binaries, and its Core
@@ -561,6 +558,7 @@ evaluated.
   histories" although sweep histories also recalculate; "resolved (>2σ)" in
   Compare can read as a significance claim (the hover text says it is a
   screening flag).
+
 ## References for implementation
 
 - [Demo question and starting scenario](DEMO.md).
