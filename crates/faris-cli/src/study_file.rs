@@ -1,7 +1,7 @@
 use clap::Subcommand;
 use faris_study::{
-    ArrangementDraft, DEFAULT_ZSTD_LEVEL, EvidenceDraft, StudyDraft, StudyError, StudyReader,
-    ViewState, evidence_from_descriptor, write_study,
+    ArrangementDraft, DEFAULT_ZSTD_LEVEL, EvidenceDraft, PreviewStatus, StudyDraft, StudyError,
+    StudyReader, ViewState, evidence_from_descriptor, write_study,
 };
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -69,6 +69,10 @@ pub enum StudyFileCommand {
         /// zstd level for recorded text.
         #[arg(long, default_value_t = DEFAULT_ZSTD_LEVEL, value_parser = clap::value_parser!(i64).range(1..=22))]
         zstd_level: i64,
+        /// PNG thumbnail of the 3D view (at most 512 pixels a side, 512 KiB);
+        /// one that does not fit is left out and reported as `preview_bytes: null`.
+        #[arg(long)]
+        preview: Option<PathBuf>,
     },
     /// Summarize a study file without extracting it.
     Inspect { file: PathBuf },
@@ -121,6 +125,7 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
             pack_evidence,
             view,
             zstd_level,
+            preview,
         } => {
             if output.exists() {
                 return Err(format!(
@@ -142,6 +147,9 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                 ensembles: Vec::new(),
                 pack_evidence,
                 zstd_level,
+                preview_png: preview
+                    .map(|path| crate::transport::read_bounded(&path))
+                    .transpose()?,
                 view: match view {
                     Some(path) => serde_json::from_slice(&crate::transport::read_bounded(&path)?)
                         .map_err(|e| format!("{} is not a view: {e}", path.display()))?,
@@ -158,12 +166,23 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                     "file": output, "file_bytes": report.file_bytes, "blobs": report.blob_count,
                     "original_bytes": report.original_bytes,
                     "evidence": report.evidence.map(|m| format!("{m:?}").to_lowercase()),
+                    "preview_bytes": report.preview_bytes,
                 }))?
             );
         }
         StudyFileCommand::Inspect { file } => {
             let mut reader = StudyReader::open(&file).map_err(convert)?;
             let blobs = reader.blob_infos().map_err(convert)?;
+            let preview = match reader.preview_status() {
+                PreviewStatus::Absent => json!({"present": false}),
+                PreviewStatus::Usable(p) => json!({
+                    "present": true, "usable": true, "bytes": p.png.len(),
+                    "width": p.width, "height": p.height,
+                }),
+                PreviewStatus::Ignored { bytes, reason } => json!({
+                    "present": true, "usable": false, "bytes": bytes, "ignored_because": reason,
+                }),
+            };
             let m = &reader.manifest;
             let describe = |a: &Option<faris_study::ArrangementRecord>| {
                 a.as_ref().map(|a| {
@@ -182,6 +201,7 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                     "sweep": m.sweep.iter().map(|b| &b.name).collect::<Vec<_>>(),
                     "assumptions": m.assumptions.is_some(),
                     "view": m.view,
+                    "preview": preview,
                     "evidence": m.layers.evidence,
                     "blobs": {
                         "count": blobs.len(),

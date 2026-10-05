@@ -552,7 +552,6 @@ evaluated.
   demountable-magnet preset.
 - The native interface-check plans in `references/native-demo-checks` click
   fixed positions that moved with the step layout.
-- A `.faris` preview thumbnail is reserved in the format but not written.
 - Interface wording found while writing the user guide: the File menu's
   "Include Core evidence in saved files (about +50 MB)" states a fixed size that
   is true only for the demo evidence; preset names mix styles ("Demountable

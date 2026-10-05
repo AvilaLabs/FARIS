@@ -1107,3 +1107,260 @@ fn an_older_bundle_without_batch_values_still_loads() {
     let restored = reader.bundle(&record).unwrap();
     assert!(!restored.files.contains_key(BATCH_VALUES));
 }
+
+fn extract_limited(
+    dir: &Path,
+    label: &str,
+    tar: &[u8],
+    limits: crate::tar::Limits,
+) -> (Result<ExtractReport, StudyError>, PathBuf) {
+    let archive = dir.join(format!("{label}.tar.gz"));
+    gz(tar, &archive);
+    let out = dir.join(format!("out-{label}"));
+    std::fs::create_dir(&out).unwrap();
+    (crate::tar::extract_with_limits(&archive, &out, limits), out)
+}
+
+fn small_limits() -> crate::tar::Limits {
+    crate::tar::Limits {
+        files: 4,
+        file_bytes: 1000,
+        total_bytes: 2500,
+        depth: 3,
+    }
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_limits_default_to_the_documented_production_values() {
+    let l = crate::tar::Limits::default();
+    assert_eq!(l.files, 4096);
+    assert_eq!(l.file_bytes, 64 * 1024 * 1024);
+    assert_eq!(l.total_bytes, 1536 * 1024 * 1024);
+    assert_eq!(l.depth, 64);
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_file_count_limit_accepts_at_limit_and_refuses_one_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let names: Vec<String> = (0..5).map(|i| format!("f{i}")).collect();
+    let entries: Vec<(&str, &[u8], u8)> = names
+        .iter()
+        .map(|n| (n.as_str(), &b"x"[..], b'0'))
+        .collect();
+    let (ok, _) = extract_limited(dir.path(), "at", &ustar(&entries[..4]), small_limits());
+    assert_eq!(ok.unwrap().files, 4);
+    let (over, out) = extract_limited(dir.path(), "over", &ustar(&entries), small_limits());
+    assert!(over.is_err());
+    assert!(
+        !out.join("f4").exists(),
+        "the file past the limit was written"
+    );
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_per_file_size_limit_accepts_at_limit_and_refuses_one_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let at = vec![1u8; 1000];
+    let over = vec![1u8; 1001];
+    let (ok, _) = extract_limited(
+        dir.path(),
+        "at",
+        &ustar(&[("a", &at, b'0')]),
+        small_limits(),
+    );
+    assert_eq!(ok.unwrap().bytes, 1000);
+    let (refused, out) = extract_limited(
+        dir.path(),
+        "over",
+        &ustar(&[("a", &over, b'0')]),
+        small_limits(),
+    );
+    assert!(refused.is_err());
+    assert!(!out.join("a").exists());
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_total_size_limit_accepts_at_limit_and_refuses_one_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = vec![1u8; 1000];
+    let b = vec![2u8; 1000];
+    let at = vec![3u8; 500];
+    let one_over = vec![3u8; 501];
+    let (ok, _) = extract_limited(
+        dir.path(),
+        "at",
+        &ustar(&[("a", &a, b'0'), ("b", &b, b'0'), ("c", &at, b'0')]),
+        small_limits(),
+    );
+    assert_eq!(ok.unwrap().bytes, 2500);
+    let (refused, out) = extract_limited(
+        dir.path(),
+        "over",
+        &ustar(&[("a", &a, b'0'), ("b", &b, b'0'), ("c", &one_over, b'0')]),
+        small_limits(),
+    );
+    assert!(refused.is_err());
+    assert!(!out.join("c").exists());
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_depth_limit_accepts_at_limit_and_refuses_one_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let (ok, out) = extract_limited(
+        dir.path(),
+        "at",
+        &ustar(&[("a/b/c", b"x", b'0')]),
+        small_limits(),
+    );
+    ok.unwrap();
+    assert!(out.join("a/b/c").is_file());
+    let (refused, out) = extract_limited(
+        dir.path(),
+        "over",
+        &ustar(&[("a/b/c/d", b"x", b'0')]),
+        small_limits(),
+    );
+    assert!(refused.is_err());
+    assert!(!out.join("a").exists());
+}
+
+// Verifies: PRV-044
+#[test]
+fn tar_gzip_bomb_is_refused_by_the_total_limit_without_expanding_it() {
+    let dir = tempfile::tempdir().unwrap();
+    // Eight 1 MiB members of zeros: 8 MiB expanded, a few kB compressed.
+    let zeros = vec![0u8; 1 << 20];
+    let names: Vec<String> = (0..8).map(|i| format!("z{i}")).collect();
+    let entries: Vec<(&str, &[u8], u8)> = names
+        .iter()
+        .map(|n| (n.as_str(), &zeros[..], b'0'))
+        .collect();
+    let limits = crate::tar::Limits {
+        files: 4096,
+        file_bytes: 1 << 20,
+        total_bytes: 3 << 20,
+        depth: 64,
+    };
+    let (refused, out) = extract_limited(dir.path(), "bomb", &ustar(&entries), limits);
+    assert!(refused.is_err());
+    assert!(
+        std::fs::metadata(dir.path().join("bomb.tar.gz"))
+            .unwrap()
+            .len()
+            < 64 * 1024,
+        "the synthetic archive is meant to be small"
+    );
+    // Exactly three members fit; the fourth is refused from its header, so
+    // nothing past the limit is ever written.
+    let written: u64 = std::fs::read_dir(&out)
+        .unwrap()
+        .map(|e| e.unwrap().metadata().unwrap().len())
+        .sum();
+    assert_eq!(written, 3 << 20);
+    assert_eq!(std::fs::read_dir(&out).unwrap().count(), 3);
+}
+
+/// Bytes that begin like a PNG of the given size; the reader checks only the
+/// header, so the rest is a recognisable filler.
+fn fake_png(width: u32, height: u32, filler: usize) -> Vec<u8> {
+    let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13];
+    png.extend_from_slice(b"IHDR");
+    png.extend_from_slice(&width.to_be_bytes());
+    png.extend_from_slice(&height.to_be_bytes());
+    png.extend_from_slice(&[8, 6, 0, 0, 0, 0, 0, 0, 0]);
+    png.extend((0..filler).map(|i| (i % 251) as u8 ^ 0x5a));
+    png
+}
+
+#[test]
+fn preview_round_trips_and_is_optional() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut with = draft(dir.path());
+    let png = fake_png(512, 341, 4000);
+    with.preview_png = Some(png.clone());
+    let path = dir.path().join("with.faris");
+    let report = write_study(&path, &with).unwrap();
+    assert_eq!(report.preview_bytes, Some(png.len() as u64));
+    let mut reader = StudyReader::open(&path).unwrap();
+    let preview = reader.preview().expect("preview");
+    assert_eq!((preview.width, preview.height), (512, 341));
+    assert_eq!(preview.png, png);
+    assert!(reader.verify().is_ok());
+
+    let without = draft(dir.path());
+    let path = dir.path().join("without.faris");
+    let report = write_study(&path, &without).unwrap();
+    assert_eq!(report.preview_bytes, None);
+    let mut reader = StudyReader::open(&path).unwrap();
+    assert_eq!(reader.preview_status(), PreviewStatus::Absent);
+    assert!(reader.verify().is_ok());
+}
+
+#[test]
+fn unusable_preview_is_left_out_by_the_writer_without_failing_the_save() {
+    let dir = tempfile::tempdir().unwrap();
+    let cases = [
+        ("not-a-png", b"hello".to_vec()),
+        ("too-wide", fake_png(513, 100, 10)),
+        ("zero", fake_png(0, 100, 10)),
+        ("too-big", fake_png(100, 100, 600 * 1024)),
+    ];
+    for (label, bytes) in cases {
+        let mut d = draft(dir.path());
+        d.preview_png = Some(bytes);
+        let path = dir.path().join(format!("{label}.faris"));
+        let report = write_study(&path, &d).unwrap();
+        assert_eq!(report.preview_bytes, None, "{label}");
+        assert_eq!(
+            StudyReader::open(&path).unwrap().preview_status(),
+            PreviewStatus::Absent,
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn damaged_or_oversize_preview_is_ignored_and_never_refuses_the_study() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut d = draft(dir.path());
+    d.preview_png = Some(fake_png(256, 170, 3000));
+    let path = dir.path().join("p.faris");
+    write_study(&path, &d).unwrap();
+
+    // Flip a filler byte inside the stored entry: the container's CRC fails.
+    let mut bytes = std::fs::read(&path).unwrap();
+    let marker = fake_png(256, 170, 40);
+    let at = bytes
+        .windows(marker.len())
+        .position(|w| w == marker)
+        .expect("stored preview bytes");
+    bytes[at + marker.len() - 5] ^= 0xff;
+    let damaged = dir.path().join("damaged.faris");
+    std::fs::write(&damaged, &bytes).unwrap();
+    let mut reader = StudyReader::open(&damaged).unwrap();
+    assert!(matches!(
+        reader.preview_status(),
+        PreviewStatus::Ignored { .. }
+    ));
+    assert!(reader.preview().is_none());
+    assert!(reader.verify().is_ok(), "the evidence is unaffected");
+
+    // A header that is no longer a PNG: ignored, with the reason named.
+    let mut bytes = std::fs::read(&path).unwrap();
+    let at = bytes
+        .windows(8)
+        .position(|w| w == [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a])
+        .unwrap();
+    bytes[at + 1] = b'X';
+    let broken = dir.path().join("broken.faris");
+    std::fs::write(&broken, &bytes).unwrap();
+    let mut reader = StudyReader::open(&broken).unwrap();
+    // The CRC also fails here; either way the study opens and the thumbnail is unused.
+    assert!(reader.preview().is_none());
+    assert!(reader.verify().is_ok());
+}

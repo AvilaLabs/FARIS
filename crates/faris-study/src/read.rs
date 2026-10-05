@@ -1,7 +1,9 @@
 use crate::{
     ArchiveKind, ArrangementRecord, BundleRecord, ENCODING_VERBATIM, EvidenceArchive,
     EvidenceLayer, EvidenceMode, MIMETYPE, Manifest, StudyError, is_safe_file_name,
-    is_safe_relative_path, is_sha256_hex, sha256_hex,
+    is_safe_relative_path, is_sha256_hex,
+    preview::{MAX_PREVIEW_BYTES_USED, MAX_PREVIEW_SIDE, Preview, PreviewStatus, png_dimensions},
+    sha256_hex,
 };
 use faris_engine::core_evidence::RecordedTransportBundle;
 use faris_engine::history_ensemble::HistoryEnsemble;
@@ -124,6 +126,8 @@ pub struct StudyReader {
     /// Blob digest to (zip entry index, recorded size).
     entries: BTreeMap<String, (usize, u64)>,
     pub file_bytes: u64,
+    /// Zip entry index of `preview.png`, if the file has one.
+    preview: Option<usize>,
 }
 
 fn blob_entry_name(name: &str) -> Option<&str> {
@@ -161,6 +165,7 @@ impl StudyReader {
         let mut names = BTreeSet::new();
         let mut blob_indices: BTreeMap<String, usize> = BTreeMap::new();
         let mut manifest_index = None;
+        let mut preview_index = None;
         for index in 0..archive.len() {
             let entry = archive.by_index_raw(index)?;
             let name = entry.name().to_owned();
@@ -184,6 +189,7 @@ impl StudyReader {
                 if entry.size() > MAX_PREVIEW_BYTES {
                     return Err(StudyError::corrupt("preview.png is too large"));
                 }
+                preview_index = Some(index);
             } else if let Some(hash) = blob_entry_name(&name) {
                 blob_indices.insert(hash.to_owned(), index);
             } else {
@@ -282,6 +288,7 @@ impl StudyReader {
             manifest,
             entries,
             file_bytes,
+            preview: preview_index,
         };
         reader.check_references()?;
         Ok(reader)
@@ -363,6 +370,55 @@ impl StudyReader {
             }
         }
         Ok(())
+    }
+
+    /// The thumbnail, if the file has one the reader can use. It is optional
+    /// and carries no evidence: bytes that are damaged (the container's CRC
+    /// fails), are not a PNG, or are larger than a writer would store are
+    /// ignored with a reason, and never refuse the study.
+    pub fn preview_status(&mut self) -> PreviewStatus {
+        let Some(index) = self.preview else {
+            return PreviewStatus::Absent;
+        };
+        let ignored = |bytes: u64, reason: &str| PreviewStatus::Ignored {
+            bytes,
+            reason: reason.to_owned(),
+        };
+        let mut entry = match self.archive.by_index(index) {
+            Ok(entry) => entry,
+            Err(_) => return ignored(0, "the entry cannot be opened"),
+        };
+        let declared = entry.size();
+        if declared > MAX_PREVIEW_BYTES_USED {
+            return ignored(declared, "larger than 512 KiB");
+        }
+        let mut png = Vec::new();
+        if (&mut entry)
+            .take(MAX_PREVIEW_BYTES_USED + 1)
+            .read_to_end(&mut png)
+            .is_err()
+        {
+            return ignored(declared, "the entry is damaged");
+        }
+        let bytes = png.len() as u64;
+        match png_dimensions(&png) {
+            Some((width, height))
+                if (1..=MAX_PREVIEW_SIDE).contains(&width)
+                    && (1..=MAX_PREVIEW_SIDE).contains(&height) =>
+            {
+                PreviewStatus::Usable(Preview { png, width, height })
+            }
+            Some(_) => ignored(bytes, "larger than 512 pixels on a side"),
+            None => ignored(bytes, "not a PNG"),
+        }
+    }
+
+    /// The usable thumbnail, if any.
+    pub fn preview(&mut self) -> Option<Preview> {
+        match self.preview_status() {
+            PreviewStatus::Usable(preview) => Some(preview),
+            _ => None,
+        }
     }
 
     pub fn blob_infos(&mut self) -> Result<Vec<BlobInfo>, StudyError> {

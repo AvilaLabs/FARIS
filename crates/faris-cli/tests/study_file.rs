@@ -402,3 +402,44 @@ fn export_of_a_damaged_study_file_exits_one() {
     ]);
     assert_eq!(code(&output), 1, "{}", text(&output));
 }
+
+#[test]
+fn inspect_reports_whether_a_thumbnail_is_present() {
+    let f = created();
+    let plain = run(&["study-file", "inspect", f.study.to_str().unwrap()]);
+    let summary: serde_json::Value = serde_json::from_slice(&plain.stdout).unwrap();
+    assert_eq!(summary["preview"]["present"], false);
+
+    // A stand-in with a valid PNG signature and header; the reader checks only that.
+    let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13];
+    png.extend_from_slice(b"IHDR");
+    png.extend_from_slice(&320u32.to_be_bytes());
+    png.extend_from_slice(&200u32.to_be_bytes());
+    png.extend_from_slice(&[8, 6, 0, 0, 0]);
+    png.extend(std::iter::repeat_n(7u8, 1000));
+    let png_path = f.dir.path().join("view.png");
+    std::fs::write(&png_path, &png).unwrap();
+    let with = f.dir.path().join("with.faris");
+    let created = faris(&[
+        "study-file".as_ref(),
+        "create".as_ref(),
+        "--bundle".as_ref(),
+        path_arg(&f.bundles[0]),
+        "--preview".as_ref(),
+        path_arg(&png_path),
+        "-o".as_ref(),
+        path_arg(&with),
+    ]);
+    assert_eq!(code(&created), 0, "{}", text(&created));
+    let report: serde_json::Value = serde_json::from_slice(&created.stdout).unwrap();
+    assert_eq!(report["preview_bytes"], png.len());
+    let inspected = run(&["study-file", "inspect", with.to_str().unwrap()]);
+    let summary: serde_json::Value = serde_json::from_slice(&inspected.stdout).unwrap();
+    assert_eq!(summary["preview"]["present"], true);
+    assert_eq!(summary["preview"]["usable"], true);
+    assert_eq!(summary["preview"]["bytes"], png.len());
+    assert_eq!(summary["preview"]["width"], 320);
+    assert_eq!(summary["preview"]["height"], 200);
+    let verified = run(&["study-file", "verify", with.to_str().unwrap()]);
+    assert_eq!(code(&verified), 0, "{}", text(&verified));
+}

@@ -16,6 +16,27 @@ const MAX_TOTAL_BYTES: u64 = 1536 * 1024 * 1024;
 const MAX_NAME_BYTES: usize = 4096;
 const MAX_DEPTH: usize = 64;
 
+/// Bounds applied while unpacking. Production uses [`Limits::default`]; tests
+/// lower them to exercise each bound with small archives.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Limits {
+    pub files: usize,
+    pub file_bytes: u64,
+    pub total_bytes: u64,
+    pub depth: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            files: MAX_FILES,
+            file_bytes: MAX_FILE_BYTES,
+            total_bytes: MAX_TOTAL_BYTES,
+            depth: MAX_DEPTH,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ExtractReport {
     pub files: usize,
@@ -38,7 +59,7 @@ fn octal(field: &[u8]) -> Option<u64> {
     u64::from_str_radix(text, 8).ok()
 }
 
-fn canonical_name(bytes: &[u8]) -> Result<String, StudyError> {
+fn canonical_name(bytes: &[u8], max_depth: usize) -> Result<String, StudyError> {
     let name = std::str::from_utf8(bytes).map_err(|_| bad("member name is not UTF-8"))?;
     if name.is_empty()
         || name.len() > MAX_NAME_BYTES
@@ -49,7 +70,7 @@ fn canonical_name(bytes: &[u8]) -> Result<String, StudyError> {
         return Err(bad(format!("noncanonical member name {name:?}")));
     }
     let parts: Vec<_> = Path::new(name).components().collect();
-    if parts.len() > MAX_DEPTH
+    if parts.len() > max_depth
         || parts.iter().any(|c| !matches!(c, Component::Normal(_)))
         || name
             .split('/')
@@ -63,6 +84,14 @@ fn canonical_name(bytes: &[u8]) -> Result<String, StudyError> {
 /// Extract `archive` (a single-member gzip of a USTAR tar of regular files)
 /// into `destination`, which must exist.
 pub fn extract_tar_gz(archive: &Path, destination: &Path) -> Result<ExtractReport, StudyError> {
+    extract_with_limits(archive, destination, Limits::default())
+}
+
+pub(crate) fn extract_with_limits(
+    archive: &Path,
+    destination: &Path,
+    limits: Limits,
+) -> Result<ExtractReport, StudyError> {
     let file = File::open(archive)
         .map_err(|e| StudyError::io(format!("cannot open {}", archive.display()), e))?;
     let mut input = GzDecoder::new(BufReader::new(file));
@@ -99,11 +128,14 @@ pub fn extract_tar_gz(archive: &Path, destination: &Path) -> Result<ExtractRepor
             name.clear();
         }
         name.extend_from_slice(field_text(&header[0..100]));
-        let name = canonical_name(&name)?;
+        let name = canonical_name(&name, limits.depth)?;
         let size = octal(&header[124..136]).ok_or_else(|| bad("unreadable member size"))?;
         report.files += 1;
         report.bytes = report.bytes.saturating_add(size);
-        if report.files > MAX_FILES || size > MAX_FILE_BYTES || report.bytes > MAX_TOTAL_BYTES {
+        if report.files > limits.files
+            || size > limits.file_bytes
+            || report.bytes > limits.total_bytes
+        {
             return Err(bad("exceeds the file-count or size bounds"));
         }
         let path = destination.join(&name);

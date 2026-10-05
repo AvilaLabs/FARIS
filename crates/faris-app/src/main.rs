@@ -9,6 +9,7 @@ mod recorder;
 mod study_file;
 mod study_panel;
 mod sweep_panel;
+mod thumbnail;
 mod tour;
 mod transport_panel;
 mod uncertainty;
