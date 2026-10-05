@@ -37,3 +37,20 @@ unsafe_code = "forbid"
 lto = "thin"
 codegen-units = 1
 overflow-checks = true
+
+# PNG encoding is the hot path of the development frame recorder; keep it
+# fast in debug builds without optimising the whole dependency tree.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+[profile.dev.package.adler2]
+opt-level = 3

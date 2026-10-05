@@ -1,0 +1,11 @@
+{
+  "schema_version": "faris-interface-check-plan/v0.1",
+  "steps": [
+    {"time_s": 0.5, "type": "orbit", "dx": -260.0, "dy": 25.0, "duration_s": 4.0},
+    {"time_s": 5.0, "type": "tap", "key": "2"},
+    {"time_s": 8.0, "type": "tap", "key": "3"},
+    {"time_s": 8.3, "type": "set_year", "year": 0.0, "to": 30.0, "duration_s": 5.0},
+    {"time_s": 13.8, "type": "tap", "key": "4"},
+    {"time_s": 17.0, "type": "checkpoint", "name": "tour-end"}
+  ]
+}
