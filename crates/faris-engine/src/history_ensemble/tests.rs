@@ -1,6 +1,7 @@
 use super::*;
 use crate::history::{
-    DrivingCovariance, ELEMENTARY_CHARGE_J_PER_EV, ScalarRate, run_operating_history,
+    DrivingCovariance, ELEMENTARY_CHARGE_J_PER_EV, RegionFluxRate, ScalarRate,
+    run_operating_history,
 };
 use crate::transport::{
     NormalizedTally, NormalizedTransportResult, PhysicalUnit, ResponseCovariance, TallyEstimator,
@@ -119,6 +120,7 @@ fn rates_with(relative: f64, correlation: f64) -> TransportDrivingRates {
             "blanket-tritium",
         ),
         component_average_flux_n_m2_s: flux,
+        region_flux_n_m2_s: BTreeMap::new(),
         transport_deposited_heat_w: Some(scalar(means[3], total_se(3), "W", "heating-total")),
         scenario_sha256: "a".repeat(64),
         transport_artifact_sha256: "b".repeat(64),
@@ -313,6 +315,7 @@ fn perfectly_correlated_draws_move_together() {
     }
 }
 
+// Verifies: UNC-011
 #[test]
 fn missing_covariance_is_not_evaluated_with_exact_text() {
     let mut rates = rates_with(0.05, 0.0);
@@ -571,6 +574,7 @@ fn settings_are_bounded() {
     assert!(run(&rates, &settings(5, 0)).is_err());
 }
 
+// Verifies: UNC-011
 #[test]
 fn driving_covariance_selects_scales_and_separates_volume_variance() {
     let source_rate = 525.0e6 / (17.6e6 * ELEMENTARY_CHARGE_J_PER_EV);
@@ -817,4 +821,278 @@ fn timing_with_synthetic_diagonal_covariance() {
             ensemble.rejections
         );
     }
+}
+
+/// Magnet with three regional fast-flux limits (3e11 n/m2 each, 10 s swap), no
+/// energy-integrated limit, and uncorrelated region fluxes with the given
+/// relative error. Matrix order: breeder, blanket flux, magnet flux, the three
+/// regions in response-ID order, heating.
+fn regional_case(
+    region_means: [f64; 3],
+    relative: f64,
+) -> (OperatingHistoryAssumptions, TransportDrivingRates) {
+    let mut a = assumptions();
+    a.service_limits = ["r-inboard", "r-outboard", "r-port"]
+        .iter()
+        .map(|id| ServiceLimit {
+            component_id: "magnet".into(),
+            class: ComponentClass::Replaceable,
+            response_id: (*id).into(),
+            metric: crate::history::FAST_FLUX_REGION_METRIC.into(),
+            unit: "neutrons/m²".into(),
+            limit: 3.0e11,
+            replacement_duration_s: Some(10.0),
+            provenance: "test".into(),
+        })
+        .collect();
+    let mut rates = rates_with(0.0, 0.0);
+    let flux_unit = "neutrons/m²/s";
+    for (id, mean) in ["r-inboard", "r-outboard", "r-port"]
+        .iter()
+        .zip(region_means)
+    {
+        rates.region_flux_n_m2_s.insert(
+            (*id).into(),
+            RegionFluxRate {
+                component_id: "magnet".into(),
+                region: None,
+                energy_min_ev: 1.0e5,
+                rate: scalar(mean, mean * relative, flux_unit, id),
+            },
+        );
+    }
+    let entries = rates.covariance_entries();
+    let n = entries.len();
+    let mut monte_carlo = vec![0.0; n * n];
+    for (i, (_, rate)) in entries.iter().enumerate() {
+        monte_carlo[i * n + i] = rate.standard_error.unwrap().powi(2);
+    }
+    let rate_ids: Vec<String> = entries.iter().map(|e| e.0.to_owned()).collect();
+    rates.covariance = Some(DrivingCovariance {
+        method: "test-covariance".into(),
+        batches: 100,
+        rate_ids,
+        monte_carlo,
+        volume_variance: vec![0.0; n],
+    });
+    rates.validate().unwrap();
+    (a, rates)
+}
+
+#[test]
+fn ensemble_reports_which_region_tripped_the_component_first() {
+    // The port-sector flux is 3x the others: it reaches the limit first in
+    // essentially every sample at 10% sampling error.
+    let (a, rates) = regional_case([1.0e10, 1.0e10, 3.0e10], 0.1);
+    let ensemble = run_history_ensemble(
+        &rates,
+        &a,
+        &settings(60, 2),
+        &Cancellation::default(),
+        &|_, _| {},
+    )
+    .unwrap();
+    assert_eq!(ensemble.status, EnsembleStatus::Evaluated);
+    for sample in std::iter::once(ensemble.nominal.as_ref().unwrap()).chain(&ensemble.samples) {
+        assert_eq!(sample.first_trigger_response["magnet"], "r-port");
+        assert_eq!(
+            sample.rates.region_flux_n_m2_s.len(),
+            3,
+            "sampled region fluxes are reported per sample"
+        );
+    }
+    let nominal = ensemble.nominal.as_ref().unwrap();
+    assert_eq!(nominal.rates.region_flux_n_m2_s["r-port"], 3.0e10);
+    let summary = ensemble.summary.as_ref().unwrap();
+    let first = summary
+        .discrete
+        .iter()
+        .find(|d| d.name == "first_trigger:magnet")
+        .unwrap();
+    assert_eq!(first.n, 60);
+    assert_eq!(first.categories["r-port"].count, 60);
+    assert_eq!(first.categories["none"].count, 0);
+    assert!(!first.categories.contains_key("r-inboard"));
+    // The legacy component with no region limit is not listed.
+    assert!(
+        summary
+            .discrete
+            .iter()
+            .all(|d| d.name != "first_trigger:blanket")
+    );
+}
+
+#[test]
+fn near_tied_regions_split_the_first_trigger_fractions() {
+    // Equal means with independent 20% errors: either of two regions can be
+    // first, so both are named, and the fractions are over all samples.
+    let (a, rates) = regional_case([3.0e10, 3.0e10, 5.0e9], 0.2);
+    let ensemble = run_history_ensemble(
+        &rates,
+        &a,
+        &settings(120, 2),
+        &Cancellation::default(),
+        &|_, _| {},
+    )
+    .unwrap();
+    let summary = ensemble.summary.as_ref().unwrap();
+    let first = summary
+        .discrete
+        .iter()
+        .find(|d| d.name == "first_trigger:magnet")
+        .unwrap();
+    let c = |k: &str| first.categories.get(k).map_or(0, |p| p.count);
+    assert!(c("r-inboard") > 20 && c("r-outboard") > 20, "{first:?}");
+    assert_eq!(
+        c("r-inboard") + c("r-outboard") + c("r-port") + c("none"),
+        120
+    );
+    assert_eq!(c("r-port"), 0);
+}
+
+#[test]
+fn from_normalized_binds_whole_and_regional_fast_flux_into_the_covariance() {
+    let source_rate = 525.0e6 / (17.6e6 * ELEMENTARY_CHARGE_J_PER_EV);
+    let volume: f64 = 4.0;
+    let tally = |id: &str, domain, score, unit, iunit, imean: f64, ise: f64| NormalizedTally {
+        response_id: id.into(),
+        domain,
+        score,
+        estimator: TallyEstimator::Tracklength,
+        mean: imean / volume,
+        standard_error: ise / volume,
+        unit,
+        integrated_mean: imean,
+        integrated_standard_error: ise,
+        integrated_unit: iunit,
+        volume_m3: volume,
+        volume_standard_error_m3: 0.0,
+    };
+    let fast = ScoreDefinition::FluxAbove {
+        energy_min_ev: 1.0e5,
+    };
+    let flux_units = (
+        PhysicalUnit::NeutronsPerSquareMetreSecond,
+        PhysicalUnit::NeutronMetresPerSecond,
+    );
+    let region = ResponseDomain::ComponentRegion {
+        component_id: "magnets".into(),
+        region: faris_model::transport::ToroidalRegion::PortSector {
+            half_width_rad: 0.1745,
+        },
+    };
+    let results = vec![
+        tally(
+            "blanket-tritium",
+            ResponseDomain::Component {
+                component_id: "blanket".into(),
+            },
+            ScoreDefinition::ParticleProduction {
+                particle: ProducedParticle::Tritium,
+                score: "H3-production".into(),
+            },
+            PhysicalUnit::ParticlesPerCubicMetreSecond,
+            PhysicalUnit::ParticlesPerSecond,
+            1.1 * source_rate,
+            0.01 * source_rate,
+        ),
+        tally(
+            "magnets-fast-flux",
+            ResponseDomain::Component {
+                component_id: "magnets".into(),
+            },
+            fast.clone(),
+            flux_units.0,
+            flux_units.1,
+            8.0e13,
+            4.0e12,
+        ),
+        tally(
+            "magnets-port-sector-fast-flux",
+            region.clone(),
+            fast,
+            flux_units.0,
+            flux_units.1,
+            2.0e14,
+            1.0e13,
+        ),
+    ];
+    let sds = [0.01 * source_rate, 4.0e12, 1.0e13];
+    let mut integrated = vec![0.0; 9];
+    for i in 0..3 {
+        for j in 0..3 {
+            integrated[i * 3 + j] = if i == j { 1.0 } else { 0.5 } * sds[i] * sds[j];
+        }
+    }
+    let normalized = NormalizedTransportResult {
+        schema_version: "faris-normalized-transport/v0.1".into(),
+        scenario_id: "s".into(),
+        scenario_sha256: "a".repeat(64),
+        variant_id: "v".into(),
+        source: DtSource {
+            energy_per_reaction_ev: 17.6e6,
+            neutron_energy_ev: 14.1e6,
+            neutrons_per_reaction: 1.0,
+            distribution_id: "d".into(),
+        },
+        solver: ToolIdentity {
+            name: "OpenMC".into(),
+            version: "0.15.3".into(),
+            digest: format!("sha256:{}", "1".repeat(64)),
+        },
+        nuclear_data: ToolIdentity {
+            name: "data".into(),
+            version: "1".into(),
+            digest: format!("sha256:{}", "2".repeat(64)),
+        },
+        histories: 1000,
+        source_reaction_rate_per_s: source_rate,
+        source_neutron_rate_per_s: source_rate,
+        results,
+        response_covariance: Some(ResponseCovariance {
+            method: "batch-means-sample-covariance/v1".into(),
+            batches: 100,
+            response_ids: vec![
+                "blanket-tritium".into(),
+                "magnets-fast-flux".into(),
+                "magnets-port-sector-fast-flux".into(),
+            ],
+            integrated,
+        }),
+    };
+    let rates =
+        TransportDrivingRates::from_normalized(&normalized, 525.0, &"b".repeat(64)).unwrap();
+    // Fast-flux responses are region rates, never component-average fluxes.
+    assert!(rates.component_average_flux_n_m2_s.is_empty());
+    assert_eq!(rates.region_flux_n_m2_s.len(), 2);
+    let port = &rates.region_flux_n_m2_s["magnets-port-sector-fast-flux"];
+    assert_eq!(port.component_id, "magnets");
+    assert_eq!(port.energy_min_ev, 1.0e5);
+    assert!(port.region.is_some());
+    assert!((port.rate.mean - 5.0e13).abs() < 1.0);
+    assert!(
+        rates.region_flux_n_m2_s["magnets-fast-flux"]
+            .region
+            .is_none()
+    );
+    let cov = rates.covariance.as_ref().unwrap();
+    assert_eq!(
+        cov.rate_ids,
+        [
+            "blanket-tritium",
+            "magnets-fast-flux",
+            "magnets-port-sector-fast-flux"
+        ]
+    );
+    let corr = cov.monte_carlo[5] / (cov.monte_carlo[4] * cov.monte_carlo[8]).sqrt();
+    assert!((corr - 0.5).abs() < 1e-9);
+    // JSON round trip, and an old record without the field still parses.
+    let back: TransportDrivingRates =
+        serde_json::from_value(serde_json::to_value(&rates).unwrap()).unwrap();
+    assert_eq!(back, rates);
+    let mut old = serde_json::to_value(&rates).unwrap();
+    old.as_object_mut().unwrap().remove("region_flux_n_m2_s");
+    old.as_object_mut().unwrap().remove("covariance");
+    let parsed: TransportDrivingRates = serde_json::from_value(old).unwrap();
+    assert!(parsed.region_flux_n_m2_s.is_empty());
 }

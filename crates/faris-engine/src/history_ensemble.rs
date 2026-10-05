@@ -256,8 +256,16 @@ fn with_sampled_means(base: &TransportDrivingRates, values: &[f64]) -> Transport
     {
         rate.mean = *v;
     }
+    let region_count = rates.region_flux_n_m2_s.len();
+    for (region, v) in rates
+        .region_flux_n_m2_s
+        .values_mut()
+        .zip(&values[1 + flux_count..])
+    {
+        region.rate.mean = *v;
+    }
     if let Some(h) = &mut rates.transport_deposited_heat_w {
-        h.mean = values[1 + flux_count];
+        h.mean = values[1 + flux_count + region_count];
     }
     rates
 }
@@ -277,6 +285,9 @@ pub enum EnsembleStatus {
 pub struct SampledRates {
     pub breeder_h3_per_source_neutron: f64,
     pub component_average_flux_n_m2_s: BTreeMap<String, f64>,
+    /// Region fast-flux responses by response ID; empty without regional limits.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub region_flux_n_m2_s: BTreeMap<String, f64>,
     pub transport_deposited_heat_w: Option<f64>,
 }
 
@@ -294,6 +305,10 @@ pub struct SampleOutcome {
     pub replacements: BTreeMap<String, u32>,
     /// Start of the first replacement outage per component; None if none.
     pub first_replacement_time_s: BTreeMap<String, Option<f64>>,
+    /// Response (region) whose limit tripped each component first, for
+    /// components that tripped; absent for legacy single-limit records.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub first_trigger_response: BTreeMap<String, String>,
     pub full_power_time_s: f64,
     pub final_available_tritium_kg: f64,
     pub final_in_process_tritium_kg: f64,
@@ -563,6 +578,18 @@ fn outcome_of(
             });
         first.insert(id.clone(), t);
     }
+    // The earliest service-limit event of each component names the region that
+    // tripped it first (events are in time then order sequence).
+    let mut first_trigger_response = BTreeMap::new();
+    for event in &run.events {
+        if event.kind == crate::history::EventKind::ServiceLimitReached
+            && let (Some(component), Some(response)) = (&event.component_id, &event.response_id)
+        {
+            first_trigger_response
+                .entry(component.clone())
+                .or_insert_with(|| response.clone());
+        }
+    }
     // A permanent trip ends operation but the run continues to the horizon, so
     // the terminal time is the trip time when there is one.
     let permanent_trip_s = run
@@ -588,6 +615,11 @@ fn outcome_of(
                 .iter()
                 .map(|(k, v)| (k.clone(), v.mean))
                 .collect(),
+            region_flux_n_m2_s: sampled
+                .region_flux_n_m2_s
+                .iter()
+                .map(|(k, v)| (k.clone(), v.rate.mean))
+                .collect(),
             transport_deposited_heat_w: sampled.transport_deposited_heat_w.map(|h| h.mean),
         },
         rejected_draws: rejected,
@@ -595,6 +627,7 @@ fn outcome_of(
         terminal_time_s: permanent_trip_s.unwrap_or(last.time_s),
         replacements: last.component_replacements.clone(),
         first_replacement_time_s: first,
+        first_trigger_response,
         full_power_time_s: last.cumulative_full_power_seconds,
         final_available_tritium_kg: last.available_tritium_kg,
         final_in_process_tritium_kg: last.in_process_tritium_kg,
@@ -725,6 +758,32 @@ fn summarise(samples: &[SampleOutcome], series: &[Series], grid: Vec<f64>) -> En
                         proportion(counts.iter().filter(|c| **c == v).count() as u32, n),
                     )
                 })
+                .collect(),
+        });
+    }
+    // Which response (region) tripped each component first, over all samples.
+    // Samples whose component never tripped count under "none".
+    let triggered: BTreeSet<&String> = samples
+        .iter()
+        .flat_map(|s| s.first_trigger_response.keys())
+        .collect();
+    for component in triggered {
+        let mut counts: BTreeMap<String, u32> = BTreeMap::new();
+        for s in samples {
+            let key = s
+                .first_trigger_response
+                .get(component)
+                .cloned()
+                .unwrap_or_else(|| "none".into());
+            *counts.entry(key).or_insert(0) += 1;
+        }
+        counts.entry("none".into()).or_insert(0);
+        discrete.push(DiscreteSummary {
+            name: format!("first_trigger:{component}"),
+            n,
+            categories: counts
+                .into_iter()
+                .map(|(k, c)| (k, proportion(c, n)))
                 .collect(),
         });
     }

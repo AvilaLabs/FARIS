@@ -278,6 +278,7 @@ fn a_minor_version_is_accepted() {
     open_raw(&e).unwrap();
 }
 
+// Verifies: CFG-074, SEC-004, REL-021
 #[test]
 fn an_unknown_major_version_is_refused_and_named() {
     let tiny = Tiny::new();
@@ -295,6 +296,7 @@ fn an_unknown_major_version_is_refused_and_named() {
     }
 }
 
+// Verifies: SEC-004, REL-021
 #[test]
 fn an_unknown_encoding_is_refused() {
     let tiny = Tiny::new();
@@ -307,6 +309,7 @@ fn an_unknown_encoding_is_refused() {
     }
 }
 
+// Verifies: REL-020
 #[test]
 fn an_altered_blob_is_named_and_refused() {
     let tiny = Tiny::new();
@@ -361,6 +364,7 @@ fn unexpected_entry_names_are_refused() {
     }
 }
 
+// Verifies: SEC-004, REL-021
 #[test]
 fn a_duplicate_entry_is_refused() {
     let tiny = Tiny::new();
@@ -401,6 +405,7 @@ fn declared_totals_beyond_the_bound_are_refused() {
     assert!(open_raw(&e).is_err());
 }
 
+// Verifies: SEC-002
 #[test]
 fn unsafe_bundle_names_in_the_manifest_are_refused() {
     let tiny = Tiny::new();
@@ -455,6 +460,7 @@ fn evidence_draft(dir: &Path, pack: bool) -> (StudyDraft, Vec<EvidenceArchive>) 
     (d, vec![case, workspace])
 }
 
+// Verifies: PRV-040
 #[test]
 fn packed_evidence_is_stored_and_restored() {
     let dir = tempfile::tempdir().unwrap();
@@ -484,6 +490,7 @@ fn packed_evidence_is_stored_and_restored() {
     );
 }
 
+// Verifies: PRV-040
 #[test]
 fn referenced_evidence_records_hashes_without_the_bytes() {
     let dir = tempfile::tempdir().unwrap();
@@ -535,6 +542,7 @@ fn referenced_evidence_records_hashes_without_the_bytes() {
     assert!(state.pair("port", "reference").is_none());
 }
 
+// Verifies: PRV-042
 #[test]
 fn packing_needs_the_archives_and_checks_them() {
     let dir = tempfile::tempdir().unwrap();
@@ -597,6 +605,7 @@ fn tar_gz_extracts_regular_files() {
     assert_eq!(std::fs::read(out.join("sub/b.json")).unwrap().len(), 700);
 }
 
+// Verifies: SEC-002
 #[test]
 fn tar_gz_refuses_traversal_links_duplicates_and_damage() {
     let dir = tempfile::tempdir().unwrap();
@@ -626,6 +635,7 @@ fn tar_gz_refuses_traversal_links_duplicates_and_damage() {
     assert!(extract_tar_gz(&dir.path().join("plain.tar.gz"), &out).is_err());
 }
 
+// Verifies: SEC-002
 #[test]
 fn evidence_paths_must_be_safe_relative_paths() {
     let dir = tempfile::tempdir().unwrap();

@@ -91,6 +91,7 @@ fn rates(tbr: f64, flux: f64) -> TransportDrivingRates {
             response_id: "blanket-tritium".into(),
         },
         component_average_flux_n_m2_s: component,
+        region_flux_n_m2_s: BTreeMap::new(),
         transport_deposited_heat_w: Some(ScalarRate {
             mean: 4.9e8,
             standard_error: Some(2.0e5),

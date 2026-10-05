@@ -39,6 +39,103 @@ BATCH_MEAN_REL_TOLERANCE = 1.0e-12
 BATCH_STD_REL_TOLERANCE = 1.0e-9
 
 
+def domain_key(domain: dict) -> str:
+    return json.dumps(domain, sort_keys=True)
+
+
+def torus_region_volume_m3(major_radius_m: float, inner_m: float, outer_m: float, region: dict) -> float:
+    """Exact volume of a region of the full torus shell between minor radii inner_m < outer_m.
+
+    A shell point has cylindrical radius R = R0 + r cos(theta) and volume
+    element dV = R r dr dtheta dphi = (R0 + r cos(theta)) r dr dtheta dphi. The
+    outboard half (R >= R0, cos(theta) > 0) and inboard half (R < R0) integrate
+    over a half annulus each:
+        int (R0 + r cos(theta)) r dr dtheta
+          = R0 pi (b^2 - a^2) / 2  +/-  (b^3 - a^3) / 3 * int cos(theta) dtheta
+          = R0 pi (b^2 - a^2) / 2  +/-  2 (b^3 - a^3) / 3,
+    plus for outboard and minus for inboard. Multiplying by the toroidal extent
+    gives the region volume: 2 pi for a half, 2 w for the port sector of half
+    width w, 2 pi - 2 w for the outboard half without it. The two halves sum to
+    the full torus 2 pi^2 R0 (b^2 - a^2).
+    """
+    a, b = inner_m, outer_m
+    half_annulus = major_radius_m * math.pi * (b * b - a * a) / 2.0
+    skew = 2.0 * (b ** 3 - a ** 3) / 3.0
+    inboard, outboard = half_annulus - skew, half_annulus + skew
+    kind = region["kind"]
+    if kind == "inboard_half":
+        return 2.0 * math.pi * inboard
+    if kind == "outboard_half":
+        w = region.get("excluding_sector_half_width_rad")
+        return 2.0 * math.pi * outboard if w is None else (2.0 * math.pi - 2.0 * w) * outboard
+    if kind == "port_sector":
+        return 2.0 * region["half_width_rad"] * outboard
+    raise ValueError(f"unsupported component region kind: {kind}")
+
+
+def region_contains(region: dict, major_radius_cm: float, x_cm: float, z_cm: float) -> bool:
+    """Region membership of a point by its cylindrical radius and toroidal angle.
+
+    The torus axis is y, the toroidal angle is atan2(z, x), and sectors are
+    centred on angle 0 (the +x axis, the centre of the outboard port prism).
+    """
+    radius = math.hypot(x_cm, z_cm)
+    angle = abs(math.atan2(z_cm, x_cm))
+    kind = region["kind"]
+    if kind == "inboard_half":
+        return radius < major_radius_cm
+    if radius < major_radius_cm:
+        return False
+    if kind == "outboard_half":
+        w = region.get("excluding_sector_half_width_rad")
+        return w is None or angle > w
+    if kind == "port_sector":
+        return angle <= region["half_width_rad"]
+    raise ValueError(f"unsupported component region kind: {kind}")
+
+
+def build_region_universe(openmc, material, name: str, major_radius_cm: float, regions: list[dict]):
+    """Partition a shell cell into region sub-cells inside a nested universe.
+
+    Returns (universe, {region key: sub-cell}). The parent component cell keeps
+    its identity, name and port cut and is filled with this universe, so every
+    existing component tally (a CellFilter on the parent matches at any nesting
+    depth) is unchanged, and each region is one cell for a scalar CellFilter.
+
+    OpenMC's CylindricalMesh is always about the z axis while the torus axis is
+    y, and a mesh filter carries a translation but no rotation, so region bins
+    cannot be taken from a cylindrical mesh without changing the model
+    orientation. Region cells are used instead, with these surfaces:
+    a y-axis cylinder of radius R0 (inboard inside, outboard outside) and two
+    planes through the torus axis at +/- the sector half width. The sector is
+    the wedge between the planes (the half-planes are less than pi apart, so
+    their intersection is exactly the wedge); the rest of the outboard half is
+    its complement, so no toroidal wrap-around needs special handling.
+    """
+    widths = {w for r in regions if (w := (r.get("half_width_rad") if r["kind"] == "port_sector" else r.get("excluding_sector_half_width_rad"))) is not None}
+    require(len(widths) <= 1, f"{name}: regions must share one sector half width")
+    cylinder = openmc.YCylinder(x0=0.0, z0=0.0, r=major_radius_cm)
+    inboard = openmc.Cell(name=f"{name}/inboard-half", fill=material, region=-cylinder)
+    by_key = {domain_key({"kind": "inboard_half"}): inboard}
+    outboard = openmc.Cell(name=f"{name}/outboard-half", fill=material, region=+cylinder)
+    by_key[domain_key({"kind": "outboard_half"})] = outboard
+    if widths:
+        w = next(iter(widths))
+        require(0.0 < w < math.pi / 2.0, f"{name}: sector half width must be in (0, pi/2)")
+        # f(x, z) = z cos(phi) - x sin(phi) > 0 is counter-clockwise of the ray at angle phi.
+        lower = openmc.Plane(a=math.sin(w), b=0.0, c=math.cos(w), d=0.0)
+        upper = openmc.Plane(a=-math.sin(w), b=0.0, c=math.cos(w), d=0.0)
+        wedge = +lower & -upper
+        sector = openmc.Cell(name=f"{name}/port-sector", fill=material, region=wedge)
+        remainder = openmc.Cell(name=f"{name}/outboard-excluding-port-sector", fill=material, region=~wedge)
+        outboard.fill = openmc.Universe(cells=[sector, remainder])
+        by_key[domain_key({"kind": "port_sector", "half_width_rad": w})] = sector
+        by_key[domain_key({"kind": "outboard_half", "excluding_sector_half_width_rad": w})] = remainder
+    else:
+        outboard.fill = material
+    return openmc.Universe(cells=[inboard, outboard]), by_key
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as stream:
@@ -178,6 +275,8 @@ def sampling_precision_report(request: dict, tallies: list[dict], volumes: list[
                 add(response_id, LOCAL_RSE_REVIEW_GOAL, "volume-averaged component deposited heating", True)
         elif score["kind"] == "flux" and (domain["kind"] == "mesh" or domain.get("component_id") == "magnets"):
             add(response_id, LOCAL_RSE_REVIEW_GOAL, "magnet or mesh neutron flux", True)
+        elif score["kind"] == "flux_above" and domain["kind"] in ("component", "component_region"):
+            add(response_id, LOCAL_RSE_REVIEW_GOAL, "region-average fast neutron flux", True)
     return {
         "plan_id": "faris-exploratory-precision-goals/v0.1",
         "purpose": "numerical sampling review only; not a physics or design acceptance test",
@@ -424,11 +523,14 @@ def audit_geometry_ownership(
         point_cm = [ring_radius_cm * math.cos(phi), 100.0 * radial_m * math.sin(theta),
                     ring_radius_cm * math.sin(phi)]
         path = geometry.find(point_cm)
-        observed = path[-1] if isinstance(path, (list, tuple)) and path else (
-            None if isinstance(path, (list, tuple)) else path
-        )
+        # The find path alternates universes and cells; a cell nested in
+        # region universes is owned by its outermost cell, and its material is
+        # that of the innermost one.
+        cells_on_path = [c for c in (path if isinstance(path, (list, tuple)) else [path]) if hasattr(c, "region")]
+        observed = cells_on_path[0] if cells_on_path else None
+        leaf = cells_on_path[-1] if cells_on_path else None
         expected_fill = materials[expected_material_id]
-        observed_fill = None if observed is None else observed.fill
+        observed_fill = None if leaf is None else leaf.fill
         expected_material_name = None if expected_fill is None else expected_fill.name
         observed_material_name = None if observed_fill is None else observed_fill.name
         expected_material_openmc_id = None if expected_fill is None else expected_fill.id
@@ -602,6 +704,12 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         )
     component_cells = {}
     component_filters = {}
+    region_domains = {}
+    for response in request["responses"]:
+        if response["domain"]["kind"] == "component_region":
+            require(response["score"]["kind"] == "flux_above", "component regions support only flux-above scores")
+            region_domains.setdefault(response["domain"]["component_id"], {})[domain_key(response["domain"])] = response["domain"]
+    region_cell_by_domain = {}
     for component in variant["components"]:
         rid = component["id"]
         require(rid in assignments and assignments[rid] == component["material_id"], f"material assignment mismatch for {rid}")
@@ -619,6 +727,15 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         if penetration is not None and rid in penetration["affected_component_ids"]:
             region &= ~port_region
         cell = openmc.Cell(name=rid, fill=materials[component["material_id"]], region=region)
+        if rid in region_domains:
+            require(materials[component["material_id"]] is not None, f"component {rid} is void and has no regions")
+            region_universe, by_region = build_region_universe(
+                openmc, materials[component["material_id"]], rid, R * scale,
+                [d["region"] for d in region_domains[rid].values()],
+            )
+            cell.fill = region_universe
+            for key, domain in region_domains[rid].items():
+                region_cell_by_domain[key] = by_region[domain_key(domain["region"])]
         cells.append(cell)
         surfaces.append(surf)
         component_cells[rid] = cell
@@ -660,6 +777,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     )
 
     penetration_volume_audit = None
+    region_volume_cm3 = {}
     component_volume_cm3 = {}
     component_volume_se_cm3 = {component_id: 0.0 for component_id in component_cells}
     penetration = manifest.get("penetration")
@@ -674,6 +792,12 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         box_volume_m3 = math.prod(maximum[i] - minimum[i] for i in range(3))
         inside = {component_id: 0 for component_id in component_cells}
         confirmed_port_void = {component_id: 0 for component_id in component_cells}
+        # Port-removed points per region domain, classified by position (cm).
+        # Each region is checked on its own: no region is assumed to contain
+        # or to miss the port without counting the removed points inside it.
+        region_inside = {key: 0 for domains in region_domains.values() for key in domains}
+        centre_phi = math.atan2((minimum[2] + maximum[2]) / 2.0, (minimum[0] + maximum[0]) / 2.0)
+        require(abs(centre_phi) < 1.0e-6, "component regions are defined about toroidal angle 0; the penetration is not centred there")
         for _ in range(samples):
             point = [100.0 * rng.uniform(minimum[i], maximum[i]) for i in range(3)]
             original_path = unperforated_geometry.find(point)
@@ -686,6 +810,9 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
                 component_id = original_cell.name
                 inside[component_id] += 1
                 if component_id in penetration["affected_component_ids"]:
+                    for key, domain in region_domains.get(component_id, {}).items():
+                        if region_contains(domain["region"], R * scale, point[0], point[2]):
+                            region_inside[key] += 1
                     final_path = geometry.find(point)
                     final_cell = final_path[-1] if isinstance(final_path, (list, tuple)) else final_path
                     require(final_cell is not None and final_cell.name == penetration["id"],
@@ -700,6 +827,19 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
             component_volume_cm3[component_id] = (full - estimate_m3) * 1.0e6
             require(component_volume_cm3[component_id] > 0, f"penetration removed all of component {component_id}")
             component_volume_se_cm3[component_id] = error_m3 * 1.0e6
+        for domains in region_domains.values():
+            for key, domain in domains.items():
+                component_id = domain["component_id"]
+                a_m, b_m = (next(c for c in variant["components"] if c["id"] == component_id)[k] for k in ("inner_minor_radius_m", "outer_minor_radius_m"))
+                full = torus_region_volume_m3(R, a_m, b_m, domain["region"])
+                if component_id in penetration["affected_component_ids"]:
+                    p = region_inside[key] / samples
+                    removed = box_volume_m3 * p
+                    error = box_volume_m3 * math.sqrt(p * (1.0 - p) / samples)
+                    region_volume_cm3[key] = ((full - removed) * 1.0e6, error * 1.0e6)
+                    require(full - removed > 0, f"penetration removed all of region {key}")
+                else:
+                    region_volume_cm3[key] = (full * 1.0e6, 0.0)
         penetration_volume_audit = {
             "scenario_sha256": request["scenario_sha256"],
             "variant_id": physics["variant_id"],
@@ -710,6 +850,9 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
             "intersection_estimates_m3": {key: box_volume_m3 * count / samples for key, count in inside.items()},
             "intersection_standard_errors_m3": {key: box_volume_m3 * math.sqrt((count / samples) * (1.0 - count / samples) / samples) for key, count in inside.items()},
             "cell_counts": inside,
+            "region_removed_counts": region_inside,
+            "region_removed_estimates_m3": {key: box_volume_m3 * count / samples for key, count in region_inside.items()},
+            "region_removed_standard_errors_m3": {key: box_volume_m3 * math.sqrt((count / samples) * (1.0 - count / samples) / samples) for key, count in region_inside.items()},
             "final_port_void_confirmation_counts_by_component": confirmed_port_void,
             "fractional_volume_standard_errors_are_binomial": True,
             "independent_of_Rust_midpoint_quadrature": True,
@@ -718,6 +861,10 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     else:
         for c in variant["components"]:
             component_volume_cm3[c["id"]] = float(c["full_torus_volume_m3"]) * 1.0e6
+        for domains in region_domains.values():
+            for key, domain in domains.items():
+                c = next(c for c in variant["components"] if c["id"] == domain["component_id"])
+                region_volume_cm3[key] = (torus_region_volume_m3(R, c["inner_minor_radius_m"], c["outer_minor_radius_m"], domain["region"]) * 1.0e6, 0.0)
 
     low = -(R + outer_minor) * scale
     high = (R + outer_minor) * scale
@@ -767,11 +914,15 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
             spectrum_tallies[(component_id, particle)] = spectrum
     tallies = openmc.Tallies(list(spectrum_tallies.values()))
     response_by_tally = {}
+    energy_filters = {}
     for index, response in enumerate(request["responses"], start=1):
         domain = response["domain"]
         score = response["score"]
         tally = openmc.Tally(name=f"response-{response['id']}")
-        if domain["kind"] == "component":
+        if domain["kind"] == "component_region":
+            require(domain["component_id"] in component_cells, f"response references unknown component {domain['component_id']}")
+            tally.filters = [openmc.CellFilter(region_cell_by_domain[domain_key(domain)])]
+        elif domain["kind"] == "component":
             comp = domain["component_id"]
             require(comp in component_cells, f"response references unknown component {comp}")
             tally.filters = [component_filters[comp]]
@@ -785,6 +936,16 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         kind = score["kind"]
         if kind == "flux":
             tally.filters.append(particle_filters["neutron"])
+            tally.scores = ["flux"]
+        elif kind == "flux_above":
+            # Neutron track length above the bound, up to the top of the
+            # spectrum range; scalar per cell, so its per-batch values feed the
+            # response covariance like every other scalar response.
+            lower = float(score["energy_min_ev"])
+            require(0.0 < lower < SPECTRUM_EDGES_EV[-1], "flux-above lower bound is outside the energy range")
+            energy_filter = energy_filters.setdefault(lower, openmc.EnergyFilter([lower, SPECTRUM_EDGES_EV[-1]]))
+            tally.filters.append(particle_filters["neutron"])
+            tally.filters.append(energy_filter)
             tally.scores = ["flux"]
         elif kind == "reaction_rate":
             tally.filters.append(particle_filters["neutron"])
@@ -876,7 +1037,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     if mesh_meta:
         widths = [(mesh_meta["upper_right_m"][i]-mesh_meta["lower_left_m"][i])/mesh_meta["dimensions"][i] for i in range(3)]
         mesh_bin_volume_cm3 = math.prod(widths)*1.0e6
-    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit
+    return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit, region_volume_cm3
 
 
 def main() -> int:
@@ -908,7 +1069,7 @@ def main() -> int:
         xml_hash, required_nuclides, actual_data_temps, runtime_data_temperature, photon_data_hashes, photon_physics = check_data_identity(inp["physics"], xml, openmc, coupled_heating_required)
         # Set only the path; all scored quantities remain raw, per source neutron.
         os.environ["OPENMC_CROSS_SECTIONS"] = str(xml)
-        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, component_volume_se_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit = compose(inp, out, openmc, runtime_data_temperature, photon_physics)
+        model, response_by_tally, mesh_tally, mesh_defs, volumes_cm3, component_volume_se_cm3, whole_cm3, mesh_bin_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit, region_volumes_cm3 = compose(inp, out, openmc, runtime_data_temperature, photon_physics)
         geometry_ownership_audit["input_sha256"] = sha256(args.input)
         exported_xml = sorted(out.glob("*.xml"))
         require(exported_xml, "OpenMC model export produced no XML inputs")
@@ -956,12 +1117,14 @@ def main() -> int:
                 domain = response["domain"]
                 if domain["kind"] == "component":
                     volume = volumes_cm3[domain["component_id"]]
+                elif domain["kind"] == "component_region":
+                    volume = region_volumes_cm3[domain_key(domain)][0]
                 elif domain["kind"] == "whole_model":
                     volume = whole_cm3
                 else:
                     raise ValueError("unsupported response domain")
                 score = response["score"]["kind"]
-                unit = "ev_per_source" if score == "heating" else ("cm_per_source" if score == "flux" else ("particles_per_source" if score == "particle_production" else "events_per_source"))
+                unit = "ev_per_source" if score == "heating" else ("cm_per_source" if score in ("flux", "flux_above") else ("particles_per_source" if score == "particle_production" else "events_per_source"))
                 raw_tallies.append({"response_id": response["id"], "estimator": tally.estimator, "unit": unit, "mean": mean, "standard_error": se})
             covariance_ids = list(batch_columns)
             covariance = batch_mean_covariance([batch_columns[i] for i in covariance_ids])
@@ -1014,6 +1177,8 @@ def main() -> int:
                 if d["kind"] == "component":
                     v = volumes_cm3[d["component_id"]]
                     se = component_volume_se_cm3[d["component_id"]]
+                elif d["kind"] == "component_region":
+                    v, se = region_volumes_cm3[domain_key(d)]
                 elif d["kind"] == "whole_model":
                     v = whole_cm3
                     se = 0.0
