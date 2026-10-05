@@ -43,7 +43,11 @@ const REQUIRED_FILES: &[&str] = &[
     "reactor_transport.py",
     "solver/transport-artifact.json",
 ];
-const OPTIONAL_FILES: &[&str] = &["solver/worker-result.json", "solver/transport-spectra.json"];
+const OPTIONAL_FILES: &[&str] = &[
+    "solver/worker-result.json",
+    "solver/transport-spectra.json",
+    "solver/transport-batch-values.json",
+];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

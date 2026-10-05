@@ -264,6 +264,9 @@ fn mesh_payload_preflight_with_encoding(
         histories: 10_000_000,
         volumes,
         tallies,
+        // Not counted in the pinned preflight sizes: the matrix adds only
+        // n * n numbers for the n scalar responses.
+        response_covariance: None,
     };
     let raw_bound = if pretty_json {
         serde_json::to_vec_pretty(&artifact)?.len()

@@ -9,6 +9,12 @@ use std::collections::BTreeSet;
 
 pub const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
 pub const MAX_TRANSPORT_ARTIFACT_BYTES: usize = faris_model::transport::MAX_ARTIFACT_BYTES;
+pub const RESPONSE_COVARIANCE_METHOD: &str = "batch-means-sample-covariance/v1";
+const COVARIANCE_SYMMETRY_TOLERANCE: f64 = 1.0e-12;
+const COVARIANCE_DIAGONAL_TOLERANCE: f64 = 1.0e-6;
+/// Slack on the unit-diagonal correlation matrix for rounding in the adapter's
+/// covariance, applied to correlation bounds and Cholesky pivots alike.
+const CORRELATION_TOLERANCE: f64 = 1.0e-9;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -21,6 +27,26 @@ pub struct TransportArtifact {
     pub histories: u64,
     pub volumes: Vec<DomainVolume>,
     pub tallies: Vec<RawTally>,
+    /// Batch-resolved sampling covariance between scalar responses; absent in
+    /// artifacts written before the worker recorded batch values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_covariance: Option<RawResponseCovariance>,
+}
+
+/// Raw (per source neutron) covariance of scalar response means, as written by an adapter.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RawResponseCovariance {
+    pub method: String,
+    pub batches: u32,
+    /// Response IDs in matrix order; each names one scalar (non-mesh) tally.
+    pub response_ids: Vec<String>,
+    /// Row-major n x n covariance of the raw tally means, in raw tally units
+    /// per source neutron (product units off the diagonal).
+    pub raw_per_source: Vec<f64>,
+    /// Per-batch values this matrix was computed from, beside the artifact.
+    pub batch_values_file: String,
+    pub batch_values_sha256: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -436,6 +462,7 @@ pub fn normalize_transport_artifact(
     }
     let mut ids = BTreeSet::new();
     let mut results = Vec::with_capacity(definitions.len());
+    let mut scales: Vec<f64> = Vec::with_capacity(definitions.len());
     for def in definitions {
         if !ids.insert(&def.id) {
             return Err(fail("duplicate requested response id"));
@@ -508,6 +535,7 @@ pub fn normalize_transport_artifact(
         {
             return Err(fail("normalized tally overflowed"));
         }
+        scales.push(integrated_scale);
         results.push(NormalizedTally {
             response_id: def.id.clone(),
             domain: def.domain.clone(),
@@ -523,8 +551,13 @@ pub fn normalize_transport_artifact(
             volume_standard_error_m3: volume_se,
         });
     }
+    let response_covariance = artifact
+        .response_covariance
+        .as_ref()
+        .map(|raw| normalize_response_covariance(raw, &results, &scales))
+        .transpose()?;
     Ok(NormalizedTransportResult {
-        response_covariance: None,
+        response_covariance,
         schema_version: "faris-normalized-transport/v0.1".into(),
         scenario_id: expected.scenario_id.clone(),
         scenario_sha256: expected.scenario_sha256.clone(),
@@ -537,6 +570,148 @@ pub fn normalize_transport_artifact(
         source_neutron_rate_per_s: neutron_rate,
         results,
     })
+}
+
+/// Convert and validate the raw batch-means covariance of scalar responses.
+///
+/// Entry (i, j) is scaled by the same per-response factors applied to the
+/// integrated means (`s_i * s_j`). Every inconsistency rejects the artifact.
+fn normalize_response_covariance(
+    raw: &RawResponseCovariance,
+    results: &[NormalizedTally],
+    scales: &[f64],
+) -> Result<ResponseCovariance, TransportError> {
+    let fail = |s: &str| TransportError::Invalid(format!("response covariance: {s}"));
+    if raw.method != RESPONSE_COVARIANCE_METHOD {
+        return Err(fail("unsupported estimator method"));
+    }
+    if raw.batches < 2 {
+        return Err(fail("at least 2 batches are required"));
+    }
+    let hex = &raw.batch_values_sha256;
+    if hex.len() != 64
+        || !hex
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || raw.batch_values_file.is_empty()
+        || raw.batch_values_file.contains(['/', '\\'])
+    {
+        return Err(fail("batch-values file name or sha256 is invalid"));
+    }
+    // Scalar responses are every non-mesh response; the matrix covers exactly those.
+    let scalar: Vec<usize> = (0..results.len())
+        .filter(|&i| !matches!(results[i].domain, ResponseDomain::Mesh { .. }))
+        .collect();
+    let n = raw.response_ids.len();
+    let mut index = Vec::with_capacity(n);
+    for id in &raw.response_ids {
+        match scalar.iter().find(|&&i| &results[i].response_id == id) {
+            Some(&i) if !index.contains(&i) => index.push(i),
+            _ => {
+                return Err(fail(
+                    "response ids do not match the scalar results one-to-one",
+                ));
+            }
+        }
+    }
+    if n != scalar.len() || n == 0 {
+        return Err(fail(
+            "response ids do not match the scalar results one-to-one",
+        ));
+    }
+    if raw.raw_per_source.len() != n * n {
+        return Err(fail("matrix must contain n * n entries"));
+    }
+    if raw.raw_per_source.iter().any(|v| !v.is_finite()) {
+        return Err(fail("matrix contains a non-finite entry"));
+    }
+    let at = |i: usize, j: usize| raw.raw_per_source[i * n + j];
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let (a, b) = (at(i, j), at(j, i));
+            if (a - b).abs() > COVARIANCE_SYMMETRY_TOLERANCE * a.abs().max(b.abs()) {
+                return Err(fail("matrix is not symmetric"));
+            }
+        }
+    }
+    let mut integrated = vec![0.0; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            integrated[i * n + j] = at(i, j) * (scales[index[i]] * scales[index[j]]);
+        }
+    }
+    if integrated.iter().any(|v| !v.is_finite()) {
+        return Err(fail("normalized matrix overflowed"));
+    }
+    for i in 0..n {
+        let variance = integrated[i * n + i];
+        let expected = results[index[i]].integrated_standard_error.powi(2);
+        if variance < 0.0
+            || (variance - expected).abs() > COVARIANCE_DIAGONAL_TOLERANCE * variance.max(expected)
+        {
+            return Err(fail(
+                "diagonal differs from the squared integrated standard error",
+            ));
+        }
+    }
+    check_positive_semidefinite(&integrated, n).map_err(fail)?;
+    Ok(ResponseCovariance {
+        method: raw.method.clone(),
+        batches: raw.batches,
+        response_ids: raw.response_ids.clone(),
+        integrated,
+    })
+}
+
+/// Positive-semidefinite check on the correlation matrix by Cholesky.
+/// Zero-variance responses must be uncorrelated with all others. Pivots within
+/// `CORRELATION_TOLERANCE` of zero are treated as exact zero (rank-deficient
+/// covariances are normal when responses outnumber batches); a pivot below
+/// `-CORRELATION_TOLERANCE`, or a correlation outside `[-1 - tol, 1 + tol]`,
+/// rejects.
+fn check_positive_semidefinite(cov: &[f64], n: usize) -> Result<(), &'static str> {
+    let mut active = Vec::new();
+    for i in 0..n {
+        if cov[i * n + i] > 0.0 {
+            active.push(i);
+        } else if (0..n).any(|j| j != i && cov[i * n + j] != 0.0) {
+            return Err("zero-variance response has nonzero covariance");
+        }
+    }
+    let m = active.len();
+    let mut corr = vec![0.0; m * m];
+    for (a, &i) in active.iter().enumerate() {
+        for (b, &j) in active.iter().enumerate() {
+            let r = cov[i * n + j] / (cov[i * n + i] * cov[j * n + j]).sqrt();
+            if !r.is_finite() || r.abs() > 1.0 + CORRELATION_TOLERANCE {
+                return Err("correlation coefficient is outside [-1, 1]");
+            }
+            corr[a * m + b] = r;
+        }
+    }
+    let mut l = vec![0.0_f64; m * m];
+    for j in 0..m {
+        let pivot = corr[j * m + j] - (0..j).map(|k| l[j * m + k].powi(2)).sum::<f64>();
+        if pivot < -CORRELATION_TOLERANCE {
+            return Err("matrix is not positive semidefinite");
+        }
+        let rest = |i: usize, l: &[f64]| {
+            corr[i * m + j] - (0..j).map(|k| l[i * m + k] * l[j * m + k]).sum::<f64>()
+        };
+        if pivot <= CORRELATION_TOLERANCE {
+            // Singular direction: remaining entries of this column must vanish.
+            if ((j + 1)..m).any(|i| rest(i, &l).abs() > CORRELATION_TOLERANCE) {
+                return Err("matrix is not positive semidefinite");
+            }
+            continue;
+        }
+        let d = pivot.sqrt();
+        l[j * m + j] = d;
+        for i in (j + 1)..m {
+            l[i * m + j] = rest(i, &l) / d;
+        }
+    }
+    Ok(())
 }
 
 fn valid_identity(i: &ToolIdentity) -> Result<(), TransportError> {
@@ -615,6 +790,7 @@ mod tests {
                 digest: format!("sha256:{}", "2".repeat(64)),
             },
             histories: 100,
+            response_covariance: None,
             volumes: vec![DomainVolume {
                 domain: req.responses[0].domain.clone(),
                 value: if volume == VolumeUnit::CubicMetre {
@@ -840,5 +1016,196 @@ mod tests {
         let (r, mut a, s) = fixture(VolumeUnit::CubicMetre);
         a.volumes.clear();
         assert!(normalize_transport_artifact(&r, &a, &s).is_err());
+    }
+
+    /// Scalar flux and reaction rate plus one mesh response, with a valid
+    /// covariance whose standard errors are 0.2 and 0.3 and correlation 0.5.
+    fn covariance_fixture() -> (
+        TransportRequest,
+        TransportArtifact,
+        faris_model::LoadedScenario,
+    ) {
+        let (mut request, mut artifact, scenario) = fixture(VolumeUnit::CubicMetre);
+        let component = request.responses[0].domain.clone();
+        let mesh = ResponseDomain::Mesh {
+            mesh_id: "mesh-z0".into(),
+            bin: 0,
+        };
+        request.responses = vec![
+            ResponseDefinition {
+                id: "flux".into(),
+                domain: ResponseDomain::WholeModel,
+                score: ScoreDefinition::Flux,
+            },
+            ResponseDefinition {
+                id: "rate".into(),
+                domain: component.clone(),
+                score: ScoreDefinition::ReactionRate {
+                    reaction: "elastic".into(),
+                },
+            },
+            ResponseDefinition {
+                id: "mesh-flux".into(),
+                domain: mesh.clone(),
+                score: ScoreDefinition::Flux,
+            },
+        ];
+        artifact.request = request.clone();
+        artifact.volumes = [ResponseDomain::WholeModel, component, mesh]
+            .into_iter()
+            .map(|domain| DomainVolume {
+                domain,
+                value: 2.0,
+                standard_error: 0.0,
+                unit: VolumeUnit::CubicMetre,
+            })
+            .collect();
+        let tally = |id: &str, unit, mean, standard_error| RawTally {
+            response_id: id.into(),
+            estimator: TallyEstimator::Tracklength,
+            unit,
+            mean,
+            standard_error,
+        };
+        artifact.tallies = vec![
+            tally("flux", RawTallyUnit::CmPerSource, 2.0, 0.2),
+            tally("rate", RawTallyUnit::EventsPerSource, 3.0, 0.3),
+            tally("mesh-flux", RawTallyUnit::CmPerSource, 1.0, 0.1),
+        ];
+        artifact.response_covariance = Some(RawResponseCovariance {
+            method: RESPONSE_COVARIANCE_METHOD.into(),
+            batches: 10,
+            response_ids: vec!["flux".into(), "rate".into()],
+            raw_per_source: vec![0.04, 0.03, 0.03, 0.09],
+            batch_values_file: "transport-batch-values.json".into(),
+            batch_values_sha256: "a".repeat(64),
+        });
+        (request, artifact, scenario)
+    }
+
+    fn covariance_error(mutate: impl FnOnce(&mut RawResponseCovariance)) -> String {
+        let (request, mut artifact, scenario) = covariance_fixture();
+        mutate(artifact.response_covariance.as_mut().unwrap());
+        normalize_transport_artifact(&request, &artifact, &scenario)
+            .unwrap_err()
+            .to_string()
+    }
+
+    #[test]
+    fn covariance_is_scaled_like_integrated_means() {
+        let (request, artifact, scenario) = covariance_fixture();
+        let out = normalize_transport_artifact(&request, &artifact, &scenario).unwrap();
+        let rate = out.source_neutron_rate_per_s;
+        let (s_flux, s_rate) = (rate * 0.01, rate);
+        let cov = out.response_covariance.unwrap();
+        assert_eq!(cov.response_ids, ["flux", "rate"]);
+        assert_eq!(cov.batches, 10);
+        let close = |a: f64, b: f64| (a / b - 1.0).abs() < 1e-14;
+        assert!(close(cov.integrated[0], 0.04 * s_flux * s_flux));
+        assert!(close(cov.integrated[1], 0.03 * s_flux * s_rate));
+        assert_eq!(cov.integrated[2], cov.integrated[1]);
+        assert!(close(cov.integrated[3], 0.09 * s_rate * s_rate));
+        let flux = &out.results[0];
+        assert!((cov.integrated[0] / flux.integrated_standard_error.powi(2) - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn artifact_without_covariance_gives_none_and_old_json_parses() {
+        let (request, mut artifact, scenario) = covariance_fixture();
+        artifact.response_covariance = None;
+        let text = serde_json::to_string(&artifact).unwrap();
+        assert!(!text.contains("response_covariance"));
+        let parsed = TransportArtifact::from_bytes(text.as_bytes()).unwrap();
+        let out = normalize_transport_artifact(&request, &parsed, &scenario).unwrap();
+        assert!(out.response_covariance.is_none());
+    }
+
+    #[test]
+    fn covariance_rejects_unknown_fields() {
+        let (_, artifact, _) = covariance_fixture();
+        let mut value = serde_json::to_value(&artifact).unwrap();
+        value["response_covariance"]["extra"] = 1.into();
+        assert!(TransportArtifact::from_bytes(value.to_string().as_bytes()).is_err());
+    }
+
+    #[test]
+    fn covariance_rejects_mismatched_ids() {
+        assert!(
+            covariance_error(|c| c.response_ids[1] = "mesh-flux".into()).contains("one-to-one")
+        );
+        assert!(covariance_error(|c| c.response_ids[1] = "flux".into()).contains("one-to-one"));
+        assert!(
+            covariance_error(|c| {
+                c.response_ids.pop();
+                c.raw_per_source = vec![0.04];
+            })
+            .contains("one-to-one")
+        );
+    }
+
+    #[test]
+    fn covariance_rejects_wrong_size_nonfinite_and_asymmetric() {
+        assert!(covariance_error(|c| c.raw_per_source.push(0.0)).contains("n * n"));
+        assert!(covariance_error(|c| c.raw_per_source[1] = f64::NAN).contains("non-finite"));
+        assert!(covariance_error(|c| c.raw_per_source[1] = 0.0300001).contains("symmetric"));
+        assert!(covariance_error(|c| c.batches = 1).contains("2 batches"));
+        assert!(covariance_error(|c| c.method = "other/v1".into()).contains("method"));
+        assert!(covariance_error(|c| c.batch_values_sha256 = "xyz".into()).contains("sha256"));
+        assert!(
+            covariance_error(|c| c.batch_values_file = "../x.json".into()).contains("file name")
+        );
+    }
+
+    #[test]
+    fn covariance_rejects_diagonal_mismatch() {
+        assert!(covariance_error(|c| c.raw_per_source[0] = 0.0401).contains("diagonal differs"));
+        assert!(covariance_error(|c| c.raw_per_source[3] = 0.0).contains("diagonal differs"));
+    }
+
+    #[test]
+    fn covariance_rejects_impossible_correlation_and_non_psd() {
+        // Correlation 1.1 exceeds one.
+        assert!(
+            covariance_error(|c| {
+                c.raw_per_source[1] = 0.066;
+                c.raw_per_source[2] = 0.066;
+            })
+            .contains("outside [-1, 1]")
+        );
+        // Perfect correlation is singular but still valid.
+        let (request, mut artifact, scenario) = covariance_fixture();
+        let c = artifact.response_covariance.as_mut().unwrap();
+        c.raw_per_source = vec![0.04, 0.06, 0.06, 0.09];
+        assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_ok());
+    }
+
+    #[test]
+    fn cholesky_rejects_indefinite_three_by_three() {
+        // Pairwise correlations of -0.9 cannot all hold for three variables.
+        let mut cov = vec![0.0; 9];
+        for i in 0..3 {
+            for j in 0..3 {
+                cov[i * 3 + j] = if i == j { 1.0 } else { -0.9 };
+            }
+        }
+        assert_eq!(
+            check_positive_semidefinite(&cov, 3),
+            Err("matrix is not positive semidefinite")
+        );
+        for i in 0..3 {
+            for j in 0..3 {
+                cov[i * 3 + j] = if i == j { 1.0 } else { 0.5 };
+            }
+        }
+        assert!(check_positive_semidefinite(&cov, 3).is_ok());
+    }
+
+    #[test]
+    fn zero_variance_response_must_be_uncorrelated() {
+        assert!(check_positive_semidefinite(&[0.0, 0.0, 0.0, 1.0], 2).is_ok());
+        assert_eq!(
+            check_positive_semidefinite(&[0.0, 0.1, 0.1, 1.0], 2),
+            Err("zero-variance response has nonzero covariance")
+        );
     }
 }
