@@ -1,6 +1,9 @@
 //! Native presentation of the shared Rust history engine. No UI-owned physics.
 
-use crate::badge::{self, Kind};
+use crate::{
+    badge::{self, Kind},
+    uncertainty::{SAMPLE_CHOICES, Status, Uncertainty},
+};
 use eframe::egui;
 use faris_engine::{
     brief::{Arrangement, decimate, limits_differ as differs, magnet_limit},
@@ -12,6 +15,11 @@ use faris_engine::{
         EventKind, HistoryEvent, HistoryResult, HistorySnapshot, JULIAN_YEAR_SECONDS,
         TransportDrivingRates, run_operating_history_cancellable,
     },
+    history_ensemble::{EnsembleStatus, HistoryEnsemble, SeriesBand, nominal_sample},
+    history_uncertainty::{
+        BAND_FLUENCE_MAGNETS, BAND_NET_ELECTRICITY, BAND_TRITIUM, SCOPE_DETAIL, SCOPE_LINE,
+        UncertaintyRow, band_coverage_note, not_evaluated_text, progress_text, uncertainty_rows,
+    },
     jobs::Cancellation,
     reactor::ReactorRun,
 };
@@ -22,6 +30,8 @@ use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
     time::{Duration, Instant},
 };
+
+mod uncertainty_view;
 
 /// Quiet period after the last what-if edit before all histories recalculate.
 const DEBOUNCE: Duration = Duration::from_millis(350);
@@ -82,6 +92,16 @@ impl Plot {
         ]
         .into_iter()
         .find(|plot| plot.name() == name)
+    }
+    /// The ensemble series that bands this plot, and the factor from the
+    /// engine's unit to the plotted one. Full-power time has no band series.
+    fn band(self) -> Option<(&'static str, f64)> {
+        match self {
+            Plot::MagnetFluence => Some((BAND_FLUENCE_MAGNETS, 1.0)),
+            Plot::Electricity => Some((BAND_NET_ELECTRICITY, 1.0e-6)),
+            Plot::Tritium => Some((BAND_TRITIUM, 1.0)),
+            Plot::FullPower => None,
+        }
     }
     fn title(self) -> &'static str {
         match self {
@@ -150,6 +170,18 @@ pub struct HistoryPanel {
     hidden: BTreeSet<String>,
     cache: BTreeMap<String, CachedSeries>,
     cache_revision: u64,
+    uncertainty: Uncertainty,
+    /// The arrangement drawn in 3D; its ensemble is calculated first.
+    selected: String,
+}
+
+/// The ensemble band of `plot` in an evaluated ensemble: the time grid and the
+/// band, with the factor into the plotted unit.
+fn plot_band(plot: Plot, ensemble: &HistoryEnsemble) -> Option<(&[f64], &SeriesBand, f64)> {
+    let summary = ensemble.summary.as_ref()?;
+    let (name, scale) = plot.band()?;
+    let band = summary.series_bands.iter().find(|b| b.name == name)?;
+    Some((&summary.time_grid_s, band, scale))
 }
 
 pub fn key(scenario: &str, variant: &str) -> String {
@@ -232,6 +264,8 @@ impl HistoryPanel {
             hidden: BTreeSet::new(),
             cache: BTreeMap::new(),
             cache_revision: 0,
+            uncertainty: Uncertainty::default(),
+            selected: String::new(),
         })
     }
 
@@ -321,6 +355,7 @@ impl HistoryPanel {
             "sensitivity_transport_matches": sensitivity_transport_matches,
             "sensitivity_transport_artifact_sha256": sensitivity.map(|(_, transport, _)| transport.as_str()),
             "sensitivity_result_sha256": sensitivity_result_sha256,
+            "uncertainty": self.interface_uncertainty(&identity),
         })
     }
     pub fn is_pending(&self) -> bool {
@@ -410,6 +445,7 @@ impl HistoryPanel {
         if let Some(pending) = &self.pending {
             pending.cancellation.cancel();
         }
+        self.uncertainty.invalidate();
     }
 
     pub fn revision(&self) -> u64 {
@@ -900,6 +936,8 @@ impl HistoryPanel {
             if let Some(pending) = &self.pending {
                 pending.cancellation.cancel();
             }
+            // Any edit that invalidates the history also stops its ensemble.
+            self.uncertainty.invalidate();
             match self.assumptions.as_ref().map(|a| a.validate()) {
                 Some(Err(error)) => {
                     self.validation = Some(error);
@@ -1026,6 +1064,7 @@ impl HistoryPanel {
             if self.pending.is_some() || self.debounce.is_some() {
                 ui.spinner();
             }
+            self.uncertainty_header(ui, scenario, variant);
             if self.edited {
                 ui.colored_label(egui::Color32::YELLOW, "Earlier history inputs")
                     .on_hover_text("Displayed history belongs to earlier transport or operating inputs. Recalculation applies the current inputs.");
@@ -1287,6 +1326,11 @@ impl HistoryPanel {
         if let Some((value, _)) = &limit {
             hi = hi.max(*value * 1.12);
         }
+        // The uncertainty bands may reach beyond every nominal curve.
+        if let Some((band_lo, band_hi)) = self.band_extent(plot) {
+            lo = lo.min(band_lo);
+            hi = hi.max(band_hi);
+        }
         if !hi.is_finite() || hi <= lo {
             hi = lo + 1.0;
         }
@@ -1397,6 +1441,16 @@ impl HistoryPanel {
             .filter(|s| !self.hidden.contains(&s.key))
             .collect();
         ordered.sort_by_key(|s| s.key == active);
+
+        // Shaded P5-P95 uncertainty bands under the nominal curves.
+        for s in &ordered {
+            let color = arrangement_color(s.port, s.breeder).gamma_multiply(if s.key == active {
+                0.30
+            } else {
+                0.18
+            });
+            self.draw_band(&painter, &s.key, plot, color, &map_x, &map_y);
+        }
         for s in &ordered {
             let Some(points) = self.cache.get(&s.key).and_then(|c| c.points.get(&plot)) else {
                 continue;
@@ -1511,6 +1565,7 @@ impl HistoryPanel {
                         ui.label(arrangement_label(s.port, s.breeder));
                         ui.strong(value.map_or("—".to_string(), |v| plot.format(v)));
                     });
+                    self.band_hover(ui, &s.key, plot, hover_year, color);
                     let spans = self
                         .cache
                         .get(&s.key)

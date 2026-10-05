@@ -263,7 +263,7 @@ fn ranked(summary: &DiscreteSummary) -> Vec<(&String, &Proportion)> {
         .iter()
         .filter(|(_, p)| p.count > 0)
         .collect();
-    list.sort_by(|a, b| b.1.count.cmp(&a.1.count));
+    list.sort_by_key(|a| std::cmp::Reverse(a.1.count));
     list
 }
 

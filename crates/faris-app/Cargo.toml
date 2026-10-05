@@ -24,5 +24,13 @@ rfd.workspace = true
 avila-account = { version = "0.1", default-features = false, features = ["ui", "client"] }
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
 
+[features]
+# Development checks only: `--uncertainty-fixture` shows the evaluated
+# ensemble views on synthetic covariance. Off in every normal build.
+uncertainty-fixture = ["faris-engine/fixtures"]
+
+[dev-dependencies]
+faris-engine = { workspace = true, features = ["fixtures"] }
+
 [lints]
 workspace = true

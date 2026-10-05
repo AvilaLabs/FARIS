@@ -10,6 +10,7 @@ mod study_panel;
 mod sweep_panel;
 mod tour;
 mod transport_panel;
+mod uncertainty;
 mod viewport;
 
 use camera::{Camera, triangle_hit};
@@ -63,6 +64,12 @@ struct Arguments {
     /// histories are ready, then continue with --capture or exit.
     #[arg(long, hide = true)]
     export_on_load: Option<PathBuf>,
+    /// Development check: calculate the history ensembles on a synthetic
+    /// covariance so the evaluated uncertainty views can be seen. Exists only
+    /// in builds with the `uncertainty-fixture` feature.
+    #[cfg(feature = "uncertainty-fixture")]
+    #[arg(long, hide = true)]
+    uncertainty_fixture: bool,
     /// Initial computed-history position in calendar years.
     #[arg(long, default_value_t = 0.0)]
     initial_year: f64,
@@ -248,6 +255,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         transport,
         history,
     } = build_session(session_inputs).map_err(std::io::Error::other)?;
+    #[cfg(feature = "uncertainty-fixture")]
+    let history = {
+        let mut history = history;
+        if args.uncertainty_fixture {
+            history.enable_uncertainty_fixture();
+        }
+        history
+    };
     if !args.initial_year.is_finite()
         || !(0.0..=manifest.horizon_years).contains(&args.initial_year)
     {
@@ -1444,6 +1459,11 @@ impl FarisApp {
             &self.manifest.source_sha256,
             &self.manifest.variants[self.variant].id,
         );
+        self.history.uncertainty_controls(
+            ui,
+            &self.manifest.source_sha256,
+            &self.manifest.variants[self.variant].id,
+        );
     }
 
     fn compare_step(&mut self, ui: &mut egui::Ui) {
@@ -1549,6 +1569,8 @@ impl FarisApp {
             Some("This study has no operating assumptions, so there are no histories to export.")
         } else if self.history.is_pending() || self.history.is_stale() {
             Some("The operating histories are still calculating; export when the timeline settles.")
+        } else if self.history.uncertainty_pending() {
+            Some("The uncertainty ranges are still being calculated; export when they finish.")
         } else if self.sweep.as_ref().is_some_and(|s| s.is_pending()) {
             Some("The allocation sweep is still loading or calculating.")
         } else if self.study.archive.is_loading() {
@@ -1590,6 +1612,9 @@ impl FarisApp {
                     history: record
                         .and_then(|r| self.history.result(&r.scenario_sha256, variant))
                         .cloned(),
+                    ensemble: record.map_or(faris_report::EnsembleInput::None, |r| {
+                        self.history.export_ensemble(&r.scenario_sha256, variant)
+                    }),
                 });
             }
         }
@@ -1776,6 +1801,11 @@ impl eframe::App for FarisApp {
         if !self.study.archive.is_loading() {
             self.history.update_inputs(&ctx, &history_inputs);
         }
+        self.history.set_selected(
+            &self.manifest.source_sha256,
+            &self.manifest.variants[self.variant].id,
+        );
+        self.history.drive_uncertainty(&ctx);
         if let Some(sweep) = &mut self.sweep {
             sweep.update(&ctx, self.history.assumptions.as_ref());
         }
