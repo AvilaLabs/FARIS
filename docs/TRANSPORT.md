@@ -75,6 +75,72 @@ temperature, and neutron heating alone is not whole-plant recoverable heat.
 
 These dimensions follow the [OpenMC 0.15.3 tally specification](https://github.com/openmc-dev/openmc/blob/v0.15.3/docs/source/usersguide/tallies.rst).
 
+## Fast flux in magnet regions
+
+`flux_above { energy_min_ev }` scores neutron flux integrated above an energy
+bound; the magnet screening responses use 1e5 eV (0.1 MeV), the energy the REBCO
+fast-fluence value of Sorbom et al. (arXiv:1409.3540) refers to. The score is the
+same OpenMC track-length `flux` as the whole-energy response (raw cm per source
+neutron, normalized with the same factors), restricted by an energy filter that
+runs from the bound to 1 GeV. It is a separate score from `flux`, so the
+energy-integrated flux and the per-component spectra are unchanged and a fast
+flux is never shown under the energy-integrated name.
+
+The domain `component_region { component_id, region }` selects a region of a
+toroidal-shell component by the major radius R0, the cylindrical radius R from
+the torus axis and the toroidal angle phi (angle 0 is the +x axis, the centre of
+the outboard port prism):
+
+| Region | Meaning |
+| --- | --- |
+| `inboard_half` | R < R0, all toroidal angles |
+| `outboard_half` | R >= R0; with `excluding_sector_half_width_rad: w`, only where the angle from the port centre exceeds w |
+| `port_sector { half_width_rad: w }` | R >= R0 and the angle from the port centre is at most w |
+
+The default w is 0.1745 rad (10 degrees), larger than the angle the port itself
+subtends at the magnet radius, so the sector is the magnet behind and around the
+port, not only the port footprint. A request may carry one sector width per
+component and it must lie in (0, pi/2). Regions are defined for `flux_above`
+scores only. The inboard half, the outboard half without the sector and the sector
+partition the component; the whole-component `flux_above` response on a
+`component` domain is kept as the reference they sum to.
+
+`request_for_case` adds, for the `magnets` component, `magnets-fast-flux`,
+`magnets-inboard-fast-flux`, `magnets-outboard-fast-flux` and
+`magnets-port-sector-fast-flux`, for every arrangement, with or without a port,
+so a port arrangement and its control are directly comparable. The width is chosen
+with `request_for_case_with_regions`.
+
+Worker realisation. OpenMC's `CylindricalMesh` is always about the z axis and a
+mesh filter has a translation but no rotation, while the torus axis is y, so the
+planned cylindrical-mesh filter cannot express these regions without rotating
+the model. The worker instead partitions the magnet cell with a nested universe:
+the parent cell keeps its identity, name and port cut, and is filled with
+sub-cells cut by a y-axis cylinder of radius R0 and two planes through the torus
+axis at plus and minus the sector half width. Every existing `CellFilter` on the
+parent still matches (it matches at any nesting depth). Each region response is
+one scalar tally on a cell filter, an energy filter and the neutron filter with
+the track-length estimator, so its per-batch values and covariance work exactly
+like every other scalar response, and no per-bin summing or wrap-around at angle
+0 is needed. The geometry ownership audit identifies a cell by its outermost
+cell and its material by its innermost.
+
+Region volumes. For a shell between minor radii a < b the volume element is
+dV = R r dr dtheta dphi with R = R0 + r cos(theta); the outboard half annulus
+integrates to R0 pi (b^2 - a^2) / 2 + 2 (b^3 - a^3) / 3 and the inboard half to
+the same with a minus sign, so the full-torus volume of a region is
+Delta-phi times that, with Delta-phi = 2 pi for a half, 2 w for the sector and
+2 pi - 2 w for the outboard half without it (the halves sum to
+2 pi^2 R0 (b^2 - a^2)). With a penetration, the removed part of each affected
+region is the worker's uniform-point sampling of the port box (each removed
+point is classified by position into every requested region, so the port is never
+assumed to lie wholly in one region) with its binomial standard error, carried
+as the region's volume standard error. Rust checks every region volume against
+the exact formula minus its own independent midpoint estimate of the removed
+part. `controls/check_transport_arithmetic.py` recomputes the region volumes at
+50 digits, checks that the three region volumes sum to the component volume and
+that the region raw fast-flux track lengths sum to the whole-component fast flux.
+
 ## Response covariance
 
 Each new run records the Monte Carlo sampling covariance between its scalar

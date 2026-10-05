@@ -23,6 +23,33 @@ The residual is checked against a relative numerical tolerance of (10^{-10}), wi
 
 Exposure accumulates only while the modeled source operates, from the selected component-average flux at its reference power times power fraction and elapsed operating time. A service limit is a user-authored conditional input with component, response, metric, unit, threshold, and provenance. No unqualified lifetime threshold is inferred. A permanent limit stops operation; a replaceable limit starts only the declared replacement outage and resets that component's own exposure on completion.
 
+A component may carry several service limits, each on its own response. The
+demountable-magnet preset (`scenarios/arc-inspired/demountable-magnet-assumptions.json`)
+has three on `magnets`, all with the metric `fast_neutron_flux_region_average`
+and 3e22 n/m^2: the average fast (E > 0.1 MeV) flux of the inboard half
+(`magnets-inboard-fast-flux`), of the outboard half outside the port sector
+(`magnets-outboard-fast-flux`) and of the port sector
+(`magnets-port-sector-fast-flux`); the regions are defined in
+[TRANSPORT.md](TRANSPORT.md#fast-flux-in-magnet-regions). Each limit has its own
+exposure track; the component is replaced when any track reaches its limit, a
+replacement resets every exposure track of that component, and the
+service-limit event, the history snapshot (`limit_fluence_n_m2`) and the
+ensemble outcome (`first_trigger_response`, and the `first_trigger:<component>`
+fractions of samples in which each region reached its limit first, with `none`
+for samples that never tripped) record which region triggered. Limits on one
+component must share class and replacement duration. The 3e22 n/m^2 value is a
+literature-anchored screening value (3e18 n/cm^2, E > 0.1 MeV, Sorbom et al.
+2015, arXiv:1409.3540), applied to the average fast fluence of each named
+region; the local peak inside a region is not resolved, so a hot spot can exceed
+the average that is compared, and the port-sector figure is the one most likely
+to understate it. The 120-day replacement is authored. Tracking regions rather
+than a peak bin is deliberate: the winding pack sits behind a metre of shield,
+a local peak cell needs targeted variance reduction to reach a usable standard
+error, and that is planned later. A history needs the region responses in its
+transport record; one recorded before they existed fails closed at the first
+limit that names them. The other presets keep their authored energy-integrated
+magnet triggers (metric `energy_integrated_component_average_neutron_flux`).
+
 A sampled component flux of exactly zero is accepted as a finite tally result, including when its standard error is also zero. It is not interpreted as proof that the physical flux is exactly zero, and it supplies no statistical upper bound. Such a response can still drive the deterministic example ledger, but service-limit conclusions for it are not qualified.
 
 The energy ledger keeps thermal quantities separate from electrical conversion. It uses the D-T reaction energy less primary-neutron energy as charged-particle birth energy, multiplied by an explicitly authored alpha deposition fraction. Neutron heat comes only from the identified whole-model heating response; in this demonstration tally, neutron and photon deposited heating are grouped by the transport score. An explicit `transport_heat_recovery_fraction` selects the part used in the conditional energy ledger. The Rust/API property names say `transport_deposited_heat_w` and `transport_recovered_heat`; older serialized spellings deserialize through explicit aliases. The heat terms are not a coolant or thermal-cycle calculation. A user-authored thermal-to-electric efficiency maps selected thermal power to gross electric power. Auxiliary electric load remains signed in net power during off periods; cumulative gross, auxiliary, and net electricity are recorded separately. Missing thermal/auxiliary assumptions or missing whole-model heating leave those outputs unavailable rather than silently substituting values.
@@ -39,7 +66,7 @@ The executable file `scenarios/arc-inspired/demo-operating-assumptions.json` is 
 
 Fuel restart uses separate reserve and restart thresholds to avoid arbitrarily short repeated operation pulses when delayed cohorts release small amounts. After a starvation stop, the source remains off until available inventory reaches the restart level. This is an explicit control rule, not a plant control-system design.
 
-The selected fluence variable is the integral of energy-integrated component-average neutron flux. It is not a fast-neutron fluence, damage metric, dpa, magnet insulation limit, or a material allowable. The numeric thresholds are scenario triggers only. `run_history_sensitivity` supports full reruns over recovery 0.90/0.95/0.99, delay 0.5/1/2 times the authored value, and service-limit 0.5/1/2 times the authored values (27 combinations). It bounds the grid to 64 reruns and stores each point's changed parameters, outcome, final ledger snapshot, event count, and maximum mass residual instead of duplicating every snapshot. These are design-space probes around authored demonstration values, not uncertainty distributions or recommended operating limits.
+The fluence of an energy-integrated limit is the integral of the energy-integrated component-average neutron flux. It is not a fast-neutron fluence, damage metric, dpa, magnet insulation limit, or a material allowable. The numeric thresholds are scenario triggers only. `run_history_sensitivity` supports full reruns over recovery 0.90/0.95/0.99, delay 0.5/1/2 times the authored value, and service-limit 0.5/1/2 times the authored values (27 combinations). It bounds the grid to 64 reruns and stores each point's changed parameters, outcome, final ledger snapshot, event count, and maximum mass residual instead of duplicating every snapshot. These are design-space probes around authored demonstration values, not uncertainty distributions or recommended operating limits.
 
 The published 10-day blanket residence-time and 0.01% processing-inefficiency values in some DEMO/blanket studies are design-study assumptions, not universal measurements and are not inputs adopted here. Literature values do not establish this scenario's inventories, reserve, recoveries, component limits, outage rate, thermal cycle, or net output.
 
