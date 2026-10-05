@@ -423,3 +423,22 @@ the width down 960, 800, 720, 640 if the file exceeds `--max-bytes`. Single
 screenshots use `--capture docs/images/<name>.png` as before (add `--step`,
 `--field-view`, `--initial-year`). Run `python3 -m unittest discover -s scripts
 -p 'test_*.py'` for the assembler's tests.
+
+## Release download
+
+A release is the verified package in one archive. Set the workspace version
+in `Cargo.toml` and date the version's section in `CHANGELOG.md`, rebuild the
+package with binaries of that version, run its `verify.sh`, then:
+
+```bash
+python3 scripts/make_release.py --package dist/<package> --version 0.1.0 \
+  --output-dir dist/release-0.1.0
+```
+
+The script refuses a version mismatch (Cargo.toml, changelog, the bundled
+`faris` and `faris-app`), an undated changelog section, symbolic links and an
+existing output directory, and reruns the package's binary manifest check. It
+writes `FARIS-<version>-linux-x86_64.tar.gz` with sorted entries, zeroed owners
+and the changelog date as every timestamp, so the same package gives the same
+bytes; `SHA256SUMS`; and `RELEASE_NOTES.md` from the changelog section. It does
+not tag or upload.
