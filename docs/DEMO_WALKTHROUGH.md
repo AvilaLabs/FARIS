@@ -12,7 +12,8 @@ in [portable verification](../references/portable-demo-verification.json) and
 [native verification](../references/native-demo-verification.json).
 The short native demonstration is:
 
-1. Run the distribution's `verify.sh`, then `launch.sh`. No OpenMC installation
+1. Run the distribution's `verify.sh` (Linux, with the evidence part), then open it
+   with `bin/faris-app --package <dir>`, or double-click `bin/faris-app`. No OpenMC installation
    or nuclear data is needed for recorded exploration.
 2. Orbit the finite-port scene, select a layer, and inspect its physical inputs.
    Switch allocations and **Show matched control** while retaining the same
@@ -282,6 +283,7 @@ python3 scripts/package_recorded_demo.py \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-050cm.transport-bundle.json \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-055cm.transport-bundle.json \
   --sweep-bundle runs/allocation-sweep/bundles/blanket-060cm.transport-bundle.json \
+  --version 0.1.1 \
   --output dist/FARIS-demo-2026-10-01
 ```
 
@@ -290,8 +292,8 @@ for one variant of `scenarios/arc-inspired/allocation-sweep/scenario.json`. The
 packager validates every one with the recorded-bundle contract (embedded scenario
 hash, `blanket-NNNcm` variant id declared by that scenario, distinct transport
 seeds, no duplicate variant), copies them under `sweep/bundles/`, indexes them,
-and adds a sweep table to the package README. `launch.sh` passes the verified
-bundles to the app as `--sweep-bundle`; `verify.sh` revalidates them and its
+and adds a sweep table to the package README. The app opens the verified
+bundles at launch; `verify.sh` revalidates them and its
 tamper control targets a sweep file when one exists. Omitting the flag is allowed
 and yields a package with no sweep (the packager prints a note). The sweep runs
 carry transport identity only; they have no Core evidence cases.
@@ -326,14 +328,14 @@ file count and bytes and the verifier enforces the 1 GiB / 2,048-file delivered
 package caps. Case/workspace trees are gzip archives with exact per-file hashes
 and a separate 1.5 GiB / 8,192-file aggregate expanded budget, plus a 64 MiB
 per-file ceiling. These are delivery disk budgets, separate from each native
-case's 512 MiB bound and the fresh solver job limits above. The launcher verifies
-the index and extracts only preflighted regular files to a private temporary
+case's 512 MiB bound and the fresh solver job limits above. The app verifies
+the index and extracts only checked regular files to a private temporary
 directory that lasts until the app exits. Extraction runs in the background;
 the validated transport scene opens while saved Core evidence remains pending.
 Evidence becomes available only after extraction and actual receipt inspection.
-Path depth and implicit-directory counts are bounded, and free-space checks
-include directory blocks. The launcher reports extraction time separately;
-startup acceptance measures the first useful scene from launcher invocation.
+Path depth and implicit-directory counts are bounded, and the free-space checks
+of `verify.sh` include directory blocks. The app reports extraction time separately;
+startup acceptance measures the first useful scene from app invocation.
 These deterministic history
 probes are authored scenario studies, not
 probability distributions or lifetime uncertainty bounds.
@@ -346,7 +348,7 @@ retained for independent replay; the 30-day level reproduces the baseline.
 
 The local Linux distribution includes hash-pinned, read-only copies of the
 release FARIS CLI, native app, and Core executable. Launch the offline four-case
-workspace with `dist/FARIS-demo-2026-10-01/launch.sh`; run
+workspace with `dist/FARIS-demo-2026-10-01/bin/faris-app` (or double-click it); run
 `dist/FARIS-demo-2026-10-01/verify.sh` to rehash the package, reopen all four Core
 cases, and exercise a tamper-negative copy. These binaries target the recorded
 OS and architecture and may require compatible system libraries. Their hashes
@@ -357,20 +359,21 @@ the build commands in `SOURCE_PROVENANCE.md`.
 
 Launch and verification preserve the indexed distribution. Generated study and
 fresh-run records default to `$XDG_STATE_HOME/faris/recorded-demo-runs/<package-name>`
-(or `~/.local/state/faris/recorded-demo-runs/<package-name>`). Pass
+(or `~/.local/state/faris/recorded-demo-runs/<package-name>`) on Linux,
+`~/Library/Application Support/FARIS/recorded-demo-runs/<package-name>` on macOS
+and `%LOCALAPPDATA%\FARIS\recorded-demo-runs\<package-name>` on Windows. Pass
 `--runs-directory /path/outside/the/distribution` to choose another output root.
-The launcher refuses a run directory inside the distribution and suppresses
-Python bytecode writes there.
+The app refuses a run directory inside the distribution.
 
 On a workstation with a small temporary-directory quota, choose a private
 temporary root on a volume with room for the 803,549,595 expanded Core bytes.
-This uses Python's standard `TMPDIR`; it preserves the indexed packet:
+The app's temporary folder follows `TMPDIR` on Linux; it preserves the indexed packet:
 
 ```bash
 mkdir -p runs/demo-native-temporary
 chmod 700 runs/demo-native-temporary
 TMPDIR="$PWD/runs/demo-native-temporary" \
-  dist/FARIS-demo-2026-10-01/launch.sh \
+  dist/FARIS-demo-2026-10-01/bin/faris-app --package dist/FARIS-demo-2026-10-01 \
   --runs-directory "$PWD/runs/demo-native"
 ```
 
@@ -387,7 +390,7 @@ verified.
 Open the port arrangement and its feature-free control from that package with:
 
 ```bash
-dist/FARIS-demo-2026-10-01/launch.sh
+dist/FARIS-demo-2026-10-01/bin/faris-app --package dist/FARIS-demo-2026-10-01
 ```
 
 Each saved-study descriptor identifies one exact prepared Core case, its
@@ -430,7 +433,7 @@ runs well under 15 frames per second, and the assembler then resamples by time.
 The plan `references/readme-capture/tour.plan.json` presses steps 2, 3 and 4,
 orbits the camera, and moves the year cursor 0 to 30, without any pixel positions
 (plan actions `tap`, `orbit`, `set_year`; `time_s` sets pauses). Start the app on a
-recorded study or the packaged launcher's arguments so Simulate and Operate show
+recorded study or a package (`--package`) so Simulate and Operate show
 real fields, for example:
 
 ```bash
@@ -453,19 +456,47 @@ screenshots use `--capture docs/images/<name>.png` as before (add `--step`,
 
 ## Release download
 
-A release is the verified package in one archive. Set the workspace version
-in `Cargo.toml` and date the version's section in `CHANGELOG.md`, rebuild the
-package with binaries of that version, run its `verify.sh`, then:
+A release is the verified package in two archives: the app part, one for each
+platform, and the evidence part, the same for every platform. Set the workspace
+version in `Cargo.toml` and date the version's section in `CHANGELOG.md` (the
+script refuses an "unreleased" heading), rebuild the package with binaries of
+that version (`package_recorded_demo.py --version 0.1.1`), run its `verify.sh`,
+then:
 
 ```bash
-python3 scripts/make_release.py --package dist/<package> --version 0.1.0 \
-  --output-dir dist/release-0.1.0
+python3 scripts/make_release.py --package dist/<package> --version 0.1.1 \
+  --output-dir dist/release-0.1.1
 ```
 
 The script refuses a version mismatch (Cargo.toml, changelog, the bundled
 `faris` and `faris-app`), an undated changelog section, symbolic links and an
 existing output directory, and reruns the package's binary manifest check. It
-writes `FARIS-<version>-linux-x86_64.tar.gz` with sorted entries, zeroed owners
-and the changelog date as every timestamp, so the same package gives the same
-bytes; `SHA256SUMS`; and `RELEASE_NOTES.md` from the changelog section. It does
-not tag or upload.
+writes `FARIS-<version>-linux-x86_64.tar.gz` and
+`FARIS-<version>-evidence.tar.gz` with sorted entries, zeroed owners and the
+release commit time as every timestamp, so the same package gives the same
+bytes; `SHA256SUMS` for both; and `RELEASE_NOTES.md` from the changelog section.
+It does not tag or upload.
+
+The Windows and macOS programs are built by CI (`.github/workflows/desktop.yml`),
+which uploads each platform's `bin/` and `build.json`. Turn the verified Linux
+package into that platform's package with `scripts/retarget_package.py`:
+
+```bash
+python3 scripts/retarget_package.py --package dist/<linux-package> \
+  --build <desktop-build-folder> --output dist/<platform-package>
+```
+
+It refuses unless the build's FARIS and Core commits and `faris --version` equal
+what the Linux package recorded and every program has its recorded hash and size.
+It executes nothing and refuses an existing output directory. Then write that
+platform's app archive (`.zip` for Windows, `.tar.gz` for macOS):
+
+```bash
+python3 scripts/make_release.py --package dist/<platform-package> --version 0.1.1 \
+  --output-dir dist/release-0.1.1 --app-only
+```
+
+With `--app-only`, `--output-dir` must already hold the `SHA256SUMS` of the first
+run. The script writes only the app archive, appends its line to `SHA256SUMS` and
+rewrites `RELEASE_NOTES.md` for every platform archive present. The evidence
+archive is the same whichever package it is built from.

@@ -73,6 +73,8 @@ faris history ensemble --assumptions scenarios/arc-inspired/demountable-magnet-a
 | `--initial-year N` | Starts the timeline at year N. |
 | `--field-view VIEW` | Starts with a field view for results loaded with `--run`. |
 | `--core PATH` | The Avila Core executable used by **Compile study**. |
+| `--package DIR` | Opens the recorded study package in DIR. Without a study file or data options, the app looks beside its own `bin` folder. |
+| `--runs-directory DIR` | Where generated runs go. It must be outside the package. The default is a per-user folder; see [Download and verify](install.md). |
 | `--window-width N`, `--window-height N` | The initial window size. |
 
 Run `faris-app --help` for the rest.

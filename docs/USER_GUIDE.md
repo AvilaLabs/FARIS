@@ -1,6 +1,6 @@
 # FARIS user guide
 
-This guide is for release 0.1.0 of the FARIS desktop app and command line. It assumes you know neutronics and plant engineering. It does not assume you know this tool.
+This guide is for release 0.1.1 of the FARIS desktop app and command line. It assumes you know neutronics and plant engineering. It does not assume you know this tool.
 
 ## 1. What FARIS answers
 
@@ -16,14 +16,21 @@ This line sits in the bottom bar of every step. It is also in every export. Noth
 
 ### Open the recorded package
 
-The Linux package holds four recorded transport cases, their Core evidence and an allocation sweep. It needs `python3` and does not need OpenMC or nuclear data. From the package folder, run:
+The package holds four recorded transport cases and an allocation sweep, and optionally their Core evidence. It does not need Python, OpenMC or nuclear data. Download the app for your platform (Linux, Windows, or macOS on Apple silicon or Intel) and `SHA256SUMS` from the release, check the archive, and unpack it. It unpacks to a folder `FARIS-0.1.1/`. Then double-click `bin/faris-app` (`bin\faris-app.exe` on Windows), or run it from a terminal:
 
 ```bash
-./verify.sh
-./launch.sh
+FARIS-0.1.1/bin/faris-app
 ```
 
-`verify.sh` checks the package from a relocated copy and takes a while. `launch.sh` checks the hashes of the bundled programs and files, then opens the app with all four cases loaded. It unpacks the Core evidence into a private temporary folder that stays until the app closes. It needs free temporary space; the package `README.md` gives the amounts. The bundled programs are hash-pinned, not signed.
+The app finds the study beside its `bin` folder, checks the SHA-256 of every file it needs, and opens the four recorded arrangements and the sweep. `faris-app --package DIR` opens a package elsewhere. If a check fails, the app opens with nothing loaded and says why and what to do: download again and check `SHA256SUMS`.
+
+The optional evidence pack, `FARIS-0.1.1-evidence.tar.gz`, adds the Avila Core receipts to the Evidence step. Unpack it into the same place, so its files merge into `FARIS-0.1.1/`. With it, the app unpacks the Core evidence (823 MB) into a private temporary folder while it runs and deletes it on exit, so it needs about 0.9 GB of free temporary space. Without it, everything works except the saved receipts: the Evidence step says "Core receipts not included", why, and the next step (download the evidence pack, unpack it into the folder, reopen FARIS).
+
+`verify.sh` needs Linux, `python3` and the evidence pack, and about 2 GB of temporary space; it checks the exact amount first. It checks the package from a relocated copy and takes a while. The Windows and macOS downloads are checked by the app itself at launch.
+
+The programs are hash-pinned, not signed. Windows SmartScreen may warn: choose More info, then Run anyway. On macOS the programs are neither signed nor notarized: after unpacking, run `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or open `bin/faris-app` and allow it under System Settings, Privacy & Security, Open Anyway.
+
+Generated runs go to a folder for your user, outside the package: `$XDG_STATE_HOME/faris/recorded-demo-runs/<folder>` on Linux (`~/.local/state` if unset), `~/Library/Application Support/FARIS/recorded-demo-runs/<folder>` on macOS and `%LOCALAPPDATA%\FARIS\recorded-demo-runs\<folder>` on Windows. `--runs-directory` overrides it and must be outside the package.
 
 ### Open a .faris file
 
@@ -227,7 +234,7 @@ Run `faris COMMAND --help` for every flag. Errors exit with status 2; a file tha
   average, not a magnet peak.
 - **Benchmarks.** Code-to-code comparison against ITER_1D is unavailable
   without traceable reference responses.
-- **Platforms.** Linux only. The bundled programs are hash-pinned, not signed.
+- **Platforms.** Linux, Windows and macOS. Linux is built and tested on the reference laptop. Windows and macOS builds are new in 0.1.1; report problems on GitHub issues. The bundled programs are hash-pinned, not signed.
 
 ## 9. Troubleshooting
 

@@ -4,6 +4,17 @@ FARIS follows [semantic versioning](https://semver.org/) from 0.1.0. Before 1.0,
 
 The full history is in the [changelog](https://github.com/AvilaLabs/FARIS/blob/main/CHANGELOG.md). Releases are on the [releases page](https://github.com/AvilaLabs/FARIS/releases).
 
+## 0.1.1, unreleased
+
+The same demo study and results as 0.1.0. What changes is how it is distributed.
+
+- **Download.** A smaller app download for each platform, with the Core receipts in an optional evidence pack. The Linux app download is about 35 MB and the evidence pack about 78 MB. 0.1.0 was one 112 MB archive.
+- **Launcher.** `bin/faris-app` opens the study and checks the SHA-256 of every file it needs. Python is not needed, and `launch.sh` is gone.
+- **Platforms.** Windows and macOS (Apple silicon and Intel) downloads. The programs are not signed. Windows and macOS builds are new in 0.1.1.
+- **Fixes.** The tour states the real history counts. The export button hover no longer gives a page count. Saved Core evidence waits up to 10 minutes for unpacking and says why if it gives up. On Windows the app opens without a console window, and the `faris history` commands run.
+
+A 0.1.0 package keeps its own `launch.sh` and verifier. To move to 0.1.1, download the new files. See [Download and verify](install.md).
+
 ## 0.1.0, 2026-10-05
 
 The first public release, a deliberately narrow demo that is complete for one study: an ARC-inspired compact D-T tokamak, studied from 3D Monte Carlo transport through 30 years of operation, with the transport sampling uncertainty carried into every year.
