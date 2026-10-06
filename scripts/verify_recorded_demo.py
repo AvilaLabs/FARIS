@@ -33,6 +33,45 @@ CHECKSUM = "package-index.sha256"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 HISTORY_REFINEMENT_REPORT = "references/operating-history-primary-refinement-v4.json"
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
+SCHEMA = "faris-recorded-demo-package/v0.5"
+PARTS = ("app", "evidence")
+APP_ROOT_FILES = {"README.md", "SOURCE_PROVENANCE.md"}
+APP_ROOT_DIRECTORIES = ("bin/", "licenses/")
+LAUNCH_PATHS = ("port/bundles/reference.transport-bundle.json",
+                "port/bundles/breeder-emphasis.transport-bundle.json",
+                "control/scenario.json",
+                "control/bundles/reference.transport-bundle.json",
+                "control/bundles/breeder-emphasis.transport-bundle.json",
+                "operating-assumptions.json")
+OS_NAMES = {"linux": "linux", "darwin": "macos", "win32": "windows"}
+ARCH_NAMES = {"x86_64": "x86_64", "amd64": "x86_64", "arm64": "aarch64", "aarch64": "aarch64"}
+
+
+def rust_platform() -> dict[str, str]:
+    """This machine as `{os, arch}` in the names Rust's std::env::consts uses."""
+    operating_system = OS_NAMES.get(sys.platform)
+    architecture = ARCH_NAMES.get(platform.machine().lower())
+    if operating_system is None or architecture is None:
+        raise ValueError(f"unsupported platform: {sys.platform} {platform.machine()}")
+    return {"os": operating_system, "arch": architecture}
+
+
+def launch_paths(index: dict[str, Any]) -> set[str]:
+    """Every package path the app opens at launch, except bin/ (assigned by directory)."""
+    paths = set(LAUNCH_PATHS)
+    sweep = index.get("sweep")
+    if isinstance(sweep, dict):
+        for run in sweep.get("runs") or []:
+            if isinstance(run, dict) and isinstance(run.get("transport_bundle"), str):
+                paths.add(run["transport_bundle"])
+    return paths
+
+
+def part_for(relative: str, launched: set[str]) -> str:
+    if (relative in launched or relative in APP_ROOT_FILES
+            or relative.startswith(APP_ROOT_DIRECTORIES)):
+        return "app"
+    return "evidence"
 
 
 def digest(path: Path) -> str:
@@ -90,10 +129,34 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     if checksum_path.read_text(encoding="ascii") != expected_line:
         raise ValueError("package-index.sha256 does not match package-index.json")
     index = json.loads(index_path.read_text(encoding="utf-8"))
-    if index.get("schema_version") != "faris-recorded-demo-package/v0.4":
+    if index.get("schema_version") != SCHEMA:
         raise ValueError("unsupported recorded demo package schema")
     if index.get("status") != "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED":
         raise ValueError("package status does not preserve the required NOT_EVALUATED scope")
+    files = index.get("files")
+    if not isinstance(files, list) or not files or len(files) > 2048:
+        raise ValueError("package index has an empty or excessive file inventory")
+    launched = launch_paths(index)
+    evidence_missing = 0
+    evidence_total = 0
+    for item in files:
+        relative = item.get("path") if isinstance(item, dict) else None
+        if not isinstance(relative, str) or item.get("part") != part_for(relative, launched):
+            raise ValueError("package index assigns a file to the wrong part")
+        if item["part"] == "evidence":
+            evidence_total += 1
+            if not os.path.lexists(root.joinpath(*relative.split("/"))):
+                evidence_missing += 1
+    parts = index.get("parts")
+    archive_name = parts.get("evidence", {}).get("archive_name") if isinstance(parts, dict) else None
+    if not isinstance(archive_name, str) or not archive_name:
+        raise ValueError("package index lacks its evidence archive name")
+    if evidence_missing == evidence_total:
+        raise ValueError("the evidence part is not installed: download " + archive_name
+                         + " from the same release and unpack it into this package folder")
+    if evidence_missing:
+        raise ValueError(f"the evidence part is incomplete: {evidence_missing} of {evidence_total} "
+                         f"evidence files are missing; unpack {archive_name} into this package folder again")
     if digest(faris.resolve(strict=True)) != index.get("faris_cli_sha256"):
         raise ValueError("selected FARIS executable differs from the package pin")
     if digest(core.resolve(strict=True)) != index.get("core_executable_sha256"):
@@ -101,7 +164,7 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     runtime = index.get("local_runtime")
     if (not isinstance(runtime, dict)
             or runtime.get("schema_version") != "faris-local-runtime/v0.1"
-            or runtime.get("platform") != {"sys_platform": sys.platform, "machine": platform.machine()}):
+            or runtime.get("platform") != rust_platform()):
         raise ValueError("package local runtime is missing or targets another platform")
     executables = runtime.get("executables")
     if not isinstance(executables, dict) or set(executables) != {"faris", "faris-app", "avila-core"}:
@@ -117,14 +180,12 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
                 or binary_path.stat().st_size != record.get("bytes")
                 or not binary_path.stat().st_mode & 0o111):
             raise ValueError(f"package-pinned executable changed: {name}")
-    for role in ("launcher", "verifier"):
-        descriptor = runtime.get(role)
-        launcher_path = safe_package_path(root, descriptor.get("path") if isinstance(descriptor, dict) else None)
-        if digest(launcher_path) != descriptor.get("sha256"):
-            raise ValueError(f"package {role} script digest mismatch")
-    files = index.get("files")
-    if not isinstance(files, list) or not files or len(files) > 2048:
-        raise ValueError("package index has an empty or excessive file inventory")
+    if runtime.get("launcher") != {"kind": "native", "executable": "faris-app"}:
+        raise ValueError("package launcher is not the native app")
+    descriptor = runtime.get("verifier")
+    verifier_path = safe_package_path(root, descriptor.get("path") if isinstance(descriptor, dict) else None)
+    if digest(verifier_path) != descriptor.get("sha256"):
+        raise ValueError("package verifier script digest mismatch")
     inventory: dict[str, dict[str, Any]] = {}
     total_bytes = 0
     for item in files:
@@ -172,6 +233,12 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
     if (index.get("package_file_count") != len(files)
             or index.get("package_bytes") != total_bytes):
         raise ValueError("package index total file count/byte measurement is incorrect")
+    for part in PARTS:
+        record = parts.get(part) if isinstance(parts, dict) else None
+        members = [item for item in files if item["part"] == part]
+        if (not isinstance(record, dict) or record.get("file_count") != len(members)
+                or record.get("bytes") != sum(item["bytes"] for item in members)):
+            raise ValueError(f"package index {part} part totals are incorrect")
     if (index.get("expanded_size_cap_bytes") != MAX_EXPANDED_BYTES
             or index.get("expanded_file_count_cap") != MAX_MEMBERS
             or index.get("expanded_archive_member_count_cap") != MAX_MEMBERS

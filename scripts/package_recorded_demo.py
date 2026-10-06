@@ -14,7 +14,6 @@ import hashlib
 import json
 import math
 import os
-import platform
 from pathlib import Path
 from pathlib import PurePosixPath
 import shutil
@@ -29,6 +28,7 @@ if SCRIPT_DIR not in sys.path:
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bundle,
                                       check_sweep_set, SWEEP_BUNDLE_DIRECTORY)
+from verify_recorded_demo import launch_paths, part_for, rust_platform
 from recorded_archives import (create_archive, MAX_PATH_COMPONENTS,
                                MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES)
 
@@ -597,6 +597,26 @@ def add_history_comparison(faris: Path, branch: Path, scenario: Path,
             "provenance_sha256": sha256(provenance_path)}
 
 
+def assign_parts(records: list[dict], index_fields: dict) -> dict:
+    """Mark each file record app or evidence, return the `parts` totals, and assert
+    that every path the app opens at launch is in the app part."""
+    launched = launch_paths(index_fields)
+    by_path = {record["path"]: record for record in records}
+    for record in records:
+        record["part"] = part_for(record["path"], launched)
+    for relative in sorted(launched):
+        if relative not in by_path or by_path[relative]["part"] != "app":
+            raise RuntimeError(f"app launch path is not in the app part: {relative}")
+    for relative in ("bin/faris-app", "bin/avila-core"):
+        if by_path.get(relative, {}).get("part") != "app":
+            raise RuntimeError(f"app executable is not in the app part: {relative}")
+    totals = {}
+    for part in ("app", "evidence"):
+        members = [record for record in records if record["part"] == part]
+        totals[part] = {"file_count": len(members), "bytes": sum(item["bytes"] for item in members)}
+    return totals
+
+
 def scan_package(root: Path) -> list[dict]:
     records = []
     total_bytes = 0
@@ -637,7 +657,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
                           core_source_repo: Path, core_source_revision: str,
                           *, require_clean_faris_source: bool = True) -> dict:
     if sys.platform != "linux":
-        raise RuntimeError("the recorded local launcher currently targets Linux only")
+        raise RuntimeError("the recorded package builder currently targets Linux only")
     bin_dir = staging / "bin"
     bin_dir.mkdir()
     installed = {}
@@ -653,7 +673,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
     scripts_dir.mkdir()
     for name in ("verify_recorded_demo.py", "recorded_bundle_contract.py",
                  "port_geometry_contract.py", "verify_binary_manifest.py",
-                 "recorded_archives.py", "launch_recorded_demo.py"):
+                 "recorded_archives.py"):
         source = Path(__file__).with_name(name)
         shutil.copyfile(source, scripts_dir / name)
 
@@ -739,16 +759,6 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
         "- Binary SHA-256 values in the package index identify bytes only; they are unsigned.\n",
         encoding="utf-8")
 
-    launch = """#!/bin/sh
-set -eu
-export PYTHONDONTWRITEBYTECODE=1
-root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-python3 "$root/scripts/verify_binary_manifest.py" "$root"
-exec python3 "$root/scripts/launch_recorded_demo.py" "$root" "$@"
-"""
-    launch_path = staging / "launch.sh"
-    launch_path.write_text(launch, encoding="utf-8")
-    launch_path.chmod(0o555)
     verify = """#!/bin/sh
 set -eu
 export PYTHONDONTWRITEBYTECODE=1
@@ -769,11 +779,11 @@ python3 "$root/scripts/verify_recorded_demo.py" \\
         for path in sorted(licenses_dir.rglob("*")) if path.is_file()
     }
     return {"schema_version": "faris-local-runtime/v0.1",
-            "platform": {"sys_platform": sys.platform, "machine": platform.machine()},
+            "platform": rust_platform(),
             "executables": installed,
             "license_files": license_files,
             "source_provenance": source_record,
-            "launcher": {"path": "launch.sh", "sha256": sha256(launch_path)},
+            "launcher": {"kind": "native", "executable": "faris-app"},
             "verifier": {"path": "verify.sh", "sha256": sha256(verify_path)}}
 
 
@@ -899,8 +909,12 @@ def add_sweep(staging: Path, bundle_paths: list[Path]) -> dict | None:
             "scenario_sha256": scenario_sha, "runs": runs}
 
 
+def evidence_archive_name(version: str) -> str:
+    return f"FARIS-{version}-evidence.tar.gz"
+
+
 def write_package_readme(staging: Path, pairs: list[dict], support: dict,
-                         sweep: dict | None = None) -> None:
+                         sweep: dict | None, version: str) -> None:
     expanded_bytes = sum(int(arrangement[key]["expanded_bytes"])
                          for pair in pairs for arrangement in pair["arrangements"]
                          for key in ("case_archive", "workspace_archive"))
@@ -936,7 +950,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
             "",
             f"## Blanket/shield allocation sweep ({len(sweep['runs'])} recorded runs)",
             "",
-            f"Scenario `{sweep['scenario_id']}` (SHA-256 `{sweep['scenario_sha256']}`) holds the total thickness fixed and moves it between the breeding blanket and the neutron shield. Each run is a recorded transport bundle under `sweep/bundles/`; the launcher passes them to the app. They carry transport identity only (no Core evidence cases) and the same NOT_EVALUATED scope.",
+            f"Scenario `{sweep['scenario_id']}` (SHA-256 `{sweep['scenario_sha256']}`) holds the total thickness fixed and moves it between the breeding blanket and the neutron shield. Each run is a recorded transport bundle under `sweep/bundles/`; the app opens them at launch. They carry transport identity only (no Core evidence cases) and the same NOT_EVALUATED scope.",
             "",
             "| Variant | Blanket (m) | Shield (m) | Run SHA-256 | Raw artifact SHA-256 |",
             "|---|---:|---:|---|---|",
@@ -958,11 +972,20 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "See `support/` for the bounded scientific background, independent checker scripts, data acquisition route, license notes, and included verification metadata.",
         "The old DEMO_ACCEPTANCE snapshot is intentionally omitted because release acceptance is determined by the final package index and fresh verifier run.",
         "",
-        "## Offline launch and verification",
+        "## Opening the study",
         "",
-        "Run `./launch.sh` to open the four recorded cases (and the allocation sweep, when the package contains one). The launcher verifies indexed bytes, expands case/workspace archives into a mode-0700 private temporary directory, and keeps that copy until the app exits. Run `./verify.sh` to relocate the compressed package, expand the archives, revalidate saved Core evidence and export reports, and check rejection of a separate tampered copy.",
-        "Before launch, the temporary filesystem must have the indexed expanded byte total, one filesystem block per indexed implicit directory, and 64 MiB free. Before `verify.sh`, it must have the relocated compressed package plus those expanded bytes, one largest one-case export copy, directory blocks, and 64 MiB free; the verifier checks this. A later tamper negative control needs a third compressed copy only after expanded scratch is released. No files are expanded inside the read-only distribution.",
+        "Linux: run `bin/faris-app` (or double-click it). The app finds this package by itself, checks the indexed bytes of the files it opens, and shows the four recorded cases (and the allocation sweep, when the package contains one). Nothing is written inside this folder; the app keeps its own runs outside it.",
         "The bundled Linux executables are read-only and hash-pinned, not signed. Their hashes establish byte identity, not authenticity.",
+        "",
+        "## The two downloads",
+        "",
+        f"The program, the transport bundles, the operating assumptions, the licenses and the package index are the platform download (`FARIS-{version}-<os>-<arch>.tar.gz`). That alone opens and runs the whole study.",
+        f"The evidence download (`{evidence_archive_name(version)}`) adds the Core receipts shown in the Evidence step and the files `verify.sh` checks: the eight Core case/workspace archives, the saved-study descriptors, inspections, exports, comparisons, event histories, sensitivities, outage-duration probes, support files, `inputs/`, `verify.sh` and the verifier scripts. To install it, unpack it into the same folder as the platform download (both unpack into `FARIS-{version}/`). Without it the Evidence step says the Core receipts are not included, and the rest works.",
+        f"With the evidence part present, the app expands the eight Core case/workspace archives into a private temporary folder while it runs and removes it when it exits. The temporary space for that is the indexed expanded total, {expanded_bytes} bytes in {expanded_files} files, plus one filesystem block per indexed implicit directory and 64 MiB.",
+        "",
+        "## Verification",
+        "",
+        "`./verify.sh` needs Linux, `python3` and the evidence part. It relocates a copy of the compressed package, expands the archives, revalidates saved Core evidence and export reports, and checks rejection of a separate tampered copy. It needs temporary space for the relocated compressed package (`package_bytes` in `package-index.json`) plus the expanded bytes above, one largest one-case export copy, directory blocks and 64 MiB; the verifier checks this. A later tamper negative control needs a third compressed copy only after expanded scratch is released. No files are expanded inside the read-only distribution.",
         "",
         "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
         f"The eight Core case/workspace archives occupy {compressed_archive_bytes} compressed bytes and expand to {expanded_bytes} bytes across {expanded_files} files. Expansion reproduces the original files byte-for-byte. The full package's indexed compressed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 1 GiB total. Each expanded case or workspace is capped at 512 MiB, 2,048 files, 4,096 archive members, and 1,024 implicit directories; aggregate expansion is capped at 1.5 GiB, 8,192 files, 8,192 archive members, and 8,192 implicit directories. Paths are limited to 64 components. Each expanded file remains capped at 64 MiB.",
@@ -1177,8 +1200,12 @@ def main() -> None:
                         help="additional bounded campaign audit report to retain under support/campaigns")
     parser.add_argument("--sweep-bundle", action="append", default=[], type=Path, metavar="PATH",
                         help="portable allocation-sweep RecordedTransportBundle (from `faris transport pack`); repeatable")
+    parser.add_argument("--version", required=True,
+                        help="release version; names the evidence archive FARIS-<version>-evidence.tar.gz")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    if not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
+        raise SystemExit("--version must look like 0.1.1")
     files = [args.faris, args.faris_app, args.core, args.control_scenario, args.control_reference_run,
              args.control_breeder_run, args.port_scenario, args.port_reference_run,
              args.port_breeder_run, args.port_reference_volume_report,
@@ -1303,8 +1330,10 @@ def main() -> None:
         outage_summary_path = staging / "references" / "outage-duration-sensitivity-summary.json"
         write_bounded_json(outage_summary_path, outage_summary)
         sweep_manifest = add_sweep(staging, [path.resolve() for path in args.sweep_bundle])
-        write_package_readme(staging, branches, support_manifest, sweep_manifest)
+        write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version)
         indexed_files = scan_package(staging)
+        part_totals = assign_parts(indexed_files, {"sweep": sweep_manifest})
+        part_totals["evidence"]["archive_name"] = evidence_archive_name(args.version)
         expanded_total = sum(
             int(arrangement[key]["expanded_bytes"])
             for pair in branches for arrangement in pair["arrangements"]
@@ -1322,7 +1351,7 @@ def main() -> None:
                 or expanded_directory_count > MAX_EXPANDED_DIRECTORIES):
             raise RuntimeError("case/workspace archives exceed the expanded bytes/files/directories bounds")
         index = {
-            "schema_version": "faris-recorded-demo-package/v0.4",
+            "schema_version": "faris-recorded-demo-package/v0.5",
             "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
             "faris_cli_sha256": sha256(faris),
             "faris_app_sha256": sha256(app),
@@ -1348,6 +1377,7 @@ def main() -> None:
             },
             "package_file_count": len(indexed_files),
             "package_bytes": sum(item["bytes"] for item in indexed_files),
+            "parts": part_totals,
             "expanded_case_workspace_bytes": expanded_total,
             "expanded_case_workspace_file_count": expanded_file_count,
             "expanded_case_workspace_member_count": sum(

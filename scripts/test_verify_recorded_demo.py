@@ -26,6 +26,19 @@ def write(path: Path, value: bytes | str) -> None:
     path.write_bytes(value.encode() if isinstance(value, str) else value)
 
 
+def apply_parts(index: dict) -> None:
+    """Assign every inventoried file to its part and write the `parts` totals."""
+    launched = VERIFY.launch_paths(index)
+    for item in index["files"]:
+        item["part"] = VERIFY.part_for(item["path"], launched)
+    index["parts"] = {}
+    for part in VERIFY.PARTS:
+        members = [item for item in index["files"] if item["part"] == part]
+        index["parts"][part] = {"file_count": len(members),
+                                "bytes": sum(item["bytes"] for item in members)}
+    index["parts"]["evidence"]["archive_name"] = "FARIS-0.0.1-evidence.tar.gz"
+
+
 def reindex_package(root: Path) -> None:
     """Refresh a fixture inventory after a deliberate semantic mutation."""
     index_path = root / "package-index.json"
@@ -38,6 +51,7 @@ def reindex_package(root: Path) -> None:
     index["files"] = inventory
     index["package_file_count"] = len(inventory)
     index["package_bytes"] = sum(item["bytes"] for item in inventory)
+    apply_parts(index)
     write(index_path, json.dumps(index, indent=2) + "\n")
     write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
 
@@ -547,7 +561,7 @@ def make_package(root: Path, faris: Path, core: Path,
     expanded_records = [arrangement[key]
                         for pair in pairs for arrangement in pair["arrangements"]
                         for key in ("case_archive", "workspace_archive")]
-    index = {"schema_version": "faris-recorded-demo-package/v0.4",
+    index = {"schema_version": "faris-recorded-demo-package/v0.5",
              "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
              "faris_cli_sha256": VERIFY.digest(faris),
              "faris_app_sha256": VERIFY.digest(app),
@@ -587,6 +601,7 @@ def make_package(root: Path, faris: Path, core: Path,
     index["files"] = inventory
     index["package_file_count"] = len(inventory)
     index["package_bytes"] = sum(item["bytes"] for item in inventory)
+    apply_parts(index)
     index_path = root / "package-index.json"
     write(index_path, json.dumps(index, indent=2) + "\n")
     write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
@@ -669,7 +684,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
             text=True, capture_output=True, check=False,
         )
         self.assertEqual(manifest.returncode, 0, manifest.stderr)
-        for script in ("launch.sh", "verify.sh"):
+        for script in ("verify.sh",):
             syntax = subprocess.run(["sh", "-n", str(relocated / script)],
                                     text=True, capture_output=True, check=False)
             self.assertEqual(syntax.returncode, 0, syntax.stderr)
@@ -681,18 +696,13 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         result = VERIFY.verify_package(relocated, self.faris, self.core)
         self.assertEqual(result["inspected_saved_case_count"], 4)
 
-    def test_package_without_sweep_verifies_and_launches_without_sweep_flags(self):
+    def test_package_without_sweep_verifies(self):
         result = VERIFY.verify_package(self.package, self.faris, self.core)
         self.assertEqual(result["verified_sweep_bundle_count"], 0)
-        log = self.root / "args-none.json"
-        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(self.root / "state"))
-        launched = subprocess.run([str(self.package / "launch.sh")], env=environment,
-                                  text=True, capture_output=True, check=False)
-        self.assertEqual(launched.returncode, 0, launched.stderr)
-        self.assertNotIn("--sweep-bundle", json.loads(log.read_text())["args"])
-        self.assertIn("no allocation sweep", launched.stderr)
+        self.assertFalse((self.package / "launch.sh").exists())
+        self.assertFalse((self.package / "scripts/launch_recorded_demo.py").exists())
 
-    def test_sweep_bundles_are_indexed_verified_and_passed_to_the_app(self):
+    def test_sweep_bundles_are_indexed_verified_and_in_the_app_part(self):
         add_sweep(self.package, [("blanket-030cm", 0.30), ("blanket-040cm", 0.40)])
         result = VERIFY.verify_package(self.package, self.faris, self.core)
         self.assertEqual(result["verified_sweep_bundle_count"], 2)
@@ -700,18 +710,12 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         indexed = {item["path"] for item in index["files"]}
         self.assertIn("sweep/bundles/blanket-030cm.transport-bundle.json", indexed)
         self.assertIn("sweep/scenario.json", indexed)
-        log = self.root / "args-sweep.json"
-        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(self.root / "state"))
-        launched = subprocess.run([str(self.package / "launch.sh")], env=environment,
-                                  text=True, capture_output=True, check=False)
-        self.assertEqual(launched.returncode, 0, launched.stderr)
-        arguments = json.loads(log.read_text())["args"]
-        passed = [arguments[i + 1] for i, item in enumerate(arguments) if item == "--sweep-bundle"]
-        self.assertEqual([Path(item).name for item in passed],
-                         ["blanket-030cm.transport-bundle.json", "blanket-040cm.transport-bundle.json"])
-        self.assertTrue(all(Path(item).is_relative_to(self.package.resolve()) for item in passed))
+        parts = {item["path"]: item["part"] for item in index["files"]}
+        self.assertEqual(parts["sweep/bundles/blanket-030cm.transport-bundle.json"], "app")
+        self.assertEqual(parts["sweep/bundles/blanket-040cm.transport-bundle.json"], "app")
+        self.assertEqual(parts["sweep/scenario.json"], "evidence")
 
-    def test_tampered_sweep_bundle_is_refused_by_verifier_and_launcher(self):
+    def test_tampered_sweep_bundle_is_refused_by_verifier(self):
         add_sweep(self.package, [("blanket-030cm", 0.30), ("blanket-040cm", 0.40)])
         victim = self.package / "sweep/bundles/blanket-040cm.transport-bundle.json"
         victim.chmod(0o644)
@@ -720,10 +724,6 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         victim.write_bytes(content)
         with self.assertRaises(ValueError):
             VERIFY.verify_package(self.package, self.faris, self.core)
-        launched = subprocess.run([str(self.package / "launch.sh")],
-                                  env=dict(os.environ, XDG_STATE_HOME=str(self.root / "state")),
-                                  text=True, capture_output=True, check=False)
-        self.assertEqual(launched.returncode, 2, launched.stderr)
 
     def test_sweep_scenario_identity_is_bare_and_still_checked(self):
         add_sweep(self.package, [("blanket-030cm", 0.30)])
@@ -797,8 +797,12 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertEqual(sweep["runs"][0]["blanket_thickness_m"], 0.3)
         self.assertEqual(sweep["runs"][0]["shield_thickness_m"], 0.6)
         self.assertTrue((staging / "sweep/bundles/blanket-035cm.transport-bundle.json").is_file())
-        PACKAGE.write_package_readme(staging, [], {}, sweep)
+        PACKAGE.write_package_readme(staging, [], {}, sweep, "0.1.1")
         readme = (staging / "README.md").read_text()
+        self.assertIn("bin/faris-app", readme)
+        self.assertIn("FARIS-0.1.1-evidence.tar.gz", readme)
+        self.assertIn("unpack it into the same folder", readme)
+        self.assertNotIn("launch.sh", readme)
         self.assertIn("| blanket-030cm | 0.3 | 0.6 |", readme)
         self.assertIn(sweep["runs"][1]["raw_artifact_sha256"], readme)
         self.assertIsNone(PACKAGE.add_sweep(self.root / "unused", []))
@@ -854,43 +858,6 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "1.0 outage probe is not byte-bound"):
             VERIFY.verify_outage_duration_study(self.package, valid_index)
 
-    def test_launcher_keeps_private_materialization_alive_for_app_and_cleans_it(self):
-        log = self.root / "app-arguments.json"
-        state_home = self.root / "state-home"
-        environment = dict(os.environ, FARIS_TEST_ARGS=str(log), XDG_STATE_HOME=str(state_home))
-        index_bytes = (self.package / "package-index.json").read_bytes()
-        result = subprocess.run(
-            [str(self.package / "launch.sh")], env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        data = json.loads(log.read_text())
-        self.assertEqual(len(data["saved"]), 4)
-        self.assertTrue(data["core"].endswith("bin/avila-core"))
-        self.assertIn("--saved-study-ready-marker", data["args"])
-        self.assertIn("--runs-directory", data["args"])
-        self.assertFalse(Path(data["runs"]).is_relative_to(self.package.resolve()))
-        self.assertTrue((Path(data["runs"]) / "fake-app-output.json").is_file())
-        for item in data["saved"]:
-            self.assertTrue(item["exists_during_launch"])
-            self.assertFalse(Path(item["descriptor"]).exists())
-        self.assertIn("materialized", result.stderr)
-        self.assertEqual((self.package / "package-index.json").read_bytes(), index_bytes)
-        self.assertFalse(any(self.package.rglob("__pycache__")))
-        index = json.loads(index_bytes)
-        for item in index["files"]:
-            self.assertEqual(VERIFY.digest(self.package / item["path"]), item["sha256"])
-
-    def test_launcher_cancels_materialization_and_cleans_when_app_exits(self):
-        environment = dict(os.environ, FARIS_TEST_EXIT_EARLY="7")
-        before = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
-             str(self.package)], env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(result.returncode, 7, result.stderr)
-        after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
-        self.assertEqual(after, before)
-
     def test_two_port_volume_reports_share_geometry_directory(self):
         staging = self.root / "staging"
         branch = staging / "port"
@@ -904,50 +871,78 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertEqual((staging / two["path"]).read_bytes(), second.read_bytes())
         self.assertNotEqual(one["sha256"], two["sha256"])
 
-    def test_launcher_publishes_failed_marker_and_cleans_on_bad_archive(self):
-        bad_package = self.root / "bad-archive-package"
-        shutil.copytree(self.package, bad_package)
-        index_path = bad_package / "package-index.json"
-        index = json.loads(index_path.read_text())
-        arrangement = index["scenario_pairs"][0]["arrangements"][0]
-        archive = arrangement["case_archive"]
-        archive_path = bad_package / archive["path"]
-        archive_path.write_bytes(b"not a gzip archive")
-        archive["bytes"] = archive_path.stat().st_size
-        archive["sha256"] = VERIFY.digest(archive_path)
-        manifest_path = bad_package / archive["manifest_path"]
-        manifest = json.loads(manifest_path.read_text())
-        manifest["archive_bytes"] = archive["bytes"]
-        manifest["archive_sha256"] = archive["sha256"]
-        write(manifest_path, json.dumps(manifest, sort_keys=True) + "\n")
-        archive["manifest_sha256"] = VERIFY.digest(manifest_path)
-        descriptor_path = bad_package / arrangement["saved_study_descriptor"]
-        saved_descriptor = json.loads(descriptor_path.read_text())
-        saved_descriptor["case_archive"] = archive
-        write(descriptor_path, json.dumps(saved_descriptor, indent=2, sort_keys=True) + "\n")
-        arrangement["saved_study_descriptor_sha256"] = VERIFY.digest(descriptor_path)
+    def test_parts_follow_the_assignment_rule(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        parts = {item["path"]: item["part"] for item in index["files"]}
+        for relative in VERIFY.LAUNCH_PATHS + ("README.md", "SOURCE_PROVENANCE.md", "bin/faris-app",
+                                               "bin/avila-core", "licenses/faris-LICENSE"):
+            self.assertEqual(parts[relative], "app", relative)
+        for relative in ("verify.sh", "scripts/verify_recorded_demo.py", "inputs/event-assumptions.json"):
+            self.assertEqual(parts[relative], "evidence", relative)
+        self.assertTrue(any(path.endswith(".tar.gz") and part == "evidence"
+                            for path, part in parts.items()))
+        self.assertEqual(index["local_runtime"]["launcher"], {"kind": "native", "executable": "faris-app"})
+        self.assertEqual(index["local_runtime"]["platform"], VERIFY.rust_platform())
+        self.assertEqual(index["parts"]["evidence"]["archive_name"], "FARIS-0.0.1-evidence.tar.gz")
+
+    def test_packager_asserts_launch_paths_are_in_the_app_part(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        records = [{"path": item["path"], "bytes": item["bytes"]} for item in index["files"]]
+        totals = PACKAGE.assign_parts(records, {"sweep": None})
+        self.assertEqual(totals["app"]["file_count"] + totals["evidence"]["file_count"], len(records))
+        for missing in ("control/scenario.json", "bin/faris-app"):
+            with self.assertRaisesRegex(RuntimeError, "not in the app part"):
+                PACKAGE.assign_parts([item for item in records if item["path"] != missing], {"sweep": None})
+
+    def test_platform_names_follow_rust(self):
+        saved = VERIFY.sys.platform, VERIFY.platform.machine
+        try:
+            for system, machine, expected in (("linux", "x86_64", ("linux", "x86_64")),
+                                              ("darwin", "arm64", ("macos", "aarch64")),
+                                              ("win32", "AMD64", ("windows", "x86_64")),
+                                              ("linux", "aarch64", ("linux", "aarch64"))):
+                VERIFY.sys.platform = system
+                VERIFY.platform.machine = lambda machine=machine: machine
+                self.assertEqual(tuple(VERIFY.rust_platform().values()), expected)
+            VERIFY.sys.platform = "freebsd"
+            with self.assertRaises(ValueError):
+                VERIFY.rust_platform()
+        finally:
+            VERIFY.sys.platform, VERIFY.platform.machine = saved
+
+    def test_missing_evidence_part_names_the_archive_to_download(self):
+        index = json.loads((self.package / "package-index.json").read_text())
         for item in index["files"]:
-            path = bad_package / item["path"]
-            item["bytes"] = path.stat().st_size
-            item["sha256"] = VERIFY.digest(path)
-        index["package_bytes"] = sum(item["bytes"] for item in index["files"])
-        index["compressed_case_workspace_archive_bytes"] = sum(
-            item[f"{kind}_archive"]["bytes"]
-            for pair in index["scenario_pairs"] for item in pair["arrangements"]
-            for kind in ("case", "workspace"))
-        write(index_path, json.dumps(index, indent=2, sort_keys=True) + "\n")
-        write(bad_package / "package-index.sha256",
-              f"{VERIFY.digest(index_path)}  package-index.json\n")
-        environment = dict(os.environ, FARIS_TEST_EXPECT_FAILED="1")
-        before = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
-             str(bad_package)], env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(result.returncode, 9, result.stderr)
-        self.assertIn("materialization failed", result.stderr)
-        after = set(Path(tempfile.gettempdir()).glob("faris-recorded-demo-*"))
-        self.assertEqual(after, before)
+            if item["part"] == "evidence":
+                path = self.package / item["path"]
+                path.parent.chmod(0o755)
+                path.unlink()
+        with self.assertRaisesRegex(ValueError, "download FARIS-0.0.1-evidence.tar.gz"):
+            VERIFY.verify_index(self.package, self.faris, self.core)
+
+    def test_partly_missing_evidence_part_reports_the_count(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        evidence = [item for item in index["files"] if item["part"] == "evidence"]
+        for item in evidence[:2]:
+            (self.package / item["path"]).unlink()
+        with self.assertRaisesRegex(ValueError, f"incomplete: 2 of {len(evidence)} evidence files"):
+            VERIFY.verify_index(self.package, self.faris, self.core)
+
+    def test_wrong_part_or_totals_are_refused(self):
+        index_path = self.package / "package-index.json"
+        original = index_path.read_text()
+        index = json.loads(original)
+        index["files"][0]["part"] = "app" if index["files"][0]["part"] == "evidence" else "evidence"
+        write(index_path, json.dumps(index, indent=2) + "\n")
+        write(self.package / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
+        with self.assertRaisesRegex(ValueError, "wrong part"):
+            VERIFY.verify_index(self.package, self.faris, self.core)
+        index = json.loads(original)
+        index["parts"]["app"]["bytes"] += 1
+        write(index_path, json.dumps(index, indent=2) + "\n")
+        write(self.package / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
+        with self.assertRaisesRegex(ValueError, "app part totals"):
+            VERIFY.verify_index(self.package, self.faris, self.core)
 
     # Verifies: PRV-005
     def test_tampered_copy_is_rejected_without_changing_source(self):
@@ -973,16 +968,6 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertTrue(output["original_preserved"])
         self.assertFalse(any(self.package.rglob("__pycache__")))
         self.assertEqual(VERIFY.digest(self.package / "control" / "scenario.json"), original)
-
-    def test_launcher_rejects_runs_directory_inside_read_only_package(self):
-        environment = dict(os.environ, XDG_STATE_HOME=str(self.root / "state-home"))
-        result = subprocess.run(
-            [sys.executable, str(SCRIPT.with_name("launch_recorded_demo.py")),
-             str(self.package), "--runs-directory", str(self.package / "user-runs")],
-            env=environment, text=True, capture_output=True, check=False,
-        )
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn("outside the read-only distribution", result.stderr)
 
     # Verifies: SEC-002
     def test_index_rejects_extra_unindexed_file_and_path_traversal(self):
