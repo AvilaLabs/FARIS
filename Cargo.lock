@@ -855,6 +855,7 @@ dependencies = [
  "faris-model",
  "faris-report",
  "faris-study",
+ "flate2",
  "image",
  "rfd",
  "serde",

@@ -31,6 +31,7 @@ uncertainty-fixture = ["faris-engine/fixtures"]
 
 [dev-dependencies]
 faris-engine = { workspace = true, features = ["fixtures"] }
+flate2.workspace = true
 
 [lints]
 workspace = true
