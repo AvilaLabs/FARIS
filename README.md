@@ -77,6 +77,8 @@ A first-run tour walks through these; replay it with **Tour** in the top bar.
 Save the study with Ctrl+S (File menu) and use **Export…** in the top bar for
 the PDF brief, CSV tables and charts. The [user guide](docs/USER_GUIDE.md)
 covers each step, the uncertainty results and the command line in detail.
+The handbook source is in [docs/guide](docs/guide/SUMMARY.md); build it with
+`mdbook build`.
 
 ## Reading the results
 

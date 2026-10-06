@@ -1,0 +1,21 @@
+[book]
+title = "FARIS Handbook"
+authors = ["Avila Labs"]
+description = "Explore a fusion plant from 3D neutron transport to 30 years of operation, and understand how sure the numbers are."
+language = "en"
+src = "docs/guide"
+
+[build]
+build-dir = "dist/docs"
+create-missing = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "navy"
+mathjax-support = true
+git-repository-url = "https://github.com/AvilaLabs/FARIS"
+edit-url-template = "https://github.com/AvilaLabs/FARIS/edit/main/{path}"
+site-url = "/docs/"
+
+[output.html.playground]
+runnable = false

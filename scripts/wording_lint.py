@@ -34,7 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TERMS = Path(__file__).with_name("wording_lint_terms.json")
 RUST_DIRS = ["crates/*/src"]
-MARKDOWN = ["README.md", "CHANGELOG.md", "docs/USER_GUIDE.md", "docs/STUDY_EXPORT.md"]
+MARKDOWN = ["README.md", "CHANGELOG.md", "docs/USER_GUIDE.md", "docs/STUDY_EXPORT.md", "docs/guide/*.md"]
 PYTHON_TEXT = ["scripts/package_recorded_demo.py"]
 NAME_DIRS = ["scripts"]
 
@@ -326,9 +326,9 @@ def run(root: Path = ROOT, terms: dict | None = None) -> list[Finding]:
         path = root / name
         if path.exists():
             findings += lint_text(name, python_strings(path.read_text(encoding="utf-8")), terms, used)
-    for name in MARKDOWN:
-        path = root / name
-        if path.exists():
+    for pattern in MARKDOWN:
+        for path in sorted(root.glob(pattern)):
+            name = str(path.relative_to(root))
             findings += lint_text(name, markdown_units(path.read_text(encoding="utf-8")), terms, used)
     findings += lint_names(root, terms)
     for entry in terms["allow_list"]:
