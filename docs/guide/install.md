@@ -8,7 +8,7 @@
 
 Python is not needed to open the study. You do not need OpenMC, nuclear data or network access to explore the recorded study.
 
-Linux is built and tested on the reference laptop. Windows and macOS builds are new in 0.1.1. They are built by CI from the same commit. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
+Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later. Windows and macOS builds are new in 0.1.1. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
 
 ## What to download
 
@@ -16,7 +16,7 @@ FARIS 0.1.1 is the same demo study and results as 0.1.0. The download is smaller
 
 | File | What it is |
 | --- | --- |
-| `FARIS-0.1.1-linux-x86_64.tar.gz` | The app for Linux (about 35 MB). |
+| `FARIS-0.1.1-linux-x86_64.tar.gz` | The app for Linux (about 35 MB). Needs glibc 2.35 or newer. |
 | `FARIS-0.1.1-windows-x86_64.zip` | The app for Windows. |
 | `FARIS-0.1.1-macos-aarch64.tar.gz` | The app for a Mac with Apple silicon. |
 | `FARIS-0.1.1-macos-x86_64.tar.gz` | The app for an Intel Mac. |

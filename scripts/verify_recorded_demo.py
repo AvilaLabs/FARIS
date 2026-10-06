@@ -171,11 +171,36 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
             or set(recorded_with) != {"platform", "faris_cli_sha256", "core_executable_sha256"}
             or not isinstance(recorded_with["platform"], dict)):
         raise ValueError("package index lacks its evidence_recorded_with record")
-    if runtime["platform"]["os"] == "linux" and (
-            recorded_with["platform"] != runtime["platform"]
-            or recorded_with["faris_cli_sha256"] != index.get("faris_cli_sha256")
-            or recorded_with["core_executable_sha256"] != index.get("core_executable_sha256")):
-        raise ValueError("evidence_recorded_with differs from the package pins")
+    desktop_build = index.get("desktop_build")
+    if desktop_build is None:
+        # The programs in the package are the ones that produced the evidence.
+        if runtime["platform"]["os"] == "linux" and (
+                recorded_with["platform"] != runtime["platform"]
+                or recorded_with["faris_cli_sha256"] != index.get("faris_cli_sha256")
+                or recorded_with["core_executable_sha256"] != index.get("core_executable_sha256")):
+            raise ValueError("evidence_recorded_with differs from the package pins")
+    elif runtime["platform"]["os"] == "linux":
+        # A CI build of the recorded commits: the pins are the build's hashes, and the
+        # reproduction of every recorded inspection and export below is what binds the
+        # evidence, so evidence_recorded_with may name other (laptop) programs.
+        build_programs = desktop_build.get("executables") if isinstance(desktop_build, dict) else None
+        if (not isinstance(build_programs, dict)
+                or desktop_build.get("platform") != "linux-x86_64"
+                or recorded_with["platform"] != {"os": "linux", "arch": "x86_64"}
+                or not all(isinstance(recorded_with[key], str) and recorded_with[key].startswith("sha256:")
+                           for key in ("faris_cli_sha256", "core_executable_sha256"))):
+            raise ValueError("package desktop_build or evidence_recorded_with is malformed for a Linux package")
+        for name, key in (("faris", "faris_cli_sha256"), ("faris-app", "faris_app_sha256"),
+                          ("avila-core", "core_executable_sha256")):
+            record = build_programs.get(name)
+            if not isinstance(record, dict) or record.get("sha256") != index.get(key):
+                raise ValueError("package pins differ from the desktop_build programs")
+        provenance = runtime.get("source_provenance")
+        if (not isinstance(provenance, dict)
+                or not isinstance(provenance.get("faris"), dict) or not isinstance(provenance.get("core"), dict)
+                or desktop_build.get("faris_commit") != provenance["faris"].get("commit")
+                or desktop_build.get("core_commit") != provenance["core"].get("commit")):
+            raise ValueError("desktop_build was not built from the recorded FARIS and Core commits")
     executables =runtime.get("executables")
     if not isinstance(executables, dict) or set(executables) != {"faris", "faris-app", "avila-core"}:
         raise ValueError("package executable manifest is malformed")
@@ -816,6 +841,14 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
     return inspected
 
 
+def evidence_programs(index: dict[str, Any]) -> str:
+    """Which case applies: the programs that produced the evidence, or a CI build of the
+    recorded commits whose outputs were checked against the recorded evidence."""
+    if index.get("desktop_build") is None:
+        return "PACKAGED_PROGRAMS_PRODUCED_THE_EVIDENCE"
+    return "CI_BUILD_OF_RECORDED_COMMITS_CHECKED_BY_REPRODUCTION"
+
+
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, _ = verify_index(package, faris, core)
     verify_outage_duration_study(package.resolve(strict=True), index)
@@ -837,6 +870,7 @@ def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
             "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
             "verified_sweep_bundle_count": sweep_count,
             "expanded_case_workspace_bytes": expanded,
+            "evidence_programs": evidence_programs(index),
             "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED"}
 
 

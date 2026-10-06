@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Build a Windows or macOS package from a finished, verified Linux v0.5 package.
+"""Build a CI-built Linux, Windows or macOS package from a finished, verified laptop Linux v0.5 package.
 
-The recorded study data are produced on Linux. The Windows and macOS programs are
+The recorded study data are produced on Linux on the reference laptop, whose programs
+need that laptop's newest glibc. Every platform's release programs, Linux included, are
 built by the desktop workflow, which uploads `bin/` and `build.json`
 (faris-desktop-build/v0.1) per platform, with the platform's two licence notices
-under `notices`. This script copies the Linux package, swaps the three programs, the two
+under `notices`; a Linux build (Ubuntu 22.04) also records the `glibc` it was built
+against. This script copies the laptop Linux package, swaps the three programs, the two
 notices files and SOURCE_PROVENANCE.md for the platform's, and rewrites the index; it
-executes nothing.
+executes nothing. The input is always the laptop Linux package, also for a Linux target.
 
 Refuses unless:
-- the Linux package's index is v0.5 for linux/x86_64, its package-index.sha256 matches,
-  and every indexed file has the indexed size and SHA-256;
-- build.json is a valid faris-desktop-build/v0.1 for windows or macos on x86_64 or
-  aarch64, and each program in it has the recorded SHA-256 and size, at bin/<name>
+- the Linux package's index is v0.5 for linux/x86_64, has no `desktop_build` (it is not
+  already retargeted), its package-index.sha256 matches, and every indexed file has the
+  indexed size and SHA-256;
+- build.json is a valid faris-desktop-build/v0.1 for linux (x86_64 only, with a `glibc`
+  version), windows or macos on x86_64 or aarch64, and each program in it has the recorded SHA-256 and size, at bin/<name>
   (bin/<name>.exe on Windows), and `notices` names licenses/faris-THIRD_PARTY_NOTICES.md
   and licenses/core-RUNTIME_DEPENDENCY_NOTICES.md, each with the recorded SHA-256 and size;
 - the build's FARIS and Core commits equal the commits the package records, and the
@@ -23,9 +26,10 @@ Refuses unless:
 The output is the Linux package with every file except bin/*, the two notices files,
 SOURCE_PROVENANCE.md, package-index.json, package-index.sha256 and README.md hard-linked
 (copied where linking fails), the build's programs in bin/ (mode 0755), the build's notices
-and a SOURCE_PROVENANCE.md written for the platform (release-profile desktop build), and an
+and a SOURCE_PROVENANCE.md written for the platform (release-profile desktop build; for Linux
+it also names the glibc the programs need), and an
 index that names the new platform and programs, records the release profile and rebuild
-route in `local_runtime.source_provenance`, keeps the Linux programs that produced the
+route in `local_runtime.source_provenance`, keeps the laptop programs that produced the
 recorded evidence under `evidence_recorded_with`, and carries the build record under
 `desktop_build`.
 """
@@ -46,12 +50,13 @@ CHECKSUM = "package-index.sha256"
 SCHEMA = "faris-recorded-demo-package/v0.5"
 BUILD_SCHEMA = "faris-desktop-build/v0.1"
 PROGRAMS = ("faris", "faris-app", "avila-core")
-TARGET_OS = {"windows", "macos"}
+TARGET_OS = {"linux", "windows", "macos"}
 TARGET_ARCH = {"x86_64", "aarch64"}
 PROVENANCE = "SOURCE_PROVENANCE.md"
 NOTICES = ("faris-THIRD_PARTY_NOTICES.md", "core-RUNTIME_DEPENDENCY_NOTICES.md")
 NOTICE_PATHS = {f"licenses/{name}" for name in NOTICES}
-PLATFORM_NAMES = {"windows": "Windows", "macos": "macOS"}
+PLATFORM_NAMES = {"linux": "Linux", "windows": "Windows", "macos": "macOS"}
+GLIBC = re.compile(r"[0-9]+\.[0-9]+(\.[0-9]+)?")
 REWRITTEN = {INDEX, CHECKSUM, "README.md", PROVENANCE, *NOTICE_PATHS}
 HEX64 = re.compile(r"sha256:[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
@@ -81,6 +86,8 @@ def load_linux_index(package: Path) -> dict:
     index = json.loads(index_path.read_text(encoding="utf-8"))
     if index.get("schema_version") != SCHEMA:
         fail(f"package index is not {SCHEMA}")
+    if "desktop_build" in index:
+        fail("package is already retargeted (it has desktop_build); start from the laptop Linux package")
     runtime = index.get("local_runtime")
     if not isinstance(runtime, dict) or runtime.get("platform") != {"os": "linux", "arch": "x86_64"}:
         fail("package is not a linux/x86_64 package")
@@ -130,6 +137,11 @@ def load_build(build_dir: Path) -> tuple[dict, str, str]:
         fail(f"build platform {build.get('platform')!r} is not <os>-<arch> with os in "
              f"{sorted(TARGET_OS)} and arch in {sorted(TARGET_ARCH)}")
     target_os, target_arch = match.groups()
+    if target_os == "linux":
+        if target_arch != "x86_64":
+            fail("a linux build must be x86_64")
+        if not isinstance(build.get("glibc"), str) or not GLIBC.fullmatch(build["glibc"]):
+            fail("a linux build.json must record the glibc version it was built against (\"glibc\")")
     for key in ("faris_commit", "core_commit"):
         if not isinstance(build.get(key), str) or not COMMIT.fullmatch(build[key]):
             fail(f"build.json {key} is not a full commit")
@@ -207,6 +219,8 @@ def provenance_text(index: dict, build: dict, target_os: str, target_arch: str) 
     if not faris_url or not core_url:
         fail("package index records no repository URL for FARIS or Core")
     platform = f"{PLATFORM_NAMES[target_os]} {target_arch}"
+    glibc = (f"- The programs need glibc {build['glibc']} or newer (the build's C library).\n"
+             if target_os == "linux" else "")
     return (
         "# Local runtime provenance\n\n"
         f"- Platform: {platform}.\n"
@@ -216,6 +230,7 @@ def provenance_text(index: dict, build: dict, target_os: str, target_arch: str) 
         f"- Core executable reports: `{build['core_version']}`.\n"
         f"- The programs were built by the desktop workflow on the build's runner "
         f"(`{build.get('runner')}`), release profile.\n"
+        + glibc +
         "- Rebuild FARIS with `cargo build --release --locked -p faris-cli -p faris-app`.\n"
         "- Rebuild Core at the recorded commit with `cargo build --release --locked --bin avila-core`, "
         f"then copy `{copy_note(target_os)}` to the distribution.\n"

@@ -974,6 +974,71 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "evidence_recorded_with"):
                 VERIFY.verify_index(self.package, self.faris, self.core)
 
+    def make_ci_built(self, mutate=None):
+        """Mark the fixture package as a retargeted Linux package: its pins are the CI build's
+        programs, and evidence_recorded_with names other (laptop) programs."""
+        index_path = self.package / "package-index.json"
+        index = json.loads(index_path.read_text())
+        index["desktop_build"] = {"schema_version": "faris-desktop-build/v0.1", "platform": "linux-x86_64",
+                                  "executables": json.loads(json.dumps(index["local_runtime"]["executables"])),
+                                  "faris_commit": index["local_runtime"]["source_provenance"]["faris"]["commit"],
+                                  "core_commit": index["local_runtime"]["source_provenance"]["core"]["commit"]}
+        index["evidence_recorded_with"] = {"platform": {"os": "linux", "arch": "x86_64"},
+                                           "faris_cli_sha256": "sha256:" + "1" * 64,
+                                           "core_executable_sha256": "sha256:" + "2" * 64}
+        if mutate:
+            mutate(index)
+        write(index_path, json.dumps(index, indent=2) + "\n")
+        write(self.package / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
+
+    def test_plain_package_report_names_the_recording_programs(self):
+        result = VERIFY.verify_package(self.package, self.faris, self.core)
+        self.assertEqual(result["evidence_programs"], "PACKAGED_PROGRAMS_PRODUCED_THE_EVIDENCE")
+
+    def test_ci_built_linux_package_may_differ_from_evidence_recorded_with(self):
+        self.make_ci_built()
+        index, _ = VERIFY.verify_index(self.package, self.faris, self.core)
+        self.assertNotEqual(index["evidence_recorded_with"]["faris_cli_sha256"], index["faris_cli_sha256"])
+        result = VERIFY.verify_package(self.package, self.faris, self.core)
+        self.assertEqual(result["evidence_programs"], "CI_BUILD_OF_RECORDED_COMMITS_CHECKED_BY_REPRODUCTION")
+        self.assertEqual(result["inspected_saved_case_count"], 4)
+
+    def test_ci_built_linux_package_is_refused_unless_pins_equal_the_build(self):
+        def other(name):
+            return lambda index: index["desktop_build"]["executables"][name].update(sha256="sha256:" + "3" * 64)
+        cases = {
+            "faris pin differs": (other("faris"), "pins differ from the desktop_build"),
+            "app pin differs": (other("faris-app"), "pins differ from the desktop_build"),
+            "core pin differs": (other("avila-core"), "pins differ from the desktop_build"),
+            "build missing a program": (lambda index: index["desktop_build"]["executables"].pop("faris"),
+                                        "pins differ from the desktop_build"),
+            "build is not a mapping": (lambda index: index.update(desktop_build="x"), "malformed"),
+            "build for another platform": (lambda index: index["desktop_build"].update(platform="windows-x86_64"),
+                                           "malformed"),
+            "recorded_with missing": (lambda index: index.pop("evidence_recorded_with"), "evidence_recorded_with"),
+            "build from another FARIS commit": (lambda index: index["desktop_build"].update(faris_commit="0" * 40),
+                                                "recorded FARIS and Core commits"),
+            "build from another Core commit": (lambda index: index["desktop_build"].update(core_commit="0" * 40),
+                                               "recorded FARIS and Core commits"),
+            "recorded_with other platform": (lambda index: index["evidence_recorded_with"].update(
+                platform={"os": "linux", "arch": "aarch64"}), "malformed"),
+            "recorded_with hash malformed": (lambda index: index["evidence_recorded_with"].update(
+                faris_cli_sha256=7), "malformed"),
+        }
+        for label, (mutate, message) in cases.items():
+            with self.subTest(label):
+                self.make_ci_built(mutate)
+                with self.assertRaisesRegex(ValueError, message):
+                    VERIFY.verify_index(self.package, self.faris, self.core)
+
+    def test_ci_built_linux_package_still_refuses_programs_that_are_not_its_pins(self):
+        self.make_ci_built()
+        stranger = self.package.parent / "stranger-faris"
+        write(stranger, "#!/bin/sh\nexit 0\n")
+        stranger.chmod(0o755)
+        with self.assertRaisesRegex(ValueError, "differs from the package pin"):
+            VERIFY.verify_index(self.package, stranger, self.core)
+
     # Verifies: PRV-005
     def test_tampered_copy_is_rejected_without_changing_source(self):
         original_hash = VERIFY.digest(self.package / "package-index.json")

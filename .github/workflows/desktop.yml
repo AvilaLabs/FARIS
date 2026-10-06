@@ -1,7 +1,8 @@
 name: Desktop builds
 
-# Builds the FARIS programs and the pinned Avila Core for each desktop platform
-# and uploads them as artifacts. Release packages are assembled from these
+# Builds the FARIS programs and the pinned Avila Core for each platform (Linux
+# on Ubuntu 22.04, so the programs need glibc 2.35 or newer) and uploads them
+# as artifacts. Release packages are assembled from these
 # artifacts by scripts/retarget_package.py, which also takes the platform's licence
 # notices from the build; the recorded study data are not in
 # the repository, so packaging happens outside CI.
@@ -27,6 +28,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - runner: ubuntu-22.04
+            platform: linux-x86_64
+            label: Linux x86_64
+            target: x86_64-unknown-linux-gnu
+            exe: ""
           - runner: windows-latest
             platform: windows-x86_64
             label: Windows
@@ -50,6 +56,9 @@ jobs:
           repository: AvilaLabs/Avila-Core
           ref: ${{ env.CORE_REF }}
           path: core
+      - name: Install Linux build packages
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.98.1
@@ -96,9 +105,14 @@ jobs:
           faris_version=$(out/bin/faris${{ matrix.exe }} --version | tr -d '\r')
           core_version=$(out/bin/avila-core${{ matrix.exe }} --version | tr -d '\r')
           core_commit=$(git -C core rev-parse HEAD)
-          python3 - "$faris_version" "$core_version" "$core_commit" <<'EOF'
+          glibc=""
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            # Version number at the end of the first line, e.g. "ldd (Ubuntu GLIBC 2.35-0ubuntu3.8) 2.35".
+            glibc=$(ldd --version | sed -n 1p | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?$')
+          fi
+          python3 - "$faris_version" "$core_version" "$core_commit" "$glibc" <<'EOF'
           import hashlib, json, pathlib, sys
-          faris_version, core_version, core_commit = sys.argv[1:4]
+          faris_version, core_version, core_commit, glibc = sys.argv[1:5]
           out = pathlib.Path("out")
           executables = {}
           for path in sorted((out / "bin").iterdir()):
@@ -129,6 +143,8 @@ jobs:
               "executables": executables,
               "notices": notices,
           }
+          if glibc:
+              record["glibc"] = glibc
           (out / "build.json").write_text(json.dumps(record, indent=2) + "\n")
           print(json.dumps(record, indent=2))
           EOF
