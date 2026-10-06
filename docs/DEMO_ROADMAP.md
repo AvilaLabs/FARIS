@@ -561,6 +561,8 @@ Dimension choices (sources and inconsistencies in
   code-to-code check reported with both methods' assumptions, not a
   validation against measurement.
 
+Design, exact volume formulas and build slices: [docs/notes/GEOMETRY_0.2_DESIGN.md](notes/GEOMETRY_0.2_DESIGN.md).
+
 Later, not 0.2: CAD geometry through Paramak (MIT; `tokamak_from_plasma` with
 elongation and triangularity) converted to DAGMC, which the FARIS OpenMC
 build already supports. That route adds triangularity and lets a user bring
