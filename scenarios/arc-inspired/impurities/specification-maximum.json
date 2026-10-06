@@ -1,0 +1,349 @@
+{
+  "tungsten-natural": [
+    {
+      "element": "C",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt %"
+    },
+    {
+      "element": "O",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt % (B760 section 6.2.2: for information only when sampled from a powder blend; limit taken as stated)"
+    },
+    {
+      "element": "N",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt %"
+    },
+    {
+      "element": "Fe",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt %"
+    },
+    {
+      "element": "Ni",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt %"
+    },
+    {
+      "element": "Si",
+      "ppm": 100.0,
+      "citation": "ASTM B760-07 Table 1 (heat analysis, max wt %), read as PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 1b; the ITER W specification quotes the same 0.01 wt % limits (section 1a); value 0.010 wt %"
+    }
+  ],
+  "flibe-cold-solid": [
+    {
+      "element": "Cu",
+      "ppm": 50.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.005 wt %"
+    },
+    {
+      "element": "Fe",
+      "ppm": 100.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.01 wt %"
+    },
+    {
+      "element": "Ni",
+      "ppm": 25.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.0025 wt %"
+    },
+    {
+      "element": "S",
+      "ppm": 250.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.025 wt % (OCR rendered 0.02s; read as 0.025, matching a second report of the table)"
+    },
+    {
+      "element": "Cr",
+      "ppm": 25.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.0025 wt %"
+    },
+    {
+      "element": "Al",
+      "ppm": 150.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.015 wt %"
+    },
+    {
+      "element": "Si",
+      "ppm": 100.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.01 wt %"
+    },
+    {
+      "element": "B",
+      "ppm": 5.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.0005 wt %"
+    },
+    {
+      "element": "Na",
+      "ppm": 500.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.05 wt %"
+    },
+    {
+      "element": "Ca",
+      "ppm": 100.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.01 wt %"
+    },
+    {
+      "element": "Mg",
+      "ppm": 100.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.01 wt %"
+    },
+    {
+      "element": "K",
+      "ppm": 100.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.01 wt %"
+    },
+    {
+      "element": "Zr",
+      "ppm": 250.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.025 wt % (natural)"
+    },
+    {
+      "element": "Cd",
+      "ppm": 10.0,
+      "citation": "MSRE general chemical specifications, ORNL-4616 (Shaffer, 1979) Table 4, allowable maximum, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 2; value 0.001 wt %"
+    }
+  ],
+  "ti-hydride-shield-surrogate": [
+    {
+      "element": "C",
+      "ppm": 800.0,
+      "citation": "ASTM B348/B348M Table 1, Grade 2 column (ASME SB-348 copy), wt % max, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 3c; fallback for titanium hydride; value 0.08 wt %"
+    },
+    {
+      "element": "O",
+      "ppm": 2500.0,
+      "citation": "ASTM B348/B348M Table 1, Grade 2 column (ASME SB-348 copy), wt % max, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 3c; fallback for titanium hydride; value 0.25 wt %"
+    },
+    {
+      "element": "N",
+      "ppm": 300.0,
+      "citation": "ASTM B348/B348M Table 1, Grade 2 column (ASME SB-348 copy), wt % max, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 3c; fallback for titanium hydride; value 0.03 wt %"
+    },
+    {
+      "element": "Fe",
+      "ppm": 3000.0,
+      "citation": "ASTM B348/B348M Table 1, Grade 2 column (ASME SB-348 copy), wt % max, PRIMARY-TEXT in docs/notes/IMPURITY_SOURCES_0.2.md section 3c; fallback for titanium hydride; value 0.30 wt %"
+    }
+  ],
+  "pure-iron-surrogate": [
+    {
+      "element": "C",
+      "ppm": 100.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.010 wt %"
+    },
+    {
+      "element": "Mn",
+      "ppm": 1000.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.100 wt %"
+    },
+    {
+      "element": "P",
+      "ppm": 100.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.010 wt %"
+    },
+    {
+      "element": "S",
+      "ppm": 80.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.008 wt %"
+    },
+    {
+      "element": "N",
+      "ppm": 60.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.006 wt %"
+    },
+    {
+      "element": "Cu",
+      "ppm": 300.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.030 wt %"
+    },
+    {
+      "element": "Co",
+      "ppm": 50.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.005 wt %"
+    },
+    {
+      "element": "Sn",
+      "ppm": 100.0,
+      "citation": "ARMCO Pure Iron Grade 2 max analysis, AK Steel brochure p. 13 (producer grade specification, not an ASTM/ISO standard), SECONDARY read directly in docs/notes/IMPURITY_SOURCES_0.2.md section 4a; Grade 2 limits are at or above Grade 4's; value 0.010 wt %"
+    }
+  ],
+  "copper-magnet-response-surrogate": [
+    {
+      "element": "Sb",
+      "ppm": 4.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 4 ppm"
+    },
+    {
+      "element": "As",
+      "ppm": 5.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 5 ppm"
+    },
+    {
+      "element": "Bi",
+      "ppm": 1.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 1 ppm"
+    },
+    {
+      "element": "Cd",
+      "ppm": 1.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 1 ppm"
+    },
+    {
+      "element": "Fe",
+      "ppm": 10.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 10 ppm"
+    },
+    {
+      "element": "Pb",
+      "ppm": 5.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 5 ppm"
+    },
+    {
+      "element": "Mn",
+      "ppm": 0.5,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 0.5 ppm"
+    },
+    {
+      "element": "Hg",
+      "ppm": 1.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 1 ppm"
+    },
+    {
+      "element": "Ni",
+      "ppm": 10.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 10 ppm"
+    },
+    {
+      "element": "O",
+      "ppm": 5.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 5 ppm"
+    },
+    {
+      "element": "P",
+      "ppm": 3.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 3 ppm"
+    },
+    {
+      "element": "Se",
+      "ppm": 3.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 3 ppm"
+    },
+    {
+      "element": "Ag",
+      "ppm": 25.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 25 ppm"
+    },
+    {
+      "element": "S",
+      "ppm": 15.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 15 ppm"
+    },
+    {
+      "element": "Te",
+      "ppm": 2.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 2 ppm"
+    },
+    {
+      "element": "Sn",
+      "ppm": 2.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 2 ppm"
+    },
+    {
+      "element": "Zn",
+      "ppm": 1.0,
+      "citation": "ASTM B170 Grade 1 / UNS C10100 maxima in ppm; the C10100 limits as printed in ASTM B111 Table 1 footnote C, confirmed in the Verification pass of docs/notes/IMPURITY_SOURCES_0.2.md (2026-10-05); the B170 text itself was not read; value 1 ppm"
+    }
+  ],
+  "excluded": [
+    {
+      "material": "tungsten-natural",
+      "item": "Ag, Co, Nb 10 ug/g (Plansee vendor guarantee)",
+      "reason": "SEARCH-SNIPPET only; the verification pass could not find them in the Plansee brochure or read the quoting paper, and they are not in ASTM B760, so no specification value is confirmed"
+    },
+    {
+      "material": "tungsten-natural",
+      "item": "Cu, K, Mo, Al, Cr, Cd, Hg, Pb, H and tighter C/O/N/Fe/Ni/Si (Plansee HPM-070-TD-025 guaranteed maxima)",
+      "reason": "a vendor guarantee, not the named specification (ASTM B760); B760 limits only C, O, N, Fe, Ni, Si"
+    },
+    {
+      "material": "tungsten-natural",
+      "item": "Ta, P, S",
+      "reason": "unverified: not in the Plansee brochure and no readable source"
+    },
+    {
+      "material": "flibe-cold-solid",
+      "item": "Li (natural, 0.005 wt %)",
+      "reason": "lithium is a matrix constituent of FLiBe and the activation input builder refuses an impurity that overlaps a transport element; the limit is a 6Li poison limit on the salt, not an additional impurity"
+    },
+    {
+      "material": "flibe-cold-solid",
+      "item": "Water (0.1 wt %)",
+      "reason": "water is a compound, not one element; splitting it into hydrogen and oxygen would be a derived choice, not a value the specification states (oxygen and hydrogen are otherwise unlimited in Table 4)"
+    },
+    {
+      "material": "flibe-cold-solid",
+      "item": "Rare earths, total (0.001 wt %)",
+      "reason": "a group total with no per-element split; assigning it to one element would invent a composition"
+    },
+    {
+      "material": "ti-hydride-shield-surrogate",
+      "item": "Albemarle TiH2 grade U/P vendor limits (Fe, Cl, Ni, Si, N, Mg)",
+      "reason": "a vendor product specification, not the named fallback standard (ASTM B348); the two grades list different elements so stacking them is a judgment call"
+    },
+    {
+      "material": "ti-hydride-shield-surrogate",
+      "item": "Samaterials and US Nano TiH2 sheet values",
+      "reason": "SEARCH-SNIPPET only, UNVERIFIED"
+    },
+    {
+      "material": "ti-hydride-shield-surrogate",
+      "item": "H (0.015 wt %)",
+      "reason": "hydrogen is a matrix constituent of titanium hydride, not an impurity"
+    },
+    {
+      "material": "ti-hydride-shield-surrogate",
+      "item": "Other elements, each 0.1 wt % / total 0.4 wt %",
+      "reason": "a catch-all not tied to a named element; assigning it would invent a composition"
+    },
+    {
+      "material": "ti-hydride-shield-surrogate",
+      "item": "Grade 1 column (C 0.08, O 0.18, N 0.03, Fe 0.20 wt %)",
+      "reason": "Grade 2 was used because its maxima are at least those of Grade 1 for every element (specification maximum)"
+    },
+    {
+      "material": "pure-iron-surrogate",
+      "item": "ASTM A848 Type 1 / Type 2 limits",
+      "reason": "numbers not obtained: no readable Table 1 and search values conflicted; the vessel uses the ARMCO limits"
+    },
+    {
+      "material": "pure-iron-surrogate",
+      "item": "Grade 4 column (Mn 0.060, P 0.005, S 0.003, N 0.005, Sn 0.005 wt %)",
+      "reason": "Grade 2 was used because its maxima are at least those of Grade 4 for every element"
+    },
+    {
+      "material": "copper-magnet-response-surrogate",
+      "item": "Sb+Se+As+Te+Bi+Sn+Mn total <= 40 ppm",
+      "reason": "the verification pass left this total UNVERIFIED; it is a group limit, not a per-element one"
+    },
+    {
+      "material": "copper-magnet-response-surrogate",
+      "item": "Cu 99.99 min (Ag counted as impurity)",
+      "reason": "copper is the matrix constituent, not an impurity"
+    },
+    {
+      "material": "copper-magnet-response-surrogate",
+      "item": "Grade 2 (UNS C10200)",
+      "reason": "not the named grade; the task fixes ASTM B170 Grade 1"
+    },
+    {
+      "material": "all five materials",
+      "item": "Uranium",
+      "reason": "no specification limits uranium; reported per ppm instead (0.2 decision)"
+    },
+    {
+      "material": "all five materials",
+      "item": "Co, Nb, Mo, Ta where the specification is silent",
+      "reason": "a silent specification does not mean zero; these are reported per ppm, not set to an assumed level (0.2 decision)"
+    }
+  ]
+}
