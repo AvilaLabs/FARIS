@@ -883,7 +883,10 @@ def main() -> int:
     relocated = requested_relocated.parent.resolve(strict=True) / requested_relocated.name
     if relocated == source or source in relocated.parents or relocated in source.parents:
         raise SystemExit("relocated-copy must be outside and distinct from the source package")
-    source_index, _ = verify_index(source, args.faris.resolve(strict=True), args.core.resolve(strict=True))
+    try:
+        source_index, _ = verify_index(source, args.faris.resolve(strict=True), args.core.resolve(strict=True))
+    except ValueError as error:
+        raise SystemExit(f"verify_recorded_demo: {error}")
     package_bytes = source_index["package_bytes"]
     expanded_bytes = source_index["expanded_case_workspace_bytes"]
     directory_count = source_index["expanded_case_workspace_directory_count"]
