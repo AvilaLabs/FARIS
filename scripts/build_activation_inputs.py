@@ -17,6 +17,11 @@ subdivided; the time must be a step boundary) followed by zero-flux cooling
 steps reaching each cooling-grid time since the shutdown. `--continuations-only`
 then skips the per-installation full-history specs.
 
+With `--photon-response RESPONSE.json` every spec also carries
+`"photon": {"response": {"path", "sha256"}}` (absolute path, SHA-256 of the file),
+recorded in each provenance sidecar as `photon_response`. Without it the specs
+are unchanged.
+
 Formats used (ACTINV docs/guide/specification.md):
   material  basis "atom_fraction" with explicit nuclide keys ("Required inputs",
             "Material bases"); mass_g is the component mass.
@@ -566,7 +571,7 @@ def schedule_json(steps) -> list[dict]:
 
 # ------------------------------------------------------------------- specs --
 
-def build_spec(title, composition, mass_g, flux_per_group, library, schedule, outputs=None) -> dict:
+def build_spec(title, composition, mass_g, flux_per_group, library, schedule, outputs=None, photon=None) -> dict:
     spec = {
         "spec": SPEC_FORMAT,
         "title": title,
@@ -585,6 +590,8 @@ def build_spec(title, composition, mass_g, flux_per_group, library, schedule, ou
     }
     if outputs is not None:
         spec["options"]["outputs"] = list(outputs)
+    if photon is not None:
+        spec["photon"] = photon
     return spec
 
 
@@ -625,6 +632,11 @@ def plan(args) -> dict:
             raise InputError(f"component {c} is void; nothing to activate")
     grid = parse_cooling_grid(args.cooling_grid)
     outputs = parse_outputs(args.actinv_outputs) if args.actinv_outputs else None
+    photon = None
+    if args.photon_response:
+        response = Path(args.photon_response).resolve()
+        load_json(response, "photon response")
+        photon = {"response": {"path": str(response), "sha256": sha256_file(response)}}
     intervals, power = operating_intervals(history), PowerSeries(history)
     continuations = load_continuations(args.decay_continuations) if args.decay_continuations else []
     for entry in continuations:
@@ -684,7 +696,8 @@ def plan(args) -> dict:
                              "which is not in the history")
     if missing and not args.allow_placeholder_spectrum:
         raise NoSpectrum(NO_SPECTRUM_MESSAGE)
-    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing, "outputs": outputs}
+    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing, "outputs": outputs,
+            "photon": photon}
 
 
 def hashes(args) -> dict:
@@ -711,7 +724,7 @@ def write_outputs(args, work: dict) -> list[Path]:
              extra=None):
         steps = irradiation + cooling
         spec = build_spec(title, composition, item["mass_g"], item["spectrum"]["flux_per_group"],
-                          library, schedule_json(steps), work["outputs"])
+                          library, schedule_json(steps), work["outputs"], work["photon"])
         spec_path = out / f"{stem}.spec.json"
         write_json(spec_path, spec)
         write_json(out / f"{stem}.provenance.json", {
@@ -719,6 +732,7 @@ def write_outputs(args, work: dict) -> list[Path]:
             "spec_file": spec_path.name, "spec_sha256": sha256_file(spec_path),
             "label": label,
             **({"actinv_outputs": work["outputs"]} if work["outputs"] is not None else {}),
+            **({"photon_response": work["photon"]["response"]} if work["photon"] is not None else {}),
             "input_sha256": input_hashes,
             "component": item["component"], "material_id": item["material_id"],
             "installation_index": item["installation"],
@@ -793,6 +807,9 @@ def parser() -> argparse.ArgumentParser:
                    help="with --decay-continuations, skip the per-installation full-history specs")
     p.add_argument("--actinv-outputs", help="comma-separated options.outputs for every spec (default: ACTINV's "
                    f"own default, every output); allowed: {', '.join(ACTINV_OUTPUTS)}")
+    p.add_argument("--photon-response", help="actinv-photon-response-1 JSON: adds a photon.response block (absolute path "
+                   "and SHA-256) to every spec, so ACTINV can report the contact gamma dose proxy (use with "
+                   "--actinv-outputs including dose)")
     p.add_argument("--output-dir", required=True, help="new directory; must not exist")
     p.add_argument("--allow-placeholder-spectrum", action="store_true",
                    help="write a flat-lethargy placeholder when the run has no 709-group spectrum (plumbing tests only)")

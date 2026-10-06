@@ -129,6 +129,8 @@ for i, s in enumerate(spec["schedule"]):
     outputs = spec.get("options", {{}}).get("outputs")
     if outputs is None or "photons" in outputs or "dose" in outputs:  # ACTINV's default is every output
         dose = heat * 10.0 if model.get("dose") else None
+        if "photon" in spec:  # a photon response: the dose decays with its own power, so it is not proportional to heat
+            dose = 10.0 * amp * (max(t - last, 3600.0) / 3600.0) ** (-model.get("dose_power", 0.5)) if s["flux"] == 0 else 10.0 * amp
         step["photon_source"] = {{"contact_gamma_air_dose_proxy_Gy_h": dose}}
     steps.append(step)
 with open(os.environ["FAKE_ACTINV_LOG"], "a") as log:
@@ -926,6 +928,265 @@ class AmendmentTwoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             code, err = Rig(Path(d), {}, amendment=3).run()
             self.assertEqual((code, "unknown amendment" in err), (2, True))
+
+
+class ValidationKeyTests(unittest.TestCase):
+    """The optional keys the validation protocol's variants use: decay_cache, class_w, governing_quantity, photon_response."""
+
+    HOT = AmendmentTwoTests.HOT
+
+    def rig(self, d, **kw):
+        kw.setdefault("f_values", (1.0,))
+        kw.setdefault("sweep_labels", ("0.30",))
+        kw.setdefault("amendment", 2)
+        return Rig(Path(d), kw.pop("params", {}), **kw)
+
+    def add_response(self, rig):
+        (rig.root / "response.json").write_text('{"schema": "actinv-photon-response-1"}\n')
+        rig.config["photon_response"] = "response.json"
+        rig.write_config()
+
+    def specs(self, root):
+        return {str(p.relative_to(root)): p.read_bytes() for p in sorted(Path(root).rglob("*.spec.json"))}
+
+    def test_a_config_naming_only_the_defaults_gives_byte_identical_specs_and_results(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            plain = self.rig(a, params=self.HOT)
+            self.assertEqual(plain.run()[0], 0)
+            named = self.rig(b, params=self.HOT)
+            named.config.update({"governing_quantity": "heat", "class_w": {}, "decay_cache": "elsewhere/cache"})
+            named.write_config()
+            self.assertEqual(named.run()[0], 0)
+            self.assertEqual(self.specs(Path(a) / "runs"), self.specs(Path(b) / "runs"))
+            for text in self.specs(Path(a) / "runs").values():
+                spec = json.loads(text)
+                self.assertNotIn("photon", spec)
+                self.assertEqual(spec["options"]["outputs"], ["heat"])
+            one, two = plain.result(), named.result()
+            for res in (one, two):
+                for key in ("run", "inputs_sha256"):
+                    res.pop(key)
+            self.assertEqual(json.dumps(one, sort_keys=True).replace(a, "<d>"),
+                             json.dumps(two, sort_keys=True).replace(b, "<d>"))
+            for key in ("class_w", "governing_quantity"):
+                self.assertNotIn(key, plain.result()["parameters"])
+                self.assertNotIn(key, named.result()["parameters"])
+            self.assertNotIn("photon_response", plain.result()["inputs_sha256"])
+
+    def test_a_decay_cache_elsewhere_is_used_and_shared_between_runs(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d)
+            rig.config["decay_cache"] = "shared/cache"
+            rig.write_config()
+            self.assertEqual(rig.run()[0], 0)
+            cache = Path(d) / "shared" / "cache"
+            files = sorted(cache.glob("*.points.json"))
+            self.assertTrue(files)
+            self.assertFalse((Path(d) / "runs" / "decay-cache").exists())
+            self.assertEqual(rig.result()["decay_continuations"]["runs"], len(files))
+            before = (Path(d) / "actinv-calls.log").read_text().count("\n")
+            first = rig.result()
+            # a second output folder reuses every continuation; only the equivalence check runs again
+            (Path(d) / "result.json").unlink()
+            rig.config["output_dir"] = "runs2"
+            rig.write_config()
+            self.assertEqual(rig.run()[0], 0)
+            second = rig.result()
+            self.assertEqual(second["decay_continuations"]["runs"], 0)
+            self.assertGreaterEqual(second["decay_continuations"]["cache_hits"], len(files))
+            self.assertEqual((Path(d) / "actinv-calls.log").read_text().count("\n"), before + 2)
+            self.assertEqual(sorted(cache.glob("*.points.json")), files)
+            self.assertEqual(second["computed_model"][MC.BARE]["w"]["0.5"]["decisions"],
+                             first["computed_model"][MC.BARE]["w"]["0.5"]["decisions"])
+
+    def test_class_w_replaces_the_grid_w_for_that_class_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d, params=self.HOT)
+            rig.config["class_w"] = {"blanket": 0.75}
+            rig.write_config()
+            code, err = rig.run()
+            self.assertEqual(code, 0, err)
+            res = rig.result()
+            self.assertEqual(res["parameters"]["class_w"], {"blanket": 0.75})
+            w = res["computed_model"][MC.BARE]["w"]["0.5"]
+            # the blanket target is (1 - 0.75) x 60 d = 15 d; the magnet keeps (1 - 0.5) x 120 d = 60 d
+            self.assertAlmostEqual(w["q_star"]["blanket"]["heat"]["target_cooldown_s"], 15 * DAY)
+            self.assertAlmostEqual(w["q_star"]["magnet"]["heat"]["target_cooldown_s"], 60 * DAY)
+            self.assertAlmostEqual(w["q_star"]["blanket"]["q_star"], 9e-3 / (15 * DAY / 3600.0), delta=1e-9)
+            self.assertAlmostEqual(w["q_star"]["magnet"]["q_star"], 9e-3 / (60 * DAY / 3600.0), delta=1e-9)
+            ref = w["cases"]["port/reference"]
+            first = {}
+            for e in ref["iterations"][0]["events"]:
+                first.setdefault(e["class"], e)
+            self.assertAlmostEqual(first["blanket"]["work_s"], 0.75 * 60 * DAY, delta=1e-6)
+            self.assertAlmostEqual(first["magnet"]["work_s"], 0.5 * 120 * DAY, delta=1e-6)
+            # the calibration event keeps its authored duration
+            self.assertAlmostEqual(first["blanket"]["duration_computed_s"], 60 * DAY, delta=1.0)
+            hot = w["cases"]["port/breeder"]
+            blanket = [e for e in hot["iterations"][-1]["events"] if e["class"] == "blanket"][0]
+            self.assertAlmostEqual(blanket["work_s"], 45 * DAY, delta=1e-6)
+            self.assertAlmostEqual(blanket["cooldown_s"], 1.8 * 15 * DAY, delta=60.0)
+
+    def test_the_cross_check_uses_the_class_split_for_the_implied_duration(self):
+        runner = type("R", (), {"classes": {"blanket": {"component_id": "blanket", "governing": ["first-wall"]}},
+                                "class_w": {"blanket": 0.75}})()
+        history = TB.make_history([(0, 100)], replacements=[("blanket", 100, 200)], horizon=500)
+        grid = MC.cooling_grid_s()
+        curves = {(100.0, "first-wall"): {"volume_m3": 1.0,
+                                          "points": [(t, 1.0, 1e3 / t * 3600.0, 0.0) for t in grid]}}
+        th = {"blanket": {"dose": {"status": "EVALUATED", "q_star": 1e3 / (10 * DAY) * 3600.0}}}
+        out = MC.dose_cross_check(runner, MC.DecayCurves(curves), history, th, 0.5, {"blanket": 60 * DAY}, {})
+        self.assertAlmostEqual(out[0]["cooldown_s"], 10 * DAY, delta=1.0)
+        self.assertAlmostEqual(out[0]["implied_duration_s"], 45 * DAY + 10 * DAY, delta=1.0)
+
+    def test_bad_class_w_is_refused_before_anything_runs(self):
+        for bad, text in (({"blanket": 0.0}, "0 < w < 1"), ({"blanket": 1.0}, "0 < w < 1"), ({"blanket": -0.2}, "0 < w < 1"),
+                          ({"blanket": True}, "0 < w < 1"), ({"blanket": "0.5"}, "0 < w < 1"),
+                          ({"divertor": 0.5}, "unknown class"), ([0.5], "mapping")):
+            with tempfile.TemporaryDirectory() as d:
+                rig = self.rig(d)
+                rig.config["class_w"] = bad
+                rig.write_config()
+                code, err = rig.run()
+                self.assertEqual((code, text in err), (2, True), (bad, err))
+                self.assertFalse((Path(d) / "runs").exists())
+
+    def test_dose_needs_a_photon_response_and_a_known_quantity(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d)
+            rig.config["governing_quantity"] = "dose"
+            rig.write_config()
+            code, err = rig.run()
+            self.assertEqual((code, "needs photon_response" in err), (2, True))
+            self.assertFalse((Path(d) / "runs").exists())
+            rig.config["governing_quantity"] = "flux"
+            rig.write_config()
+            self.assertEqual(rig.run()[0], 2)
+            rig.config["governing_quantity"] = "heat"
+            rig.config["photon_response"] = "missing.json"
+            rig.write_config()
+            code, err = rig.run()
+            self.assertEqual((code, "photon_response file not found" in err), (2, True))
+
+    def test_a_photon_response_puts_the_block_in_every_spec_and_asks_for_heat_and_dose(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d)
+            self.add_response(rig)
+            code, err = rig.run()
+            self.assertEqual(code, 0, err)
+            res = rig.result()
+            sha = hashlib.sha256((Path(d) / "response.json").read_bytes()).hexdigest()
+            self.assertEqual(res["inputs_sha256"]["photon_response"], sha)
+            specs = self.specs(Path(d) / "runs")
+            self.assertTrue(any("equivalence-check" in name for name in specs))
+            self.assertTrue(any("/decay/" in name for name in specs))
+            for name, text in specs.items():
+                spec = json.loads(text)
+                self.assertEqual(spec["photon"], {"response": {"path": str((Path(d) / "response.json").resolve()),
+                                                               "sha256": sha}}, name)
+                self.assertEqual(spec["options"]["outputs"], ["heat", "dose"], name)
+            # heat governs by default: the dose cross-check is evaluated now and the record keeps its shape
+            case = res["computed_model"][MC.BARE]["w"]["0.5"]["cases"]["port/reference"]
+            self.assertEqual(case["dose_cross_check"][0]["status"], "EVALUATED")
+            self.assertNotIn("cross_check", case)
+            self.assertNotIn("governing_quantity", res["parameters"])
+            point = json.loads(sorted((Path(d) / "runs" / "decay-cache").glob("*.points.json"))[0].read_text())
+            self.assertIsNotNone(point["steps"][0][3])
+
+    def test_the_non_amendment_path_builds_with_the_response_too(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d, amendment=None)
+            self.add_response(rig)
+            self.assertEqual(rig.run()[0], 0)
+            specs = self.specs(Path(d) / "runs")
+            self.assertTrue(any("/activation/" in name for name in specs))
+            self.assertTrue(all("photon" in json.loads(t) for t in specs.values()))
+
+    def test_dose_governed_cooldowns_are_calibrated_and_read_on_the_dose_and_heat_is_the_cross_check(self):
+        out = {}
+        for governing in ("heat", "dose"):
+            with tempfile.TemporaryDirectory() as d:
+                rig = self.rig(d, params=self.HOT)
+                self.add_response(rig)
+                rig.config["governing_quantity"] = governing
+                rig.write_config()
+                code, err = rig.run()
+                self.assertEqual(code, 0, err)
+                out[governing] = rig.result()
+        heat, dose = out["heat"], out["dose"]
+        self.assertNotIn("governing_quantity", heat["parameters"])
+        self.assertEqual(dose["parameters"]["governing_quantity"], "dose")
+        wh, wd = (r["computed_model"][MC.BARE]["w"]["0.5"] for r in (heat, dose))
+        # q* comes from the dose curve: 10 x amp (1e-9 per g) x (tau / 1 h)^-0.5, per m3 at 1 m3 each
+        self.assertAlmostEqual(wd["q_star"]["magnet"]["q_star"], 1e-8 * (60 * DAY / 3600.0) ** -0.5, delta=1e-15)
+        self.assertEqual(wd["q_star"]["magnet"]["q_star"], wd["q_star"]["magnet"]["dose"]["q_star"])
+        self.assertAlmostEqual(wh["q_star"]["magnet"]["q_star"], 9e-3 / (60 * DAY / 3600.0), delta=1e-9)
+        self.assertEqual(wh["q_star"]["magnet"]["dose"]["q_star"], wd["q_star"]["magnet"]["dose"]["q_star"])
+        # the reference arrangement reproduces the authored durations either way
+        ref = wd["cases"]["port/reference"]
+        self.assertAlmostEqual([e for e in ref["iterations"][0]["events"] if e["class"] == "magnet"][0]["duration_computed_s"],
+                               120 * DAY, delta=1.0)
+        # a 1.8x hotter arrangement: heat cooldown 1.8 x 60 d, dose cooldown 1.8^2 x 60 d (dose ~ tau^-0.5)
+        self.assertAlmostEqual(wh["cases"]["port/breeder"]["durations_s"]["magnets"][0], 60 * DAY + 1.8 * 60 * DAY, delta=60.0)
+        self.assertAlmostEqual(wd["cases"]["port/breeder"]["durations_s"]["magnets"][0], 60 * DAY + 3.24 * 60 * DAY, delta=60.0)
+        hot = wd["cases"]["port/breeder"]
+        self.assertNotIn("dose_cross_check", hot)
+        self.assertEqual(hot["cross_check"]["quantity"], "heat")
+        row = [r for r in hot["cross_check"]["events"] if r["component"] == "magnets"][0]
+        self.assertEqual(row["status"], "EVALUATED")
+        self.assertAlmostEqual(row["cooldown_s"], 1.8 * 60 * DAY, delta=60.0)
+        self.assertAlmostEqual(row["implied_duration_s"], 60 * DAY + 1.8 * 60 * DAY, delta=60.0)
+        # the heat-governed record's dose cross-check mirrors it
+        mirror = [r for r in wh["cases"]["port/breeder"]["dose_cross_check"] if r["component"] == "magnets"][0]
+        self.assertAlmostEqual(mirror["cooldown_s"], 3.24 * 60 * DAY, delta=60.0)
+
+    def test_a_missing_dose_value_makes_the_event_not_evaluated_with_a_reason(self):
+        grid = MC.cooling_grid_s()
+        event = {"start_s": 100.0}
+        points = [(t, 1.0, 5.0 / t, 0.0) for t in grid]
+        points[7] = (points[7][0], 1.0, None, 0.0)
+        curves = MC.DecayCurves({(100.0, "first-wall"): {"volume_m3": 2.0, "points": points}})
+        got = MC.event_curve(curves, event, ["first-wall"], "dose")
+        self.assertEqual(got["status"], "NOT_EVALUATED")
+        self.assertIn("no contact gamma dose at", got["reason"])
+        self.assertEqual(MC.event_curve(curves, event, ["first-wall"], "heat")[0][1], 1.0 / 2.0)
+        # the same on the full-history path
+        act = {"first-wall": [{"install_s": 0.0, "remove_s": 1e9, "volume_m3": 2.0,
+                               "points": [(100.0 + t, 1.0, (None if i == 7 else 5.0), 0.0) for i, t in enumerate(grid)]}]}
+        got = MC.event_curve(act, event, ["first-wall"], "dose")
+        self.assertEqual(got["status"], "NOT_EVALUATED")
+        self.assertIn("lacks the value", got["reason"])
+        # dose series are dose x volume: the combined curve is the volume-weighted mean
+        two = MC.DecayCurves({(100.0, "a"): {"volume_m3": 1.0, "points": [(t, 1.0, 4.0, 0.0) for t in grid]},
+                              (100.0, "b"): {"volume_m3": 3.0, "points": [(t, 1.0, 8.0, 0.0) for t in grid]}})
+        self.assertAlmostEqual(MC.event_curve(two, event, ["a", "b"], "dose")[0][1], (4.0 + 24.0) / 4.0)
+
+    def test_an_empty_sweep_runs_no_sweep_case_and_d2_says_why(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d, sweep_labels=())
+            self.assertEqual(rig.config["sweep"], {})
+            code, err = rig.run()
+            self.assertEqual(code, 0, err)
+            res = rig.result()
+            w = res["computed_model"][MC.BARE]["w"]["0.5"]
+            self.assertEqual(w["decisions"]["D2"], {"status": "NOT_EVALUATED", "reason": "the allocation sweep was not run"})
+            self.assertEqual(w["decisions"]["D1"]["status"], "EVALUATED")
+            self.assertFalse(any(k.startswith("sweep/") for k in w["cases"]))
+            self.assertFalse(any(k.startswith("sweep/") for k in res["fixed_model"]))
+            self.assertEqual(res["verdict"]["not_evaluated"], [{"w": "0.5", "decision": "D2"}])
+        with tempfile.TemporaryDirectory() as d:  # the protocol grid still refuses an empty sweep
+            rig = self.rig(d, sweep_labels=())
+            del rig.config["allow_reduced_grid"]
+            rig.write_config()
+            code, err = rig.run()
+            self.assertEqual((code, "7 points" in err), (2, True))
+
+    def test_f_one_alone_runs_and_d4_does_not_claim_a_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d, sweep_labels=())
+            self.assertEqual(rig.run()[0], 0)
+            d4 = rig.result()["computed_model"][MC.BARE]["w"]["0.5"]["decisions"]["D4"]
+            self.assertEqual((d4["status"], d4["changed"], d4["computed_best_f"]), ("EVALUATED", False, 1.0))
 
 
 if __name__ == "__main__":
