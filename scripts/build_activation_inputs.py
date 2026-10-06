@@ -426,6 +426,28 @@ def cooling_steps(grid: list[tuple[str, float]]) -> list[tuple[float, float]]:
     return steps
 
 
+def subdivide_zero_flux(steps, grid: list[tuple[str, float]]) -> list[tuple[float, float]]:
+    """Split every zero-flux step on the cooling grid, measured from the step's start.
+
+    A step of length L becomes pieces ending at each grid time below L and at L
+    itself, so ACTINV reports the decay curve inside the outage. Irradiation
+    steps are unchanged. Cumulative times of the step ends are preserved.
+    """
+    out: list[tuple[float, float]] = []
+    for dt, m in steps:
+        if m != 0.0:
+            out.append((dt, m))
+            continue
+        previous = 0.0
+        for _, t in grid:
+            if t >= dt * (1.0 - 1e-12):
+                break
+            out.append((t - previous, 0.0))
+            previous = t
+        out.append((dt - previous, 0.0))
+    return out
+
+
 def schedule_json(steps) -> list[dict]:
     return [{"dt": f"{float(dt)!r} s", "flux": float(m)} for dt, m in steps]
 
@@ -510,6 +532,9 @@ def plan(args) -> dict:
                 variants.append((WITH_IMPURITIES, composition, {"entries": parsed, **report}))
         for number, (start, end) in enumerate(installations(history, component), start=1):
             steps, lumping = build_steps(intervals, power, start, end)
+            if args.subdivide_outages:
+                steps = subdivide_zero_flux(steps, grid)
+                lumping = {**lumping, "outages_subdivided_on_cooling_grid": True, "steps_after_subdivision": len(steps)}
             items.append({
                 "component": component, "material_id": material_id, "installation": number,
                 "install_s": start, "remove_s": end, "steps": steps, "lumping": lumping,
@@ -570,7 +595,7 @@ def write_outputs(args, work: dict) -> list[Path]:
                                     "gaps are zero-flux; adjacent identical multipliers merged exactly",
                     "total_irradiation_time_s": sum(dt for dt, m in irradiation if m > 0),
                     "full_power_equivalent_time_s": sum(dt * m for dt, m in irradiation),
-                    "irradiation_step_count": len(irradiation),
+                    "irradiation_step_count": item["lumping"]["steps_after_merging"],
                     "cooling_grid": [{"label": lab, "cumulative_s": t} for lab, t in grid],
                     "year_s": YEAR_S, "total_step_count": len(steps),
                 },
@@ -600,6 +625,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--data-dir", default=DEFAULT_DATA_DIR, help="ACTINV data root (the folder above v1.1.0)")
     p.add_argument("--impurities", help="JSON: material_id -> [{element|nuclide, wt_fraction|ppm, citation}]")
     p.add_argument("--cooling-grid", default=DEFAULT_COOLING)
+    p.add_argument("--subdivide-outages", action="store_true",
+                   help="split every zero-flux step on the cooling grid so the decay curve after each shutdown is in the run")
     p.add_argument("--output-dir", required=True, help="new directory; must not exist")
     p.add_argument("--allow-placeholder-spectrum", action="store_true",
                    help="write a flat-lethargy placeholder when the run has no 709-group spectrum (plumbing tests only)")

@@ -284,6 +284,25 @@ class SpecTests(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertIn("differ from the fispact-709 boundaries", err)
 
+    def test_subdividing_outages_splits_zero_flux_steps_on_the_grid_and_keeps_cumulative_times(self):
+        grid = BUILD.parse_cooling_grid("10s,100s,1000s")
+        steps = [(50.0, 1.0), (500.0, 0.0), (20.0, 0.5), (5.0, 0.0)]
+        got = BUILD.subdivide_zero_flux(steps, grid)
+        self.assertEqual(got, [(50.0, 1.0), (10.0, 0.0), (90.0, 0.0), (400.0, 0.0), (20.0, 0.5), (5.0, 0.0)])
+        self.assertAlmostEqual(sum(dt for dt, _ in got), sum(dt for dt, _ in steps))
+
+    def test_default_schedule_is_unsubdivided_and_flag_subdivides_every_outage(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 300), (400, 1000)]), with_709=True)
+            self.assertEqual(fx.main("plain")[0], 0)
+            self.assertEqual(fx.main("sub", "--subdivide-outages", "--cooling-grid", "10s,50s,200s,1000s")[0], 0)
+            plain = json.loads(specs_in(Path(d) / "plain")[0].read_text())["schedule"]
+            sub = json.loads(specs_in(Path(d) / "sub")[0].read_text())["schedule"]
+            self.assertEqual(len(plain), 3 + len(BUILD.parse_cooling_grid(BUILD.DEFAULT_COOLING)))
+            # the 100 s gap becomes 10 s + 40 s + 50 s; then the four cooling-grid steps follow the last irradiation
+            self.assertEqual([x["dt"] for x in sub[:5]], ["300.0 s", "10.0 s", "40.0 s", "50.0 s", "600.0 s"])
+            self.assertEqual(len(sub), 5 + 4)
+
 
 if __name__ == "__main__":
     unittest.main()
