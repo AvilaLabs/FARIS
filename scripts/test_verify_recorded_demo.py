@@ -612,7 +612,8 @@ def add_sweep(root: Path, variants: list[tuple[str, float]], seeds: list[int] | 
     index_path = root / "package-index.json"
     index = json.loads(index_path.read_text())
     index["sweep"] = {"scenario_id": "allocation-sweep", "scenario_path": "sweep/scenario.json",
-                      "scenario_sha256": VERIFY.digest(root / "sweep/scenario.json"), "runs": runs}
+                      "scenario_sha256": VERIFY.digest(root / "sweep/scenario.json").removeprefix("sha256:"),
+                      "runs": runs}
     write(index_path, json.dumps(index, indent=2) + "\n")
     reindex_package(root)
 
@@ -723,6 +724,15 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
                                   env=dict(os.environ, XDG_STATE_HOME=str(self.root / "state")),
                                   text=True, capture_output=True, check=False)
         self.assertEqual(launched.returncode, 2, launched.stderr)
+
+    def test_sweep_scenario_identity_is_bare_and_still_checked(self):
+        add_sweep(self.package, [("blanket-030cm", 0.30)])
+        index = json.loads((self.package / "package-index.json").read_text())
+        self.assertFalse(index["sweep"]["scenario_sha256"].startswith("sha256:"))
+        self.assertEqual(VERIFY.verify_sweep(self.package, index), 1)
+        index["sweep"]["scenario_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "sweep scenario digest mismatch"):
+            VERIFY.verify_sweep(self.package, index)
 
     def test_tamper_negative_control_targets_a_sweep_file_when_present(self):
         add_sweep(self.package, [("blanket-030cm", 0.30)])

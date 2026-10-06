@@ -307,7 +307,9 @@ def verify_sweep(root: Path, index: dict[str, Any]) -> int:
         return 0
     sweep = index["sweep"]
     scenario_path = safe_package_path(root, sweep.get("scenario_path"))
-    if digest(scenario_path) != sweep.get("scenario_sha256"):
+    # The index records the scenario identity in the bare form transport records use.
+    if bare_sha256(digest(scenario_path), "sweep scenario") != bare_sha256(
+            sweep.get("scenario_sha256"), "sweep scenario"):
         raise ValueError("sweep scenario digest mismatch")
     scenario = json.loads(scenario_path.read_text(encoding="utf-8"))
     scenario_sha = bare_sha256(sweep["scenario_sha256"], "sweep scenario")
