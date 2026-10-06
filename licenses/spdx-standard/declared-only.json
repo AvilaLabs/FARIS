@@ -1,0 +1,88 @@
+{
+  "block2 0.6.2": {
+    "ids": [
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "dispatch 0.2.0": {
+    "ids": [
+      "MIT"
+    ],
+    "reason": "upstream publishes no licence file at any commit"
+  },
+  "dispatch2 0.3.1": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2 0.6.4": {
+    "ids": [
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-app-kit 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-core-foundation 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-core-graphics 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-encode 4.1.0": {
+    "ids": [
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-foundation 0.3.2": {
+    "ids": [
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-io-surface 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-metal 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  },
+  "objc2-quartz-core 0.3.2": {
+    "ids": [
+      "Zlib",
+      "Apache-2.0",
+      "MIT"
+    ],
+    "reason": "upstream publishes a licence description, not the licence text"
+  }
+}

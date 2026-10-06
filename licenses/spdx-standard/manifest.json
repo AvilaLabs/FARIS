@@ -1,0 +1,21 @@
+{
+  "source": "spdx/license-list-data",
+  "tag": "v3.29.0",
+  "licenses": {
+    "MIT": {
+      "file": "MIT.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.29.0/text/MIT.txt",
+      "sha256": "b05785f9f18e6716bab63424b11454513b9943a222595b70411009202fc592b5"
+    },
+    "Zlib": {
+      "file": "Zlib.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.29.0/text/Zlib.txt",
+      "sha256": "bfb1112d49db5b1daecdfef24bd7e2f3ea0bafb33aa67aa0ab51e2bf8407c03d"
+    },
+    "Apache-2.0": {
+      "file": "Apache-2.0.txt",
+      "url": "https://raw.githubusercontent.com/spdx/license-list-data/v3.29.0/text/Apache-2.0.txt",
+      "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+    }
+  }
+}
