@@ -42,7 +42,18 @@ SCRIPT_VERSION = "1"
 SCHEMA = "faris-maintenance-coupling-result/v1"
 REPO = Path(__file__).resolve().parent.parent
 BUILD_SCRIPT = Path(__file__).with_name("build_activation_inputs.py")
+# The protocol as committed (4359bd6), and its fixed body: everything before
+# "## Amendments". Dated amendments may be appended; the body may not change.
 PROTOCOL_SHA256 = "6a6c94e443b6ec578111644db88f5781c144d600c94dba37b7abd56bfd78a687"
+PROTOCOL_BODY_SHA256 = "f287acd51542ffa4bd5d78eaad07912e35dacc6b4f63d14ce12616eb5a3440f2"
+AMENDMENTS_HEADING = b"## Amendments"
+
+
+def protocol_body_sha256(path: Path) -> str | None:
+    """SHA-256 of the protocol text before its amendments heading, or None."""
+    data = path.read_bytes()
+    index = data.find(AMENDMENTS_HEADING)
+    return hashlib.sha256(data[:index]).hexdigest() if index >= 0 else None
 DEFAULT_PROTOCOL = REPO / "docs" / "notes" / "MAINTENANCE_COUPLING_TEST.md"
 DEFAULT_RESULT = REPO / "references" / "maintenance-coupling-test.json"
 
@@ -734,9 +745,10 @@ def main(argv=None) -> int:
     try:
         cfg = resolve_paths(load_json(config_path, "config"), config_path.parent)
         protocol = Path(cfg.get("protocol") or DEFAULT_PROTOCOL)
-        got = sha256_file(protocol) if protocol.is_file() else None
-        if got != PROTOCOL_SHA256:
-            raise Refused(f"protocol file {protocol} has SHA-256 {got}, expected {PROTOCOL_SHA256}; refusing to run")
+        got = protocol_body_sha256(protocol) if protocol.is_file() else None
+        if got != PROTOCOL_BODY_SHA256:
+            raise Refused(f"protocol file {protocol} has body SHA-256 {got} (text before its amendments), "
+                          f"expected {PROTOCOL_BODY_SHA256}; refusing to run")
         check_config(cfg)
         out_dir = Path(cfg["output_dir"])
         result_path = Path(cfg.get("result") or DEFAULT_RESULT)
@@ -756,7 +768,8 @@ def main(argv=None) -> int:
     doc = {
         "schema": SCHEMA,
         "script": {"name": "scripts/maintenance_coupling_test.py", "version": SCRIPT_VERSION},
-        "protocol": {"path": str(protocol), "sha256": PROTOCOL_SHA256},
+        "protocol": {"path": str(protocol), "committed_sha256": PROTOCOL_SHA256, "body_sha256": PROTOCOL_BODY_SHA256,
+                     "file_sha256": sha256_file(protocol)},
         "inputs_sha256": input_hashes(cfg, config_path),
         "tools": {"faris": {"path": cfg["faris"], "sha256": sha256_file(cfg["faris"])}, "actinv": actinv_identity(cfg),
                   "activation_library": body["library"]},

@@ -117,4 +117,36 @@ inputs' hashes, the calibrated `q*` values, every duration set, the decision tab
 
 ## Amendments
 
-None yet.
+### Amendment 1, 2026-10-06, before any result: how the driver reads this protocol
+
+Written when `scripts/maintenance_coupling_test.py` was built on synthetic inputs, before any real transport or
+activation run. Each item resolves a point the text above leaves open. None changes a threshold or a decision rule.
+
+1. Cooldown is interpolated linearly in ln t, and in ln q when both ends are positive. It is the first time the
+   governing curve reaches or falls below q*. If the first grid point (1 hour) is already below, the cooldown is
+   1 hour.
+2. A retained component's decay curve after a shutdown runs only until flux resumes. The replaced component's curve
+   is the full cooling grid after its removal. The combined curve covers the time both exist.
+3. When an outage is shorter than the cooldown, the crossing cannot be seen. The cooldown is then taken as at
+   least the outage length and flagged `window_limited`. Such an event never counts as converged, and the next
+   iteration lengthens the outage, so a converged result never rests on a window-limited event. NOT EVALUATED
+   applies only when the curve stays above q* for 365 days, or when 5 iterations do not converge.
+4. q* is calibrated on the fixed-duration history of `port`/`reference`, with target cooldown `(1 − w)` times the
+   fixed duration. After coupling, that event's duration may drift slightly because the timeline moves. There is
+   no outer loop to re-calibrate.
+5. Convergence compares the durations a history used with the newly computed ones, per event, each clipped to the
+   remaining horizon. If the number of replacements changes, events beyond the previous list start from the fixed
+   duration.
+6. D1: a swapped pair is a pair whose strict order differs between the models. Its gap is divided by the larger
+   computed value.
+7. D2: the gap is between the fixed-model and computed-model optimum points, under the computed model, divided by
+   the larger value.
+8. D3: downtime is the sum of replacement intervals, running to the horizon for a replacement that is unfinished.
+   A negative ratio counts as a change.
+9. D4: the gain is relative to the computed result at `f = 1.0`, and ties pick the larger `f`. Each `f` reruns the
+   coupled iteration with q* from the `f = 1.0` calibration.
+10. A decision with any NOT EVALUATED input is NOT EVALUATED. The verdict is NOT EVALUATED, never NOT MATERIAL,
+    when no decision changes but some decision was not evaluated.
+11. The contact-dose cross-check needs a photon response in the ACTINV specs. Without one, it is reported as not
+    evaluated, with that reason, and it never feeds a decision.
+12. The 365-day end of the cooling grid is 365 × 86,400 s.

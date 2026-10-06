@@ -379,16 +379,25 @@ class HistoryHelperTests(unittest.TestCase):
 
 
 class RefusalTests(unittest.TestCase):
-    def test_a_protocol_file_with_a_different_hash_is_refused(self):
+    def test_a_protocol_whose_body_was_edited_is_refused(self):
         with tempfile.TemporaryDirectory() as d:
-            rig = Rig(Path(d), {}, protocol_text=MC.DEFAULT_PROTOCOL.read_bytes() + b"\nAmendment.\n")
+            rig = Rig(Path(d), {}, protocol_text=MC.DEFAULT_PROTOCOL.read_bytes().replace(b"2 %", b"3 %", 1))
             code, err = rig.run()
             self.assertEqual(code, 2)
             self.assertIn("refusing to run", err)
             self.assertFalse((Path(d) / "runs").exists())
 
-    def test_the_recorded_protocol_hash_matches_the_file(self):
-        self.assertEqual(MC.sha256_file(MC.DEFAULT_PROTOCOL), MC.PROTOCOL_SHA256)
+    def test_the_recorded_protocol_body_matches_the_file(self):
+        self.assertEqual(MC.protocol_body_sha256(MC.DEFAULT_PROTOCOL), MC.PROTOCOL_BODY_SHA256)
+
+    def test_an_appended_amendment_is_accepted_but_a_body_edit_is_refused(self):
+        body = MC.DEFAULT_PROTOCOL.read_bytes()
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "protocol.md"
+            path.write_bytes(body + b"\n### Amendment 99\n\nAppended.\n")
+            self.assertEqual(MC.protocol_body_sha256(path), MC.PROTOCOL_BODY_SHA256)
+            path.write_bytes(body.replace(b"2 %", b"3 %", 1))
+            self.assertNotEqual(MC.protocol_body_sha256(path), MC.PROTOCOL_BODY_SHA256)
 
     def test_an_existing_output_directory_or_result_is_refused(self):
         with tempfile.TemporaryDirectory() as d:
@@ -486,7 +495,7 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(code, 0, err)
             res = rig.result()
             self.assertEqual(res["verdict"]["verdict"], "NOT MATERIAL")
-            self.assertEqual(res["protocol"]["sha256"], MC.PROTOCOL_SHA256)
+            self.assertEqual(res["protocol"]["body_sha256"], MC.PROTOCOL_BODY_SHA256)
             self.assertEqual(res["tools"]["actinv"]["version"], "actinv 1.4.0-fake")
             self.assertEqual(res["tools"]["activation_library"]["library_sha256"], "ab" * 32)
             w = res["computed_model"][MC.BARE]["w"]["0.5"]
