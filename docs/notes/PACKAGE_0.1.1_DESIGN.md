@@ -129,3 +129,22 @@ deterministic: sorted members, owner and group 0, mtime fixed to the release com
 `verify_recorded_demo.py` accepts v0.5 only (a 0.1.0 package carries its own verifier). It needs both parts and
 refuses a missing evidence part with the archive name to download. It runs on Linux, where the recorded Core
 executes.
+
+## Other platforms: retargeting the Linux package
+
+The recorded study data are produced on Linux, and the Windows and macOS programs cannot run there. The desktop
+workflow (`.github/workflows/desktop.yml`) uploads per platform `bin/` and `build.json`
+(`faris-desktop-build/v0.1`). `scripts/retarget_package.py --package LINUX_PKG --build BUILD_DIR --output OUT_DIR`
+turns a finished, verified Linux v0.5 package into that platform's package: it refuses unless the build's FARIS and
+Core commits and `faris --version` equal what the Linux package recorded and every program has its recorded hash and
+size; it hard-links every file except `bin/*`, the index and `README.md`, installs the build's programs, and rewrites
+the index (`local_runtime.platform` and `executables`, the three pins, the `bin/*` file records, the app-part totals).
+Two records are added to the index: `evidence_recorded_with` (the Linux platform and the `faris` and Core hashes that
+produced the recorded evidence; every v0.5 index carries it, equal to its own pins on Linux) and `desktop_build` (the
+build record).
+
+`make_release.py` reads the platform from the index. For Windows and macOS it executes nothing: the version comes
+from `desktop_build.faris_version` and the programs' hashes and sizes are checked. Windows writes a deterministic
+`.zip`, macOS a `.tar.gz`. A release is the Linux run (both archives), then `make_release.py --app-only` once per other
+platform, which writes only the app archive and appends its line to `SHA256SUMS`. The evidence archive is
+byte-identical whichever package it is built from.

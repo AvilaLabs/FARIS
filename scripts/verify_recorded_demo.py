@@ -166,7 +166,17 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
             or runtime.get("schema_version") != "faris-local-runtime/v0.1"
             or runtime.get("platform") != rust_platform()):
         raise ValueError("package local runtime is missing or targets another platform")
-    executables = runtime.get("executables")
+    recorded_with = index.get("evidence_recorded_with")
+    if (not isinstance(recorded_with, dict)
+            or set(recorded_with) != {"platform", "faris_cli_sha256", "core_executable_sha256"}
+            or not isinstance(recorded_with["platform"], dict)):
+        raise ValueError("package index lacks its evidence_recorded_with record")
+    if runtime["platform"]["os"] == "linux" and (
+            recorded_with["platform"] != runtime["platform"]
+            or recorded_with["faris_cli_sha256"] != index.get("faris_cli_sha256")
+            or recorded_with["core_executable_sha256"] != index.get("core_executable_sha256")):
+        raise ValueError("evidence_recorded_with differs from the package pins")
+    executables =runtime.get("executables")
     if not isinstance(executables, dict) or set(executables) != {"faris", "faris-app", "avila-core"}:
         raise ValueError("package executable manifest is malformed")
     expected_binaries = {"faris": index.get("faris_cli_sha256"),

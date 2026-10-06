@@ -566,6 +566,9 @@ def make_package(root: Path, faris: Path, core: Path,
              "faris_cli_sha256": VERIFY.digest(faris),
              "faris_app_sha256": VERIFY.digest(app),
              "core_executable_sha256": VERIFY.digest(core),
+             "evidence_recorded_with": {"platform": runtime["platform"],
+                                        "faris_cli_sha256": VERIFY.digest(faris),
+                                        "core_executable_sha256": VERIFY.digest(core)},
              "local_runtime": runtime,
              "support": support,
              "operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
@@ -952,6 +955,24 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         write(self.package / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
         with self.assertRaisesRegex(ValueError, "app part totals"):
             VERIFY.verify_index(self.package, self.faris, self.core)
+
+    def test_evidence_recorded_with_is_required_and_matches_the_pins_on_linux(self):
+        index_path = self.package / "package-index.json"
+        original = json.loads(index_path.read_text())
+        self.assertEqual(original["evidence_recorded_with"],
+                         {"platform": original["local_runtime"]["platform"],
+                          "faris_cli_sha256": original["faris_cli_sha256"],
+                          "core_executable_sha256": original["core_executable_sha256"]})
+        for mutate in (lambda index: index.pop("evidence_recorded_with"),
+                       lambda index: index["evidence_recorded_with"].update(faris_cli_sha256="sha256:" + "0" * 64),
+                       lambda index: index["evidence_recorded_with"].update(
+                           platform={"os": "linux", "arch": "aarch64"})):
+            index = json.loads(json.dumps(original))
+            mutate(index)
+            write(index_path, json.dumps(index, indent=2) + "\n")
+            write(self.package / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
+            with self.assertRaisesRegex(ValueError, "evidence_recorded_with"):
+                VERIFY.verify_index(self.package, self.faris, self.core)
 
     # Verifies: PRV-005
     def test_tampered_copy_is_rejected_without_changing_source(self):
