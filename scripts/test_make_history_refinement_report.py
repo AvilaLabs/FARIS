@@ -152,6 +152,11 @@ class HistoryRefinementReportTests(unittest.TestCase):
         event = report["event_demo"]["histories"]["250"]
         self.assertEqual(event["service_limit_counts"], {"blanket": 1})
         self.assertEqual(event["replacement_completion_count"], 1)
+        text = (self.fx.root / "out.json").read_text()
+        self.assertNotIn(str(self.fx.root.resolve()), text)
+        self.assertNotIn(str(Path.home()), text)
+        self.assertTrue(report["primary_drivers"]["control-reference"]["history_outputs"]["600"]
+                        ["history_path"].startswith("<work-dir>/"))
 
     def test_failed_gate_writes_no_output(self):
         self.assertEqual(self.run_main(FakeTools(fail_gate=True)), 1)

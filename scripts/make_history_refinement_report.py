@@ -101,12 +101,23 @@ def check_json(*arguments: str) -> dict:
         raise ReportError("independent checker did not return JSON") from error
 
 
-def repo_relative(path: Path) -> str:
+# The report is published, so it records no machine-specific locations. Files
+# are identified by their sha256; paths are only labels: work files relative to
+# the work directory, runs by their directory name, the CLI by its file name.
+WORK_ROOT: Path | None = None
+
+
+def portable_path(path: Path) -> str:
     resolved = path.resolve()
+    if WORK_ROOT is not None:
+        try:
+            return "<work-dir>/" + resolved.relative_to(WORK_ROOT.resolve()).as_posix()
+        except ValueError:
+            pass
     try:
         return resolved.relative_to(REPO).as_posix()
     except ValueError:
-        return str(path)
+        return f"<outside-repo>/{resolved.parent.name}/{resolved.name}"
 
 
 def write_assumptions(base: Path, step: int, base_step: int, target: Path) -> str:
@@ -179,7 +190,7 @@ def run_identity(run_path: Path, scenario_path: Path) -> dict:
         "physics_sha256": run["physics_sha256"],
         "raw_artifact_sha256": run["raw_artifact_sha256"],
         "run_json_sha256": sha256_hex(run_path),
-        "run_path": str(run_path),
+        "run_path": portable_path(run_path),
         "sampling": run["sampling"],
         "scenario_sha256": run["scenario_sha256"],
         "scientific_qualification": run["scientific_qualification"],
@@ -201,10 +212,10 @@ def driver_output(audit_result: dict, history_path: Path, rates_path: Path,
         "delay_boundary_status": boundaries["status"],
         "energy_ledger": audit_result["energy_audit"],
         "events": audit_result["event_count"],
-        "history_path": str(history_path),
+        "history_path": portable_path(history_path),
         "history_sha256": sha256_hex(history_path),
         "max_engine_balance_residual_kg": audit_result["max_engine_balance_residual_kg"],
-        "rates_path": str(rates_path),
+        "rates_path": portable_path(rates_path),
         "rates_sha256": sha256_hex(rates_path),
         "restart_crossing_status": audit_result["restart_crossing_audit"]["status"],
         "segment_limit": history["integration_segment_limit"],
@@ -225,11 +236,11 @@ def event_output(audit_result: dict, history_path: Path, rates_path: Path,
         if event["kind"] == "service_limit_reached":
             limits[event["component_id"]] = limits.get(event["component_id"], 0) + 1
     return {
-        "assumptions_path": str(assumptions_path),
+        "assumptions_path": portable_path(assumptions_path),
         "assumptions_sha256": sha256_hex(assumptions_path),
         "event_count": audit_result["event_count"],
         "event_kind_counts": dict(sorted(kinds.items())),
-        "history_path": str(history_path),
+        "history_path": portable_path(history_path),
         "history_sha256": sha256_hex(history_path),
         "independent_decimal_audit": {
             "continuous_processing_phases": {
@@ -246,7 +257,7 @@ def event_output(audit_result: dict, history_path: Path, rates_path: Path,
         "integration_segment_count": history["integration_segment_count"],
         "outcome": history["outcome"],
         "processing_model": audit_result["processing_model"],
-        "rates_path": str(rates_path),
+        "rates_path": portable_path(rates_path),
         "rates_sha256": sha256_hex(rates_path),
         "replacement_completion_count": kinds.get("replacement_completed", 0),
         "service_limit_counts": dict(sorted(limits.items())),
@@ -274,8 +285,10 @@ def sweep(faris: Path, scenario: Path, run: Path, base: Path, directory: Path, l
 
 
 def build_report(args) -> dict:
+    global WORK_ROOT
     faris = args.faris.resolve()
     work = args.work_dir
+    WORK_ROOT = work
     runs = {"control-reference": args.control_reference_run, "control-breeder": args.control_breeder_run,
             "port-reference": args.port_reference_run, "port-breeder": args.port_breeder_run}
     scenarios = {"control": args.control_scenario, "port": args.port_scenario}
@@ -305,22 +318,22 @@ def build_report(args) -> dict:
     if event_histories[str(STEP_GRID_S[0])]["assumptions_sha256"] != event_base_sha:
         raise ReportError("event demo: the base-step run did not use the base assumptions bytes")
     return {
-        "baseline_assumptions": {"path": repo_relative(args.assumptions), "sha256": base_sha},
+        "baseline_assumptions": {"path": portable_path(args.assumptions), "sha256": base_sha},
         "baseline_refinement_gates": gates,
-        "calculation_cli": {"path": str(args.faris), "sha256": sha256_hex(faris)},
+        "calculation_cli": {"path": portable_path(args.faris), "sha256": sha256_hex(faris)},
         "created_utc": datetime.now(timezone.utc).date().isoformat(),
         "event_demo": {
-            "assumption_source": repo_relative(args.event_assumptions),
+            "assumption_source": portable_path(args.event_assumptions),
             "assumption_source_sha256": event_base_sha,
             "assumptions_sha256": event_base_sha,
             "histories": event_histories,
             "refinement_gates": event_gates,
-            "run_path": str(event_run),
+            "run_path": portable_path(event_run),
             "run_sha256": sha256_hex(event_run),
             "scope": EVENT_SCOPE,
         },
         "historical_supersession": HISTORICAL_SUPERSESSION,
-        "independent_checker": {"method": CHECKER_METHOD, "path": repo_relative(CHECKER),
+        "independent_checker": {"method": CHECKER_METHOD, "path": portable_path(CHECKER),
                                 "sha256": sha256_hex(CHECKER)},
         "primary_drivers": drivers,
         "processing_model": PROCESSING_MODEL,
