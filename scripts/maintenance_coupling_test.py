@@ -25,6 +25,11 @@ Config (JSON, paths relative to the config file):
                        activation (its component flux sets the scale); spectrum_run is the new 709-group run whose
                        spectrum shapes are passed as build_activation_inputs.py --spectrum-run
   allow_reduced_grid   optional; permit fewer sweep points / w / f values (tests only)
+  amendment            optional; 2 applies Amendment 2 of the protocol (a full decay curve per event and governing
+                       component from its own ACTINV run, 10 iterations, a pre-run equivalence check). Absent: the
+                       first run's behaviour, unchanged.
+
+`--equivalence-check-only` runs just the Amendment 2 equivalence check and prints its numbers.
 
 Exit status: 0 result written, 2 bad input or refused.
 """
@@ -34,6 +39,7 @@ import argparse
 import bisect
 import copy
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -70,6 +76,11 @@ W_VALUES = (0.25, 0.5, 0.75)
 CENTRAL_W = 0.5
 F_VALUES = (0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 MAX_ITERATIONS = 5
+MAX_ITERATIONS_A2 = 10
+AMENDMENT_2 = 2
+EQUIVALENCE_TOL = 1e-6
+EQUIVALENCE_OUTAGES = 3
+EQUIVALENCE_COMPONENT = "first-wall"
 CONVERGENCE_S = DAY_S
 D1_GAP = 0.02
 D2_GAP = 0.01
@@ -121,6 +132,19 @@ def load_json(path, what):
 def write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+_BUILD = None
+
+
+def build_module():
+    """scripts/build_activation_inputs.py as a module, for its installation and schedule rules."""
+    global _BUILD
+    if _BUILD is None:
+        spec = importlib.util.spec_from_file_location("build_activation_inputs", BUILD_SCRIPT)
+        _BUILD = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_BUILD)
+    return _BUILD
 
 
 def not_evaluated(reason: str, **extra) -> dict:
@@ -310,6 +334,8 @@ def read_activation(spec_dir: Path, variant: str) -> dict:
     data: dict = {}
     for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
         prov = json.loads(prov_path.read_text(encoding="utf-8"))
+        if "continuation_of_shutdown_s" in prov:
+            continue
         stored = json.loads((spec_dir / prov["spec_file"].replace(".spec.json", ".points.json")).read_text(encoding="utf-8"))
         install_s, remove_s = prov["installation_interval_s"]
         points = []
@@ -322,9 +348,32 @@ def read_activation(spec_dir: Path, variant: str) -> dict:
     return data
 
 
-def event_series(activation: dict, event: dict, governing: list, quantity: str):
+class DecayCurves:
+    """Amendment 2: per (event start, governing component), the cooling part of that component installation's
+    continuation run: {"volume_m3", "points": [(seconds since the shutdown, heat_W, dose|None, flux)]}."""
+
+    def __init__(self, curves: dict | None = None):
+        self.curves = curves or {}
+
+
+def event_series(activation, event: dict, governing: list, quantity: str):
     """({component: [(tau, value)]}, {component: volume}) or a NOT_EVALUATED dict."""
     series, volumes = {}, {}
+    if isinstance(activation, DecayCurves):
+        for component in governing:
+            entry = activation.curves.get((event["start_s"], component))
+            if entry is None:
+                return not_evaluated(f"no ACTINV continuation run of {component} for the shutdown at {event['start_s']:.0f} s")
+            pts = []
+            for tau, heat, dose, _flux in entry["points"]:
+                value = heat if quantity == "heat" else (None if dose is None else dose * entry["volume_m3"])
+                if value is None:
+                    return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
+                                         "response and run with heat-only outputs")
+                pts.append((tau, value))
+            series[component] = pts
+            volumes[component] = entry["volume_m3"]
+        return series, volumes
     for component in governing:
         installs = [i for i in activation.get(component, [])
                     if i["install_s"] < event["start_s"] - TOL_S + 1e-9 and event["start_s"] <= i["remove_s"] + TOL_S]
@@ -408,6 +457,11 @@ class Runner:
         self._histories: OrderedDict = OrderedDict()
         self._activations: OrderedDict = OrderedDict()
         self.library: dict = {}
+        self.amend2 = cfg.get("amendment") == AMENDMENT_2
+        self.max_iterations = MAX_ITERATIONS_A2 if self.amend2 else MAX_ITERATIONS
+        self._cases: dict = {}
+        self.continuation_runs = 0
+        self.continuation_cache_hits = 0
 
     def _dir(self, case_name: str, f: float, used: dict) -> Path:
         key = hashlib.sha256(json.dumps(used, sort_keys=True).encode()).hexdigest()[:10]
@@ -454,6 +508,10 @@ class Runner:
         cached = cache_get(self._activations, key)
         if cached is not None:
             return cached
+        if self.amend2:
+            act = self.decay_curves(case_name, case, f, used, variant)
+            cache_put(self._activations, key, act)
+            return act
         hist = self.history(case_name, case, f, used)
         spec_dir = hist["dir"] / "activation"
         if spec_dir.exists() and not complete_spec_dir(spec_dir):
@@ -488,9 +546,169 @@ class Runner:
             self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
             write_points(result, points)
 
+    def _build_specs(self, case_name: str, case: dict, hist: dict, spec_dir: Path, extra: list, what: str,
+                     components=None) -> None:
+        argv = [sys.executable, BUILD_SCRIPT, "--run", case["history_run"], "--spectrum-run", case["spectrum_run"],
+                "--scenario", case["scenario"], "--physics", case["physics"], "--history", hist["history_path"],
+                "--data-dir", self.cfg["data_dir"], "--cooling-grid", ",".join(f"{t!r}s" for t in cooling_grid_s()),
+                "--actinv-outputs", "heat", "--actinv", self.cfg["actinv"], "--output-dir", spec_dir, *extra]
+        for component in components or []:
+            argv += ["--component", component]
+        if self.cfg.get("impurities"):
+            argv += ["--impurities", self.cfg["impurities"]]
+        self._run(argv, f"{what} ({case_name})")
+
+    def _actinv_points(self, spec: Path, points: Path) -> None:
+        """Run ACTINV on a spec and leave only a points file (atomically)."""
+        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
+        result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
+        result.unlink(missing_ok=True)
+        self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+        points.parent.mkdir(parents=True, exist_ok=True)
+        write_points(result, points)
+
+    def decay_curves(self, case_name: str, case: dict, f: float, used: dict, variant: str) -> DecayCurves:
+        """Amendment 2: one continuation run per (event, governing component installation), via the content cache."""
+        hist = self.history(case_name, case, f, used)
+        self._cases[case_name] = case
+        build = build_module()
+        needs, entries = [], {}
+        for e in replacement_events(hist["data"], self.classes):
+            for component in self.classes[e["class"]]["governing"]:
+                found = [k for k, (a, b) in enumerate(build.installations(hist["data"], component), start=1)
+                         if a < e["start_s"] - TOL_S + 1e-9 and e["start_s"] <= b + TOL_S]
+                if not found:
+                    continue
+                needs.append((e["start_s"], component, found[-1]))
+                entries[(component, found[-1], e["start_s"])] = {
+                    "component": component, "installation": found[-1], "shutdown_s": e["start_s"]}
+        spec_dir = hist["dir"] / "decay"
+        grid = cooling_grid_s()
+        by_key = {}
+        if entries:
+            times_text = json.dumps(sorted(entries.values(), key=lambda x: (x["shutdown_s"], x["component"])),
+                                    indent=2) + "\n"
+            times_path = hist["dir"] / "decay-times.json"
+            if spec_dir.exists() and not (complete_spec_dir(spec_dir) and times_path.is_file()
+                                          and times_path.read_text(encoding="utf-8") == times_text):
+                shutil.rmtree(spec_dir)
+            if not spec_dir.exists():
+                times_path.write_text(times_text, encoding="utf-8")
+                self._build_specs(case_name, case, hist, spec_dir,
+                                  ["--decay-continuations", times_path, "--continuations-only"],
+                                  "build_activation_inputs", sorted({c for _, c, _ in needs}))
+            for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
+                prov = json.loads(prov_path.read_text(encoding="utf-8"))
+                spec = spec_dir / prov["spec_file"]
+                sha = hashlib.sha256(spec.read_bytes()).hexdigest()
+                points = self.out / "decay-cache" / f"{sha}.points.json"
+                if points.exists():
+                    self.continuation_cache_hits += 1
+                else:
+                    self._actinv_points(spec, points)
+                    self.continuation_runs += 1
+                stored = json.loads(points.read_text(encoding="utf-8"))
+                tail = stored["steps"][-len(grid):]
+                span = tail[-1][0] - tail[0][0]
+                if (len(tail) != len(grid) or any(s[2] != 0 for s in tail)
+                        or abs(span - (grid[-1] - grid[0])) > 1e-6 * grid[-1]):
+                    raise ToolError(f"{spec.name}: the last {len(grid)} steps are not the cooling grid")
+                if not self.library and prov.get("library"):
+                    self.library = prov["library"]
+                key = (prov["component"], prov["installation_index"], int(round(prov["continuation_of_shutdown_s"])))
+                by_key[key] = {"volume_m3": prov["volume_m3"],
+                               "points": [(tau, s[1] * prov["mass_g"], s[3], 0.0) for tau, s in zip(grid, tail)]}
+        curves = {}
+        for start_s, component, k in needs:
+            got = by_key.get((component, k, int(round(start_s))))
+            if got is not None:
+                curves[(start_s, component)] = got
+        return DecayCurves(curves)
+
+    def equivalence_check(self, case: dict, variant: str = BARE) -> dict:
+        """Amendment 2 item 5: heat at the end of the first outages of one installation, with the outage as a
+        single zero-flux step and subdivided on the cooling grid. Refuses above EQUIVALENCE_TOL relative."""
+        hist = self.history(CALIBRATION_CASE, case, 1.0, {})
+        base = self.out / "equivalence-check"
+        stem = f"{EQUIVALENCE_COMPONENT}__inst001__{variant}"
+        paths = {}
+        for label, extra in (("single", []), ("subdivided", ["--subdivide-outages"])):
+            spec_dir = base / label
+            if spec_dir.exists() and not complete_spec_dir(spec_dir):
+                shutil.rmtree(spec_dir)
+            if not spec_dir.exists():
+                self._build_specs(CALIBRATION_CASE, case, hist, spec_dir, extra,
+                                  "build_activation_inputs (equivalence check)", [EQUIVALENCE_COMPONENT])
+            paths[label] = spec_dir
+        single = json.loads((paths["single"] / f"{stem}.spec.json").read_text(encoding="utf-8"))
+        prov = json.loads((paths["single"] / f"{stem}.provenance.json").read_text(encoding="utf-8"))
+        schedule = single["schedule"][:prov["schedule"]["irradiation_step_count"]]
+        ends, cursor = [], 0.0
+        for index, step in enumerate(schedule):
+            cursor += float(step["dt"].split()[0])
+            if step["flux"] == 0.0:
+                ends.append((index, cursor))
+        ends = ends[:EQUIVALENCE_OUTAGES]
+        if not ends:
+            raise Refused("equivalence check: the first installation of the first wall has no outage to compare")
+        sub = json.loads((paths["subdivided"] / f"{stem}.spec.json").read_text(encoding="utf-8"))
+        sub_times, cursor = [], 0.0
+        for step in sub["schedule"]:
+            cursor += float(step["dt"].split()[0])
+            sub_times.append(cursor)
+        sub_index = {}
+        for _, end in ends:
+            near = [i for i, t in enumerate(sub_times) if abs(t - end) <= max(1e-3, 1e-9 * end)]
+            if len(near) != 1:
+                raise Refused(f"equivalence check: the subdivided schedule has no step ending at {end!r} s")
+            sub_index[end] = near[0]
+        heats = {}
+        for label, doc, last in (("single", single, ends[-1][0]), ("subdivided", sub, sub_index[ends[-1][1]])):
+            cut = {**doc, "schedule": doc["schedule"][:last + 1]}
+            cut_spec = base / f"{label}-first-{len(ends)}-outages.spec.json"
+            cut_spec.write_text(json.dumps(cut, indent=2) + "\n", encoding="utf-8")
+            points = cut_spec.with_name(cut_spec.name.replace(".spec.json", ".points.json"))
+            if not points.exists():
+                self._actinv_points(cut_spec, points)
+            heats[label] = json.loads(points.read_text(encoding="utf-8"))["steps"]
+        rows, worst = [], 0.0
+        for number, (index, end) in enumerate(ends, start=1):
+            a = heats["single"][index][1]
+            b = heats["subdivided"][sub_index[end]][1]
+            rel = abs(a - b) / max(abs(a), abs(b)) if max(abs(a), abs(b)) > 0 else 0.0
+            worst = max(worst, rel)
+            rows.append({"outage": number, "end_since_installation_s": end, "heat_W_per_g_single_step": a,
+                         "heat_W_per_g_subdivided": b, "relative_difference": rel})
+        record = {"component": EQUIVALENCE_COMPONENT, "installation": 1, "tolerance_relative": EQUIVALENCE_TOL,
+                  "outages": rows, "max_relative_difference": worst, "passed": worst <= EQUIVALENCE_TOL}
+        write_json(base / "result.json", record)
+        if not record["passed"]:
+            raise Refused("equivalence check failed: a single zero-flux step and the subdivided outage differ by more "
+                          f"than {EQUIVALENCE_TOL:g} relative: " + json.dumps(rows))
+        return record
+
+    def spectrum_error_of_replaced(self, case: dict, out: dict) -> None:
+        """Amendment 2: a replaced component that never governs (the magnets) has no continuation sidecar, so its
+        spectrum-error summary is computed by the builder's own functions from the same two run records."""
+        missing = [spec["component_id"] for spec in self.classes.values() if spec["component_id"] not in out]
+        if not missing:
+            return
+        build = build_module()
+        run, spectrum_run = load_json(case["history_run"], "run record"), load_json(case["spectrum_run"], "spectrum run")
+        bounds = build.library_info(Path(self.cfg["data_dir"]))["bounds_eV"]
+        for component in missing:
+            total, _ = build.total_neutron_flux_cm2(run, component)
+            details = build.scaled_spectrum_from_run(spectrum_run, sha256_file(case["spectrum_run"]), component, bounds, total)
+            if details is not None:
+                out[component] = {
+                    "spectrum_run_sha256": details.get("spectrum_run_sha256"),
+                    "scale_factor": details.get("scale_factor_main_total_over_spectrum_run_total"),
+                    **(details.get("spectrum_relative_error") or {}),
+                }
+
     def spectrum_error(self, case_name: str, f: float, variant: str) -> dict:
         """Per component, the spectrum-error summary from the provenance sidecars of the first iteration."""
-        spec_dir = self._dir(case_name, f, {}) / "activation"
+        spec_dir = self._dir(case_name, f, {}) / ("decay" if self.amend2 else "activation")
         out: dict = {}
         for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
             prov = json.loads(prov_path.read_text(encoding="utf-8"))
@@ -502,6 +720,8 @@ class Runner:
                 "scale_factor": details.get("scale_factor_main_total_over_spectrum_run_total"),
                 **(details.get("spectrum_relative_error") or {}),
             }
+        if self.amend2 and case_name in self._cases:
+            self.spectrum_error_of_replaced(self._cases[case_name], out)
         return out
 
 
@@ -544,10 +764,11 @@ def used_duration(used: dict, component: str, k: int, fixed: float) -> float:
 
 def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: dict, w: float,
                  fixed_s: dict, variant: str) -> dict:
-    """History -> activation -> durations, until no duration changes by more than 1 day (at most 5 iterations)."""
+    """History -> activation -> durations, until no duration changes by more than 1 day (at most 5 iterations; 10 under Amendment 2)."""
     used: dict = {}
     iterations = []
-    for number in range(1, MAX_ITERATIONS + 1):
+    limit = getattr(runner, "max_iterations", MAX_ITERATIONS)
+    for number in range(1, limit + 1):
         hist = runner.history(name, case, f, used)
         act = runner.activation(name, case, f, used, variant)
         horizon = history_end_s(hist["data"])
@@ -588,7 +809,7 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
                     "assumptions": str(hist["assumptions"])}
         used = out
     last_two = [it.get("durations_out_s") for it in iterations[-2:]]
-    return not_evaluated(f"no convergence in {MAX_ITERATIONS} iterations (last change "
+    return not_evaluated(f"no convergence in {limit} iterations (last change "
                          f"{iterations[-1]['max_change_s'] / DAY_S:.3f} d)",
                          iterations=iterations, last_two_duration_sets_s=last_two)
 
@@ -786,6 +1007,7 @@ def run_all(cfg: dict, out_dir: Path) -> dict:
     ws = tuple(cfg.get("w_values", W_VALUES))
     fs = tuple(cfg.get("f_values", F_VALUES))
     runner = Runner(cfg, out_dir, base, classes)
+    equivalence = runner.equivalence_check(cases[CALIBRATION_CASE]) if runner.amend2 else None
     fixed = {}
     for name, case in {**cases, **{f"sweep/{k}": v for k, v in sweep.items()}}.items():
         fixed[name] = fixed_case(runner, name, case, 1.0)
@@ -796,14 +1018,21 @@ def run_all(cfg: dict, out_dir: Path) -> dict:
         variants[WITH_IMPURITIES] = analyse_variant(runner, cases, sweep, ws, fs, WITH_IMPURITIES, fixed, fixed_s)
         variants[WITH_IMPURITIES]["role"] = "secondary; reported, not used for the verdict"
     variants[BARE]["role"] = "primary; the verdict"
-    return {"fixed": fixed, "fixed_durations_s": fixed_s, "variants": variants, "library": runner.library,
-            "w_values": list(ws), "f_values": list(fs), "classes": classes}
+    body = {"fixed": fixed, "fixed_durations_s": fixed_s, "variants": variants, "library": runner.library,
+            "w_values": list(ws), "f_values": list(fs), "classes": classes, "max_iterations": runner.max_iterations}
+    if runner.amend2:
+        body["amendment"] = AMENDMENT_2
+        body["equivalence_check"] = equivalence
+        body["decay_continuations"] = {"runs": runner.continuation_runs, "cache_hits": runner.continuation_cache_hits}
+    return body
 
 
 def check_config(cfg: dict) -> None:
     for key in ("faris", "actinv", "data_dir", "assumptions", "output_dir", "arrangements", "sweep"):
         if key not in cfg:
             raise Refused(f"config lacks {key}")
+    if cfg.get("amendment") not in (None, AMENDMENT_2):
+        raise Refused(f"unknown amendment {cfg.get('amendment')!r}; only 2 exists")
     if set(cfg["arrangements"]) != set(ARRANGEMENTS):
         raise Refused(f"arrangements must be exactly {list(ARRANGEMENTS)}")
     for name, case in {**cfg["arrangements"], **{f"sweep/{k}": v for k, v in cfg["sweep"].items()}}.items():
@@ -854,6 +1083,8 @@ def main(argv=None) -> int:
     ap.add_argument("--config", required=True)
     ap.add_argument("--resume", action="store_true",
                     help="continue an interrupted run in its existing output directory (same config only)")
+    ap.add_argument("--equivalence-check-only", action="store_true",
+                    help="run only the Amendment 2 equivalence check (config needs \"amendment\": 2) and print its numbers")
     args = ap.parse_args(argv)
     config_path = Path(args.config).resolve()
     try:
@@ -864,9 +1095,13 @@ def main(argv=None) -> int:
             raise Refused(f"protocol file {protocol} has body SHA-256 {got} (text before its amendments), "
                           f"expected {PROTOCOL_BODY_SHA256}; refusing to run")
         check_config(cfg)
+        if cfg.get("amendment") == AMENDMENT_2 and b"### Amendment 2" not in protocol.read_bytes():
+            raise Refused(f"protocol file {protocol} has no Amendment 2; refusing to run with \"amendment\": 2")
+        if args.equivalence_check_only and cfg.get("amendment") != AMENDMENT_2:
+            raise Refused("--equivalence-check-only needs \"amendment\": 2 in the config")
         out_dir = Path(cfg["output_dir"])
         result_path = Path(cfg.get("result") or DEFAULT_RESULT)
-        if result_path.exists():
+        if result_path.exists() and not args.equivalence_check_only:
             raise Refused(f"result file {result_path} already exists")
         marker_path = out_dir / RUN_MARKER
         config_sha = sha256_file(config_path)
@@ -881,6 +1116,13 @@ def main(argv=None) -> int:
             out_dir.mkdir(parents=True)
             marker = {"config_sha256": config_sha, "resumes": 0}
         write_json(marker_path, marker)
+        if args.equivalence_check_only:
+            base = load_json(cfg["assumptions"], "assumptions")
+            classes = copy.deepcopy(CLASSES)
+            classes.update(cfg.get("classes", {}))
+            record = Runner(cfg, out_dir, base, classes).equivalence_check(cfg["arrangements"][CALIBRATION_CASE])
+            print(json.dumps(record, indent=2, sort_keys=True))
+            return 0
         body = run_all(cfg, out_dir)
     except Refused as err:
         print(f"error: {err}", file=sys.stderr)
@@ -900,7 +1142,7 @@ def main(argv=None) -> int:
                   "activation_library": body["library"]},
         "parameters": {
             "cooling_grid_s": cooling_grid_s(), "w_values": body["w_values"], "f_values": body["f_values"],
-            "max_iterations": MAX_ITERATIONS, "convergence_s": CONVERGENCE_S,
+            "max_iterations": body["max_iterations"], "convergence_s": CONVERGENCE_S,
             "fixed_durations_s": body["fixed_durations_s"], "classes": body["classes"],
             "thresholds": {"D1_gap": D1_GAP, "D2_gap": D2_GAP, "D3_band": list(D3_BAND), "D3_min_fixed_s": D3_MIN_FIXED_S,
                            "D4_gain": D4_GAIN, "D4_max_f": D4_MAX_F},
@@ -910,6 +1152,10 @@ def main(argv=None) -> int:
         "computed_model": body["variants"],
         "verdict": primary["verdict"],
     }
+    if body.get("amendment"):
+        doc["amendment"] = body["amendment"]
+        doc["equivalence_check"] = body["equivalence_check"]
+        doc["decay_continuations"] = body["decay_continuations"]
     write_json(result_path, doc)
     print(f"verdict {primary['verdict']['verdict']}; wrote {result_path}")
     return 0

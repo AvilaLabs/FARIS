@@ -422,5 +422,103 @@ class OutputsOptionTests(unittest.TestCase):
             self.assertFalse((Path(d) / "bad").exists())
 
 
+class ContinuationTests(unittest.TestCase):
+    """--decay-continuations: one spec per (installation, shutdown), history to the shutdown, then cooling."""
+
+    def history(self):
+        # magnets installation 1 is [0, 700]: 300 s on, 100 s off, 300 s on; installation 2 is [760, 1000]
+        return make_history([(0, 300), (400, 700), (800, 1000)], replacements=[("magnets", 700.0, 760.0)])
+
+    def times(self, d, entries):
+        path = Path(d) / "times.json"
+        path.write_text(json.dumps(entries))
+        return str(path)
+
+    def test_the_prefix_is_not_subdivided_and_the_cooling_grid_is_appended(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), self.history(), with_709=True)
+            times = self.times(d, [{"component": "magnets", "installation": 1, "shutdown_s": 700.0},
+                                   {"component": "magnets", "installation": 1, "shutdown_s": 300.0}])
+            code, err = fx.main("out", "--decay-continuations", times, "--subdivide-outages",
+                                "--cooling-grid", "1h,1d,30d", "--actinv-outputs", "heat")
+            self.assertEqual(code, 0, err)
+            out = Path(d) / "out"
+            late = out / "magnets__inst001__cont700__bare_lower_bound.spec.json"
+            early = out / "magnets__inst001__cont300__bare_lower_bound.spec.json"
+            spec = json.loads(late.read_text())
+            self.assertEqual([s["flux"] for s in spec["schedule"]], [1.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+            self.assertEqual([s["dt"] for s in spec["schedule"][:3]], ["300.0 s", "100.0 s", "300.0 s"])  # outage whole
+            cooling = [float(s["dt"].split()[0]) for s in spec["schedule"][3:]]
+            self.assertEqual([sum(cooling[:i + 1]) for i in range(3)], [3600.0, 86400.0, 30 * 86400.0])
+            self.assertEqual(spec["options"]["outputs"], ["heat"])
+            self.assertEqual(json.loads(early.read_text())["schedule"][0], {"dt": "300.0 s", "flux": 1.0})
+            self.assertEqual(len(json.loads(early.read_text())["schedule"]), 4)
+            prov = json.loads(late.with_name(late.name.replace(".spec.", ".provenance.")).read_text())
+            self.assertEqual(prov["continuation_of_shutdown_s"], 700.0)
+            self.assertEqual(prov["spec_file"], late.name)
+            self.assertEqual(prov["installation_interval_s"], [0.0, 700.0])
+            manifest = json.loads((out / "manifest.json").read_text())
+            self.assertIn(late.name, manifest["specs"])
+            # the installation's own full spec is still written, and its sidecar has no continuation field
+            self.assertTrue((out / "magnets__inst001__bare_lower_bound.spec.json").exists())
+            full = json.loads((out / "magnets__inst001__bare_lower_bound.provenance.json").read_text())
+            self.assertNotIn("continuation_of_shutdown_s", full)
+
+    def test_continuations_only_skips_the_full_specs_but_keeps_sidecars_with_the_library(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), self.history(), with_709=True)
+            times = self.times(d, [{"component": "magnets", "installation": 2, "shutdown_s": 1000.0}])
+            code, err = fx.main("out", "--decay-continuations", times, "--continuations-only")
+            self.assertEqual(code, 0, err)
+            names = sorted(p.name for p in (Path(d) / "out").iterdir())
+            self.assertEqual(names, ["magnets__inst002__cont1000__bare_lower_bound.provenance.json",
+                                     "magnets__inst002__cont1000__bare_lower_bound.spec.json", "manifest.json"])
+            prov = json.loads((Path(d) / "out" / names[0]).read_text())
+            self.assertEqual(prov["library"]["library_sha256"], "ab" * 32)
+            self.assertEqual(prov["spectrum"]["groups"], 709)
+
+    def test_a_shutdown_that_is_not_a_step_boundary_is_refused_loudly(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), self.history(), with_709=True)
+            for shutdown, text in ((350.0, "step boundary"), (900.0, "after the installation ends"),
+                                   (0.0, "bad decay-continuations entry")):
+                times = self.times(d, [{"component": "magnets", "installation": 1, "shutdown_s": shutdown}])
+                code, err = fx.main(f"out{int(shutdown)}", "--decay-continuations", times)
+                self.assertEqual(code, 2, shutdown)
+                self.assertIn(text, err)
+                self.assertFalse((Path(d) / f"out{int(shutdown)}").exists())
+            for entry, text in (({"component": "magnets", "installation": 5, "shutdown_s": 300.0}, "not in the history"),
+                                ({"component": "gap", "installation": 1, "shutdown_s": 300.0}, "not among")):
+                code, err = fx.main("bad", "--decay-continuations", self.times(d, [entry]))
+                self.assertEqual((code, text in err), (2, True), entry)
+            code, err = fx.main("bad", "--continuations-only")
+            self.assertEqual((code, "needs --decay-continuations" in err), (2, True))
+
+    def test_without_the_options_the_output_is_byte_identical_to_the_earlier_script(self):
+        # digests of the files (the temporary folder name masked) made by the script before this option existed
+        golden = {0: "b1fbe488af99f53b2104478385257bd2e2fe22f5b027d8bf4457487590422a29",
+                  5: "dc5ce7c6362d26283bb6300ad8e9c07c0ff20a5d5298852af28afde0627e1682"}
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), self.history(), with_709=True)
+            for extra in ([], ["--subdivide-outages", "--actinv-outputs", "heat", "--cooling-grid", "1h,1d,30d"]):
+                out = f"o{len(extra)}"
+                self.assertEqual(fx.main(out, *extra)[0], 0)
+                digest = hashlib.sha256()
+                for path in sorted((Path(d) / out).iterdir()):
+                    digest.update(path.name.encode())
+                    digest.update(path.read_text().replace(d, "<d>").encode())
+                self.assertEqual(digest.hexdigest(), golden[len(extra)])
+
+    def test_the_full_specs_are_unchanged_when_continuations_are_added(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), self.history(), with_709=True)
+            self.assertEqual(fx.main("plain")[0], 0)
+            times = self.times(d, [{"component": "magnets", "installation": 1, "shutdown_s": 300.0}])
+            self.assertEqual(fx.main("more", "--decay-continuations", times)[0], 0)
+            for path in (Path(d) / "plain").iterdir():
+                if path.name != "manifest.json":
+                    self.assertEqual(path.read_bytes(), (Path(d) / "more" / path.name).read_bytes(), path.name)
+
+
 if __name__ == "__main__":
     unittest.main()
