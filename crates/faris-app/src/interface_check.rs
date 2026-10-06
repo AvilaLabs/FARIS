@@ -435,7 +435,10 @@ impl InterfaceCheck {
                 "observed_time_s":self.armed.map(|a|a.elapsed().as_secs_f64()),
             }));
         }
-        let timed_out = self.launched.elapsed().as_secs() >= 150;
+        let timed_out = plan_timed_out(
+            self.launched.elapsed().as_secs_f64(),
+            self.armed.map(|armed| armed.elapsed().as_secs_f64()),
+        );
         if (self.next == self.plan.steps.len() && self.motions.is_empty()) || timed_out {
             let passed = !timed_out
                 && !self.observations.is_empty()
@@ -461,9 +464,32 @@ impl InterfaceCheck {
     }
 }
 
+/// Seconds a plan may run once armed (plan step times are at most 120 s).
+const ARMED_LIMIT_S: f64 = 150.0;
+/// Seconds the app may take to become ready for the plan. Recording waits for
+/// the automatic uncertainty ensembles, which take minutes on the release data.
+const ARMING_LIMIT_S: f64 = 600.0;
+
+/// Whether the plan has run out of time: before arming, measured from launch;
+/// after arming, measured from the arming instant.
+fn plan_timed_out(since_launch_s: f64, since_armed_s: Option<f64>) -> bool {
+    match since_armed_s {
+        Some(armed) => armed >= ARMED_LIMIT_S,
+        None => since_launch_s >= ARMING_LIMIT_S,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_time_limit_counts_from_arming_once_armed() {
+        assert!(!plan_timed_out(400.0, None));
+        assert!(plan_timed_out(600.0, None));
+        assert!(!plan_timed_out(500.0, Some(149.0)));
+        assert!(plan_timed_out(10.0, Some(150.0)));
+    }
 
     fn write_plan(directory: &Path, steps: Value) -> std::path::PathBuf {
         let path = directory.join("plan.json");

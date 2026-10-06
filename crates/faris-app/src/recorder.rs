@@ -161,6 +161,12 @@ impl Recorder {
         if self.started.is_none() {
             if ready {
                 self.started = Some(std::time::Instant::now());
+            } else if plan_done {
+                // The plan ended (or timed out) before the app was ready to
+                // record: close with no frames rather than wait forever.
+                eprintln!("FARIS recorder: the plan ended before recording could start");
+                self.finish();
+                return true;
             } else {
                 return false;
             }
