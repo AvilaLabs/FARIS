@@ -61,6 +61,22 @@ Windows and macOS downloads.
 app archive for your platform and, if you want the Core receipts, the evidence
 pack. A `.faris` file made with 0.1.0 opens in 0.1.1 unchanged.
 
+### Added
+
+These are for development and for the maintenance study that follows 0.1.1.
+They change nothing in the recorded study.
+
+- `faris reactor run --activation-spectra fispact-709` also tallies each
+  component's neutron spectrum in the 709 groups ACTINV uses. Without the
+  option, requests, tallies and recorded results are unchanged, and recorded
+  0.1 runs still inspect and load.
+- Operating assumptions accept `replacement_durations_s` on a service limit:
+  the k-th replacement of that component takes the k-th duration, and later
+  ones fall back to `replacement_duration_s`.
+- `faris-app --check-package REPORT.json` opens a package without a window,
+  reopens its saved studies, loads its inputs and writes a JSON report. The
+  release checks use it on each platform.
+
 ### Fixed
 
 - The tour states the real history counts: 10 million per port case and 30
