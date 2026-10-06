@@ -223,20 +223,31 @@ def read_sums(path: Path) -> list[tuple[str, str]]:
     return sums
 
 
+PLATFORM_NAMES = {
+    "linux-x86_64": "Linux x86_64",
+    "windows-x86_64": "Windows x86_64",
+    "macos-aarch64": "macOS on Apple silicon",
+    "macos-x86_64": "macOS on an Intel Mac",
+}
+
+
 def downloads_section(version: str, app_names: list[str], evidence_name: str | None) -> str:
     lines = ["\n## Downloads\n\n"]
     for app_name in app_names:
         platform_name = re.fullmatch(rf"FARIS-{re.escape(version)}-(.+?)(\.tar\.gz|\.zip)", app_name).group(1)
-        program = r"bin\faris-app.exe" if platform_name.startswith("windows-") else "bin/faris-app"
-        lines.append(f"- `{app_name}`: the app for {platform_name}. Unpack it and run "
-                     f"`FARIS-{version}/{program}`; it opens the whole study.\n")
+        program = (rf"FARIS-{version}\bin\faris-app.exe" if platform_name.startswith("windows-")
+                   else f"FARIS-{version}/bin/faris-app")
+        lines.append(f"- `{app_name}`: the app for {PLATFORM_NAMES.get(platform_name, platform_name)}. Unpack it "
+                     f"and run `{program}`; it opens the whole study.\n")
     if evidence_name:
         lines.append(
             f"- `{evidence_name}`: the Core receipts the app's Evidence step shows, and the files `verify.sh` checks "
             "(the same bytes for every platform). Optional: unpack it into the same place as the app archive, "
             f"so both fill `FARIS-{version}/`. The app needs temporary space for the receipts while it runs; "
             "the package README gives the amount.\n")
-    lines.append("- `SHA256SUMS`: check the downloads with `sha256sum -c SHA256SUMS` before unpacking.\n")
+    lines.append("- `SHA256SUMS`: check the downloads before unpacking. Linux: `sha256sum -c SHA256SUMS "
+                 "--ignore-missing`. macOS: `shasum -a 256 -c SHA256SUMS --ignore-missing`. Windows: in PowerShell, "
+                 f"`Get-FileHash FARIS-{version}-windows-x86_64.zip` must print the SHA-256 on that file's line.\n")
     return "".join(lines)
 
 
