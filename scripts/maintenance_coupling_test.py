@@ -19,8 +19,11 @@ Config (JSON, paths relative to the config file):
   result               output JSON (default references/maintenance-coupling-test.json)
   protocol             default docs/notes/MAINTENANCE_COUPLING_TEST.md in this repository
   arrangements         {"no-port/reference"|"no-port/breeder"|"port/reference"|"port/breeder":
-                         {"scenario", "physics", "run"}}
-  sweep                {"<blanket thickness label>": {"scenario", "physics", "run"}} (7 points)
+                         {"scenario", "physics", "history_run", "spectrum_run"}}
+  sweep                {"<blanket thickness label>": {"scenario", "physics", "history_run", "spectrum_run"}} (7 points)
+                       history_run is the recorded run used for `faris history from-run` and as the main run for
+                       activation (its component flux sets the scale); spectrum_run is the new 709-group run whose
+                       spectrum shapes are passed as build_activation_inputs.py --spectrum-run
   allow_reduced_grid   optional; permit fewer sweep points / w / f values (tests only)
 
 Exit status: 0 result written, 2 bad input or refused.
@@ -366,7 +369,7 @@ class Runner:
         assumptions_path = folder / "assumptions.json"
         write_json(assumptions_path, derived)
         history_path = folder / "history.json"
-        self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"], "--run", case["run"],
+        self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"], "--run", case["history_run"],
                    "--assumptions", assumptions_path, "--output", history_path], f"faris history from-run ({case_name})")
         entry = {"dir": folder, "assumptions": assumptions_path, "history_path": history_path,
                  "data": json.loads(history_path.read_text(encoding="utf-8"))}
@@ -380,7 +383,8 @@ class Runner:
         hist = self.history(case_name, case, f, used)
         spec_dir = hist["dir"] / "activation"
         if not spec_dir.exists():
-            argv = [sys.executable, BUILD_SCRIPT, "--run", case["run"], "--scenario", case["scenario"],
+            argv = [sys.executable, BUILD_SCRIPT, "--run", case["history_run"], "--spectrum-run", case["spectrum_run"],
+                    "--scenario", case["scenario"],
                     "--physics", case["physics"], "--history", hist["history_path"],
                     "--data-dir", self.cfg["data_dir"], "--cooling-grid",
                     ",".join(f"{t!r}s" for t in cooling_grid_s()), "--subdivide-outages",
@@ -399,6 +403,22 @@ class Runner:
                 self.library = installs[0]["library"]
         self._activations[key] = act
         return act
+
+    def spectrum_error(self, case_name: str, f: float, variant: str) -> dict:
+        """Per component, the spectrum-error summary from the provenance sidecars of the first iteration."""
+        spec_dir = self._dir(case_name, f, {}) / "activation"
+        out: dict = {}
+        for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
+            prov = json.loads(prov_path.read_text(encoding="utf-8"))
+            if prov["component"] in out:
+                continue
+            details = prov["spectrum"]["details"]
+            out[prov["component"]] = {
+                "spectrum_run_sha256": details.get("spectrum_run_sha256"),
+                "scale_factor": details.get("scale_factor_main_total_over_spectrum_run_total"),
+                **(details.get("spectrum_relative_error") or {}),
+            }
+        return out
 
 
 # -------------------------------------------------------------- calibration --
@@ -633,6 +653,11 @@ def downtimes(results: dict) -> dict:
     return {k: (v["history"]["total_replacement_downtime_s"] if v["status"] == "EVALUATED" else None) for k, v in results.items()}
 
 
+def with_spectrum_error(runner: Runner, name: str, f: float, variant: str, result: dict) -> dict:
+    """Attach the first iteration's per-component spectrum-error summary (from the provenance sidecars)."""
+    return {**result, "spectrum_error": runner.spectrum_error(name, f, variant)}
+
+
 def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: str, fixed_results: dict,
                     fixed_s: dict) -> dict:
     out = {"variant": variant, "w": {}}
@@ -642,11 +667,13 @@ def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: s
         thresholds = calibrate_class_thresholds(runner, cases, w, fixed_s, variant)
         computed = {}
         for name, case in {**cases, **{f"sweep/{k}": v for k, v in sweep.items()}}.items():
-            computed[name] = coupled_case(runner, name, case, 1.0, thresholds, w, fixed_s, variant)
+            computed[name] = with_spectrum_error(
+                runner, name, 1.0, variant, coupled_case(runner, name, case, 1.0, thresholds, w, fixed_s, variant))
         for f in fs:
             key = f"f/{f}"
-            computed[key] = computed[CALIBRATION_CASE] if f == 1.0 else coupled_case(
-                runner, CALIBRATION_CASE, port_ref, f, thresholds, w, fixed_s, variant)
+            computed[key] = computed[CALIBRATION_CASE] if f == 1.0 else with_spectrum_error(
+                runner, CALIBRATION_CASE, f, variant,
+                coupled_case(runner, CALIBRATION_CASE, port_ref, f, thresholds, w, fixed_s, variant))
         arr = {k: computed[k] for k in ARRANGEMENTS}
         swp = {k: computed[f"sweep/{k}"] for k in sweep}
         fres = {f: computed[f"f/{f}"] for f in fs}
@@ -696,7 +723,7 @@ def check_config(cfg: dict) -> None:
     if set(cfg["arrangements"]) != set(ARRANGEMENTS):
         raise Refused(f"arrangements must be exactly {list(ARRANGEMENTS)}")
     for name, case in {**cfg["arrangements"], **{f"sweep/{k}": v for k, v in cfg["sweep"].items()}}.items():
-        for key in ("scenario", "physics", "run"):
+        for key in ("scenario", "physics", "history_run", "spectrum_run"):
             if not Path(case.get(key, "")).is_file():
                 raise Refused(f"{name}: {key} file not found: {case.get(key)}")
     if not cfg.get("allow_reduced_grid"):
@@ -729,6 +756,7 @@ def actinv_identity(cfg: dict) -> dict:
 def input_hashes(cfg: dict, config_path: Path) -> dict:
     cases = {**{f"arrangement:{k}": v for k, v in cfg["arrangements"].items()},
              **{f"sweep:{k}": v for k, v in cfg["sweep"].items()}}
+    # every file of a case is hashed: scenario, physics, the history run and the spectrum run
     return {
         "config": sha256_file(config_path),
         "assumptions": sha256_file(cfg["assumptions"]),

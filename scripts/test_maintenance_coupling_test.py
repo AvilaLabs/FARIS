@@ -161,6 +161,7 @@ class Rig:
             "component_assignments": [{"component_id": c, "material_id": "cu"} for c in self.COMPONENTS],
         }
         (root / "physics.json").write_text(json.dumps(physics))
+        physics_hash = hashlib.sha256((root / "physics.json").read_bytes()).hexdigest()
         year = 365.25 * DAY
         base = json.loads(Path(MC.REPO / "scenarios/arc-inspired/demountable-magnet-assumptions.json").read_text())
         base["horizon_s"] = horizon_y * year
@@ -174,17 +175,30 @@ class Rig:
         def case(name, params):
             safe = name.replace("/", "_")
             factor = params.get("flux_factor", 1.0)
+            # the recorded run sets the flux magnitude; the new run only supplies the spectrum shape (and a
+            # different total, which the scaling must remove)
             results = [{"response_id": f"{c}-flux", "domain": {"kind": "component", "component_id": c},
-                        "score": {"kind": "flux"}, "mean": 1e13, "volume_m3": 1.0} for c in self.COMPONENTS]
-            spectra = [{"component_id": c, "particle": "neutron", "energy_edges_ev": [0.0] + bounds[1:],
-                        "mean_per_square_metre_second": [factor * 1e13 / 709] * 709} for c in self.COMPONENTS]
-            run = {"scenario_sha256": scenario_hash, "raw_artifact_sha256": f"artifact-{safe}",
-                   "normalized": {"results": results}, "normalized_spectra": spectra,
+                        "score": {"kind": "flux"}, "mean": factor * 1e13, "volume_m3": 1.0} for c in self.COMPONENTS]
+            run = {"scenario_sha256": scenario_hash, "physics_sha256": physics_hash,
+                   "raw_artifact_sha256": f"artifact-{safe}",
+                   "normalized": {"results": results}, "normalized_spectra": None,
                    "fake": {"net_mw": params.get("net_mw", 100.0),
                             "magnet_period_s": params.get("magnet_period_y", 2.0) * year,
                             "blanket_period_s": params.get("blanket_period_y", 1.0) * year}}
             (root / f"{safe}.run.json").write_text(json.dumps(run))
-            return {"scenario": "scenario.json", "physics": "physics.json", "run": f"{safe}.run.json"}
+            shape = [1.0] * 709
+            shape[300] = 800.0
+            total = params.get("spectrum_scale", 0.7) * 1e13
+            means = [total * v / sum(shape) for v in shape]
+            spectra = [{"component_id": c, "particle": "neutron", "energy_edges_ev": [0.0] + bounds[1:],
+                        "mean_per_square_metre_second": means,
+                        "standard_error_per_square_metre_second": [m * 0.05 for m in means]} for c in self.COMPONENTS]
+            spectrum_run = {"scenario_sha256": params.get("spectrum_scenario_sha256", scenario_hash),
+                            "physics_sha256": physics_hash, "normalized": {"results": []},
+                            "normalized_spectra": spectra}
+            (root / f"{safe}.spectrum-run.json").write_text(json.dumps(spectrum_run))
+            return {"scenario": "scenario.json", "physics": "physics.json",
+                    "history_run": f"{safe}.run.json", "spectrum_run": f"{safe}.spectrum-run.json"}
 
         arrangements = {n: case(n, case_params.get(n, {})) for n in MC.ARRANGEMENTS}
         sweep = {k: case(f"sweep/{k}", case_params.get(f"sweep/{k}", {})) for k in sweep_labels}
@@ -549,6 +563,33 @@ class EndToEndTests(unittest.TestCase):
             self.assertGreater(early["converged_at_iteration"], 2)
             self.assertTrue(early["iterations"][0]["window_limited"])
             self.assertAlmostEqual(early["durations_s"]["magnets"][0], 30 * DAY + 1.8 * 90 * DAY, delta=60.0)
+
+    def test_result_carries_both_run_hashes_and_the_spectrum_error_summary(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            self.assertEqual(rig.run()[0], 0)
+            res = rig.result()
+            hashes = res["inputs_sha256"]["cases"]["arrangement:port/reference"]
+            root = Path(d)
+            self.assertEqual(hashes["history_run"], hashlib.sha256((root / "port_reference.run.json").read_bytes()).hexdigest())
+            self.assertEqual(hashes["spectrum_run"],
+                             hashlib.sha256((root / "port_reference.spectrum-run.json").read_bytes()).hexdigest())
+            self.assertNotEqual(hashes["history_run"], hashes["spectrum_run"])
+            case = res["computed_model"][MC.BARE]["w"]["0.5"]["cases"]["port/reference"]
+            self.assertEqual(sorted(case["spectrum_error"]), sorted(Rig.COMPONENTS))
+            err = case["spectrum_error"]["magnets"]
+            self.assertEqual(err["spectrum_run_sha256"], hashes["spectrum_run"])
+            self.assertAlmostEqual(err["scale_factor"], 1.0 / 0.7, places=9)
+            self.assertAlmostEqual(err["flux_weighted_mean_relative_error"], 0.05, places=9)
+            self.assertAlmostEqual(err["max_relative_error_groups_ge_1pct"], 0.05, places=9)
+
+    def test_a_spectrum_run_from_another_scenario_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {"port/breeder": {"spectrum_scenario_sha256": "0" * 64}}, f_values=(1.0,),
+                      sweep_labels=("0.30",))
+            code, err = rig.run()
+            self.assertEqual(code, 2)
+            self.assertIn("scenario_sha256", err)
 
     def test_derived_assumptions_carry_the_computed_durations(self):
         params = {"port/breeder": {"flux_factor": 1.5}}
