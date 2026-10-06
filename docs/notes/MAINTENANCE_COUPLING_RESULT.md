@@ -75,3 +75,75 @@ A method change, written as an amendment after this result and marked as such:
 
 `q*`, the `w` grid, the decisions and their thresholds stay as they are. The amended run would be reported beside this
 one, and this NOT EVALUATED verdict stays in the record.
+
+## Amended run (Amendment 2): MATERIAL
+
+Recorded 2026-10-06. Amendment 2 was written after the result above and is marked as such in the protocol. It changes
+how the decay curves are read and allows 10 iterations; `q*`, the `w` grid, the decisions and their thresholds are
+unchanged. The NOT EVALUATED verdict above stays in the record.
+
+The script's verdict is **MATERIAL**: D1 and D3 change at the central `w` = 0.50, and also at 0.25 and 0.75.
+
+| `w` | Cases converged (of 17) | D1 | D2 | D3 | D4 |
+| --- | --- | --- | --- | --- | --- |
+| 0.25 | 17 | changed | not changed | changed | not changed |
+| 0.50 | 17 | changed | not changed | changed | not changed |
+| 0.75 | 16 | changed | not evaluated | changed | not changed |
+
+At `w` = 0.75 the 35 cm shield case did not converge in 10 iterations (last change 4.8 days), so D2 is not evaluated
+there. Why: D2 compares every shield thickness, and one is missing. Next step: none needed for the verdict, which is
+settled at `w` = 0.50; D2 is unchanged (45 cm) wherever it was evaluated.
+
+### What changed
+
+- **D1, ranking of the arrangements by lifetime net electricity.** Fixed durations rank no-port/reference,
+  no-port/breeder, port/reference, port/breeder. Computed durations swap both pairs. The no-port swap has a gap of 5.4
+  to 6.1 % (threshold 2 %). The port swap has a gap of 2.37 % at every `w`. It comes from the replacement count: with
+  computed durations both port arrangements fit 32 replacements (fixed: 39 and 37). Replacements are triggered by
+  fluence, which grows with full-power time, and in both port arrangements the 30-year horizon ends during the last
+  outage. Full-power time is then fixed by the count: 14.311 years (reference) and 14.677 years (breeder) at every
+  `w`. That is why the port lifetimes, and this gap, are the same at all three `w`.
+- **D3, size of the design differences in replacement downtime.** Three of four contrasts leave the 0.8 to 1.25 band:
+
+  | Contrast | Ratio computed / fixed at `w` = 0.25 / 0.50 / 0.75 |
+  | --- | --- |
+  | breeder minus reference, no port | 14.5 / 14.2 / 14.2 |
+  | breeder minus reference, port | 0.48 / 0.09 / 0.07 |
+  | port minus no port, reference | 0.79 / 0.78 / 0.79 |
+  | port minus no port, breeder | 0.97 / 0.97 / 0.98 (inside the band) |
+
+  The 14x contrast at `w` = 0.50: with fixed durations every no-port blanket outage is 60 days, and the two
+  arrangements differ by 40 days in total. With computed durations the reference blanket outages grow from 154 to 295
+  days over the life (11 replacements, 2,645 days) and the breeder ones from 127 to 289 days (10 replacements, 2,077
+  days), a difference of 568 days. Both the shorter outages and the one fewer replacement contribute.
+- **D2, best shield thickness:** 45 cm with either model. **D4, best operating fraction:** the computed optimum moves
+  (0.9 or 1.0 against 0.8), but its gain over `f` = 1.0 is below the 1 % threshold, so the decision does not change.
+
+### Why the no-port outages are long
+
+The blanket `q*` is calibrated on the first blanket replacement in port/reference, so that event takes exactly its
+fixed 60 days. The no-port arrangements reach that heat level later: the first no-port reference blanket replacement
+(year 2.0) needs 124 days of cooling, against 35 days in port/reference (year 3.2) and 4 days in port/breeder. The
+no-port blankets are replaced more often (every 2.0 to 2.5 years against 3.2 to 4.1), which points to a higher flux
+on them, and so more activity at shutdown. This is read from the computed results; no separate check of the flux was
+made.
+
+### What was run
+
+- **Method.** Amendment 2: for every shutdown and governing component, the history up to that shutdown, then 40
+  cooling points to 365 days; results cached by the SHA-256 of the input. Equivalence check (single zero-flux step
+  against the subdivided outage): largest relative difference 9.2e-9, tolerance 1e-6, passed.
+- **Run.** 26,054 ACTINV runs, 9,900 served from the cache, 3 h 33 min. The driver was started single-threaded, stopped
+  after 20 minutes, changed to run 4 ACTINV processes at once and to run `w` = 0.50 first (commit `0555603`, which
+  changes speed and order only; a test checks that 1 and 4 workers give the same result), and resumed with the same
+  configuration. The result records `"run": {"resumes": 1}`.
+- **Record.** `references/maintenance-coupling-test-a2.json`, local paths replaced by `<run-dir>`, `<actinv>` and
+  `<actinv-data>` (SHA-256 `deee2e67fdce9db02a7e1c4e98617dd78731ce8b168dc6814719ea4b412e2328`; unedited file
+  `0502f6582d912ab0fdbae0fe8b6ceb8ce162d26c45a2c5fd220a87ca3a698440`).
+
+### What this answers, and what it does not
+
+Within this test, physics-derived maintenance durations change which arrangement delivers the most electricity and
+change the size of the downtime differences between designs by large factors. They do not change the best shield
+thickness or the best operating fraction. The calibration ties every duration to one authored number per class, so
+the result is about how durations differ between designs and over the plant's life, not about their absolute size.
