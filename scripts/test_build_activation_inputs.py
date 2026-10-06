@@ -304,5 +304,123 @@ class SpecTests(unittest.TestCase):
             self.assertEqual(len(sub), 5 + 4)
 
 
+def spectrum_run_record(base_run, scale=3.0, rel_error=0.1):
+    """A second run record: same scenario and physics, a shaped 709-group spectrum with errors."""
+    bounds = base_run["bounds"]
+    means = [(1.0 + (i % 7)) * scale for i in range(709)]
+    means[300] = 2000.0 * scale
+    return {
+        "scenario_sha256": base_run["scenario_sha256"], "physics_sha256": "phys",
+        "normalized": {"results": []},
+        "normalized_spectra": [{
+            "component_id": "magnets", "particle": "neutron", "energy_edges_ev": [0.0] + bounds[1:],
+            "mean_per_square_metre_second": means,
+            "standard_error_per_square_metre_second": [m * rel_error for m in means],
+        }],
+    }
+
+
+class SpectrumRunTests(unittest.TestCase):
+    def fixture(self, d, **spec_kwargs):
+        fx = Fixture(Path(d), make_history([(0, 1000)]), with_709=True)
+        run = json.loads(fx.run.read_text())
+        run["physics_sha256"] = "phys"
+        fx.run.write_text(json.dumps(run))
+        fx.spectrum_run = Path(d) / "spectrum-run.json"
+        fx.spectrum_run.write_text(json.dumps(spectrum_run_record({**run, "bounds": fx.bounds}, **spec_kwargs)))
+        return fx
+
+    def test_mismatched_scenario_or_physics_is_refused(self):
+        for field in ("scenario_sha256", "physics_sha256"):
+            with tempfile.TemporaryDirectory() as d:
+                fx = self.fixture(d)
+                other = json.loads(fx.spectrum_run.read_text())
+                other[field] = "0" * 64
+                fx.spectrum_run.write_text(json.dumps(other))
+                code, err = fx.main("bad", "--spectrum-run", str(fx.spectrum_run))
+                self.assertEqual(code, 2)
+                self.assertIn(field, err)
+                self.assertFalse((Path(d) / "bad").exists())
+
+    def test_scaling_makes_the_group_sum_equal_the_main_run_flux_and_records_provenance(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = self.fixture(d)
+            self.assertEqual(fx.main("scaled", "--spectrum-run", str(fx.spectrum_run))[0], 0)
+            (spec_path,) = specs_in(Path(d) / "scaled")
+            spec = json.loads(spec_path.read_text())
+            groups = spec["spectrum"]["flux_per_group"]
+            self.assertAlmostEqual(sum(groups), 1.0e13 * 1e-4, delta=1e-9 * 1e9)
+            raw = json.loads(fx.spectrum_run.read_text())["normalized_spectra"][0]["mean_per_square_metre_second"]
+            self.assertAlmostEqual(groups[1] / groups[0], raw[1] / raw[0], places=12)
+            prov = json.loads(spec_path.with_name(spec_path.name.replace(".spec.", ".provenance.")).read_text())
+            details = prov["spectrum"]["details"]
+            self.assertEqual(details["spectrum_run_sha256"], hashlib.sha256(fx.spectrum_run.read_bytes()).hexdigest())
+            self.assertEqual(prov["input_sha256"]["spectrum_run_record"], details["spectrum_run_sha256"])
+            self.assertAlmostEqual(details["scale_factor_main_total_over_spectrum_run_total"],
+                                   1.0e13 * 1e-4 / (sum(raw) * 1e-4), places=9)
+            err = details["spectrum_relative_error"]
+            self.assertAlmostEqual(err["flux_weighted_mean_relative_error"], 0.1, places=12)
+            self.assertAlmostEqual(err["max_relative_error_groups_ge_1pct"], 0.1, places=12)
+
+    def test_error_summary_flux_weighting_and_one_percent_cut(self):
+        means = [0.0] * 709
+        errors = [0.0] * 709
+        means[0], errors[0] = 98.0, 9.8      # 10 % error, carries most of the flux
+        means[1], errors[1] = 1.5, 0.15      # 10 %
+        means[2], errors[2] = 0.5, 0.5       # 100 % but below 1 % of the flux
+        run = {"normalized_spectra": [{"component_id": "c", "particle": "neutron",
+                                       "mean_per_square_metre_second": means,
+                                       "standard_error_per_square_metre_second": errors}]}
+        got = BUILD.spectrum_error_summary(run, "c")
+        self.assertAlmostEqual(got["flux_weighted_mean_relative_error"], (9.8 + 0.15 + 0.5) / 100.0)
+        self.assertAlmostEqual(got["max_relative_error_groups_ge_1pct"], 0.1)
+        self.assertEqual(got["groups_ge_1pct_of_flux"], 2)
+
+    def test_without_the_option_outputs_carry_no_spectrum_run_fields(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = self.fixture(d)
+            self.assertEqual(fx.main("plain")[0], 0)
+            (spec_path,) = specs_in(Path(d) / "plain")
+            prov = json.loads(spec_path.with_name(spec_path.name.replace(".spec.", ".provenance.")).read_text())
+            self.assertNotIn("spectrum_run_record", prov["input_sha256"])
+            self.assertEqual(sorted(prov["spectrum"]["details"]), ["zero_lower_edge_replaced_by_library_floor"])
+            self.assertAlmostEqual(json.loads(spec_path.read_text())["spectrum"]["flux_per_group"][0], 1.0e13 / 709 * 1e-4)
+
+
+class OutputsOptionTests(unittest.TestCase):
+    OLD_OPTIONS = {"mode": "auto", "prune": "rate", "bmin_atoms_per_g": 1e-8, "temperature_K": 293.6, "cram_order": 16}
+
+    def test_outputs_reach_every_spec_and_provenance_and_default_specs_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)], replacements=[("magnets", 400.0, 450.0)]), with_709=True)
+            self.assertEqual(fx.main("plain")[0], 0)
+            self.assertEqual(fx.main("heat", "--actinv-outputs", "heat")[0], 0)
+            plain_specs, heat_specs = specs_in(Path(d) / "plain"), specs_in(Path(d) / "heat")
+            self.assertEqual(len(plain_specs), 2)
+            for plain, heat in zip(plain_specs, heat_specs):
+                before, after = json.loads(plain.read_text()), json.loads(heat.read_text())
+                self.assertEqual(before["options"], self.OLD_OPTIONS)  # no outputs key without the option
+                self.assertEqual(after["options"], {**self.OLD_OPTIONS, "outputs": ["heat"]})
+                after["options"] = before["options"]
+                self.assertEqual(before, after)  # nothing else changes
+                prov_name = plain.name.replace(".spec.", ".provenance.")
+                plain_prov = json.loads((plain.parent / prov_name).read_text())
+                heat_prov = json.loads((heat.parent / prov_name).read_text())
+                self.assertNotIn("actinv_outputs", plain_prov)
+                self.assertEqual(heat_prov["actinv_outputs"], ["heat"])
+
+    def test_outputs_are_validated_against_the_allowed_set(self):
+        self.assertEqual(BUILD.parse_outputs("heat, dose"), ["heat", "dose"])
+        for bad in ("heat,bogus", ""):
+            with self.assertRaises(BUILD.InputError):
+                BUILD.parse_outputs(bad)
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)]), with_709=True)
+            code, err = fx.main("bad", "--actinv-outputs", "heat,bogus")
+            self.assertEqual(code, 2)
+            self.assertIn("bogus", err)
+            self.assertFalse((Path(d) / "bad").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

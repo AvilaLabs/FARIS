@@ -19,8 +19,11 @@ Config (JSON, paths relative to the config file):
   result               output JSON (default references/maintenance-coupling-test.json)
   protocol             default docs/notes/MAINTENANCE_COUPLING_TEST.md in this repository
   arrangements         {"no-port/reference"|"no-port/breeder"|"port/reference"|"port/breeder":
-                         {"scenario", "physics", "run"}}
-  sweep                {"<blanket thickness label>": {"scenario", "physics", "run"}} (7 points)
+                         {"scenario", "physics", "history_run", "spectrum_run"}}
+  sweep                {"<blanket thickness label>": {"scenario", "physics", "history_run", "spectrum_run"}} (7 points)
+                       history_run is the recorded run used for `faris history from-run` and as the main run for
+                       activation (its component flux sets the scale); spectrum_run is the new 709-group run whose
+                       spectrum shapes are passed as build_activation_inputs.py --spectrum-run
   allow_reduced_grid   optional; permit fewer sweep points / w / f values (tests only)
 
 Exit status: 0 result written, 2 bad input or refused.
@@ -73,6 +76,7 @@ D3_MIN_FIXED_S = 30.0 * DAY_S
 D4_GAIN = 0.01
 D4_MAX_F = 0.9
 TOL_S = 1.0
+POINTS_SCHEMA = "faris-mct-actinv-points/v0.1"
 BARE = "bare_lower_bound"
 WITH_IMPURITIES = "specification_maximum_impurities"
 ARRANGEMENTS = ("no-port/reference", "no-port/breeder", "port/reference", "port/breeder")
@@ -275,18 +279,39 @@ def derive_assumptions(base: dict, classes: dict, f: float, used: dict) -> dict:
 
 # ------------------------------------------------------------------- ACTINV --
 
+def write_points(result_path: Path, points_path: Path) -> None:
+    """Compact the full ACTINV result into a points file (atomically), then delete the result.
+
+    A heat-only result can still be hundreds of MB for a long schedule, so it is not kept.
+    """
+    raw = result_path.read_bytes()
+    result = json.loads(raw)
+    doc = {
+        "schema": POINTS_SCHEMA,
+        "result_sha256": hashlib.sha256(raw).hexdigest(), "result_bytes": len(raw),
+        "n_steps": len(result["steps"]),
+        "ms": result.get("ms"),
+        "pruned_states": result.get("pruned_states"),
+        "total_states": result.get("total_states"),
+        "steps": [[s["t_s"], s["heat_W_per_g"]["total"], s.get("flux", 0.0),
+                   (s.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")] for s in result["steps"]],
+    }
+    tmp = points_path.with_name(points_path.name + ".tmp")
+    tmp.write_text(json.dumps(doc) + "\n", encoding="utf-8")
+    os.replace(tmp, points_path)
+    result_path.unlink()
+
+
 def read_activation(spec_dir: Path, variant: str) -> dict:
     """{component: [{install_s, remove_s, volume_m3, points: [(abs_s, heat_W, dose|None, flux)]}]} for one variant."""
     data: dict = {}
     for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
         prov = json.loads(prov_path.read_text(encoding="utf-8"))
-        result = json.loads((spec_dir / prov["spec_file"].replace(".spec.json", ".result.json")).read_text(encoding="utf-8"))
+        stored = json.loads((spec_dir / prov["spec_file"].replace(".spec.json", ".points.json")).read_text(encoding="utf-8"))
         install_s, remove_s = prov["installation_interval_s"]
         points = []
-        for step in result["steps"]:
-            heat = step["heat_W_per_g"]["total"] * prov["mass_g"]
-            dose = (step.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")
-            points.append((install_s + step["t_s"], heat, dose, step.get("flux", 0.0)))
+        for t_s, heat_per_g, flux, dose in stored["steps"]:
+            points.append((install_s + t_s, heat_per_g * prov["mass_g"], dose, flux))
         data.setdefault(prov["component"], []).append({
             "install_s": install_s, "remove_s": remove_s, "volume_m3": prov["volume_m3"], "points": points,
             "library": prov.get("library", {}),
@@ -312,7 +337,8 @@ def event_series(activation: dict, event: dict, governing: list, quantity: str):
                 break  # irradiation resumed (or a year passed): the decay curve after the shutdown ends here
             value = heat if quantity == "heat" else (None if dose is None else dose * inst["volume_m3"])
             if value is None:
-                return not_evaluated(f"{component} has no contact gamma dose in its ACTINV result")
+                return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
+                                     "response and run with heat-only outputs")
             pts.append((tau, value))
         if not pts:
             return not_evaluated(f"{component} has no decay points after the shutdown at {event['start_s']:.0f} s")
@@ -366,7 +392,7 @@ class Runner:
         assumptions_path = folder / "assumptions.json"
         write_json(assumptions_path, derived)
         history_path = folder / "history.json"
-        self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"], "--run", case["run"],
+        self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"], "--run", case["history_run"],
                    "--assumptions", assumptions_path, "--output", history_path], f"faris history from-run ({case_name})")
         entry = {"dir": folder, "assumptions": assumptions_path, "history_path": history_path,
                  "data": json.loads(history_path.read_text(encoding="utf-8"))}
@@ -380,25 +406,50 @@ class Runner:
         hist = self.history(case_name, case, f, used)
         spec_dir = hist["dir"] / "activation"
         if not spec_dir.exists():
-            argv = [sys.executable, BUILD_SCRIPT, "--run", case["run"], "--scenario", case["scenario"],
+            argv = [sys.executable, BUILD_SCRIPT, "--run", case["history_run"], "--spectrum-run", case["spectrum_run"],
+                    "--scenario", case["scenario"],
                     "--physics", case["physics"], "--history", hist["history_path"],
                     "--data-dir", self.cfg["data_dir"], "--cooling-grid",
                     ",".join(f"{t!r}s" for t in cooling_grid_s()), "--subdivide-outages",
-                    "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
+                    "--actinv-outputs", "heat", "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
             if self.cfg.get("impurities"):
                 argv += ["--impurities", self.cfg["impurities"]]
             self._run(argv, f"build_activation_inputs ({case_name})")
-        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
-        for spec in sorted(spec_dir.glob(f"*__{variant}.spec.json")):
-            result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
-            if not result.exists():
-                self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+        self.run_specs(spec_dir, variant)
         act = read_activation(spec_dir, variant)
         for installs in act.values():
             if installs and installs[0].get("library") and not self.library:
                 self.library = installs[0]["library"]
         self._activations[key] = act
         return act
+
+    def run_specs(self, spec_dir: Path, variant: str) -> None:
+        """One ACTINV run per spec that has no points file yet; each leaves only its points file."""
+        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
+        for spec in sorted(spec_dir.glob(f"*__{variant}.spec.json")):
+            result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
+            points = spec.with_name(spec.name.replace(".spec.json", ".points.json"))
+            if points.exists():
+                continue
+            result.unlink(missing_ok=True)  # a full result without a points file is not trusted
+            self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+            write_points(result, points)
+
+    def spectrum_error(self, case_name: str, f: float, variant: str) -> dict:
+        """Per component, the spectrum-error summary from the provenance sidecars of the first iteration."""
+        spec_dir = self._dir(case_name, f, {}) / "activation"
+        out: dict = {}
+        for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
+            prov = json.loads(prov_path.read_text(encoding="utf-8"))
+            if prov["component"] in out:
+                continue
+            details = prov["spectrum"]["details"]
+            out[prov["component"]] = {
+                "spectrum_run_sha256": details.get("spectrum_run_sha256"),
+                "scale_factor": details.get("scale_factor_main_total_over_spectrum_run_total"),
+                **(details.get("spectrum_relative_error") or {}),
+            }
+        return out
 
 
 # -------------------------------------------------------------- calibration --
@@ -633,6 +684,11 @@ def downtimes(results: dict) -> dict:
     return {k: (v["history"]["total_replacement_downtime_s"] if v["status"] == "EVALUATED" else None) for k, v in results.items()}
 
 
+def with_spectrum_error(runner: Runner, name: str, f: float, variant: str, result: dict) -> dict:
+    """Attach the first iteration's per-component spectrum-error summary (from the provenance sidecars)."""
+    return {**result, "spectrum_error": runner.spectrum_error(name, f, variant)}
+
+
 def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: str, fixed_results: dict,
                     fixed_s: dict) -> dict:
     out = {"variant": variant, "w": {}}
@@ -642,11 +698,13 @@ def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: s
         thresholds = calibrate_class_thresholds(runner, cases, w, fixed_s, variant)
         computed = {}
         for name, case in {**cases, **{f"sweep/{k}": v for k, v in sweep.items()}}.items():
-            computed[name] = coupled_case(runner, name, case, 1.0, thresholds, w, fixed_s, variant)
+            computed[name] = with_spectrum_error(
+                runner, name, 1.0, variant, coupled_case(runner, name, case, 1.0, thresholds, w, fixed_s, variant))
         for f in fs:
             key = f"f/{f}"
-            computed[key] = computed[CALIBRATION_CASE] if f == 1.0 else coupled_case(
-                runner, CALIBRATION_CASE, port_ref, f, thresholds, w, fixed_s, variant)
+            computed[key] = computed[CALIBRATION_CASE] if f == 1.0 else with_spectrum_error(
+                runner, CALIBRATION_CASE, f, variant,
+                coupled_case(runner, CALIBRATION_CASE, port_ref, f, thresholds, w, fixed_s, variant))
         arr = {k: computed[k] for k in ARRANGEMENTS}
         swp = {k: computed[f"sweep/{k}"] for k in sweep}
         fres = {f: computed[f"f/{f}"] for f in fs}
@@ -696,7 +754,7 @@ def check_config(cfg: dict) -> None:
     if set(cfg["arrangements"]) != set(ARRANGEMENTS):
         raise Refused(f"arrangements must be exactly {list(ARRANGEMENTS)}")
     for name, case in {**cfg["arrangements"], **{f"sweep/{k}": v for k, v in cfg["sweep"].items()}}.items():
-        for key in ("scenario", "physics", "run"):
+        for key in ("scenario", "physics", "history_run", "spectrum_run"):
             if not Path(case.get(key, "")).is_file():
                 raise Refused(f"{name}: {key} file not found: {case.get(key)}")
     if not cfg.get("allow_reduced_grid"):
@@ -729,6 +787,7 @@ def actinv_identity(cfg: dict) -> dict:
 def input_hashes(cfg: dict, config_path: Path) -> dict:
     cases = {**{f"arrangement:{k}": v for k, v in cfg["arrangements"].items()},
              **{f"sweep:{k}": v for k, v in cfg["sweep"].items()}}
+    # every file of a case is hashed: scenario, physics, the history run and the spectrum run
     return {
         "config": sha256_file(config_path),
         "assumptions": sha256_file(cfg["assumptions"]),

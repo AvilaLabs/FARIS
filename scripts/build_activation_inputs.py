@@ -51,6 +51,9 @@ NO_SPECTRUM_MESSAGE = "no 709-group spectrum in this run record; the 0.2 transpo
 BARE = "bare_lower_bound"
 WITH_IMPURITIES = "specification_maximum_impurities"
 PLACEHOLDER = "placeholder_flat_lethargy_not_physics"
+# options.outputs values ACTINV accepts (its default is every output)
+ACTINV_OUTPUTS = ("inventory", "activity", "heat", "photons", "dose", "pathways", "radiological", "damage",
+                  "ledger", "certificate", "audit")
 ACTINV_DEFAULT = Path.home() / ".local" / "bin" / "actinv"
 
 # Standard atomic weights (g/mol), conventional values, hydrogen to uranium.
@@ -86,6 +89,15 @@ def load_json(path, what):
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         raise InputError(f"cannot read {what} {path}: {err}") from err
+
+
+def parse_outputs(text: str) -> list[str]:
+    """'heat' -> ['heat']; every entry must be in ACTINV's allowed set."""
+    items = [x.strip() for x in text.split(",")]
+    bad = [x for x in items if x not in ACTINV_OUTPUTS]
+    if not items or bad:
+        raise InputError(f"bad --actinv-outputs entry {bad or text!r}; allowed: {', '.join(ACTINV_OUTPUTS)}")
+    return items
 
 
 def parse_cooling_grid(text: str) -> list[tuple[str, float]]:
@@ -283,6 +295,58 @@ def find_709_spectrum(run: dict, component_id: str, bounds: list[float]) -> dict
     return None
 
 
+def spectrum_error_summary(run: dict, component_id: str) -> dict:
+    """Relative sampling error of the component's 709-group neutron spectrum.
+
+    Per group the relative error is standard error / mean over groups with a
+    positive mean. `flux_weighted_mean_relative_error` weights each group by its
+    share of the flux (so it is sum(standard error) / sum(mean)).
+    `max_relative_error_groups_ge_1pct` is the largest relative error among the
+    groups carrying at least 1 % of the flux.
+    """
+    for s in run.get("normalized_spectra") or []:
+        if s["component_id"] != component_id or s["particle"] != "neutron" or len(s["mean_per_square_metre_second"]) != GROUPS:
+            continue
+        means = s["mean_per_square_metre_second"]
+        errors = s.get("standard_error_per_square_metre_second")
+        if errors is None or len(errors) != GROUPS:
+            raise InputError(f"{component_id}: the spectrum run has no per-group standard errors")
+        total = sum(means)
+        if not total > 0:
+            raise InputError(f"{component_id}: the spectrum run's neutron spectrum has no flux")
+        major = [e / m for m, e in zip(means, errors) if m > 0 and m >= 0.01 * total]
+        return {
+            "flux_weighted_mean_relative_error": sum(e for m, e in zip(means, errors) if m > 0) / total,
+            "max_relative_error_groups_ge_1pct": max(major) if major else None,
+            "groups_ge_1pct_of_flux": len(major),
+        }
+    raise InputError(f"no 709-group neutron spectrum for component {component_id} in the spectrum run")
+
+
+def scaled_spectrum_from_run(spectrum_run: dict, spectrum_run_sha: str, component_id: str,
+                             bounds: list[float], target_total_cm2: float) -> dict | None:
+    """The spectrum run's shape, normalised and scaled so its sum is `target_total_cm2`."""
+    found = find_709_spectrum(spectrum_run, component_id, bounds)
+    if found is None:
+        return None
+    shape = found["flux_per_group"]
+    run_total = sum(shape)
+    if not run_total > 0:
+        raise InputError(f"{component_id}: the spectrum run's neutron spectrum has no flux")
+    scale = target_total_cm2 / run_total
+    unit = [v / run_total for v in shape]
+    return {
+        **found,
+        "flux_per_group": [u * target_total_cm2 for u in unit],
+        "source": found["source"] + "; shape from --spectrum-run, scaled to the main run's component flux",
+        "spectrum_run_sha256": spectrum_run_sha,
+        "scale_factor_main_total_over_spectrum_run_total": scale,
+        "spectrum_run_total_flux_cm2_s": run_total,
+        "scaled_to_total_flux_cm2_s": target_total_cm2,
+        "spectrum_relative_error": spectrum_error_summary(spectrum_run, component_id),
+    }
+
+
 def placeholder_spectrum(total_cm2: float, bounds: list[float]) -> list[float]:
     """Flat per unit lethargy over the 709 groups, scaled to the total flux. Not physics."""
     weights = [math.log(bounds[i + 1] / bounds[i]) for i in range(GROUPS)]
@@ -454,8 +518,8 @@ def schedule_json(steps) -> list[dict]:
 
 # ------------------------------------------------------------------- specs --
 
-def build_spec(title, composition, mass_g, flux_per_group, library, schedule) -> dict:
-    return {
+def build_spec(title, composition, mass_g, flux_per_group, library, schedule, outputs=None) -> dict:
+    spec = {
         "spec": SPEC_FORMAT,
         "title": title,
         "projectile": "neutron",
@@ -471,6 +535,9 @@ def build_spec(title, composition, mass_g, flux_per_group, library, schedule) ->
         "schedule": schedule,
         "options": {"mode": "auto", "prune": "rate", "bmin_atoms_per_g": 1e-8, "temperature_K": 293.6, "cram_order": 16},
     }
+    if outputs is not None:
+        spec["options"]["outputs"] = list(outputs)
+    return spec
 
 
 def write_json(path: Path, value) -> None:
@@ -491,6 +558,12 @@ def plan(args) -> dict:
                 raise InputError(f"the {label} was made from a different scenario file (hash {got})")
         if history.get("driving_rates", {}).get("transport_artifact_sha256") != run.get("raw_artifact_sha256"):
             raise InputError("the history was not made from this run record's transport artifact")
+    spectrum_run = None
+    if args.spectrum_run:
+        spectrum_run = load_json(args.spectrum_run, "spectrum run record")
+        for field in ("scenario_sha256", "physics_sha256"):
+            if spectrum_run.get(field) is None or spectrum_run.get(field) != run.get(field):
+                raise InputError(f"the spectrum run's {field} differs from the main run's; refusing to mix runs")
     impurities_doc = load_json(args.impurities, "impurities file") if args.impurities else None
     library = library_info(Path(args.data_dir))
     materials = {m["id"]: m["recipe"] for m in physics["materials"]}
@@ -503,6 +576,7 @@ def plan(args) -> dict:
         if c not in solid:
             raise InputError(f"component {c} is void; nothing to activate")
     grid = parse_cooling_grid(args.cooling_grid)
+    outputs = parse_outputs(args.actinv_outputs) if args.actinv_outputs else None
     intervals, power = operating_intervals(history), PowerSeries(history)
     items, missing = [], []
     for component in wanted:
@@ -512,7 +586,11 @@ def plan(args) -> dict:
         volume, volume_source = component_volume_m3(run, component)
         mass_g = volume * float(recipe["density_kg_m3"]) * 1000.0
         total_cm2, total_source = total_neutron_flux_cm2(run, component)
-        found = find_709_spectrum(run, component, library["bounds_eV"])
+        if spectrum_run is not None:
+            found = scaled_spectrum_from_run(spectrum_run, sha256_file(args.spectrum_run), component,
+                                             library["bounds_eV"], total_cm2)
+        else:
+            found = find_709_spectrum(run, component, library["bounds_eV"])
         if found is None:
             missing.append(component)
             if not args.allow_placeholder_spectrum:
@@ -544,17 +622,20 @@ def plan(args) -> dict:
             })
     if missing and not args.allow_placeholder_spectrum:
         raise NoSpectrum(NO_SPECTRUM_MESSAGE)
-    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing}
+    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing, "outputs": outputs}
 
 
 def hashes(args) -> dict:
-    return {
+    out = {
         "run_record": sha256_file(args.run),
         "scenario": sha256_file(args.scenario),
         "physics": sha256_file(args.physics),
         "history": sha256_file(args.history),
         "impurities": sha256_file(args.impurities) if args.impurities else None,
     }
+    if args.spectrum_run:
+        out["spectrum_run_record"] = sha256_file(args.spectrum_run)
+    return out
 
 
 def write_outputs(args, work: dict) -> list[Path]:
@@ -570,13 +651,14 @@ def write_outputs(args, work: dict) -> list[Path]:
             stem = f"{item['component']}__inst{item['installation']:03d}__{label}"
             title = f"FARIS {item['component']} installation {item['installation']} ({label})"
             spec = build_spec(title, composition, item["mass_g"], item["spectrum"]["flux_per_group"],
-                              library, schedule_json(steps))
+                              library, schedule_json(steps), work["outputs"])
             spec_path = out / f"{stem}.spec.json"
             write_json(spec_path, spec)
             write_json(out / f"{stem}.provenance.json", {
                 "script": "scripts/build_activation_inputs.py", "script_version": SCRIPT_VERSION,
                 "spec_file": spec_path.name, "spec_sha256": sha256_file(spec_path),
                 "label": label,
+                **({"actinv_outputs": work["outputs"]} if work["outputs"] is not None else {}),
                 "input_sha256": input_hashes,
                 "component": item["component"], "material_id": item["material_id"],
                 "installation_index": item["installation"],
@@ -621,12 +703,16 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--scenario", required=True)
     p.add_argument("--physics", required=True)
     p.add_argument("--history", required=True, help="output of `faris history from-run`")
+    p.add_argument("--spectrum-run", help="second run record (same scenario and physics) whose 709-group spectra "
+                   "are normalised and scaled to --run's component flux")
     p.add_argument("--component", action="append", help="component id (repeatable; default all non-void)")
     p.add_argument("--data-dir", default=DEFAULT_DATA_DIR, help="ACTINV data root (the folder above v1.1.0)")
     p.add_argument("--impurities", help="JSON: material_id -> [{element|nuclide, wt_fraction|ppm, citation}]")
     p.add_argument("--cooling-grid", default=DEFAULT_COOLING)
     p.add_argument("--subdivide-outages", action="store_true",
                    help="split every zero-flux step on the cooling grid so the decay curve after each shutdown is in the run")
+    p.add_argument("--actinv-outputs", help="comma-separated options.outputs for every spec (default: ACTINV's "
+                   f"own default, every output); allowed: {', '.join(ACTINV_OUTPUTS)}")
     p.add_argument("--output-dir", required=True, help="new directory; must not exist")
     p.add_argument("--allow-placeholder-spectrum", action="store_true",
                    help="write a flat-lethargy placeholder when the run has no 709-group spectrum (plumbing tests only)")
