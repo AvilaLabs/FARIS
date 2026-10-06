@@ -7,6 +7,70 @@ are listed here under **Changed** with what to do.
 Research screening only. FARIS results are not a licensing, safety or design
 basis.
 
+## 0.1.1 — unreleased
+
+The same demo study and results as 0.1.0. What changes is how it is
+distributed: a smaller download split in two, a launcher with no Python, and
+Windows and macOS downloads.
+
+### Changed
+
+- The download is split in two. The app download, one per platform
+  (`FARIS-0.1.1-linux-x86_64.tar.gz`, `FARIS-0.1.1-windows-x86_64.zip`,
+  `FARIS-0.1.1-macos-aarch64.tar.gz` for Apple silicon and
+  `FARIS-0.1.1-macos-x86_64.tar.gz` for Intel Macs), holds everything the app
+  needs to open the whole study. The Linux app download is about 35 MB. The
+  optional `FARIS-0.1.1-evidence.tar.gz`, about 78 MB and the same for every
+  platform, adds the Avila Core receipts and is what `verify.sh` checks. 0.1.0
+  was one 112 MB archive. `SHA256SUMS` covers every file. Each archive unpacks
+  to a folder `FARIS-0.1.1/`; unpack the evidence pack into the same place so
+  its files merge.
+- Python is no longer needed to open the study, and `launch.sh` is gone. Double-click
+  `bin/faris-app` (`bin\faris-app.exe` on Windows), or run it from a terminal.
+  It finds the study beside its `bin` folder, checks the SHA-256 of every file
+  it needs and opens the four recorded arrangements and the sweep.
+  `faris-app --package DIR` opens a package elsewhere. If a check fails, the app
+  opens with nothing loaded and says why and what to do (download again and
+  check `SHA256SUMS`).
+- Windows and macOS downloads. The programs are not signed. Windows SmartScreen
+  may warn: choose More info, then Run anyway. On macOS the programs are neither
+  signed nor notarized: after unpacking, run
+  `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or open
+  `bin/faris-app` and allow it under System Settings, Privacy & Security, Open
+  Anyway. Windows and macOS builds are new in 0.1.1; report problems on GitHub
+  issues. Linux is built and tested on the reference laptop.
+- With the evidence pack, the app unpacks the Core evidence (823 MB) into a
+  private temporary folder while it runs and deletes it on exit, so it needs
+  about 0.9 GB of free temporary space. Without it, everything works except
+  the saved receipts: the Evidence step says "Core receipts not included", why,
+  and the next step.
+- `verify.sh` needs Linux, `python3` and the evidence pack, and about 2 GB of
+  temporary space; it checks the exact amount first. The Windows and macOS
+  downloads are checked by the app itself at launch.
+- Generated runs go to a per-user folder outside the package:
+  `$XDG_STATE_HOME/faris/recorded-demo-runs/<folder>` on Linux (`~/.local/state`
+  if unset), `~/Library/Application Support/FARIS/recorded-demo-runs/<folder>`
+  on macOS and `%LOCALAPPDATA%\FARIS\recorded-demo-runs\<folder>` on Windows.
+  `--runs-directory` overrides it and must be outside the package. The tour
+  marker `tour-completed` is in `$XDG_CONFIG_HOME/faris` or `~/.config/faris` on
+  Linux, `~/Library/Application Support/FARIS` on macOS and `%APPDATA%\FARIS`
+  on Windows.
+
+**What to do.** Nothing, if you stay on 0.1.0: a 0.1.0 package keeps its own
+`launch.sh` and verifier and still works as before. To use 0.1.1, download the
+app archive for your platform and, if you want the Core receipts, the evidence
+pack. A `.faris` file made with 0.1.0 opens in 0.1.1 unchanged.
+
+### Fixed
+
+- The tour states the real history counts: 10 million per port case and 30
+  million per port-free control.
+- The export button's hover no longer gives a page count.
+- Saved Core evidence now waits up to 10 minutes for unpacking, and says why if
+  it gives up.
+- On Windows the app opens without a console window.
+- On Windows the `faris history` commands no longer refuse to run.
+
 ## 0.1.0 — 2026-10-05
 
 The first public release, a deliberately narrow demo that is complete for one

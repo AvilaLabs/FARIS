@@ -4,11 +4,11 @@ FARIS, the Fusion Analysis and Reactor Integration Simulator, follows a fusion p
 
 ![FARIS tour: the plant in 3D, transport on the model, the 30-year operating timeline and the four-arrangement comparison](images/faris-tour.gif)
 
-This handbook covers **FARIS 0.1.0**.
+This handbook covers **FARIS 0.1.1**.
 
 ## This release is a demo
 
-FARIS 0.1.0 is a deliberately narrow demonstration, complete for one study: an ARC-inspired tokamak in four arrangements, from transport to thirty years of operation with uncertainty. The full product widens the geometry and adds activation and peak magnet fluence. [Where FARIS is going](roadmap.md) lists what comes next.
+FARIS 0.1.1 is a deliberately narrow demonstration, complete for one study: an ARC-inspired tokamak in four arrangements, from transport to thirty years of operation with uncertainty. The full product widens the geometry and adds activation and peak magnet fluence. [Where FARIS is going](roadmap.md) lists what comes next.
 
 ## Research screening only
 
@@ -33,7 +33,7 @@ The study asks one question: what changes when you move thickness from the neutr
 
 ## Start here
 
-[Download and verify](install.md) the Linux package, then [take the tour](quick-start.md). You do not need OpenMC, nuclear data or a network connection to explore the recorded study.
+[Download and verify](install.md) the package for Linux, Windows or macOS, then [take the tour](quick-start.md). You do not need OpenMC, nuclear data or a network connection to explore the recorded study.
 
 Then read one chapter for each step of the workspace: [Design](design.md), [Simulate](simulate.md), [Operate](operate.md), [Compare](compare.md) and [Evidence](evidence.md). Read [Reading the numbers](results.md) and [Scope and limits](scope.md) before you quote any result.
 

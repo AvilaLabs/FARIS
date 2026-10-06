@@ -11,7 +11,7 @@ how sure those numbers are.
 > design basis. Every number is labelled as calculated, authored, literature,
 > conditional or not evaluated.
 
-> **This release is a demo.** FARIS 0.1.0 is a deliberately narrow
+> **This release is a demo.** FARIS 0.1.1 is a deliberately narrow
 > demonstration, complete for one study: an ARC-inspired tokamak in four
 > arrangements, from transport to thirty years of operation with uncertainty.
 > The full product widens the geometry and adds activation and peak magnet
@@ -48,18 +48,48 @@ outboard service port and a matched port-free control.
 
 ## Get it
 
-Download the Linux package from the
-[latest release](https://github.com/AvilaLabs/FARIS/releases/latest), unpack it
-and run:
+Download the app for your platform from the
+[latest release](https://github.com/AvilaLabs/FARIS/releases/latest) and check
+it against `SHA256SUMS`:
 
-```bash
-./verify.sh    # optional: rechecks every recorded byte and the Core receipts
-./launch.sh    # opens the recorded study
-```
+| Platform | File |
+| --- | --- |
+| Linux | `FARIS-0.1.1-linux-x86_64.tar.gz` (about 35 MB) |
+| Windows | `FARIS-0.1.1-windows-x86_64.zip` |
+| macOS, Apple silicon | `FARIS-0.1.1-macos-aarch64.tar.gz` |
+| macOS, Intel Mac | `FARIS-0.1.1-macos-x86_64.tar.gz` |
+
+Each archive unpacks to a folder `FARIS-0.1.1/`. Double-click `bin/faris-app`
+(`bin\faris-app.exe` on Windows), or run it from a terminal. It finds the study
+beside its `bin` folder, checks the SHA-256 of every file it needs, and opens
+the four recorded arrangements and the sweep. `faris-app --package DIR` opens a
+package elsewhere. If a check fails, the app opens with nothing loaded and says
+why and what to do: download again and check `SHA256SUMS`. Python is not needed.
+
+The optional `FARIS-0.1.1-evidence.tar.gz` (about 78 MB, the same for every
+platform) adds the Avila Core receipts to the Evidence step. Unpack it into the
+same place, so its files merge into `FARIS-0.1.1/`. With it, the app unpacks the
+Core evidence (823 MB) into a private temporary folder while it runs and deletes
+it on exit, so it needs about 0.9 GB of free temporary space. Without it,
+everything works except the saved receipts: the Evidence step says "Core
+receipts not included", why, and what to do next.
+
+On Linux, `./verify.sh` rechecks every recorded byte and the Core receipts. It
+needs `python3`, the evidence pack and about 2 GB of temporary space, and it
+checks the exact amount first. The Windows and macOS downloads are checked by the
+app itself at launch.
+
+The programs are not signed. Windows SmartScreen may warn: choose More info,
+then Run anyway. On macOS the programs are neither signed nor notarized: after
+unpacking, run `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or
+open `bin/faris-app` and allow it under System Settings, Privacy & Security,
+Open Anyway. A matching hash shows the bytes are the recorded ones, not who made
+them.
 
 It runs offline: no OpenMC, nuclear data or network access is needed to explore
-the recorded study. You need a Linux desktop session with working graphics
-drivers. The binaries are hash-pinned but not signed.
+the recorded study. You need a desktop session with working graphics drivers.
+Linux is built and tested on the reference laptop. Windows and macOS builds are
+new in 0.1.1; report problems on GitHub issues.
 
 ## Using it
 
@@ -108,7 +138,6 @@ publish it.
   reduce the streaming; FARIS has not modelled one.
 - Report the local peak magnet fluence: it reports regional averages.
 - Activation, decay heat and shutdown dose.
-- Run on Windows or macOS.
 
 ## Where FARIS is going
 
@@ -127,7 +156,7 @@ The next version, 0.2, builds on the same study:
   spectrum is reported separately.
 
 Further out, and not yet scheduled: CAD geometry (through Paramak and DAGMC),
-shutdown dose, and Windows and macOS builds. The plan and its decisions are in
+shutdown dose. The plan and its decisions are in
 [docs/DEMO_ROADMAP.md](docs/DEMO_ROADMAP.md).
 
 Release notes are in the [changelog](CHANGELOG.md); measurable goals for every
@@ -157,8 +186,9 @@ operation; it does not change the full-torus model or reported volumes.
 
 The desktop needs a graphical session and compatible graphics drivers.
 Linux source builds may need `pkg-config`, `libxkbcommon-dev`, and
-`libwayland-dev` from the system package manager. Only Linux is built and
-tested; Windows and macOS builds have not been tried.
+`libwayland-dev` from the system package manager. Linux is built and tested on
+the reference laptop. Windows and macOS builds are new in 0.1.1; the release
+downloads are built by CI from the same commit.
 
 Use **Interface size** in the top bar to enlarge text, controls, panels, and
 plots together. Ctrl/Cmd + or − adjusts size; Ctrl/Cmd 0 resets it. The 100%
@@ -313,7 +343,7 @@ development artifacts, not simulation evidence.
 | `crates/faris-cli/` | Headless client of the same engine |
 | `crates/faris-app/` | Native egui workspace and wgpu renderer |
 | `scenarios/arc-inspired/scenario.json` | The single editable demo scenario |
-| `docs/USER_GUIDE.md` | User guide for the desktop app and command line (release 0.1.0) |
+| `docs/USER_GUIDE.md` | User guide for the desktop app and command line (release 0.1.1) |
 | `docs/DEMO.md` | Demo question, requirements, and completion criteria |
 | `docs/ARCHITECTURE.md` | Rust boundaries, units, adapter and evidence design |
 | `docs/ROADMAP.md` | Long-term project direction and development phases |

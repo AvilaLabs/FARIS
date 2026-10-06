@@ -2,9 +2,9 @@
 
 ## Start the app
 
-From the package folder, run `./launch.sh`. The first time the app starts without a study file, it plays a 12-stop tour of the recorded study. It takes about a minute.
+Open `bin/faris-app` from the package folder (see [Download and verify](install.md)). The first time the app starts without a study file, it plays a 12-stop tour of the recorded study. It takes about a minute.
 
-Use **Next** (or the Right arrow, or Enter) and **Back** (Left arrow) to move. Choose **Skip tour** (or press Esc) to leave. Finishing or skipping writes a marker file, so the tour does not play again. The marker is `tour-completed` in a `faris` folder under `$XDG_CONFIG_HOME`, or under `~/.config` when that is not set.
+Use **Next** (or the Right arrow, or Enter) and **Back** (Left arrow) to move. Choose **Skip tour** (or press Esc) to leave. Finishing or skipping writes a marker file, so the tour does not play again. The marker is `tour-completed`. On Linux it is in a `faris` folder under `$XDG_CONFIG_HOME`, or under `~/.config` when that is not set. On macOS it is in `~/Library/Application Support/FARIS`, and on Windows in `%APPDATA%\FARIS`.
 
 Choose **Tour** in the top bar to replay it. Start the app with `--tour always` or `--tour never` to override the default.
 
