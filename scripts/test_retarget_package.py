@@ -118,6 +118,9 @@ def desktop_build(root: Path, platform: str, name: str | None = None) -> Path:
     executables = {}
     for program in ("faris", "faris-app", "avila-core"):
         data = f"{platform} {program}".encode() * 10
+        if platform.startswith("linux-"):
+            # Runnable, like the CI build on the laptop: it reports its version.
+            data = f"#!/bin/sh\necho {program} {VERSION}\n".encode()
         write(build / "bin" / f"{program}{suffix}", data, 0o644)
         executables[program] = {"path": f"bin/{program}{suffix}", "sha256": sha(data), "bytes": len(data)}
     notices = {}
@@ -129,6 +132,8 @@ def desktop_build(root: Path, platform: str, name: str | None = None) -> Path:
               "faris_commit": FARIS_COMMIT, "faris_version": f"faris {VERSION}",
               "core_commit": CORE_COMMIT, "core_version": "avila-core 0.1.0",
               "profile": "release", "executables": executables, "notices": notices}
+    if platform.startswith("linux-"):
+        record["glibc"] = "2.35"
     write(build / "build.json", json.dumps(record, indent=2) + "\n", 0o644)
     return build
 
@@ -268,6 +273,62 @@ class RetargetTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "SHA-256"):
             RETARGET.retarget(self.linux, build, self.root / "never")
 
+    def test_linux_target_swaps_programs_and_keeps_the_laptop_pins_as_recorded_with(self):
+        out = self.retarget("linux-x86_64")
+        linux = json.loads((self.linux / "package-index.json").read_text())
+        index = json.loads((out / "package-index.json").read_text())
+        build = json.loads((self.root / "build-linux-x86_64" / "build.json").read_text())
+        self.assertEqual(build["glibc"], "2.35")
+        self.assertEqual(index["local_runtime"]["platform"], {"os": "linux", "arch": "x86_64"})
+        self.assertEqual(index["local_runtime"]["executables"], build["executables"])
+        self.assertEqual(index["desktop_build"], build)
+        self.assertEqual(index["faris_cli_sha256"], build["executables"]["faris"]["sha256"])
+        self.assertEqual(index["core_executable_sha256"], build["executables"]["avila-core"]["sha256"])
+        self.assertNotEqual(index["faris_cli_sha256"], linux["faris_cli_sha256"])
+        self.assertEqual(index["evidence_recorded_with"], linux["evidence_recorded_with"])
+        self.assertEqual(index["evidence_recorded_with"]["faris_cli_sha256"], linux["faris_cli_sha256"])
+        for name in ("faris", "faris-app", "avila-core"):
+            self.assertEqual(sha((out / "bin" / name).read_bytes()), build["executables"][name]["sha256"])
+            self.assertEqual(stat.S_IMODE((out / "bin" / name).stat().st_mode), 0o755)
+        self.assertEqual((out / "licenses/faris-THIRD_PARTY_NOTICES.md").read_text(), "linux-x86_64 faris-THIRD_PARTY_NOTICES.md\n")
+        text = (out / "SOURCE_PROVENANCE.md").read_text()
+        self.assertIn("- Platform: Linux x86_64.", text)
+        self.assertIn("release profile", text)
+        self.assertIn("The programs need glibc 2.35 or newer", text)
+        self.assertIn("`target/release/avila-core`", text)
+        self.assertNotIn("debug", text.lower())
+        record = next(i for i in index["files"] if i["path"] == "SOURCE_PROVENANCE.md")
+        self.assertEqual(record["sha256"], sha(text.encode()))
+        for other in ("windows-x86_64", "macos-aarch64"):
+            other_text = (self.retarget(other, name=f"out-{other}") / "SOURCE_PROVENANCE.md").read_text()
+            self.assertNotIn("glibc", other_text)
+
+    def test_linux_build_needs_a_glibc_version(self):
+        for label, mutate in (("missing", lambda r: r.pop("glibc", None)),
+                              ("empty", lambda r: r.update(glibc="")),
+                              ("not a version", lambda r: r.update(glibc="new")),
+                              ("number", lambda r: r.update(glibc=2.35))):
+            with self.subTest(label):
+                build = desktop_build(self.root, "linux-x86_64", f"build-glibc-{label.replace(' ', '-')}")
+                rewrite_build(build, mutate)
+                with self.assertRaisesRegex(SystemExit, "glibc"):
+                    RETARGET.retarget(self.linux, build, self.root / "never")
+                self.assertFalse((self.root / "never").exists())
+
+    def test_linux_build_must_be_x86_64(self):
+        build = desktop_build(self.root, "linux-x86_64", "build-linux-arm")
+        rewrite_build(build, lambda r: r.update(platform="linux-aarch64"))
+        with self.assertRaisesRegex(SystemExit, "x86_64"):
+            RETARGET.retarget(self.linux, build, self.root / "never")
+
+    def test_an_already_retargeted_package_is_refused(self):
+        for platform in ("linux-x86_64", "windows-x86_64"):
+            done = self.retarget(platform, name=f"done-{platform}")
+            with self.assertRaisesRegex(SystemExit, "already retargeted"):
+                RETARGET.retarget(done, desktop_build(self.root, "linux-x86_64", f"again-{platform}"),
+                                  self.root / f"never-{platform}")
+            self.assertFalse((self.root / f"never-{platform}").exists())
+
     def test_provenance_names_the_platform_and_release_profile(self):
         for platform, label, exe in (("windows-x86_64", "Windows x86_64", "avila-core.exe"),
                                      ("macos-aarch64", "macOS aarch64", "avila-core"),
@@ -321,7 +382,7 @@ class RetargetTests(unittest.TestCase):
             "core commit": (lambda r: r.update(core_commit="c" * 40), "core_commit"),
             "version": (lambda r: r.update(faris_version="faris 0.1.0"), "faris 0.1.0"),
             "schema": (lambda r: r.update(schema_version="faris-desktop-build/v0.2"), "faris-desktop-build"),
-            "linux platform": (lambda r: r.update(platform="linux-x86_64"), "platform"),
+            "linux build without glibc": (lambda r: r.update(platform="linux-x86_64"), "glibc"),
             "arch": (lambda r: r.update(platform="windows-riscv"), "platform"),
             "platform shape": (lambda r: r.update(platform="windows"), "platform"),
             "recorded hash": (lambda r: r["executables"]["faris"].update(sha256="sha256:" + "0" * 64),
@@ -470,6 +531,33 @@ class RetargetedReleaseTests(unittest.TestCase):
         self.assertEqual((out / f"FARIS-{VERSION}-evidence.tar.gz").read_bytes(), linux_evidence.read_bytes())
         with tarfile.open(out / f"FARIS-{VERSION}-macos-aarch64.tar.gz") as tar:
             self.assertEqual(tar.getmember(f"FARIS-{VERSION}/bin/faris-app").mode, 0o755)
+
+    def test_retargeted_linux_gives_both_archives_and_the_same_evidence_archive(self):
+        package = self.target("linux-x86_64")
+        out = self.root / "rel"
+        run_release(package, out)
+        app_name = f"FARIS-{VERSION}-linux-x86_64.tar.gz"
+        self.assertTrue((out / app_name).is_file())
+        _, evidence, name = RELEASE.split_package(self.linux, VERSION)
+        self.assertEqual(name, "linux-x86_64")
+        original_evidence = self.root / "original-evidence.tar.gz"
+        RELEASE.write_archive(self.linux, original_evidence, f"FARIS-{VERSION}", MTIME, evidence)
+        self.assertEqual((out / f"FARIS-{VERSION}-evidence.tar.gz").read_bytes(), original_evidence.read_bytes())
+        with tarfile.open(out / app_name) as tar:
+            names = tar.getnames()
+            self.assertEqual(tar.getmember(f"FARIS-{VERSION}/bin/faris-app").mode, 0o755)
+            index = json.load(tar.extractfile(f"FARIS-{VERSION}/package-index.json"))
+        self.assertIn("desktop_build", index)
+        self.assertFalse(any("port/cases" in n or n.endswith("verify.sh") for n in names))
+        notes = (out / "RELEASE_NOTES.md").read_text()
+        self.assertIn(f"- `{app_name}`", notes)
+
+    def test_retargeted_linux_with_a_changed_program_is_refused(self):
+        package = self.target("linux-x86_64")
+        unlock(package)
+        (package / "bin/faris-app").write_text("#!/bin/sh\necho faris-app 0.0.9\n")
+        with self.assertRaisesRegex(SystemExit, "differs from the package index"):
+            run_release(package, self.root / "rel")
 
     def test_app_only_appends_to_the_sums_and_refuses_duplicates(self):
         mac, win = self.target("macos-x86_64"), self.target("windows-x86_64")

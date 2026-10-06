@@ -234,7 +234,7 @@ Run `faris COMMAND --help` for every flag. Errors exit with status 2; a file tha
   average, not a magnet peak.
 - **Benchmarks.** Code-to-code comparison against ITER_1D is unavailable
   without traceable reference responses.
-- **Platforms.** Linux, Windows and macOS. Linux is built and tested on the reference laptop. Windows and macOS builds are new in 0.1.1; report problems on GitHub issues. The bundled programs are hash-pinned, not signed.
+- **Platforms.** Linux, Windows and macOS. Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer (Ubuntu 22.04 or later, Debian 12 or later). Windows and macOS builds are new in 0.1.1; report problems on GitHub issues. The bundled programs are hash-pinned, not signed.
 
 ## 9. Troubleshooting
 

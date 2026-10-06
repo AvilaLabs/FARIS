@@ -9,9 +9,10 @@ Checks, before writing anything:
 - the package index is v0.5, names FARIS-<version>-evidence.tar.gz, and covers every
   file in the package (scripts/verify_binary_manifest.py from the package also runs).
 
-A package made by scripts/retarget_package.py (Windows or macOS) cannot run here: its
-version comes from `desktop_build.faris_version` in the index, no program is executed,
-and the programs' hashes and sizes are checked against the index instead.
+A package made by scripts/retarget_package.py has CI-built programs: its version comes
+from `desktop_build.faris_version` in the index, and the programs' hashes and sizes are
+checked against the index. Windows and macOS programs cannot run here, so nothing is
+executed for them; the CI-built Linux programs also report their version, which must match.
 
 Then writes, into a new --output-dir:
 - FARIS-<version>-<os>-<arch>.tar.gz (FARIS-<version>-windows-<arch>.zip on Windows): the
@@ -278,16 +279,24 @@ def main() -> int:
         fail(f"Cargo.toml workspace version is {workspace_version()}, not {args.version}")
     notes, _date = changelog_section(args.version)
     app_files, evidence_files, platform_name = split_package(package, args.version)
-    if platform_name.split("-")[0] == "linux":
+    index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
+    if "desktop_build" in index:
+        check_retargeted_binaries(package, index, args.version, platform_name)
+        if platform_name.split("-")[0] == "linux":
+            # The CI-built Linux programs run here too; the version they report must match.
+            for name in ("faris", "faris-app"):
+                found = reported_version(package / "bin" / name)
+                if found != args.version:
+                    fail(f"package bin/{name} reports {found}, not {args.version}; rebuild the package")
+    else:
+        if platform_name.split("-")[0] != "linux":
+            fail("package index has no desktop_build record")
         for name in ("faris", "faris-app"):
             found = reported_version(package / "bin" / name)
             if found != args.version:
                 fail(f"package bin/{name} reports {found}, not {args.version}; rebuild the package")
         subprocess.run([sys.executable, str(package / "scripts" / "verify_binary_manifest.py"), str(package)],
                        check=True, timeout=600)
-    else:
-        index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
-        check_retargeted_binaries(package, index, args.version, platform_name)
 
     top = f"FARIS-{args.version}"
     app_name = (f"{top}-{platform_name}.zip" if platform_name.startswith("windows-")

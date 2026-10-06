@@ -60,7 +60,9 @@ def main() -> int:
         version = subprocess.run(
             [str(executable), "--version"], capture_output=True, text=True,
             check=False, timeout=10)
-        if version.returncode != 0 or version.stdout.strip() != record.get("version"):
+        # A CI-built package records the programs' versions once, in desktop_build.
+        expected = record.get("version") if "version" in record or "desktop_build" not in index else None
+        if version.returncode != 0 or (expected is not None and version.stdout.strip() != expected):
             print(f"runtime executable version differs from its recorded version: {name}", file=sys.stderr)
             return 1
     print("Pinned local executables revalidated; hashes establish identity, not authenticity.")

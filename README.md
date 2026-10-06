@@ -54,10 +54,13 @@ it against `SHA256SUMS`:
 
 | Platform | File |
 | --- | --- |
-| Linux | `FARIS-0.1.1-linux-x86_64.tar.gz` (about 35 MB) |
+| Linux | `FARIS-0.1.1-linux-x86_64.tar.gz` (about 35 MB; glibc 2.35 or newer) |
 | Windows | `FARIS-0.1.1-windows-x86_64.zip` |
 | macOS, Apple silicon | `FARIS-0.1.1-macos-aarch64.tar.gz` |
 | macOS, Intel Mac | `FARIS-0.1.1-macos-x86_64.tar.gz` |
+
+The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12
+or later.
 
 Each archive unpacks to a folder `FARIS-0.1.1/`. Double-click `bin/faris-app`
 (`bin\faris-app.exe` on Windows), or run it from a terminal. It finds the study
@@ -88,8 +91,9 @@ them.
 
 It runs offline: no OpenMC, nuclear data or network access is needed to explore
 the recorded study. You need a desktop session with working graphics drivers.
-Linux is built and tested on the reference laptop. Windows and macOS builds are
-new in 0.1.1; report problems on GitHub issues.
+Every platform's programs are built by CI from the release commit; the study
+evidence was recorded on Linux on the reference laptop. Windows and macOS builds
+are new in 0.1.1; report problems on GitHub issues.
 
 ## Using it
 
@@ -186,9 +190,10 @@ operation; it does not change the full-torus model or reported volumes.
 
 The desktop needs a graphical session and compatible graphics drivers.
 Linux source builds may need `pkg-config`, `libxkbcommon-dev`, and
-`libwayland-dev` from the system package manager. Linux is built and tested on
-the reference laptop. Windows and macOS builds are new in 0.1.1; the release
-downloads are built by CI from the same commit.
+`libwayland-dev` from the system package manager. Every platform's release
+programs are built by CI from the release commit; the study evidence was
+recorded on Linux on the reference laptop. Windows and macOS builds are new in
+0.1.1.
 
 Use **Interface size** in the top bar to enlarge text, controls, panels, and
 plots together. Ctrl/Cmd + or − adjusts size; Ctrl/Cmd 0 resets it. The 100%

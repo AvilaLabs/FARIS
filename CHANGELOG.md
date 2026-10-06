@@ -38,7 +38,9 @@ Windows and macOS downloads.
   `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or open
   `bin/faris-app` and allow it under System Settings, Privacy & Security, Open
   Anyway. Windows and macOS builds are new in 0.1.1; report problems on GitHub
-  issues. Linux is built and tested on the reference laptop.
+  issues. Every platform's programs are built by CI from the release commit;
+  the study evidence was recorded on Linux on the reference laptop. The Linux
+  programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later.
 - With the evidence pack, the app unpacks the Core evidence (823 MB) into a
   private temporary folder while it runs and deletes it on exit, so it needs
   about 0.9 GB of free temporary space. Without it, everything works except
@@ -79,6 +81,8 @@ They change nothing in the recorded study.
 
 ### Fixed
 
+- The 0.1.0 Linux programs needed glibc 2.43, so they ran only on the newest
+  distributions. 0.1.1's are built on Ubuntu 22.04 and need 2.35 or newer.
 - The tour states the real history counts: 10 million per port case and 30
   million per port-free control.
 - The export button's hover no longer gives a page count.
