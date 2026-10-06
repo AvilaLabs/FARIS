@@ -617,6 +617,15 @@ def assign_parts(records: list[dict], index_fields: dict) -> dict:
     return totals
 
 
+def prune_empty_directories(root: Path) -> None:
+    """Remove directories left empty by staging, so the package holds only indexed files
+    and both release archives unpack to exactly the same tree."""
+    for path in sorted((p for p in root.rglob("*") if p.is_dir() and not p.is_symlink()),
+                       key=lambda p: len(p.parts), reverse=True):
+        if not any(path.iterdir()):
+            path.rmdir()
+
+
 def scan_package(root: Path) -> list[dict]:
     records = []
     total_bytes = 0
@@ -1331,6 +1340,7 @@ def main() -> None:
         write_bounded_json(outage_summary_path, outage_summary)
         sweep_manifest = add_sweep(staging, [path.resolve() for path in args.sweep_bundle])
         write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version)
+        prune_empty_directories(staging)
         indexed_files = scan_package(staging)
         part_totals = assign_parts(indexed_files, {"sweep": sweep_manifest})
         part_totals["evidence"]["archive_name"] = evidence_archive_name(args.version)

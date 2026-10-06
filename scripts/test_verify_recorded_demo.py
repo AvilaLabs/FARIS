@@ -894,6 +894,15 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "not in the app part"):
                 PACKAGE.assign_parts([item for item in records if item["path"] != missing], {"sweep": None})
 
+    def test_empty_staging_directories_are_pruned(self):
+        staging = self.root / "prune"
+        (staging / "a/b/c").mkdir(parents=True)
+        (staging / "a/keep").mkdir()
+        write(staging / "a/keep/file.txt", "x\n")
+        PACKAGE.prune_empty_directories(staging)
+        self.assertEqual(sorted(p.relative_to(staging).as_posix() for p in staging.rglob("*")),
+                         ["a", "a/keep", "a/keep/file.txt"])
+
     def test_platform_names_follow_rust(self):
         saved = VERIFY.sys.platform, VERIFY.platform.machine
         try:
