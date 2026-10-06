@@ -23,6 +23,8 @@ MAX_MEMBERS = 8192
 MAX_EXPANDED_DIRECTORIES = 8192
 MAX_NAME_BYTES = 4096
 COPY_CHUNK = 1024 * 1024
+# Longest accepted run of zero blocks after the last member.
+TRAILER_LIMIT = MAX_TREE_MEMBERS * 1024 + 12288
 
 
 class _HashingReader:
@@ -49,6 +51,11 @@ class _SingleMemberGzipStream:
         self.buffer = bytearray()
         self.done = False
         self.closed = False
+        # Bytes handed to the reader, and the last TRAILER_LIMIT + 1 of them, so
+        # the tar end can be judged from what was delivered, not from what
+        # tarfile happens to leave unread after its end-of-archive block.
+        self.delivered = 0
+        self.tail = bytearray()
 
     def readable(self) -> bool:
         return True
@@ -66,6 +73,10 @@ class _SingleMemberGzipStream:
             self._fill()
         result = bytes(self.buffer[:size])
         del self.buffer[:size]
+        self.delivered += len(result)
+        self.tail.extend(result)
+        if len(self.tail) > TRAILER_LIMIT + 1:
+            del self.tail[:len(self.tail) - TRAILER_LIMIT - 1]
         return result
 
     def _fill(self) -> None:
@@ -290,6 +301,23 @@ def _check_one_gzip_member(archive_path: Path, max_uncompressed: int) -> None:
         raise ValueError("archive is truncated or has trailing gzip data")
 
 
+def _check_tar_end(archive: tarfile.TarFile, gzip_stream: "_SingleMemberGzipStream") -> None:
+    """Everything after the last member's padded data must be zero blocks, at least two.
+
+    tarfile reads the first end-of-archive block itself without advancing its
+    offset, so the trailer is measured from the member-data end (`offset`) to
+    the end of the delivered stream rather than from what remains unread.
+    """
+    while archive.fileobj.read(COPY_CHUNK):
+        pass
+    trailer_length = gzip_stream.delivered - archive.offset
+    if trailer_length > TRAILER_LIMIT:
+        raise ValueError("tar archive has excessive trailing padding")
+    trailer = gzip_stream.tail[len(gzip_stream.tail) - trailer_length:] if trailer_length > 0 else b""
+    if trailer_length < 1024 or trailer_length % 512 != 0 or any(trailer):
+        raise ValueError("tar archive has invalid end markers or nonzero trailing data")
+
+
 def _cancelled(cancel_event) -> None:
     if cancel_event is not None and cancel_event.is_set():
         raise InterruptedError("saved Core evidence materialization was cancelled")
@@ -323,14 +351,7 @@ def _preflight_tar(archive_path: Path, records: list[dict[str, object]], cancel_
                         observed[name] = member.size
                     else:
                         raise ValueError(f"archive contains a link or special file: {name}")
-                trailer = bytearray()
-                while block := archive.fileobj.read(COPY_CHUNK):
-                    trailer.extend(block)
-                    if len(trailer) > MAX_TREE_MEMBERS * 1024 + 12288:
-                        raise ValueError("tar archive has excessive trailing padding")
-                if (len(trailer) < 1024 or len(trailer) % 512 != 0
-                        or any(trailer)):
-                    raise ValueError("tar archive has invalid end markers or nonzero trailing data")
+                _check_tar_end(archive, gzip_stream)
     except (tarfile.TarError, OSError, EOFError) as error:
         raise ValueError(f"invalid compressed tar archive: {error}") from error
     files = {name: size for name, size in observed.items() if size >= 0}
@@ -418,14 +439,7 @@ def extract_archive(archive_path: Path, manifest_path: Path,
                     if actual != record["bytes"] or "sha256:" + digest.hexdigest() != record["sha256"]:
                         raise ValueError(f"archive member hash/size mismatch: {name}")
                     observed.add(name)
-                trailer = bytearray()
-                while block := archive.fileobj.read(COPY_CHUNK):
-                    trailer.extend(block)
-                    if len(trailer) > MAX_TREE_MEMBERS * 1024 + 12288:
-                        raise ValueError("tar archive has excessive trailing padding")
-                if (len(trailer) < 1024 or len(trailer) % 512 != 0
-                        or any(trailer)):
-                    raise ValueError("tar archive has invalid end markers or nonzero trailing data")
+                _check_tar_end(archive, gzip_stream)
         if observed != set(expected) or actual_total != declared_total:
             raise ValueError("archive extraction did not match the declared inventory")
     except Exception:

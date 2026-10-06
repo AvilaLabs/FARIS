@@ -132,6 +132,42 @@ class RecordedArchiveTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     extract_archive(archive, manifest_path, self.root / f"{suffix}-out")
 
+    def test_tar_end_is_judged_from_member_end_not_from_unread_bytes(self):
+        # tarfile consumes the first end-of-archive block itself, so a valid
+        # archive ending in exactly two zero blocks once failed the check.
+        import io
+        payload = b"y" * 700
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+            info = tarfile.TarInfo("x")
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+        member_end = 512 + 1024
+        body = raw.getvalue()[:member_end]
+        record = {"path": "x", "bytes": len(payload), "sha256": digest_bytes(payload)}
+        cases = (("two-zero-blocks", b"\0" * 1024, True),
+                 ("three-zero-blocks", b"\0" * 1536, True),
+                 ("one-zero-block", b"\0" * 512, False),
+                 ("nonzero-block-before-end", b"G" * 512 + b"\0" * 1024, False),
+                 ("partial-block", b"\0" * 1100, False))
+        for name, trailer, accepted in cases:
+            with self.subTest(name=name):
+                data = gzip.compress(body + trailer)
+                archive_path = self.root / f"{name}.tar.gz"
+                archive_path.write_bytes(data)
+                manifest_path = self.root / f"{name}.json"
+                manifest_path.write_text(json.dumps({
+                    "schema_version": SCHEMA, "archive_sha256": digest_bytes(data),
+                    "archive_bytes": len(data), "expanded_bytes": len(payload), "file_count": 1,
+                    "archive_member_count": 1, "directory_count": 0, "members": [record]}))
+                target = self.root / f"{name}-out"
+                if accepted:
+                    extract_archive(archive_path, manifest_path, target)
+                    self.assertEqual((target / "x").read_bytes(), payload)
+                else:
+                    with self.assertRaises(ValueError):
+                        extract_archive(archive_path, manifest_path, target)
+
     def test_refuses_source_mutated_during_archive_write(self):
         source = self.root / "source-mutation"
         source.mkdir()
