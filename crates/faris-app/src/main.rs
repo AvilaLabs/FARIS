@@ -937,16 +937,22 @@ impl FarisApp {
         }
     }
 
-    /// Development frame recording (`--record-frames`): starts once the app is
-    /// settled (the plan's clock, if any) and closes it when recording ends.
-    fn record_frame(&mut self, ctx: &egui::Context) {
-        let ready = self.frames >= 8
+    /// Everything the frame recorder waits for before its first frame,
+    /// including the automatic uncertainty ensembles and the allocation sweep.
+    fn recording_settled(&self) -> bool {
+        self.frames >= 8
             && !self.file.is_busy()
             && !self.history.is_pending()
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
             && self.export.development_settled()
+    }
+
+    /// Development frame recording (`--record-frames`): starts once the app is
+    /// settled (the plan's clock, if any) and closes it when recording ends.
+    fn record_frame(&mut self, ctx: &egui::Context) {
+        let ready = self.recording_settled()
             && self.interface_check.as_ref().is_none_or(|c| c.armed());
         let plan_done = self.interface_check.as_ref().is_some_and(|c| c.finished());
         if let Some(recorder) = &mut self.recorder
@@ -2272,6 +2278,7 @@ impl eframe::App for FarisApp {
                     ui.weak(caption);
                 });
             });
+        let recording_settled = self.recorder.is_some() && self.recording_settled();
         if let Some(check) = &mut self.interface_check {
             let variant = &self.manifest.variants[self.variant].id;
             let snapshot = self.history.snapshot(
@@ -2300,10 +2307,16 @@ impl eframe::App for FarisApp {
                 "transport":self.transport.interface_status(variant),
                 "cutaway":self.cutaway, "scene_revision":self.revision, "message":self.message,
             });
-            let ready = self.frames >= 8
-                && !self.history.is_pending()
-                && !self.study.archive.is_loading()
-                && !self.file.is_busy();
+            // While recording, the plan waits for what the recorder waits for, so
+            // its actions are not over before the first frame is taken.
+            let ready = if self.recorder.is_some() {
+                recording_settled
+            } else {
+                self.frames >= 8
+                    && !self.history.is_pending()
+                    && !self.study.archive.is_loading()
+                    && !self.file.is_busy()
+            };
             if let Err(error) = check.observe(state, ready) {
                 eprintln!("FARIS interface check report failed: {error}");
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
