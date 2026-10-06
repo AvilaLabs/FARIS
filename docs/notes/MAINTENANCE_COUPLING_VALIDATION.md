@@ -1,9 +1,9 @@
 # Validation: does the maintenance coupling result hold up?
 
-DRAFT, 2026-10-06. Not frozen. When Connor approves it, the text above "Amendments" is fixed, its SHA-256 is recorded
-in the commit that freezes it, and no validation run starts before that commit. Values marked "set before freezing"
-come from the literature review, never from a validation run. V2's values were set on 2026-10-06 from the
-literature review (`docs/notes/MAINTENANCE_LITERATURE_2026-10.md`).
+Recorded 2026-10-06, before any validation run. Connor approved this protocol on 2026-10-06. It is fixed;
+amendments are appended at the end with a date and a reason, and never edit the text above them. Its body SHA-256
+(the text before "## Amendments") is recorded in the commit that adds this version. V2's values were set from the
+literature review (`docs/notes/MAINTENANCE_LITERATURE_2026-10.md`), never from a validation run.
 
 ## Why this test
 
