@@ -5,6 +5,7 @@ mod compare_panel;
 mod export_panel;
 mod history_panel;
 mod interface_check;
+mod package;
 mod recorder;
 mod study_file;
 mod study_panel;
@@ -40,10 +41,23 @@ struct Arguments {
         conflicts_with_all = [
             "scenario", "physics", "run", "bundle", "sweep_bundle", "control_scenario",
             "control_physics", "control_run", "control_bundle", "assumptions", "saved_study",
-            "step", "field_view", "initial_year",
+            "step", "field_view", "initial_year", "package",
         ]
     )]
     study: Option<PathBuf>,
+    /// Open a release package folder: the study, its recorded Core evidence and
+    /// Avila Core. With no study file and no input flags, a package beside this
+    /// program's bin folder is opened automatically.
+    #[arg(
+        long,
+        value_name = "DIR",
+        conflicts_with_all = [
+            "scenario", "physics", "run", "bundle", "sweep_bundle", "control_scenario",
+            "control_physics", "control_run", "control_bundle", "assumptions", "saved_study",
+            "saved_study_ready_marker",
+        ]
+    )]
+    package: Option<PathBuf>,
     /// Load a scenario; otherwise use the bundled geometry demo.
     #[arg(long)]
     scenario: Option<PathBuf>,
@@ -96,9 +110,10 @@ struct Arguments {
     /// External Avila Core executable used by Compile study.
     #[arg(long)]
     core: Option<PathBuf>,
-    /// Directory for generated study records.
-    #[arg(long, default_value = "runs")]
-    runs_directory: PathBuf,
+    /// Directory for generated study records [default: runs; a package's own
+    /// per-user folder in package mode].
+    #[arg(long)]
+    runs_directory: Option<PathBuf>,
     /// Physics input for an arrangement; repeat to provide both arrangements.
     #[arg(long)]
     physics: Vec<PathBuf>,
@@ -195,8 +210,101 @@ impl Step {
     }
 }
 
+impl Arguments {
+    /// Whether any flag or file supplies the study, which turns off finding a
+    /// package automatically.
+    fn supplies_study(&self) -> bool {
+        self.study.is_some()
+            || self.scenario.is_some()
+            || self.control_scenario.is_some()
+            || self.assumptions.is_some()
+            || self.saved_study_ready_marker.is_some()
+            || [
+                &self.physics,
+                &self.run,
+                &self.bundle,
+                &self.sweep_bundle,
+                &self.control_physics,
+                &self.control_run,
+                &self.control_bundle,
+                &self.saved_study,
+            ]
+            .iter()
+            .any(|paths| !paths.is_empty())
+    }
+}
+
+/// What package mode adds to the running app: messages for the Evidence step
+/// and the evidence extraction that must outlive the window.
+#[derive(Default)]
+struct PackageSession {
+    /// Set when the package checks failed and nothing was loaded.
+    failure: Option<study_file::EvidenceBadge>,
+    development_binary: Option<study_file::EvidenceBadge>,
+    evidence: Option<study_file::EvidenceBadge>,
+    _materializer: Option<package::Materializer>,
+}
+
+/// Find and open the package this run is for, if any, and put its inputs into
+/// `args` as the flags that would have supplied them.
+fn open_package(args: &mut Arguments) -> Option<PackageSession> {
+    let exe = std::env::current_exe();
+    let (root, explicit) = match &args.package {
+        Some(dir) => (dir.clone(), true),
+        None if !args.supplies_study() => (exe.as_deref().ok().and_then(package::discover)?, false),
+        None => return None,
+    };
+    let mut session = PackageSession::default();
+    let opened = match &exe {
+        Ok(exe) => package::open(&root, exe, explicit, args.runs_directory.as_deref()),
+        Err(error) => Err(format!(
+            "Why: the running program could not be located ({error}).\n\nNext step: start \
+             FARIS from the bin folder of the package."
+        )),
+    };
+    let opened = match opened {
+        Ok(opened) => opened,
+        Err(text) => {
+            session.failure = Some(package::failure_message(&text));
+            return Some(session);
+        }
+    };
+    match opened.start_materializer() {
+        Ok(materializer) => {
+            if let Some(materializer) = &materializer {
+                args.saved_study = materializer.descriptors.clone();
+                args.saved_study_ready_marker = Some(materializer.marker.clone());
+            }
+            session._materializer = materializer;
+        }
+        Err(error) => {
+            session.failure = Some(package::failure_message(&format!(
+                "Why: {error}.\n\nNext step: free some space or check the temporary folder, then reopen FARIS."
+            )));
+            return Some(session);
+        }
+    }
+    session.evidence = package::evidence_message(&opened.evidence);
+    if opened.development_binary {
+        session.development_binary = Some(package::development_binary_message());
+    }
+    args.core.get_or_insert(opened.core);
+    args.bundle = opened.bundles;
+    args.control_scenario = Some(opened.control_scenario);
+    args.control_bundle = opened.control_bundles;
+    args.assumptions = Some(opened.assumptions);
+    args.sweep_bundle = opened.sweep_bundles;
+    args.runs_directory = Some(opened.runs_directory);
+    Some(session)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Arguments::parse();
+    let mut args = Arguments::parse();
+    let package_session = open_package(&mut args);
+    let runs_directory = args
+        .runs_directory
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("runs"));
     if args
         .benchmark_seconds
         .is_some_and(|s| !s.is_finite() || !(2.0..=120.0).contains(&s))
@@ -250,7 +358,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let inputs = study_file::StudyInputs::from_arguments(&args);
     let session_inputs = if args.study.is_some() {
-        SessionInputs::empty(args.runs_directory.clone())
+        SessionInputs::empty(runs_directory.clone())
     } else {
         SessionInputs {
             scenario: args.scenario.clone(),
@@ -266,7 +374,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             openmc: args.openmc.clone(),
             audit: args.audit.clone(),
             cross_sections: args.cross_sections.clone(),
-            runs_directory: args.runs_directory.clone(),
+            runs_directory: runs_directory.clone(),
             field_view: args.field_view,
         }
     };
@@ -315,7 +423,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cc.egui_ctx.set_visuals(visuals);
             cc.egui_ctx.set_zoom_factor(args.interface_scale);
             let sweep = (!args.sweep_bundle.is_empty()).then(|| {
-                let (paths, runs) = (args.sweep_bundle.clone(), args.runs_directory.clone());
+                let (paths, runs) = (args.sweep_bundle.clone(), runs_directory.clone());
                 sweep_panel::SweepPanel::load_in_background(&cc.egui_ctx, move || {
                     load_sweep(&paths, &runs)
                 })
@@ -324,13 +432,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 manifest,
                 args.capture,
                 args.core,
-                args.runs_directory.clone(),
+                runs_directory.clone(),
                 transport,
                 control,
                 history,
             )?;
             app.sweep = sweep;
-            app.file = study_file::FileState::new(inputs, args.runs_directory.clone());
+            app.file = study_file::FileState::new(inputs, runs_directory.clone());
+            if let Some(session) = package_session {
+                if let Some(failure) = &session.failure {
+                    app.message = failure.text.clone();
+                }
+                app.package = Some(session);
+            }
             if let Some(path) = args.study.clone() {
                 app.file.request_open(path);
             }
@@ -372,6 +486,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
     Ok(())
+}
+
+/// A package-mode message: its badge, with the why and next step also as text
+/// so they do not depend on hovering.
+fn package_notice(ui: &mut egui::Ui, notice: &study_file::EvidenceBadge) {
+    ui.horizontal_wrapped(|ui| {
+        badge::badge(ui, notice.kind, notice.label, &notice.text);
+    });
+    ui.add(egui::Label::new(egui::RichText::new(&notice.text).small()).wrap());
+    ui.add_space(8.0);
 }
 
 /// The 256 px tile icon for the window and taskbar.
@@ -584,6 +708,7 @@ struct FarisApp {
     /// Whether the first-visit sign-in prompt may appear (not in scripted runs).
     sign_in_prompt: bool,
     file: study_file::FileState,
+    package: Option<PackageSession>,
     export: export_panel::ExportPanel,
     /// Screen rectangle of the 3D viewport in the last frame, for the export picture.
     viewport_rect: Option<egui::Rect>,
@@ -634,6 +759,7 @@ impl FarisApp {
             suite: None,
             sign_in_prompt: false,
             file: study_file::FileState::default(),
+            package: None,
             export: export_panel::ExportPanel::new(None),
             viewport_rect: None,
         };
@@ -1532,6 +1658,14 @@ impl FarisApp {
     }
 
     fn evidence_step(&mut self, ui: &mut egui::Ui) {
+        if let Some(package) = &self.package {
+            for notice in [&package.development_binary, &package.evidence]
+                .into_iter()
+                .flatten()
+            {
+                package_notice(ui, notice);
+            }
+        }
         if let Some(note) = study_file::evidence_badge(&self.file.evidence) {
             ui.horizontal_wrapped(|ui| {
                 badge::badge(ui, note.kind, note.label, &note.text);
@@ -2023,6 +2157,11 @@ impl eframe::App for FarisApp {
                         ui.set_width(content_width);
                         ui.heading(format!("{} · {}", self.step.number(), self.step.name()));
                         ui.add_space(8.0);
+                        if let Some(failure) =
+                            self.package.as_ref().and_then(|p| p.failure.as_ref())
+                        {
+                            package_notice(ui, failure);
+                        }
                         match self.step {
                             Step::Design => self.design_step(ui),
                             Step::Simulate => self.simulate_step(ui),

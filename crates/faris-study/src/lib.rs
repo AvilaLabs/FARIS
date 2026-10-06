@@ -29,7 +29,7 @@ pub use read::{
     ArrangementFiles, BlobInfo, EvidenceFile, EvidenceMiss, EvidenceState, Materialized,
     MissReason, StoredEnsemble, StudyReader, sha256_file,
 };
-pub use tar::{ExtractReport, extract_tar_gz};
+pub use tar::{ExtractReport, RecordedTreeManifest, extract_recorded_tree, extract_tar_gz};
 pub use write::{
     ArrangementDraft, DEFAULT_ZSTD_LEVEL, EnsembleDraft, EvidenceDraft, StudyDraft, WriteReport,
     write_study,

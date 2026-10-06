@@ -115,7 +115,7 @@ pub const STOPS: [Stop; 12] = [
     },
     Stop {
         title: "Real transport",
-        body: "One million OpenMC neutron histories per case. Tritium breeding, magnet-region flux and nuclear heating each carry their Monte Carlo error.",
+        body: "10 million OpenMC neutron histories for each port case, 30 million for each port-free control. Tritium breeding, magnet-region flux and nuclear heating each carry their Monte Carlo error.",
         anchor: Some("transport-card"),
         step: Some(Step::Simulate),
         view: Some(FieldView::Materials),
@@ -171,7 +171,7 @@ pub const STOPS: [Stop; 12] = [
     },
     Stop {
         title: "That's the tour",
-        body: "File saves the whole study as one .faris file that reopens exactly as you left it. Export writes a two-page PDF brief, the data as CSV and the charts, stamped with that file's hash. Replay this tour any time from Tour in the top bar.",
+        body: "File saves the whole study as one .faris file that reopens exactly as you left it. Export writes a PDF brief, the data as CSV and the charts, stamped with that file's hash. Replay this tour any time from Tour in the top bar.",
         anchor: Some("tour-button"),
         step: Some(Step::Design),
         view: Some(FieldView::Materials),
