@@ -4,16 +4,16 @@
 
 - A Linux desktop session with working graphics drivers.
 - `python3`. The launcher and the verifier are Python scripts.
-- Free temporary space. `launch.sh` unpacks the Core evidence into a private temporary folder, and `verify.sh` needs more. The package's own `README.md` gives the amounts.
+- Free temporary space: about 0.9 GB to open the study, because `launch.sh` unpacks the Core evidence (823 MB) into a private temporary folder, and about 2 GB for `verify.sh`. Both check the exact amount before they start. The package's own `README.md` explains the sums.
 
 You do not need OpenMC, nuclear data or network access to explore the recorded study. Only Linux is built and tested. Windows and macOS builds have not been tried.
 
 ## Download the package
 
-Download the Linux package from the [latest release](https://github.com/AvilaLabs/FARIS/releases/latest). It is one archive, `FARIS-0.1.0-linux-x86_64.tar.gz`. The release notes give its SHA-256. Check it, then unpack it:
+Download the Linux package, `FARIS-0.1.0-linux-x86_64.tar.gz` (112 MB), and `SHA256SUMS` from the [0.1.0 release](https://github.com/AvilaLabs/FARIS/releases/tag/v0.1.0). Check the archive, then unpack it:
 
 ```bash
-sha256sum FARIS-0.1.0-linux-x86_64.tar.gz
+sha256sum -c SHA256SUMS
 tar xzf FARIS-0.1.0-linux-x86_64.tar.gz
 ```
 
