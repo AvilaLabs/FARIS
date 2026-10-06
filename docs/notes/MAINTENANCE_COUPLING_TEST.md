@@ -171,3 +171,13 @@ grid, the decisions and their thresholds, the governing sets, the inputs and the
    subdivided on the grid give the same decay heat to within 1e-6 relative. If not, the second run does not start.
 6. The second run is reported beside the first, with its verdict computed by the same rules. The report names this
    amendment as written after the first result.
+
+### Amendment 3, 2026-10-06, after the second result: correction to a citation
+
+Found while checking sources for the validation protocol (`docs/notes/MAINTENANCE_COUPLING_VALIDATION.md`). The "Why
+this test" section says EU-DEMO studies find about 15 days of cooling needed for the outboard blanket segments and
+about 85 days for the inboard ones, citing the EUROfusion report WPPMI-CPR(18) 20248. That report (P. Frosi et al.,
+"DEMO Breeding Blanket temperature evaluation before remote maintenance operation") does not contain those figures. It
+evaluates blanket temperatures using decay heat one month after shutdown, against a 100 °C limit at the interface with
+the remote-handling equipment. The source of the 15-day and 85-day figures is not known, so they are withdrawn. They
+were an illustration only: no calculation, threshold or decision in this test used them, and neither verdict changes.
