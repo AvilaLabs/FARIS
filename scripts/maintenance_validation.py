@@ -30,8 +30,10 @@ from pathlib import Path
 SCHEMA = "faris-maintenance-validation/v0.1"
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_PROTOCOL = REPO / "docs" / "notes" / "MAINTENANCE_COUPLING_VALIDATION.md"
-PROTOCOL_BODY_SHA256 = "60fa7ab7acf6b4245e1f31046c86ba3870ab8407c71b209e7fcfc3da91804423"
-AMENDMENTS_HEADING = b"## Amendments"
+# Amendment 1 of the protocol: the body is the text before the line "## Amendments" (its introduction quotes the
+# heading, so the first occurrence is not the heading).
+PROTOCOL_BODY_SHA256 = "a392e5ab35dc0d97f1af3ab5cef1e582317181057e0aa6cb8446d53839490602"
+AMENDMENTS_HEADING = b"\n## Amendments\n"
 
 DAY_S = 86400.0
 MONTH_DAYS = 30.4375
@@ -87,7 +89,7 @@ def protocol_body_sha256(path: Path) -> str | None:
     """SHA-256 of the protocol text before its amendments heading, or None."""
     data = path.read_bytes()
     index = data.find(AMENDMENTS_HEADING)
-    return hashlib.sha256(data[:index]).hexdigest() if index >= 0 else None
+    return hashlib.sha256(data[:index + 1]).hexdigest() if index >= 0 else None
 
 
 def check_protocol(path: Path) -> str:

@@ -348,6 +348,12 @@ class EvaluateTests(unittest.TestCase):
         altered.write_bytes(data.replace(b"Recorded 2026-10-06", b"Recorded 2026-10-07", 1))
         with self.assertRaises(MV.Refused):
             MV.evaluate(self.dir, self.ref_path, altered)
+        # the hash covers the whole body, including the variants and the verdict rules
+        rules = self.root / "rules.md"
+        rules.write_bytes(data.replace(b"ROBUST", b"STRONG", 1))
+        self.assertGreater(data.find(b"ROBUST"), 299)
+        with self.assertRaises(MV.Refused):
+            MV.evaluate(self.dir, self.ref_path, rules)
         # an amendment after the heading does not change the body hash
         amended = self.root / "amended.md"
         amended.write_bytes(data + b"\n### Amendment 1\nlater.\n")

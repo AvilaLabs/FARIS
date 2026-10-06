@@ -120,3 +120,12 @@ tables, claim outcomes and the summary, with local paths replaced as in the amen
 ## Amendments
 
 None yet.
+
+### Amendment 1, 2026-10-06, before any validation run: what the recorded hash covers
+
+The freezing commit (`b3d70b7`) recorded the SHA-256 of the text before the first occurrence of "## Amendments".
+The introduction quotes that heading, so that hash (`60fa7ab7…`) covers only the first 299 bytes and does not
+protect the variants or the verdict rules. Found when the evaluator was built, before any validation run. The text
+above has not changed since `b3d70b7`. The body is now the text up to and including the newline before the line
+"## Amendments", with SHA-256 `a392e5ab35dc0d97f1af3ab5cef1e582317181057e0aa6cb8446d53839490602`, and
+`scripts/maintenance_validation.py` refuses to evaluate against any other. Nothing else changes.
