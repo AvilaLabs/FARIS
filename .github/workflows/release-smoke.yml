@@ -1,0 +1,94 @@
+name: Release smoke
+
+# Downloads one release's archives (a draft is fine), unpacks each platform's
+# app archive with the evidence pack, and runs `faris-app --check-package` on
+# that platform: the package checks, evidence unpacking, saved-study reopening
+# and input loading, without a window. Then it tries one window capture, which
+# needs a graphics adapter the hosted runner may not have, so its failure is
+# reported but does not fail the job.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose assets to check (draft releases included)
+        required: true
+
+permissions:
+  contents: write  # reading a draft release's assets needs write access
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            asset: linux-x86_64.tar.gz
+          - runner: windows-latest
+            asset: windows-x86_64.zip
+          - runner: macos-15
+            asset: macos-aarch64.tar.gz
+          - runner: macos-15-intel
+            asset: macos-x86_64.tar.gz
+    runs-on: ${{ matrix.runner }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.inputs.tag }}
+    steps:
+      - name: Download and check archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir smoke && cd smoke
+          version="${TAG#v}"
+          app="FARIS-${version}-${{ matrix.asset }}"
+          evidence="FARIS-${version}-evidence.tar.gz"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p "$app" -p "$evidence" -p SHA256SUMS
+          grep -E " (\*)?(${app}|${evidence})$" SHA256SUMS > expected
+          if command -v sha256sum >/dev/null; then sha256sum -c expected; else shasum -a 256 -c expected; fi
+          case "$app" in
+            *.zip) unzip -q "$app" ;;
+            *) tar xzf "$app" ;;
+          esac
+          tar xzf "$evidence"
+          echo "PACKAGE=$PWD/FARIS-${version}" >> "$GITHUB_ENV"
+      - name: Check the package (Linux, macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$PACKAGE/bin/faris-app" --check-package "$RUNNER_TEMP/check.json"
+          cat "$RUNNER_TEMP/check.json"
+      - name: Check the package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'check.json'
+          $p = Start-Process -FilePath (Join-Path $env:PACKAGE 'bin\faris-app.exe') `
+               -ArgumentList '--check-package', $report -Wait -PassThru
+          Get-Content $report
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+      - name: Try a window capture
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          shot="$RUNNER_TEMP/faris-${{ matrix.asset }}.png"
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb mesa-vulkan-drivers >/dev/null
+            xvfb-run -a "$PACKAGE/bin/faris-app" --tour never --capture "$shot"
+          elif [ "$RUNNER_OS" = Windows ]; then
+            pwsh -Command "\$p = Start-Process -FilePath '$PACKAGE\\bin\\faris-app.exe' -ArgumentList '--tour','never','--capture','$shot' -Wait -PassThru; exit \$p.ExitCode"
+          else
+            "$PACKAGE/bin/faris-app" --tour never --capture "$shot"
+          fi
+          ls -l "$shot"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.asset }}
+          path: |
+            ${{ runner.temp }}/check.json
+            ${{ runner.temp }}/faris-*.png
+          if-no-files-found: warn
