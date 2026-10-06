@@ -67,3 +67,21 @@ The novelty is integration and presentation (3D MC to operating history to recol
 
 ## Search log (abbreviated)
 fusion design platform / digital twin; PROCESS availability; FUSE; SuperMC GUI/digital twin; RAMI/AvailSim; Kyoto Fusioneering/FFCSim; UKAEA IBM STEP twin; bluemira; Paramak/OpenMC workflow; ARC FLiBe REBCO; SYCOMORE/TREND/FRESCO; OpenMC GUI; FERMI; Thea Helios; MCNP GUIs; coupled neutronics-tritium-availability pilot plant studies; company in-house codes; fusion software startups. Not searched: MIRA, GASC, ARIES internals, Dassault/Siemens specifics, Chinese CFETR/FDS digital-twin products, ITER-internal RAMI tools.
+
+## Correction, 2026-10-06: bluemira
+
+The bluemira row above understates it. Its documentation shows:
+
+- A `LifeCycle` module that generates operating timelines with component replacement driven by damage and fluence
+  limits (the EU-DEMO fuel-cycle example sets `"blk_1_dpa": 20` and `"tf_fluence": 3.2e21`), availability that
+  improves along a learning curve (`GompertzLearningStrategy`), random outages (`LogNormalAvailabilityStrategy`),
+  and 50 Monte Carlo timelines feeding a dynamic tritium fuel-cycle model that reports start-up inventory and
+  doubling time ([example](https://bluemira.readthedocs.io/en/latest/examples/fuel_cycle/EUDEMO_fuelcycle.html);
+  Coleman et al. 2019, Fusion Eng. Des.).
+- OpenMC transport on its own geometry, CSG or DAGMC from equilibrium-based CAD, with a tokamak plasma source
+  ([CAD neutronics example](https://bluemira.readthedocs.io/en/latest/examples/radiation_transport/run_cad_neutronics.html)).
+
+So fluence-limited replacement over plant life and tritium inventory versus time are offered (Yes, stochastic), and
+3D MC transport is offered. What remains unoffered in what we read: the timeline driven by the transport results
+of the same model with their covariance, an interactive desktop with instant reruns, and hash-bound receipts. The
+section 2(a) claim must be narrowed to that coupling, and the 0.2 geometry plan would trail bluemira's CAD path.
