@@ -564,14 +564,50 @@ SEC-041: store the account token in the operating-system credential store
 where one exists, with an owner-only file fallback. This lives in the account
 crate, not in FARIS.
 
-### Open decisions for 0.2
+### Decisions for 0.2 (made 2026-10-05)
 
-- Impurity specifications per material, and their source.
-- Which outages and replacements get activation results: all, or those
-  where a component is removed.
-- Whether the patched TENDL-2025 subset or the full library is used.
-- Whether spectrum sampling error is propagated into decay heat in 0.2 or
-  reported separately.
+- **Impurities.** Activation runs each material twice: bare (the transport
+  nuclides only, labelled a lower bound) and with an authored impurity list at
+  the published specification maximum of the nearest commercial grade (for
+  example ASTM B170 oxygen-free copper for the magnet surrogate), every element
+  cited to its specification. Both are shown. Reason: the bare surrogates
+  omit the elements that dominate activation, and a specification maximum is
+  a citable, conservative screening value rather than an invented one. The
+  transport materials are unchanged, so transport and activation stay
+  consistent apart from trace elements too dilute to affect the neutron field.
+- **Which outages.** All of them. One ACTINV run per component installation,
+  from installation to removal plus the cooling grid, with outages as
+  zero-flux steps. ACTINV reports after every step, so every outage and the
+  removal come from the same run at no extra cost. Reason: the cost is per
+  installation, not per outage, so selecting a subset saves nothing.
+- **Library.** ACTINV's default full-coverage TENDL-2025 neutron bundle, its
+  hash recorded in each receipt. The patched remediation bundle (44 leaked
+  ordinates zeroed; not an official TENDL release) is run once in the test run
+  on one component, and the difference is reported. Reason: follow the solver's
+  default and measure the alternative instead of guessing.
+- **Spectrum uncertainty.** Reported separately in 0.2, not propagated into
+  decay heat. Reason: component-average flux errors at 10 million histories
+  are 0.03 % (blanket) to about 1 %, far below the cross-section uncertainty
+  ACTINV propagates; the magnet (5–25 %) is the exception and is flagged.
+  Propagation through the transport ensemble needs one ACTINV run per sample
+  and component, and ACTINV's own linear-response test found flux linearity
+  failing in soft spectra, so it is not approximated linearly.
+- **Integration.** The pinned `actinv` command line as a subprocess with
+  explicit data paths, not a crate dependency. Reason: the same boundary
+  FARIS uses for OpenMC, no build coupling, and the CLI emits a hashed
+  certificate.
+- **Spectrum groups.** Tally 709 groups in transport rather than rebin 10.
+  Reason above; this also means neither ACTINV input gap recorded on
+  2026-10-05 (ACTINV `docs/PARKING.md`) blocks FARIS.
+- **Magnet peak method.** FW-CADIS weight windows, with MAGIC as a cross-check
+  on the same mesh. Reason: MAGIC is seeded by a forward flux that is itself
+  nearly empty behind a metre of shield.
+- **Shutdown dose.** `NOT_EVALUATED` in 0.2; decay heat, activity and dominant
+  nuclides only.
+- **Order.** Two short test runs first (a 1M-history run with 709-group
+  spectra pushed through ACTINV for one component; FW-CADIS weight windows on
+  the port-free control measured against the analog run), then one combined
+  campaign. Either test can fail without costing a campaign.
 
 ### Smaller open items
 
