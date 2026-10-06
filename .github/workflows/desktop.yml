@@ -65,6 +65,9 @@ jobs:
           mkdir -p out/licenses notices-work
           # Same script and arguments as the Linux docs/THIRD_PARTY_NOTICES.md and
           # docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md, for this platform's Cargo graph.
+          # The build downloads only what it compiles; fetch the whole target graph so
+          # every crate's licence files are in the cache for the offline collection.
+          cargo fetch --locked --target "${{ matrix.target }}"
           cargo metadata --locked --offline --format-version 1 \
             --filter-platform "${{ matrix.target }}" > notices-work/faris.json
           python3 scripts/collect_dependency_notices.py \
@@ -74,6 +77,7 @@ jobs:
             --platform-label "${{ matrix.label }}" --target-triple "${{ matrix.target }}" \
             --output out/licenses/faris-THIRD_PARTY_NOTICES.md
           cd core
+          cargo fetch --locked --target "${{ matrix.target }}"
           cargo metadata --locked --offline --format-version 1 \
             --filter-platform "${{ matrix.target }}" > ../notices-work/core.json
           python3 ../scripts/collect_dependency_notices.py \
