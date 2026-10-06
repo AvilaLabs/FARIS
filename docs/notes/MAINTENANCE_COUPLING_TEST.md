@@ -150,3 +150,24 @@ activation run. Each item resolves a point the text above leaves open. None chan
 11. The contact-dose cross-check needs a photon response in the ACTINV specs. Without one, it is reported as not
     evaluated, with that reason, and it never feeds a decision.
 12. The 365-day end of the cooling grid is 365 × 86,400 s.
+
+### Amendment 2, 2026-10-06, after the first result: full decay curves and more iterations
+
+Written after the first run returned NOT EVALUATED (`docs/notes/MAINTENANCE_COUPLING_RESULT.md`, commit `5daf257`).
+That verdict stands and stays in the record. Connor approved this amendment and a second run on 2026-10-06. It changes
+how decay curves are obtained and the iteration limit, so that the second run can reach the decisions. `q*`, the `w`
+grid, the decisions and their thresholds, the governing sets, the inputs and the convergence tolerance are unchanged.
+
+1. For every replacement event and every governing component in the plant at that shutdown, the decay curve comes
+   from its own ACTINV run: that component installation's history from installation to the shutdown, with earlier
+   outages as single zero-flux steps, then cooling on the 40-point grid to 365 days. The cooldown is read from these
+   curves. No event is window-limited, so Amendment 1 item 3 no longer applies, except that a combined curve still
+   above `q*` at 365 days makes the case NOT EVALUATED as before.
+2. Amendment 1 item 2 is superseded for the cooldown. Retained and removed components alike have the full cooling grid
+   after the shutdown.
+3. The iteration limit is 10 (it was 5). The tolerance stays 1 day.
+4. `q*` is calibrated by the same rule (Amendment 1 item 4) on curves obtained this way.
+5. Before the second run, the driver checks on recorded inputs that a single zero-flux step and the same interval
+   subdivided on the grid give the same decay heat to within 1e-6 relative. If not, the second run does not start.
+6. The second run is reported beside the first, with its verdict computed by the same rules. The report names this
+   amendment as written after the first result.
