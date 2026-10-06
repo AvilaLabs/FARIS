@@ -1575,7 +1575,14 @@ pub fn run_operating_history_cancellable(
                         }
                         ComponentClass::Replaceable => {
                             if !permanent_limit {
-                                let duration = limit.replacement_duration_s.unwrap();
+                                // The k-th replacement of this component (k from 1) takes
+                                // the k-th listed duration when a list is authored.
+                                let duration = limit
+                                    .replacement_durations_s
+                                    .as_ref()
+                                    .and_then(|d| d.get(state.replacement_count as usize))
+                                    .copied()
+                                    .unwrap_or_else(|| limit.replacement_duration_s.unwrap());
                                 state.down_until = time + active_duration + duration;
                                 push_event(
                                     &mut events,
@@ -2252,6 +2259,7 @@ mod tests {
                 unit: "neutrons/m²".into(),
                 limit: 1.0e11,
                 replacement_duration_s: Some(10.0),
+                replacement_durations_s: None,
                 provenance: "test".into(),
             },
             ServiceLimit {
@@ -2262,6 +2270,7 @@ mod tests {
                 unit: "neutrons/m²".into(),
                 limit: 3.0e11,
                 replacement_duration_s: None,
+                replacement_durations_s: None,
                 provenance: "test".into(),
             },
         ];
@@ -2302,6 +2311,103 @@ mod tests {
         let last = result.snapshots.last().unwrap();
         assert!(last.component_replacements["blanket"] >= 1);
         assert!(last.mass_balance_residual_kg.abs() <= result.mass_balance_tolerance_kg);
+    }
+
+    fn blanket_cycle_run(durations: Option<Vec<f64>>) -> HistoryResult {
+        let mut a = assumptions(400.0);
+        a.maximum_step_s = 10.0;
+        a.snapshot_interval_s = 10.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 400.0,
+            power_fraction: 1.0,
+        }];
+        a.service_limits = vec![ServiceLimit {
+            component_id: "blanket".into(),
+            class: ComponentClass::Replaceable,
+            response_id: "flux-blanket".into(),
+            metric: "energy_integrated_component_average_neutron_flux".into(),
+            unit: "neutrons/m\u{b2}".into(),
+            limit: 1.0e11,
+            replacement_duration_s: Some(10.0),
+            replacement_durations_s: durations,
+            provenance: "test".into(),
+        }];
+        let mut r = rates();
+        r.component_average_flux_n_m2_s.insert(
+            "blanket".into(),
+            ScalarRate {
+                mean: 1e10,
+                standard_error: Some(0.0),
+                unit: "neutrons/m\u{b2}/s".into(),
+                response_id: "flux-blanket".into(),
+            },
+        );
+        run_operating_history(&a, &r).unwrap()
+    }
+
+    /// Lengths of the declared replacement outages, in event order.
+    fn outage_lengths(result: &HistoryResult) -> Vec<f64> {
+        let mut starts = Vec::new();
+        let mut lengths = Vec::new();
+        for e in &result.events {
+            match e.kind {
+                EventKind::ReplacementStarted => starts.push(e.time_s),
+                EventKind::ReplacementCompleted => {
+                    lengths.push(e.time_s - starts[lengths.len()]);
+                }
+                _ => {}
+            }
+        }
+        lengths
+    }
+
+    // Verifies: MAG-025
+    #[test]
+    fn kth_replacement_uses_kth_duration_then_falls_back() {
+        let result = blanket_cycle_run(Some(vec![20.0, 40.0]));
+        let lengths = outage_lengths(&result);
+        assert!(lengths.len() >= 4, "{lengths:?}");
+        for (got, want) in lengths.iter().zip([20.0, 40.0, 10.0, 10.0]) {
+            assert!((got - want).abs() < 1e-6, "{lengths:?}");
+        }
+    }
+
+    #[test]
+    fn absent_list_is_the_scalar_behaviour_and_leaves_no_trace_in_the_output() {
+        let plain = blanket_cycle_run(None);
+        let json = serde_json::to_string(&plain).unwrap();
+        assert!(!json.contains("replacement_durations_s"));
+        // A list that repeats the scalar everywhere changes nothing but the echoed assumptions.
+        let listed = blanket_cycle_run(Some(vec![10.0; 50]));
+        assert_eq!(
+            serde_json::to_string(&plain.events).unwrap(),
+            serde_json::to_string(&listed.events).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&plain.snapshots).unwrap(),
+            serde_json::to_string(&listed.snapshots).unwrap()
+        );
+    }
+
+    #[test]
+    fn mismatched_duration_lists_on_one_component_are_refused() {
+        let mut a = assumptions(100.0);
+        let mk = |id: &str, list: Vec<f64>| ServiceLimit {
+            component_id: "blanket".into(),
+            class: ComponentClass::Replaceable,
+            response_id: id.into(),
+            metric: ENERGY_INTEGRATED_FLUX_METRIC.into(),
+            unit: "neutrons/m\u{b2}".into(),
+            limit: 1.0e11,
+            replacement_duration_s: Some(10.0),
+            replacement_durations_s: Some(list),
+            provenance: "test".into(),
+        };
+        a.service_limits = vec![mk("r-a", vec![5.0, 6.0]), mk("r-b", vec![5.0, 7.0])];
+        assert!(a.validate().is_err());
+        a.service_limits = vec![mk("r-a", vec![5.0, 6.0]), mk("r-b", vec![5.0, 6.0])];
+        a.validate().unwrap();
     }
 
     #[test]
@@ -2420,6 +2526,7 @@ mod tests {
                 unit: "neutrons/m²".into(),
                 limit: 3.0e11,
                 replacement_duration_s: Some(10.0),
+                replacement_durations_s: None,
                 provenance: "test".into(),
             })
             .collect();
@@ -2570,6 +2677,7 @@ mod exposure_tests {
             unit: "neutrons/m\u{b2}".into(),
             limit: value,
             replacement_duration_s: Some(1.0),
+            replacement_durations_s: None,
             provenance: "test".into(),
         }
     }

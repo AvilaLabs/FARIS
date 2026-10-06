@@ -73,6 +73,10 @@ pub struct ServiceLimit {
     pub unit: String,
     pub limit: f64,
     pub replacement_duration_s: Option<f64>,
+    /// Optional per-event durations: the k-th replacement of the component takes the k-th
+    /// entry; later replacements use `replacement_duration_s`. Absent = every event uses it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replacement_durations_s: Option<Vec<f64>>,
     pub provenance: String,
 }
 
@@ -226,8 +230,11 @@ impl OperatingHistoryAssumptions {
         // (for example one per named region); the component is replaced when
         // any of them is reached, so they must agree on class and duration.
         let mut pairs = BTreeSet::new();
-        let mut shared: std::collections::BTreeMap<&str, (ComponentClass, Option<u64>)> =
-            std::collections::BTreeMap::new();
+        #[allow(clippy::type_complexity)]
+        let mut shared: std::collections::BTreeMap<
+            &str,
+            (ComponentClass, Option<u64>, Option<Vec<u64>>),
+        > = std::collections::BTreeMap::new();
         for limit in &self.service_limits {
             if limit.component_id.trim().is_empty()
                 || !pairs.insert((&limit.component_id, &limit.response_id))
@@ -237,10 +244,21 @@ impl OperatingHistoryAssumptions {
                         .into(),
                 );
             }
-            let key = (limit.class, limit.replacement_duration_s.map(f64::to_bits));
-            if *shared.entry(&limit.component_id).or_insert(key) != key {
+            let key = (
+                limit.class,
+                limit.replacement_duration_s.map(f64::to_bits),
+                limit
+                    .replacement_durations_s
+                    .as_ref()
+                    .map(|d| d.iter().map(|v| v.to_bits()).collect::<Vec<_>>()),
+            );
+            if *shared
+                .entry(&limit.component_id)
+                .or_insert_with(|| key.clone())
+                != key
+            {
                 return Err(
-                    "service limits on one component must share class and replacement duration"
+                    "service limits on one component must share class, replacement duration and replacement_durations_s"
                         .into(),
                 );
             }
@@ -253,6 +271,22 @@ impl OperatingHistoryAssumptions {
             positive(limit.limit, "service limit")?;
             if limit.provenance.trim().is_empty() {
                 return Err("service-limit provenance is required".into());
+            }
+            if let Some(list) = &limit.replacement_durations_s {
+                if limit.class != ComponentClass::Replaceable {
+                    return Err(
+                        "only replaceable components can have replacement_durations_s".into(),
+                    );
+                }
+                if list.is_empty() || list.len() > 10_000 {
+                    return Err(
+                        "replacement_durations_s must hold 1 to 10,000 entries (omit it to use replacement_duration_s)"
+                            .into(),
+                    );
+                }
+                for d in list {
+                    positive(*d, "replacement_durations_s entry")?;
+                }
             }
             match (limit.class, limit.replacement_duration_s) {
                 (ComponentClass::Permanent, None) => {}
@@ -324,6 +358,7 @@ mod tests {
             unit: "neutrons/m\u{b2}".into(),
             limit: 3e22,
             replacement_duration_s: Some(1e7),
+            replacement_durations_s: None,
             provenance: "authored test limit".into(),
         }
     }
@@ -343,6 +378,30 @@ mod tests {
         a.service_limits[1].replacement_duration_s = Some(1e7);
         a.service_limits[2].class = ComponentClass::Permanent;
         a.service_limits[2].replacement_duration_s = None;
+        assert!(a.validate().is_err());
+    }
+
+    #[test]
+    fn per_event_durations_validate_and_must_agree_on_a_component() {
+        let mut a: OperatingHistoryAssumptions = serde_json::from_str(ASSUMPTIONS).unwrap();
+        a.service_limits = vec![limit("r-a"), limit("r-b")];
+        for l in &mut a.service_limits {
+            l.replacement_durations_s = Some(vec![1e6, 2e6]);
+        }
+        a.validate().unwrap();
+        a.service_limits[1].replacement_durations_s = Some(vec![1e6, 3e6]);
+        assert!(a.validate().is_err());
+        a.service_limits[1].replacement_durations_s = None;
+        assert!(a.validate().is_err());
+        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            for l in &mut a.service_limits {
+                l.replacement_durations_s = Some(vec![1e6, bad]);
+            }
+            assert!(a.validate().is_err(), "{bad}");
+        }
+        for l in &mut a.service_limits {
+            l.replacement_durations_s = Some(vec![]);
+        }
         assert!(a.validate().is_err());
     }
 
