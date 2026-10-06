@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import platform
 from pathlib import Path
 import subprocess
 import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from verify_recorded_demo import rust_platform
 
 
 def sha256(path: Path) -> str:
@@ -29,9 +32,7 @@ def main() -> int:
     if not isinstance(runtime, dict) or runtime.get("schema_version") != "faris-local-runtime/v0.1":
         print("package has no supported local runtime manifest", file=sys.stderr)
         return 1
-    expected_platform = runtime.get("platform", {})
-    if (expected_platform.get("sys_platform") != sys.platform
-            or expected_platform.get("machine") != platform.machine()):
+    if runtime.get("platform") != rust_platform():
         print("bundled executables target a different operating system or architecture", file=sys.stderr)
         return 1
     executables = runtime.get("executables")
