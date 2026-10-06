@@ -113,7 +113,7 @@ impl ExportPanel {
         let response = ui.add_enabled(!self.busy() && blocked.is_none(), egui::Button::new(label));
         response
             .on_hover_text(
-                "Write a two-page PDF summary, CSV data and charts for this study into a new folder.",
+                "Write a PDF summary, CSV data and charts for this study into a new folder.",
             )
             .on_disabled_hover_text(blocked.unwrap_or("An export is running."))
             .clicked()

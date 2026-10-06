@@ -29,6 +29,11 @@ struct Pending {
     cancellation: Cancellation,
 }
 
+/// How long the saved-evidence worker waits for a package's Core evidence to
+/// finish unpacking. The package expands 823 MB; a debug build takes about
+/// 20 s on the reference laptop, so this leaves room for slow disks.
+const MATERIALIZATION_LIMIT: Duration = Duration::from_secs(600);
+
 #[derive(Default)]
 pub struct ArchivePanel {
     queued_descriptors: Vec<PathBuf>,
@@ -99,7 +104,7 @@ impl ArchivePanel {
             self.start(ctx.clone(), move |cancellation| {
                 if let Some(path) = marker
                     && let Err(error) =
-                        wait_for_materialization(&path, &cancellation, Duration::from_secs(60))
+                        wait_for_materialization(&path, &cancellation, MATERIALIZATION_LIMIT)
                 {
                     return vec![Err(error)];
                 }
@@ -401,7 +406,7 @@ fn wait_for_materialization(
         }
         let remaining = timeout.saturating_sub(started.elapsed());
         if remaining.is_zero() {
-            return Err("Saved-study materialization did not finish within the 60-second delivery budget. Transport exploration remains available.".into());
+            return Err("Core evidence did not finish unpacking within 10 minutes, so the saved receipts were not checked. Why: unpacking the evidence archives took longer than this limit, usually because the temporary folder is on a slow or nearly full disk. Next step: free temporary space and reopen FARIS. Everything except the saved receipts remains available.".into());
         }
         std::thread::sleep(remaining.min(Duration::from_millis(20)));
     }
