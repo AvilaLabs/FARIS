@@ -491,6 +491,57 @@ region averages, not the local peak, and maintenance timing ignores
 activation and decay heat. Release 0.2 addresses both, plus the sign-in token
 storage.
 
+### First step: a more realistic transport geometry (decided 2026-10-05)
+
+In FARIS the 3D view is the transport model: anything drawn was transported,
+and anything transported is drawn. So the geometry becomes more realistic in
+the transport model itself, and the viewer draws exactly that. Purely visual
+additions (parts the transport never saw) are excluded. Presentation polish
+(lighting, edge lines, section planes, mesh overlays) is not geometry and is
+allowed.
+
+This lands before the 0.2 transport campaign, because any geometry change
+forces a full rerun; doing it after would pay for the campaign twice.
+
+Built from tori and planes only, so geometry stays exact, fast, compatible
+with the random-ray pass that FW-CADIS needs, and checkable with independent
+analytic or quadrature volumes:
+
+1. **Elongated plasma and layers.** Each layer becomes an elliptical torus
+   (OpenMC `ZTorus` with vertical semi-axis B ≠ horizontal C). Volumes stay
+   analytic (Pappus: V = 2πR₀ · πBC per ellipse). A uniform-thickness offset
+   of an ellipse is not exactly an ellipse; the layer is defined by its
+   inner and outer ellipses and its thickness is reported as inboard,
+   outboard and vertical values, not one number. Triangularity is not
+   representable with these surfaces and is recorded as a limit. The plasma
+   source samples uniformly in the elliptical plasma volume.
+2. **Discrete toroidal-field coils.** The magnet shell is intersected with N
+   slabs of fixed toroidal width (one per coil plane), winding pack and
+   casing as separate components, void between coils. Magnet regions
+   (inboard, outboard, port sector) and the 0.2 peak mesh then refer to real
+   coils, which is where a fluence limit actually applies.
+3. **Divertor.** A poloidal sector bounded by horizontal planes in which the
+   first wall and blanket are replaced by divertor material, so blanket
+   coverage loses the divertor area as in a real machine.
+4. **Ports.** The penetration list accepts more than one port.
+5. **Viewer.** The wgpu view draws the same surfaces, adds a poloidal
+   cross-section panel and a radial-build panel, and gets lighting and edge
+   polish.
+
+Dimensions are fitted to ARC's published design (R₀ = 3.3 m and 18 TF coils,
+Sorbom et al. 2015), each value cited; the scenario stays labelled
+"ARC-inspired", not an ARC reproduction. The scenario schema moves to v0.2;
+v0.1 scenarios stay readable as the circular special case (B = C, one
+continuous magnet shell, no divertor), so earlier recorded runs remain
+verifiable.
+
+Later, not 0.2: CAD geometry through Paramak (MIT; `tokamak_from_plasma` with
+elongation and triangularity) converted to DAGMC, which the FARIS OpenMC
+build already supports. That route adds triangularity and lets a user bring
+their own STEP design, at the cost of a CadQuery dependency, a meshing step,
+slower transport, mesh-approximated volumes needing a new independent check,
+and an unverified random-ray path.
+
 ### One transport campaign for both physics items
 
 Both items need new transport runs, so they share one campaign:
@@ -617,7 +668,7 @@ crate, not in FARIS.
   nearly empty behind a metre of shield.
 - **Shutdown dose.** `NOT_EVALUATED` in 0.2; decay heat, activity and dominant
   nuclides only.
-- **Order.** Two short test runs first (a 1M-history run with 709-group
+- **Order.** The geometry upgrade first (above), then two short test runs (a 1M-history run with 709-group
   spectra pushed through ACTINV for one component; FW-CADIS weight windows on
   the port-free control measured against the analog run), then one combined
   campaign. Either test can fail without costing a campaign.
