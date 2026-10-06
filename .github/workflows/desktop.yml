@@ -1,0 +1,95 @@
+name: Desktop builds
+
+# Builds the FARIS programs and the pinned Avila Core for each desktop platform
+# and uploads them as artifacts. Release packages are assembled from these
+# artifacts by scripts/retarget_package.py; the recorded study data are not in
+# the repository, so packaging happens outside CI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: Avila Core tag or commit to build
+        default: faris-0.1.0-core
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CORE_REF: ${{ github.event.inputs.core_ref || 'faris-0.1.0-core' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows-x86_64
+            exe: .exe
+          - runner: macos-15
+            platform: macos-aarch64
+            exe: ""
+          - runner: macos-15-intel
+            platform: macos-x86_64
+            exe: ""
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: AvilaLabs/Avila-Core
+          ref: ${{ env.CORE_REF }}
+          path: core
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - name: Build FARIS
+        run: cargo build --release --locked --bin faris --bin faris-app
+      - name: Build Avila Core
+        working-directory: core
+        run: cargo build --release --locked --bin avila-core
+      - name: Collect binaries and build record
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/bin
+          cp "target/release/faris${{ matrix.exe }}" "target/release/faris-app${{ matrix.exe }}" out/bin/
+          cp "core/target/release/avila-core${{ matrix.exe }}" out/bin/
+          faris_version=$(out/bin/faris${{ matrix.exe }} --version | tr -d '\r')
+          core_version=$(out/bin/avila-core${{ matrix.exe }} --version | tr -d '\r')
+          core_commit=$(git -C core rev-parse HEAD)
+          python3 - "$faris_version" "$core_version" "$core_commit" <<'EOF'
+          import hashlib, json, pathlib, sys
+          faris_version, core_version, core_commit = sys.argv[1:4]
+          out = pathlib.Path("out")
+          executables = {}
+          for path in sorted((out / "bin").iterdir()):
+              data = path.read_bytes()
+              name = path.name.removesuffix(".exe")
+              executables[name] = {
+                  "path": "bin/" + path.name,
+                  "sha256": "sha256:" + hashlib.sha256(data).hexdigest(),
+                  "bytes": len(data),
+              }
+          record = {
+              "schema_version": "faris-desktop-build/v0.1",
+              "platform": "${{ matrix.platform }}",
+              "runner": "${{ matrix.runner }}",
+              "faris_commit": "${{ github.sha }}",
+              "faris_version": faris_version,
+              "core_commit": core_commit,
+              "core_version": core_version,
+              "profile": "release",
+              "executables": executables,
+          }
+          (out / "build.json").write_text(json.dumps(record, indent=2) + "\n")
+          print(json.dumps(record, indent=2))
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: faris-${{ matrix.platform }}
+          path: out
+          if-no-files-found: error
