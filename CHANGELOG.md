@@ -7,7 +7,7 @@ are listed here under **Changed** with what to do.
 Research screening only. FARIS results are not a licensing, safety or design
 basis.
 
-## 0.1.1 — unreleased
+## 0.1.1 — 2026-10-06
 
 The same demo study and results as 0.1.0. What changes is how it is
 distributed: a smaller download split in two, a launcher with no Python, and

@@ -4,7 +4,7 @@ FARIS follows [semantic versioning](https://semver.org/) from 0.1.0. Before 1.0,
 
 The full history is in the [changelog](https://github.com/AvilaLabs/FARIS/blob/main/CHANGELOG.md). Releases are on the [releases page](https://github.com/AvilaLabs/FARIS/releases).
 
-## 0.1.1, unreleased
+## 0.1.1, 2026-10-06
 
 The same demo study and results as 0.1.0. What changes is how it is distributed.
 
