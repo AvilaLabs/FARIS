@@ -342,8 +342,8 @@
     }
   ],
   "calculation_cli": {
-    "path": "<outside-repo>/release-bin/faris",
-    "sha256": "c7e75da46fd66bd42440aac12daa06a5a55877d2eb2946542b24151a028a2e88"
+    "path": "<outside-repo>/bin/faris",
+    "sha256": "45983dd779aa3f8fd0c789bc86bb640e5274ae9157172e8deb9d6162430888a2"
   },
   "created_utc": "2026-10-06",
   "event_demo": {
