@@ -40,10 +40,16 @@ pub fn marker_path_from(xdg: Option<OsString>, home: Option<OsString>) -> Option
 }
 
 pub fn marker_path() -> Option<PathBuf> {
-    marker_path_from(
-        std::env::var_os("XDG_CONFIG_HOME"),
-        std::env::var_os("HOME"),
-    )
+    let var = |name| std::env::var_os(name).filter(|v| !v.is_empty());
+    if cfg!(windows) {
+        return var("APPDATA").map(|dir| PathBuf::from(dir).join("FARIS").join("tour-completed"));
+    }
+    if cfg!(target_os = "macos") {
+        return var("HOME").map(|home| {
+            PathBuf::from(home).join("Library/Application Support/FARIS/tour-completed")
+        });
+    }
+    marker_path_from(var("XDG_CONFIG_HOME"), var("HOME"))
 }
 
 /// Record that the tour was finished or skipped. Failures only log.

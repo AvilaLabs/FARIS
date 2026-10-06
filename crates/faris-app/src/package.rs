@@ -464,7 +464,13 @@ fn open_for(
             sweep_bundles.push(path);
         }
     }
-    in_app("bin/faris-app")?;
+    let app_relative = index
+        .local_runtime
+        .executables
+        .get("faris-app")
+        .map(|e| e.path.as_str())
+        .ok_or_else(|| fail("the package index names no FARIS app executable"))?;
+    in_app(app_relative)?;
 
     let trees = tree_jobs(&index)?;
     let evidence = {
