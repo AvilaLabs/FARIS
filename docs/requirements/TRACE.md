@@ -6,13 +6,13 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 94 of 1408 requirements.
+Traced: 95 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 69 | 9 |
 | [02-radiation-transport.md](02-radiation-transport.md) | 104 | 8 |
-| [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 1 |
+| [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 1 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 1 |
@@ -52,9 +52,10 @@ Traced: 94 of 1408 requirements.
 | NUC-013 | F1 | `controls/test_lithium_capture.py::test_response_screen_passes_consistent_tally_moments`<br>`controls/test_lithium_capture.py::test_response_screen_rejects_inconsistent_h3_or_heat` |
 | NUC-017 | F2 | `crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
 | NUC-046 | F1 | `crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
-| NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::sampling_plan_rejects_unbounded_or_unusable_work` |
+| NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::run_timeout_admits_a_run_at_the_history_cap` |
 | SRC-001 | F1 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
 | SRC-003 | F5 | `crates/faris-model/src/transport.rs::source_requires_physical_dt_energy_and_single_neutron_yield` |
+| ACT-009 | F2 | `scripts/test_build_activation_inputs.py::test_arbitrary_piecewise_history_keeps_flux_scaling_and_duration_per_segment`<br>`scripts/test_build_activation_inputs.py::test_ten_thousand_or_more_segments_are_accepted` |
 | MAT-018 | F4 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
 | FUEL-003 | F4 | `crates/faris-engine/src/history.rs::decay_only_history_matches_half_life_and_is_daily_decimated` |
 | FUEL-004 | F4 | `crates/faris-engine/src/history.rs::rejects_invalid_transport_bindings_before_history_execution`<br>`crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units`<br>`crates/faris-engine/src/transport.rs::validates_volume_domains_units_and_exact_echo` |
