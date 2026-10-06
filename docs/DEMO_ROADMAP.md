@@ -535,6 +535,32 @@ v0.1 scenarios stay readable as the circular special case (B = C, one
 continuous magnet shell, no divertor), so earlier recorded runs remain
 verifiable.
 
+Dimension choices (sources and inconsistencies in
+[docs/notes/ARC_GEOMETRY_SOURCES_0.2.md](notes/ARC_GEOMETRY_SOURCES_0.2.md)):
+
+- Plasma a = 1.13 m and κ = 1.84 (Sorbom Table 1, the design table, over the
+  abstract's rounded 1.1 m and later quotes of 1.8); FARIS 0.1 used a = 1.0 m.
+  Triangularity 0.375 (quoted by Kuang 2018) is recorded but not modelled.
+- **The radial build is asymmetric**, which matters more than elongation:
+  inboard, from Sorbom Fig. 2, 20 cm FLiBe, 51 cm TiH₂ and a 64 cm TF leg;
+  outboard about 1 m of FLiBe and a thinner shield. FARIS 0.1 layers are
+  concentric with equal thickness all round. So each layer boundary gets its
+  own inboard radius, outboard radius and half-height (an elliptical torus
+  with its own centre radius A, horizontal semi-axis C and vertical B), still
+  tori only. Outboard shield thickness and gap widths are not published and
+  are authored, labelled as such.
+- First wall 1 cm tungsten (Sorbom; Segantin's 0.1 cm is a later variant).
+- 18 TF coils. The 64 cm inboard leg is published; toroidal width, case
+  split and outer-leg position are not, and are authored from the 18-coil
+  layout (inboard legs filling their 20° sectors) and labelled.
+- Source rate stays 1.86e20 n/s (525 MW / 17.6 MeV; Kuang's 2.2e20 is not
+  consistent with 525 MW).
+- **Benchmark.** Sorbom reports at least 9 full-power years before any part of
+  the TF reaches 3e18 n/cm² above 0.1 MeV with the TiH₂ shield. With the
+  fitted geometry FARIS can be compared against that published number, a
+  code-to-code check reported with both methods' assumptions, not a
+  validation against measurement.
+
 Later, not 0.2: CAD geometry through Paramak (MIT; `tokamak_from_plasma` with
 elongation and triangularity) converted to DAGMC, which the FARIS OpenMC
 build already supports. That route adds triangularity and lets a user bring
