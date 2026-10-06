@@ -586,12 +586,16 @@ crate, not in FARIS.
   on one component, and the difference is reported. Reason: follow the solver's
   default and measure the alternative instead of guessing.
 - **Spectrum uncertainty.** Reported separately in 0.2, not propagated into
-  decay heat. Reason: component-average flux errors at 10 million histories
-  are 0.03 % (blanket) to about 1 %, far below the cross-section uncertainty
-  ACTINV propagates; the magnet (5–25 %) is the exception and is flagged.
-  Propagation through the transport ensemble needs one ACTINV run per sample
-  and component, and ACTINV's own linear-response test found flux linearity
-  failing in soft spectra, so it is not approximated linearly.
+  decay heat, with one consequence for the transport plan. At 10 million
+  histories the component-average flux error is 0.02–0.4 % for the first wall,
+  blanket and shield, but 4.6–8.6 % for the vessel and 5–10 % for the magnet,
+  and single groups of the 10-group spectra there reach 14–44 % (709 groups
+  spread the same histories thinner). So the FW-CADIS objective covers the
+  vessel and magnet spectra as well as the magnet peak mesh, and each
+  activation result carries its component's flux error beside it. Propagation
+  through the transport ensemble needs one ACTINV run per sample and component,
+  and ACTINV's own linear-response test found flux linearity failing in soft
+  spectra, so it is not approximated linearly.
 - **Integration.** The pinned `actinv` command line as a subprocess with
   explicit data paths, not a crate dependency. Reason: the same boundary
   FARIS uses for OpenMC, no build coupling, and the CLI emits a hashed
