@@ -566,15 +566,24 @@ crate, not in FARIS.
 
 ### Decisions for 0.2 (made 2026-10-05)
 
-- **Impurities.** Activation runs each material twice: bare (the transport
-  nuclides only, labelled a lower bound) and with an authored impurity list at
-  the published specification maximum of the nearest commercial grade (for
-  example ASTM B170 oxygen-free copper for the magnet surrogate), every element
-  cited to its specification. Both are shown. Reason: the bare surrogates
-  omit the elements that dominate activation, and a specification maximum is
-  a citable, conservative screening value rather than an invented one. The
-  transport materials are unchanged, so transport and activation stay
-  consistent apart from trace elements too dilute to affect the neutron field.
+- **Impurities.** Activation runs each material three ways. (1) Bare: the
+  transport nuclides only, labelled a lower bound. (2) With every impurity a
+  published specification limits, at its maximum (ASTM B760 for tungsten, the
+  MSRE salt specification in ORNL-4616 for FLiBe, ASTM B348 titanium as the
+  fallback for the hydride, ARMCO pure iron, ASTM B170 grade 1 copper), each
+  value cited, and labelled a specification-maximum screening value. (3) For
+  the elements that dominate activation but that these specifications do not
+  limit (uranium in all five; cobalt everywhere but iron; niobium, molybdenum
+  and tantalum in most), the result per ppm of that element, using the
+  linearity of activation in trace composition (as ACTINV's `budget` does)
+  instead of an assumed level. Reason: a specification that is silent on an
+  element does not make it zero, and inventing a level would hide that; a
+  per-ppm result lets a reader apply a measured certificate value. Source
+  notes, with which tables were read directly and which were quoted second
+  hand, are in [docs/notes/IMPURITY_SOURCES_0.2.md](notes/IMPURITY_SOURCES_0.2.md); secondary values are confirmed against
+  the standard before use. The transport materials are unchanged, so
+  transport and activation stay consistent apart from trace elements too
+  dilute to affect the neutron field.
 - **Which outages.** All of them. One ACTINV run per component installation,
   from installation to removal plus the cooling grid, with outages as
   zero-flux steps. ACTINV reports after every step, so every outage and the
