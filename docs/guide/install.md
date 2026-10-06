@@ -8,7 +8,7 @@
 
 Python is not needed to open the study. You do not need OpenMC, nuclear data or network access to explore the recorded study.
 
-Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later. Windows and macOS builds are new in 0.1.1. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
+Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later. The app also needs a desktop session (X11 or Wayland) with libxkbcommon and a Vulkan or OpenGL driver, which desktop installs include. On a minimal install, add `libxkbcommon-x11-0` (Debian, Ubuntu) or `libxkbcommon-x11` (Fedora); without it the app stops at launch with a panic in `xkbcommon-dl`. Windows and macOS builds are new in 0.1.1. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
 
 ## What to download
 

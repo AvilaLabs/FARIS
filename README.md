@@ -60,7 +60,10 @@ it against `SHA256SUMS`:
 | macOS, Intel Mac | `FARIS-0.1.1-macos-x86_64.tar.gz` |
 
 The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12
-or later.
+or later. They also need a desktop session (X11 or Wayland) with libxkbcommon and a
+Vulkan or OpenGL driver, which desktop installs include. On a minimal install, add
+`libxkbcommon-x11-0` (Debian, Ubuntu) or `libxkbcommon-x11` (Fedora); without it
+the app stops at launch with a panic in `xkbcommon-dl`.
 
 Each archive unpacks to a folder `FARIS-0.1.1/`. Double-click `bin/faris-app`
 (`bin\faris-app.exe` on Windows), or run it from a terminal. It finds the study
