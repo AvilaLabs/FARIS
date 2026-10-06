@@ -43,6 +43,10 @@ pub enum ReactorCommand {
         /// Spatial flux tally resolution; local variants use the same outboard bounds.
         #[arg(long, default_value = "coarse", value_parser = ["coarse", "outboard-local-coarse", "outboard-local", "outboard-port-window"])]
         mesh_preset: String,
+        /// Also tally each component's neutron spectrum on the 709-group `fispact-709`
+        /// boundaries of the TENDL-2025 activation library (for activation inputs).
+        #[arg(long, value_parser = ["fispact-709"])]
+        activation_spectra: Option<String>,
     },
     /// Revalidate a saved run's exact input, artifact, volumes, and normalization.
     Inspect {
@@ -70,6 +74,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             threads,
             timeout_seconds,
             mesh_preset,
+            activation_spectra,
         } => run_case(
             scenario,
             physics,
@@ -84,6 +89,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             threads,
             timeout_seconds,
             mesh_preset,
+            activation_spectra,
         ),
         ReactorCommand::Inspect { scenario, run } => inspect(scenario, run),
     }
@@ -104,6 +110,7 @@ fn run_case(
     threads: u32,
     timeout_seconds: u64,
     mesh_preset: String,
+    activation_spectra: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = LoadedScenario::from_bytes(&read_bounded(&scenario)?)?;
     let physics = load_physics_case(&physics, &scenario)
@@ -141,6 +148,7 @@ fn run_case(
         sampling,
         mesh: Some(mesh),
         timeout: Duration::from_secs(timeout_seconds),
+        activation_spectra,
         adapter: ADAPTER,
     };
     let run = run_reactor(&job, cancellation)
@@ -255,6 +263,7 @@ mod tests {
             "--threads",
             "--timeout-seconds",
             "--mesh-preset",
+            "--activation-spectra",
         ] {
             assert!(help.contains(option), "missing {option} in help: {help}");
         }

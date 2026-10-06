@@ -50,6 +50,7 @@ fn assumptions(horizon_years: f64, limit: f64) -> OperatingHistoryAssumptions {
                 unit: "neutrons/m²".into(),
                 limit,
                 replacement_duration_s: Some(120.0 * 86_400.0),
+                replacement_durations_s: None,
                 provenance: "Literature-anchored REBCO tape fast-neutron fluence screening value of 3e18 n/cm2 cited by Sorbom et al. 2015 (ARC conceptual design). Demountable-coil replacement and its 120-day duration are authored assumptions.".into(),
             },
         ],

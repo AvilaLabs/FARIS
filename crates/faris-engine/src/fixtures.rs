@@ -46,6 +46,7 @@ pub fn assumptions() -> OperatingHistoryAssumptions {
                 unit: "neutrons/m²".into(),
                 limit: 2.6e11,
                 replacement_duration_s: Some(5.0),
+                replacement_durations_s: None,
                 provenance: "synthetic test fixture".into(),
             },
             ServiceLimit {
@@ -56,6 +57,7 @@ pub fn assumptions() -> OperatingHistoryAssumptions {
                 unit: "neutrons/m²".into(),
                 limit: 1.0e15,
                 replacement_duration_s: None,
+                replacement_durations_s: None,
                 provenance: "synthetic test fixture".into(),
             },
         ],

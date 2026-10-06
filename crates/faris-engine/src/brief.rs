@@ -1053,6 +1053,7 @@ mod tests {
                 unit: "neutrons/m\u{b2}".into(),
                 limit,
                 replacement_duration_s: Some(1.0e6),
+                replacement_durations_s: None,
                 provenance: "literature test".into(),
             });
         }

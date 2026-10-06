@@ -42,6 +42,7 @@ fn assumptions() -> OperatingHistoryAssumptions {
                 unit: "neutrons/m²".into(),
                 limit: 1.0e11,
                 replacement_duration_s: Some(10.0),
+                replacement_durations_s: None,
                 provenance: "test".into(),
             },
             ServiceLimit {
@@ -52,6 +53,7 @@ fn assumptions() -> OperatingHistoryAssumptions {
                 unit: "neutrons/m²".into(),
                 limit: 3.0e11,
                 replacement_duration_s: None,
+                replacement_durations_s: None,
                 provenance: "test".into(),
             },
         ],
@@ -849,6 +851,7 @@ fn regional_case(
             unit: "neutrons/m²".into(),
             limit: 3.0e11,
             replacement_duration_s: Some(10.0),
+            replacement_durations_s: None,
             provenance: "test".into(),
         })
         .collect();
