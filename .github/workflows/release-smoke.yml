@@ -52,7 +52,10 @@ jobs:
             *) tar xzf "$app" ;;
           esac
           tar xzf "$evidence"
-          echo "PACKAGE=$PWD/FARIS-${version}" >> "$GITHUB_ENV"
+          package="$PWD/FARIS-${version}"
+          # PowerShell steps need a Windows path, not the bash one (/d/a/...).
+          if [ "$RUNNER_OS" = Windows ]; then package=$(cygpath -w "$package"); fi
+          echo "PACKAGE=$package" >> "$GITHUB_ENV"
       - name: Check the package (Linux, macOS)
         if: runner.os != 'Windows'
         shell: bash
