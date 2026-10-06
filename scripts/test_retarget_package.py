@@ -59,6 +59,9 @@ def linux_package(root: Path) -> Path:
         "README.md": (b"readme\n", 0o444, "app"),
         "control/scenario.json": (b"{}\n", 0o444, "app"),
         "licenses/faris-LICENSE": (b"licence\n", 0o444, "app"),
+        "licenses/faris-THIRD_PARTY_NOTICES.md": (b"linux faris notices\n", 0o444, "app"),
+        "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md": (b"linux core notices\n", 0o444, "app"),
+        "SOURCE_PROVENANCE.md": (b"linux provenance, debug core\n", 0o444, "app"),
         "verify.sh": (b"#!/bin/sh\n", 0o555, "evidence"),
         "scripts/verify.py": (b"v\n", 0o444, "evidence"),
         "port/cases/reference.tar.gz": (b"evidence archive bytes\n" * 50, 0o444, "evidence"),
@@ -86,7 +89,12 @@ def linux_package(root: Path) -> Path:
             "schema_version": "faris-local-runtime/v0.1",
             "platform": {"os": "linux", "arch": "x86_64"},
             "executables": recorded,
-            "source_provenance": {"faris": {"commit": FARIS_COMMIT}, "core": {"commit": CORE_COMMIT}},
+            "source_provenance": {
+                "faris": {"repository": "https://example.test/faris.git", "commit": FARIS_COMMIT},
+                "core": {"repository": "https://example.test/core.git", "commit": CORE_COMMIT,
+                         "binary_profile": "debug"},
+                "rebuild": ["Packaged Core: run cargo build --locked --bin avila-core, then strip --strip-debug."],
+            },
             "launcher": {"kind": "native", "executable": "faris-app"},
             "verifier": {"path": "verify.sh", "sha256": sha(contents["verify.sh"][0])},
         },
@@ -112,10 +120,15 @@ def desktop_build(root: Path, platform: str, name: str | None = None) -> Path:
         data = f"{platform} {program}".encode() * 10
         write(build / "bin" / f"{program}{suffix}", data, 0o644)
         executables[program] = {"path": f"bin/{program}{suffix}", "sha256": sha(data), "bytes": len(data)}
+    notices = {}
+    for name in ("faris-THIRD_PARTY_NOTICES.md", "core-RUNTIME_DEPENDENCY_NOTICES.md"):
+        data = f"{platform} {name}\n".encode()
+        write(build / "licenses" / name, data, 0o644)
+        notices[name] = {"path": f"licenses/{name}", "sha256": sha(data), "bytes": len(data)}
     record = {"schema_version": "faris-desktop-build/v0.1", "platform": platform, "runner": "test",
               "faris_commit": FARIS_COMMIT, "faris_version": f"faris {VERSION}",
               "core_commit": CORE_COMMIT, "core_version": "avila-core 0.1.0",
-              "profile": "release", "executables": executables}
+              "profile": "release", "executables": executables, "notices": notices}
     write(build / "build.json", json.dumps(record, indent=2) + "\n", 0o644)
     return build
 
@@ -187,7 +200,9 @@ class RetargetTests(unittest.TestCase):
         for key in set(linux) - {"faris_cli_sha256", "faris_app_sha256", "core_executable_sha256",
                                  "local_runtime", "files", "package_file_count", "package_bytes", "parts"}:
             self.assertEqual(index[key], linux[key], key)
-        self.assertEqual(index["local_runtime"]["source_provenance"], linux["local_runtime"]["source_provenance"])
+        sources, linux_sources = (i["local_runtime"]["source_provenance"] for i in (index, linux))
+        self.assertEqual(sources["faris"], linux_sources["faris"])
+        self.assertEqual(sources["core"], dict(linux_sources["core"], binary_profile="release"))
         for item in index["files"]:
             data = (out / item["path"]).read_bytes()
             self.assertEqual((len(data), sha(data)), (item["bytes"], item["sha256"]))
@@ -204,6 +219,8 @@ class RetargetTests(unittest.TestCase):
         self.assertFalse(os.path.samefile(self.linux / "README.md", out / "README.md"))
         files = sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file())
         self.assertEqual(files, sorted(["bin/faris", "bin/faris-app", "bin/avila-core", "README.md",
+                                        "SOURCE_PROVENANCE.md", "licenses/faris-THIRD_PARTY_NOTICES.md",
+                                        "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md",
                                         "control/scenario.json", "licenses/faris-LICENSE", "verify.sh",
                                         "scripts/verify.py", "port/cases/reference.tar.gz",
                                         "package-index.json", "package-index.sha256"]))
@@ -212,6 +229,78 @@ class RetargetTests(unittest.TestCase):
             self.assertFalse(os.path.samefile(self.linux / "bin" / name, out / "bin" / name))
         self.assertEqual((out / "bin/faris").read_bytes(), b"macos-aarch64 faris" * 10)
         self.assertEqual(stat.S_IMODE((self.linux / "bin/faris").stat().st_mode), 0o555)
+
+    def test_notices_are_the_builds_and_indexed(self):
+        for platform in ("windows-x86_64", "macos-aarch64"):
+            out = self.retarget(platform, name=f"out-{platform}")
+            index = json.loads((out / "package-index.json").read_text())
+            by_path = {item["path"]: item for item in index["files"]}
+            for name in ("faris-THIRD_PARTY_NOTICES.md", "core-RUNTIME_DEPENDENCY_NOTICES.md"):
+                relative = f"licenses/{name}"
+                data = (out / relative).read_bytes()
+                self.assertEqual(data, f"{platform} {name}\n".encode())
+                self.assertNotEqual(data, (self.linux / relative).read_bytes())
+                self.assertEqual(by_path[relative], {"path": relative, "bytes": len(data),
+                                                     "sha256": sha(data), "part": "app"})
+                self.assertFalse(os.path.samefile(self.linux / relative, out / relative))
+
+    def test_missing_or_mismatched_notices_are_refused(self):
+        cases = {
+            "no notices": (lambda r: r.pop("notices"), "notices"),
+            "one notice": (lambda r: r["notices"].pop("core-RUNTIME_DEPENDENCY_NOTICES.md"), "notices"),
+            "extra notice": (lambda r: r["notices"].update(extra=dict(r["notices"]["faris-THIRD_PARTY_NOTICES.md"])),
+                             "notices"),
+            "wrong hash": (lambda r: r["notices"]["faris-THIRD_PARTY_NOTICES.md"].update(sha256="sha256:" + "0" * 64),
+                           "SHA-256"),
+            "wrong size": (lambda r: r["notices"]["core-RUNTIME_DEPENDENCY_NOTICES.md"].update(bytes=3), "SHA-256"),
+            "wrong path": (lambda r: r["notices"]["faris-THIRD_PARTY_NOTICES.md"].update(path="x.md"),
+                           "must be licenses/"),
+        }
+        for label, (mutate, message) in cases.items():
+            with self.subTest(label):
+                build = desktop_build(self.root, "windows-x86_64", f"build-{label.replace(' ', '-')}")
+                rewrite_build(build, mutate)
+                with self.assertRaisesRegex(SystemExit, message):
+                    RETARGET.retarget(self.linux, build, self.root / "never")
+                self.assertFalse((self.root / "never").exists())
+        build = desktop_build(self.root, "windows-x86_64", "build-changed-bytes")
+        (build / "licenses/faris-THIRD_PARTY_NOTICES.md").write_bytes(b"swapped after the build record\n")
+        with self.assertRaisesRegex(SystemExit, "SHA-256"):
+            RETARGET.retarget(self.linux, build, self.root / "never")
+
+    def test_provenance_names_the_platform_and_release_profile(self):
+        for platform, label, exe in (("windows-x86_64", "Windows x86_64", "avila-core.exe"),
+                                     ("macos-aarch64", "macOS aarch64", "avila-core"),
+                                     ("macos-x86_64", "macOS x86_64", "avila-core")):
+            out = self.retarget(platform, name=f"out-{platform}")
+            text = (out / "SOURCE_PROVENANCE.md").read_text()
+            self.assertIn(f"- Platform: {label}.", text)
+            self.assertIn("release profile", text)
+            self.assertNotIn("debug", text.lower())
+            self.assertIn(f"`target/release/{exe}`", text)
+            self.assertIn("cargo build --release --locked -p faris-cli -p faris-app", text)
+            self.assertIn("cargo build --release --locked --bin avila-core", text)
+            self.assertIn("https://example.test/faris.git` at `" + FARIS_COMMIT, text)
+            self.assertIn("https://example.test/core.git` at `" + CORE_COMMIT, text)
+            self.assertIn("`faris 0.1.1`", text)
+            self.assertIn("Linux x86_64", text)
+            self.assertIn("evidence_recorded_with", text)
+            self.assertIn("no bit-for-bit reproducibility claim", text)
+            self.assertIn("unsigned", text)
+            self.assertNotIn("faris-app 0.1.1", text)
+            index = json.loads((out / "package-index.json").read_text())
+            record = next(i for i in index["files"] if i["path"] == "SOURCE_PROVENANCE.md")
+            self.assertEqual(record, {"path": "SOURCE_PROVENANCE.md", "bytes": len(text.encode()),
+                                      "sha256": sha(text.encode()), "part": "app"})
+            sources = index["local_runtime"]["source_provenance"]
+            self.assertEqual(sources["core"]["binary_profile"], "release")
+            self.assertEqual(sources["core"]["commit"], CORE_COMMIT)
+            self.assertEqual(sources["core"]["repository"], "https://example.test/core.git")
+            self.assertEqual(sources["faris"]["repository"], "https://example.test/faris.git")
+            rebuild = "\n".join(sources["rebuild"])
+            self.assertIn("cargo build --release --locked -p faris-cli -p faris-app", rebuild)
+            self.assertIn(f"target/release/{exe}", rebuild)
+            self.assertNotIn("debug", rebuild.lower())
 
     def test_windows_programs_carry_exe(self):
         out = self.retarget("windows-aarch64")

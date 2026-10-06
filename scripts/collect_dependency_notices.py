@@ -18,6 +18,10 @@ def main() -> None:
     parser.add_argument('--metadata', required=True, type=Path)
     parser.add_argument('--root-crate', action='append', help='Repeat for binary-owning workspace crates')
     parser.add_argument('--title', default='FARIS native dependency notices')
+    parser.add_argument('--platform-label', default='Linux',
+                        help='Platform named in the header, matching the --filter-platform graph')
+    parser.add_argument('--target-triple', default='x86_64-unknown-linux-gnu',
+                        help='Target triple named in the header recreation note')
     parser.add_argument('--supplements', type=Path,
                         default=Path(__file__).resolve().parents[1] / 'licenses/upstream-rust')
     parser.add_argument('--output', required=True, type=Path)
@@ -82,14 +86,14 @@ def main() -> None:
         rows.append((package, commit, local_files))
     body = [
         '# ' + args.title, '',
-        'Exact license texts collected from the locked Linux Cargo dependency graph.',
+        f'Exact license texts collected from the locked {args.platform_label} Cargo dependency graph.',
         'This conservative inventory includes build dependencies and resolved optional',
         'packages; it is not a list inferred from binary symbols. Original third-party',
         'copyright and license terms remain those reproduced below. Project licensing',
         'is recorded separately in its root license and source provenance.', '',
         'SHA-256 labels identify original source-file bytes before Markdown framing.', '',
         'Recreate the metadata with `cargo metadata --locked --offline --format-version 1',
-        '--filter-platform x86_64-unknown-linux-gnu`, then run',
+        f'--filter-platform {args.target_triple}`, then run',
         '`python3 scripts/collect_dependency_notices.py --metadata METADATA.json',
         '--output OUTPUT.md`. Use `--root-crate CRATE` for each client in another',
         'workspace. Crate sources must be available in the Cargo cache.', '',

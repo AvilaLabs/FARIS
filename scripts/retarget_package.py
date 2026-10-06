@@ -4,24 +4,30 @@
 
 The recorded study data are produced on Linux. The Windows and macOS programs are
 built by the desktop workflow, which uploads `bin/` and `build.json`
-(faris-desktop-build/v0.1) per platform. This script copies the Linux package, swaps
-the three programs for the build's, and rewrites the index; it executes nothing.
+(faris-desktop-build/v0.1) per platform, with the platform's two licence notices
+under `notices`. This script copies the Linux package, swaps the three programs, the two
+notices files and SOURCE_PROVENANCE.md for the platform's, and rewrites the index; it
+executes nothing.
 
 Refuses unless:
 - the Linux package's index is v0.5 for linux/x86_64, its package-index.sha256 matches,
   and every indexed file has the indexed size and SHA-256;
 - build.json is a valid faris-desktop-build/v0.1 for windows or macos on x86_64 or
   aarch64, and each program in it has the recorded SHA-256 and size, at bin/<name>
-  (bin/<name>.exe on Windows);
+  (bin/<name>.exe on Windows), and `notices` names licenses/faris-THIRD_PARTY_NOTICES.md
+  and licenses/core-RUNTIME_DEPENDENCY_NOTICES.md, each with the recorded SHA-256 and size;
 - the build's FARIS and Core commits equal the commits the package records, and the
   build's `faris --version` equals the version the Linux package recorded for `faris`;
 - the output directory does not exist.
 
-The output is the Linux package with every file except bin/*, package-index.json,
-package-index.sha256 and README.md hard-linked (copied where linking fails), the build's
-programs in bin/ (mode 0755), and an index that names the new platform and programs,
-keeps the Linux programs that produced the recorded evidence under
-`evidence_recorded_with`, and carries the build record under `desktop_build`.
+The output is the Linux package with every file except bin/*, the two notices files,
+SOURCE_PROVENANCE.md, package-index.json, package-index.sha256 and README.md hard-linked
+(copied where linking fails), the build's programs in bin/ (mode 0755), the build's notices
+and a SOURCE_PROVENANCE.md written for the platform (release-profile desktop build), and an
+index that names the new platform and programs, records the release profile and rebuild
+route in `local_runtime.source_provenance`, keeps the Linux programs that produced the
+recorded evidence under `evidence_recorded_with`, and carries the build record under
+`desktop_build`.
 """
 from __future__ import annotations
 
@@ -42,7 +48,11 @@ BUILD_SCHEMA = "faris-desktop-build/v0.1"
 PROGRAMS = ("faris", "faris-app", "avila-core")
 TARGET_OS = {"windows", "macos"}
 TARGET_ARCH = {"x86_64", "aarch64"}
-REWRITTEN = {INDEX, CHECKSUM, "README.md"}
+PROVENANCE = "SOURCE_PROVENANCE.md"
+NOTICES = ("faris-THIRD_PARTY_NOTICES.md", "core-RUNTIME_DEPENDENCY_NOTICES.md")
+NOTICE_PATHS = {f"licenses/{name}" for name in NOTICES}
+PLATFORM_NAMES = {"windows": "Windows", "macos": "macOS"}
+REWRITTEN = {INDEX, CHECKSUM, "README.md", PROVENANCE, *NOTICE_PATHS}
 HEX64 = re.compile(r"sha256:[0-9a-f]{64}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 
@@ -142,6 +152,22 @@ def load_build(build_dir: Path) -> tuple[dict, str, str]:
             fail(f"build program is missing or not a regular file: {record['path']}")
         if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
             fail(f"build program failed its recorded size or SHA-256: {record['path']}")
+    notices = build.get("notices")
+    if not isinstance(notices, dict) or set(notices) != set(NOTICES):
+        fail(f"build.json notices must be exactly {', '.join(NOTICES)}; "
+             "rebuild with the current desktop workflow")
+    for name, record in notices.items():
+        if (not isinstance(record, dict) or not isinstance(record.get("sha256"), str)
+                or not HEX64.fullmatch(record["sha256"]) or not isinstance(record.get("bytes"), int)
+                or isinstance(record["bytes"], bool)):
+            fail(f"build.json notices record for {name} is malformed")
+        if record.get("path") != f"licenses/{name}":
+            fail(f"build.json notices path for {name} must be licenses/{name}")
+        path = build_dir / record["path"]
+        if path.is_symlink() or not path.is_file():
+            fail(f"build notices file is missing or not a regular file: {record['path']}")
+        if path.stat().st_size != record["bytes"] or digest(path) != record["sha256"]:
+            fail(f"build notices file failed its recorded size or SHA-256: {record['path']}")
     return build, target_os, target_arch
 
 
@@ -170,17 +196,71 @@ def write_with_mode(path: Path, data: bytes, mode: int) -> None:
     path.chmod(mode)
 
 
-def retargeted_index(index: dict, build: dict, target_os: str, target_arch: str) -> dict:
+def copy_note(target_os: str) -> str:
+    return "target/release/avila-core.exe" if target_os == "windows" else "target/release/avila-core"
+
+
+def provenance_text(index: dict, build: dict, target_os: str, target_arch: str) -> str:
+    """SOURCE_PROVENANCE.md for a desktop build: the Linux file's structure, this platform's facts."""
+    sources = index["local_runtime"]["source_provenance"]
+    faris_url, core_url = sources["faris"].get("repository"), sources["core"].get("repository")
+    if not faris_url or not core_url:
+        fail("package index records no repository URL for FARIS or Core")
+    platform = f"{PLATFORM_NAMES[target_os]} {target_arch}"
+    return (
+        "# Local runtime provenance\n\n"
+        f"- Platform: {platform}.\n"
+        f"- FARIS repository: `{faris_url}` at `{build['faris_commit']}`.\n"
+        f"- Avila Core repository: `{core_url}` at `{build['core_commit']}`.\n"
+        f"- Packaged FARIS CLI reports: `{build['faris_version']}`.\n"
+        f"- Core executable reports: `{build['core_version']}`.\n"
+        f"- The programs were built by the desktop workflow on the build's runner "
+        f"(`{build.get('runner')}`), release profile.\n"
+        "- Rebuild FARIS with `cargo build --release --locked -p faris-cli -p faris-app`.\n"
+        "- Rebuild Core at the recorded commit with `cargo build --release --locked --bin avila-core`, "
+        f"then copy `{copy_note(target_os)}` to the distribution.\n"
+        "- The recorded study evidence was produced on Linux x86_64 by the programs named under "
+        "`evidence_recorded_with` in `package-index.json`; it is the same evidence in every platform's download.\n"
+        f"- The licence notices in `licenses/` are collected from this platform's Cargo dependency graph "
+        f"({platform}).\n"
+        "- These commands document the build route; no bit-for-bit reproducibility claim is made.\n"
+        "- Binary SHA-256 values in the package index identify bytes only; they are unsigned.\n")
+
+
+def rebuild_lines(target_os: str) -> list[str]:
+    return [
+        "FARIS: check out the recorded commit, then run cargo build --release --locked -p faris-cli -p faris-app.",
+        "Core: check out the recorded commit, run cargo build --release --locked --bin avila-core, "
+        f"then copy {copy_note(target_os)} to the distribution.",
+        "These instructions identify the source and toolchain command; they do not claim bit-for-bit reproducibility.",
+    ]
+
+
+def retargeted_index(index: dict, build: dict, target_os: str, target_arch: str, provenance: bytes) -> dict:
     linux = index["local_runtime"]
     executables = {name: dict(build["executables"][name]) for name in PROGRAMS}
     runtime = dict(linux)
     runtime["platform"] = {"os": target_os, "arch": target_arch}
     runtime["executables"] = executables
-    records = {name: {"path": record["path"], "bytes": record["bytes"], "sha256": record["sha256"],
-                      "part": "app"} for name, record in executables.items()}
+    sources = dict(linux["source_provenance"])
+    sources["core"] = dict(sources["core"], binary_profile="release")
+    sources["rebuild"] = rebuild_lines(target_os)
+    runtime["source_provenance"] = sources
+    def app_record(record: dict) -> dict:
+        return {"path": record["path"], "bytes": record["bytes"], "sha256": record["sha256"], "part": "app"}
+
+    # Keyed by the Linux package's path: the programs gain .exe on Windows.
+    records = {f"bin/{name}": app_record(record) for name, record in executables.items()}
+    records.update({record["path"]: app_record(record) for record in build["notices"].values()})
+    records[PROVENANCE] = {"path": PROVENANCE, "bytes": len(provenance),
+                           "sha256": "sha256:" + hashlib.sha256(provenance).hexdigest(), "part": "app"}
+    indexed = {item["path"] for item in index["files"]}
+    missing = (NOTICE_PATHS | {PROVENANCE}) - indexed
+    if missing:
+        fail("package lacks files to replace: " + ", ".join(sorted(missing)))
     inventory = []
     for item in index["files"]:
-        replacement = records.get(item["path"].removeprefix("bin/")) if item["path"].startswith("bin/") else None
+        replacement = records.get(item["path"])
         if item["path"].startswith("bin/") and replacement is None:
             fail(f"package has a program the build lacks: {item['path']}")
         inventory.append(replacement or dict(item))
@@ -221,7 +301,8 @@ def retarget(package: Path, build_dir: Path, output: Path) -> dict:
     check_provenance(index, build)
     if os.path.lexists(output):
         fail(f"{output} exists; choose a new directory")
-    new_index = retargeted_index(index, build, target_os, target_arch)
+    provenance = provenance_text(index, build, target_os, target_arch).encode("utf-8")
+    new_index = retargeted_index(index, build, target_os, target_arch, provenance)
 
     directories = sorted((p for p in package.rglob("*") if p.is_dir()), key=lambda p: len(p.parts))
     try:
@@ -237,6 +318,10 @@ def retarget(package: Path, build_dir: Path, output: Path) -> dict:
         if readme.is_file():
             shutil.copyfile(readme, output / "README.md")
             (output / "README.md").chmod(stat.S_IMODE(readme.stat().st_mode))
+        for relative, data in [(PROVENANCE, provenance),
+                               *((record["path"], (build_dir / record["path"]).read_bytes())
+                                 for record in build["notices"].values())]:
+            write_with_mode(output / relative, data, stat.S_IMODE((package / relative).stat().st_mode))
         (output / "bin").mkdir(exist_ok=True)
         for record in new_index["local_runtime"]["executables"].values():
             shutil.copyfile(build_dir / record["path"], output / record["path"])

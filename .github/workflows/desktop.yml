@@ -2,7 +2,8 @@ name: Desktop builds
 
 # Builds the FARIS programs and the pinned Avila Core for each desktop platform
 # and uploads them as artifacts. Release packages are assembled from these
-# artifacts by scripts/retarget_package.py; the recorded study data are not in
+# artifacts by scripts/retarget_package.py, which also takes the platform's licence
+# notices from the build; the recorded study data are not in
 # the repository, so packaging happens outside CI.
 
 on:
@@ -28,12 +29,18 @@ jobs:
         include:
           - runner: windows-latest
             platform: windows-x86_64
+            label: Windows
+            target: x86_64-pc-windows-msvc
             exe: .exe
           - runner: macos-15
             platform: macos-aarch64
+            label: macOS aarch64
+            target: aarch64-apple-darwin
             exe: ""
           - runner: macos-15-intel
             platform: macos-x86_64
+            label: macOS x86_64
+            target: x86_64-apple-darwin
             exe: ""
     runs-on: ${{ matrix.runner }}
     steps:
@@ -51,6 +58,34 @@ jobs:
       - name: Build Avila Core
         working-directory: core
         run: cargo build --release --locked --bin avila-core
+      - name: Collect dependency notices
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/licenses notices-work
+          # Same script and arguments as the Linux docs/THIRD_PARTY_NOTICES.md and
+          # docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md, for this platform's Cargo graph.
+          # The build downloads only what it compiles; fetch the whole target graph so
+          # every crate's licence files are in the cache for the offline collection.
+          cargo fetch --locked --target "${{ matrix.target }}"
+          cargo metadata --locked --offline --format-version 1 \
+            --filter-platform "${{ matrix.target }}" > notices-work/faris.json
+          python3 scripts/collect_dependency_notices.py \
+            --metadata notices-work/faris.json \
+            --root-crate faris-cli --root-crate faris-app \
+            --title "FARIS native dependency notices" \
+            --platform-label "${{ matrix.label }}" --target-triple "${{ matrix.target }}" \
+            --output out/licenses/faris-THIRD_PARTY_NOTICES.md
+          cd core
+          cargo fetch --locked --target "${{ matrix.target }}"
+          cargo metadata --locked --offline --format-version 1 \
+            --filter-platform "${{ matrix.target }}" > ../notices-work/core.json
+          python3 ../scripts/collect_dependency_notices.py \
+            --metadata ../notices-work/core.json \
+            --root-crate avila-core-cli \
+            --title "Avila Core native dependency notices" \
+            --platform-label "${{ matrix.label }}" --target-triple "${{ matrix.target }}" \
+            --output ../out/licenses/core-RUNTIME_DEPENDENCY_NOTICES.md
       - name: Collect binaries and build record
         shell: bash
         run: |
@@ -74,6 +109,14 @@ jobs:
                   "sha256": "sha256:" + hashlib.sha256(data).hexdigest(),
                   "bytes": len(data),
               }
+          notices = {}
+          for path in sorted((out / "licenses").iterdir()):
+              data = path.read_bytes()
+              notices[path.name] = {
+                  "path": "licenses/" + path.name,
+                  "sha256": "sha256:" + hashlib.sha256(data).hexdigest(),
+                  "bytes": len(data),
+              }
           record = {
               "schema_version": "faris-desktop-build/v0.1",
               "platform": "${{ matrix.platform }}",
@@ -84,6 +127,7 @@ jobs:
               "core_version": core_version,
               "profile": "release",
               "executables": executables,
+              "notices": notices,
           }
           (out / "build.json").write_text(json.dumps(record, indent=2) + "\n")
           print(json.dumps(record, indent=2))
