@@ -29,6 +29,17 @@ Config (JSON, paths relative to the config file):
                        component from its own ACTINV run, 10 iterations, a pre-run equivalence check). Absent: the
                        first run's behaviour, unchanged.
 
+  decay_cache          optional; folder of the content-addressed <sha>.points.json files (default
+                       <output_dir>/decay-cache); shared between runs whose specs are byte-identical
+  class_w              optional; {class: w} replacing the grid w for that class (calibration target, work time and
+                       the cross-check's implied duration); each 0 < w < 1
+  governing_quantity   optional; "heat" (default) or "dose": the quantity whose cooldown sets the durations. "dose"
+                       calibrates q* on the contact gamma dose proxy and needs photon_response; the other quantity
+                       is then the cross-check
+  photon_response      optional; actinv-photon-response-1 JSON: every spec is built with --photon-response and
+                       --actinv-outputs heat,dose. Absent: heat-only specs, unchanged.
+  An empty sweep ({}) with allow_reduced_grid runs no sweep case and D2 is NOT_EVALUATED.
+
 `--equivalence-check-only` runs just the Amendment 2 equivalence check and prints its numbers.
 
 Exit status: 0 result written, 2 bad input or refused.
@@ -357,6 +368,15 @@ class DecayCurves:
         self.curves = curves or {}
 
 
+def missing_dose(component: str, points: list, tau: float) -> dict:
+    """NOT_EVALUATED for a point without a contact dose: no dose anywhere means heat-only specs, else a gap."""
+    if all(p[2] is None for p in points):
+        return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
+                             "response and run with heat-only outputs")
+    return not_evaluated(f"{component} has no contact gamma dose at {tau:.0f} s after the shutdown: "
+                         "the ACTINV result lacks the value at that point")
+
+
 def event_series(activation, event: dict, governing: list, quantity: str):
     """({component: [(tau, value)]}, {component: volume}) or a NOT_EVALUATED dict."""
     series, volumes = {}, {}
@@ -369,8 +389,7 @@ def event_series(activation, event: dict, governing: list, quantity: str):
             for tau, heat, dose, _flux in entry["points"]:
                 value = heat if quantity == "heat" else (None if dose is None else dose * entry["volume_m3"])
                 if value is None:
-                    return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
-                                         "response and run with heat-only outputs")
+                    return missing_dose(component, entry["points"], tau)
                 pts.append((tau, value))
             series[component] = pts
             volumes[component] = entry["volume_m3"]
@@ -390,8 +409,7 @@ def event_series(activation, event: dict, governing: list, quantity: str):
                 break  # irradiation resumed (or a year passed): the decay curve after the shutdown ends here
             value = heat if quantity == "heat" else (None if dose is None else dose * inst["volume_m3"])
             if value is None:
-                return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
-                                     "response and run with heat-only outputs")
+                return missing_dose(component, inst["points"], tau)
             pts.append((tau, value))
         if not pts:
             return not_evaluated(f"{component} has no decay points after the shutdown at {event['start_s']:.0f} s")
@@ -464,6 +482,16 @@ class Runner:
         self.continuation_runs = 0
         self.actinv_workers = 1  # concurrent ACTINV runs for decay continuations; set by --actinv-workers
         self.continuation_cache_hits = 0
+        self.decay_cache = Path(cfg["decay_cache"]) if cfg.get("decay_cache") else out_dir / "decay-cache"
+        self.class_w = dict(cfg.get("class_w") or {})
+        self.governing = cfg.get("governing_quantity") or "heat"
+        self.photon_response = cfg.get("photon_response")
+
+    def _photon_argv(self) -> list:
+        """Builder arguments for the photon response: none for a heat-only run, so its specs are unchanged."""
+        if not self.photon_response:
+            return ["--actinv-outputs", "heat"]
+        return ["--photon-response", self.photon_response, "--actinv-outputs", "heat,dose"]
 
     def _dir(self, case_name: str, f: float, used: dict) -> Path:
         key = hashlib.sha256(json.dumps(used, sort_keys=True).encode()).hexdigest()[:10]
@@ -524,7 +552,7 @@ class Runner:
                     "--physics", case["physics"], "--history", hist["history_path"],
                     "--data-dir", self.cfg["data_dir"], "--cooling-grid",
                     ",".join(f"{t!r}s" for t in cooling_grid_s()), "--subdivide-outages",
-                    "--actinv-outputs", "heat", "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
+                    *self._photon_argv(), "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
             if self.cfg.get("impurities"):
                 argv += ["--impurities", self.cfg["impurities"]]
             self._run(argv, f"build_activation_inputs ({case_name})")
@@ -553,7 +581,7 @@ class Runner:
         argv = [sys.executable, BUILD_SCRIPT, "--run", case["history_run"], "--spectrum-run", case["spectrum_run"],
                 "--scenario", case["scenario"], "--physics", case["physics"], "--history", hist["history_path"],
                 "--data-dir", self.cfg["data_dir"], "--cooling-grid", ",".join(f"{t!r}s" for t in cooling_grid_s()),
-                "--actinv-outputs", "heat", "--actinv", self.cfg["actinv"], "--output-dir", spec_dir, *extra]
+                *self._photon_argv(), "--actinv", self.cfg["actinv"], "--output-dir", spec_dir, *extra]
         for component in components or []:
             argv += ["--component", component]
         if self.cfg.get("impurities"):
@@ -606,14 +634,14 @@ class Runner:
             for prov in provs:
                 spec = spec_dir / prov["spec_file"]
                 sha = hashlib.sha256(spec.read_bytes()).hexdigest()
-                if (self.out / "decay-cache" / f"{sha}.points.json").exists():
+                if (self.decay_cache / f"{sha}.points.json").exists():
                     self.continuation_cache_hits += 1
                 elif sha in missing:
                     self.continuation_cache_hits += 1
                 else:
                     missing[sha] = spec
             with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
-                jobs = [pool.submit(self._actinv_points, spec, self.out / "decay-cache" / f"{sha}.points.json")
+                jobs = [pool.submit(self._actinv_points, spec, self.decay_cache / f"{sha}.points.json")
                         for sha, spec in sorted(missing.items())]
                 for job in jobs:
                     job.result()
@@ -621,7 +649,7 @@ class Runner:
             for prov in provs:
                 spec = spec_dir / prov["spec_file"]
                 sha = hashlib.sha256(spec.read_bytes()).hexdigest()
-                points = self.out / "decay-cache" / f"{sha}.points.json"
+                points = self.decay_cache / f"{sha}.points.json"
                 stored = json.loads(points.read_text(encoding="utf-8"))
                 tail = stored["steps"][-len(grid):]
                 span = tail[-1][0] - tail[0][0]
@@ -742,9 +770,20 @@ class Runner:
 
 # -------------------------------------------------------------- calibration --
 
-def calibrate_class_thresholds(runner: Runner, cases: dict, w: float, fixed_s: dict, variant: str) -> dict:
-    """q* (heat, and dose as a cross-check) per class from the first replacement of that class in port/reference.
+def class_split(runner, cls: str, w: float) -> float:
+    """The work share of the authored duration for a class: its class_w entry, else the grid w."""
+    return getattr(runner, "class_w", {}).get(cls, w)
 
+
+def governing_quantity(runner) -> str:
+    return getattr(runner, "governing", "heat")
+
+
+def calibrate_class_thresholds(runner: Runner, cases: dict, w: float, fixed_s: dict, variant: str) -> dict:
+    """q* per class from the first replacement of that class in port/reference, on the governing quantity.
+
+    Both heat and dose are calibrated; the governing one (heat by default) gives entry["status"] and entry["q_star"],
+    the other is kept for the cross-check.
     Uses the fixed-duration timeline (iteration 0), where that event's duration is exactly the authored one.
     """
     name = CALIBRATION_CASE
@@ -758,14 +797,15 @@ def calibrate_class_thresholds(runner: Runner, cases: dict, w: float, fixed_s: d
             out[cls] = not_evaluated(f"no {cls} replacement in {name} at the fixed durations")
             continue
         first = mine[0]
-        target = (1.0 - w) * fixed_s[cls]
+        target = (1.0 - class_split(runner, cls, w)) * fixed_s[cls]
         entry = {"event": {"component": first["component"], "start_s": first["start_s"]}}
         curve = event_curve(act, first, spec["governing"], "heat")
         cal = curve if isinstance(curve, dict) else calibrate(curve, target)
         entry["heat"] = cal
         dose_curve = event_curve(act, first, spec["governing"], "dose")
         entry["dose"] = dose_curve if isinstance(dose_curve, dict) else calibrate(dose_curve, target)
-        entry.update(cal if cal["status"] != "EVALUATED" else {"status": "EVALUATED", "q_star": cal["q_star"]})
+        gov = entry[governing_quantity(runner)]
+        entry.update(gov if gov["status"] != "EVALUATED" else {"status": "EVALUATED", "q_star": gov["q_star"]})
         out[cls] = entry
     return out
 
@@ -783,6 +823,7 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
     used: dict = {}
     iterations = []
     limit = getattr(runner, "max_iterations", MAX_ITERATIONS)
+    quantity = governing_quantity(runner)
     for number in range(1, limit + 1):
         hist = runner.history(name, case, f, used)
         act = runner.activation(name, case, f, used, variant)
@@ -795,7 +836,7 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
             th = thresholds[e["class"]]
             if th["status"] != "EVALUATED":
                 return not_evaluated(f"calibration unavailable for {e['class']}: {th['reason']}", iterations=iterations)
-            curve = event_curve(act, e, spec["governing"], "heat")
+            curve = event_curve(act, e, spec["governing"], quantity)
             cd = curve if isinstance(curve, dict) else cooldown(curve, th["q_star"])
             if cd["status"] != "EVALUATED":
                 details.append({**e, **cd})
@@ -803,7 +844,7 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
                 return not_evaluated(
                     f"iteration {number}: {e['component']} replacement {e['k']} at {e['start_s']:.0f} s: {cd['reason']}",
                     iterations=iterations)
-            work = w * fixed_s[e["class"]]
+            work = class_split(runner, e["class"], w) * fixed_s[e["class"]]
             new = work + cd["cooldown_s"]
             old = used_duration(used, e["component"], e["k"], fixed_s[e["class"]])
             remaining = horizon - e["start_s"]
@@ -818,10 +859,15 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
                            "max_change_s": change, "window_limited": window_limited, "events": details,
                            "history": str(hist["history_path"])})
         if change <= CONVERGENCE_S and not window_limited:
-            return {"status": "EVALUATED", "converged_at_iteration": number, "iterations": iterations,
-                    "durations_s": used, "history": summarize_history(hist["data"], runner.classes),
-                    "dose_cross_check": dose_cross_check(runner, act, hist["data"], thresholds, w, fixed_s, used),
-                    "assumptions": str(hist["assumptions"])}
+            result = {"status": "EVALUATED", "converged_at_iteration": number, "iterations": iterations,
+                      "durations_s": used, "history": summarize_history(hist["data"], runner.classes),
+                      "assumptions": str(hist["assumptions"])}
+            if quantity == "heat":
+                result["dose_cross_check"] = dose_cross_check(runner, act, hist["data"], thresholds, w, fixed_s, used)
+            else:
+                result["cross_check"] = {"quantity": "heat", "events": quantity_cross_check(
+                    runner, act, hist["data"], thresholds, w, fixed_s, "heat")}
+            return result
         used = out
     last_two = [it.get("durations_out_s") for it in iterations[-2:]]
     return not_evaluated(f"no convergence in {limit} iterations (last change "
@@ -829,23 +875,31 @@ def coupled_case(runner: Runner, name: str, case: dict, f: float, thresholds: di
                          iterations=iterations, last_two_duration_sets_s=last_two)
 
 
-def dose_cross_check(runner: Runner, act: dict, history: dict, thresholds: dict, w: float, fixed_s: dict, used: dict) -> list:
-    """Contact-dose cooldowns, calibrated the same way, beside the heat-based durations. Not used by any decision."""
+def quantity_cross_check(runner: Runner, act: dict, history: dict, thresholds: dict, w: float, fixed_s: dict,
+                         quantity: str) -> list:
+    """Cooldowns on the quantity that does not govern, calibrated the same way, beside the governing durations.
+    Not used by any decision."""
     out = []
     for e in replacement_events(history, runner.classes):
-        th = thresholds[e["class"]].get("dose", not_evaluated("no dose calibration"))
+        th = thresholds[e["class"]].get(quantity, not_evaluated(f"no {quantity} calibration"))
         if th["status"] != "EVALUATED":
             out.append({"component": e["component"], "k": e["k"], "status": "NOT_EVALUATED", "reason": th["reason"]})
             continue
-        curve = event_curve(act, e, runner.classes[e["class"]]["governing"], "dose")
+        curve = event_curve(act, e, runner.classes[e["class"]]["governing"], quantity)
         cd = curve if isinstance(curve, dict) else cooldown(curve, th["q_star"])
         if cd["status"] != "EVALUATED":
             out.append({"component": e["component"], "k": e["k"], **cd})
             continue
         out.append({"component": e["component"], "k": e["k"], "status": "EVALUATED",
-                    "cooldown_s": cd["cooldown_s"], "implied_duration_s": w * fixed_s[e["class"]] + cd["cooldown_s"],
+                    "cooldown_s": cd["cooldown_s"],
+                    "implied_duration_s": class_split(runner, e["class"], w) * fixed_s[e["class"]] + cd["cooldown_s"],
                     "window_limited": cd["window_limited"]})
     return out
+
+
+def dose_cross_check(runner: Runner, act: dict, history: dict, thresholds: dict, w: float, fixed_s: dict, used: dict) -> list:
+    """Contact-dose cooldowns, calibrated the same way, beside the heat-based durations. Not used by any decision."""
+    return quantity_cross_check(runner, act, history, thresholds, w, fixed_s, "dose")
 
 
 def summarize_history(history: dict, classes: dict) -> dict:
@@ -1004,7 +1058,7 @@ def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: s
         fx_f = {f: fixed_results[f"f/{f}"] for f in fs}
         decisions = {
             "D1": decide_d1(lifetimes(fx_arr), lifetimes(arr)),
-            "D2": decide_d2(lifetimes(fx_swp), lifetimes(swp)),
+            "D2": decide_d2(lifetimes(fx_swp), lifetimes(swp)) if sweep else not_evaluated("the allocation sweep was not run"),
             "D3": decide_d3(downtimes(fx_arr), downtimes(arr)),
             "D4": decide_d4({f: v for f, v in lifetimes(fx_f).items()}, {f: v for f, v in lifetimes(fres).items()}),
         }
@@ -1067,6 +1121,22 @@ def check_config(cfg: dict) -> None:
             raise Refused("w and f grids are fixed by the protocol")
     elif 1.0 not in cfg.get("f_values", F_VALUES):
         raise Refused("f_values must include 1.0")
+    if cfg.get("governing_quantity", "heat") not in ("heat", "dose"):
+        raise Refused(f"governing_quantity must be \"heat\" or \"dose\", not {cfg.get('governing_quantity')!r}")
+    if cfg.get("photon_response") and not Path(cfg["photon_response"]).is_file():
+        raise Refused(f"photon_response file not found: {cfg['photon_response']}")
+    if cfg.get("governing_quantity") == "dose" and not cfg.get("photon_response"):
+        raise Refused("governing_quantity \"dose\" needs photon_response (no contact dose without a photon response)")
+    class_w = cfg.get("class_w")
+    if class_w is not None:
+        if not isinstance(class_w, dict):
+            raise Refused("class_w must be a mapping of class to w")
+        known = set(CLASSES) | set(cfg.get("classes", {}))
+        for cls, value in class_w.items():
+            if cls not in known:
+                raise Refused(f"class_w names unknown class {cls!r}; classes are {sorted(known)}")
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 < value < 1.0:
+                raise Refused(f"class_w[{cls}] = {value!r}: each w must be a number with 0 < w < 1")
 
 
 def resolve_paths(cfg: dict, base: Path) -> dict:
@@ -1074,7 +1144,8 @@ def resolve_paths(cfg: dict, base: Path) -> dict:
         return str(v if os.path.isabs(v) else (base / v)) if isinstance(v, str) else v
 
     out = dict(cfg)
-    for key in ("faris", "actinv", "data_dir", "assumptions", "impurities", "output_dir", "result", "protocol"):
+    for key in ("faris", "actinv", "data_dir", "assumptions", "impurities", "output_dir", "result", "protocol",
+                "decay_cache", "photon_response"):
         if out.get(key):
             out[key] = res(out[key])
     out["arrangements"] = {k: {kk: res(vv) for kk, vv in v.items()} for k, v in cfg["arrangements"].items()}
@@ -1095,6 +1166,7 @@ def input_hashes(cfg: dict, config_path: Path) -> dict:
         "config": sha256_file(config_path),
         "assumptions": sha256_file(cfg["assumptions"]),
         "impurities": sha256_file(cfg["impurities"]) if cfg.get("impurities") else None,
+        **({"photon_response": sha256_file(cfg["photon_response"])} if cfg.get("photon_response") else {}),
         "cases": {k: {kk: sha256_file(vv) for kk, vv in v.items()} for k, v in sorted(cases.items())},
     }
 
@@ -1175,6 +1247,10 @@ def main(argv=None) -> int:
         "computed_model": body["variants"],
         "verdict": primary["verdict"],
     }
+    if cfg.get("class_w"):
+        doc["parameters"]["class_w"] = dict(cfg["class_w"])
+    if cfg.get("governing_quantity") == "dose":
+        doc["parameters"]["governing_quantity"] = "dose"
     if body.get("amendment"):
         doc["amendment"] = body["amendment"]
         doc["equivalence_check"] = body["equivalence_check"]

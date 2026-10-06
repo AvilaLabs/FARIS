@@ -422,6 +422,36 @@ class OutputsOptionTests(unittest.TestCase):
             self.assertFalse((Path(d) / "bad").exists())
 
 
+class PhotonResponseOptionTests(unittest.TestCase):
+    def test_the_response_reaches_every_spec_and_provenance_and_specs_are_otherwise_unchanged(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)], replacements=[("magnets", 400.0, 450.0)]), with_709=True)
+            response = Path(d) / "response.json"
+            response.write_text('{"schema": "actinv-photon-response-1"}\n')
+            self.assertEqual(fx.main("plain")[0], 0)
+            self.assertEqual(fx.main("photon", "--photon-response", str(response))[0], 0)
+            plain_specs, photon_specs = specs_in(Path(d) / "plain"), specs_in(Path(d) / "photon")
+            self.assertEqual(len(plain_specs), 2)
+            block = {"response": {"path": str(response.resolve()),
+                                  "sha256": hashlib.sha256(response.read_bytes()).hexdigest()}}
+            for plain, photon in zip(plain_specs, photon_specs):
+                before, after = json.loads(plain.read_text()), json.loads(photon.read_text())
+                self.assertNotIn("photon", before)
+                self.assertEqual(after.pop("photon"), block)
+                self.assertEqual(before, after)
+                prov_name = plain.name.replace(".spec.", ".provenance.")
+                self.assertNotIn("photon_response", json.loads((plain.parent / prov_name).read_text()))
+                self.assertEqual(json.loads((photon.parent / prov_name).read_text())["photon_response"], block["response"])
+
+    def test_an_unreadable_response_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)]), with_709=True)
+            code, err = fx.main("bad", "--photon-response", str(Path(d) / "missing.json"))
+            self.assertEqual(code, 2)
+            self.assertIn("photon response", err)
+            self.assertFalse((Path(d) / "bad").exists())
+
+
 class ContinuationTests(unittest.TestCase):
     """--decay-continuations: one spec per (installation, shutdown), history to the shutdown, then cooling."""
 
