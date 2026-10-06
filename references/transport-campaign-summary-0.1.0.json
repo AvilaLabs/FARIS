@@ -1,0 +1,847 @@
+{
+  "schema_version": "faris-transport-campaign-summary/v1",
+  "created": "2026-10-05",
+  "note": "0.1.0 release campaign, 2026-10-05: controls at 30M histories, port and sweep runs at 10M; release binary ea1b359",
+  "headline_responses": [
+    "total-tritium-production",
+    "blanket-tritium",
+    "heating-total-whole-model",
+    "magnets-fast-flux",
+    "magnets-inboard-fast-flux",
+    "magnets-outboard-fast-flux",
+    "magnets-port-sector-fast-flux"
+  ],
+  "runs": [
+    {
+      "label": "control-reference",
+      "run_json_sha256": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+      "scenario_id": "arc-cold-coupled-control-001",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "reference",
+      "physics_sha256": "5d0f44766166d4d56b9be88a0d02b6975eaf2f836fb0349ca2572cc810950574",
+      "raw_artifact_sha256": "a0eedb27c790f9aa5853a409f5ab0503ddb812f126b7fa3706cc12720b673794",
+      "solver": "OpenMC 0.15.3",
+      "histories": 30000000,
+      "sampling": {
+        "batches": 300,
+        "particles_per_batch": 100000,
+        "seed": 81150021,
+        "threads": 7
+      },
+      "elapsed_seconds": 4003.65457383,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.132889897849523e+17,
+          "standard_error": 121105096826845.58,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00016978405465554325
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1455945.9304484027,
+          "standard_error": 140.2016939399227,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 9.629594822710439e-05
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 3.086110262961552e+18,
+          "standard_error": 523972314646810.7,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00016978405500780338
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 30700179121126.1,
+          "standard_error": 1871619418265.866,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06096444619692544
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 35174914240873.64,
+          "standard_error": 3746912224795.2417,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.10652228457862985
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 29225216492679.375,
+          "standard_error": 2366942430735.0767,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.08098973129345242
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 23240985982568.39,
+          "standard_error": 7022820302464.121,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.3021739399409087
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED",
+      "history_ensemble": {
+        "report_sha256": "85b983a34900b25de316b07c939df9d8b9b183b2e1d78f8f4a5fd57dd9fb60dd",
+        "method": "faris-history-ensemble/v1",
+        "status": {
+          "status": "evaluated"
+        },
+        "samples_requested": 200,
+        "samples_accepted": 200,
+        "rejections": 1,
+        "rejected_fraction_of_draws": 0.004975124378109453,
+        "seed": 7416925264679824150
+      }
+    },
+    {
+      "label": "control-breeder",
+      "run_json_sha256": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+      "scenario_id": "arc-cold-coupled-control-001",
+      "scenario_sha256": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+      "variant_id": "breeder-emphasis",
+      "physics_sha256": "487b545928987749b19f446b2f2ec709cd1f6b4f7c05df88b7e488f535400378",
+      "raw_artifact_sha256": "dbe0449120ee64db1f8e211bbd76fd7d6ddb781e0a0143c23b08d2ca3b446a77",
+      "solver": "OpenMC 0.15.3",
+      "histories": 30000000,
+      "sampling": {
+        "batches": 300,
+        "particles_per_batch": 100000,
+        "seed": 81150022,
+        "threads": 7
+      },
+      "elapsed_seconds": 3564.017280236,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.19630669999975e+17,
+          "standard_error": 140263258893782.6,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0001949100625377563
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1451952.0619416537,
+          "standard_error": 155.15528688757294,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00010685978618335941
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 2.4554828183287875e+18,
+          "standard_error": 478598310239017.9,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0001949100627650712
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 45616227932573.74,
+          "standard_error": 2354619503989.136,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.051618023030522084
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 52633000414366.6,
+          "standard_error": 4494019460005.039,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.08538406369815012
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 43185731595458.664,
+          "standard_error": 2725418581680.373,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06310923726407296
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 35919626893258.625,
+          "standard_error": 8343582046283.324,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.23228476373314566
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED",
+      "history_ensemble": {
+        "report_sha256": "8dbf472ed551a9e3fe9c669f2942bc4a985d3b6c923add2c7561a1060c98e92c",
+        "method": "faris-history-ensemble/v1",
+        "status": {
+          "status": "evaluated"
+        },
+        "samples_requested": 200,
+        "samples_accepted": 200,
+        "rejections": 0,
+        "rejected_fraction_of_draws": 0.0,
+        "seed": 16578823001500920141
+      }
+    },
+    {
+      "label": "port-reference",
+      "run_json_sha256": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+      "scenario_id": "arc-cold-reference-port-001",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "reference",
+      "physics_sha256": "aef8db67fa1bde2d1320fc2f52322616ab0b4ffad4f2ece4e28cb6474000c17a",
+      "raw_artifact_sha256": "345040ff8f327e0318ba1681d72320e9c6c65bef7e480d9dd8affca0dde9f6ca",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150013,
+        "threads": 7
+      },
+      "elapsed_seconds": 1459.87180519,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.125386348371546e+17,
+          "standard_error": 206016250945967.94,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00028912993748479536
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1455427.6589788238,
+          "standard_error": 247.8380165760763,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00017028535568024567
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 3.0844637755453896e+18,
+          "standard_error": 891813365584837.8,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0002891307632319815
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 95372670564133.4,
+          "standard_error": 5212858095582.711,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05465777632888367
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 34277505719210.902,
+          "standard_error": 5897155419215.454,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.17204155598493215
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 30176262237783.02,
+          "standard_error": 3161627207082.4185,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.10477199535745736
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1660655810430981.0,
+          "standard_error": 114062310508593.55,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06868510006236125
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED",
+      "volume_check": {
+        "report_sha256": "c3c5fb7149a07c05b89394346fc64d6106413abc4e39797b6871b5b750502626",
+        "geometry_check": "PASS",
+        "transport_volume_check": "PASS",
+        "source_containment": "PASS: rectangular port is disjoint from the uniform plasma-torus source support"
+      },
+      "history_ensemble": {
+        "report_sha256": "2eb4e8bd65dc18390b224a3c45ac27f7657b00f456d9e33cd55c47a450ebbba2",
+        "method": "faris-history-ensemble/v1",
+        "status": {
+          "status": "evaluated"
+        },
+        "samples_requested": 200,
+        "samples_accepted": 200,
+        "rejections": 0,
+        "rejected_fraction_of_draws": 0.0,
+        "seed": 11291195086139482477
+      }
+    },
+    {
+      "label": "port-breeder",
+      "run_json_sha256": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+      "scenario_id": "arc-cold-reference-port-001",
+      "scenario_sha256": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+      "variant_id": "breeder-emphasis",
+      "physics_sha256": "7bd699f059df5bb7ff5a969384af5d078ab3769b31b16c3203d47afad14ac654",
+      "raw_artifact_sha256": "7a335f0f5fd5851303d8d9b17a2bdbdf10ed28fef5233ae9b3fa4412026d83c9",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150014,
+        "threads": 7
+      },
+      "elapsed_seconds": 1634.784065165,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.192219180802989e+17,
+          "standard_error": 208156311149754.62,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00028941875367946535
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1451646.76852868,
+          "standard_error": 266.03431711228245,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.0001832638096814159
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 2.4553157725405e+18,
+          "standard_error": 710615777982379.2,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0002894193023682284
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 106267613919659.4,
+          "standard_error": 5578324605913.542,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05249317642655339
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 52109554012557.79,
+          "standard_error": 6608133528149.661,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.12681232172045032
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 37377645879472.695,
+          "standard_error": 4082466201026.6914,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.10922213277398317
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1684009018613358.5,
+          "standard_error": 111848101613410.0,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06641775689865818
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED",
+      "volume_check": {
+        "report_sha256": "c7b4a9313b9c3bc671a75fcf463905353324bf630922060cb9fd4c922c694891",
+        "geometry_check": "PASS",
+        "transport_volume_check": "PASS",
+        "source_containment": "PASS: rectangular port is disjoint from the uniform plasma-torus source support"
+      },
+      "history_ensemble": {
+        "report_sha256": "40aa122bcb6262550209b3e9dad8f6114c0143b9588db34d1c2df21b4f8f878d",
+        "method": "faris-history-ensemble/v1",
+        "status": {
+          "status": "evaluated"
+        },
+        "samples_requested": 200,
+        "samples_accepted": 200,
+        "rejections": 0,
+        "rejected_fraction_of_draws": 0.0,
+        "seed": 14921044479619145171
+      }
+    },
+    {
+      "label": "sweep-blanket-030cm",
+      "run_json_sha256": "ab678c993f42e7015e16327675555caf681ad6f5221873ac22f953a579ee750b",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-030cm",
+      "physics_sha256": "c59a0c8cc70499923249adc8e93d2ad159705a8292545d3b90906033b5b2ccfd",
+      "raw_artifact_sha256": "f14c40d76e4b5995171f7736a9da343845df696c494c363fa67a4d25d1ceb6d1",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150101,
+        "threads": 7
+      },
+      "elapsed_seconds": 2104.144500844,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 6.816143986206785e+17,
+          "standard_error": 223963727886915.47,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00032857834039323497
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1474773.3048669032,
+          "standard_error": 235.91566317727813,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00015996740814248008
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 4.689482230604184e+18,
+          "standard_error": 1540869106507512.5,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00032857979425779594
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 77770019485451.88,
+          "standard_error": 4945331627741.341,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06358917820081611
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 17499860196323.438,
+          "standard_error": 4146877932968.9365,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.236966346384879
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 18860705149615.25,
+          "standard_error": 3099354509489.8076,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.16432866559885928
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1529246004944917.5,
+          "standard_error": 109180078358767.55,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.07139471216908633
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-035cm",
+      "run_json_sha256": "dbfd6a6e02a3cf0bdff9bc6612457c70dca426082519d7efd0af5e42297a5833",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-035cm",
+      "physics_sha256": "dc08b872d8d0bb2cd645b7045a1f0df0ca91331df1d998752ff4e59fcfeb9ee4",
+      "raw_artifact_sha256": "c70279c300a8ef290190668716dd471e015b40b3fc584ac57507d7421890e5f7",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150102,
+        "threads": 7
+      },
+      "elapsed_seconds": 1431.352382432,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 6.970548915881062e+17,
+          "standard_error": 222768240912320.12,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00031958493312454246
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1465529.4468044925,
+          "standard_error": 261.72357067093907,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.0001785863608824873
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 4.030597876688187e+18,
+          "standard_error": 1288123059317177.2,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003195861008033842
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 78127126512364.34,
+          "standard_error": 4628584107749.328,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.059244263988344835
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 19453764440732.887,
+          "standard_error": 4464398888784.027,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.2294876604672118
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 14032427520461.064,
+          "standard_error": 2221427797028.239,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.158306735865132
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1606775370344668.2,
+          "standard_error": 95507315946420.44,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05944036590872888
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-040cm",
+      "run_json_sha256": "95228875f12838f98dc763f1891c9626e7f4488f584c24f68d77ea54ff92540d",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-040cm",
+      "physics_sha256": "df8912f85277a6628054fb360b363f984195e25f00db065b2e935801846637bc",
+      "raw_artifact_sha256": "d0b2f2757d933cecb39861cd8bc846b8ba3ff6df1dae46add60b9129e698bc86",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150103,
+        "threads": 7
+      },
+      "elapsed_seconds": 1237.09703138,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.065163019824608e+17,
+          "standard_error": 217913839437329.84,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003084342694229008
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1459453.5625530072,
+          "standard_error": 221.09309832133323,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00015149032760903837
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 3.506389449141456e+18,
+          "standard_error": 1081494038770517.4,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00030843523072866954
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 82995229068173.58,
+          "standard_error": 4928708643233.054,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05938544538728287
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 32370858793603.832,
+          "standard_error": 5639789659286.99,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.174224282872636
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 23396276557151.008,
+          "standard_error": 3498867149091.5728,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.1495480334464654
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1475588107632461.0,
+          "standard_error": 104756501587126.73,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.07099305086919246
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-045cm",
+      "run_json_sha256": "3998064919a275ecedd416a1b5de68337870747c8e0942085264d13327584cb9",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-045cm",
+      "physics_sha256": "faf7c12f423e6fbc1cd0a0cc3f112c73b81ca6ba18aff3dee4bf90d4c404fbc4",
+      "raw_artifact_sha256": "9f3bd474513afdbdeba1c18d8840c07113d4807476a5721c05f69465f65e3aeb",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150104,
+        "threads": 7
+      },
+      "elapsed_seconds": 1236.383175397,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.126867914879163e+17,
+          "standard_error": 229453802290226.88,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00032195601915279397
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1455843.370962082,
+          "standard_error": 258.45784480842786,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00017753135396538443
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 3.0851051214728586e+18,
+          "standard_error": 993270452459091.9,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00032195676106650624
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 96751594591708.6,
+          "standard_error": 5309258205654.582,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05487514937670675
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 41450270855344.11,
+          "standard_error": 6047683507060.493,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.14590214689226275
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 34462489894632.97,
+          "standard_error": 3739407139464.8564,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.10850658646249511
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1569735251582083.8,
+          "standard_error": 102311873029775.4,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06517778901038164
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-050cm",
+      "run_json_sha256": "0cdb556cbbe5b777eb441668e280f0f19116d4970813c4c38a409ef941a9f49d",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-050cm",
+      "physics_sha256": "f077c11e4b20e5f3b4f676d6b254b49dd9a5f9680f6ebc39cd9ed0103373ee91",
+      "raw_artifact_sha256": "a71eb47e2777054348fd0a458fd2df2484d1e5d2669cef125f86a34235be8697",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150105,
+        "threads": 7
+      },
+      "elapsed_seconds": 1359.811283663,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.16765500756464e+17,
+          "standard_error": 201729550986796.4,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.00028144428097319685
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1453198.4639503565,
+          "standard_error": 239.31031259545557,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.0001646783412810095
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 2.741126154655022e+18,
+          "standard_error": 771476171800390.2,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0002814449712539708
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 95727618942423.16,
+          "standard_error": 5458065697657.95,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.0570166244387713
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 37704096026076.83,
+          "standard_error": 6590462104069.005,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.17479432737257308
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 31301997003986.18,
+          "standard_error": 4070066561665.4214,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.1300257795420246
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1625284528635947.5,
+          "standard_error": 110633079834848.31,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06806997660138889
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-055cm",
+      "run_json_sha256": "0c917393fb2ab44652753620419295ae88d7100ae201b6bd7b8c2ebbf1459c6f",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-055cm",
+      "physics_sha256": "ef1b7d6feed5b25499f7c20fd3bb3b1d1d62c369d67af0fceec0b5bcecb258e8",
+      "raw_artifact_sha256": "a04a1503900529961ffc9e38a88601e404610c0d24df23368db566ea64a1d6dc",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150106,
+        "threads": 7
+      },
+      "elapsed_seconds": 1515.914339674,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.192624235914431e+17,
+          "standard_error": 216703755266209.66,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003012860788474919
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1451752.0380769945,
+          "standard_error": 267.71715361395314,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00018440969710541892
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 2.4554540522342886e+18,
+          "standard_error": 739795415723295.1,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003012866052411504
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 106291232788413.67,
+          "standard_error": 5605289393876.729,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.05273519976040522
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 54078166682749.26,
+          "standard_error": 7026909360652.939,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.129939859127926
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 37161989471002.35,
+          "standard_error": 4347931317028.0503,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.11699942276827667
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1673877022560909.5,
+          "standard_error": 110970514239444.31,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06629550005392125
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    },
+    {
+      "label": "sweep-blanket-060cm",
+      "run_json_sha256": "3988f8fae4e1df36b9efc808829311429108850b3912628e497ea3a1cc1dd096",
+      "scenario_id": "arc-cold-reference-port-allocation-sweep-001",
+      "scenario_sha256": "a91d7f7930a10603cf0f43a7f224686c67f176f90657ecf830a7c0a764ae5de7",
+      "variant_id": "blanket-060cm",
+      "physics_sha256": "4032333e0e42add50e667584518ba52288828971a24bec5f9154525fd333f256",
+      "raw_artifact_sha256": "1255329fda390431cea74587f2799049a7dd3f5d6064da247b9e826bfc21a28b",
+      "solver": "OpenMC 0.15.3",
+      "histories": 10000000,
+      "sampling": {
+        "batches": 100,
+        "particles_per_batch": 100000,
+        "seed": 81150107,
+        "threads": 7
+      },
+      "elapsed_seconds": 1602.01096277,
+      "headline_responses": {
+        "total-tritium-production": {
+          "domain": "whole_model",
+          "mean": 7.210210892660946e+17,
+          "standard_error": 238183630430885.16,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003303421133954972
+        },
+        "heating-total-whole-model": {
+          "domain": "whole_model",
+          "mean": 1450895.6138422834,
+          "standard_error": 264.2459437014399,
+          "unit": "watts_per_cubic_metre",
+          "relative_standard_error": 0.00018212608900350857
+        },
+        "blanket-tritium": {
+          "domain": "component",
+          "mean": 2.2163110162404124e+18,
+          "standard_error": 732141738367083.4,
+          "unit": "particles_per_cubic_metre_second",
+          "relative_standard_error": 0.0003303425074378933
+        },
+        "magnets-fast-flux": {
+          "domain": "component",
+          "mean": 122995499326180.64,
+          "standard_error": 6420550386160.223,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.052201506732641505
+        },
+        "magnets-inboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 53122005262955.46,
+          "standard_error": 8449360003827.266,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.15905574275674816
+        },
+        "magnets-outboard-fast-flux": {
+          "domain": "component_region",
+          "mean": 50993696117580.34,
+          "standard_error": 4818417443014.746,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.09449045293568299
+        },
+        "magnets-port-sector-fast-flux": {
+          "domain": "component_region",
+          "mean": 1869267070628428.8,
+          "standard_error": 127966943876620.7,
+          "unit": "neutrons_per_square_metre_second",
+          "relative_standard_error": 0.06845835241381507
+        }
+      },
+      "scientific_qualification": "NOT_EVALUATED"
+    }
+  ],
+  "scope": "Monte Carlo sampling precision of recorded cold-data transport runs only. Standard errors are batch statistics of the sampled means; they do not include nuclear data, geometry, source or model-form uncertainty. Research screening only; not a licensing, safety or design basis."
+}
