@@ -79,7 +79,7 @@ jobs:
           set -euo pipefail
           shot="$RUNNER_TEMP/faris-${{ matrix.asset }}.png"
           if [ "$RUNNER_OS" = Linux ]; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb mesa-vulkan-drivers >/dev/null
+            sudo apt-get update -qq && sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libxkbcommon-x11-0 >/dev/null
             xvfb-run -a "$PACKAGE/bin/faris-app" --tour never --capture "$shot"
           elif [ "$RUNNER_OS" = Windows ]; then
             pwsh -Command "\$p = Start-Process -FilePath '$PACKAGE\\bin\\faris-app.exe' -ArgumentList '--tour','never','--capture','$shot' -Wait -PassThru; exit \$p.ExitCode"
