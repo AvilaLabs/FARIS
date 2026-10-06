@@ -195,6 +195,12 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
             record = build_programs.get(name)
             if not isinstance(record, dict) or record.get("sha256") != index.get(key):
                 raise ValueError("package pins differ from the desktop_build programs")
+        provenance = runtime.get("source_provenance")
+        if (not isinstance(provenance, dict)
+                or not isinstance(provenance.get("faris"), dict) or not isinstance(provenance.get("core"), dict)
+                or desktop_build.get("faris_commit") != provenance["faris"].get("commit")
+                or desktop_build.get("core_commit") != provenance["core"].get("commit")):
+            raise ValueError("desktop_build was not built from the recorded FARIS and Core commits")
     executables =runtime.get("executables")
     if not isinstance(executables, dict) or set(executables) != {"faris", "faris-app", "avila-core"}:
         raise ValueError("package executable manifest is malformed")

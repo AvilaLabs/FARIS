@@ -980,7 +980,9 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         index_path = self.package / "package-index.json"
         index = json.loads(index_path.read_text())
         index["desktop_build"] = {"schema_version": "faris-desktop-build/v0.1", "platform": "linux-x86_64",
-                                  "executables": json.loads(json.dumps(index["local_runtime"]["executables"]))}
+                                  "executables": json.loads(json.dumps(index["local_runtime"]["executables"])),
+                                  "faris_commit": index["local_runtime"]["source_provenance"]["faris"]["commit"],
+                                  "core_commit": index["local_runtime"]["source_provenance"]["core"]["commit"]}
         index["evidence_recorded_with"] = {"platform": {"os": "linux", "arch": "x86_64"},
                                            "faris_cli_sha256": "sha256:" + "1" * 64,
                                            "core_executable_sha256": "sha256:" + "2" * 64}
@@ -1014,6 +1016,10 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
             "build for another platform": (lambda index: index["desktop_build"].update(platform="windows-x86_64"),
                                            "malformed"),
             "recorded_with missing": (lambda index: index.pop("evidence_recorded_with"), "evidence_recorded_with"),
+            "build from another FARIS commit": (lambda index: index["desktop_build"].update(faris_commit="0" * 40),
+                                                "recorded FARIS and Core commits"),
+            "build from another Core commit": (lambda index: index["desktop_build"].update(core_commit="0" * 40),
+                                               "recorded FARIS and Core commits"),
             "recorded_with other platform": (lambda index: index["evidence_recorded_with"].update(
                 platform={"os": "linux", "arch": "aarch64"}), "malformed"),
             "recorded_with hash malformed": (lambda index: index["evidence_recorded_with"].update(
