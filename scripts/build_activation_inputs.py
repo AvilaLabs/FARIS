@@ -9,6 +9,14 @@ problem file and a provenance sidecar. With an impurity file a second spec per
 installation adds the listed impurities. The script never runs ACTINV's solver;
 it only calls `actinv validate` on each written spec.
 
+With `--decay-continuations TIMES.json` (a list of {"component", "installation",
+"shutdown_s"}) it also writes, per entry, one spec named
+`<component>__inst<k>__cont<shutdown_s>__<variant>` whose schedule is the
+installation's history up to exactly the absolute time `shutdown_s` (outages not
+subdivided; the time must be a step boundary) followed by zero-flux cooling
+steps reaching each cooling-grid time since the shutdown. `--continuations-only`
+then skips the per-installation full-history specs.
+
 Formats used (ACTINV docs/guide/specification.md):
   material  basis "atom_fraction" with explicit nuclide keys ("Required inputs",
             "Material bases"); mass_g is the component mass.
@@ -490,6 +498,46 @@ def cooling_steps(grid: list[tuple[str, float]]) -> list[tuple[float, float]]:
     return steps
 
 
+def prefix_steps(steps, install_s: float, shutdown_s: float, what: str) -> list[tuple[float, float]]:
+    """The steps of an installation up to the absolute time shutdown_s, which must be a step boundary."""
+    tolerance = max(1e-3, 1e-9 * abs(shutdown_s))
+    if abs(shutdown_s - install_s) <= tolerance:
+        raise InputError(f"{what}: shutdown_s {shutdown_s!r} is the installation start; nothing to continue from")
+    out, cursor = [], install_s
+    for dt, m in steps:
+        if abs(cursor - shutdown_s) <= tolerance:
+            return out
+        if cursor + dt > shutdown_s + tolerance:
+            raise InputError(f"{what}: shutdown_s {shutdown_s!r} falls inside a step "
+                             f"[{cursor!r}, {cursor + dt!r}), not on a step boundary")
+        out.append((dt, m))
+        cursor += dt
+    if abs(cursor - shutdown_s) <= tolerance:
+        return out
+    raise InputError(f"{what}: shutdown_s {shutdown_s!r} is after the installation ends at {cursor!r}")
+
+
+def load_continuations(path) -> list[dict]:
+    """[{component, installation, shutdown_s}] from the JSON file; every entry checked."""
+    doc = load_json(path, "decay-continuations file")
+    if not isinstance(doc, list) or not doc:
+        raise InputError("the decay-continuations file must be a non-empty list")
+    out, seen = [], set()
+    for entry in doc:
+        try:
+            component, installation, shutdown = entry["component"], entry["installation"], float(entry["shutdown_s"])
+        except (KeyError, TypeError, ValueError) as err:
+            raise InputError(f"bad decay-continuations entry {entry!r}: {err!r}") from err
+        if not isinstance(installation, int) or installation < 1 or not math.isfinite(shutdown) or shutdown <= 0:
+            raise InputError(f"bad decay-continuations entry {entry!r}")
+        key = (component, installation, int(round(shutdown)))
+        if key in seen:
+            raise InputError(f"duplicate decay-continuations entry {entry!r}")
+        seen.add(key)
+        out.append({"component": component, "installation": installation, "shutdown_s": shutdown})
+    return out
+
+
 def subdivide_zero_flux(steps, grid: list[tuple[str, float]]) -> list[tuple[float, float]]:
     """Split every zero-flux step on the cooling grid, measured from the step's start.
 
@@ -578,6 +626,10 @@ def plan(args) -> dict:
     grid = parse_cooling_grid(args.cooling_grid)
     outputs = parse_outputs(args.actinv_outputs) if args.actinv_outputs else None
     intervals, power = operating_intervals(history), PowerSeries(history)
+    continuations = load_continuations(args.decay_continuations) if args.decay_continuations else []
+    for entry in continuations:
+        if entry["component"] not in wanted:
+            raise InputError(f"decay-continuations names {entry['component']}, which is not among the components built")
     items, missing = [], []
     for component in wanted:
         material_id = assignment[component]
@@ -610,6 +662,11 @@ def plan(args) -> dict:
                 variants.append((WITH_IMPURITIES, composition, {"entries": parsed, **report}))
         for number, (start, end) in enumerate(installations(history, component), start=1):
             steps, lumping = build_steps(intervals, power, start, end)
+            cont = []
+            for entry in continuations:
+                if entry["component"] == component and entry["installation"] == number:
+                    what = f"{component} installation {number}"
+                    cont.append((entry["shutdown_s"], prefix_steps(steps, start, entry["shutdown_s"], what)))
             if args.subdivide_outages:
                 steps = subdivide_zero_flux(steps, grid)
                 lumping = {**lumping, "outages_subdivided_on_cooling_grid": True, "steps_after_subdivision": len(steps)}
@@ -618,8 +675,13 @@ def plan(args) -> dict:
                 "install_s": start, "remove_s": end, "steps": steps, "lumping": lumping,
                 "mass_g": mass_g, "volume_m3": volume, "volume_source": volume_source,
                 "density_kg_m3": float(recipe["density_kg_m3"]), "spectrum": found, "total_flux_cm2": total_cm2,
-                "variants": variants,
+                "variants": variants, "continuations": cont,
             })
+    known = {(i["component"], i["installation"]) for i in items}
+    for entry in continuations:
+        if (entry["component"], entry["installation"]) not in known:
+            raise InputError(f"decay-continuations names {entry['component']} installation {entry['installation']}, "
+                             "which is not in the history")
     if missing and not args.allow_placeholder_spectrum:
         raise NoSpectrum(NO_SPECTRUM_MESSAGE)
     return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing, "outputs": outputs}
@@ -644,46 +706,60 @@ def write_outputs(args, work: dict) -> list[Path]:
     library, grid, input_hashes = work["library"], work["grid"], hashes(args)
     cooling = cooling_steps(grid)
     specs = []
-    for item in work["items"]:
-        irradiation = item["steps"]
+
+    def emit(item, label, composition, impurity_report, stem, title, irradiation, lumping, irradiation_step_count,
+             extra=None):
         steps = irradiation + cooling
+        spec = build_spec(title, composition, item["mass_g"], item["spectrum"]["flux_per_group"],
+                          library, schedule_json(steps), work["outputs"])
+        spec_path = out / f"{stem}.spec.json"
+        write_json(spec_path, spec)
+        write_json(out / f"{stem}.provenance.json", {
+            "script": "scripts/build_activation_inputs.py", "script_version": SCRIPT_VERSION,
+            "spec_file": spec_path.name, "spec_sha256": sha256_file(spec_path),
+            "label": label,
+            **({"actinv_outputs": work["outputs"]} if work["outputs"] is not None else {}),
+            "input_sha256": input_hashes,
+            "component": item["component"], "material_id": item["material_id"],
+            "installation_index": item["installation"],
+            "installation_interval_s": [item["install_s"], item["remove_s"]],
+            "mass_g": item["mass_g"], "volume_m3": item["volume_m3"], "volume_source": item["volume_source"],
+            "density_kg_m3": item["density_kg_m3"],
+            "composition_basis": "atom_fraction", "impurities": impurity_report,
+            "spectrum": {
+                "source": item["spectrum"]["source"], "groups": GROUPS,
+                "total_flux_cm2_s": sum(item["spectrum"]["flux_per_group"]),
+                "details": {k: v for k, v in item["spectrum"].items() if k not in ("flux_per_group", "source")},
+            },
+            "schedule": {
+                **lumping,
+                "lumping_rule": "operating piece = time-weighted mean of snapshot power_fraction; "
+                                "gaps are zero-flux; adjacent identical multipliers merged exactly",
+                "total_irradiation_time_s": sum(dt for dt, m in irradiation if m > 0),
+                "full_power_equivalent_time_s": sum(dt * m for dt, m in irradiation),
+                "irradiation_step_count": irradiation_step_count,
+                "cooling_grid": [{"label": lab, "cumulative_s": t} for lab, t in grid],
+                "year_s": YEAR_S, "total_step_count": len(steps),
+            },
+            "data_dir": str(Path(args.data_dir)), "library": {k: v for k, v in library.items() if k != "bounds_eV"},
+            **(extra or {}),
+        })
+        specs.append(spec_path)
+
+    for item in work["items"]:
         for label, composition, impurity_report in item["variants"]:
-            stem = f"{item['component']}__inst{item['installation']:03d}__{label}"
-            title = f"FARIS {item['component']} installation {item['installation']} ({label})"
-            spec = build_spec(title, composition, item["mass_g"], item["spectrum"]["flux_per_group"],
-                              library, schedule_json(steps), work["outputs"])
-            spec_path = out / f"{stem}.spec.json"
-            write_json(spec_path, spec)
-            write_json(out / f"{stem}.provenance.json", {
-                "script": "scripts/build_activation_inputs.py", "script_version": SCRIPT_VERSION,
-                "spec_file": spec_path.name, "spec_sha256": sha256_file(spec_path),
-                "label": label,
-                **({"actinv_outputs": work["outputs"]} if work["outputs"] is not None else {}),
-                "input_sha256": input_hashes,
-                "component": item["component"], "material_id": item["material_id"],
-                "installation_index": item["installation"],
-                "installation_interval_s": [item["install_s"], item["remove_s"]],
-                "mass_g": item["mass_g"], "volume_m3": item["volume_m3"], "volume_source": item["volume_source"],
-                "density_kg_m3": item["density_kg_m3"],
-                "composition_basis": "atom_fraction", "impurities": impurity_report,
-                "spectrum": {
-                    "source": item["spectrum"]["source"], "groups": GROUPS,
-                    "total_flux_cm2_s": sum(item["spectrum"]["flux_per_group"]),
-                    "details": {k: v for k, v in item["spectrum"].items() if k not in ("flux_per_group", "source")},
-                },
-                "schedule": {
-                    **item["lumping"],
-                    "lumping_rule": "operating piece = time-weighted mean of snapshot power_fraction; "
-                                    "gaps are zero-flux; adjacent identical multipliers merged exactly",
-                    "total_irradiation_time_s": sum(dt for dt, m in irradiation if m > 0),
-                    "full_power_equivalent_time_s": sum(dt * m for dt, m in irradiation),
-                    "irradiation_step_count": item["lumping"]["steps_after_merging"],
-                    "cooling_grid": [{"label": lab, "cumulative_s": t} for lab, t in grid],
-                    "year_s": YEAR_S, "total_step_count": len(steps),
-                },
-                "data_dir": str(Path(args.data_dir)), "library": {k: v for k, v in library.items() if k != "bounds_eV"},
-            })
-            specs.append(spec_path)
+            if not args.continuations_only:
+                emit(item, label, composition, impurity_report,
+                     f"{item['component']}__inst{item['installation']:03d}__{label}",
+                     f"FARIS {item['component']} installation {item['installation']} ({label})",
+                     item["steps"], item["lumping"], item["lumping"]["steps_after_merging"])
+            for shutdown_s, prefix in item["continuations"]:
+                emit(item, label, composition, impurity_report,
+                     f"{item['component']}__inst{item['installation']:03d}__cont{int(round(shutdown_s))}__{label}",
+                     f"FARIS {item['component']} installation {item['installation']} "
+                     f"continuation from {int(round(shutdown_s))} s ({label})",
+                     prefix, {"steps_after_merging": len(prefix), "prefix_not_subdivided": True}, len(prefix),
+                     {"continuation_of_shutdown_s": shutdown_s})
     return specs
 
 
@@ -711,6 +787,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--cooling-grid", default=DEFAULT_COOLING)
     p.add_argument("--subdivide-outages", action="store_true",
                    help="split every zero-flux step on the cooling grid so the decay curve after each shutdown is in the run")
+    p.add_argument("--decay-continuations", help="JSON list of {component, installation, shutdown_s (absolute)}: one extra "
+                   "spec per entry, the installation's history up to shutdown_s (not subdivided) then the cooling grid")
+    p.add_argument("--continuations-only", action="store_true",
+                   help="with --decay-continuations, skip the per-installation full-history specs")
     p.add_argument("--actinv-outputs", help="comma-separated options.outputs for every spec (default: ACTINV's "
                    f"own default, every output); allowed: {', '.join(ACTINV_OUTPUTS)}")
     p.add_argument("--output-dir", required=True, help="new directory; must not exist")
@@ -724,6 +804,9 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
+    if args.continuations_only and not args.decay_continuations:
+        print("error: --continuations-only needs --decay-continuations", file=sys.stderr)
+        return 2
     if Path(args.output_dir).exists():
         print(f"error: output directory {args.output_dir} already exists", file=sys.stderr)
         return 2

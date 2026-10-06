@@ -115,13 +115,16 @@ words = spec["title"].split()
 comp = words[1]
 amp = model["amp"][comp] * spec["spectrum"]["total"] / 1e9
 p = model.get("power", 1.0)
-t, last, steps = 0.0, 0.0, []
+t, last, steps, prev_flux = 0.0, 0.0, [], 1.0
 for i, s in enumerate(spec["schedule"]):
     t += float(s["dt"].split()[0])
     if s["flux"] > 0:
         last, heat = t, amp
     else:
         heat = amp * (max(t - last, 3600.0) / 3600.0) ** (-p)
+        if prev_flux == 0 and model.get("subdivision_bias"):  # a zero-flux step that follows another one
+            heat *= 1.0 + model["subdivision_bias"]
+    prev_flux = s["flux"]
     step = {{"step": i + 1, "t_s": t, "flux": s["flux"], "heat_W_per_g": {{"total": heat}}}}
     outputs = spec.get("options", {{}}).get("outputs")
     if outputs is None or "photons" in outputs or "dose" in outputs:  # ACTINV's default is every output
@@ -145,7 +148,7 @@ class Rig:
     COMPONENTS = ["first-wall", "blanket", "shield", "vessel", "magnets"]
 
     def __init__(self, root: Path, case_params: dict, sweep_labels=("0.30", "0.40"), f_values=(0.8, 1.0),
-                 w_values=(0.5,), model=None, horizon_y=5.0, protocol_text=None):
+                 w_values=(0.5,), model=None, horizon_y=5.0, protocol_text=None, amendment=None):
         self.root = root
         write_exe(root / "faris", FAKE_FARIS)
         write_exe(root / "actinv", FAKE_ACTINV)
@@ -216,6 +219,8 @@ class Rig:
             "arrangements": arrangements, "sweep": sweep, "allow_reduced_grid": True,
             "w_values": list(w_values), "f_values": list(f_values),
         }
+        if amendment is not None:
+            self.config["amendment"] = amendment
         self.config_path = root / "config.json"
         self.write_config()
 
@@ -713,6 +718,190 @@ class EndToEndTests(unittest.TestCase):
             (Path(d) / "runs" / "run.json").write_text(json.dumps({"config_sha256": "0" * 64, "resumes": 0}))
             code, err = rig.run("--resume")
             self.assertEqual((code, "cannot resume" in err), (2, True))
+
+
+class AmendmentTwoTests(unittest.TestCase):
+    """Amendment 2: continuation runs for every (event, governing component), a content cache, 10 iterations."""
+
+    HOT = {"port/breeder": {"flux_factor": 1.8, "blanket_period_y": 0.8, "net_mw": 100.0},
+           "no-port/breeder": {"flux_factor": 1.8, "blanket_period_y": 0.8}}
+
+    def calls(self, root):
+        return len((Path(root) / "actinv-calls.log").read_text().splitlines())
+
+    def test_without_the_amendment_nothing_changes_in_the_result_or_the_folders(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            self.assertEqual(rig.run()[0], 0)
+            res = rig.result()
+            for key in ("amendment", "equivalence_check", "decay_continuations"):
+                self.assertNotIn(key, res)
+            self.assertEqual(res["parameters"]["max_iterations"], 5)
+            runs = Path(d) / "runs"
+            self.assertFalse((runs / "decay-cache").exists())
+            self.assertFalse((runs / "equivalence-check").exists())
+            self.assertTrue(list(runs.rglob("activation")))
+            self.assertEqual(list(runs.rglob("*__cont*")), [])
+            self.assertEqual(MC.Runner({}, runs, {}, {}).max_iterations, 5)
+            self.assertEqual(MC.Runner({"amendment": 2}, runs, {}, {}).max_iterations, 10)
+
+    def test_uniform_physics_gives_the_same_durations_with_full_curves_and_records_the_amendment(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {"port/breeder": {"net_mw": 99.0}}, f_values=(1.0,), sweep_labels=("0.30",), amendment=2)
+            code, err = rig.run()
+            self.assertEqual(code, 0, err)
+            res = rig.result()
+            self.assertEqual(res["amendment"], 2)
+            self.assertEqual(res["parameters"]["max_iterations"], 10)
+            self.assertEqual(res["verdict"]["verdict"], "NOT MATERIAL")
+            check = res["equivalence_check"]
+            self.assertTrue(check["passed"])
+            self.assertEqual([row["outage"] for row in check["outages"]], [1, 2, 3])
+            self.assertLess(check["max_relative_difference"], 1e-12)
+            w = res["computed_model"][MC.BARE]["w"]["0.5"]
+            case = w["cases"]["port/reference"]
+            self.assertEqual((case["status"], case["converged_at_iteration"]), ("EVALUATED", 1))
+            first = {}
+            for e in case["iterations"][0]["events"]:
+                first.setdefault(e["class"], e)
+            self.assertAlmostEqual(first["magnet"]["duration_computed_s"], 120 * DAY, delta=1.0)
+            self.assertAlmostEqual(first["blanket"]["duration_computed_s"], 60 * DAY, delta=1.0)
+            self.assertAlmostEqual(w["q_star"]["magnet"]["q_star"], 9e-3 / (60 * DAY / 3600.0), delta=1e-9)
+            # only continuation specs were built, each run through the content cache
+            runs = Path(d) / "runs"
+            self.assertEqual(list(runs.rglob("activation")), [])
+            built = sorted(runs.rglob("decay/*.spec.json"))
+            self.assertTrue(built)
+            self.assertTrue(all("__cont" in p.name for p in built))
+            cache = sorted((runs / "decay-cache").glob("*.points.json"))
+            self.assertEqual([p.name for p in cache], sorted(f"{hashlib.sha256(s.read_bytes()).hexdigest()}.points.json"
+                                                              for s in {s.read_bytes(): s for s in built}.values()))
+            self.assertEqual(res["decay_continuations"]["runs"], len(cache))
+            self.assertEqual(list(runs.rglob("*.result.json")), [])
+            self.assertEqual(self.calls(d), len(cache) + 2)  # plus the two equivalence-check runs
+            self.assertEqual(sorted(case["spectrum_error"]), sorted(Rig.COMPONENTS))
+            self.assertEqual(res["tools"]["activation_library"]["library_sha256"], "ab" * 32)
+
+    def test_cooldowns_beyond_the_outage_length_are_read_so_no_event_is_window_limited(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), self.HOT, w_values=(0.25,), f_values=(1.0,), sweep_labels=("0.30",), amendment=2)
+            code, err = rig.run()
+            self.assertEqual(code, 0, err)
+            hot = rig.result()["computed_model"][MC.BARE]["w"]["0.25"]["cases"]["port/breeder"]
+            self.assertEqual(hot["status"], "EVALUATED")
+            for it in hot["iterations"]:
+                self.assertFalse(it["window_limited"])
+                self.assertFalse(any(e["window_limited"] for e in it["events"]))
+            # the 162 d cooldown outruns the 120 d fixed outage; it is seen at iteration 1 and confirmed at 2
+            self.assertEqual(hot["converged_at_iteration"], 2)
+            magnet = [e for e in hot["iterations"][0]["events"] if e["class"] == "magnet"][0]
+            self.assertAlmostEqual(magnet["cooldown_s"], 1.8 * 90 * DAY, delta=60.0)
+            self.assertAlmostEqual(hot["durations_s"]["magnets"][0], 30 * DAY + 1.8 * 90 * DAY, delta=60.0)
+            # identical prefixes recur between iterations: some runs were served from the cache
+            self.assertGreater(rig.result()["decay_continuations"]["cache_hits"], 0)
+
+    def test_a_second_identical_spec_does_not_rerun_actinv(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",), amendment=2)
+            cfg = MC.resolve_paths(rig.config, Path(d))
+            base = json.loads((Path(d) / "assumptions.json").read_text())
+            out = Path(d) / "runs"
+            out.mkdir()
+            case = cfg["arrangements"]["port/reference"]
+            first = MC.Runner(cfg, out, base, MC.CLASSES)
+            curves = first.decay_curves("port/reference", case, 1.0, {}, MC.BARE)
+            self.assertGreater(first.continuation_runs, 0)
+            self.assertEqual(first.continuation_cache_hits, 0)
+            before = self.calls(d)
+            second = MC.Runner(cfg, out, base, MC.CLASSES)  # nothing in memory: only the folder on disk
+            again = second.decay_curves("port/reference", case, 1.0, {}, MC.BARE)
+            self.assertEqual((second.continuation_runs, second.continuation_cache_hits),
+                             (0, first.continuation_runs))
+            self.assertEqual(self.calls(d), before)
+            self.assertEqual(curves.curves, again.curves)
+            # an interrupted build is rebuilt from the same inputs, gives the same bytes and so the same cache keys
+            (sorted((out / "cases").rglob("decay/manifest.json"))[0]).unlink()
+            third = MC.Runner(cfg, out, base, MC.CLASSES)
+            self.assertEqual(third.decay_curves("port/reference", case, 1.0, {}, MC.BARE).curves, curves.curves)
+            self.assertEqual((third.continuation_runs, third.continuation_cache_hits), (0, first.continuation_runs))
+            self.assertEqual(self.calls(d), before)
+
+    def test_a_curve_above_q_star_at_one_year_is_still_not_evaluated(self):
+        model = {"amp": {c: 1e-9 for c in Rig.COMPONENTS}, "power": 0.05}
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {"port/breeder": {"flux_factor": 3.0}}, f_values=(1.0,), sweep_labels=("0.30",),
+                      model=model, amendment=2)
+            self.assertEqual(rig.run()[0], 0)
+            w = rig.result()["computed_model"][MC.BARE]["w"]["0.5"]
+            self.assertEqual(w["cases"]["port/reference"]["status"], "EVALUATED")
+            hot = w["cases"]["port/breeder"]
+            self.assertEqual(hot["status"], "NOT_EVALUATED")
+            self.assertIn("365 days", hot["reason"])
+
+    def test_the_iteration_limit_is_ten(self):
+        class Ten(StubRunner):
+            max_iterations = 10
+
+        runner = Ten(lambda d: 140 * DAY if d <= 150 * DAY else 40 * DAY)
+        res = MC.coupled_case(runner, "x", {}, 1.0, CouplingLoopTests.TH, 0.5,
+                              {"magnet": 120 * DAY, "blanket": 60 * DAY}, MC.BARE)
+        self.assertEqual(res["status"], "NOT_EVALUATED")
+        self.assertIn("no convergence in 10 iterations", res["reason"])
+        self.assertEqual(len(res["iterations"]), 10)
+        # contraction toward 300 d, halving the step each time: converges at iteration 8, so not within 5
+        slow = lambda d: (90 + 0.5 * d / DAY) * DAY
+        args = ("x", {}, 1.0, CouplingLoopTests.TH, 0.5, {"magnet": 120 * DAY, "blanket": 60 * DAY}, MC.BARE)
+        res = MC.coupled_case(Ten(slow), *args)
+        self.assertEqual((res["status"], res["converged_at_iteration"]), ("EVALUATED", 8))
+        self.assertEqual(MC.coupled_case(StubRunner(slow), *args)["status"], "NOT_EVALUATED")
+
+    def test_the_equivalence_check_fails_closed_and_the_run_does_not_start(self):
+        model = {"amp": {c: 1e-9 for c in Rig.COMPONENTS}, "power": 1.0, "subdivision_bias": 1e-3}
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",), model=model, amendment=2)
+            code, err = rig.run()
+            self.assertEqual(code, 2)
+            self.assertIn("equivalence check failed", err)
+            self.assertIn("relative_difference", err)
+            self.assertFalse((Path(d) / "result.json").exists())
+            self.assertFalse((Path(d) / "runs" / "decay-cache").exists())
+            record = json.loads((Path(d) / "runs" / "equivalence-check" / "result.json").read_text())
+            self.assertFalse(record["passed"])
+            self.assertAlmostEqual(record["max_relative_difference"], 1e-3 / (1 + 1e-3), places=9)
+            self.assertEqual(self.calls(d), 2)  # no case ran
+
+    def test_the_equivalence_check_alone_prints_its_numbers(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, amendment=2)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = MC.main(["--config", str(rig.config_path), "--equivalence-check-only"])
+            self.assertEqual(code, 0)
+            record = json.loads(out.getvalue())
+            self.assertTrue(record["passed"])
+            self.assertEqual(len(record["outages"]), 3)
+            for row in record["outages"]:
+                self.assertGreater(row["heat_W_per_g_single_step"], 0)
+                self.assertLess(row["relative_difference"], 1e-12)
+            self.assertFalse((Path(d) / "result.json").exists())
+            self.assertFalse((Path(d) / "runs" / "decay-cache").exists())
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {})
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(MC.main(["--config", str(rig.config_path), "--equivalence-check-only"]), 2)
+            self.assertIn("needs \"amendment\": 2", err.getvalue())
+
+    def test_the_amendment_needs_a_protocol_that_has_it_and_a_known_number(self):
+        body = MC.DEFAULT_PROTOCOL.read_bytes()
+        body = body[:body.find(b"### Amendment 2")]
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, protocol_text=body, amendment=2)
+            code, err = rig.run()
+            self.assertEqual((code, "has no Amendment 2" in err), (2, True))
+            self.assertFalse((Path(d) / "runs").exists())
+        with tempfile.TemporaryDirectory() as d:
+            code, err = Rig(Path(d), {}, amendment=3).run()
+            self.assertEqual((code, "unknown amendment" in err), (2, True))
 
 
 if __name__ == "__main__":
