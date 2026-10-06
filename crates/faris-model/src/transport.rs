@@ -9,6 +9,9 @@ pub const TRANSPORT_REQUEST_VERSION: &str = "faris-transport-request/v0.2";
 pub const TRANSPORT_REQUEST_LEGACY_VERSION: &str = "faris-transport-request/v0.1";
 pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.2";
 pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.1";
+/// Group structure of the optional per-component activation spectra: the 709-group
+/// `fispact-709` boundaries of the TENDL-2025 activation library.
+pub const ACTIVATION_SPECTRA_FISPACT_709: &str = "fispact-709";
 pub const MAX_TRANSPORT_RESPONSES: usize = 8192;
 pub const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
 /// Lower energy bound of the fast-neutron flux screening responses, in eV.
@@ -30,6 +33,10 @@ pub struct TransportRequest {
     pub fusion_power_mw: f64,
     pub source: DtSource,
     pub responses: Vec<ResponseDefinition>,
+    /// Opt-in extra per-component neutron spectra for activation: the group structure name
+    /// (`fispact-709`). Absent by default, and then absent from the serialized request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activation_spectra: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -214,6 +221,16 @@ impl TransportRequest {
             return Err("source neutron energy cannot exceed total D-T reaction energy".into());
         }
         nonempty(&self.source.distribution_id, "source distribution_id")?;
+        if let Some(structure) = &self.activation_spectra {
+            if structure != ACTIVATION_SPECTRA_FISPACT_709 {
+                return Err(format!(
+                    "activation_spectra must be {ACTIVATION_SPECTRA_FISPACT_709}"
+                ));
+            }
+            if self.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION {
+                return Err("legacy v0.1 requests cannot declare activation spectra".into());
+            }
+        }
         if self.responses.is_empty() || self.responses.len() > MAX_TRANSPORT_RESPONSES {
             return Err("responses must contain 1 to 8192 definitions".into());
         }
@@ -425,6 +442,7 @@ mod tests {
             scenario_sha256: scenario.source_sha256.clone(),
             variant_id: scenario.scenario.variants[0].id.clone(),
             fusion_power_mw: scenario.scenario.operating_plan.fusion_power_mw,
+            activation_spectra: None,
             source: DtSource {
                 energy_per_reaction_ev: 17.6e6,
                 neutron_energy_ev: 14.1e6,
@@ -444,6 +462,24 @@ mod tests {
         };
         (request, scenario)
     }
+    #[test]
+    fn activation_spectra_are_opt_in_and_validated() {
+        let (mut r, s) = request();
+        assert!(r.activation_spectra.is_none());
+        assert!(
+            !serde_json::to_string(&r)
+                .unwrap()
+                .contains("activation_spectra")
+        );
+        r.activation_spectra = Some(ACTIVATION_SPECTRA_FISPACT_709.into());
+        // The shared fixture fails later for an unrelated reason; only the new field matters here.
+        let unrelated = r.validate_against(&s).err().unwrap_or_default();
+        assert!(!unrelated.contains("activation_spectra"), "{unrelated}");
+        r.activation_spectra = Some("other".into());
+        let error = r.validate_against(&s).unwrap_err();
+        assert!(error.contains("activation_spectra must be"), "{error}");
+    }
+
     #[test]
     fn exact_scenario_binding_and_domains_are_enforced() {
         let (mut r, s) = request();

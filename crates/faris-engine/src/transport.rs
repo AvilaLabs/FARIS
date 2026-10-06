@@ -1,7 +1,8 @@
 //! Checked normalization for fixed-source transport artifacts.
 
 use faris_model::transport::{
-    ResponseDomain, ScoreDefinition, TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
+    ACTIVATION_SPECTRA_FISPACT_709, ResponseDomain, ScoreDefinition,
+    TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
     TRANSPORT_REQUEST_LEGACY_VERSION, TransportRequest,
 };
 use serde::{Deserialize, Serialize};
@@ -183,6 +184,10 @@ pub struct RawTransportSpectra {
 pub struct RawEnergySpectrum {
     pub component_id: String,
     pub particle: String,
+    /// Set only on the opt-in activation spectra (`fispact-709`); the full-energy
+    /// spectra of every request leave it out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_structure: Option<String>,
     pub estimator: TallyEstimator,
     pub unit: String,
     pub energy_edges_ev: Vec<f64>,
@@ -205,6 +210,9 @@ pub struct NormalizedEnergySpectrum {
     pub normalization_volume_m3: f64,
     pub volume_standard_error_m3: f64,
 }
+
+/// Number of boundaries of the `fispact-709` group structure.
+const ACTIVATION_709_EDGES: usize = 710;
 
 pub fn normalize_spectra(
     raw: &RawTransportSpectra,
@@ -229,14 +237,39 @@ pub fn normalize_spectra(
     }
     let mut output = Vec::new();
     let mut seen = BTreeSet::new();
+    let mut seen_activation = BTreeSet::new();
     for s in &raw.spectra {
-        if !seen.insert((s.component_id.as_str(), s.particle.as_str()))
+        let activation = match s.group_structure.as_deref() {
+            None => false,
+            Some(ACTIVATION_SPECTRA_FISPACT_709)
+                if expected_request.activation_spectra.as_deref()
+                    == Some(ACTIVATION_SPECTRA_FISPACT_709)
+                    && s.particle == "neutron" =>
+            {
+                true
+            }
+            Some(_) => return Err(fail("unrequested or unknown spectrum group structure")),
+        };
+        // Activation spectra start at the library's lowest boundary, not at zero; the
+        // adapter checks the exact boundary values against its embedded constant.
+        let edges_ok = if activation {
+            s.energy_edges_ev.len() == ACTIVATION_709_EDGES
+                && s.energy_edges_ev.first().is_some_and(|e| *e > 0.0)
+        } else {
+            s.energy_edges_ev.first() == Some(&0.0)
+                && s.energy_edges_ev.last().is_some_and(|e| *e >= 1.0e9)
+        };
+        let fresh = if activation {
+            seen_activation.insert(s.component_id.as_str())
+        } else {
+            seen.insert((s.component_id.as_str(), s.particle.as_str()))
+        };
+        if !fresh
             || !matches!(s.particle.as_str(), "neutron" | "photon")
             || s.unit != "cm_per_source_per_energy_bin"
             || s.estimator != TallyEstimator::Tracklength
             || s.energy_edges_ev.len() < 2
-            || s.energy_edges_ev.first() != Some(&0.0)
-            || s.energy_edges_ev.last().is_none_or(|e| *e < 1.0e9)
+            || !edges_ok
             || s.energy_edges_ev.windows(2).any(|w| w[0] >= w[1])
             || s.mean_cm_per_source_per_bin.len() + 1 != s.energy_edges_ev.len()
             || s.standard_error_cm_per_source_per_bin.len() != s.mean_cm_per_source_per_bin.len()
@@ -291,7 +324,15 @@ pub fn normalize_spectra(
                 .ok_or_else(|| fail("spectrum lacks raw component flux tally"))?;
             let bin_sum: f64 = s.mean_cm_per_source_per_bin.iter().sum();
             let scale = flux_tally.mean.abs().max(1.0e-30);
-            if (bin_sum - flux_tally.mean).abs() > 1.0e-8 * scale {
+            if activation {
+                // The 709 groups cover only the library's energy range, so the sum may fall
+                // short of the full-range flux but never exceed it.
+                if bin_sum > flux_tally.mean + 1.0e-8 * scale {
+                    return Err(fail(
+                        "activation neutron spectrum exceeds integrated component flux",
+                    ));
+                }
+            } else if (bin_sum - flux_tally.mean).abs() > 1.0e-8 * scale {
                 return Err(fail(
                     "full-range neutron spectrum does not sum to integrated component flux",
                 ));
@@ -344,6 +385,16 @@ pub fn normalize_spectra(
             v
         })
         .collect();
+    let activation_components: BTreeSet<_> = if expected_request.activation_spectra.is_some() {
+        components.clone()
+    } else {
+        BTreeSet::new()
+    };
+    if seen_activation != activation_components {
+        return Err(fail(
+            "spectra sidecar does not contain exactly the requested activation spectra",
+        ));
+    }
     if seen != expected_pairs {
         return Err(fail(
             "spectra sidecar does not contain exactly the requested component/particle families",
@@ -777,6 +828,7 @@ mod tests {
             scenario_sha256: scenario.source_sha256.clone(),
             variant_id: scenario.scenario.variants[0].id.clone(),
             fusion_power_mw: scenario.scenario.operating_plan.fusion_power_mw,
+            activation_spectra: None,
             source: DtSource {
                 energy_per_reaction_ev: 17.6e6,
                 neutron_energy_ev: 14.1e6,
@@ -828,6 +880,143 @@ mod tests {
             }],
         };
         (req, art, scenario)
+    }
+
+    /// A flux-only request and artifact, with one full-energy neutron spectrum and
+    /// optionally one 709-group activation spectrum that sums to `activation_sum`.
+    fn spectra_fixture(
+        activation: bool,
+        activation_sum: f64,
+    ) -> (
+        TransportRequest,
+        TransportArtifact,
+        NormalizedTransportResult,
+        RawTransportSpectra,
+    ) {
+        let (mut req, mut art, scenario) = fixture(VolumeUnit::CubicMetre);
+        let component = scenario.scenario.variants[0].layers[1].id.clone();
+        let domain = ResponseDomain::Component {
+            component_id: component.clone(),
+        };
+        req.responses = vec![ResponseDefinition {
+            id: format!("{component}-flux"),
+            domain,
+            score: ScoreDefinition::Flux,
+        }];
+        if activation {
+            req.activation_spectra = Some("fispact-709".into());
+        }
+        art.request = req.clone();
+        art.volumes[0].domain = req.responses[0].domain.clone();
+        art.tallies = vec![RawTally {
+            response_id: format!("{component}-flux"),
+            estimator: TallyEstimator::Tracklength,
+            unit: RawTallyUnit::CmPerSource,
+            mean: 4.0,
+            standard_error: 0.1,
+        }];
+        let normalized = normalize_transport_artifact(&req, &art, &scenario).unwrap();
+        let raw = |structure: Option<&str>, edges: Vec<f64>, total: f64| {
+            let bins = edges.len() - 1;
+            RawEnergySpectrum {
+                component_id: component.clone(),
+                particle: "neutron".into(),
+                group_structure: structure.map(str::to_string),
+                estimator: TallyEstimator::Tracklength,
+                unit: "cm_per_source_per_energy_bin".into(),
+                energy_edges_ev: edges,
+                mean_cm_per_source_per_bin: vec![total / bins as f64; bins],
+                standard_error_cm_per_source_per_bin: vec![0.01; bins],
+                volume_cm3: 2.0e6,
+                volume_standard_error_cm3: 0.0,
+            }
+        };
+        let mut spectra = vec![raw(None, vec![0.0, 1.0e3, 1.0e9], 4.0)];
+        if activation {
+            let edges: Vec<f64> = (0..=709)
+                .map(|i| 1.0e-5 * 1.0e14_f64.powf(i as f64 / 709.0))
+                .collect();
+            spectra.push(raw(Some("fispact-709"), edges, activation_sum));
+        }
+        let sidecar = RawTransportSpectra {
+            schema_version: "faris-transport-spectra/v0.1".into(),
+            request: req.clone(),
+            scenario_sha256: req.scenario_sha256.clone(),
+            variant_id: req.variant_id.clone(),
+            input_sha256: "e".repeat(64),
+            solver: normalized.solver.clone(),
+            nuclear_data: normalized.nuclear_data.clone(),
+            histories: normalized.histories,
+            spectra,
+        };
+        (req, art, normalized, sidecar)
+    }
+
+    #[test]
+    fn a_default_request_serializes_without_the_activation_field() {
+        let (req, _, _, _) = spectra_fixture(false, 0.0);
+        assert!(req.activation_spectra.is_none());
+        assert!(
+            !serde_json::to_string(&req)
+                .unwrap()
+                .contains("activation_spectra")
+        );
+        let opted_in = spectra_fixture(true, 3.0).0;
+        assert!(
+            serde_json::to_string(&opted_in)
+                .unwrap()
+                .contains("\"activation_spectra\":\"fispact-709\"")
+        );
+    }
+
+    #[test]
+    fn activation_spectra_are_carried_with_relative_errors_when_requested() {
+        let (req, _, normalized, sidecar) = spectra_fixture(true, 3.0);
+        let artifact = spectra_fixture(true, 3.0).1;
+        let out =
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).unwrap();
+        assert_eq!(out.len(), 2);
+        let groups = out.iter().find(|s| s.energy_edges_ev.len() == 710).unwrap();
+        assert_eq!(groups.mean_per_square_metre_second.len(), 709);
+        assert_eq!(groups.standard_error_per_square_metre_second.len(), 709);
+        assert!(groups.mean_per_square_metre_second.iter().all(|v| *v > 0.0));
+        assert_eq!(
+            out.iter()
+                .filter(|s| s.energy_edges_ev.first() == Some(&0.0))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn activation_spectra_are_refused_unrequested_missing_or_above_the_total() {
+        // Present in the sidecar but not requested.
+        let (_, artifact, normalized, mut sidecar) = spectra_fixture(true, 3.0);
+        let plain_request = spectra_fixture(false, 0.0).0;
+        sidecar.request = plain_request.clone();
+        let mut plain_normalized = normalized.clone();
+        plain_normalized.solver = sidecar.solver.clone();
+        assert!(
+            normalize_spectra(
+                &sidecar,
+                &artifact,
+                &plain_normalized,
+                &plain_request,
+                &"e".repeat(64)
+            )
+            .is_err()
+        );
+        // Requested but missing.
+        let (req, artifact, normalized, mut sidecar) = spectra_fixture(true, 3.0);
+        sidecar.spectra.truncate(1);
+        assert!(
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).is_err()
+        );
+        // Sum above the integrated flux.
+        let (req, artifact, normalized, sidecar) = spectra_fixture(true, 4.5);
+        assert!(
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).is_err()
+        );
     }
 
     // Verifies: NUC-003, SRC-001, PWR-012

@@ -326,6 +326,7 @@ impl TransportPanel {
                     output: &worker_output,
                     sampling,
                     timeout: Duration::from_secs(faris_engine::reactor::MAX_RUN_TIMEOUT_SECONDS),
+                    activation_spectra: None,
                     adapter: include_bytes!("../../../integrations/openmc/reactor_transport.py"),
                 };
                 let result =

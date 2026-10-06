@@ -60,7 +60,7 @@ Traced: 95 of 1408 requirements.
 | FUEL-003 | F4 | `crates/faris-engine/src/history.rs::decay_only_history_matches_half_life_and_is_daily_decimated` |
 | FUEL-004 | F4 | `crates/faris-engine/src/history.rs::rejects_invalid_transport_bindings_before_history_execution`<br>`crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units`<br>`crates/faris-engine/src/transport.rs::validates_volume_domains_units_and_exact_echo` |
 | MAG-020 | F3 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
-| MAG-025 | F3 | `crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
+| MAG-025 | F3 | `crates/faris-engine/src/history.rs::kth_replacement_uses_kth_duration_then_falls_back`<br>`crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
 | PWR-012 | F5 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
 | OPS-002 | F1 | `crates/faris-engine/src/history.rs::daily_snapshot_outputs_converge_under_step_refinement` |
 | VAL-014 | F1 | `crates/faris-engine/src/history.rs::delayed_recovery_restarts_only_after_release_threshold_is_reached`<br>`crates/faris-engine/src/history.rs::demountable_history_with_perturbed_rates_conserves_tritium`<br>`crates/faris-engine/src/history.rs::release_window_closes_at_the_step_bound_despite_rounding` |

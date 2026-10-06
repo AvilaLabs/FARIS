@@ -562,6 +562,9 @@ pub struct ReactorJob<'a> {
     pub sampling: SamplingPlan,
     pub mesh: Option<FieldMesh>,
     pub timeout: Duration,
+    /// Opt-in extra per-component neutron spectra on a named group structure
+    /// (`fispact-709`); `None` keeps the request exactly as before.
+    pub activation_spectra: Option<String>,
     /// Embedded worker supplied by the client. Its exact bytes are preserved.
     pub adapter: &'a [u8],
 }
@@ -949,6 +952,7 @@ pub fn request_for_case_with_regions(
         fusion_power_mw: scenario.scenario.operating_plan.fusion_power_mw,
         source: physics.source.to_transport_source(),
         responses,
+        activation_spectra: None,
     };
     request.validate_against(scenario)?;
     Ok((request, mesh))
@@ -1413,7 +1417,11 @@ pub fn run_reactor(
     )?;
     let default_mesh = FieldMesh::for_preset(&build_manifest(job.scenario)?, MeshPreset::Coarse)?;
     let requested_mesh = job.mesh.clone().unwrap_or(default_mesh);
-    let (request, mesh) = request_for_case_with_mesh(job.scenario, &physics, requested_mesh)?;
+    let (mut request, mesh) = request_for_case_with_mesh(job.scenario, &physics, requested_mesh)?;
+    if job.activation_spectra.is_some() {
+        request.activation_spectra = job.activation_spectra.clone();
+        request.validate_against(job.scenario)?;
+    }
     let nuclear_data_digest = format!(
         "sha256:{}",
         digest(&serde_json::to_vec(&physics.nuclear_data)?)
@@ -1587,7 +1595,14 @@ pub fn load_reactor_run(
         legacy_request_for_case(scenario, &physics)?
     } else {
         let mesh: FieldMesh = serde_json::from_value(input["mesh"].clone())?;
-        request_for_case_with_mesh(scenario, &physics, mesh)?
+        let (mut request, mesh) = request_for_case_with_mesh(scenario, &physics, mesh)?;
+        // The opt-in is recorded data, not derived from the scenario: carry it over and
+        // let the request comparison below check everything else.
+        if input_request.activation_spectra.is_some() {
+            request.activation_spectra = input_request.activation_spectra.clone();
+            request.validate_against(scenario)?;
+        }
+        (request, mesh)
     };
     let manifest = build_manifest(scenario)?;
     // Enforce current pretty-JSON budgets even when replaying a receipt created
@@ -1778,6 +1793,7 @@ mod tests {
             sampling: SamplingPlan::default(),
             mesh: None,
             timeout: Duration::from_secs(10),
+            activation_spectra: None,
             adapter: no_adapter,
         };
         let error = run_reactor(&python_job, &Cancellation::default())
