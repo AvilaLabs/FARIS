@@ -186,3 +186,27 @@ Co / Nb / Ag / U coverage summary (the activation-critical ones)
 2. Unverified: Plansee Ag/Co/Nb/K/Cu 10 ug/g guarantees; B170 Grade 1 element table (consistent across two search summaries, 403 on the direct sources); every other-vendor TiH2 number.
 3. Not found: A848 numeric table; any public commercial FLiBe grade spec (MSRE Table 4 is the only stated-limit document found; ARC/other FLiBe purity targets were not located as limits); any spec that limits U in any of the five materials.
 4. The ITER controlled specification document itself (ITER IDM) was not found public.
+
+---
+
+## Verification pass (2026-10-05)
+
+- **ASTM B170 Grade 1 / UNS C10100 copper: confirmed.** ASTM B111, Table 1,
+  footnote C, gives the C10100 impurity maxima in ppm: Sb 4, As 5, Bi 1, Cd 1,
+  Fe 10, Pb 5, Mn 0.5, Hg 1, Ni 10, O 5, P 3, Se 3, Ag 25, S 15, Te 2, Sn 2,
+  Zn 1; Cu 99.99 min. This adds **Hg 1 ppm**, missing from section 5. Read
+  from a publicly hosted copy of the ASME SB-111 edition; the B170 text itself
+  was not read, and C10100 chemistry is the same designation. The
+  "Sb+Se+As+Te+Bi+Sn+Mn ≤ 40 ppm" total remains unverified.
+- **Plansee pure tungsten: partly confirmed.** Plansee, "TUNGSTEN material
+  properties and alloys" (document HPM-070-TD-025), p. 6, guaranteed maxima in
+  µg/g (typical in brackets): Cu 10 (1), Fe 30 (8), K 10 (1), Mo 100 (12),
+  Al 15, Cr 20, Ni 20, Si 20, C 30, H 5, N 5, O 20, Cd 5, Hg 1, Pb 5; purity
+  stated without Mo; "more elements on request".
+  **Ag, Co, Nb (and Ta, P, S) remain unverified**: they are not in the
+  brochure, and the paper quoting them (doi:10.3390/met15020172) could not be
+  read. Under the 0.2 decision they are treated per ppm, not at an assumed
+  level, until a readable specification gives them.
+- **ASTM A848 Type 1: still unverified.** No readable Table 1. A producer
+  analysis sold as "A848 Type 1" is an analysis, not the standard's maxima,
+  and is not cited. The vessel uses the ARMCO Grade 2/4 limits (section 4a).
