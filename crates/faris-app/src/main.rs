@@ -29,7 +29,7 @@ use faris_model::LoadedScenario;
 use std::{
     collections::{BTreeMap, BTreeSet},
     f32::consts::TAU,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
 };
@@ -112,6 +112,11 @@ struct Arguments {
     /// External Avila Core executable used by Compile study.
     #[arg(long)]
     core: Option<PathBuf>,
+    /// Development check: open the package without a window, wait for its Core
+    /// evidence, reopen the saved studies, load the study inputs, write a JSON
+    /// report to this new file and exit (non-zero if anything failed).
+    #[arg(long, hide = true)]
+    check_package: Option<PathBuf>,
     /// Directory for generated study records [default: runs; a package's own
     /// per-user folder in package mode].
     #[arg(long)]
@@ -247,6 +252,100 @@ struct PackageSession {
     _materializer: Option<package::Materializer>,
 }
 
+/// The study inputs that the command-line flags (or package mode) supply.
+fn session_inputs_from(args: &Arguments, runs_directory: &Path) -> SessionInputs {
+    SessionInputs {
+        scenario: args.scenario.clone(),
+        physics: args.physics.clone(),
+        run: args.run.clone(),
+        bundle: args.bundle.clone(),
+        control_scenario: args.control_scenario.clone(),
+        control_physics: args.control_physics.clone(),
+        control_run: args.control_run.clone(),
+        control_bundle: args.control_bundle.clone(),
+        assumptions: args.assumptions.clone(),
+        python: args.python.clone(),
+        openmc: args.openmc.clone(),
+        audit: args.audit.clone(),
+        cross_sections: args.cross_sections.clone(),
+        runs_directory: runs_directory.to_path_buf(),
+        field_view: args.field_view,
+    }
+}
+
+/// `--check-package`: everything package mode does before the window opens,
+/// then the saved-study reopening and input loading the window would start,
+/// reported as JSON. Used by CI on platforms where nobody watches the window.
+fn check_package(
+    args: &Arguments,
+    session: Option<PackageSession>,
+    runs_directory: &Path,
+    report: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let started = Instant::now();
+    let mut problems = Vec::new();
+    let mut saved = Vec::new();
+    let mut loaded = serde_json::Value::Null;
+    let badge = |b: &Option<study_file::EvidenceBadge>| {
+        b.as_ref()
+            .map_or(serde_json::Value::Null, |b| b.text.clone().into())
+    };
+    let Some(session) = session else {
+        return Err(
+            "no package found: pass --package DIR or run from a package's bin folder".into(),
+        );
+    };
+    if let Some(failure) = &session.failure {
+        problems.push(failure.text.clone());
+    } else {
+        if let Some(materializer) = &session._materializer {
+            saved =
+                archive_panel::check_saved_studies(&materializer.descriptors, &materializer.marker);
+            problems.extend(saved.iter().filter_map(|r| r.as_ref().err().cloned()));
+        }
+        match build_session(session_inputs_from(args, runs_directory)) {
+            Ok(session) => {
+                loaded = serde_json::json!({
+                    "arrangements": session.manifest.variants.len(),
+                    "control": session.control.is_some(),
+                });
+            }
+            Err(error) => problems.push(error),
+        }
+    }
+    let value = serde_json::json!({
+        "schema_version": "faris-package-check/v0.1",
+        "faris_version": env!("CARGO_PKG_VERSION"),
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "status": if problems.is_empty() { "PASS" } else { "FAIL" },
+        "failure": badge(&session.failure),
+        "evidence": badge(&session.evidence),
+        "development_binary": session.development_binary.is_some(),
+        "saved_studies": saved.iter().map(|r| match r {
+            Ok(case) => serde_json::json!({"case_id": case, "reopened": true}),
+            Err(error) => serde_json::json!({"reopened": false, "error": error}),
+        }).collect::<Vec<_>>(),
+        "loaded": loaded,
+        "problems": problems,
+        "elapsed_s": started.elapsed().as_secs_f64(),
+    });
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(report)?;
+    std::io::Write::write_all(
+        &mut file,
+        (serde_json::to_string_pretty(&value)? + "\n").as_bytes(),
+    )?;
+    drop(session);
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("package check failed; see {}", report.display()).into())
+    }
+}
+
 /// Find and open the package this run is for, if any, and put its inputs into
 /// `args` as the flags that would have supplied them.
 fn open_package(args: &mut Arguments) -> Option<PackageSession> {
@@ -307,6 +406,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .runs_directory
         .clone()
         .unwrap_or_else(|| PathBuf::from("runs"));
+    if let Some(report) = args.check_package.clone() {
+        return check_package(&args, package_session, &runs_directory, &report);
+    }
     if args
         .benchmark_seconds
         .is_some_and(|s| !s.is_finite() || !(2.0..=120.0).contains(&s))
@@ -362,23 +464,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session_inputs = if args.study.is_some() {
         SessionInputs::empty(runs_directory.clone())
     } else {
-        SessionInputs {
-            scenario: args.scenario.clone(),
-            physics: args.physics.clone(),
-            run: args.run.clone(),
-            bundle: args.bundle.clone(),
-            control_scenario: args.control_scenario.clone(),
-            control_physics: args.control_physics.clone(),
-            control_run: args.control_run.clone(),
-            control_bundle: args.control_bundle.clone(),
-            assumptions: args.assumptions.clone(),
-            python: args.python.clone(),
-            openmc: args.openmc.clone(),
-            audit: args.audit.clone(),
-            cross_sections: args.cross_sections.clone(),
-            runs_directory: runs_directory.clone(),
-            field_view: args.field_view,
-        }
+        session_inputs_from(&args, &runs_directory)
     };
     let Session {
         manifest,

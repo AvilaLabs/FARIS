@@ -304,6 +304,25 @@ fn scenario_digest(saved: &SavedCaseInspection) -> &str {
         .unwrap_or(&saved.scenario_sha256)
 }
 
+/// Headless form of the reopening `poll` starts: wait for the package's
+/// evidence, then reopen each saved study. Each entry is the case ID or why it
+/// failed.
+pub fn check_saved_studies(descriptors: &[PathBuf], marker: &Path) -> Vec<Result<String, String>> {
+    if let Err(error) =
+        wait_for_materialization(marker, &Cancellation::default(), MATERIALIZATION_LIMIT)
+    {
+        return vec![Err(error)];
+    }
+    descriptors
+        .iter()
+        .map(|path| {
+            load_descriptor(path)
+                .and_then(inspect)
+                .map(|case| case.case_id)
+        })
+        .collect()
+}
+
 fn inspect(locations: Locations) -> Result<SavedCaseInspection, String> {
     inspect_saved_case(
         &locations.case_directory,
