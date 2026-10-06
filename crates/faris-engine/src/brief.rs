@@ -335,7 +335,7 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
     Some(sentence)
 }
 
-/// One sentence for the finite outboard port in the reference allocation
+/// One sentence for the open outboard port in the reference allocation
 /// (`c` is port minus no-port).
 pub fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
     let swaps = c.swaps?;
@@ -352,7 +352,7 @@ pub fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
         ),
     };
     Some(format!(
-        "Adding the finite outboard port {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
+        "Adding the outboard port, an open duct with no shield plug, {swap_clause} and {} {:.2} TWh of lifetime net electricity (reference allocation).",
         if net < 0.0 { "costs" } else { "adds" },
         net.abs()
     ))
@@ -949,7 +949,7 @@ mod tests {
         };
         assert_eq!(
             port_takeaway(&port, 30.0).unwrap(),
-            "Adding the finite outboard port adds four magnet swaps over 30 years and costs 1.31 TWh of lifetime net electricity (reference allocation)."
+            "Adding the outboard port, an open duct with no shield plug, adds four magnet swaps over 30 years and costs 1.31 TWh of lifetime net electricity (reference allocation)."
         );
     }
 

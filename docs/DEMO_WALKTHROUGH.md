@@ -322,7 +322,7 @@ the run record. It also produces two paired history comparisons, four event-
 control histories, and four 27-point sensitivity records from the selected
 release CLI and exact fresh run records. Their provenance binds the scenario,
 run record, raw tally artifact, assumptions, and grid. The index reports total
-file count and bytes and the verifier enforces the 512 MiB / 2,048-file delivered
+file count and bytes and the verifier enforces the 1 GiB / 2,048-file delivered
 package caps. Case/workspace trees are gzip archives with exact per-file hashes
 and a separate 1.5 GiB / 8,192-file aggregate expanded budget, plus a 64 MiB
 per-file ceiling. These are delivery disk budgets, separate from each native

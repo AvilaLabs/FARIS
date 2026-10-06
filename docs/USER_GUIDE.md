@@ -4,7 +4,7 @@ This guide is for release 0.1.0 of the FARIS desktop app and command line. It as
 
 ## 1. What FARIS answers
 
-FARIS asks one design question of an ARC-inspired compact D-T tokamak: inside a fixed radial build, what changes when you move thickness from the neutron shield to the breeding blanket? It answers with recorded OpenMC transport results and a calculated 30-year operating history. The history follows magnet and blanket exposure, replacement outages, tritium inventory and net electricity. It compares four arrangements: two blanket/shield splits, each with and without an outboard service port.
+FARIS asks one design question of an ARC-inspired compact D-T tokamak: inside a fixed radial build, what changes when you move thickness from the neutron shield to the breeding blanket? It answers with recorded OpenMC transport results and a calculated 30-year operating history. The history follows magnet and blanket exposure, replacement outages, tritium inventory and net electricity. It compares four arrangements: two blanket/shield splits, each with and without an outboard service port. The port is an open 0.30 m × 0.30 m duct through the whole radial build with no shield plug, a bounding streaming case. In the port arrangements it is what drives the magnet replacements; a shield plug would reduce the streaming, and FARIS has not modelled one.
 
 FARIS is a design model. It is not a digital twin.
 

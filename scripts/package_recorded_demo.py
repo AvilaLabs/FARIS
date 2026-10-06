@@ -38,6 +38,8 @@ SWEEP_SCENARIO_RELATIVE = "scenarios/arc-inspired/allocation-sweep/scenario.json
 ANALYSES = "breeding,shielding,fuel-history,electricity"
 MAX_PACKAGE_FILE_BYTES = 64 * 1024 * 1024
 MAX_TREE_BYTES = 512 * 1024 * 1024
+# Delivered package total; each expanded case/workspace tree keeps MAX_TREE_BYTES.
+MAX_PACKAGE_BYTES = 1024 * 1024 * 1024
 MAX_TREE_FILES = 2048
 MAX_TREE_MEMBERS = 4096
 MAX_EXPANDED_PACKAGE_BYTES = 1536 * 1024 * 1024
@@ -610,8 +612,8 @@ def scan_package(root: Path) -> list[dict]:
         records.append({"path": path.relative_to(root).as_posix(),
                         "bytes": path.stat().st_size, "sha256": sha256(path)})
         total_bytes += path.stat().st_size
-        if len(records) > 2048 or total_bytes > 512 * 1024 * 1024:
-            raise RuntimeError("recorded demo package exceeds 512 MiB or 2,048 files")
+        if len(records) > MAX_TREE_FILES or total_bytes > MAX_PACKAGE_BYTES:
+            raise RuntimeError("recorded demo package exceeds 1 GiB or 2,048 files")
     return records
 
 
@@ -963,7 +965,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "The bundled Linux executables are read-only and hash-pinned, not signed. Their hashes establish byte identity, not authenticity.",
         "",
         "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
-        f"The eight Core case/workspace archives occupy {compressed_archive_bytes} compressed bytes and expand to {expanded_bytes} bytes across {expanded_files} files. Expansion reproduces the original files byte-for-byte. The full package's indexed compressed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 512 MiB total. Each expanded case or workspace is capped at 512 MiB, 2,048 files, 4,096 archive members, and 1,024 implicit directories; aggregate expansion is capped at 1.5 GiB, 8,192 files, 8,192 archive members, and 8,192 implicit directories. Paths are limited to 64 components. Each expanded file remains capped at 64 MiB.",
+        f"The eight Core case/workspace archives occupy {compressed_archive_bytes} compressed bytes and expand to {expanded_bytes} bytes across {expanded_files} files. Expansion reproduces the original files byte-for-byte. The full package's indexed compressed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 1 GiB total. Each expanded case or workspace is capped at 512 MiB, 2,048 files, 4,096 archive members, and 1,024 implicit directories; aggregate expansion is capped at 1.5 GiB, 8,192 files, 8,192 archive members, and 8,192 implicit directories. Paths are limited to 64 components. Each expanded file remains capped at 64 MiB.",
         "",
     ])
     destination = staging / "README.md"

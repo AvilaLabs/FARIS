@@ -167,8 +167,8 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
                 or not isinstance(commit, str) or len(commit) != 40
                 or any(character not in "0123456789abcdef" for character in commit.lower())):
             raise ValueError(f"package source provenance is malformed for {role}")
-    if total_bytes > 512 * 1024 * 1024:
-        raise ValueError("package exceeds the declared 512 MiB bound")
+    if total_bytes > 1024 * 1024 * 1024:
+        raise ValueError("package exceeds the declared 1 GiB bound")
     if (index.get("package_file_count") != len(files)
             or index.get("package_bytes") != total_bytes):
         raise ValueError("package index total file count/byte measurement is incorrect")
