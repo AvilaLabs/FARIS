@@ -826,6 +826,30 @@ class AmendmentTwoTests(unittest.TestCase):
             self.assertEqual((third.continuation_runs, third.continuation_cache_hits), (0, first.continuation_runs))
             self.assertEqual(self.calls(d), before)
 
+    def test_parallel_continuations_and_central_w_first_give_the_same_result(self):
+        results = []
+        for workers in ("1", "4"):
+            with tempfile.TemporaryDirectory() as d:
+                rig = Rig(Path(d), self.HOT, w_values=(0.25, 0.5), f_values=(1.0,), sweep_labels=("0.30",),
+                          amendment=2)
+                code, err = rig.run("--actinv-workers", workers)
+                self.assertEqual(code, 0, err)
+                res = rig.result()
+                runs = Path(d) / "runs"
+                self.assertEqual(self.calls(d), res["decay_continuations"]["runs"] + 2)
+                self.assertEqual(len(list((runs / "decay-cache").glob("*.points.json"))),
+                                 res["decay_continuations"]["runs"])
+                self.assertEqual(list((runs / "decay-cache").glob("*.tmp")), [])
+                interim = sorted(runs.glob(f"interim-{MC.BARE}-w*.json"), key=lambda p: p.stat().st_mtime_ns)
+                self.assertEqual([json.loads(p.read_text())["w"] for p in interim], [0.5, 0.25])
+                for p in interim:
+                    w = json.loads(p.read_text())
+                    self.assertEqual(w["decisions"], res["computed_model"][MC.BARE]["w"][str(w["w"])]["decisions"])
+                self.assertEqual(list(res["computed_model"][MC.BARE]["w"]), ["0.25", "0.5"])
+                results.append(json.dumps({k: v for k, v in res.items() if k not in ("config", "output_dir")},
+                                          sort_keys=True).replace(d, "<d>"))
+        self.assertEqual(results[0], results[1])
+
     def test_a_curve_above_q_star_at_one_year_is_still_not_evaluated(self):
         model = {"amp": {c: 1e-9 for c in Rig.COMPONENTS}, "power": 0.05}
         with tempfile.TemporaryDirectory() as d:

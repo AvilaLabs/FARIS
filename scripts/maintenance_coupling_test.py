@@ -47,6 +47,7 @@ import shutil
 import subprocess
 import sys
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 SCRIPT_VERSION = "1"
@@ -461,6 +462,7 @@ class Runner:
         self.max_iterations = MAX_ITERATIONS_A2 if self.amend2 else MAX_ITERATIONS
         self._cases: dict = {}
         self.continuation_runs = 0
+        self.actinv_workers = 1  # concurrent ACTINV runs for decay continuations; set by --actinv-workers
         self.continuation_cache_hits = 0
 
     def _dir(self, case_name: str, f: float, used: dict) -> Path:
@@ -597,16 +599,29 @@ class Runner:
                 self._build_specs(case_name, case, hist, spec_dir,
                                   ["--decay-continuations", times_path, "--continuations-only"],
                                   "build_activation_inputs", sorted({c for _, c, _ in needs}))
-            for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
-                prov = json.loads(prov_path.read_text(encoding="utf-8"))
+            provs = [json.loads(p.read_text(encoding="utf-8"))
+                     for p in sorted(spec_dir.glob(f"*__{variant}.provenance.json"))]
+            # Run the continuations not yet in the cache, several at once; each writes only its own files.
+            missing: dict = {}
+            for prov in provs:
+                spec = spec_dir / prov["spec_file"]
+                sha = hashlib.sha256(spec.read_bytes()).hexdigest()
+                if (self.out / "decay-cache" / f"{sha}.points.json").exists():
+                    self.continuation_cache_hits += 1
+                elif sha in missing:
+                    self.continuation_cache_hits += 1
+                else:
+                    missing[sha] = spec
+            with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
+                jobs = [pool.submit(self._actinv_points, spec, self.out / "decay-cache" / f"{sha}.points.json")
+                        for sha, spec in sorted(missing.items())]
+                for job in jobs:
+                    job.result()
+            self.continuation_runs += len(missing)
+            for prov in provs:
                 spec = spec_dir / prov["spec_file"]
                 sha = hashlib.sha256(spec.read_bytes()).hexdigest()
                 points = self.out / "decay-cache" / f"{sha}.points.json"
-                if points.exists():
-                    self.continuation_cache_hits += 1
-                else:
-                    self._actinv_points(spec, points)
-                    self.continuation_runs += 1
                 stored = json.loads(points.read_text(encoding="utf-8"))
                 tail = stored["steps"][-len(grid):]
                 span = tail[-1][0] - tail[0][0]
@@ -968,7 +983,9 @@ def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: s
     out = {"variant": variant, "w": {}}
     port_ref = cases[CALIBRATION_CASE]
     decisions_by_w = {}
-    for w in ws:
+    # The central w alone can settle MATERIAL, so it runs first; each w's decisions are also written as soon as
+    # they exist. The order does not change any value, and the result lists w in protocol order.
+    for w in sorted(ws, key=lambda value: value != CENTRAL_W):
         thresholds = calibrate_class_thresholds(runner, cases, w, fixed_s, variant)
         computed = {}
         for name, case in {**cases, **{f"sweep/{k}": v for k, v in sweep.items()}}.items():
@@ -993,11 +1010,14 @@ def analyse_variant(runner: Runner, cases: dict, sweep: dict, ws, fs, variant: s
         }
         decisions_by_w[w] = decisions
         out["w"][str(w)] = {"w": w, "q_star": thresholds, "cases": computed, "decisions": decisions}
-    out["verdict"] = verdict({str(w): d for w, d in decisions_by_w.items()})
+        write_json(runner.out / f"interim-{variant}-w{w}.json",
+                   {"note": "interim: decisions for one w; the verdict needs every w", "w": w,
+                    "decisions": decisions, "central_w": CENTRAL_W})
+    out["verdict"] = verdict({str(w): decisions_by_w[w] for w in ws})
     return out
 
 
-def run_all(cfg: dict, out_dir: Path) -> dict:
+def run_all(cfg: dict, out_dir: Path, actinv_workers: int = 1) -> dict:
     base = load_json(cfg["assumptions"], "assumptions")
     classes = copy.deepcopy(CLASSES)
     classes.update(cfg.get("classes", {}))
@@ -1007,6 +1027,7 @@ def run_all(cfg: dict, out_dir: Path) -> dict:
     ws = tuple(cfg.get("w_values", W_VALUES))
     fs = tuple(cfg.get("f_values", F_VALUES))
     runner = Runner(cfg, out_dir, base, classes)
+    runner.actinv_workers = actinv_workers
     equivalence = runner.equivalence_check(cases[CALIBRATION_CASE]) if runner.amend2 else None
     fixed = {}
     for name, case in {**cases, **{f"sweep/{k}": v for k, v in sweep.items()}}.items():
@@ -1081,6 +1102,8 @@ def input_hashes(cfg: dict, config_path: Path) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--config", required=True)
+    ap.add_argument("--actinv-workers", type=int, default=1,
+                    help="concurrent ACTINV runs for Amendment 2 decay continuations (does not change any value)")
     ap.add_argument("--resume", action="store_true",
                     help="continue an interrupted run in its existing output directory (same config only)")
     ap.add_argument("--equivalence-check-only", action="store_true",
@@ -1123,7 +1146,7 @@ def main(argv=None) -> int:
             record = Runner(cfg, out_dir, base, classes).equivalence_check(cfg["arrangements"][CALIBRATION_CASE])
             print(json.dumps(record, indent=2, sort_keys=True))
             return 0
-        body = run_all(cfg, out_dir)
+        body = run_all(cfg, out_dir, args.actinv_workers)
     except Refused as err:
         print(f"error: {err}", file=sys.stderr)
         return 2
