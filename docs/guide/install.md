@@ -50,13 +50,13 @@ To recheck every recorded byte and the Core receipts, run `./verify.sh` from the
 
 ## Windows
 
-Check `FARIS-0.1.1-windows-x86_64.zip` against `SHA256SUMS`, then unpack it with Extract All. If you want the Core receipts, unpack the evidence pack, which is a `.tar.gz`, into the same place. Then double-click `bin\faris-app.exe`.
+Check `FARIS-0.1.1-windows-x86_64.zip` against `SHA256SUMS`: in PowerShell, `Get-FileHash FARIS-0.1.1-windows-x86_64.zip` prints the SHA-256, which must equal that file's line in `SHA256SUMS`. Then unpack it with Extract All. If you want the Core receipts, unpack the evidence pack into the same place: in the folder that holds `FARIS-0.1.1`, run `tar -xzf FARIS-0.1.1-evidence.tar.gz` in a terminal (Windows 10 and 11 include `tar`). Then double-click `bin\faris-app.exe`.
 
 Windows SmartScreen may warn, because the programs are not signed. Choose More info, then Run anyway. The app opens without a console window. `verify.sh` does not run on Windows. The app checks the package itself at launch.
 
 ## macOS
 
-Use `FARIS-0.1.1-macos-aarch64.tar.gz` on a Mac with Apple silicon and `FARIS-0.1.1-macos-x86_64.tar.gz` on an Intel Mac. Check the archive and unpack it, with the evidence pack if you want it, into the same place. The programs are neither signed nor notarized, so macOS blocks them at first. After unpacking, run this once in Terminal:
+Use `FARIS-0.1.1-macos-aarch64.tar.gz` on a Mac with Apple silicon and `FARIS-0.1.1-macos-x86_64.tar.gz` on an Intel Mac. Check it with `shasum -a 256 -c SHA256SUMS --ignore-missing` and unpack it, with the evidence pack if you want it, into the same place. The programs are neither signed nor notarized, so macOS blocks them at first. After unpacking, run this once in Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine FARIS-0.1.1
