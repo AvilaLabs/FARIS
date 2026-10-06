@@ -11,11 +11,17 @@ how sure those numbers are.
 > design basis. Every number is labelled as calculated, authored, literature,
 > conditional or not evaluated.
 
+> **This release is a demo.** FARIS 0.1.0 is a deliberately narrow
+> demonstration, complete for one study: an ARC-inspired tokamak in four
+> arrangements, from transport to thirty years of operation with uncertainty.
+> The full product widens the geometry and adds activation and peak magnet
+> fluence; see [Where FARIS is going](#where-faris-is-going).
+
 ![FARIS tour: the plant in 3D, transport on the model, the 30-year operating timeline and the four-arrangement comparison](docs/images/faris-tour.gif)
 
 ## What it does
 
-The first release studies one ARC-inspired compact D-T tokamak (525 MW fusion)
+The demo studies one ARC-inspired compact D-T tokamak (525 MW fusion)
 in four arrangements: two blanket/shield allocations, each with a finite
 outboard service port and a matched port-free control.
 
@@ -85,7 +91,7 @@ covers each step, the uncertainty results and the command line in detail.
 - **Service limits** (the magnet's 3 × 10²² n/m² fast fluence, for example) are
   screening values from the literature or authored, not material allowables.
 
-## What FARIS does not do yet
+## What the demo does not do
 
 - Model a real machine: the geometry is idealised concentric tori with one port,
   not the published ARC design.
@@ -93,10 +99,29 @@ covers each step, the uncertainty results and the command line in detail.
   a bounding streaming case. In the port arrangements it drives the magnet
   replacements (about one a year with the default preset). A shield plug would
   reduce the streaming; FARIS has not modelled one.
-- Report the local peak magnet fluence: it reports regional averages. A peak
-  needs variance reduction aimed at the magnet (planned for 0.2).
-- Activation, decay heat and shutdown dose (planned for 0.2).
+- Report the local peak magnet fluence: it reports regional averages.
+- Activation, decay heat and shutdown dose.
 - Run on Windows or macOS.
+
+## Where FARIS is going
+
+The next version, 0.2, builds on the same study:
+
+- **ARC-fitted geometry.** Separate inboard, outboard and vertical thickness for
+  every layer, using the published ARC radial build. It adds 18 discrete TF coils,
+  a double-null divertor, several ports, and cross-section and radial-build views.
+  FARIS can then be compared with the published ARC magnet lifetime (at least 9
+  full-power years to 3 × 10²² n/m²; Sorbom et al. 2015).
+- **Peak magnet fluence.** Variance reduction aimed at the magnet (FW-CADIS weight
+  windows), so the local peak is reported alongside the regional averages.
+- **Activation and decay heat** at every outage, through
+  [ACTINV](https://github.com/AvilaLabs/ACTINV), with material impurities bounded
+  three ways (none, specification maximum, per ppm). The uncertainty of the neutron
+  spectrum is reported separately.
+
+Further out, and not yet scheduled: CAD geometry (through Paramak and DAGMC),
+shutdown dose, and Windows and macOS builds. The plan and its decisions are in
+[docs/DEMO_ROADMAP.md](docs/DEMO_ROADMAP.md).
 
 Release notes are in the [changelog](CHANGELOG.md); measurable goals for every
 part of FARIS are in [docs/requirements](docs/requirements/README.md).

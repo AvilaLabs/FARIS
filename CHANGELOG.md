@@ -9,9 +9,11 @@ basis.
 
 ## 0.1.0 — 2026-10-05
 
-The first public release: an ARC-inspired compact D-T tokamak, studied from
-3D Monte Carlo transport through 30 years of operation, with the transport
-sampling uncertainty carried into every year.
+The first public release, a deliberately narrow demo that is complete for one
+study: an ARC-inspired compact D-T tokamak, studied from 3D Monte Carlo
+transport through 30 years of operation, with the transport sampling
+uncertainty carried into every year. What comes next is in the README, "Where
+FARIS is going".
 
 ### Study
 
