@@ -1,4 +1,5 @@
-# Preserve the original whitespace in copied third-party license notices.
-licenses/** -whitespace
-docs/THIRD_PARTY_NOTICES.md -whitespace
-docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md -whitespace
+# Keep copied third-party license notices byte-exact on every platform: no
+# whitespace checks and no end-of-line conversion.
+licenses/** -whitespace -text
+docs/THIRD_PARTY_NOTICES.md -whitespace -text
+docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md -whitespace -text

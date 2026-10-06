@@ -6,11 +6,32 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def spdx_ids(expression: str | None) -> set[str]:
+    """License identifiers named by an SPDX expression, ignoring operators."""
+    tokens = re.split(r'[\s()/]+', expression or '')
+    return {t for t in tokens if t and t not in ('AND', 'OR', 'WITH')}
+
+
+def load_standard(directory: Path) -> tuple[str, dict[str, tuple[bytes, str]], dict[str, dict]]:
+    """Pinned SPDX texts (hash-checked) and the list of declared-only crates."""
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    texts = {}
+    for spdx_id, record in manifest['licenses'].items():
+        data = (directory / record['file']).read_bytes()
+        if digest(data) != record['sha256']:
+            raise ValueError(f'SPDX license text changed: {directory / record["file"]}')
+        data.decode('utf-8')
+        texts[spdx_id] = (data, record['sha256'])
+    declared = json.loads((directory / 'declared-only.json').read_text())
+    return manifest['tag'], texts, declared
 
 
 def main() -> None:
@@ -24,6 +45,8 @@ def main() -> None:
                         help='Target triple named in the header recreation note')
     parser.add_argument('--supplements', type=Path,
                         default=Path(__file__).resolve().parents[1] / 'licenses/upstream-rust')
+    parser.add_argument('--standard', type=Path,
+                        default=Path(__file__).resolve().parents[1] / 'licenses/spdx-standard')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     metadata = json.loads(args.metadata.read_text())
@@ -41,6 +64,7 @@ def main() -> None:
         used.add(package_id)
         pending.extend(dependency['pkg'] for dependency in nodes[package_id]['deps'])
     supplements = json.loads((args.supplements / 'manifest.json').read_text())
+    spdx_tag, spdx_texts, declared_only = load_standard(args.standard)
     texts: dict[str, bytes] = {}
     rows = []
     for package in sorted((packages[i] for i in used if packages[i]['source']),
@@ -81,6 +105,20 @@ def main() -> None:
                 data.decode('utf-8')
                 texts[record['sha256']] = data
                 local_files.append((record['url'], record['sha256']))
+        # Crates whose upstream publishes no full license text get the standard
+        # SPDX text for each declared id, in addition to any supplement above.
+        entry = declared_only.get(f'{package["name"]} {package["version"]}')
+        if entry:
+            if set(entry['ids']) != spdx_ids(package['license']):
+                raise ValueError(f'declared-only ids {entry["ids"]} differ from license '
+                                 f'{package["license"]!r} of {package["name"]} {package["version"]}')
+            for spdx_id in entry['ids']:
+                if spdx_id not in spdx_texts:
+                    raise ValueError(f'no standard SPDX text for {spdx_id}')
+                data, sha = spdx_texts[spdx_id]
+                texts[sha] = data
+                local_files.append((f'standard {spdx_id} text (SPDX license-list-data {spdx_tag}); '
+                                    f'{entry["reason"]}', sha))
         if not local_files:
             raise ValueError(f'no license text for {package["name"]} {package["version"]}')
         rows.append((package, commit, local_files))
