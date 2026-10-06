@@ -97,9 +97,11 @@ pub(crate) fn interrupt_cancellation() -> Result<InterruptGuard, Box<dyn std::er
     Ok(guard)
 }
 
+/// Without Unix signals there is nothing to register: Ctrl-C ends the process,
+/// and the solver jobs that need cooperative cancellation are Linux-only.
 #[cfg(not(unix))]
-fn interrupt_cancellation() -> Result<Cancellation, Box<dyn std::error::Error>> {
-    Err("external controls require the Unix process-group adapter".into())
+pub(crate) fn interrupt_cancellation() -> Result<Cancellation, Box<dyn std::error::Error>> {
+    Ok(Cancellation::default())
 }
 
 pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
