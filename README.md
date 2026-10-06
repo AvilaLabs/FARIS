@@ -17,7 +17,7 @@ how sure those numbers are.
 > The full product widens the geometry and adds activation and peak magnet
 > fluence; see [Where FARIS is going](#where-faris-is-going).
 
-**[Read the FARIS Handbook](docs/guide/SUMMARY.md)**: download and verify, a tour of
+**[Read the FARIS Handbook](https://faris.avilalabs.org/docs/)**: download and verify, a tour of
 each step, the command line, how to read the numbers, and the scope and limits.
 
 ![FARIS tour: the plant in 3D, transport on the model, the 30-year operating timeline and the four-arrangement comparison](docs/images/faris-tour.gif)
@@ -80,8 +80,10 @@ A first-run tour walks through these; replay it with **Tour** in the top bar.
 Save the study with Ctrl+S (File menu) and use **Export…** in the top bar for
 the PDF brief, CSV tables and charts. The [user guide](docs/USER_GUIDE.md)
 covers each step, the uncertainty results and the command line in detail,
-and the [handbook](docs/guide/SUMMARY.md) covers the whole demo chapter by
-chapter (build it locally with `mdbook build`).
+and the [handbook](https://faris.avilalabs.org/docs/) covers the whole demo
+chapter by chapter. Its source is in `docs/guide`; `mdbook build`, then
+`scripts/prepare_web.py` and `npx wrangler@4 deploy --config wrangler.jsonc`
+publish it.
 
 ## Reading the results
 
