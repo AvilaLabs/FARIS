@@ -952,8 +952,8 @@ impl FarisApp {
     /// Development frame recording (`--record-frames`): starts once the app is
     /// settled (the plan's clock, if any) and closes it when recording ends.
     fn record_frame(&mut self, ctx: &egui::Context) {
-        let ready = self.recording_settled()
-            && self.interface_check.as_ref().is_none_or(|c| c.armed());
+        let ready =
+            self.recording_settled() && self.interface_check.as_ref().is_none_or(|c| c.armed());
         let plan_done = self.interface_check.as_ref().is_some_and(|c| c.finished());
         if let Some(recorder) = &mut self.recorder
             && recorder.frame(ctx, ready, plan_done)
