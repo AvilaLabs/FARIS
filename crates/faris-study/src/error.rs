@@ -14,6 +14,9 @@ pub enum StudyError {
     /// The file is not a valid study file, or fails verification.
     #[error("{0}")]
     Corrupt(String),
+    /// The caller asked for the work to stop before it finished.
+    #[error("cancelled")]
+    Cancelled,
     #[error(
         "unsupported study-file version \"{0}\"; this FARIS reads major version 1 (format \"faris-study/1\")"
     )]
@@ -47,7 +50,7 @@ impl StudyError {
     /// True when the file was read but failed verification (as opposed to
     /// being unreadable or badly specified by the caller).
     pub fn is_verification_failure(&self) -> bool {
-        !matches!(self, Self::Input(_) | Self::Io { .. })
+        !matches!(self, Self::Input(_) | Self::Io { .. } | Self::Cancelled)
     }
 }
 
