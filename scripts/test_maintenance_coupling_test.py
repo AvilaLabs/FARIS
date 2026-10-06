@@ -222,10 +222,10 @@ class Rig:
     def write_config(self):
         self.config_path.write_text(json.dumps(self.config))
 
-    def run(self):
+    def run(self, *extra):
         err = io.StringIO()
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-            code = MC.main(["--config", str(self.config_path)])
+            code = MC.main(["--config", str(self.config_path), *extra])
         return code, err.getvalue()
 
     def result(self):
@@ -680,6 +680,39 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(len(calls.read_text().splitlines()), before + 1)
             self.assertTrue(stale_points.exists())
             self.assertFalse(stale_result.exists())
+
+
+    def test_an_interrupted_run_resumes_from_disk_with_the_same_result(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            self.assertEqual(rig.run()[0], 0)
+            first = rig.result()
+            calls = Path(d) / "actinv-calls.log"
+            before = len(calls.read_text().splitlines())
+            (Path(d) / "result.json").unlink()
+            # an interrupted activation build is rebuilt, not trusted
+            manifest = sorted((Path(d) / "runs").rglob("manifest.json"))[0]
+            manifest.unlink()
+            self.assertEqual(rig.run()[0], 2)  # without --resume the existing folder is refused
+            code, err = rig.run("--resume")
+            self.assertEqual(code, 0, err)
+            second = rig.result()
+            self.assertEqual(second["run"], {"resumes": 1})
+            first.pop("run"); second.pop("run")
+            self.assertEqual(first, second)
+            # only the rebuilt folder's specs ran again
+            rebuilt = len(list(manifest.parent.glob("*__bare_lower_bound.spec.json")))
+            self.assertEqual(len(calls.read_text().splitlines()), before + rebuilt)
+
+    def test_resume_refuses_a_missing_marker_or_another_config(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            (Path(d) / "runs").mkdir()
+            code, err = rig.run("--resume")
+            self.assertEqual((code, "cannot resume" in err), (2, True))
+            (Path(d) / "runs" / "run.json").write_text(json.dumps({"config_sha256": "0" * 64, "resumes": 0}))
+            code, err = rig.run("--resume")
+            self.assertEqual((code, "cannot resume" in err), (2, True))
 
 
 if __name__ == "__main__":

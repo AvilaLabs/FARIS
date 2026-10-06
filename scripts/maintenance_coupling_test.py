@@ -37,8 +37,10 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import subprocess
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 SCRIPT_VERSION = "1"
@@ -77,6 +79,7 @@ D4_GAIN = 0.01
 D4_MAX_F = 0.9
 TOL_S = 1.0
 POINTS_SCHEMA = "faris-mct-actinv-points/v0.1"
+RUN_MARKER = "run.json"
 BARE = "bare_lower_bound"
 WITH_IMPURITIES = "specification_maximum_impurities"
 ARRANGEMENTS = ("no-port/reference", "no-port/breeder", "port/reference", "port/breeder")
@@ -362,13 +365,48 @@ def event_curve(activation: dict, event: dict, governing: list, quantity: str = 
 
 # ------------------------------------------------------------------- runner --
 
+CACHE_ENTRIES = 8  # histories are ~20 MB of JSON each; the rest are re-read from disk
+
+
+def cache_get(cache: OrderedDict, key):
+    if key in cache:
+        cache.move_to_end(key)
+        return cache[key]
+    return None
+
+
+def cache_put(cache: OrderedDict, key, value) -> None:
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > CACHE_ENTRIES:
+        cache.popitem(last=False)
+
+
+def complete_spec_dir(spec_dir: Path) -> bool:
+    """build_activation_inputs.py writes manifest.json last; a folder without it, or whose
+    validation did not all pass, is an interrupted build."""
+    manifest = spec_dir / "manifest.json"
+    if not manifest.is_file():
+        return False
+    try:
+        record = json.loads(manifest.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+    return all(r.get("ok") for r in record.get("validation", [])) and not record.get("placeholder_spectrum_components")
+
+
 class Runner:
-    """Runs and caches histories and activation for (case, f, durations)."""
+    """Runs histories and activation for (case, f, durations), keeping a few in memory.
+
+    Everything is also on disk under the output directory, so an interrupted run resumes:
+    a history is reused when its assumptions file is byte-identical to the derived one,
+    and an activation folder when its build completed; ACTINV runs resume from points files.
+    """
 
     def __init__(self, cfg: dict, out_dir: Path, base_assumptions: dict, classes: dict):
         self.cfg, self.out, self.base, self.classes = cfg, out_dir, base_assumptions, classes
-        self._histories: dict = {}
-        self._activations: dict = {}
+        self._histories: OrderedDict = OrderedDict()
+        self._activations: OrderedDict = OrderedDict()
         self.library: dict = {}
 
     def _dir(self, case_name: str, f: float, used: dict) -> Path:
@@ -384,27 +422,42 @@ class Runner:
 
     def history(self, case_name: str, case: dict, f: float, used: dict) -> dict:
         key = (case_name, f, json.dumps(used, sort_keys=True))
-        if key in self._histories:
-            return self._histories[key]
+        cached = cache_get(self._histories, key)
+        if cached is not None:
+            return cached
         folder = self._dir(case_name, f, used)
-        folder.mkdir(parents=True)
         derived = derive_assumptions(self.base, self.classes, f, used)
+        derived_text = json.dumps(derived, indent=2, sort_keys=True) + "\n"
         assumptions_path = folder / "assumptions.json"
-        write_json(assumptions_path, derived)
         history_path = folder / "history.json"
-        self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"], "--run", case["history_run"],
-                   "--assumptions", assumptions_path, "--output", history_path], f"faris history from-run ({case_name})")
-        entry = {"dir": folder, "assumptions": assumptions_path, "history_path": history_path,
-                 "data": json.loads(history_path.read_text(encoding="utf-8"))}
-        self._histories[key] = entry
+        data = None
+        if (assumptions_path.is_file() and history_path.is_file()
+                and assumptions_path.read_text(encoding="utf-8") == derived_text):
+            try:
+                data = json.loads(history_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                data = None  # interrupted write: recalculate
+        if data is None:
+            folder.mkdir(parents=True, exist_ok=True)
+            history_path.unlink(missing_ok=True)
+            assumptions_path.write_text(derived_text, encoding="utf-8")
+            self._run([self.cfg["faris"], "history", "from-run", "--scenario", case["scenario"],
+                       "--run", case["history_run"], "--assumptions", assumptions_path, "--output", history_path],
+                      f"faris history from-run ({case_name})")
+            data = json.loads(history_path.read_text(encoding="utf-8"))
+        entry = {"dir": folder, "assumptions": assumptions_path, "history_path": history_path, "data": data}
+        cache_put(self._histories, key, entry)
         return entry
 
     def activation(self, case_name: str, case: dict, f: float, used: dict, variant: str) -> dict:
         key = (case_name, f, json.dumps(used, sort_keys=True), variant)
-        if key in self._activations:
-            return self._activations[key]
+        cached = cache_get(self._activations, key)
+        if cached is not None:
+            return cached
         hist = self.history(case_name, case, f, used)
         spec_dir = hist["dir"] / "activation"
+        if spec_dir.exists() and not complete_spec_dir(spec_dir):
+            shutil.rmtree(spec_dir)
         if not spec_dir.exists():
             argv = [sys.executable, BUILD_SCRIPT, "--run", case["history_run"], "--spectrum-run", case["spectrum_run"],
                     "--scenario", case["scenario"],
@@ -420,7 +473,7 @@ class Runner:
         for installs in act.values():
             if installs and installs[0].get("library") and not self.library:
                 self.library = installs[0]["library"]
-        self._activations[key] = act
+        cache_put(self._activations, key, act)
         return act
 
     def run_specs(self, spec_dir: Path, variant: str) -> None:
@@ -799,6 +852,8 @@ def input_hashes(cfg: dict, config_path: Path) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--config", required=True)
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an interrupted run in its existing output directory (same config only)")
     args = ap.parse_args(argv)
     config_path = Path(args.config).resolve()
     try:
@@ -811,11 +866,21 @@ def main(argv=None) -> int:
         check_config(cfg)
         out_dir = Path(cfg["output_dir"])
         result_path = Path(cfg.get("result") or DEFAULT_RESULT)
-        if out_dir.exists():
-            raise Refused(f"output directory {out_dir} already exists")
         if result_path.exists():
             raise Refused(f"result file {result_path} already exists")
-        out_dir.mkdir(parents=True)
+        marker_path = out_dir / RUN_MARKER
+        config_sha = sha256_file(config_path)
+        if args.resume:
+            marker = load_json(marker_path, "run marker") if marker_path.is_file() else None
+            if not isinstance(marker, dict) or marker.get("config_sha256") != config_sha:
+                raise Refused(f"cannot resume: {marker_path} is missing or names another config")
+            marker["resumes"] = int(marker.get("resumes", 0)) + 1
+        else:
+            if out_dir.exists():
+                raise Refused(f"output directory {out_dir} already exists")
+            out_dir.mkdir(parents=True)
+            marker = {"config_sha256": config_sha, "resumes": 0}
+        write_json(marker_path, marker)
         body = run_all(cfg, out_dir)
     except Refused as err:
         print(f"error: {err}", file=sys.stderr)
@@ -830,6 +895,7 @@ def main(argv=None) -> int:
         "protocol": {"path": str(protocol), "committed_sha256": PROTOCOL_SHA256, "body_sha256": PROTOCOL_BODY_SHA256,
                      "file_sha256": sha256_file(protocol)},
         "inputs_sha256": input_hashes(cfg, config_path),
+        "run": {"resumes": marker["resumes"]},
         "tools": {"faris": {"path": cfg["faris"], "sha256": sha256_file(cfg["faris"])}, "actinv": actinv_identity(cfg),
                   "activation_library": body["library"]},
         "parameters": {
