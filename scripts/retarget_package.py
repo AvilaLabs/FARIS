@@ -261,6 +261,14 @@ def retargeted_index(index: dict, build: dict, target_os: str, target_arch: str,
     sources["core"] = dict(sources["core"], binary_profile="release")
     sources["rebuild"] = rebuild_lines(target_os)
     runtime["source_provenance"] = sources
+    # The licence pins name the notices by hash, so they follow the build's notices.
+    license_files = dict(linux.get("license_files") or {})
+    for record in build["notices"].values():
+        if record["path"] not in license_files:
+            fail(f"package index license_files lacks {record['path']}")
+        license_files[record["path"]] = record["sha256"]
+    runtime["license_files"] = license_files
+
     def app_record(record: dict) -> dict:
         return {"path": record["path"], "bytes": record["bytes"], "sha256": record["sha256"], "part": "app"}
 

@@ -97,6 +97,9 @@ def linux_package(root: Path) -> Path:
             },
             "launcher": {"kind": "native", "executable": "faris-app"},
             "verifier": {"path": "verify.sh", "sha256": sha(contents["verify.sh"][0])},
+            "license_files": {path: sha(contents[path][0]) for path in (
+                "licenses/faris-LICENSE", "licenses/faris-THIRD_PARTY_NOTICES.md",
+                "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md")},
         },
         "package_file_count": len(files),
         "package_bytes": sum(item["bytes"] for item in files),
@@ -248,6 +251,11 @@ class RetargetTests(unittest.TestCase):
                 self.assertEqual(by_path[relative], {"path": relative, "bytes": len(data),
                                                      "sha256": sha(data), "part": "app"})
                 self.assertFalse(os.path.samefile(self.linux / relative, out / relative))
+                # the verifier's licence pins follow the replaced notices
+                self.assertEqual(index["local_runtime"]["license_files"][relative], sha(data))
+            linux_pins = json.loads((self.linux / "package-index.json").read_text())["local_runtime"]["license_files"]
+            self.assertEqual(index["local_runtime"]["license_files"]["licenses/faris-LICENSE"],
+                             linux_pins["licenses/faris-LICENSE"])
 
     def test_missing_or_mismatched_notices_are_refused(self):
         cases = {
