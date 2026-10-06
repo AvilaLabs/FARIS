@@ -51,6 +51,9 @@ NO_SPECTRUM_MESSAGE = "no 709-group spectrum in this run record; the 0.2 transpo
 BARE = "bare_lower_bound"
 WITH_IMPURITIES = "specification_maximum_impurities"
 PLACEHOLDER = "placeholder_flat_lethargy_not_physics"
+# options.outputs values ACTINV accepts (its default is every output)
+ACTINV_OUTPUTS = ("inventory", "activity", "heat", "photons", "dose", "pathways", "radiological", "damage",
+                  "ledger", "certificate", "audit")
 ACTINV_DEFAULT = Path.home() / ".local" / "bin" / "actinv"
 
 # Standard atomic weights (g/mol), conventional values, hydrogen to uranium.
@@ -86,6 +89,15 @@ def load_json(path, what):
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as err:
         raise InputError(f"cannot read {what} {path}: {err}") from err
+
+
+def parse_outputs(text: str) -> list[str]:
+    """'heat' -> ['heat']; every entry must be in ACTINV's allowed set."""
+    items = [x.strip() for x in text.split(",")]
+    bad = [x for x in items if x not in ACTINV_OUTPUTS]
+    if not items or bad:
+        raise InputError(f"bad --actinv-outputs entry {bad or text!r}; allowed: {', '.join(ACTINV_OUTPUTS)}")
+    return items
 
 
 def parse_cooling_grid(text: str) -> list[tuple[str, float]]:
@@ -506,8 +518,8 @@ def schedule_json(steps) -> list[dict]:
 
 # ------------------------------------------------------------------- specs --
 
-def build_spec(title, composition, mass_g, flux_per_group, library, schedule) -> dict:
-    return {
+def build_spec(title, composition, mass_g, flux_per_group, library, schedule, outputs=None) -> dict:
+    spec = {
         "spec": SPEC_FORMAT,
         "title": title,
         "projectile": "neutron",
@@ -523,6 +535,9 @@ def build_spec(title, composition, mass_g, flux_per_group, library, schedule) ->
         "schedule": schedule,
         "options": {"mode": "auto", "prune": "rate", "bmin_atoms_per_g": 1e-8, "temperature_K": 293.6, "cram_order": 16},
     }
+    if outputs is not None:
+        spec["options"]["outputs"] = list(outputs)
+    return spec
 
 
 def write_json(path: Path, value) -> None:
@@ -561,6 +576,7 @@ def plan(args) -> dict:
         if c not in solid:
             raise InputError(f"component {c} is void; nothing to activate")
     grid = parse_cooling_grid(args.cooling_grid)
+    outputs = parse_outputs(args.actinv_outputs) if args.actinv_outputs else None
     intervals, power = operating_intervals(history), PowerSeries(history)
     items, missing = [], []
     for component in wanted:
@@ -606,7 +622,7 @@ def plan(args) -> dict:
             })
     if missing and not args.allow_placeholder_spectrum:
         raise NoSpectrum(NO_SPECTRUM_MESSAGE)
-    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing}
+    return {"run": run, "library": library, "grid": grid, "items": items, "missing": missing, "outputs": outputs}
 
 
 def hashes(args) -> dict:
@@ -635,13 +651,14 @@ def write_outputs(args, work: dict) -> list[Path]:
             stem = f"{item['component']}__inst{item['installation']:03d}__{label}"
             title = f"FARIS {item['component']} installation {item['installation']} ({label})"
             spec = build_spec(title, composition, item["mass_g"], item["spectrum"]["flux_per_group"],
-                              library, schedule_json(steps))
+                              library, schedule_json(steps), work["outputs"])
             spec_path = out / f"{stem}.spec.json"
             write_json(spec_path, spec)
             write_json(out / f"{stem}.provenance.json", {
                 "script": "scripts/build_activation_inputs.py", "script_version": SCRIPT_VERSION,
                 "spec_file": spec_path.name, "spec_sha256": sha256_file(spec_path),
                 "label": label,
+                **({"actinv_outputs": work["outputs"]} if work["outputs"] is not None else {}),
                 "input_sha256": input_hashes,
                 "component": item["component"], "material_id": item["material_id"],
                 "installation_index": item["installation"],
@@ -694,6 +711,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--cooling-grid", default=DEFAULT_COOLING)
     p.add_argument("--subdivide-outages", action="store_true",
                    help="split every zero-flux step on the cooling grid so the decay curve after each shutdown is in the run")
+    p.add_argument("--actinv-outputs", help="comma-separated options.outputs for every spec (default: ACTINV's "
+                   f"own default, every output); allowed: {', '.join(ACTINV_OUTPUTS)}")
     p.add_argument("--output-dir", required=True, help="new directory; must not exist")
     p.add_argument("--allow-placeholder-spectrum", action="store_true",
                    help="write a flat-lethargy placeholder when the run has no 709-group spectrum (plumbing tests only)")

@@ -76,6 +76,7 @@ D3_MIN_FIXED_S = 30.0 * DAY_S
 D4_GAIN = 0.01
 D4_MAX_F = 0.9
 TOL_S = 1.0
+POINTS_SCHEMA = "faris-mct-actinv-points/v0.1"
 BARE = "bare_lower_bound"
 WITH_IMPURITIES = "specification_maximum_impurities"
 ARRANGEMENTS = ("no-port/reference", "no-port/breeder", "port/reference", "port/breeder")
@@ -278,18 +279,39 @@ def derive_assumptions(base: dict, classes: dict, f: float, used: dict) -> dict:
 
 # ------------------------------------------------------------------- ACTINV --
 
+def write_points(result_path: Path, points_path: Path) -> None:
+    """Compact the full ACTINV result into a points file (atomically), then delete the result.
+
+    A heat-only result can still be hundreds of MB for a long schedule, so it is not kept.
+    """
+    raw = result_path.read_bytes()
+    result = json.loads(raw)
+    doc = {
+        "schema": POINTS_SCHEMA,
+        "result_sha256": hashlib.sha256(raw).hexdigest(), "result_bytes": len(raw),
+        "n_steps": len(result["steps"]),
+        "ms": result.get("ms"),
+        "pruned_states": result.get("pruned_states"),
+        "total_states": result.get("total_states"),
+        "steps": [[s["t_s"], s["heat_W_per_g"]["total"], s.get("flux", 0.0),
+                   (s.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")] for s in result["steps"]],
+    }
+    tmp = points_path.with_name(points_path.name + ".tmp")
+    tmp.write_text(json.dumps(doc) + "\n", encoding="utf-8")
+    os.replace(tmp, points_path)
+    result_path.unlink()
+
+
 def read_activation(spec_dir: Path, variant: str) -> dict:
     """{component: [{install_s, remove_s, volume_m3, points: [(abs_s, heat_W, dose|None, flux)]}]} for one variant."""
     data: dict = {}
     for prov_path in sorted(spec_dir.glob(f"*__{variant}.provenance.json")):
         prov = json.loads(prov_path.read_text(encoding="utf-8"))
-        result = json.loads((spec_dir / prov["spec_file"].replace(".spec.json", ".result.json")).read_text(encoding="utf-8"))
+        stored = json.loads((spec_dir / prov["spec_file"].replace(".spec.json", ".points.json")).read_text(encoding="utf-8"))
         install_s, remove_s = prov["installation_interval_s"]
         points = []
-        for step in result["steps"]:
-            heat = step["heat_W_per_g"]["total"] * prov["mass_g"]
-            dose = (step.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")
-            points.append((install_s + step["t_s"], heat, dose, step.get("flux", 0.0)))
+        for t_s, heat_per_g, flux, dose in stored["steps"]:
+            points.append((install_s + t_s, heat_per_g * prov["mass_g"], dose, flux))
         data.setdefault(prov["component"], []).append({
             "install_s": install_s, "remove_s": remove_s, "volume_m3": prov["volume_m3"], "points": points,
             "library": prov.get("library", {}),
@@ -315,7 +337,8 @@ def event_series(activation: dict, event: dict, governing: list, quantity: str):
                 break  # irradiation resumed (or a year passed): the decay curve after the shutdown ends here
             value = heat if quantity == "heat" else (None if dose is None else dose * inst["volume_m3"])
             if value is None:
-                return not_evaluated(f"{component} has no contact gamma dose in its ACTINV result")
+                return not_evaluated(f"{component} has no contact gamma dose: its ACTINV specs have no photon "
+                                     "response and run with heat-only outputs")
             pts.append((tau, value))
         if not pts:
             return not_evaluated(f"{component} has no decay points after the shutdown at {event['start_s']:.0f} s")
@@ -388,21 +411,29 @@ class Runner:
                     "--physics", case["physics"], "--history", hist["history_path"],
                     "--data-dir", self.cfg["data_dir"], "--cooling-grid",
                     ",".join(f"{t!r}s" for t in cooling_grid_s()), "--subdivide-outages",
-                    "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
+                    "--actinv-outputs", "heat", "--actinv", self.cfg["actinv"], "--output-dir", spec_dir]
             if self.cfg.get("impurities"):
                 argv += ["--impurities", self.cfg["impurities"]]
             self._run(argv, f"build_activation_inputs ({case_name})")
-        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
-        for spec in sorted(spec_dir.glob(f"*__{variant}.spec.json")):
-            result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
-            if not result.exists():
-                self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+        self.run_specs(spec_dir, variant)
         act = read_activation(spec_dir, variant)
         for installs in act.values():
             if installs and installs[0].get("library") and not self.library:
                 self.library = installs[0]["library"]
         self._activations[key] = act
         return act
+
+    def run_specs(self, spec_dir: Path, variant: str) -> None:
+        """One ACTINV run per spec that has no points file yet; each leaves only its points file."""
+        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
+        for spec in sorted(spec_dir.glob(f"*__{variant}.spec.json")):
+            result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
+            points = spec.with_name(spec.name.replace(".spec.json", ".points.json"))
+            if points.exists():
+                continue
+            result.unlink(missing_ok=True)  # a full result without a points file is not trusted
+            self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+            write_points(result, points)
 
     def spectrum_error(self, case_name: str, f: float, variant: str) -> dict:
         """Per component, the spectrum-error summary from the provenance sidecars of the first iteration."""

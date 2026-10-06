@@ -122,10 +122,15 @@ for i, s in enumerate(spec["schedule"]):
         last, heat = t, amp
     else:
         heat = amp * (max(t - last, 3600.0) / 3600.0) ** (-p)
-    dose = heat * 10.0 if model.get("dose") else None
-    steps.append({{"step": i + 1, "t_s": t, "flux": s["flux"], "heat_W_per_g": {{"total": heat}},
-                  "photon_source": {{"contact_gamma_air_dose_proxy_Gy_h": dose}}}})
-json.dump({{"steps": steps}}, open(a[2], "w"))
+    step = {{"step": i + 1, "t_s": t, "flux": s["flux"], "heat_W_per_g": {{"total": heat}}}}
+    outputs = spec.get("options", {{}}).get("outputs")
+    if outputs is None or "photons" in outputs or "dose" in outputs:  # ACTINV's default is every output
+        dose = heat * 10.0 if model.get("dose") else None
+        step["photon_source"] = {{"contact_gamma_air_dose_proxy_Gy_h": dose}}
+    steps.append(step)
+with open(os.environ["FAKE_ACTINV_LOG"], "a") as log:
+    log.write(a[1] + "\n")
+json.dump({{"steps": steps, "pruned_states": 7, "total_states": 70, "ms": 1.5}}, open(a[2], "w"))
 '''
 
 
@@ -146,6 +151,7 @@ class Rig:
         write_exe(root / "actinv", FAKE_ACTINV)
         (root / "model.json").write_text(json.dumps(model or {"amp": {c: 1e-9 for c in self.COMPONENTS}, "power": 1.0}))
         os.environ["FAKE_ACTINV_MODEL"] = str(root / "model.json")
+        os.environ["FAKE_ACTINV_LOG"] = str(root / "actinv-calls.log")
         bounds, npy = TB.write_npy_bounds()
         activation = root / "data" / BUILD.CATALOG_VERSION / "activation"
         activation.mkdir(parents=True)
@@ -614,22 +620,66 @@ class EndToEndTests(unittest.TestCase):
             hot = w["cases"]["port/breeder"]
             self.assertEqual(hot["status"], "NOT_EVALUATED")
 
-    def test_contact_dose_cross_check_is_calibrated_the_same_way_and_reported_apart(self):
+    def test_heat_only_outputs_report_the_dose_cross_check_as_not_evaluated_with_the_reason(self):
         model = {"amp": {c: 1e-9 for c in Rig.COMPONENTS}, "power": 1.0, "dose": True}
         with tempfile.TemporaryDirectory() as d:
-            rig = Rig(Path(d), {"port/breeder": {"flux_factor": 1.5}}, f_values=(1.0,), sweep_labels=("0.30",),
-                      model=model)
-            self.assertEqual(rig.run()[0], 0)
-            w = rig.result()["computed_model"][MC.BARE]["w"]["0.5"]
-            magnet = lambda case: [c for c in w["cases"][case]["dose_cross_check"] if c["component"] == "magnets"][0]
-            self.assertEqual(magnet("port/reference")["status"], "EVALUATED")
-            self.assertAlmostEqual(magnet("port/reference")["implied_duration_s"], 120 * DAY, delta=60.0)
-            self.assertAlmostEqual(magnet("port/breeder")["implied_duration_s"], 60 * DAY + 1.5 * 60 * DAY, delta=60.0)
-        with tempfile.TemporaryDirectory() as d:  # no dose in the results: reported as such
-            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",), model=model)
             self.assertEqual(rig.run()[0], 0)
             ref = rig.result()["computed_model"][MC.BARE]["w"]["0.5"]["cases"]["port/reference"]["dose_cross_check"][0]
             self.assertEqual(ref["status"], "NOT_EVALUATED")
+            self.assertIn("no photon response", ref["reason"])
+            self.assertIn("heat-only outputs", ref["reason"])
+
+    def test_the_dose_read_path_still_works_when_a_points_file_carries_dose(self):
+        with tempfile.TemporaryDirectory() as d:
+            spec_dir = Path(d)
+            prov = {"spec_file": "magnets__inst001__bare_lower_bound.spec.json", "mass_g": 10.0,
+                    "installation_interval_s": [0.0, 1000.0], "volume_m3": 2.0, "component": "magnets"}
+            (spec_dir / "magnets__inst001__bare_lower_bound.provenance.json").write_text(json.dumps(prov))
+            steps = [[100.0, 0.5, 1.0, None], [4000.0, 0.25, 0.0, 3.0]]
+            (spec_dir / "magnets__inst001__bare_lower_bound.points.json").write_text(
+                json.dumps({"schema": MC.POINTS_SCHEMA, "steps": steps}))
+            got = MC.read_activation(spec_dir, MC.BARE)["magnets"][0]["points"]
+            self.assertEqual(got, [(100.0, 5.0, None, 1.0), (4000.0, 2.5, 3.0, 0.0)])
+
+    def test_points_files_replace_full_results_and_a_rerun_skips_finished_runs(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = Rig(Path(d), {}, f_values=(1.0,), sweep_labels=("0.30",))
+            self.assertEqual(rig.run()[0], 0)
+            out = Path(d) / "runs"
+            points = sorted(out.rglob("*.points.json"))
+            self.assertTrue(points)
+            self.assertEqual(list(out.rglob("*.result.json")), [])
+            first = json.loads(points[0].read_text())
+            self.assertEqual(first["schema"], MC.POINTS_SCHEMA)
+            self.assertEqual((first["pruned_states"], first["total_states"], first["ms"]), (7, 70, 1.5))
+            self.assertEqual(first["n_steps"], len(first["steps"]))
+            self.assertEqual(len(first["result_sha256"]), 64)
+            self.assertGreater(first["result_bytes"], 0)
+            self.assertEqual(len(first["steps"][0]), 4)
+            self.assertEqual(list(out.rglob("*.tmp")), [])
+            # the spec asked for heat-only outputs
+            spec = json.loads(points[0].with_name(points[0].name.replace(".points.", ".spec.")).read_text())
+            self.assertEqual(spec["options"]["outputs"], ["heat"])
+            prov = json.loads(points[0].with_name(points[0].name.replace(".points.", ".provenance.")).read_text())
+            self.assertEqual(prov["actinv_outputs"], ["heat"])
+            # resume: with the points present no ACTINV run happens; a stale result without points is rerun
+            calls = Path(d) / "actinv-calls.log"
+            cfg = MC.resolve_paths(rig.config, Path(d))
+            runner = MC.Runner(cfg, out, {}, {})
+            spec_files = sorted(out.rglob("*__bare_lower_bound.spec.json"))
+            stale = spec_files[0]
+            act_dir = stale.parent
+            runner.run_specs(act_dir, MC.BARE)
+            before = len(calls.read_text().splitlines())
+            stale_points = stale.with_name(stale.name.replace(".spec.json", ".points.json"))
+            stale_points.unlink()
+            stale_result = stale.with_name(stale.name.replace(".spec.json", ".result.json"))
+            stale_result.write_text("{not trusted")
+            runner.run_specs(act_dir, MC.BARE)
+            self.assertEqual(len(calls.read_text().splitlines()), before + 1)
+            self.assertTrue(stale_points.exists())
+            self.assertFalse(stale_result.exists())
 
 
 if __name__ == "__main__":

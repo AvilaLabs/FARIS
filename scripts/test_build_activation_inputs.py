@@ -387,5 +387,40 @@ class SpectrumRunTests(unittest.TestCase):
             self.assertAlmostEqual(json.loads(spec_path.read_text())["spectrum"]["flux_per_group"][0], 1.0e13 / 709 * 1e-4)
 
 
+class OutputsOptionTests(unittest.TestCase):
+    OLD_OPTIONS = {"mode": "auto", "prune": "rate", "bmin_atoms_per_g": 1e-8, "temperature_K": 293.6, "cram_order": 16}
+
+    def test_outputs_reach_every_spec_and_provenance_and_default_specs_are_unchanged(self):
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)], replacements=[("magnets", 400.0, 450.0)]), with_709=True)
+            self.assertEqual(fx.main("plain")[0], 0)
+            self.assertEqual(fx.main("heat", "--actinv-outputs", "heat")[0], 0)
+            plain_specs, heat_specs = specs_in(Path(d) / "plain"), specs_in(Path(d) / "heat")
+            self.assertEqual(len(plain_specs), 2)
+            for plain, heat in zip(plain_specs, heat_specs):
+                before, after = json.loads(plain.read_text()), json.loads(heat.read_text())
+                self.assertEqual(before["options"], self.OLD_OPTIONS)  # no outputs key without the option
+                self.assertEqual(after["options"], {**self.OLD_OPTIONS, "outputs": ["heat"]})
+                after["options"] = before["options"]
+                self.assertEqual(before, after)  # nothing else changes
+                prov_name = plain.name.replace(".spec.", ".provenance.")
+                plain_prov = json.loads((plain.parent / prov_name).read_text())
+                heat_prov = json.loads((heat.parent / prov_name).read_text())
+                self.assertNotIn("actinv_outputs", plain_prov)
+                self.assertEqual(heat_prov["actinv_outputs"], ["heat"])
+
+    def test_outputs_are_validated_against_the_allowed_set(self):
+        self.assertEqual(BUILD.parse_outputs("heat, dose"), ["heat", "dose"])
+        for bad in ("heat,bogus", ""):
+            with self.assertRaises(BUILD.InputError):
+                BUILD.parse_outputs(bad)
+        with tempfile.TemporaryDirectory() as d:
+            fx = Fixture(Path(d), make_history([(0, 1000)]), with_709=True)
+            code, err = fx.main("bad", "--actinv-outputs", "heat,bogus")
+            self.assertEqual(code, 2)
+            self.assertIn("bogus", err)
+            self.assertFalse((Path(d) / "bad").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
