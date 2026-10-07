@@ -1397,7 +1397,9 @@ class RestartGroupTests(unittest.TestCase):
         self.assertEqual(got["material"], {"mass_g": 3.0, "basis": "atoms_per_g",
                                            "composition": {"He4": 5.0, "Co58m1": 2.0}})
         self.assertEqual(got["schedule"], spec["schedule"][-self.N:])
-        self.assertEqual(got["options"], spec["options"])
+        # Coupled, so the radioactive starting inventory decays (trace mode would hold it constant).
+        self.assertEqual(got["options"], {"outputs": ["heat"], "mode": "coupled"})
+        self.assertEqual(spec["options"], {"outputs": ["heat"]})
         self.assertEqual(spec["material"]["basis"], "atom_fraction")
         with self.assertRaises(MC.ToolError):
             MC.cooling_spec(spec, {"inventory": []}, self.N)

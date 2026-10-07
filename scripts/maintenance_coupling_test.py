@@ -566,6 +566,9 @@ def cooling_spec(spec: dict, record: dict, n_cooling: int) -> dict:
     out = copy.deepcopy(spec)
     out["material"] = {"mass_g": spec["material"]["mass_g"], "basis": "atoms_per_g", "composition": composition}
     out["schedule"] = spec["schedule"][-n_cooling:]
+    # Zero flux puts ACTINV's automatic mode into trace activation, which holds the initial material constant; the
+    # restart material is the radioactive inventory itself, so it must evolve.
+    out["options"] = {**spec["options"], "mode": "coupled"}
     return out
 
 
