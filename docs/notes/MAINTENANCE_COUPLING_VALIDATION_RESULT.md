@@ -17,10 +17,15 @@ records the body SHA-256 `a392e5ab35dc0d97f1af3ab5cef1e582317181057e0aa6cb8446d5
 
 In plain terms:
 
-- **The ranking flips do not hold up.** With the published EU-DEMO durations (V2), the fixed-duration model already
-  ranks the breeder arrangements first, so there is no flip left for physics-derived durations to cause. The port
-  pair's flip also disappears when either service limit moves by 20 %: it was the replacement-count step the amended
-  result note described.
+- **The port pair's ranking flip does not hold up.** It fails in 5 of the 7 variants where it was evaluated; it was
+  the replacement-count step the amended result note described.
+- **The no-port pair's ranking flip depends on how long outages are.** It holds in 6 of the 9 evaluated variants,
+  including the new transport sample and three of the four service-limit changes, with the authored 60-day blanket
+  replacement. It fails with the published EU-DEMO durations (V2, 4 to 7 months), where the fixed-duration model
+  already ranks the breeder arrangement first, and with the blanket limit lowered by 20 %. The authored 60 days is
+  close to the one public ARC figure ("a couple of months at most", a press interview, not a technical source), and
+  V2 applies durations from a large plant to this compact one. So the flip holds for short outages and not for long
+  ones; which applies depends on the plant.
 - **Physics-derived durations change the downtime differences between designs in every variant that could be
   evaluated.** C3 never failed. The no-port breeder-minus-reference contrast is 2.1 to 14.2 times its fixed value
   wherever it is evaluated: 14.2 in the baseline, 2.1 and 2.4 with published durations, 3.8 to 7.2 with the service
@@ -81,5 +86,6 @@ In plain terms:
 The amended test's MATERIAL verdict stands as recorded, but the part of it that holds up is narrower than "the
 ranking changes". What survives every evaluated variant is this: computing maintenance durations from activation
 changes the downtime differences between designs by large factors (2 to 14 times for the no-port blanket contrast).
-Whether that changes which design wins depends on the authored durations and service limits. With published EU-DEMO
-durations it does not change the ranking in this geometry.
+Whether that changes which design wins depends on how long outages are: with short, ARC-like outages the no-port
+ranking changes, with long, EU-DEMO-like outages it does not. Settling it needs a realistic geometry with that plant's
+own maintenance durations, and the dose-governed check once ACTINV can give the blanket's dose.
