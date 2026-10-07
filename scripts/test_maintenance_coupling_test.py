@@ -1238,5 +1238,282 @@ class ValidationKeyTests(unittest.TestCase):
             self.assertEqual((d4["status"], d4["changed"], d4["computed_best_f"]), ("EVALUATED", False, 1.0))
 
 
+FAKE_ACTINV_RESTARTABLE = r"""#!{python}
+import json, math, os, sys
+a = sys.argv[1:]
+if a[0] == "--version":
+    print("actinv 1.4.0-fake-restartable")
+    sys.exit(0)
+if a[0] == "validate":
+    sys.exit(0)
+spec = json.load(open(a[1]))
+YEAR = 365.25 * 86400.0
+# nuclide key -> (Z, A, LISO, half-life s or None for stable, heat per decay J, production atoms/g/s per unit flux)
+TABLE = {{
+    "Cu63": (29, 63, 0, None, 0.0, 0.0), "Cu65": (29, 65, 0, None, 0.0, 0.0),
+    "Co60": (27, 60, 0, 5.27 * YEAR, 2.5e-13, 3e6), "Mn54": (25, 54, 0, 312.2 * 86400.0, 1.4e-13, 2e7),
+    "Fe55": (26, 55, 0, 2.73 * YEAR, 3e-15, 5e7), "Co58m1": (27, 58, 1, 9.04 * 3600.0, 4e-15, 9e6),
+    "Co58": (27, 58, 0, 70.86 * 86400.0, 1.6e-13, 4e6),
+}}
+comp = spec["title"].split()[1]
+scale = {{"first-wall": 3.0, "blanket": 1.0, "shield": 0.4, "vessel": 0.2, "magnets": 0.1}}[comp] * spec["spectrum"]["total"] / 1e13
+material = spec["material"]
+state = {{}}
+for key, value in material["composition"].items():
+    if key not in TABLE:
+        sys.exit("unknown composition key " + key)
+    state[key] = value * 1e22 if material["basis"] == "atom_fraction" else value
+want_dose = any(x in (spec["options"].get("outputs") or ["photons"]) for x in ("photons", "dose"))
+steps, t = [], 0.0
+for i, s in enumerate(spec["schedule"]):
+    dt = float(s["dt"].split()[0])
+    t += dt
+    for key, (z, aa, liso, half, e, rate) in TABLE.items():
+        n = state.get(key, 0.0)
+        p = rate * s["flux"] * scale
+        if half is None:
+            n += p * dt
+        else:
+            lam = math.log(2.0) / half
+            decay = math.exp(-lam * dt)
+            n = n * decay + p / lam * -math.expm1(-lam * dt)
+        if n != 0.0:
+            state[key] = n
+    heat = sum(math.log(2.0) / TABLE[k][3] * n * TABLE[k][4] for k, n in state.items() if TABLE[k][3])
+    step = {{"step": i + 1, "t_s": t, "flux": s["flux"], "heat_W_per_g": {{"total": heat}},
+            "inventory": [{{"nuclide": k, "Z": TABLE[k][0], "A": TABLE[k][1], "LISO": TABLE[k][2], "atoms_per_g": n}}
+                          for k, n in state.items()],
+            "n_states_below_floor": 5 + i, "heat_bound_from_below_floor_W_per_g": 1e-12 * (i + 1)}}
+    if want_dose:
+        step["photon_source"] = {{"contact_gamma_air_dose_proxy_Gy_h": heat * 10.0}}
+    steps.append(step)
+with open(os.environ["FAKE_ACTINV_LOG"], "a") as log:
+    log.write(a[1] + "\n")
+json.dump({{"steps": steps, "pruned_states": 7, "total_states": 70, "ms": 1.5}}, open(a[2], "w"))
+"""
+
+
+class NuclideKeyTests(unittest.TestCase):
+    def test_keys_are_symbol_mass_number_and_m_liso_for_isomers(self):
+        self.assertEqual(MC.nuclide_key(26, 55, 0), "Fe55")
+        self.assertEqual(MC.nuclide_key(27, 58, 1), "Co58m1")
+        self.assertEqual(MC.nuclide_key(47, 110, 2), "Ag110m2")
+        self.assertEqual(MC.nuclide_key(1, 3, 0), "H3")
+        self.assertEqual(MC.nuclide_key(2, 4, 0), "He4")
+        self.assertEqual(MC.nuclide_key(118, 294, 0), "Og294")
+        self.assertEqual(len(MC.ELEMENT_SYMBOLS), 118)
+        self.assertEqual(len(set(MC.ELEMENT_SYMBOLS)), 118)
+        for z in (0, 119):
+            with self.assertRaises(MC.ToolError):
+                MC.nuclide_key(z, 1, 0)
+
+
+class ScanKeepStepsTests(ResultScanTests):
+    def test_keep_steps_equals_json_loads_at_every_chunk_size(self):
+        with tempfile.TemporaryDirectory() as d:
+            for n, text in enumerate(self.results()):
+                path = Path(d) / f"r{n}.json"
+                path.write_text(text, encoding="utf-8")
+                steps = json.loads(text)["steps"]
+                for keep in (set(), {0}, {2, 5}, {len(steps) - 1} if steps else set(), {99}):
+                    want = {i: steps[i] for i in keep if i < len(steps)}
+                    plain = self.whole(path)
+                    for chunk in (1, 2, 3, 7, 64, MC.READ_CHUNK):
+                        got = MC.scan_result(path, chunk, keep_steps=keep)
+                        self.assertEqual(got.pop("kept_steps"), want, (n, keep, chunk))
+                        self.assertEqual(got, plain, (n, keep, chunk))
+                self.assertNotIn("kept_steps", MC.scan_result(path))
+
+
+def prov_and_spec(spec_dir, component, installation, shutdown_s, schedule, n_cooling, **spec_overrides):
+    spec = {"title": f"FARIS {component} installation {installation} continuation from {int(shutdown_s)} s (bare)",
+            "material": {"mass_g": 10.0, "basis": "atom_fraction", "composition": {"Cu63": 1.0}},
+            "spectrum": {"total": 1e13}, "options": {"outputs": ["heat", "dose"]}, "photon": {"x": 1},
+            "schedule": schedule, **spec_overrides}
+    name = f"{component}__inst{installation:03d}__cont{int(shutdown_s)}__bare"
+    prov = {"component": component, "installation_index": installation, "continuation_of_shutdown_s": shutdown_s,
+            "mass_g": 10.0, "volume_m3": 2.0, "spec_file": f"{name}.spec.json",
+            "schedule": {"irradiation_step_count": len(schedule) - n_cooling}}
+    (spec_dir / prov["spec_file"]).write_text(json.dumps(spec))
+    return prov
+
+
+class RestartGroupTests(unittest.TestCase):
+    N = 3
+
+    def schedule(self, n_irr, tweak=None):
+        irr = [{"dt": f"{100.0 + i} s", "flux": float(i % 2)} for i in range(n_irr)]
+        if tweak is not None:
+            irr[tweak] = {"dt": "7.0 s", "flux": 1.0}
+        return irr + [{"dt": f"{10.0 ** k} s", "flux": 0.0} for k in range(self.N)]
+
+    def test_the_trunk_is_the_latest_spec_without_its_cooling_and_prefixes_are_found(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            provs = [prov_and_spec(d, "first-wall", 1, 400.0, self.schedule(4), self.N),
+                     prov_and_spec(d, "first-wall", 1, 900.0, self.schedule(8), self.N),
+                     prov_and_spec(d, "blanket", 2, 250.0, self.schedule(2), self.N)]
+            groups = MC.restart_groups(provs, d, self.N)
+            self.assertEqual([(g["component"], g["installation"]) for g in groups], [("blanket", 2), ("first-wall", 1)])
+            wall = groups[1]
+            self.assertEqual(wall["trunk"]["schedule"], self.schedule(8)[:8])
+            self.assertEqual(wall["trunk"]["options"]["outputs"], ["heat"])
+            self.assertEqual(wall["trunk"]["photon"], {"x": 1})
+            self.assertEqual([sd["step_index"] for sd in wall["shutdowns"]], [3, 7])
+            self.assertEqual(groups[0]["trunk"]["schedule"], self.schedule(2)[:2])
+
+    def test_specs_that_differ_outside_the_schedule_are_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            provs = [prov_and_spec(d, "first-wall", 1, 400.0, self.schedule(4), self.N),
+                     prov_and_spec(d, "first-wall", 1, 900.0, self.schedule(8), self.N, spectrum={"total": 2e13})]
+            with self.assertRaisesRegex(MC.ToolError, "outside its schedule"):
+                MC.restart_groups(provs, d, self.N)
+
+    def test_a_schedule_that_is_not_a_prefix_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            provs = [prov_and_spec(d, "first-wall", 1, 400.0, self.schedule(4, tweak=2), self.N),
+                     prov_and_spec(d, "first-wall", 1, 900.0, self.schedule(8), self.N)]
+            with self.assertRaisesRegex(MC.ToolError, r"first-wall__inst001__cont400__bare.*not a prefix"):
+                MC.restart_groups(provs, d, self.N)
+
+    def test_a_schedule_without_the_cooling_tail_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            provs = [prov_and_spec(d, "first-wall", 1, 400.0, self.schedule(4), self.N)]
+            provs[0]["schedule"]["irradiation_step_count"] = 2
+            with self.assertRaisesRegex(MC.ToolError, "cooling grid"):
+                MC.restart_groups(provs, d, self.N)
+
+    def test_the_cooling_spec_carries_the_inventory_and_only_the_tail(self):
+        spec = {"title": "FARIS blanket installation 1 continuation from 5 s (bare)", "options": {"outputs": ["heat"]},
+                "material": {"mass_g": 3.0, "basis": "atom_fraction", "composition": {"Li6": 1.0}},
+                "schedule": self.schedule(4)}
+        record = {"inventory": [{"Z": 27, "A": 58, "LISO": 1, "atoms_per_g": 2.0},
+                                {"Z": 1, "A": 3, "LISO": 0, "atoms_per_g": 0.0},
+                                {"Z": 2, "A": 4, "LISO": 0, "atoms_per_g": 5.0}]}
+        got = MC.cooling_spec(spec, record, self.N)
+        self.assertEqual(got["material"], {"mass_g": 3.0, "basis": "atoms_per_g",
+                                           "composition": {"He4": 5.0, "Co58m1": 2.0}})
+        self.assertEqual(got["schedule"], spec["schedule"][-self.N:])
+        self.assertEqual(got["options"], spec["options"])
+        self.assertEqual(spec["material"]["basis"], "atom_fraction")
+        with self.assertRaises(MC.ToolError):
+            MC.cooling_spec(spec, {"inventory": []}, self.N)
+
+
+class RestartEndToEndTests(unittest.TestCase):
+    HOT = AmendmentTwoTests.HOT
+
+    def rig(self, d, **kw):
+        kw.setdefault("f_values", (1.0,))
+        kw.setdefault("sweep_labels", ("0.30",))
+        kw.setdefault("amendment", 2)
+        kw.setdefault("horizon_y", 8.0)
+        rig = Rig(Path(d), kw.pop("params", self.HOT), **kw)
+        write_exe(Path(d) / "actinv", FAKE_ACTINV_RESTARTABLE)
+        return rig
+
+    def curves(self, rig, d, method, out):
+        cfg = MC.resolve_paths({**rig.config, **({"continuation_method": method} if method else {})}, Path(d))
+        base = json.loads((Path(d) / "assumptions.json").read_text())
+        Path(out).mkdir()
+        runner = MC.Runner(cfg, Path(out), base, MC.CLASSES)
+        got = runner.decay_curves("port/reference", cfg["arrangements"]["port/reference"], 1.0, {}, MC.BARE)
+        return runner, got.curves
+
+    def check_equal(self, full, restart):
+        self.assertEqual(sorted(full), sorted(restart))
+        self.assertTrue(full)
+        for key, a in full.items():
+            self.assertEqual(a["volume_m3"], restart[key]["volume_m3"])
+            self.assertEqual(len(a["points"]), len(restart[key]["points"]))
+            for p, q in zip(a["points"], restart[key]["points"]):
+                self.assertEqual((p[0], p[3]), (q[0], q[3]))
+                for x, y in ((p[1], q[1]), (p[2], q[2])):
+                    if x is None or y is None:
+                        self.assertEqual(x, y)
+                    else:
+                        self.assertLessEqual(abs(x - y), 1e-12 * max(abs(x), abs(y)), key)
+
+    def test_restart_curves_equal_the_full_continuations_and_run_far_fewer_irradiation_steps(self):
+        for photon in (False, True):
+            with tempfile.TemporaryDirectory() as d:
+                rig = self.rig(d)
+                if photon:
+                    (Path(d) / "response.json").write_text('{"schema": "actinv-photon-response-1"}\n')
+                    rig.config["photon_response"] = "response.json"
+                full_runner, full = self.curves(rig, d, None, Path(d) / "full")
+                restart_runner, restart = self.curves(rig, d, "restart", Path(d) / "restart")
+                self.check_equal(full, restart)
+                self.assertEqual(any(p[2] is not None for c in restart.values() for p in c["points"]), photon)
+                self.assertGreater(sum(1 for c in restart.values() if c["points"][0][1] > 0), 0)
+                self.assertEqual((restart_runner.continuation_runs, restart_runner.continuation_cache_hits), (0, 0))
+                self.assertEqual(restart_runner.restart_cooling_runs, full_runner.continuation_runs)
+                self.assertLess(restart_runner.trunk_runs, restart_runner.restart_cooling_runs)
+                self.assertEqual(restart_runner.restart_cooling_cache_hits, 0)
+                self.assertEqual(restart_runner.trunk_cache_hits, 0)
+                self.assertEqual(len(restart_runner.restart_info),
+                                 restart_runner.restart_cooling_runs + restart_runner.restart_cooling_cache_hits)
+                self.assertTrue(all(v["n_states_below_floor"] is not None for v in restart_runner.restart_info.values()))
+                trunks = sorted((Path(d) / "restart" / "decay-cache").glob("*.trunk.json"))
+                self.assertEqual(len(trunks), restart_runner.trunk_runs)
+                self.assertEqual(list((Path(d) / "restart" / "decay-cache").glob("*.tmp")), [])
+                for spec in sorted((Path(d) / "restart").rglob("restart/*.trunk.spec.json")):
+                    self.assertEqual(json.loads(spec.read_text())["options"]["outputs"], ["heat"])
+                for spec in sorted((Path(d) / "restart").rglob("restart/*.restart.spec.json")):
+                    doc = json.loads(spec.read_text())
+                    self.assertEqual(len(doc["schedule"]), len(MC.cooling_grid_s()))
+                    self.assertEqual(doc["material"]["basis"], "atoms_per_g")
+                # a rerun is served from the caches
+                again = MC.Runner(MC.resolve_paths({**rig.config, "continuation_method": "restart"}, Path(d)),
+                                  Path(d) / "restart", json.loads((Path(d) / "assumptions.json").read_text()),
+                                  MC.CLASSES)
+                before = len((Path(d) / "actinv-calls.log").read_text().splitlines())
+                again.decay_curves("port/reference", again.cfg["arrangements"]["port/reference"], 1.0, {}, MC.BARE)
+                self.assertEqual((again.trunk_runs, again.restart_cooling_runs), (0, 0))
+                self.assertEqual((again.trunk_cache_hits, again.restart_cooling_cache_hits),
+                                 (restart_runner.trunk_runs, restart_runner.restart_cooling_runs))
+                self.assertEqual(len((Path(d) / "actinv-calls.log").read_text().splitlines()), before)
+
+    def test_a_whole_run_in_restart_mode_gives_the_same_verdict_and_records_the_method(self):
+        out = {}
+        for method in ("full", "restart"):
+            with tempfile.TemporaryDirectory() as d:
+                rig = self.rig(d)
+                rig.config["continuation_method"] = method
+                rig.write_config()
+                code, err = rig.run("--actinv-workers", "3")
+                self.assertEqual(code, 0, err)
+                out[method] = rig.result()
+        full, restart = out["full"], out["restart"]
+        self.assertNotIn("continuation_method", full["parameters"])
+        self.assertNotIn("method", full["decay_continuations"])
+        self.assertEqual(restart["parameters"]["continuation_method"], "restart")
+        counts = restart["decay_continuations"]
+        self.assertEqual(counts["method"], "restart")
+        self.assertEqual(counts["restart_cooling_runs"], full["decay_continuations"]["runs"])
+        self.assertGreater(counts["trunk_runs"], 0)
+        self.assertEqual(restart["verdict"], full["verdict"])
+        self.assertEqual(restart["computed_model"][MC.BARE]["w"]["0.5"]["decisions"],
+                         full["computed_model"][MC.BARE]["w"]["0.5"]["decisions"])
+
+    def test_the_method_is_validated_and_defaults_to_full(self):
+        with tempfile.TemporaryDirectory() as d:
+            rig = self.rig(d)
+            for value, amendment in (("sideways", 2), ("restart", None)):
+                rig.config["continuation_method"] = value
+                rig.config.pop("amendment")
+                if amendment:
+                    rig.config["amendment"] = amendment
+                rig.write_config()
+                code, err = rig.run()
+                self.assertEqual(code, 2)
+                self.assertTrue("continuation_method" in err, err)
+        self.assertEqual(MC.Runner({}, Path("x"), {}, {}).continuation_method, "full")
+        MC.check_config  # the default config key set is checked in the existing tests
+
+
 if __name__ == "__main__":
     unittest.main()

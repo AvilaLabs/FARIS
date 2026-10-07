@@ -38,6 +38,12 @@ Config (JSON, paths relative to the config file):
                        is then the cross-check
   photon_response      optional; actinv-photon-response-1 JSON: every spec is built with --photon-response and
                        --actinv-outputs heat,dose. Absent: heat-only specs, unchanged.
+  continuation_method  optional; "full" (default) runs every continuation spec as built, so a component installation's
+                       whole history is repeated once per shutdown. "restart" (needs amendment 2) runs each
+                       installation's irradiation history once (the trunk, heat only) and starts a short cooling run
+                       per shutdown from the trunk's inventory at that shutdown; the curves are the same physics at a
+                       fraction of the cost (scripts/restart_equivalence.py compares the two). Trunk results are
+                       cached as <sha>.trunk.json beside the points files.
   An empty sweep ({}) with allow_reduced_grid runs no sweep case and D2 is NOT_EVALUATED.
 
 `--equivalence-check-only` runs just the Amendment 2 equivalence check and prints its numbers.
@@ -328,12 +334,13 @@ def point_of(step: dict) -> list:
             (step.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")]
 
 
-def scan_result(path: Path, chunk: int = READ_CHUNK) -> dict:
+def scan_result(path: Path, chunk: int = READ_CHUNK, keep_steps: set | None = None) -> dict:
     """Read an ACTINV result one top-level member and one step at a time.
 
     With photon outputs a long schedule's result runs to gigabytes, far beyond what json.loads can hold, and only
     four numbers per step are kept. Values are decoded by the same json decoder, so they equal json.loads's.
-    Returns the kept top-level members, the step points, and the file's SHA-256 and size.
+    Returns the kept top-level members, the step points, and the file's SHA-256 and size. With keep_steps (0-based
+    indices into the result's steps) it also returns "kept_steps", {index: the whole step} for those steps.
     """
     decoder = json.JSONDecoder()
     digest, size = hashlib.sha256(), 0
@@ -390,7 +397,7 @@ def scan_result(path: Path, chunk: int = READ_CHUNK) -> dict:
                 state["pos"] = end
                 return got
 
-    kept, points, n_steps = {}, [], 0
+    kept, points, n_steps, kept_steps = {}, [], 0, {}
     try:
         expect("{")
         while peek() != "}":
@@ -399,7 +406,10 @@ def scan_result(path: Path, chunk: int = READ_CHUNK) -> dict:
             if key == "steps":
                 expect("[")
                 while peek() != "]":
-                    points.append(point_of(value()))
+                    step = value()
+                    points.append(point_of(step))
+                    if keep_steps is not None and n_steps in keep_steps:
+                        kept_steps[n_steps] = step
                     n_steps += 1
                     if peek() == ",":
                         state["pos"] += 1
@@ -417,7 +427,10 @@ def scan_result(path: Path, chunk: int = READ_CHUNK) -> dict:
             raise ValueError(f"{path}: text after the result")
     finally:
         fh.close()
-    return {"kept": kept, "points": points, "n_steps": n_steps, "sha256": digest.hexdigest(), "bytes": size}
+    got = {"kept": kept, "points": points, "n_steps": n_steps, "sha256": digest.hexdigest(), "bytes": size}
+    if keep_steps is not None:
+        got["kept_steps"] = kept_steps
+    return got
 
 
 def write_points(result_path: Path, points_path: Path) -> None:
@@ -459,6 +472,112 @@ def read_activation(spec_dir: Path, variant: str) -> dict:
             "library": prov.get("library", {}),
         })
     return data
+
+
+# ------------------------------------------------------ restart continuation --
+
+TRUNK_SCHEMA = "faris-mct-actinv-trunk/v0.1"
+CONTINUATION_METHODS = ("full", "restart")
+ELEMENT_SYMBOLS = (
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr "
+    "Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu "
+    "Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr "
+    "Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og").split()
+assert len(ELEMENT_SYMBOLS) == 118
+
+
+def nuclide_key(z: int, a: int, liso: int) -> str:
+    """ACTINV composition key: symbol + mass number, plus m<LISO> for an isomeric state (LISO >= 1)."""
+    if not 1 <= z <= len(ELEMENT_SYMBOLS):
+        raise ToolError(f"no element symbol for Z = {z}")
+    return f"{ELEMENT_SYMBOLS[z - 1]}{a}" + (f"m{liso}" if liso >= 1 else "")
+
+
+def schedule_end_times(schedule: list) -> list:
+    """Cumulative seconds at the end of every schedule step."""
+    out, cursor = [], 0.0
+    for step in schedule:
+        cursor += float(step["dt"].split()[0])
+        out.append(cursor)
+    return out
+
+
+def restart_groups(provs: list, spec_dir: Path, n_cooling: int) -> list:
+    """Group continuation specs by (component, installation) into a trunk and the shutdowns it serves.
+
+    The trunk is the latest continuation's spec with its cooling tail dropped and only heat requested. Every other
+    spec of the group must equal it apart from the title and the schedule, and its irradiation schedule must be a
+    prefix of the trunk's; the trunk step that ends that prefix gives the inventory at its shutdown.
+    """
+    grouped: dict = {}
+    for prov in provs:
+        if "continuation_of_shutdown_s" not in prov:
+            raise ToolError(f"{prov.get('spec_file')}: not a continuation spec")
+        grouped.setdefault((prov["component"], prov["installation_index"]), []).append(prov)
+    groups = []
+    for (component, installation), members in sorted(grouped.items()):
+        members = sorted(members, key=lambda p: p["continuation_of_shutdown_s"])
+        loaded = []
+        for prov in members:
+            spec = json.loads((spec_dir / prov["spec_file"]).read_text(encoding="utf-8"))
+            n_irr = prov["schedule"]["irradiation_step_count"]
+            if n_irr < 1 or len(spec["schedule"]) != n_irr + n_cooling:
+                raise ToolError(f"{prov['spec_file']}: the schedule is not {n_irr} irradiation steps plus the "
+                                f"{n_cooling}-step cooling grid")
+            loaded.append((prov, spec, n_irr))
+        last_prov, last_spec, last_n = loaded[-1]
+        trunk_schedule = last_spec["schedule"][:last_n]
+        rest = {k: v for k, v in last_spec.items() if k not in ("schedule", "title")}
+        shutdowns = []
+        for prov, spec, n_irr in loaded:
+            if {k: v for k, v in spec.items() if k not in ("schedule", "title")} != rest:
+                raise ToolError(f"{prov['spec_file']}: differs from {last_prov['spec_file']} outside its schedule; "
+                                "cannot restart from a shared trunk")
+            if spec["schedule"][:n_irr] != trunk_schedule[:n_irr]:
+                raise ToolError(f"{prov['spec_file']}: its irradiation schedule is not a prefix of "
+                                f"{last_prov['spec_file']}'s")
+            shutdowns.append({"prov": prov, "spec": spec, "step_index": n_irr - 1})
+        trunk = copy.deepcopy(last_spec)
+        trunk["title"] = f"FARIS {component} installation {installation} restart trunk"
+        trunk["schedule"] = trunk_schedule
+        trunk.setdefault("options", {})["outputs"] = ["heat"]
+        groups.append({"component": component, "installation": installation, "trunk": trunk,
+                       "trunk_file": last_prov["spec_file"].replace(".spec.json", ".trunk.spec.json"),
+                       "shutdowns": shutdowns})
+    return groups
+
+
+def trunk_step_record(step: dict) -> dict:
+    return {"t_s": step["t_s"],
+            "inventory": [{"Z": e["Z"], "A": e["A"], "LISO": e["LISO"], "atoms_per_g": e["atoms_per_g"]}
+                          for e in step["inventory"]],
+            "n_states_below_floor": step.get("n_states_below_floor"),
+            "heat_bound_from_below_floor_W_per_g": step.get("heat_bound_from_below_floor_W_per_g")}
+
+
+def cooling_spec(spec: dict, record: dict, n_cooling: int) -> dict:
+    """The continuation spec restarted from a trunk step: its inventory as the material, only the cooling tail."""
+    composition = {}
+    for e in sorted(record["inventory"], key=lambda e: (e["Z"], e["A"], e["LISO"])):
+        if e["atoms_per_g"] > 0:
+            composition[nuclide_key(e["Z"], e["A"], e["LISO"])] = e["atoms_per_g"]
+    if not composition:
+        raise ToolError(f"{spec['title']}: the trunk inventory is empty at the shutdown")
+    out = copy.deepcopy(spec)
+    out["material"] = {"mass_g": spec["material"]["mass_g"], "basis": "atoms_per_g", "composition": composition}
+    out["schedule"] = spec["schedule"][-n_cooling:]
+    return out
+
+
+def cooling_curve(stored: dict, grid: list, mass_g: float, name: str, exact: bool = False) -> list:
+    """[(tau, heat_W, dose|None, 0.0)] from the last len(grid) steps of a points file; the steps must be zero-flux and
+    span the cooling grid (exact: and be nothing else)."""
+    tail = stored["steps"][-len(grid):]
+    span = tail[-1][0] - tail[0][0]
+    if (len(tail) != len(grid) or any(s[2] != 0 for s in tail)
+            or abs(span - (grid[-1] - grid[0])) > 1e-6 * grid[-1] or (exact and len(stored["steps"]) != len(grid))):
+        raise ToolError(f"{name}: the last {len(grid)} steps are not the cooling grid")
+    return [(tau, s[1] * mass_g, s[3], 0.0) for tau, s in zip(grid, tail)]
 
 
 class DecayCurves:
@@ -583,6 +702,10 @@ class Runner:
         self.continuation_runs = 0
         self.actinv_workers = 1  # concurrent ACTINV runs for decay continuations; set by --actinv-workers
         self.continuation_cache_hits = 0
+        self.continuation_method = cfg.get("continuation_method") or "full"
+        self.trunk_runs = self.trunk_cache_hits = 0
+        self.restart_cooling_runs = self.restart_cooling_cache_hits = 0
+        self.restart_info: dict = {}  # (component, installation, shutdown_s) -> the trunk's below-floor figures
         self.decay_cache = Path(cfg["decay_cache"]) if cfg.get("decay_cache") else out_dir / "decay-cache"
         self.class_w = dict(cfg.get("class_w") or {})
         self.governing = cfg.get("governing_quantity") or "heat"
@@ -730,44 +853,141 @@ class Runner:
                                   "build_activation_inputs", sorted({c for _, c, _ in needs}))
             provs = [json.loads(p.read_text(encoding="utf-8"))
                      for p in sorted(spec_dir.glob(f"*__{variant}.provenance.json"))]
-            # Run the continuations not yet in the cache, several at once; each writes only its own files.
-            missing: dict = {}
-            for prov in provs:
-                spec = spec_dir / prov["spec_file"]
-                sha = hashlib.sha256(spec.read_bytes()).hexdigest()
-                if (self.decay_cache / f"{sha}.points.json").exists():
-                    self.continuation_cache_hits += 1
-                elif sha in missing:
-                    self.continuation_cache_hits += 1
-                else:
-                    missing[sha] = spec
-            with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
-                jobs = [pool.submit(self._actinv_points, spec, self.decay_cache / f"{sha}.points.json")
-                        for sha, spec in sorted(missing.items())]
-                for job in jobs:
-                    job.result()
-            self.continuation_runs += len(missing)
-            for prov in provs:
-                spec = spec_dir / prov["spec_file"]
-                sha = hashlib.sha256(spec.read_bytes()).hexdigest()
-                points = self.decay_cache / f"{sha}.points.json"
-                stored = json.loads(points.read_text(encoding="utf-8"))
-                tail = stored["steps"][-len(grid):]
-                span = tail[-1][0] - tail[0][0]
-                if (len(tail) != len(grid) or any(s[2] != 0 for s in tail)
-                        or abs(span - (grid[-1] - grid[0])) > 1e-6 * grid[-1]):
-                    raise ToolError(f"{spec.name}: the last {len(grid)} steps are not the cooling grid")
-                if not self.library and prov.get("library"):
-                    self.library = prov["library"]
-                key = (prov["component"], prov["installation_index"], int(round(prov["continuation_of_shutdown_s"])))
-                by_key[key] = {"volume_m3": prov["volume_m3"],
-                               "points": [(tau, s[1] * prov["mass_g"], s[3], 0.0) for tau, s in zip(grid, tail)]}
+            if self.continuation_method == "restart":
+                if not self.library:
+                    self.library = next((p["library"] for p in provs if p.get("library")), {})
+                by_key = self.restart_curves(provs, spec_dir)
+            else:
+                # Run the continuations not yet in the cache, several at once; each writes only its own files.
+                missing: dict = {}
+                for prov in provs:
+                    spec = spec_dir / prov["spec_file"]
+                    sha = hashlib.sha256(spec.read_bytes()).hexdigest()
+                    if (self.decay_cache / f"{sha}.points.json").exists():
+                        self.continuation_cache_hits += 1
+                    elif sha in missing:
+                        self.continuation_cache_hits += 1
+                    else:
+                        missing[sha] = spec
+                with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
+                    jobs = [pool.submit(self._actinv_points, spec, self.decay_cache / f"{sha}.points.json")
+                            for sha, spec in sorted(missing.items())]
+                    for job in jobs:
+                        job.result()
+                self.continuation_runs += len(missing)
+                for prov in provs:
+                    spec = spec_dir / prov["spec_file"]
+                    sha = hashlib.sha256(spec.read_bytes()).hexdigest()
+                    points = self.decay_cache / f"{sha}.points.json"
+                    stored = json.loads(points.read_text(encoding="utf-8"))
+                    tail = stored["steps"][-len(grid):]
+                    span = tail[-1][0] - tail[0][0]
+                    if (len(tail) != len(grid) or any(s[2] != 0 for s in tail)
+                            or abs(span - (grid[-1] - grid[0])) > 1e-6 * grid[-1]):
+                        raise ToolError(f"{spec.name}: the last {len(grid)} steps are not the cooling grid")
+                    if not self.library and prov.get("library"):
+                        self.library = prov["library"]
+                    key = (prov["component"], prov["installation_index"], int(round(prov["continuation_of_shutdown_s"])))
+                    by_key[key] = {"volume_m3": prov["volume_m3"],
+                                   "points": [(tau, s[1] * prov["mass_g"], s[3], 0.0) for tau, s in zip(grid, tail)]}
         curves = {}
         for start_s, component, k in needs:
             got = by_key.get((component, k, int(round(start_s))))
             if got is not None:
                 curves[(start_s, component)] = got
         return DecayCurves(curves)
+
+    def _actinv_trunk(self, spec: Path, trunk_path: Path, needed: set) -> None:
+        """Run a trunk and keep, atomically, the inventory at the needed steps (merged with any already cached)."""
+        env = dict(os.environ, ACTINV_DATA_DIR=str(Path(self.cfg["data_dir"]).resolve()))
+        result = spec.with_name(spec.name.replace(".spec.json", ".result.json"))
+        result.unlink(missing_ok=True)
+        self._run([self.cfg["actinv"], "run", spec, result], f"actinv run {spec.name}", env=env)
+        got = scan_result(result, keep_steps=needed)
+        absent = sorted(needed - set(got["kept_steps"]))
+        if absent:
+            raise ToolError(f"{spec.name}: the result has {got['n_steps']} steps; none at index {absent}")
+        steps = {}
+        if trunk_path.exists():
+            steps = json.loads(trunk_path.read_text(encoding="utf-8")).get("steps", {})
+        steps.update({str(i): trunk_step_record(step) for i, step in got["kept_steps"].items()})
+        trunk_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = trunk_path.with_name(trunk_path.name + ".tmp")
+        tmp.write_text(json.dumps({"schema": TRUNK_SCHEMA, "n_steps": got["n_steps"], "steps": steps}) + "\n",
+                       encoding="utf-8")
+        os.replace(tmp, trunk_path)
+        result.unlink()
+
+    def restart_curves(self, provs: list, spec_dir: Path, cache_dir: Path | None = None) -> dict:
+        """One heat-only trunk per component installation, then a cooling run per shutdown restarted from the trunk's
+        inventory there. Returns {(component, installation, shutdown_s): {"volume_m3", "points"}} like the full method;
+        the trunk's below-floor figures per curve are left in self.restart_info."""
+        cache = cache_dir or self.decay_cache
+        grid = cooling_grid_s()
+        groups = restart_groups(provs, spec_dir, len(grid))
+        restart_dir = spec_dir / "restart"
+        restart_dir.mkdir(parents=True, exist_ok=True)
+        trunks = {}  # sha -> (spec path, needed step indices)
+        for g in groups:
+            path = restart_dir / g["trunk_file"]
+            path.write_text(json.dumps(g["trunk"], indent=2) + "\n", encoding="utf-8")
+            g["sha"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            g["path"] = path
+            needed = {sd["step_index"] for sd in g["shutdowns"]}
+            held = set(trunks[g["sha"]][1]) if g["sha"] in trunks else set()
+            trunks[g["sha"]] = (path, held | needed)
+        todo = {}
+        for sha, (path, needed) in sorted(trunks.items()):
+            trunk_path = cache / f"{sha}.trunk.json"
+            have = set()
+            if trunk_path.exists():
+                have = {int(i) for i in json.loads(trunk_path.read_text(encoding="utf-8")).get("steps", {})}
+            if needed <= have:
+                self.trunk_cache_hits += 1
+            else:
+                todo[sha] = (path, needed | have)
+        with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
+            jobs = [pool.submit(self._actinv_trunk, path, cache / f"{sha}.trunk.json", needed)
+                    for sha, (path, needed) in todo.items()]
+            for job in jobs:
+                job.result()
+        self.trunk_runs += len(todo)
+        missing: dict = {}
+        planned = []
+        for g in groups:
+            doc = json.loads((cache / f"{g['sha']}.trunk.json").read_text(encoding="utf-8"))
+            ends = schedule_end_times(g["trunk"]["schedule"])
+            for sd in g["shutdowns"]:
+                prov, index = sd["prov"], sd["step_index"]
+                record = doc["steps"][str(index)]
+                if abs(record["t_s"] - ends[index]) > 1e-6 * ends[index]:
+                    raise ToolError(f"{g['trunk_file']}: step {index} ends at {record['t_s']!r} s, "
+                                    f"the schedule says {ends[index]!r} s")
+                spec = cooling_spec(sd["spec"], record, len(grid))
+                path = restart_dir / prov["spec_file"].replace(".spec.json", ".restart.spec.json")
+                path.write_text(json.dumps(spec, indent=2) + "\n", encoding="utf-8")
+                sha = hashlib.sha256(path.read_bytes()).hexdigest()
+                planned.append((prov, path, sha, record))
+                if (cache / f"{sha}.points.json").exists() or sha in missing:
+                    self.restart_cooling_cache_hits += 1
+                else:
+                    missing[sha] = path
+        with ThreadPoolExecutor(max_workers=max(1, self.actinv_workers)) as pool:
+            jobs = [pool.submit(self._actinv_points, path, cache / f"{sha}.points.json")
+                    for sha, path in sorted(missing.items())]
+            for job in jobs:
+                job.result()
+        self.restart_cooling_runs += len(missing)
+        by_key = {}
+        for prov, path, sha, record in planned:
+            stored = json.loads((cache / f"{sha}.points.json").read_text(encoding="utf-8"))
+            key = (prov["component"], prov["installation_index"], int(round(prov["continuation_of_shutdown_s"])))
+            by_key[key] = {"volume_m3": prov["volume_m3"],
+                           "points": cooling_curve(stored, grid, prov["mass_g"], path.name, exact=True)}
+            self.restart_info[key] = {
+                "n_states_below_floor": record["n_states_below_floor"],
+                "heat_bound_from_below_floor_W_per_g": record["heat_bound_from_below_floor_W_per_g"]}
+        return by_key
 
     def equivalence_check(self, case: dict, variant: str = BARE) -> dict:
         """Amendment 2 item 5: heat at the end of the first outages of one installation, with the outage as a
@@ -1200,6 +1420,11 @@ def run_all(cfg: dict, out_dir: Path, actinv_workers: int = 1) -> dict:
         body["amendment"] = AMENDMENT_2
         body["equivalence_check"] = equivalence
         body["decay_continuations"] = {"runs": runner.continuation_runs, "cache_hits": runner.continuation_cache_hits}
+        if runner.continuation_method == "restart":
+            body["decay_continuations"].update({
+                "method": "restart", "trunk_runs": runner.trunk_runs, "trunk_cache_hits": runner.trunk_cache_hits,
+                "restart_cooling_runs": runner.restart_cooling_runs,
+                "restart_cooling_cache_hits": runner.restart_cooling_cache_hits})
     return body
 
 
@@ -1207,6 +1432,11 @@ def check_config(cfg: dict) -> None:
     for key in ("faris", "actinv", "data_dir", "assumptions", "output_dir", "arrangements", "sweep"):
         if key not in cfg:
             raise Refused(f"config lacks {key}")
+    if cfg.get("continuation_method", "full") not in CONTINUATION_METHODS:
+        raise Refused(f"continuation_method must be one of {list(CONTINUATION_METHODS)}, "
+                      f"not {cfg.get('continuation_method')!r}")
+    if cfg.get("continuation_method") == "restart" and cfg.get("amendment") != AMENDMENT_2:
+        raise Refused("continuation_method \"restart\" needs \"amendment\": 2 (it replaces the decay continuations)")
     if cfg.get("amendment") not in (None, AMENDMENT_2):
         raise Refused(f"unknown amendment {cfg.get('amendment')!r}; only 2 exists")
     if set(cfg["arrangements"]) != set(ARRANGEMENTS):
@@ -1352,6 +1582,8 @@ def main(argv=None) -> int:
         doc["parameters"]["class_w"] = dict(cfg["class_w"])
     if cfg.get("governing_quantity") == "dose":
         doc["parameters"]["governing_quantity"] = "dose"
+    if cfg.get("continuation_method") == "restart":
+        doc["parameters"]["continuation_method"] = "restart"
     if body.get("amendment"):
         doc["amendment"] = body["amendment"]
         doc["equivalence_check"] = body["equivalence_check"]
