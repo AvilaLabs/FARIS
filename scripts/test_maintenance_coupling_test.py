@@ -722,6 +722,55 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual((code, "cannot resume" in err), (2, True))
 
 
+class ResultScanTests(unittest.TestCase):
+    """scan_result reads a result a step at a time and must give exactly what json.loads gives."""
+
+    @staticmethod
+    def whole(path):
+        raw = Path(path).read_bytes()
+        result = json.loads(raw)
+        return {"kept": {k: result[k] for k in MC.RESULT_KEPT if k in result},
+                "points": [MC.point_of(s) for s in result["steps"]], "n_steps": len(result["steps"]),
+                "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
+
+    def results(self):
+        steps = []
+        for i in range(7):
+            step = {"step": i + 1, "t_s": 3600.0 * 10 ** (i / 2), "flux": 0.0 if i % 2 else 1.25e14 / (i + 1),
+                    "inventory": [{"nuclide": "Co60", "atoms_per_g": 1.0e10 / (i + 1)}],
+                    "heat_W_per_g": {"total": 1e-3 / (i + 1) ** 1.5, "alpha": 0.0, "beta": 1e-4, "gamma": 2e-4}}
+            if i != 3:
+                step["photon_source"] = {"lines": [[1173.2, 0.9985], [1332.5, 0.9998]],
+                                         "contact_gamma_air_dose_proxy_Gy_h": 12.5 / (i + 1), "note": "µ, \u00e9 ok"}
+            if i == 5:
+                del step["flux"]
+            steps.append(step)
+        full = {"spec_title": "t \"quoted\" é", "pruned_states": 10, "total_states": 3873, "steps": steps,
+                "ledger": {"nested": {"steps": [1, 2]}, "list": [None, True, False, -1.5e-300]}, "ms": 4987.435993}
+        yield json.dumps(full, indent=2)
+        yield json.dumps(full, separators=(",", ":"))
+        yield json.dumps({"steps": [], "ms": 1}) + "\n\n"
+        yield json.dumps({k: v for k, v in full.items() if k not in ("ms", "pruned_states")}, indent=1)
+
+    def test_scan_equals_json_loads_at_every_chunk_size(self):
+        with tempfile.TemporaryDirectory() as d:
+            for n, text in enumerate(self.results()):
+                path = Path(d) / f"r{n}.json"
+                path.write_text(text, encoding="utf-8")
+                want = self.whole(path)
+                for chunk in (1, 2, 3, 5, 7, 64, MC.READ_CHUNK):
+                    self.assertEqual(MC.scan_result(path, chunk), want, (n, chunk))
+
+    def test_truncated_or_trailing_text_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            text = next(self.results())
+            for bad in (text[:-40], text + "x"):
+                path = Path(d) / "bad.json"
+                path.write_text(bad, encoding="utf-8")
+                with self.assertRaises((ValueError, json.JSONDecodeError)):
+                    MC.scan_result(path, 5)
+
+
 class AmendmentTwoTests(unittest.TestCase):
     """Amendment 2: continuation runs for every (event, governing component), a content cache, 10 iterations."""
 

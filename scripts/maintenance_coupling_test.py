@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import codecs
 import copy
 import hashlib
 import importlib.util
@@ -318,22 +319,122 @@ def derive_assumptions(base: dict, classes: dict, f: float, used: dict) -> dict:
 
 # ------------------------------------------------------------------- ACTINV --
 
+RESULT_KEPT = ("ms", "pruned_states", "total_states")
+READ_CHUNK = 8 << 20
+
+
+def point_of(step: dict) -> list:
+    return [step["t_s"], step["heat_W_per_g"]["total"], step.get("flux", 0.0),
+            (step.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")]
+
+
+def scan_result(path: Path, chunk: int = READ_CHUNK) -> dict:
+    """Read an ACTINV result one top-level member and one step at a time.
+
+    With photon outputs a long schedule's result runs to gigabytes, far beyond what json.loads can hold, and only
+    four numbers per step are kept. Values are decoded by the same json decoder, so they equal json.loads's.
+    Returns the kept top-level members, the step points, and the file's SHA-256 and size.
+    """
+    decoder = json.JSONDecoder()
+    digest, size = hashlib.sha256(), 0
+    text = codecs.getincrementaldecoder("utf-8")()
+    state = {"buf": "", "pos": 0, "eof": False}
+    fh = open(path, "rb")
+
+    def more() -> bool:
+        nonlocal size
+        if state["eof"]:
+            return False
+        data = fh.read(chunk)
+        digest.update(data)
+        size += len(data)
+        if not data:
+            state["eof"] = True
+            state["buf"] += text.decode(b"", final=True)
+            return False
+        if state["pos"] > chunk:
+            state["buf"], state["pos"] = state["buf"][state["pos"]:], 0
+        state["buf"] += text.decode(data)
+        return True
+
+    def peek() -> str:
+        while True:
+            buf, pos = state["buf"], state["pos"]
+            while pos < len(buf) and buf[pos] in " \t\r\n":
+                pos += 1
+            state["pos"] = pos
+            if pos < len(buf):
+                return buf[pos]
+            if not more():
+                raise ValueError(f"{path}: result ends early")
+
+    def expect(char: str) -> None:
+        if peek() != char:
+            raise ValueError(f"{path}: expected {char!r} at character {state['pos']}")
+        state["pos"] += 1
+
+    def value():
+        peek()
+        while True:
+            try:
+                got, end = decoder.raw_decode(state["buf"], state["pos"])
+                # a number cut by the buffer's end decodes short (4987. -> 4987); accept a value only when a
+                # delimiter follows it, which a cut number never has
+                if (end < len(state["buf"]) and state["buf"][end] in " \t\r\n,]}:") or state["eof"]:
+                    state["pos"] = end
+                    return got
+            except json.JSONDecodeError:
+                pass
+            if not more():
+                got, end = decoder.raw_decode(state["buf"], state["pos"])
+                state["pos"] = end
+                return got
+
+    kept, points, n_steps = {}, [], 0
+    try:
+        expect("{")
+        while peek() != "}":
+            key = value()
+            expect(":")
+            if key == "steps":
+                expect("[")
+                while peek() != "]":
+                    points.append(point_of(value()))
+                    n_steps += 1
+                    if peek() == ",":
+                        state["pos"] += 1
+                state["pos"] += 1
+            elif key in RESULT_KEPT:
+                kept[key] = value()
+            else:
+                value()
+            if peek() == ",":
+                state["pos"] += 1
+        state["pos"] += 1
+        while more():
+            pass
+        if state["buf"][state["pos"]:].strip():
+            raise ValueError(f"{path}: text after the result")
+    finally:
+        fh.close()
+    return {"kept": kept, "points": points, "n_steps": n_steps, "sha256": digest.hexdigest(), "bytes": size}
+
+
 def write_points(result_path: Path, points_path: Path) -> None:
     """Compact the full ACTINV result into a points file (atomically), then delete the result.
 
-    A heat-only result can still be hundreds of MB for a long schedule, so it is not kept.
+    A heat-only result can still be hundreds of MB for a long schedule, and one with photon outputs gigabytes, so it
+    is read a step at a time (scan_result) and not kept.
     """
-    raw = result_path.read_bytes()
-    result = json.loads(raw)
+    got = scan_result(result_path)
     doc = {
         "schema": POINTS_SCHEMA,
-        "result_sha256": hashlib.sha256(raw).hexdigest(), "result_bytes": len(raw),
-        "n_steps": len(result["steps"]),
-        "ms": result.get("ms"),
-        "pruned_states": result.get("pruned_states"),
-        "total_states": result.get("total_states"),
-        "steps": [[s["t_s"], s["heat_W_per_g"]["total"], s.get("flux", 0.0),
-                   (s.get("photon_source") or {}).get("contact_gamma_air_dose_proxy_Gy_h")] for s in result["steps"]],
+        "result_sha256": got["sha256"], "result_bytes": got["bytes"],
+        "n_steps": got["n_steps"],
+        "ms": got["kept"].get("ms"),
+        "pruned_states": got["kept"].get("pruned_states"),
+        "total_states": got["kept"].get("total_states"),
+        "steps": got["points"],
     }
     tmp = points_path.with_name(points_path.name + ".tmp")
     tmp.write_text(json.dumps(doc) + "\n", encoding="utf-8")
