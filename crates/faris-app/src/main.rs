@@ -7,6 +7,7 @@ mod compare_panel;
 mod export_panel;
 mod history_panel;
 mod interface_check;
+mod maintenance_panel;
 mod package;
 mod recorder;
 mod study_file;
@@ -133,6 +134,9 @@ struct Arguments {
     /// Recorded-transport bundle for the allocation sweep; repeat once per allocation.
     #[arg(long)]
     sweep_bundle: Vec<PathBuf>,
+    /// Open a faris-maintenance-result/v0.1 file in the Maintenance window.
+    #[arg(long, value_name = "RESULT.json")]
+    maintenance: Option<PathBuf>,
     /// Matched feature-free scenario to compare against the penetration.
     #[arg(long)]
     control_scenario: Option<PathBuf>,
@@ -526,6 +530,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 history,
             )?;
             app.sweep = sweep;
+            if let Some(path) = args.maintenance.clone() {
+                app.maintenance.load_in_background(&cc.egui_ctx, path);
+            }
             app.file = study_file::FileState::new(inputs, runs_directory.clone());
             if let Some(session) = package_session {
                 if let Some(failure) = &session.failure {
@@ -784,6 +791,7 @@ struct FarisApp {
     paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
     history: history_panel::HistoryPanel,
     sweep: Option<sweep_panel::SweepPanel>,
+    maintenance: maintenance_panel::MaintenancePanel,
     step: Step,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
@@ -837,6 +845,7 @@ impl FarisApp {
             paired,
             history,
             sweep: None,
+            maintenance: maintenance_panel::MaintenancePanel::default(),
             step: Step::Design,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
@@ -1159,6 +1168,7 @@ impl FarisApp {
             && !self.history.is_pending()
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
+            && !self.maintenance.is_pending()
             && !self.study.archive.is_loading()
             && self.export.development_settled()
     }
@@ -2094,6 +2104,8 @@ impl eframe::App for FarisApp {
                     ui.separator();
                 }
                 interface_size_menu(ui);
+                ui.toggle_value(&mut self.maintenance.open, "Maintenance")
+                    .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
                 let replay = ui.button("Tour").on_hover_text("Replay the guided tour");
                 self.tour.anchor("tour-button", replay.rect);
                 if replay.clicked() {
@@ -2129,6 +2141,7 @@ impl eframe::App for FarisApp {
             }
         });
         let bar_bottom = bar.response.rect.bottom();
+        self.maintenance.window(&ctx);
         if self.sign_in_prompt
             && !self.tour.active
             && let Some(suite) = &mut self.suite

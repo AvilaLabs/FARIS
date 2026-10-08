@@ -15,3 +15,4 @@ customer-data/
 !.env.example
 .DS_Store
 .wrangler/
+target-shots/

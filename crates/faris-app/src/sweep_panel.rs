@@ -77,7 +77,7 @@ impl Axis {
 }
 
 /// Round tick values covering `lo..=hi` with about `target` divisions.
-fn nice_ticks(lo: f64, hi: f64, target: usize) -> (Vec<f64>, f64) {
+pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> (Vec<f64>, f64) {
     let raw = (hi - lo) / target.max(1) as f64;
     if !(raw.is_finite() && raw > 0.0) {
         return (vec![lo], 1.0);
