@@ -222,9 +222,11 @@ Run `faris COMMAND --help` for every flag. Errors exit with status 2; a file tha
   Nuclear-data, geometry, material and model uncertainty are not, so the true
   uncertainty is larger than the ranges shown.
 - **Magnet fluence.** Limits use regional averages. The local peak is not
-  resolved; it needs variance reduction aimed at the magnet (planned for 0.2).
-- **Activation.** No activation, decay heat or shutdown dose yet (planned for
-  0.2). No physical degradation models.
+  resolved; it needs variance reduction aimed at the magnet (planned).
+- **Activation.** Decay heat is used only to compute replacement outages, a
+  separate calculation that needs ACTINV (see the handbook's Computed maintenance
+  durations). No shutdown dose, no maintenance timed on contact dose, and no
+  physical degradation models.
 - **Assumptions.** Service limits, outage durations, recovery fractions and
   plant efficiencies are authored or literature screening values, not material
   allowables or measured plant data. Fuel, maintenance, service events and
