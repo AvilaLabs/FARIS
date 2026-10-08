@@ -628,7 +628,7 @@ fn load_history_result(
     }
     let stage_bytes = read_case_file(root, "expected/history.json", MAX_FILE_BYTES)?;
     let stage: Value = serde_json::from_slice(&stage_bytes)?;
-    if stage["schema_version"] != "faris-core-stage-output/v0.1"
+    if !crate::core_evidence::is_supported_stage_schema(&stage["schema_version"])
         || stage["stage"] != "history"
         || stage["history"] != "history_calculated"
         || stage["scientific_qualification"] != "NOT_EVALUATED"

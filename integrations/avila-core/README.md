@@ -16,8 +16,8 @@ and ordinary transport/history CLI remain independently usable.
 | Stage | Actual operation | Bound inputs |
 | --- | --- | --- |
 | transport | Revalidate a previously executed OpenMC record and its normalization inputs | Exact scenario, physics, nuclear-data audit and portable recorded transport |
-| normalize | Replay shared Rust normalization and extract declared responses | Verified transport, scenario and physics |
-| history | Run the deterministic fuel/decay/processing/exposure/maintenance ledger | Verified normalized transport, scenario and explicit operating assumptions |
+| normalize | Extract the declared responses and the driving rates from the transport stage's normalized result | Verified transport stage output and scenario |
+| history | Run the deterministic fuel/decay/processing/exposure/maintenance ledger | Normalize stage output (driving rates), scenario and explicit operating assumptions |
 | energy | Replay that history and check its signed electrical ledger | Recorded history and scenario |
 
 The transport stage verifies prior OpenMC execution; it does not rerun OpenMC
@@ -25,6 +25,17 @@ under Core. **Run fresh transport** remains an explicit FARIS operation with
 installed solver and nuclear data. Recorded transport includes raw tallies,
 spectra, worker source, input/audit bytes and local execution records; nuclear
 data and OpenMC statepoints remain external identified artifacts.
+
+Stage outputs (`faris-core-stage-output/v0.2`) carry only what the stage newly
+computes. The transport output holds the normalized result as a compact JSON
+string (`normalized_json`); the normalize output holds the extracted claims and
+the driving rates (`rates_json`); the history output holds the history ledger.
+No stage forwards the recorded transport bundle: Core binds every stage input
+by SHA-256 to the upstream step's receipt-verified output, so a downstream
+stage checks only that the upstream envelope has the expected version and stage
+and names the bound scenario. Saved `faris-core-stage-output/v0.1` outputs
+(which forward the full bundle) are still read and inspected; new cases are
+written as v0.2.
 
 Core's verified execution means the declared workflow completed. A compiled
 contract or verified receipt does not qualify reactor physics. The physical

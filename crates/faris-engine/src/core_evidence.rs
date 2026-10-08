@@ -220,15 +220,35 @@ pub fn canonical_decimal(value: f64) -> Result<String, ReactorError> {
     Ok(result)
 }
 
-fn bundle_from_envelope(upstream: &Value) -> Result<RecordedTransportBundle, ReactorError> {
-    if upstream["schema_version"] != "faris-core-stage-output/v0.1" {
-        return Err("unsupported upstream stage envelope".into());
+const STAGE_V01: &str = "faris-core-stage-output/v0.1";
+const STAGE_V02: &str = "faris-core-stage-output/v0.2";
+
+/// Stage envelopes written before v0.2 stay readable. `history` and `energy`
+/// outputs have the same shape in both versions.
+pub fn is_supported_stage_schema(schema_version: &Value) -> bool {
+    schema_version == STAGE_V01 || schema_version == STAGE_V02
+}
+
+/// A v0.2 upstream envelope of the named stage whose scenario identity equals
+/// the bound scenario input. Core binds every stage input by SHA-256 to the
+/// upstream step's receipt-verified output, so nothing is re-verified from
+/// scratch here; only the binding to this scenario is checked.
+fn v02_upstream<'a>(
+    upstream: &'a Value,
+    stage: &str,
+    scenario_sha256: &str,
+    refusal: &str,
+) -> Result<&'a Value, ReactorError> {
+    if upstream["schema_version"] != STAGE_V02
+        || upstream["stage"] != stage
+        || upstream["scientific_qualification"] != "NOT_EVALUATED"
+    {
+        return Err(refusal.into());
     }
-    Ok(serde_json::from_str(
-        upstream["transport_json"]
-            .as_str()
-            .ok_or("missing transport payload")?,
-    )?)
+    if upstream["scenario_sha256"] != scenario_sha256 {
+        return Err("upstream stage scenario differs from the bound scenario".into());
+    }
+    Ok(upstream)
 }
 
 pub fn transport_stage(
@@ -246,34 +266,54 @@ pub fn transport_stage(
     if physics != input["physics"] || data_bytes != bundle.files["audit.json"].as_bytes() {
         return Err("bound physics or nuclear-data audit differs from recorded transport".into());
     }
-    Ok(
-        json!({"schema_version":"faris-core-stage-output/v0.1", "stage":"transport",
-        "raw":"recorded_transport_revalidated", "transport_json":serde_json::to_string(bundle)?,
-        "scenario_sha256":scenario.source_sha256, "input_sha256":record.input_sha256,
-        "scientific_qualification":"NOT_EVALUATED", "notice":"This stage verified a prior OpenMC execution; Core did not rerun OpenMC."}),
-    )
-}
-
-pub fn normalization_stage(
-    upstream: &Value,
-    scenario_bytes: &[u8],
-    physics_bytes: &[u8],
-) -> Result<Value, ReactorError> {
-    if upstream["stage"] != "transport" {
-        return Err("normalization requires verified transport stage".into());
-    }
-    let bundle = bundle_from_envelope(upstream)?;
-    let (scenario, record) = bundle.verify()?;
-    let input: Value = serde_json::from_str(&bundle.files["input.json"])?;
-    if scenario.source_bytes() != scenario_bytes
-        || serde_json::from_slice::<Value>(physics_bytes)? != input["physics"]
-    {
-        return Err("normalization bindings differ from verified upstream transport".into());
-    }
-    let result = record
+    let normalized = record
         .normalized
         .as_ref()
         .ok_or("missing checked normalized result")?;
+    transport_envelope(
+        &scenario.source_sha256,
+        &record.input_sha256,
+        record
+            .raw_artifact_sha256
+            .as_deref()
+            .ok_or("missing raw identity")?,
+        normalized,
+    )
+}
+
+fn transport_envelope(
+    scenario_sha256: &str,
+    input_sha256: &str,
+    raw_artifact_sha256: &str,
+    normalized: &crate::transport::NormalizedTransportResult,
+) -> Result<Value, ReactorError> {
+    Ok(json!({"schema_version":STAGE_V02, "stage":"transport",
+        "raw":"recorded_transport_revalidated",
+        "scenario_sha256":scenario_sha256, "input_sha256":input_sha256,
+        "raw_artifact_sha256":raw_artifact_sha256,
+        "normalized_json":serde_json::to_string(normalized)?,
+        "scientific_qualification":"NOT_EVALUATED", "notice":"This stage verified a prior OpenMC execution; Core did not rerun OpenMC."}))
+}
+
+pub fn normalization_stage(upstream: &Value, scenario_bytes: &[u8]) -> Result<Value, ReactorError> {
+    let scenario = LoadedScenario::from_bytes(scenario_bytes)?;
+    let upstream = v02_upstream(
+        upstream,
+        "transport",
+        &scenario.source_sha256,
+        "normalization requires verified v0.2 transport stage",
+    )?;
+    let result: crate::transport::NormalizedTransportResult = serde_json::from_str(
+        upstream["normalized_json"]
+            .as_str()
+            .ok_or("missing normalized payload")?,
+    )?;
+    let raw_artifact_sha256 = upstream["raw_artifact_sha256"]
+        .as_str()
+        .ok_or("missing raw identity")?;
+    if result.scenario_sha256 != scenario.source_sha256 {
+        return Err("normalized upstream payload belongs to a different scenario".into());
+    }
     let tritium = result
         .results
         .iter()
@@ -284,16 +324,20 @@ pub fn normalization_stage(
         .iter()
         .find(|r| r.response_id == "magnets-flux")
         .ok_or("missing magnet response")?;
-    Ok(
-        json!({"schema_version":"faris-core-stage-output/v0.1", "stage":"normalize",
-        "normalized":"raw_transport_renormalized_and_verified",
+    let rates = crate::history::TransportDrivingRates::from_normalized(
+        &result,
+        scenario.scenario.operating_plan.fusion_power_mw,
+        raw_artifact_sha256,
+    )?;
+    Ok(json!({"schema_version":STAGE_V02, "stage":"normalize",
+        "normalized":"normalized_transport_extracted",
         "tbr":canonical_decimal(tritium.integrated_mean / result.source_neutron_rate_per_s)?,
         "magnet_flux":canonical_decimal(magnet.mean)?,
-        "transport_json":serde_json::to_string(&bundle)?,
-        "normalized_json":serde_json::to_string(result)?,
-        "uncertainty":"Sampling standard errors retained in normalized_json. Extracted nominal claims are unquantified; no confidence interval or exact physical value is asserted.",
-        "scientific_qualification":"NOT_EVALUATED"}),
-    )
+        "rates_json":serde_json::to_string(&rates)?,
+        "scenario_sha256":scenario.source_sha256,
+        "raw_artifact_sha256":raw_artifact_sha256,
+        "uncertainty":"Sampling standard errors are retained in the transport stage's normalized_json. Extracted nominal claims are unquantified; no confidence interval or exact physical value is asserted.",
+        "scientific_qualification":"NOT_EVALUATED"}))
 }
 
 pub fn history_stage(
@@ -302,39 +346,26 @@ pub fn history_stage(
     assumptions: &OperatingHistoryAssumptions,
     cancellation: &Cancellation,
 ) -> Result<Value, ReactorError> {
-    if upstream["stage"] != "normalize" {
-        return Err("history requires normalized transport stage".into());
-    }
-    let bundle = bundle_from_envelope(upstream)?;
-    let (scenario, record) = bundle.verify()?;
-    if scenario.source_bytes() != scenario_bytes {
-        return Err("history scenario differs from bound transport".into());
-    }
-    let normalized = record
-        .normalized
-        .as_ref()
-        .ok_or("missing normalized transport")?;
-    let stored: crate::transport::NormalizedTransportResult = serde_json::from_str(
-        upstream["normalized_json"]
+    let scenario = LoadedScenario::from_bytes(scenario_bytes)?;
+    let upstream = v02_upstream(
+        upstream,
+        "normalize",
+        &scenario.source_sha256,
+        "history requires normalized v0.2 transport stage",
+    )?;
+    let rates: crate::history::TransportDrivingRates = serde_json::from_str(
+        upstream["rates_json"]
             .as_str()
-            .ok_or("missing normalized payload")?,
+            .ok_or("missing driving-rates payload")?,
     )?;
-    if &stored != normalized {
-        return Err("normalized upstream payload differs from verified transport".into());
+    if rates.scenario_sha256 != scenario.source_sha256 {
+        return Err("driving rates belong to a different scenario".into());
     }
-    let rates = crate::history::TransportDrivingRates::from_normalized(
-        normalized,
-        scenario.scenario.operating_plan.fusion_power_mw,
-        record
-            .raw_artifact_sha256
-            .as_deref()
-            .ok_or("missing raw identity")?,
-    )?;
     let history =
         crate::history::run_operating_history_cancellable(assumptions, &rates, cancellation)?;
     let history_json = serde_json::to_string(&history)?;
     Ok(
-        json!({"schema_version":"faris-core-stage-output/v0.1","stage":"history","history":"history_calculated",
+        json!({"schema_version":STAGE_V02,"stage":"history","history":"history_calculated",
         "history_sha256":sha(history_json.as_bytes()),"history_json":history_json,
         "scenario_sha256":scenario.source_sha256,"scientific_qualification":"NOT_EVALUATED",
         "notice":"Deterministic fuel, decay, processing, exposure, maintenance and energy ledger. All projections remain conditional on the exact authored assumptions and transport model."}),
@@ -346,9 +377,7 @@ pub fn energy_stage(
     scenario_bytes: &[u8],
     cancellation: &Cancellation,
 ) -> Result<Value, ReactorError> {
-    if upstream["schema_version"] != "faris-core-stage-output/v0.1"
-        || upstream["stage"] != "history"
-    {
+    if !is_supported_stage_schema(&upstream["schema_version"]) || upstream["stage"] != "history" {
         return Err("energy requires calculated operating history stage".into());
     }
     let history_json = upstream["history_json"]
@@ -382,7 +411,7 @@ pub fn energy_stage(
         return Err("net energy ledger does not close".into());
     }
     Ok(
-        json!({"schema_version":"faris-core-stage-output/v0.1","stage":"energy","energy":"energy_ledger_verified",
+        json!({"schema_version":STAGE_V02,"stage":"energy","energy":"energy_ledger_verified",
         "history_sha256":upstream["history_sha256"],"net_electricity_mwh":canonical_decimal(net)?,
         "gross_electricity_mwh":canonical_decimal(gross)?,"auxiliary_electricity_mwh":canonical_decimal(auxiliary)?,
         "transport_recovered_heat_mwh":canonical_decimal(last.cumulative_transport_recovered_heat_mwh.ok_or("missing recovered neutron-source heat")?)?,
@@ -468,7 +497,7 @@ fn adapter(
     let claims: Vec<_> = outputs.iter().map(|(slot, pointer, unit)| match unit {
         Some(unit) => json!({"model":"unquantified","output_slot":slot,"output_id":"report","pointer":pointer,"unit":unit}),
         None => json!({"model":"categorical","output_slot":slot,"output_id":"report","pointer":pointer,
-            "allowed_values":["recorded_transport_revalidated","raw_transport_renormalized_and_verified","history_calculated","energy_ledger_verified"]}),
+            "allowed_values":["recorded_transport_revalidated","raw_transport_renormalized_and_verified","normalized_transport_extracted","history_calculated","energy_ledger_verified"]}),
     }).collect();
     json!({"schema_version":"avila.core/external-checker-adapter/v0.1-draft",
         "adapter_id":format!("avila-labs.faris/{stage}@1"),"capability_type":{"id":capability,"major":1},
@@ -559,7 +588,7 @@ pub fn prepare_case_with_assumptions(
         &bound_inputs[2].1,
         &bundle,
     )?;
-    let normalized = normalization_stage(&raw, &bound_inputs[0].1, &bound_inputs[1].1)?;
+    let normalized = normalization_stage(&raw, &bound_inputs[0].1)?;
     let transport_outputs = vec![("raw", "/raw", None)];
     let mut normalized_outputs = vec![
         ("normalized", "/normalized", None),
@@ -584,11 +613,7 @@ pub fn prepare_case_with_assumptions(
         (
             "normalize",
             "faris.normalize-transport",
-            vec![
-                ("raw", "--upstream"),
-                ("scenario", "--scenario"),
-                ("physics", "--physics"),
-            ],
+            vec![("raw", "--upstream"), ("scenario", "--scenario")],
             normalized_outputs,
             normalized,
         ),
@@ -872,5 +897,295 @@ mod tests {
         evidence.expected_step_ids.pop();
         evidence.report["integrity"]["manifest_sha256"] = json!("sha256:other-case");
         assert!(!evidence.completed());
+    }
+
+    // Verifies: PRV-014
+    mod stage_contract {
+        use super::*;
+        use crate::transport::{
+            NormalizedTally, NormalizedTransportResult, PhysicalUnit, TallyEstimator, ToolIdentity,
+        };
+        use faris_model::transport::{
+            DtSource, HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain,
+            ScoreDefinition,
+        };
+
+        const SCENARIO: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/cold-reference-port.scenario.json"
+        ));
+        const ASSUMPTIONS: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/demo-operating-assumptions.json"
+        ));
+        const RAW: &str = "abababababababababababababababababababababababababababababababab";
+
+        fn scenario_sha() -> String {
+            LoadedScenario::from_bytes(SCENARIO).unwrap().source_sha256
+        }
+
+        /// A small normalized result with every response the stages read.
+        fn normalized(scenario_sha256: &str) -> NormalizedTransportResult {
+            let power_mw = LoadedScenario::from_bytes(SCENARIO)
+                .unwrap()
+                .scenario
+                .operating_plan
+                .fusion_power_mw;
+            let source_rate =
+                power_mw * 1.0e6 / (17.6e6 * crate::history::ELEMENTARY_CHARGE_J_PER_EV);
+            let tally = |id: &str,
+                         domain: ResponseDomain,
+                         score: ScoreDefinition,
+                         unit: PhysicalUnit,
+                         integrated_unit: PhysicalUnit,
+                         mean: f64| NormalizedTally {
+                response_id: id.into(),
+                domain,
+                score,
+                estimator: TallyEstimator::Tracklength,
+                mean,
+                standard_error: mean * 0.01,
+                unit,
+                integrated_mean: mean * 20.0,
+                integrated_standard_error: mean * 0.2,
+                integrated_unit,
+                volume_m3: 20.0,
+                volume_standard_error_m3: 0.0,
+            };
+            let component = |id: &str| ResponseDomain::Component {
+                component_id: id.into(),
+            };
+            let tritium = ScoreDefinition::ParticleProduction {
+                particle: ProducedParticle::Tritium,
+                score: "H3-production".into(),
+            };
+            let flux = PhysicalUnit::NeutronsPerSquareMetreSecond;
+            let flux_integrated = PhysicalUnit::NeutronMetresPerSecond;
+            let per_volume = PhysicalUnit::ParticlesPerCubicMetreSecond;
+            let per_second = PhysicalUnit::ParticlesPerSecond;
+            NormalizedTransportResult {
+                schema_version: "faris-normalized-transport/v0.1".into(),
+                scenario_id: "s".into(),
+                scenario_sha256: scenario_sha256.into(),
+                variant_id: "v".into(),
+                source: DtSource {
+                    energy_per_reaction_ev: 17.6e6,
+                    neutron_energy_ev: 14.1e6,
+                    neutrons_per_reaction: 1.0,
+                    distribution_id: "d".into(),
+                },
+                solver: ToolIdentity {
+                    name: "OpenMC".into(),
+                    version: "0.15.3".into(),
+                    digest: format!("sha256:{}", "1".repeat(64)),
+                },
+                nuclear_data: ToolIdentity {
+                    name: "data".into(),
+                    version: "1".into(),
+                    digest: format!("sha256:{}", "2".repeat(64)),
+                },
+                histories: 1000,
+                source_reaction_rate_per_s: source_rate,
+                source_neutron_rate_per_s: source_rate,
+                results: vec![
+                    tally(
+                        "total-tritium-production",
+                        ResponseDomain::WholeModel,
+                        tritium.clone(),
+                        per_volume,
+                        per_second,
+                        1.07e19,
+                    ),
+                    tally(
+                        "blanket-tritium",
+                        component("blanket"),
+                        tritium,
+                        per_volume,
+                        per_second,
+                        1.05e19,
+                    ),
+                    tally(
+                        "blanket-flux",
+                        component("blanket"),
+                        ScoreDefinition::Flux,
+                        flux,
+                        flux_integrated,
+                        1.0e13,
+                    ),
+                    tally(
+                        "magnets-flux",
+                        component("magnets"),
+                        ScoreDefinition::Flux,
+                        flux,
+                        flux_integrated,
+                        3.0e9,
+                    ),
+                    tally(
+                        "heating-total-whole-model",
+                        ResponseDomain::WholeModel,
+                        ScoreDefinition::Heating {
+                            convention: HeatingConvention::Heating,
+                            particle_scope: HeatingParticleScope::Total,
+                        },
+                        PhysicalUnit::WattsPerCubicMetre,
+                        PhysicalUnit::Watts,
+                        2.5e7,
+                    ),
+                ],
+                response_covariance: None,
+            }
+        }
+
+        fn transport_v02(sha: &str) -> Value {
+            transport_envelope(sha, "input", RAW, &normalized(sha)).unwrap()
+        }
+
+        fn assumptions() -> OperatingHistoryAssumptions {
+            serde_json::from_slice(ASSUMPTIONS).unwrap()
+        }
+
+        /// What a v0.1 chain produced from the same recorded result: the
+        /// extracted claims and the history computed directly from the record.
+        fn legacy(sha: &str) -> (String, String, String) {
+            let result = normalized(sha);
+            let scenario = LoadedScenario::from_bytes(SCENARIO).unwrap();
+            let tritium = &result.results[0];
+            let magnet = &result.results[3];
+            let rates = crate::history::TransportDrivingRates::from_normalized(
+                &result,
+                scenario.scenario.operating_plan.fusion_power_mw,
+                RAW,
+            )
+            .unwrap();
+            let history = crate::history::run_operating_history_cancellable(
+                &assumptions(),
+                &rates,
+                &Cancellation::default(),
+            )
+            .unwrap();
+            (
+                canonical_decimal(tritium.integrated_mean / result.source_neutron_rate_per_s)
+                    .unwrap(),
+                canonical_decimal(magnet.mean).unwrap(),
+                serde_json::to_string(&history).unwrap(),
+            )
+        }
+
+        fn chain(sha: &str) -> (Value, Value) {
+            let normalize = normalization_stage(&transport_v02(sha), SCENARIO).unwrap();
+            let history = history_stage(
+                &normalize,
+                SCENARIO,
+                &assumptions(),
+                &Cancellation::default(),
+            )
+            .unwrap();
+            (normalize, history)
+        }
+
+        #[test]
+        fn v02_chain_matches_the_direct_v01_computation_and_carries_no_bundle() {
+            let sha = scenario_sha();
+            let transport = transport_v02(&sha);
+            assert_eq!(transport["schema_version"], STAGE_V02);
+            assert!(transport.get("transport_json").is_none());
+            let (normalize, history) = chain(&sha);
+            let (tbr, magnet, history_json) = legacy(&sha);
+            assert_eq!(normalize["tbr"], tbr);
+            assert_eq!(normalize["magnet_flux"], magnet);
+            assert_eq!(normalize["normalized"], "normalized_transport_extracted");
+            for forbidden in ["transport_json", "normalized_json"] {
+                assert!(normalize.get(forbidden).is_none());
+            }
+            assert_eq!(history["history_json"], history_json);
+            assert_eq!(history["history_sha256"], sha_of(&history_json));
+            // The energy stage reads a v0.2 history envelope.
+            let energy = energy_stage(&history, SCENARIO, &Cancellation::default());
+            assert!(energy.is_ok() || energy.unwrap_err().to_string().contains("energy"));
+        }
+
+        fn sha_of(text: &str) -> String {
+            sha(text.as_bytes())
+        }
+
+        #[test]
+        fn a_v01_history_envelope_is_still_accepted_by_energy_and_readers() {
+            let sha = scenario_sha();
+            let (_, history) = chain(&sha);
+            let mut v01 = history.clone();
+            v01["schema_version"] = json!(STAGE_V01);
+            assert!(is_supported_stage_schema(&v01["schema_version"]));
+            assert!(is_supported_stage_schema(&history["schema_version"]));
+            assert!(!is_supported_stage_schema(&json!(
+                "faris-core-stage-output/v0.3"
+            )));
+            let cancellation = Cancellation::default();
+            let a = energy_stage(&v01, SCENARIO, &cancellation)
+                .map(|v| v["net_electricity_mwh"].clone());
+            let b = energy_stage(&history, SCENARIO, &cancellation)
+                .map(|v| v["net_electricity_mwh"].clone());
+            assert_eq!(a.is_ok(), b.is_ok());
+            if let (Ok(a), Ok(b)) = (a, b) {
+                assert_eq!(a, b);
+            }
+            let mut other = v01;
+            other["schema_version"] = json!("faris-core-stage-output/v0.3");
+            assert!(energy_stage(&other, SCENARIO, &cancellation).is_err());
+        }
+
+        #[test]
+        fn normalize_refuses_a_mismatched_scenario_or_stage_or_version() {
+            let sha = scenario_sha();
+            let mut other = transport_v02(&sha);
+            other["scenario_sha256"] = json!(format!("sha256:{}", "0".repeat(64)));
+            assert!(normalization_stage(&other, SCENARIO).is_err());
+            let mut wrong_stage = transport_v02(&sha);
+            wrong_stage["stage"] = json!("normalize");
+            assert!(normalization_stage(&wrong_stage, SCENARIO).is_err());
+            let mut v01 = transport_v02(&sha);
+            v01["schema_version"] = json!(STAGE_V01);
+            assert!(normalization_stage(&v01, SCENARIO).is_err());
+            // A payload recorded for another scenario is refused even when the
+            // envelope claims the bound one.
+            let foreign = transport_envelope(
+                &sha,
+                "input",
+                RAW,
+                &normalized(&format!("sha256:{}", "0".repeat(64))),
+            )
+            .unwrap();
+            assert!(normalization_stage(&foreign, SCENARIO).is_err());
+        }
+
+        #[test]
+        fn history_refuses_a_mismatched_scenario_and_malformed_rates() {
+            let sha = scenario_sha();
+            let (normalize, _) = chain(&sha);
+            let cancellation = Cancellation::default();
+            let run =
+                |upstream: &Value| history_stage(upstream, SCENARIO, &assumptions(), &cancellation);
+            assert!(run(&normalize).is_ok());
+            let mut other = normalize.clone();
+            other["scenario_sha256"] = json!(format!("sha256:{}", "0".repeat(64)));
+            assert!(run(&other).is_err());
+            for broken in [json!("{not json"), json!("{}"), json!(7)] {
+                let mut malformed = normalize.clone();
+                malformed["rates_json"] = broken;
+                assert!(run(&malformed).is_err());
+            }
+            let mut missing = normalize.clone();
+            missing.as_object_mut().unwrap().remove("rates_json");
+            assert!(run(&missing).is_err());
+            let mut v01 = normalize.clone();
+            v01["schema_version"] = json!(STAGE_V01);
+            assert!(run(&v01).is_err());
+            // Rates computed for another scenario cannot ride a bound envelope.
+            let mut rates: crate::history::TransportDrivingRates =
+                serde_json::from_str(normalize["rates_json"].as_str().unwrap()).unwrap();
+            rates.scenario_sha256 = format!("sha256:{}", "0".repeat(64));
+            let mut foreign = normalize;
+            foreign["rates_json"] = json!(serde_json::to_string(&rates).unwrap());
+            assert!(run(&foreign).is_err());
+        }
     }
 }

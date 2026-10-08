@@ -7,6 +7,24 @@ are listed here under **Changed** with what to do.
 Research screening only. FARIS results are not a licensing, safety or design
 basis.
 
+## Unreleased
+
+### Changed
+
+- Core stage outputs are now `faris-core-stage-output/v0.2`. Each stage writes
+  only what it newly computes: the transport output no longer carries the whole
+  recorded transport bundle, and the normalize output no longer carries the
+  bundle or the normalized result again. The normalize stage takes the
+  transport output and the scenario (no physics input) and writes the claims
+  plus the driving rates; the history stage reads those rates. Core already
+  binds each stage input by SHA-256 to the upstream step's receipt-verified
+  output, so nothing is re-verified from scratch. Claim values (`tbr`,
+  `magnet_flux`) and the history result are identical to those of v0.1 for the
+  same recorded run. Cases and `.faris` files saved with v0.1 outputs still
+  open and inspect; newly prepared cases are much smaller. The categorical
+  normalize claim now takes the value `normalized_transport_extracted`.
+  Re-run `faris evidence prepare` to move an old case to v0.2.
+
 ## 0.2.0 — 2026-10-08
 
 Replacement outages computed from activation. FARIS can now work out how long

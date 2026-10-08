@@ -153,7 +153,7 @@ pub fn generate_study(
             "outputs":[output("raw","faris.raw-transport",false)]}),
         json!({"capability_type":reference("faris.normalize-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
-            "inputs":[input("raw","faris.raw-transport"),input("scenario","faris.scenario"),input("physics","faris.physics")],
+            "inputs":[input("raw","faris.raw-transport"),input("scenario","faris.scenario")],
             "outputs":normalize_outputs}),
         json!({"capability_type":reference("faris.operating-history"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
@@ -182,7 +182,7 @@ pub fn generate_study(
         json!({"step_id":"transport","capability_type":reference("faris.verify-transport"),
             "bindings":[binding("scenario",authored("scenario")),binding("physics",authored("physics")),binding("nuclear-data",authored("nuclear-data")),binding("recorded",authored("recorded"))]}),
         json!({"step_id":"normalize","capability_type":reference("faris.normalize-transport"),
-            "bindings":[binding("raw",produced("transport","raw")),binding("scenario",authored("scenario")),binding("physics",authored("physics"))]}),
+            "bindings":[binding("raw",produced("transport","raw")),binding("scenario",authored("scenario"))]}),
     ];
     if history {
         workflow.push(json!({"step_id":"history","capability_type":reference("faris.operating-history"),

@@ -215,7 +215,6 @@ pub fn run(command: EvidenceCommand) -> Result<(), Box<dyn std::error::Error>> {
                     core_evidence::normalization_stage(
                         &upstream,
                         &required(scenario, "--scenario")?,
-                        &required(physics, "--physics")?,
                     )
                 }
                 Stage::History => {
