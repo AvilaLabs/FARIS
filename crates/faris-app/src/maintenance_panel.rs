@@ -1195,6 +1195,7 @@ mod tests {
                 convergence_s: DAY_S,
             },
             designs: BTreeMap::from([("X".into(), evaluated), ("Y".into(), failing)]),
+            decay_source: None,
             contrasts: vec![
                 Contrast {
                     a: "X".into(),

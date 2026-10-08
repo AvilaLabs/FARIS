@@ -61,3 +61,22 @@ For each design and each replacement over the plant's life, FARIS 0.2 shows:
 
 Dose-governed durations; crews, spares and queues (OPS-043); the restart continuation method as default; any claim
 that a design ranks higher because of computed maintenance.
+
+## Parity control, 2026-10-08
+
+`faris maintenance run` (branch `maintenance-0.2`, release build) ran the coupling test's four arrangements at w = 0.5:
+work time and calibration target each 0.5 × the authored duration, q* calibrated on port/reference, heat-governed,
+ACTINV built from master `1b91e5f` (SHA-256 `2e921707…cb2c`). It used the spec builder of the run being reproduced
+(`0555603`), so spec bytes and cache keys match, and a copy of that run's decay cache. Reference: the Amendment 2
+validation rerun of variant B (`references/maintenance-coupling-validation-a2.json`; B result SHA-256 `48fb8826…3764`).
+Result: `references/maintenance-0.2-parity.json`.
+
+- **Passed.** Every design converged at the same iteration as the Python driver (4, 5, 5 and 6). Every event's
+  start, cooldown and computed duration in every iteration, each design's computed downtime and lifetime net
+  electricity, and both calibrated q* agree. The worst relative difference is 7.1e-15, against the 1e-6 gate.
+- 1,461 curves came from the cache and 51 ACTINV runs were new. All 51 are one port/breeder iteration whose
+  durations differ from the driver's in the last bits (Rust and Python `ln`/`exp` round differently), which changes
+  the spec text and so the cache key. Their curves agree as above.
+- Wall time 1 min 16 s with the cache; peak memory 160 MB.
+- The job boundary's 256 MiB per-file limit does not bind heat-only runs: the largest heat-only ACTINV result in that
+  cache is 28 MB. Results with photon outputs reach 2.3 GB, which matters only if dose-governed durations are added.
