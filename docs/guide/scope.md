@@ -1,6 +1,6 @@
 # Scope and limits
 
-FARIS 0.1.1 is research-screening software and a deliberately narrow demo. Its results are not a licensing, safety or design basis. Nothing in FARIS is a licence, safety, certification or validation claim.
+FARIS 0.2.0 is research-screening software and a deliberately narrow demo. Its results are not a licensing, safety or design basis. Nothing in FARIS is a licence, safety, certification or validation claim.
 
 FARIS is a design model of one study. It is not a model of a real machine.
 
@@ -8,9 +8,9 @@ FARIS is a design model of one study. It is not a model of a real machine.
 
 - **Not the published ARC design.** The geometry is idealised: concentric tori with one outboard port. The ARC paper is design precedent, not a specification.
 - **Not a plugged port.** The outboard port is an open 0.30 m × 0.30 m duct with no shield plug. It is a bounding streaming case. In the port arrangements it drives the magnet replacements. With the demountable-magnet preset, the port-sector magnet limit is reached 0.65 years into operation and the magnets are replaced about 30 times in 30 years. Without the port, they are replaced at most once. A shield plug would reduce the streaming, and FARIS has not modelled one.
-- **Not a peak magnet fluence.** The magnet check uses regional averages: inboard, outboard and port sector. A local peak needs variance reduction aimed at the magnet, which is planned for 0.2. A hot spot can reach a limit sooner than its region's average does.
-- **No activation, decay heat or shutdown dose.** Maintenance timing ignores them. They are planned for 0.2, and shutdown dose later. There are no physical degradation models.
-- **Not signed, and new on Windows and macOS.** The bundled programs are hash-pinned, not signed. Linux is built and tested on the reference laptop. Windows and macOS builds are new in 0.1.1, built by CI from the same commit. Report problems on GitHub issues.
+- **Not a peak magnet fluence.** The magnet check uses regional averages: inboard, outboard and port sector. A local peak needs variance reduction aimed at the magnet, which is planned. A hot spot can reach a limit sooner than its region's average does.
+- **Activation only for maintenance, and no shutdown dose.** The Operate step's history uses fixed replacement durations. Outages computed from decay heat are a separate calculation that needs ACTINV, with a recorded result for the four arrangements; see [Computed maintenance durations](maintenance.md). Contact dose is not used to time maintenance, and there is no shutdown dose map or physical degradation model.
+- **Not signed.** The bundled programs are hash-pinned, not signed. Linux is built and tested on the reference laptop. Windows and macOS builds have been available since 0.1.1, built by CI from the same commit. Report problems on GitHub issues.
 
 ## Transport inputs
 

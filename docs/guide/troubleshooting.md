@@ -8,7 +8,7 @@ The desktop needs a graphical session and compatible graphics drivers. Leave dis
 A check of the package failed, and the app says which and why. Download the files again and check them against `SHA256SUMS`, then unpack the app archive into a new folder. A package that was changed, or unpacked only in part, is refused.
 
 **Windows SmartScreen warns, or macOS will not open the app.**
-The programs are not signed, and on macOS not notarized, so both systems warn. This is expected, and a matching hash shows the bytes are the recorded ones. On Windows, choose More info, then Run anyway. On macOS, run `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal after unpacking, or open `bin/faris-app` and allow it under System Settings, Privacy & Security, Open Anyway. See [Download and verify](install.md).
+The programs are not signed, and on macOS not notarized, so both systems warn. This is expected, and a matching hash shows the bytes are the recorded ones. On Windows, choose More info, then Run anyway. On macOS, run `xattr -dr com.apple.quarantine FARIS-0.2.0` once in Terminal after unpacking, or open `bin/faris-app` and allow it under System Settings, Privacy & Security, Open Anyway. See [Download and verify](install.md).
 
 **The saved Core evidence gives up unpacking.**
 With the evidence pack, the app unpacks 823 MB into a private temporary folder, so it needs about 0.9 GB free. It waits up to 10 minutes and says why if it gives up. Free some temporary space and reopen FARIS. The rest of the study is not affected.
@@ -22,7 +22,7 @@ The study was recorded by an earlier build. The full message continues: "The run
 The file could not be opened. The reason follows. Reading is fail-closed. A file is refused if a blob does not match its recorded SHA-256 ("blob … does not match its recorded SHA-256"), if its size is wrong, if it uses an unsupported encoding, or if its version is not major version 1 ("unsupported study-file version …"). Run `faris study-file verify FILE` to see which part failed.
 
 **"Core receipts not included"**
-For the recorded package, the evidence pack is not unpacked in the package folder. The message says why and the next step: download `FARIS-0.1.1-evidence.tar.gz` from the same release, unpack it into the `FARIS-0.1.1` folder, and reopen FARIS. Everything else works without it. For a `.faris` file, the Core archives are referenced, not packed. See [Study files](study-files.md). A listed archive that is "not found" is missing from beside the file. One whose SHA-256 differs from the record is not used.
+For the recorded package, the evidence pack is not unpacked in the package folder. The message says why and the next step: download `FARIS-0.2.0-evidence.tar.gz` from the same release, unpack it into the `FARIS-0.2.0` folder, and reopen FARIS. Everything else works without it. For a `.faris` file, the Core archives are referenced, not packed. See [Study files](study-files.md). A listed archive that is "not found" is missing from beside the file. One whose SHA-256 differs from the record is not used.
 
 ## Uncertainty and export
 

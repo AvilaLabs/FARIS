@@ -11,11 +11,12 @@ how sure those numbers are.
 > design basis. Every number is labelled as calculated, authored, literature,
 > conditional or not evaluated.
 
-> **This release is a demo.** FARIS 0.1.1 is a deliberately narrow
+> **This release is a demo.** FARIS 0.2.0 is a deliberately narrow
 > demonstration, complete for one study: an ARC-inspired tokamak in four
 > arrangements, from transport to thirty years of operation with uncertainty.
-> The full product widens the geometry and adds activation and peak magnet
-> fluence; see [Where FARIS is going](#where-faris-is-going).
+> New in 0.2: replacement outages computed from activation decay heat. The full
+> product widens the geometry and adds peak magnet fluence and shutdown dose;
+> see [Where FARIS is going](#where-faris-is-going).
 
 **[Read the FARIS Handbook](https://faris.avilalabs.org/docs/)**: download and verify, a tour of
 each step, the command line, how to read the numbers, and the scope and limits.
@@ -54,10 +55,10 @@ it against `SHA256SUMS`:
 
 | Platform | File |
 | --- | --- |
-| Linux | `FARIS-0.1.1-linux-x86_64.tar.gz` (about 35 MB; glibc 2.35 or newer) |
-| Windows | `FARIS-0.1.1-windows-x86_64.zip` |
-| macOS, Apple silicon | `FARIS-0.1.1-macos-aarch64.tar.gz` |
-| macOS, Intel Mac | `FARIS-0.1.1-macos-x86_64.tar.gz` |
+| Linux | `FARIS-0.2.0-linux-x86_64.tar.gz` (about 35 MB; glibc 2.35 or newer) |
+| Windows | `FARIS-0.2.0-windows-x86_64.zip` |
+| macOS, Apple silicon | `FARIS-0.2.0-macos-aarch64.tar.gz` |
+| macOS, Intel Mac | `FARIS-0.2.0-macos-x86_64.tar.gz` |
 
 The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12
 or later. They also need a desktop session (X11 or Wayland) with libxkbcommon and a
@@ -65,16 +66,16 @@ Vulkan or OpenGL driver, which desktop installs include. On a minimal install, a
 `libxkbcommon-x11-0` (Debian, Ubuntu) or `libxkbcommon-x11` (Fedora); without it
 the app stops at launch with a panic in `xkbcommon-dl`.
 
-Each archive unpacks to a folder `FARIS-0.1.1/`. Double-click `bin/faris-app`
+Each archive unpacks to a folder `FARIS-0.2.0/`. Double-click `bin/faris-app`
 (`bin\faris-app.exe` on Windows), or run it from a terminal. It finds the study
 beside its `bin` folder, checks the SHA-256 of every file it needs, and opens
 the four recorded arrangements and the sweep. `faris-app --package DIR` opens a
 package elsewhere. If a check fails, the app opens with nothing loaded and says
 why and what to do: download again and check `SHA256SUMS`. Python is not needed.
 
-The optional `FARIS-0.1.1-evidence.tar.gz` (about 78 MB, the same for every
+The optional `FARIS-0.2.0-evidence.tar.gz` (about 78 MB, the same for every
 platform) adds the Avila Core receipts to the Evidence step. Unpack it into the
-same place, so its files merge into `FARIS-0.1.1/`. With it, the app unpacks the
+same place, so its files merge into `FARIS-0.2.0/`. With it, the app unpacks the
 Core evidence (823 MB) into a private temporary folder while it runs and deletes
 it on exit, so it needs about 0.9 GB of free temporary space. Without it,
 everything works except the saved receipts: the Evidence step says "Core
@@ -87,7 +88,7 @@ app itself at launch.
 
 The programs are not signed. Windows SmartScreen may warn: choose More info,
 then Run anyway. On macOS the programs are neither signed nor notarized: after
-unpacking, run `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or
+unpacking, run `xattr -dr com.apple.quarantine FARIS-0.2.0` once in Terminal, or
 open `bin/faris-app` and allow it under System Settings, Privacy & Security,
 Open Anyway. A matching hash shows the bytes are the recorded ones, not who made
 them.
@@ -96,7 +97,7 @@ It runs offline: no OpenMC, nuclear data or network access is needed to explore
 the recorded study. You need a desktop session with working graphics drivers.
 Every platform's programs are built by CI from the release commit; the study
 evidence was recorded on Linux on the reference laptop. Windows and macOS builds
-are new in 0.1.1; report problems on GitHub issues.
+have been available since 0.1.1; report problems on GitHub issues.
 
 ## Using it
 
@@ -195,8 +196,8 @@ The desktop needs a graphical session and compatible graphics drivers.
 Linux source builds may need `pkg-config`, `libxkbcommon-dev`, and
 `libwayland-dev` from the system package manager. Every platform's release
 programs are built by CI from the release commit; the study evidence was
-recorded on Linux on the reference laptop. Windows and macOS builds are new in
-0.1.1.
+recorded on Linux on the reference laptop. Windows and macOS builds have been
+available since 0.1.1.
 
 Use **Interface size** in the top bar to enlarge text, controls, panels, and
 plots together. Ctrl/Cmd + or − adjusts size; Ctrl/Cmd 0 resets it. The 100%
@@ -351,7 +352,7 @@ development artifacts, not simulation evidence.
 | `crates/faris-cli/` | Headless client of the same engine |
 | `crates/faris-app/` | Native egui workspace and wgpu renderer |
 | `scenarios/arc-inspired/scenario.json` | The single editable demo scenario |
-| `docs/USER_GUIDE.md` | User guide for the desktop app and command line (release 0.1.1) |
+| `docs/USER_GUIDE.md` | User guide for the desktop app and command line (release 0.2.0) |
 | `docs/DEMO.md` | Demo question, requirements, and completion criteria |
 | `docs/ARCHITECTURE.md` | Rust boundaries, units, adapter and evidence design |
 | `docs/ROADMAP.md` | Long-term project direction and development phases |

@@ -8,24 +8,24 @@
 
 Python is not needed to open the study. You do not need OpenMC, nuclear data or network access to explore the recorded study.
 
-Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later. The app also needs a desktop session (X11 or Wayland) with libxkbcommon and a Vulkan or OpenGL driver, which desktop installs include. On a minimal install, add `libxkbcommon-x11-0` (Debian, Ubuntu) or `libxkbcommon-x11` (Fedora); without it the app stops at launch with a panic in `xkbcommon-dl`. Windows and macOS builds are new in 0.1.1. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
+Every platform's programs are built by CI from the release commit; the study evidence was recorded on Linux on the reference laptop. The Linux programs need glibc 2.35 or newer: Ubuntu 22.04 or later, Debian 12 or later. The app also needs a desktop session (X11 or Wayland) with libxkbcommon and a Vulkan or OpenGL driver, which desktop installs include. On a minimal install, add `libxkbcommon-x11-0` (Debian, Ubuntu) or `libxkbcommon-x11` (Fedora); without it the app stops at launch with a panic in `xkbcommon-dl`. Windows and macOS builds have been available since 0.1.1. Report problems on [GitHub issues](https://github.com/AvilaLabs/FARIS/issues).
 
 ## What to download
 
-FARIS 0.1.1 is the same demo study and results as 0.1.0. The download is smaller and split in two. Get the files from the [0.1.1 release](https://github.com/AvilaLabs/FARIS/releases/tag/v0.1.1):
+FARIS 0.2.0 is the same demo study as 0.1.1, plus a recorded [computed maintenance](maintenance.md) result. The download is split in two. Get the files from the [0.2.0 release](https://github.com/AvilaLabs/FARIS/releases/tag/v0.2.0):
 
 | File | What it is |
 | --- | --- |
-| `FARIS-0.1.1-linux-x86_64.tar.gz` | The app for Linux (about 35 MB). Needs glibc 2.35 or newer. |
-| `FARIS-0.1.1-windows-x86_64.zip` | The app for Windows. |
-| `FARIS-0.1.1-macos-aarch64.tar.gz` | The app for a Mac with Apple silicon. |
-| `FARIS-0.1.1-macos-x86_64.tar.gz` | The app for an Intel Mac. |
-| `FARIS-0.1.1-evidence.tar.gz` | Optional. The Core receipts and the files `verify.sh` checks (about 78 MB). The same for every platform. |
+| `FARIS-0.2.0-linux-x86_64.tar.gz` | The app for Linux (about 35 MB). Needs glibc 2.35 or newer. |
+| `FARIS-0.2.0-windows-x86_64.zip` | The app for Windows. |
+| `FARIS-0.2.0-macos-aarch64.tar.gz` | The app for a Mac with Apple silicon. |
+| `FARIS-0.2.0-macos-x86_64.tar.gz` | The app for an Intel Mac. |
+| `FARIS-0.2.0-evidence.tar.gz` | Optional. The Core receipts and the files `verify.sh` checks (about 78 MB). The same for every platform. |
 | `SHA256SUMS` | The SHA-256 of every file above. |
 
-Download the app for your platform, and `SHA256SUMS`. 0.1.0 was one 112 MB archive. The app download alone opens the whole study: the four recorded arrangements and the allocation sweep. The evidence pack adds the Avila Core receipts to the [Evidence](evidence.md) step.
+Download the app for your platform, and `SHA256SUMS`. The app download alone opens the whole study: the four recorded arrangements and the allocation sweep. The evidence pack adds the Avila Core receipts to the [Evidence](evidence.md) step.
 
-Each archive unpacks to a folder `FARIS-0.1.1/`. Unpack the evidence pack into the same place, so that its files merge into `FARIS-0.1.1/`.
+Each archive unpacks to a folder `FARIS-0.2.0/`. Unpack the evidence pack into the same place, so that its files merge into `FARIS-0.2.0/`.
 
 ## Open the recorded study
 
@@ -41,25 +41,25 @@ Check the archives, unpack them and open the app:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
-tar xzf FARIS-0.1.1-linux-x86_64.tar.gz
-tar xzf FARIS-0.1.1-evidence.tar.gz    # optional
-FARIS-0.1.1/bin/faris-app
+tar xzf FARIS-0.2.0-linux-x86_64.tar.gz
+tar xzf FARIS-0.2.0-evidence.tar.gz    # optional
+FARIS-0.2.0/bin/faris-app
 ```
 
 To recheck every recorded byte and the Core receipts, run `./verify.sh` from the package folder. It needs `python3` and the evidence pack. It checks the package from a relocated copy, takes a while, and confirms that a deliberately changed copy is rejected.
 
 ## Windows
 
-Check `FARIS-0.1.1-windows-x86_64.zip` against `SHA256SUMS`: in PowerShell, `Get-FileHash FARIS-0.1.1-windows-x86_64.zip` prints the SHA-256, which must equal that file's line in `SHA256SUMS`. Then unpack it with Extract All. If you want the Core receipts, unpack the evidence pack into the same place: in the folder that holds `FARIS-0.1.1`, run `tar -xzf FARIS-0.1.1-evidence.tar.gz` in a terminal (Windows 10 and 11 include `tar`). Then double-click `bin\faris-app.exe`.
+Check `FARIS-0.2.0-windows-x86_64.zip` against `SHA256SUMS`: in PowerShell, `Get-FileHash FARIS-0.2.0-windows-x86_64.zip` prints the SHA-256, which must equal that file's line in `SHA256SUMS`. Then unpack it with Extract All. If you want the Core receipts, unpack the evidence pack into the same place: in the folder that holds `FARIS-0.2.0`, run `tar -xzf FARIS-0.2.0-evidence.tar.gz` in a terminal (Windows 10 and 11 include `tar`). Then double-click `bin\faris-app.exe`.
 
 Windows SmartScreen may warn, because the programs are not signed. Choose More info, then Run anyway. The app opens without a console window. `verify.sh` does not run on Windows. The app checks the package itself at launch.
 
 ## macOS
 
-Use `FARIS-0.1.1-macos-aarch64.tar.gz` on a Mac with Apple silicon and `FARIS-0.1.1-macos-x86_64.tar.gz` on an Intel Mac. Check it with `shasum -a 256 -c SHA256SUMS --ignore-missing` and unpack it, with the evidence pack if you want it, into the same place. The programs are neither signed nor notarized, so macOS blocks them at first. After unpacking, run this once in Terminal:
+Use `FARIS-0.2.0-macos-aarch64.tar.gz` on a Mac with Apple silicon and `FARIS-0.2.0-macos-x86_64.tar.gz` on an Intel Mac. Check it with `shasum -a 256 -c SHA256SUMS --ignore-missing` and unpack it, with the evidence pack if you want it, into the same place. The programs are neither signed nor notarized, so macOS blocks them at first. After unpacking, run this once in Terminal:
 
 ```bash
-xattr -dr com.apple.quarantine FARIS-0.1.1
+xattr -dr com.apple.quarantine FARIS-0.2.0
 ```
 
 Then double-click `bin/faris-app`. Or open it first and allow it under System Settings, Privacy & Security, Open Anyway. `verify.sh` does not run on macOS. The app checks the package itself at launch.

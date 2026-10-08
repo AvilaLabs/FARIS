@@ -4,11 +4,11 @@ FARIS, the Fusion Analysis and Reactor Integration Simulator, follows a fusion p
 
 ![FARIS tour: the plant in 3D, transport on the model, the 30-year operating timeline and the four-arrangement comparison](images/faris-tour.gif)
 
-This handbook covers **FARIS 0.1.1**.
+This handbook covers **FARIS 0.2.0**.
 
 ## This release is a demo
 
-FARIS 0.1.1 is a deliberately narrow demonstration, complete for one study: an ARC-inspired tokamak in four arrangements, from transport to thirty years of operation with uncertainty. The full product widens the geometry and adds activation and peak magnet fluence. [Where FARIS is going](roadmap.md) lists what comes next.
+FARIS 0.2.0 is a deliberately narrow demonstration, complete for one study: an ARC-inspired tokamak in four arrangements, from transport to thirty years of operation with uncertainty. New in 0.2: replacement outages computed from activation decay heat, with a recorded result for the four arrangements ([Computed maintenance durations](maintenance.md)). The full product widens the geometry and adds peak magnet fluence and shutdown dose. [Where FARIS is going](roadmap.md) lists what comes next.
 
 ## Research screening only
 
