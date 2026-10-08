@@ -31,7 +31,7 @@ Errors exit with status 2. A study file that fails verification exits 1.
 | `faris reactor inspect` | Revalidates a saved run's input, artifact, volumes and normalization. |
 | `faris control absorber` | A synthetic one-group absorber, a mathematical control and not reactor physics. Needs OpenMC. |
 | `faris study generate` and `faris study compile` | Generate a Core study, and compile it with an Avila Core executable you choose. No solver runs. |
-| `faris evidence prepare`, `run`, `inspect`, `stage` | Package and execute identified evidence with Avila Core. See [Evidence](evidence.md). |
+| `faris evidence prepare`, `run`, `inspect`, `stage`, `verify-store` | Package and execute identified evidence with Avila Core. See [Evidence](evidence.md). |
 
 ## Work with study files
 

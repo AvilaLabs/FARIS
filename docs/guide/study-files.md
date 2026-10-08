@@ -30,9 +30,11 @@ faris study-file verify demo.faris
 
 ## Referenced or packed evidence
 
-By default the Core evidence archives (about 55 MB for the demo) are recorded by name and hash and are not stored. The study opens fully without them. Its Evidence step says "Core receipts not included", and why, and what to do.
+By default the Core evidence archives (the File menu shows their size) are recorded by name and hash and are not stored. The study opens fully without them. Its Evidence step says "Core receipts not included", and why, and what to do.
 
 To use the archives, put them next to the file at the recorded relative paths and reopen it. For example, `port/archives/reference-case.tar.gz` goes at that path beside the file when it sits at the package root. Archives found there are checked against their hashes and used. One whose hash differs from the record is reported and never used.
+
+The current recorded package keeps its Core evidence in one evidence store instead of archives. A new study file cannot yet record store evidence: `faris study-file create --evidence` refuses a store descriptor and says so. Use a descriptor from an older package that names archives, or create the file without `--evidence`; the study then opens fully with its receipts marked as not included.
 
 Or tick **Include Core evidence in saved files** in the File menu and save again. The label shows the added size.
 

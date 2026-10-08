@@ -3,8 +3,8 @@
 ## Requirements
 
 - A desktop session with working graphics drivers: Linux, Windows or macOS.
-- Free temporary space of about 0.9 GB to open the study with the evidence pack, because the app unpacks the Core evidence (823 MB) into a private temporary folder while it runs. Without the evidence pack it needs none.
-- For `verify.sh` only: Linux, `python3`, the evidence pack and about 2 GB of temporary space. It checks the exact amount before it starts.
+- No temporary space is needed to open the study, with or without the evidence pack: the app reads the saved Core evidence straight from the evidence store in the package folder.
+- For `verify.sh` only: Linux, `python3`, the evidence pack and about @@VERIFY@@ of temporary space. It checks the exact amount before it starts.
 
 Python is not needed to open the study. You do not need OpenMC, nuclear data or network access to explore the recorded study.
 
@@ -20,7 +20,7 @@ FARIS 0.2.0 is the same demo study as 0.1.1, plus a recorded [computed maintenan
 | `FARIS-0.2.0-windows-x86_64.zip` | The app for Windows. |
 | `FARIS-0.2.0-macos-aarch64.tar.gz` | The app for a Mac with Apple silicon. |
 | `FARIS-0.2.0-macos-x86_64.tar.gz` | The app for an Intel Mac. |
-| `FARIS-0.2.0-evidence.tar.gz` | Optional. The Core receipts and the files `verify.sh` checks (about 78 MB). The same for every platform. |
+| `FARIS-0.2.0-evidence.tar.gz` | Optional. The Core receipts, held in one evidence store, and the files `verify.sh` checks (about @@PACK@@ MB). The same for every platform. |
 | `SHA256SUMS` | The SHA-256 of every file above. |
 
 Download the app for your platform, and `SHA256SUMS`. The app download alone opens the whole study: the four recorded arrangements and the allocation sweep. The evidence pack adds the Avila Core receipts to the [Evidence](evidence.md) step.

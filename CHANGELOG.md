@@ -11,6 +11,21 @@ basis.
 
 ### Changed
 
+- The package's Core evidence is one content-addressed evidence store
+  (`evidence-store/`, Avila Core format `avila.core/evidence-store/v0.1`)
+  instead of eight `.tar.gz` archives. Each distinct file is kept once,
+  xz-compressed, under its SHA-256. The package index is
+  `faris-recorded-demo-package/v0.6` and the saved-study descriptors are
+  `faris-saved-study-store/v0.1`. The app reads and inspects the saved Core
+  evidence in place with length and SHA-256 checked on every read: no
+  temporary expansion, no 0.9 GB of temporary space and no wait on opening.
+  `verify.sh` unpacks one case tree at a time and needs far less temporary
+  space. New: `faris evidence inspect --store DIR --case-tree NAME
+  --workspace-tree NAME` and `faris evidence verify-store DIR`.
+  `faris study-file create --evidence` refuses a store descriptor and says
+  why; use a descriptor from an older package or omit `--evidence`. Older
+  `.faris` files and packages still open.
+
 - Core stage outputs are now `faris-core-stage-output/v0.2`. Each stage writes
   only what it newly computes: the transport output no longer carries the whole
   recorded transport bundle, and the normalize output no longer carries the

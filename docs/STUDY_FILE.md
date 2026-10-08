@@ -46,7 +46,12 @@ keep the file small without weakening verification. v1 reserves both:
    and workspace archives, complete raw solver output) is either packed or
    referenced by hash only. A referenced study opens and displays fully. Its
    Evidence step says the receipts are not included, and anyone who later
-   supplies the archives can check them against the recorded hashes.
+   supplies the archives can check them against the recorded hashes. A
+   package descriptor that names trees in an evidence store
+   (`faris-saved-study-store/v0.1`) cannot yet be recorded here:
+   `faris study-file create --evidence` refuses it and says so. Evidence
+   records for store trees come in a later change; use a descriptor from an
+   older package that names archives, or create the file without `--evidence`.
 
 ## Container
 

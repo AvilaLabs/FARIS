@@ -325,17 +325,24 @@ control histories, and four 27-point sensitivity records from the selected
 release CLI and exact fresh run records. Their provenance binds the scenario,
 run record, raw tally artifact, assumptions, and grid. The index reports total
 file count and bytes and the verifier enforces the 1 GiB / 2,048-file delivered
-package caps. Case/workspace trees are gzip archives with exact per-file hashes
-and a separate 1.5 GiB / 8,192-file aggregate expanded budget, plus a 64 MiB
+package caps. Case/workspace trees are held in one evidence store
+(`evidence-store/`, Avila Core format `avila.core/evidence-store/v0.1`): a
+`store.json` that lists each tree's files with exact lengths and hashes, and
+one xz-compressed blob per distinct file content under `blobs/`. The package
+index records the store's `store.json` hash, blob count and per-tree totals,
+and indexes `store.json` and every blob, so the delivered-file caps apply to
+them. Each tree keeps a 1.5 GiB / 8,192-file aggregate budget and a 64 MiB
 per-file ceiling. These are delivery disk budgets, separate from each native
 case's 512 MiB bound and the fresh solver job limits above. The app verifies
-the index and extracts only checked regular files to a private temporary
-directory that lasts until the app exits. Extraction runs in the background;
-the validated transport scene opens while saved Core evidence remains pending.
-Evidence becomes available only after extraction and actual receipt inspection.
-Path depth and implicit-directory counts are bounded, and the free-space checks
-of `verify.sh` include directory blocks. The app reports extraction time separately;
-startup acceptance measures the first useful scene from app invocation.
+the index and reads the checked files in place from the store, with length and
+SHA-256 checked on every read; nothing is expanded and no temporary directory
+is used. The validated transport scene opens while saved Core evidence is read
+in the background, and evidence becomes available only after actual receipt
+inspection. Path depth and implicit-directory counts are bounded. `verify.sh`
+unpacks one case tree at a time because `avila-core export` needs a real
+folder; its free-space check covers the largest tree, its export copy,
+directory blocks and 64 MiB. Opening a legacy `.faris` file with referenced
+archives still extracts them to a private temporary directory.
 These deterministic history
 probes are authored scenario studies, not
 probability distributions or lifetime uncertainty bounds.
@@ -365,15 +372,11 @@ and `%LOCALAPPDATA%\FARIS\recorded-demo-runs\<package-name>` on Windows. Pass
 `--runs-directory /path/outside/the/distribution` to choose another output root.
 The app refuses a run directory inside the distribution.
 
-On a workstation with a small temporary-directory quota, choose a private
-temporary root on a volume with room for the 803,549,595 expanded Core bytes.
-The app's temporary folder follows `TMPDIR` on Linux; it preserves the indexed packet:
+Opening the package needs no temporary space for the Core evidence. The
+evidence is read in place from the store.
 
 ```bash
-mkdir -p runs/demo-native-temporary
-chmod 700 runs/demo-native-temporary
-TMPDIR="$PWD/runs/demo-native-temporary" \
-  dist/FARIS-demo-2026-10-01/bin/faris-app --package dist/FARIS-demo-2026-10-01 \
+dist/FARIS-demo-2026-10-01/bin/faris-app --package dist/FARIS-demo-2026-10-01 \
   --runs-directory "$PWD/runs/demo-native"
 ```
 

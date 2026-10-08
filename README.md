@@ -73,16 +73,17 @@ the four recorded arrangements and the sweep. `faris-app --package DIR` opens a
 package elsewhere. If a check fails, the app opens with nothing loaded and says
 why and what to do: download again and check `SHA256SUMS`. Python is not needed.
 
-The optional `FARIS-0.2.0-evidence.tar.gz` (about 78 MB, the same for every
+The optional `FARIS-0.2.0-evidence.tar.gz` (about @@PACK@@ MB, the same for every
 platform) adds the Avila Core receipts to the Evidence step. Unpack it into the
-same place, so its files merge into `FARIS-0.2.0/`. With it, the app unpacks the
-Core evidence (823 MB) into a private temporary folder while it runs and deletes
-it on exit, so it needs about 0.9 GB of free temporary space. Without it,
-everything works except the saved receipts: the Evidence step says "Core
-receipts not included", why, and what to do next.
+same place, so its files merge into `FARIS-0.2.0/`. It holds one evidence store,
+a folder of compressed files in which each distinct file is kept once. With it,
+the app reads the saved Core evidence straight from the store and checks each
+file's length and SHA-256 as it reads it. Nothing is unpacked, so it needs no
+temporary space. Without it, everything works except the saved receipts: the
+Evidence step says "Core receipts not included", why, and what to do next.
 
 On Linux, `./verify.sh` rechecks every recorded byte and the Core receipts. It
-needs `python3`, the evidence pack and about 2 GB of temporary space, and it
+needs `python3`, the evidence pack and about @@VERIFY@@ of temporary space, and it
 checks the exact amount first. The Windows and macOS downloads are checked by the
 app itself at launch.
 
@@ -240,7 +241,7 @@ The **File** menu in the top bar has Open, Save, Save as (Ctrl+O, Ctrl+S,
 Ctrl+Shift+S). The window title shows the file name and a dot when the view differs
 from what was saved. Recorded files are stored byte for byte and checked by hash on
 every open, so the Core receipts' "unchanged since checked" guarantee survives a
-save. By default the Core evidence archives (about 55 MB for the demo) are recorded by name
+save. By default the Core evidence archives (the menu item shows their size) are recorded by name
 and hash, not included; the study opens fully without them and its Evidence step
 says the receipts are not included and how to supply them. Tick **Include Core
 evidence in saved files** to store them inside. Archives found beside the file at
