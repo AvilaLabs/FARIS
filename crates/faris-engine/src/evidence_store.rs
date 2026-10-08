@@ -303,6 +303,29 @@ fn blob_relative(sha256: &str) -> PathBuf {
         .join(format!("{sha256}.xz"))
 }
 
+/// Where a blob lives inside a store directory, relative to its root:
+/// `blobs/<first two hex digits>/<sha256>.xz`.
+pub fn blob_path_in_store(sha256: &str) -> PathBuf {
+    blob_relative(sha256)
+}
+
+/// The `store.json` bytes of a store holding exactly `trees`: sorted by name,
+/// checked against the format rules, pretty-printed with a final newline as
+/// the packer writes it.
+pub fn index_bytes(mut trees: Vec<StoreTree>) -> Result<Vec<u8>, StoreError> {
+    trees.sort_by(|a, b| a.name.cmp(&b.name));
+    let index = StoreIndex {
+        schema_version: SCHEMA_VERSION.into(),
+        codec: CODEC.into(),
+        trees,
+    };
+    validate_index(&index)?;
+    let mut bytes =
+        serde_json::to_vec_pretty(&index).map_err(|e| StoreError::InvalidIndex(e.to_string()))?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
 fn blob_error(sha256: &str, detail: impl Into<String>) -> StoreError {
     StoreError::Blob {
         sha256: sha256.into(),
@@ -591,6 +614,17 @@ impl EvidenceStore {
             content.extend_from_slice(chunk)
         })?;
         Ok(content)
+    }
+
+    /// The blob file of an indexed file, after checking that it decompresses
+    /// to exactly the indexed length and SHA-256. For copying a stored blob
+    /// into another store without recompressing it. Nothing is checked about
+    /// an `entry` that is not in this store's index, so pass only entries
+    /// taken from it.
+    pub fn verified_blob_file(&self, entry: &StoreFile) -> Result<PathBuf, StoreError> {
+        let blob = self.blob_path(&entry.sha256)?;
+        decode_blob(&blob, &entry.sha256, entry.bytes, |_| {})?;
+        Ok(blob)
     }
 
     /// Verify the whole store: the index is well formed, every referenced blob

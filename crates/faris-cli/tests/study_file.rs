@@ -443,3 +443,179 @@ fn inspect_reports_whether_a_thumbnail_is_present() {
     let verified = run(&["study-file", "verify", with.to_str().unwrap()]);
     assert_eq!(code(&verified), 0, "{}", text(&verified));
 }
+
+/// A store with the saved study `port/reference` and a store descriptor
+/// beside it, laid out like the package.
+fn store_evidence(dir: &Path) -> PathBuf {
+    let mut trees = Vec::new();
+    for (tree, content) in [
+        ("port-reference-case", "case file"),
+        ("port-reference-workspace", "workspace file"),
+    ] {
+        let root = dir.join("trees").join(tree);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("execution-report.json"), content).unwrap();
+        trees.push((tree.to_owned(), root));
+    }
+    faris_engine::evidence_store::pack_store(&dir.join("evidence-store"), &trees).unwrap();
+    let descriptor = dir.join("saved-study-port-reference.json");
+    std::fs::write(
+        &descriptor,
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": "faris-saved-study-store/v0.1",
+            "store": "evidence-store",
+            "case_tree": "port-reference-case",
+            "workspace_tree": "port-reference-workspace",
+            "execution_report_member": "execution-report.json",
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    descriptor
+}
+
+// Verifies: PRV-040, PRV-042
+#[test]
+fn store_evidence_is_referenced_by_default_and_packed_on_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let bundle = bundle_file(dir.path(), "reference", "a");
+    let descriptor = store_evidence(dir.path());
+    let make = |name: &str, pack: bool| {
+        let study = dir.path().join(name);
+        let mut arguments: Vec<&std::ffi::OsStr> = vec![
+            "study-file".as_ref(),
+            "create".as_ref(),
+            "--bundle".as_ref(),
+            path_arg(&bundle),
+            "--evidence".as_ref(),
+            path_arg(&descriptor),
+            "-o".as_ref(),
+            path_arg(&study),
+        ];
+        if pack {
+            arguments.push("--pack-evidence".as_ref());
+        }
+        let output = faris(&arguments);
+        assert_eq!(code(&output), 0, "{}", text(&output));
+        study
+    };
+    let referenced = make("referenced.faris", false);
+    let packed = make("packed.faris", true);
+    let json = |arguments: &[&str]| -> serde_json::Value {
+        let output = run(arguments);
+        assert_eq!(code(&output), 0, "{}", text(&output));
+        serde_json::from_slice(&output.stdout).unwrap()
+    };
+    let r = json(&["study-file", "inspect", referenced.to_str().unwrap()]);
+    assert_eq!(r["evidence_store"]["mode"], "referenced");
+    assert_eq!(r["evidence_store"]["trees"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        r["evidence_store"]["trees"][0]["tree"],
+        "port-reference-case"
+    );
+    assert_eq!(r["evidence_store"]["trees"][0]["files"], 1);
+    assert!(r["evidence"].is_null());
+    let p = json(&["study-file", "inspect", packed.to_str().unwrap()]);
+    assert_eq!(p["evidence_store"]["mode"], "packed");
+    assert!(
+        std::fs::metadata(&packed).unwrap().len() > std::fs::metadata(&referenced).unwrap().len()
+    );
+    // Verifying a packed file checks its embedded store too.
+    assert_eq!(
+        json(&["study-file", "verify", packed.to_str().unwrap()])["verified"],
+        true
+    );
+
+    // Unpacking a packed study writes the embedded store out; it verifies as a store.
+    let out = dir.path().join("out");
+    let unpacked = json(&[
+        "study-file",
+        "unpack",
+        packed.to_str().unwrap(),
+        out.to_str().unwrap(),
+    ]);
+    assert_eq!(unpacked["evidence_store"]["mode"], "packed");
+    assert_eq!(
+        unpacked["evidence_store"]["available"][0]["source"],
+        "Embedded"
+    );
+    let report = faris_engine::evidence_store::verify_store(&out.join("evidence-store"));
+    assert_eq!(
+        report.status,
+        faris_engine::evidence_store::StoreVerifyStatus::Verified
+    );
+
+    // The referenced one finds the store beside it.
+    let beside = json(&[
+        "study-file",
+        "unpack",
+        referenced.to_str().unwrap(),
+        dir.path().join("out2").to_str().unwrap(),
+    ]);
+    assert_eq!(
+        beside["evidence_store"]["available"][0]["source"],
+        "BesideFile"
+    );
+    assert!(
+        beside["evidence_store"]["missing"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    // Moved away from the store: not included, with why.
+    let elsewhere = tempfile::tempdir().unwrap();
+    let moved = elsewhere.path().join("moved.faris");
+    std::fs::copy(&referenced, &moved).unwrap();
+    let away = json(&[
+        "study-file",
+        "unpack",
+        moved.to_str().unwrap(),
+        elsewhere.path().join("out").to_str().unwrap(),
+    ]);
+    let miss = &away["evidence_store"]["missing"][0];
+    assert_eq!(miss["case_tree"], "port-reference-case");
+    assert!(miss["why"].as_str().unwrap().contains("beside the file"));
+
+    // A damaged blob inside the packed file is refused by `verify` (exit 1).
+    let damaged = dir.path().join("damaged.faris");
+    {
+        use std::io::{Read, Write};
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&packed).unwrap()).unwrap();
+        let mut writer = zip::ZipWriter::new(std::fs::File::create(&damaged).unwrap());
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        for index in 0..archive.len() {
+            let mut entry = archive.by_index(index).unwrap();
+            let name = entry.name().to_owned();
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes).unwrap();
+            if name.starts_with("evidence-store/blobs/") {
+                let middle = bytes.len() / 2;
+                bytes[middle] ^= 1;
+            }
+            writer.start_file(name, stored).unwrap();
+            writer.write_all(&bytes).unwrap();
+        }
+        writer.finish().unwrap();
+    }
+    let output = run(&["study-file", "verify", damaged.to_str().unwrap()]);
+    assert_eq!(code(&output), 1, "{}", text(&output));
+
+    // One kind of evidence per study.
+    let archives = evidence(dir.path());
+    let mixed = faris(&[
+        "study-file".as_ref(),
+        "create".as_ref(),
+        "--bundle".as_ref(),
+        path_arg(&bundle),
+        "--evidence".as_ref(),
+        path_arg(&descriptor),
+        "--evidence".as_ref(),
+        path_arg(&archives),
+        "-o".as_ref(),
+        path_arg(&dir.path().join("mixed.faris")),
+    ]);
+    assert_eq!(code(&mixed), 2, "{}", text(&mixed));
+    assert!(!dir.path().join("mixed.faris").exists());
+}

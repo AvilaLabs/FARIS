@@ -469,7 +469,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .into(),
         );
     }
-    let inputs = study_file::StudyInputs::from_arguments(&args);
+    let mut inputs = study_file::StudyInputs::from_arguments(&args);
+    if let Some(store) = package_session
+        .as_ref()
+        .and_then(|s| s.saved_store.as_ref())
+    {
+        inputs = inputs.with_saved_store(store);
+    }
     let session_inputs = if args.study.is_some() {
         SessionInputs::empty(runs_directory.clone())
     } else {
@@ -556,6 +562,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     app.maintenance.set_recorded(recorded);
                 }
                 if let Some(store) = session.saved_store.clone() {
+                    app.file.package_store = Some(store.path.clone());
                     app.study.archive.queue_store(store);
                 }
                 app.package = Some(session);
@@ -1789,6 +1796,16 @@ impl FarisApp {
                 badge::badge(ui, note.kind, note.label, &note.text);
             });
             ui.add_space(8.0);
+        }
+        // Store trees saved by reference: the badge, and the why and next step
+        // also as text, so they do not depend on hovering.
+        if let Some(note) = self
+            .file
+            .evidence_store
+            .as_ref()
+            .and_then(|s| study_file::store_evidence_badge(s, &self.file.evidence_trees))
+        {
+            package_notice(ui, &note);
         }
         // Saved Core receipts bind the assumptions they were executed with
         // (the loaded file). Offer that set explicitly instead of silently

@@ -4,8 +4,13 @@ use crate::{
     is_safe_relative_path, is_sha256_hex,
     preview::{MAX_PREVIEW_BYTES_USED, MAX_PREVIEW_SIDE, Preview, PreviewStatus, png_dimensions},
     sha256_hex,
+    store_layer::{
+        self, MAX_STORE_INDEX_BYTES, STORE_DIR, STORE_INDEX_ENTRY, StoreEvidenceState, StoreSource,
+        StoreStudy, blob_entry_digest, max_blob_entry_bytes,
+    },
 };
 use faris_engine::core_evidence::RecordedTransportBundle;
+use faris_engine::evidence_store::EvidenceStore;
 use faris_engine::history_ensemble::HistoryEnsemble;
 use faris_engine::history_uncertainty::EnsembleKey;
 use sha2::{Digest, Sha256};
@@ -128,6 +133,22 @@ pub struct StudyReader {
     pub file_bytes: u64,
     /// Zip entry index of `preview.png`, if the file has one.
     preview: Option<usize>,
+    /// The entries of an embedded evidence store, if the file has one.
+    embedded: Option<EmbeddedEntries>,
+}
+
+/// Zip entry indices of the store a packed file embeds.
+#[derive(Clone, Default)]
+struct EmbeddedEntries {
+    index: Option<usize>,
+    /// Blob digest to entry index.
+    blobs: BTreeMap<String, usize>,
+}
+
+impl EmbeddedEntries {
+    fn is_empty(&self) -> bool {
+        self.index.is_none() && self.blobs.is_empty()
+    }
 }
 
 fn blob_entry_name(name: &str) -> Option<&str> {
@@ -166,6 +187,7 @@ impl StudyReader {
         let mut blob_indices: BTreeMap<String, usize> = BTreeMap::new();
         let mut manifest_index = None;
         let mut preview_index = None;
+        let mut embedded = EmbeddedEntries::default();
         for index in 0..archive.len() {
             let entry = archive.by_index_raw(index)?;
             let name = entry.name().to_owned();
@@ -192,6 +214,10 @@ impl StudyReader {
                 preview_index = Some(index);
             } else if let Some(hash) = blob_entry_name(&name) {
                 blob_indices.insert(hash.to_owned(), index);
+            } else if name == STORE_INDEX_ENTRY {
+                embedded.index = Some(index);
+            } else if let Some(hash) = blob_entry_digest(&name) {
+                embedded.blobs.insert(hash.to_owned(), index);
             } else {
                 return Err(StudyError::corrupt(format!(
                     "unexpected entry name \"{}\" in the study file",
@@ -283,15 +309,70 @@ impl StudyReader {
                 "blob {extra} is in the file but not listed in the manifest"
             )));
         }
-        let reader = Self {
+        let mut reader = Self {
             archive,
             manifest,
             entries,
             file_bytes,
             preview: preview_index,
+            embedded: (!embedded.is_empty()).then_some(embedded),
         };
         reader.check_references()?;
+        reader.check_embedded_store()?;
         Ok(reader)
+    }
+
+    /// The embedded store's entries against the manifest: a packed store
+    /// layer needs exactly its `store.json` and one blob per distinct file
+    /// digest, each no larger than the listing allows; without one, store
+    /// entries are refused. Contents are checked when the store is extracted.
+    fn check_embedded_store(&mut self) -> Result<(), StudyError> {
+        let packed = self
+            .manifest
+            .layers
+            .evidence_store
+            .clone()
+            .filter(|l| l.mode == EvidenceMode::Packed);
+        let Some(layer) = packed else {
+            return if self.embedded.is_some() {
+                Err(StudyError::corrupt(
+                    "the file holds an evidence store, but its manifest does not record packed store evidence",
+                ))
+            } else {
+                Ok(())
+            };
+        };
+        let missing = || {
+            StudyError::corrupt(
+                "the manifest records packed store evidence, but the file's evidence store is incomplete",
+            )
+        };
+        let embedded = self.embedded.clone().ok_or_else(missing)?;
+        let index = embedded.index.ok_or_else(missing)?;
+        let wanted = store_layer::distinct_blobs(&layer);
+        if wanted.len() != embedded.blobs.len()
+            || wanted.keys().any(|h| !embedded.blobs.contains_key(*h))
+        {
+            return Err(StudyError::corrupt(
+                "the file's evidence store holds different blobs than the trees the manifest lists",
+            ));
+        }
+        let mut total = 0u64;
+        let mut check = |entry: usize, limit: u64, what: &str| -> Result<(), StudyError> {
+            let size = self.archive.by_index_raw(entry)?.size();
+            total = total.saturating_add(size);
+            if size > limit || total > MAX_TOTAL_BYTES {
+                return Err(StudyError::corrupt(format!(
+                    "{what} in the file's evidence store is larger than its listing allows"
+                )));
+            }
+            Ok(())
+        };
+        check(index, MAX_STORE_INDEX_BYTES, "store.json")?;
+        for (hash, entry) in &embedded.blobs {
+            check(*entry, max_blob_entry_bytes(wanted[hash.as_str()]), hash)?;
+        }
+        Ok(())
     }
 
     fn check_references(&self) -> Result<(), StudyError> {
@@ -343,6 +424,14 @@ impl StudyReader {
                     "the manifest lists one history ensemble key twice",
                 ));
             }
+        }
+        if let Some(layer) = &m.layers.evidence_store {
+            if m.layers.evidence.is_some() {
+                return Err(StudyError::corrupt(
+                    "the manifest records Core evidence both as archives and as store trees",
+                ));
+            }
+            store_layer::check_layer(layer).map_err(StudyError::corrupt)?;
         }
         if let Some(EvidenceLayer { mode, archives }) = &m.layers.evidence {
             let mut roles = BTreeSet::new();
@@ -484,7 +573,114 @@ impl StudyReader {
             self.read_blob(hash)?;
         }
         self.verify_structure()?;
+        if self.embedded.is_some() {
+            // Extract into a scratch folder and check it as a store would be.
+            let scratch = tempfile::tempdir().map_err(|e| {
+                StudyError::io("cannot create a scratch folder to verify evidence", e)
+            })?;
+            self.extract_embedded_store(scratch.path())?;
+        }
         Ok(hashes.len())
+    }
+
+    /// Write the embedded evidence store to `<destination>/evidence-store` and
+    /// check it: the folder must not exist yet, every entry is read within the
+    /// bound its listing allows, the extracted store must open and verify
+    /// (every blob decompresses to its recorded length and SHA-256), and its
+    /// trees must be exactly the manifest's, file for file.
+    pub fn extract_embedded_store(&mut self, destination: &Path) -> Result<PathBuf, StudyError> {
+        let layer = self
+            .manifest
+            .layers
+            .evidence_store
+            .clone()
+            .filter(|l| l.mode == EvidenceMode::Packed)
+            .ok_or_else(|| StudyError::corrupt("the file holds no packed evidence store"))?;
+        let embedded = self
+            .embedded
+            .clone()
+            .ok_or_else(|| StudyError::corrupt("the file holds no evidence store"))?;
+        let index = embedded
+            .index
+            .ok_or_else(|| StudyError::corrupt("the file's evidence store has no store.json"))?;
+        let root = destination.join(STORE_DIR);
+        let context = |path: &Path| format!("cannot write {}", path.display());
+        let write = |path: &Path, bytes: &[u8]| -> Result<(), StudyError> {
+            use std::io::Write;
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| StudyError::io(context(parent), e))?;
+            }
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+                .map_err(|e| StudyError::io(context(path), e))?;
+            file.write_all(bytes)
+                .map_err(|e| StudyError::io(context(path), e))
+        };
+        std::fs::create_dir(&root).map_err(|e| StudyError::io(context(&root), e))?;
+        let bytes = self.read_embedded(index, MAX_STORE_INDEX_BYTES, "store.json")?;
+        write(&root.join("store.json"), &bytes)?;
+        let wanted = store_layer::distinct_blobs(&layer);
+        for (hash, entry) in &embedded.blobs {
+            let limit =
+                max_blob_entry_bytes(wanted.get(hash.as_str()).copied().ok_or_else(|| {
+                    StudyError::corrupt(format!("evidence blob {hash} is not listed by any tree"))
+                })?);
+            let bytes = self.read_embedded(*entry, limit, hash)?;
+            write(
+                &root.join(faris_engine::evidence_store::blob_path_in_store(hash)),
+                &bytes,
+            )?;
+        }
+        let store = EvidenceStore::open(&root).map_err(|e| {
+            StudyError::corrupt(format!("the file's evidence store is not valid: {e}"))
+        })?;
+        let expected = store_layer::store_trees(&layer);
+        if store.index().trees != expected {
+            return Err(StudyError::corrupt(
+                "the file's evidence store lists different trees or files than the manifest records",
+            ));
+        }
+        let report = store.verify();
+        if report.status != faris_engine::evidence_store::StoreVerifyStatus::Verified {
+            let first = report.findings.first().map_or_else(
+                || "unknown reason".to_owned(),
+                |f| format!("{}: {}", f.path, f.detail),
+            );
+            return Err(StudyError::corrupt(format!(
+                "the file's evidence store does not verify ({first})"
+            )));
+        }
+        Ok(root)
+    }
+
+    /// One entry of the embedded store, never reading past `limit` bytes.
+    fn read_embedded(
+        &mut self,
+        entry: usize,
+        limit: u64,
+        what: &str,
+    ) -> Result<Vec<u8>, StudyError> {
+        let mut entry = self.archive.by_index(entry)?;
+        if entry.size() > limit {
+            return Err(StudyError::corrupt(format!(
+                "{what} in the file's evidence store is larger than its listing allows"
+            )));
+        }
+        let mut data = Vec::with_capacity(entry.size().min(64 * 1024 * 1024) as usize);
+        (&mut entry)
+            .take(limit + 1)
+            .read_to_end(&mut data)
+            .map_err(|e| {
+                StudyError::corrupt(format!("{what} in the evidence store is damaged: {e}"))
+            })?;
+        if data.len() as u64 > limit {
+            return Err(StudyError::corrupt(format!(
+                "{what} in the file's evidence store is larger than its listing allows"
+            )));
+        }
+        Ok(data)
     }
 
     /// Every stored history ensemble, each read through the hash check and
@@ -579,6 +775,21 @@ impl StudyReader {
         destination: &Path,
         near: Option<&Path>,
     ) -> Result<Materialized, StudyError> {
+        self.materialize_with(destination, near, None)
+    }
+
+    /// [`materialize`](Self::materialize), also offering the store of the
+    /// package the app was started from as a place to find referenced
+    /// evidence-store trees (after the `evidence-store/` folder beside the
+    /// file). A packed evidence store is extracted to
+    /// `<destination>/evidence-store` and verified; one that does not verify
+    /// refuses the file.
+    pub fn materialize_with(
+        &mut self,
+        destination: &Path,
+        near: Option<&Path>,
+        package_store: Option<&Path>,
+    ) -> Result<Materialized, StudyError> {
         let write = |path: &Path, bytes: &[u8]| -> Result<(), StudyError> {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
@@ -637,12 +848,14 @@ impl StudyReader {
             None => None,
         };
         let evidence = self.materialize_evidence(destination, near)?;
+        let evidence_store = self.materialize_evidence_store(destination, near, package_store)?;
         Ok(Materialized {
             port,
             control,
             sweep,
             assumptions,
             evidence,
+            evidence_store,
         })
     }
 
@@ -662,6 +875,48 @@ impl StudyReader {
         std::fs::write(&path, json)
             .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e))?;
         Ok(path)
+    }
+
+    fn materialize_evidence_store(
+        &mut self,
+        destination: &Path,
+        near: Option<&Path>,
+        package_store: Option<&Path>,
+    ) -> Result<Option<StoreEvidenceState>, StudyError> {
+        let Some(layer) = self.manifest.layers.evidence_store.clone() else {
+            return Ok(None);
+        };
+        match layer.mode {
+            EvidenceMode::Referenced => Ok(Some(store_layer::resolve_referenced(
+                &layer,
+                near,
+                package_store,
+            ))),
+            EvidenceMode::Packed => {
+                let root = self.extract_embedded_store(destination)?;
+                let (digest, _) = sha256_file(&root.join("store.json"))
+                    .map_err(|e| StudyError::io("cannot read the extracted store.json", e))?;
+                let found = store_layer::pairs(&layer)
+                    .into_iter()
+                    .map(
+                        |((arrangement, allocation), (case, workspace))| StoreStudy {
+                            arrangement: arrangement.into(),
+                            allocation: allocation.into(),
+                            case_tree: case.tree.clone(),
+                            workspace_tree: workspace.tree.clone(),
+                            store: root.clone(),
+                            store_json_sha256: digest.clone(),
+                            source: StoreSource::Embedded,
+                        },
+                    )
+                    .collect();
+                Ok(Some(StoreEvidenceState {
+                    mode: EvidenceMode::Packed,
+                    found,
+                    missing: Vec::new(),
+                }))
+            }
+        }
     }
 
     fn materialize_evidence(
@@ -776,4 +1031,6 @@ pub struct Materialized {
     pub sweep: Vec<PathBuf>,
     pub assumptions: Option<PathBuf>,
     pub evidence: EvidenceState,
+    /// Evidence recorded as store trees; `None` when the study records none.
+    pub evidence_store: Option<StoreEvidenceState>,
 }

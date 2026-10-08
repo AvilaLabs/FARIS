@@ -1,7 +1,7 @@
 //! Reopening saved studies revalidates their identities on a worker thread.
 
 use crate::badge::{self, Kind};
-use crate::package::SavedStore;
+use crate::package::{SavedStore, StoreOrigin};
 use eframe::egui;
 use faris_engine::{
     case_archive::{SavedCaseInspection, inspect_saved_case, inspect_saved_case_in_store},
@@ -39,7 +39,7 @@ const MATERIALIZATION_LIMIT: Duration = Duration::from_secs(600);
 
 #[derive(Default)]
 pub struct ArchivePanel {
-    queued_store: Option<SavedStore>,
+    queued_stores: Vec<SavedStore>,
     queued_descriptors: Vec<PathBuf>,
     ready_marker: Option<PathBuf>,
     pending: Option<Pending>,
@@ -69,10 +69,11 @@ impl ArchivePanel {
         Ok(())
     }
 
-    /// Reopen the saved studies of a package's evidence store in place, on the
-    /// worker thread: nothing is expanded and nothing waits for a copy.
+    /// Reopen the saved studies of an evidence store in place, on the worker
+    /// thread: nothing is expanded and nothing waits for a copy. Stores queued
+    /// before the worker starts are reopened together.
     pub fn queue_store(&mut self, store: SavedStore) {
-        self.queued_store = Some(store);
+        self.queued_stores.push(store);
     }
 
     pub fn has_saved(&self) -> bool {
@@ -80,7 +81,9 @@ impl ArchivePanel {
     }
 
     pub fn is_loading(&self) -> bool {
-        self.pending.is_some() || self.queued_store.is_some() || !self.queued_descriptors.is_empty()
+        self.pending.is_some()
+            || !self.queued_stores.is_empty()
+            || !self.queued_descriptors.is_empty()
     }
 
     pub fn take_histories(&mut self) -> Vec<(String, String, HistoryResult)> {
@@ -108,11 +111,13 @@ impl ArchivePanel {
     }
 
     pub fn poll(&mut self, ctx: &egui::Context) {
-        if self.pending.is_none()
-            && let Some(store) = self.queued_store.take()
-        {
+        if self.pending.is_none() && !self.queued_stores.is_empty() {
+            let stores = std::mem::take(&mut self.queued_stores);
             self.start(ctx.clone(), move |cancellation| {
-                check_store_studies(&store, &cancellation)
+                stores
+                    .iter()
+                    .flat_map(|store| check_store_studies(store, &cancellation))
+                    .collect()
             });
         }
         if self.pending.is_none() && !self.queued_descriptors.is_empty() {
@@ -321,19 +326,27 @@ fn scenario_digest(saved: &SavedCaseInspection) -> &str {
         .unwrap_or(&saved.scenario_sha256)
 }
 
-/// Reopen each saved study of a package's evidence store, reading the store in
-/// place. Each entry is the inspection or why it failed.
+/// Reopen each saved study of an evidence store, reading the store in place.
+/// Each entry is the inspection or why it failed.
 fn check_store_studies(
     saved: &SavedStore,
     cancellation: &Cancellation,
 ) -> Vec<Result<SavedCaseInspection, String>> {
-    let fail = |what: String| {
-        format!(
+    let fail = |what: String| match saved.origin {
+        StoreOrigin::Package => format!(
             "{what}\n\nWhy: the saved Core receipts of this package could not be verified from its \
              evidence store.\n\nNext step: download the package again and check it against the \
              SHA256SUMS file from the same release; the transport, histories and assumptions \
              are not affected."
-        )
+        ),
+        StoreOrigin::StudyFile => format!(
+            "{what}\n\nWhy: the saved Core receipts of this study file could not be verified \
+             from the evidence store they were read from.\n\nNext step: if the study file \
+             came with an evidence-store folder, copy that folder again from the package \
+             download; otherwise open the original study and save it again with \"Include Core \
+             evidence in saved files\" checked. The transport, histories and assumptions are \
+             not affected."
+        ),
     };
     let store = match EvidenceStore::open_expecting(&saved.path, &saved.index_sha256) {
         Ok(store) => store,
@@ -561,5 +574,69 @@ mod delivery_tests {
             result.is_err(),
             "Delivery readiness must not invent Core evidence"
         );
+    }
+}
+
+#[cfg(test)]
+mod store_tests {
+    use super::*;
+
+    /// A store whose trees are not saved Core studies.
+    fn junk_store(origin: StoreOrigin) -> (tempfile::TempDir, SavedStore) {
+        let dir = tempfile::tempdir().unwrap();
+        let mut trees = Vec::new();
+        for name in ["port-reference-case", "port-reference-workspace"] {
+            let tree = dir.path().join("src").join(name);
+            std::fs::create_dir_all(&tree).unwrap();
+            std::fs::write(tree.join("x.json"), b"{}").unwrap();
+            trees.push((name.to_owned(), tree));
+        }
+        let store = dir.path().join("evidence-store");
+        faris_engine::evidence_store::pack_store(&store, &trees).unwrap();
+        let digest = faris_study::sha256_hex(&std::fs::read(store.join("store.json")).unwrap());
+        let saved = SavedStore {
+            origin,
+            path: store,
+            index_sha256: digest,
+            studies: vec![crate::package::SavedStudy {
+                pair: "port".into(),
+                variant: "reference".into(),
+                case_tree: "port-reference-case".into(),
+                workspace_tree: "port-reference-workspace".into(),
+            }],
+        };
+        (dir, saved)
+    }
+
+    #[test]
+    fn a_store_that_does_not_verify_says_why_and_what_to_do_for_its_origin() {
+        let (_dir, mut saved) = junk_store(StoreOrigin::StudyFile);
+        let results = check_saved_studies_in_store(&saved);
+        let error = results[0].as_ref().unwrap_err();
+        assert!(error.contains("port/reference did not verify"), "{error}");
+        assert!(error.contains("this study file"), "{error}");
+        assert!(
+            error.contains("Include Core evidence in saved files"),
+            "{error}"
+        );
+        saved.origin = StoreOrigin::Package;
+        let error = check_saved_studies_in_store(&saved)[0].clone().unwrap_err();
+        assert!(error.contains("download the package again"), "{error}");
+        // A store whose index changed since it was resolved is not opened.
+        saved.index_sha256 = "0".repeat(64);
+        let error = check_saved_studies_in_store(&saved)[0].clone().unwrap_err();
+        assert!(error.contains("cannot be opened"), "{error}");
+    }
+
+    #[test]
+    fn stores_queued_together_are_reopened_together() {
+        let mut panel = ArchivePanel::default();
+        assert!(!panel.is_loading());
+        let (_a, one) = junk_store(StoreOrigin::StudyFile);
+        let (_b, two) = junk_store(StoreOrigin::Package);
+        panel.queue_store(one);
+        panel.queue_store(two);
+        assert!(panel.is_loading());
+        assert_eq!(panel.queued_stores.len(), 2);
     }
 }

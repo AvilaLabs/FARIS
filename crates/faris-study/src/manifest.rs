@@ -1,3 +1,4 @@
+use faris_engine::evidence_store::StoreFile;
 use faris_engine::history_uncertainty::EnsembleKey;
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
@@ -102,10 +103,35 @@ pub struct EvidenceLayer {
     pub archives: Vec<EvidenceArchive>,
 }
 
+/// One tree of the Core evidence store that a study's saved case or workspace
+/// lives in. The full file listing is the tree's identity: a tree is accepted
+/// only where its store's index lists exactly these files.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenceStoreTree {
+    pub arrangement: String,
+    pub allocation: String,
+    pub kind: ArchiveKind,
+    /// The tree's name in the store.
+    pub tree: String,
+    /// Every file of the tree, sorted by path.
+    pub files: Vec<StoreFile>,
+}
+
+/// Core evidence recorded as trees of a content-addressed store
+/// (`layers.evidence_store`, minor version 1.1). Packed files carry a store
+/// holding exactly these trees under `evidence-store/`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvidenceStoreLayer {
+    pub mode: EvidenceMode,
+    pub trees: Vec<EvidenceStoreTree>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Layers {
     #[serde(default)]
     pub evidence: Option<EvidenceLayer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence_store: Option<EvidenceStoreLayer>,
 }
 
 /// The view the author left open. Calculated histories are not stored; they

@@ -1,10 +1,14 @@
 use crate::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
-    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT,
-    Layers, MIMETYPE, Manifest, StudyError, ViewState, is_safe_file_name, is_safe_relative_path,
-    is_sha256_hex, read::sha256_file, sha256_hex,
+    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode,
+    EvidenceStoreLayer, FORMAT, Layers, MIMETYPE, Manifest, StudyError, ViewState,
+    is_safe_file_name, is_safe_relative_path, is_sha256_hex,
+    read::sha256_file,
+    sha256_hex,
+    store_layer::{self, EvidenceStoreDraft, STORE_INDEX_ENTRY, blob_entry_name},
 };
 use faris_engine::core_evidence::{RecordedTransportBundle, read_stage};
+use faris_engine::evidence_store::EvidenceStore;
 use faris_engine::history_ensemble::HistoryEnsemble;
 use faris_engine::history_uncertainty::EnsembleKey;
 use std::{
@@ -56,9 +60,13 @@ pub struct StudyDraft {
     pub sweep: Vec<PathBuf>,
     pub assumptions: Option<PathBuf>,
     pub evidence: Vec<EvidenceDraft>,
+    /// Core evidence as trees of an evidence store, instead of `evidence`
+    /// archives; a study records one kind or the other.
+    pub evidence_store: Vec<EvidenceStoreDraft>,
     /// Calculated history ensembles, stored as derived blobs.
     pub ensembles: Vec<EnsembleDraft>,
-    /// Store the evidence archives inside the file instead of by reference.
+    /// Store the Core evidence (archives or store trees) inside the file instead
+    /// of by reference.
     pub pack_evidence: bool,
     pub view: ViewState,
     pub zstd_level: i64,
@@ -75,6 +83,7 @@ impl Default for StudyDraft {
             sweep: Vec::new(),
             assumptions: None,
             evidence: Vec::new(),
+            evidence_store: Vec::new(),
             ensembles: Vec::new(),
             pack_evidence: false,
             view: ViewState::default(),
@@ -290,6 +299,118 @@ fn check_evidence(draft: &StudyDraft, blobs: &mut BlobSet) -> Result<(), StudyEr
     Ok(())
 }
 
+/// The store a packed file embeds: its `store.json` and the blob files to copy
+/// as they are stored.
+struct EmbeddedStore {
+    index: Vec<u8>,
+    /// Digest, source file and stored size of each distinct blob.
+    blobs: Vec<(String, PathBuf, u64)>,
+}
+
+/// Build the embedded store from the source stores of the draft trees. The
+/// source tree must list exactly the recorded files, and each blob is
+/// decompressed and checked before its stored bytes are copied (never
+/// recompressed).
+fn embedded_store(
+    layer: &EvidenceStoreLayer,
+    drafts: &[EvidenceStoreDraft],
+) -> Result<EmbeddedStore, StudyError> {
+    let mut stores: BTreeMap<&Path, EvidenceStore> = BTreeMap::new();
+    let mut blobs: BTreeMap<String, (PathBuf, u64)> = BTreeMap::new();
+    for draft in drafts {
+        let name = &draft.tree.tree;
+        let root = draft.store.as_deref().ok_or_else(|| {
+            StudyError::Input(format!(
+                "cannot include Core evidence: the store holding tree {name} is not available \
+                 (the receipts were saved by reference). Open the study where its evidence \
+                 store is found (next to the package's evidence-store folder, or with FARIS \
+                 started from the package), then save again"
+            ))
+        })?;
+        if !stores.contains_key(root) {
+            let opened = EvidenceStore::open(root).map_err(|e| {
+                StudyError::Input(format!(
+                    "cannot include Core evidence: the evidence store {} cannot be opened: {e}",
+                    root.display()
+                ))
+            })?;
+            stores.insert(root, opened);
+        }
+        let store = &stores[root];
+        let listed = store.tree(name).ok_or_else(|| {
+            StudyError::Input(format!(
+                "the evidence store {} has no tree {name}",
+                root.display()
+            ))
+        })?;
+        if listed.files != draft.tree.files {
+            return Err(StudyError::Input(format!(
+                "tree {name} of the evidence store {} lists different files than the study records",
+                root.display()
+            )));
+        }
+        for entry in &listed.files {
+            if blobs.contains_key(&entry.sha256) {
+                continue;
+            }
+            let file = store.verified_blob_file(entry).map_err(|e| {
+                StudyError::Input(format!(
+                    "evidence file {name}/{} in {} did not verify: {e}",
+                    entry.path,
+                    root.display()
+                ))
+            })?;
+            let stored = std::fs::metadata(&file)
+                .map_err(|e| StudyError::io(format!("cannot read {}", file.display()), e))?
+                .len();
+            blobs.insert(entry.sha256.clone(), (file, stored));
+        }
+    }
+    let index = faris_engine::evidence_store::index_bytes(store_layer::store_trees(layer))
+        .map_err(|e| StudyError::Input(format!("cannot build the embedded store: {e}")))?;
+    Ok(EmbeddedStore {
+        index,
+        blobs: blobs
+            .into_iter()
+            .map(|(sha, (path, bytes))| (sha, path, bytes))
+            .collect(),
+    })
+}
+
+fn evidence_store_layer(draft: &StudyDraft) -> Result<Option<EvidenceStoreLayer>, StudyError> {
+    if draft.evidence_store.is_empty() {
+        return Ok(None);
+    }
+    if !draft.evidence.is_empty() {
+        return Err(StudyError::Input(
+            "a study records its Core evidence either as archives or as store trees, not both"
+                .into(),
+        ));
+    }
+    let mut trees: Vec<_> = draft
+        .evidence_store
+        .iter()
+        .map(|d| d.tree.clone())
+        .collect();
+    for tree in &mut trees {
+        tree.files
+            .sort_by(|a, b| a.path.as_bytes().cmp(b.path.as_bytes()));
+    }
+    trees.sort_by(|a, b| {
+        (&a.arrangement, &a.allocation, a.kind).cmp(&(&b.arrangement, &b.allocation, b.kind))
+    });
+    let layer = EvidenceStoreLayer {
+        mode: if draft.pack_evidence {
+            EvidenceMode::Packed
+        } else {
+            EvidenceMode::Referenced
+        },
+        trees,
+    };
+    store_layer::check_layer(&layer).map_err(StudyError::Input)?;
+    Ok(Some(layer))
+}
+
 fn add_ensembles(
     blobs: &mut BlobSet,
     drafts: &[EnsembleDraft],
@@ -341,6 +462,11 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         .map(|p| Ok::<_, StudyError>(blobs.add(read_small(p)?, "application/json")))
         .transpose()?;
     check_evidence(draft, &mut blobs)?;
+    let store_layer = evidence_store_layer(draft)?;
+    let embedded = match (&store_layer, draft.pack_evidence) {
+        (Some(layer), true) => Some(embedded_store(layer, &draft.evidence_store)?),
+        _ => None,
+    };
     let ensembles = add_ensembles(&mut blobs, &draft.ensembles)?;
     let evidence = (!draft.evidence.is_empty()).then(|| EvidenceLayer {
         mode: if draft.pack_evidence {
@@ -359,6 +485,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         view: draft.view.clone(),
         layers: Layers {
             evidence: evidence.clone(),
+            evidence_store: store_layer.clone(),
         },
         ensembles,
         blobs: blobs.table.clone(),
@@ -416,6 +543,28 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
                 }
             }
         }
+        if let Some(embedded) = &embedded {
+            // Already compressed (xz) and addressed by content: stored as they
+            // are in the source store, so the embedded store verifies as a store.
+            zip.start_file(STORE_INDEX_ENTRY, stored)
+                .map_err(zip_error)?;
+            zip.write_all(&embedded.index)
+                .map_err(|e| StudyError::io("writing study file", e))?;
+            for (sha, source, bytes) in &embedded.blobs {
+                zip.start_file(blob_entry_name(sha), stored)
+                    .map_err(zip_error)?;
+                let mut input = File::open(source)
+                    .map_err(|e| StudyError::io(format!("cannot read {}", source.display()), e))?;
+                let copied = std::io::copy(&mut input, &mut zip)
+                    .map_err(|e| StudyError::io("writing study file", e))?;
+                if copied != *bytes {
+                    return Err(StudyError::Input(format!(
+                        "{} changed while the study was being saved",
+                        source.display()
+                    )));
+                }
+            }
+        }
         if let Some(png) = preview {
             zip.start_file("preview.png", stored).map_err(zip_error)?;
             zip.write_all(png)
@@ -444,7 +593,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         file_bytes,
         blob_count: blobs.table.len(),
         original_bytes: blobs.table.iter().map(|b| b.bytes).sum(),
-        evidence: evidence.map(|e| e.mode),
+        evidence: evidence.map(|e| e.mode).or(store_layer.map(|l| l.mode)),
         preview_bytes: preview.map(|p| p.len() as u64),
     })
 }

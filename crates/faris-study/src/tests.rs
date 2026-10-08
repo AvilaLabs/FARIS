@@ -32,7 +32,7 @@ fn bundle(tag: &str) -> faris_engine::core_evidence::RecordedTransportBundle {
     }
 }
 
-fn write_bundle(dir: &Path, name: &str, tag: &str) -> PathBuf {
+pub(crate) fn write_bundle(dir: &Path, name: &str, tag: &str) -> PathBuf {
     let path = dir.join(format!("{name}.transport-bundle.json"));
     let mut json = serde_json::to_vec_pretty(&bundle(tag)).unwrap();
     // Recorded files differ on a trailing newline; both must round-trip.
@@ -59,7 +59,7 @@ fn archive_file(dir: &Path, name: &str, content: &[u8]) -> EvidenceArchive {
     }
 }
 
-fn draft(dir: &Path) -> StudyDraft {
+pub(crate) fn draft(dir: &Path) -> StudyDraft {
     std::fs::write(dir.join("assumptions.json"), b"{\"a\":1}\n").unwrap();
     StudyDraft {
         port: Some(ArrangementDraft {
@@ -126,20 +126,6 @@ fn round_trip_restores_bundles_assumptions_and_view() {
         b"{\"a\":1}\n"
     );
     assert!(files.evidence.mode.is_none());
-}
-
-#[test]
-fn a_store_descriptor_is_refused_with_a_next_step() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("saved-study-port-reference.json");
-    std::fs::write(
-        &path,
-        br#"{"schema_version":"faris-saved-study-store/v0.1","store":"evidence-store","case_tree":"port-reference-case","workspace_tree":"port-reference-workspace"}"#,
-    )
-    .unwrap();
-    let message = evidence_from_descriptor(&path).unwrap_err().to_string();
-    assert!(message.contains("evidence store"), "{message}");
-    assert!(message.contains("without --evidence"), "{message}");
 }
 
 #[test]

@@ -4,14 +4,20 @@
 //! physics.
 
 use crate::{
-    Arguments, FarisApp, Session, SessionInputs, Step, badge::Kind, load_sweep, study_panel,
-    sweep_panel, thumbnail, transport_panel::FieldView,
+    Arguments, FarisApp, Session, SessionInputs, Step,
+    badge::Kind,
+    load_sweep,
+    package::{SavedStore, SavedStudy, StoreOrigin},
+    study_panel, sweep_panel, thumbnail,
+    transport_panel::FieldView,
 };
 use clap::ValueEnum;
 use eframe::egui;
+use faris_engine::evidence_store::EvidenceStore;
 use faris_study::{
-    ArrangementDraft, EvidenceDraft, EvidenceMode, EvidenceState, MissReason, StudyDraft,
-    StudyReader, ViewState, WriteReport, extract_tar_gz, write_study,
+    ArchiveKind, ArrangementDraft, EvidenceDraft, EvidenceMode, EvidenceState, EvidenceStoreDraft,
+    EvidenceStoreTree, MissReason, StoreEvidenceState, StoreSource, StudyDraft, StudyReader,
+    ViewState, WriteReport, extract_tar_gz, packed_store_bytes, write_study,
 };
 use std::{
     path::{Path, PathBuf},
@@ -43,9 +49,10 @@ fn megabytes(bytes: u64) -> String {
 /// Label of the File menu option that packs the Core evidence archives into
 /// saved files: the size is the actual total of the open study's archives, and
 /// is left out when they are not known.
-fn evidence_option_label(evidence: &[EvidenceDraft]) -> String {
-    let total: u64 = evidence.iter().map(|e| e.archive.bytes).sum();
-    if evidence.is_empty() || total == 0 {
+fn evidence_option_label(evidence: &[EvidenceDraft], trees: &[EvidenceStoreDraft]) -> String {
+    let total: u64 =
+        evidence.iter().map(|e| e.archive.bytes).sum::<u64>() + packed_store_bytes(trees);
+    if (evidence.is_empty() && trees.is_empty()) || total == 0 {
         "Include Core evidence in saved files".into()
     } else {
         format!(
@@ -67,6 +74,33 @@ pub fn evidence_summary(state: &EvidenceState) -> String {
             "Core evidence referenced, {} of {} archives missing",
             state.missing.len(),
             state.missing.len() + state.available.len()
+        ),
+    }
+}
+
+/// How the evidence-store layer of an opened file reads in the status bar.
+pub fn store_evidence_summary(state: &StoreEvidenceState) -> String {
+    match state.mode {
+        EvidenceMode::Packed => "Core evidence packed in the file".into(),
+        EvidenceMode::Referenced if state.missing.is_empty() => {
+            let package = state.found.iter().any(|s| s.source == StoreSource::Package);
+            let beside = state
+                .found
+                .iter()
+                .any(|s| s.source == StoreSource::BesideFile);
+            match (beside, package) {
+                (true, true) => {
+                    "Core evidence referenced, found beside the file and in the package"
+                }
+                (false, true) => "Core evidence referenced, found in the package",
+                _ => "Core evidence referenced, found beside the file",
+            }
+            .into()
+        }
+        EvidenceMode::Referenced => format!(
+            "Core evidence referenced, {} of {} saved studies not included",
+            state.missing.len(),
+            state.missing.len() + state.found.len()
         ),
     }
 }
@@ -131,6 +165,60 @@ pub fn evidence_badge(state: &EvidenceState) -> Option<EvidenceBadge> {
     Some(EvidenceBadge { kind, label, text })
 }
 
+/// The Evidence-step badge for a study whose evidence-store trees were saved by
+/// reference and were not found (or did not match) beside the file or in the
+/// package. Names each tree and why, the next step, and the recorded listing
+/// sizes so anyone can check a store they are given later.
+pub fn store_evidence_badge(
+    state: &StoreEvidenceState,
+    trees: &[EvidenceStoreTree],
+) -> Option<EvidenceBadge> {
+    if state.mode != EvidenceMode::Referenced || state.missing.is_empty() {
+        return None;
+    }
+    let (kind, label) = if state.found.is_empty() {
+        (Kind::NotEvaluated, "Core receipts not included")
+    } else {
+        (Kind::Partial, "some Core receipts not included")
+    };
+    let mut text = String::from(
+        "Why: this study file was saved with its Core evidence by reference, not included. \
+         The transport, histories and assumptions are complete and shown, but no Core receipts \
+         were re-checked on opening, so nothing here claims Core verification.\n\n",
+    );
+    for miss in &state.missing {
+        text.push_str(&format!(
+            "{}/{} ({} and {}) was not used: {}.\n",
+            miss.arrangement, miss.allocation, miss.case_tree, miss.workspace_tree, miss.reason
+        ));
+    }
+    text.push_str(
+        "\nNext step: save or move the .faris file next to the evidence-store folder of the \
+         package it came from (the folder that holds store.json), or open it with FARIS \
+         started from that package, then reopen the file; or open the original study and \
+         save again with \"Include Core evidence in saved files\" checked, which packs the \
+         evidence into the file.\n\nRecorded trees:\n",
+    );
+    for tree in trees {
+        let missing = state
+            .missing
+            .iter()
+            .any(|m| m.case_tree == tree.tree || m.workspace_tree == tree.tree);
+        text.push_str(&format!(
+            "  {} ({}): {} files, {} bytes\n",
+            tree.tree,
+            if missing {
+                "not found"
+            } else {
+                "found, listing matches"
+            },
+            tree.files.len(),
+            tree.files.iter().map(|f| f.bytes).sum::<u64>()
+        ));
+    }
+    Some(EvidenceBadge { kind, label, text })
+}
+
 /// The study's inputs as files, plus whether this session can be saved.
 #[derive(Clone, Default)]
 pub struct StudyInputs {
@@ -174,6 +262,37 @@ impl StudyInputs {
         };
         Self { draft, unsaveable }
     }
+
+    /// Record the package's saved studies as store trees, so a session started
+    /// from a package can save its Core evidence (by reference or packed). The
+    /// listings come from the store's index; an unreadable store adds none.
+    pub fn with_saved_store(mut self, saved: &SavedStore) -> Self {
+        let Ok(store) = EvidenceStore::open_expecting(&saved.path, &saved.index_sha256) else {
+            return self;
+        };
+        for study in &saved.studies {
+            let trees = [
+                (ArchiveKind::Case, &study.case_tree),
+                (ArchiveKind::Workspace, &study.workspace_tree),
+            ]
+            .map(|(kind, name)| {
+                store.tree(name).map(|tree| EvidenceStoreDraft {
+                    tree: EvidenceStoreTree {
+                        arrangement: study.pair.clone(),
+                        allocation: study.variant.clone(),
+                        kind,
+                        tree: name.clone(),
+                        files: tree.files.clone(),
+                    },
+                    store: Some(saved.path.clone()),
+                })
+            });
+            if let [Some(case), Some(workspace)] = trees {
+                self.draft.evidence_store.extend([case, workspace]);
+            }
+        }
+        self
+    }
 }
 
 /// A study unpacked into the workspace directory, ready to load.
@@ -183,6 +302,9 @@ struct OpenedStudy {
     view: ViewState,
     inputs: StudyInputs,
     evidence: EvidenceState,
+    /// Evidence recorded as store trees, and the stores to reopen it from.
+    evidence_store: Option<StoreEvidenceState>,
+    stores: Vec<SavedStore>,
     sweep: Vec<PathBuf>,
     descriptors: Vec<PathBuf>,
     marker: Option<PathBuf>,
@@ -232,6 +354,9 @@ pub struct FileState {
     saved_view: Option<ViewState>,
     pub include_evidence: bool,
     runs_directory: PathBuf,
+    /// The evidence store of the package the app was started from, where an
+    /// opened file's referenced trees are looked for after the folder beside it.
+    pub package_store: Option<PathBuf>,
     /// Keeps an opened study's unpacked files (and extracted evidence) alive.
     workspace: Option<tempfile::TempDir>,
     task: Task,
@@ -239,6 +364,9 @@ pub struct FileState {
     auto_open: Option<PathBuf>,
     last_title: String,
     pub evidence: EvidenceState,
+    /// The trees the opened file recorded in its evidence-store layer.
+    pub evidence_store: Option<StoreEvidenceState>,
+    pub evidence_trees: Vec<EvidenceStoreTree>,
 }
 
 impl Default for FileState {
@@ -255,12 +383,15 @@ impl FileState {
             saved_view: None,
             include_evidence: false,
             runs_directory,
+            package_store: None,
             workspace: None,
             task: Task::Idle,
             dialog: None,
             auto_open: None,
             last_title: String::new(),
             evidence: EvidenceState::default(),
+            evidence_store: None,
+            evidence_trees: Vec::new(),
         }
     }
 
@@ -323,7 +454,12 @@ fn write_marker(path: &Path, status: &str, error: Option<String>) {
 /// Verify the file, unpack it under a fresh workspace and load it. Runs on a
 /// worker thread; extraction of Core evidence continues on its own thread so
 /// the study is usable before the (large) archives are on disk.
-fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> OpenResult {
+fn open_study(
+    path: &Path,
+    runs_directory: &Path,
+    package_store: Option<&Path>,
+    progress: &Mutex<String>,
+) -> OpenResult {
     set_progress(progress, "Verifying the file…");
     let mut reader = StudyReader::open(path).map_err(|e| e.to_string())?;
     let file_bytes = reader.file_bytes;
@@ -344,7 +480,7 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let files = reader
-        .materialize(workspace.path(), Some(near))
+        .materialize_with(workspace.path(), Some(near), package_store)
         .map_err(|e| e.to_string())?;
     let view = reader.manifest.view.clone();
     // Read through the hash check and parsed strictly: a stored ensemble the
@@ -427,6 +563,54 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
             .map_err(|e| format!("cannot start evidence extraction: {e}"))?;
     }
 
+    // Evidence recorded as store trees is read in place, store by store.
+    let mut stores: Vec<SavedStore> = Vec::new();
+    if let Some(state) = &files.evidence_store {
+        for found in &state.found {
+            let study = SavedStudy {
+                pair: found.arrangement.clone(),
+                variant: found.allocation.clone(),
+                case_tree: found.case_tree.clone(),
+                workspace_tree: found.workspace_tree.clone(),
+            };
+            match stores
+                .iter_mut()
+                .find(|s| s.path == found.store && s.index_sha256 == found.store_json_sha256)
+            {
+                Some(store) => store.studies.push(study),
+                None => stores.push(SavedStore {
+                    origin: if found.source == StoreSource::Package {
+                        StoreOrigin::Package
+                    } else {
+                        StoreOrigin::StudyFile
+                    },
+                    path: found.store.clone(),
+                    index_sha256: found.store_json_sha256.clone(),
+                    studies: vec![study],
+                }),
+            }
+        }
+    }
+    let evidence_trees = reader
+        .manifest
+        .layers
+        .evidence_store
+        .as_ref()
+        .map_or_else(Vec::new, |layer| layer.trees.clone());
+    let store_drafts = evidence_trees
+        .iter()
+        .map(|tree| EvidenceStoreDraft {
+            tree: tree.clone(),
+            store: files.evidence_store.as_ref().and_then(|state| {
+                state
+                    .found
+                    .iter()
+                    .find(|s| s.arrangement == tree.arrangement && s.allocation == tree.allocation)
+                    .map(|s| s.store.clone())
+            }),
+        })
+        .collect();
+
     let mut draft = StudyDraft {
         port: files.port.as_ref().map(|a| ArrangementDraft {
             scenario: a.scenario.clone(),
@@ -440,6 +624,7 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
         }),
         sweep: files.sweep.clone(),
         assumptions: files.assumptions.clone(),
+        evidence_store: store_drafts,
         ..StudyDraft::default()
     };
     draft.evidence = files
@@ -466,6 +651,8 @@ fn open_study(path: &Path, runs_directory: &Path, progress: &Mutex<String>) -> O
                 unsaveable: None,
             },
             evidence: files.evidence,
+            evidence_store: files.evidence_store,
+            stores,
             sweep: files.sweep,
             descriptors,
             marker,
@@ -586,7 +773,28 @@ impl FarisApp {
         {
             self.message = error;
         }
-        let summary = evidence_summary(&opened.evidence);
+        for store in opened.stores {
+            self.study.archive.queue_store(store);
+        }
+        let summary = match &opened.evidence_store {
+            Some(state) => store_evidence_summary(state),
+            None => evidence_summary(&opened.evidence),
+        };
+        // A file opened with its evidence packed saves it packed again unless
+        // the box is cleared.
+        self.file.include_evidence = opened.evidence.mode == Some(EvidenceMode::Packed)
+            || opened
+                .evidence_store
+                .as_ref()
+                .is_some_and(|s| s.mode == EvidenceMode::Packed);
+        self.file.evidence_trees = opened
+            .inputs
+            .draft
+            .evidence_store
+            .iter()
+            .map(|d| d.tree.clone())
+            .collect();
+        self.file.evidence_store = opened.evidence_store;
         self.message = status_line(&opened.path, "Opened", opened.file_bytes, &summary);
         self.file.path = Some(opened.path);
         self.file.inputs = opened.inputs;
@@ -607,10 +815,16 @@ impl FarisApp {
             path.clone(),
             ctx.clone(),
         );
+        let package_store = self.file.package_store.clone();
         let spawned = std::thread::Builder::new()
             .name("faris-open-study".into())
             .spawn(move || {
-                let _ = sender.send(open_study(&worker_path, &runs, &worker_progress));
+                let _ = sender.send(open_study(
+                    &worker_path,
+                    &runs,
+                    package_store.as_deref(),
+                    &worker_progress,
+                ));
                 context.request_repaint();
             });
         match spawned {
@@ -638,7 +852,8 @@ impl FarisApp {
         let view = self.view_state();
         let mut draft = self.file.inputs.draft.clone();
         draft.view = view.clone();
-        draft.pack_evidence = self.file.include_evidence && !draft.evidence.is_empty();
+        draft.pack_evidence = self.file.include_evidence
+            && !(draft.evidence.is_empty() && draft.evidence_store.is_empty());
         // Calculated ensembles go in as derived blobs under their input keys.
         draft.ensembles = self.history.ensemble_drafts();
         if self.viewport_rect.is_some() {
@@ -929,10 +1144,13 @@ impl FarisApp {
                 ui.close();
             }
             ui.separator();
-            let evidence_label = evidence_option_label(&self.file.inputs.draft.evidence);
+            let evidence_label = evidence_option_label(
+                &self.file.inputs.draft.evidence,
+                &self.file.inputs.draft.evidence_store,
+            );
             ui.checkbox(&mut self.file.include_evidence, evidence_label)
             .on_hover_text(
-                "Off: the file records the Core evidence archives' names and SHA-256 hashes, and opens fully without them. On: the archives are stored inside, so the receipts can be re-checked from this one file. Applies when the study has saved Core receipts.",
+                "Off: the file records the Core evidence's names, file lists and SHA-256 hashes, and opens fully without it. On: the evidence is stored inside, so the receipts can be re-checked from this one file. Applies when the study has saved Core receipts.",
             );
         })
         .response
@@ -1015,11 +1233,11 @@ mod tests {
             path: None,
         };
         assert_eq!(
-            evidence_option_label(&[]),
+            evidence_option_label(&[], &[]),
             "Include Core evidence in saved files"
         );
         assert_eq!(
-            evidence_option_label(&[archive(12_345_678), archive(2_000_000)]),
+            evidence_option_label(&[archive(12_345_678), archive(2_000_000)], &[]),
             "Include Core evidence in saved files (about +14.3 MB)"
         );
     }
@@ -1177,6 +1395,144 @@ mod tests {
         assert_eq!(ok.draft.sweep.len(), 1);
     }
 
+    /// A store with the saved study `port/reference`, and the package-style
+    /// record of it.
+    fn store_fixture(dir: &Path) -> SavedStore {
+        let src = dir.join("src");
+        for tree in ["port-reference-case", "port-reference-workspace"] {
+            let root = src.join(tree);
+            std::fs::create_dir_all(&root).unwrap();
+            std::fs::write(root.join("a.json"), tree.as_bytes()).unwrap();
+        }
+        let store = dir.join("evidence-store");
+        faris_engine::evidence_store::pack_store(
+            &store,
+            &[
+                (
+                    "port-reference-case".into(),
+                    src.join("port-reference-case"),
+                ),
+                (
+                    "port-reference-workspace".into(),
+                    src.join("port-reference-workspace"),
+                ),
+            ],
+        )
+        .unwrap();
+        let index = std::fs::read(store.join("store.json")).unwrap();
+        SavedStore {
+            origin: StoreOrigin::Package,
+            path: store,
+            index_sha256: faris_study::sha256_hex(&index),
+            studies: vec![SavedStudy {
+                pair: "port".into(),
+                variant: "reference".into(),
+                case_tree: "port-reference-case".into(),
+                workspace_tree: "port-reference-workspace".into(),
+            }],
+        }
+    }
+
+    // Verifies: PRV-040
+    #[test]
+    fn a_package_session_can_record_its_saved_studies_as_store_trees() {
+        let dir = tempfile::tempdir().unwrap();
+        let saved = store_fixture(dir.path());
+        let inputs = StudyInputs::default().with_saved_store(&saved);
+        let trees = &inputs.draft.evidence_store;
+        assert_eq!(trees.len(), 2);
+        assert_eq!(trees[0].tree.kind, ArchiveKind::Case);
+        assert_eq!(trees[1].tree.kind, ArchiveKind::Workspace);
+        assert_eq!(trees[0].store.as_deref(), Some(saved.path.as_path()));
+        let store = EvidenceStore::open(&saved.path).unwrap();
+        assert_eq!(
+            trees[0].tree.files,
+            store.tree("port-reference-case").unwrap().files
+        );
+        // The File-menu option names the size packing would add.
+        let label = evidence_option_label(&[], trees);
+        assert!(label.contains("about +"), "{label}");
+        // A store that does not match its recorded digest adds nothing.
+        let mut changed = saved.clone();
+        changed.index_sha256 = "0".repeat(64);
+        assert!(
+            StudyInputs::default()
+                .with_saved_store(&changed)
+                .draft
+                .evidence_store
+                .is_empty()
+        );
+    }
+
+    // Verifies: PRV-041, PRV-042, PRV-012
+    #[test]
+    fn missing_store_trees_explain_why_and_the_next_step() {
+        let dir = tempfile::tempdir().unwrap();
+        let saved = store_fixture(dir.path());
+        let inputs = StudyInputs::default().with_saved_store(&saved);
+        let trees: Vec<EvidenceStoreTree> = inputs
+            .draft
+            .evidence_store
+            .iter()
+            .map(|d| d.tree.clone())
+            .collect();
+        let mut state = StoreEvidenceState {
+            mode: EvidenceMode::Referenced,
+            found: vec![],
+            missing: vec![faris_study::StoreMiss {
+                arrangement: "port".into(),
+                allocation: "reference".into(),
+                case_tree: "port-reference-case".into(),
+                workspace_tree: "port-reference-workspace".into(),
+                reason: "beside the file: no evidence-store folder at x; the app was not started from a package".into(),
+            }],
+        };
+        let note = store_evidence_badge(&state, &trees).unwrap();
+        assert_eq!(note.kind, Kind::NotEvaluated);
+        assert_eq!(note.label, "Core receipts not included");
+        assert!(note.text.contains("Why:") && note.text.contains("by reference, not included"));
+        assert!(note.text.contains("port-reference-case"));
+        assert!(note.text.contains("not started from a package"));
+        assert!(note.text.contains("Next step:") && note.text.contains("evidence-store folder"));
+        assert!(note.text.contains("Include Core evidence"));
+        assert!(note.text.contains("nothing here claims Core verification"));
+        assert!(note.text.contains("(not found)"));
+        assert_eq!(
+            store_evidence_summary(&state),
+            "Core evidence referenced, 1 of 1 saved studies not included"
+        );
+
+        // Found beside the file or in the package, or packed: nothing to explain.
+        let found = |source| faris_study::StoreStudy {
+            arrangement: "port".into(),
+            allocation: "reference".into(),
+            case_tree: "port-reference-case".into(),
+            workspace_tree: "port-reference-workspace".into(),
+            store: saved.path.clone(),
+            store_json_sha256: saved.index_sha256.clone(),
+            source,
+        };
+        state.missing.clear();
+        state.found = vec![found(StoreSource::Package)];
+        assert!(store_evidence_badge(&state, &trees).is_none());
+        assert_eq!(
+            store_evidence_summary(&state),
+            "Core evidence referenced, found in the package"
+        );
+        state.found = vec![found(StoreSource::BesideFile)];
+        assert_eq!(
+            store_evidence_summary(&state),
+            "Core evidence referenced, found beside the file"
+        );
+        state.mode = EvidenceMode::Packed;
+        state.found = vec![found(StoreSource::Embedded)];
+        assert!(store_evidence_badge(&state, &trees).is_none());
+        assert_eq!(
+            store_evidence_summary(&state),
+            "Core evidence packed in the file"
+        );
+    }
+
     fn archive(name: &str, kind: ArchiveKind) -> EvidenceArchive {
         EvidenceArchive {
             arrangement: "port".into(),
@@ -1303,15 +1659,17 @@ mod tests {
             .map(|e| e.unwrap().path())
             .collect();
         sweep.sort();
-        let mut evidence = Vec::new();
+        let mut trees = Vec::new();
         for arrangement in ["port", "control"] {
             for allocation in ["reference", "breeder-emphasis"] {
-                evidence.extend(
-                    faris_study::evidence_from_descriptor(
-                        &demo.join(format!("saved-study-{arrangement}-{allocation}.json")),
-                    )
-                    .unwrap(),
-                );
+                let found = faris_study::descriptor_evidence(
+                    &demo.join(format!("saved-study-{arrangement}-{allocation}.json")),
+                )
+                .unwrap();
+                let faris_study::DescriptorEvidence::Store(found) = found else {
+                    panic!("the packaged demo names evidence-store trees");
+                };
+                trees.extend(found);
             }
         }
         let view = ViewState {
@@ -1339,58 +1697,78 @@ mod tests {
             }),
             sweep,
             assumptions: Some(demo.join("operating-assumptions.json")),
-            evidence,
+            evidence_store: trees,
             view: view.clone(),
             ..StudyDraft::default()
         };
-        // Referenced and not beside the file: opens, evidence reported missing.
+        let runs = dir.path().join("runs");
+        let progress = Mutex::new(String::new());
+        let reopen = |opened: &OpenedStudy| -> Vec<String> {
+            opened
+                .stores
+                .iter()
+                .flat_map(crate::archive_panel::check_saved_studies_in_store)
+                .map(|r| r.unwrap())
+                .collect()
+        };
+        // Referenced and not beside the file, no package: opens, evidence not included.
         let referenced = dir.path().join("referenced.faris");
         write_study(&referenced, &draft).unwrap();
-        let progress = Mutex::new(String::new());
         let started = std::time::Instant::now();
-        let (session, opened) =
-            open_study(&referenced, &dir.path().join("runs"), &progress).unwrap();
+        let (session, opened) = open_study(&referenced, &runs, None, &progress).unwrap();
         let seconds = started.elapsed().as_secs_f64();
         assert!(session.control.is_some());
         assert_eq!(opened.sweep.len(), 7);
-        assert_eq!(opened.evidence.missing.len(), 8);
-        assert!(opened.descriptors.is_empty() && opened.marker.is_none());
-        assert!(evidence_badge(&opened.evidence).is_some());
+        let state = opened.evidence_store.clone().unwrap();
+        assert_eq!(state.missing.len(), 4);
+        assert!(opened.stores.is_empty() && opened.marker.is_none());
+        assert!(
+            store_evidence_badge(
+                &state,
+                &opened
+                    .inputs
+                    .draft
+                    .evidence_store
+                    .iter()
+                    .map(|d| d.tree.clone())
+                    .collect::<Vec<_>>()
+            )
+            .is_some()
+        );
         assert_eq!(opened.view, view);
         println!("referenced study opened in {seconds:.1} s");
 
-        // Packed: the archives come out of the file and extract for reopening.
+        // Referenced and launched from the package: its store is used in place.
+        let (_, opened) = open_study(
+            &referenced,
+            &runs,
+            Some(&demo.join("evidence-store")),
+            &progress,
+        )
+        .unwrap();
+        assert!(opened.evidence_store.as_ref().unwrap().missing.is_empty());
+        let started = std::time::Instant::now();
+        let cases = reopen(&opened);
+        assert_eq!(cases.len(), 4);
+        println!(
+            "package store reopened in {:.1} s: {cases:?}",
+            started.elapsed().as_secs_f64()
+        );
+
+        // Packed: the store comes out of the file and is read in place.
         draft.pack_evidence = true;
         let packed = dir.path().join("packed.faris");
         write_study(&packed, &draft).unwrap();
-        let (_, opened) = open_study(&packed, &dir.path().join("runs"), &progress).unwrap();
-        assert_eq!(opened.evidence.available.len(), 8);
-        assert_eq!(opened.descriptors.len(), 4);
-        let marker = opened.marker.clone().unwrap();
+        let (_, opened) = open_study(&packed, &runs, None, &progress).unwrap();
+        assert_eq!(opened.evidence_store.as_ref().unwrap().found.len(), 4);
+        assert!(opened.descriptors.is_empty() && opened.marker.is_none());
         let started = std::time::Instant::now();
-        while !marker.exists() {
-            assert!(
-                started.elapsed().as_secs() < 120,
-                "evidence extraction did not finish"
-            );
-            std::thread::sleep(Duration::from_millis(50));
-        }
+        let from_file = reopen(&opened);
         println!(
-            "evidence extracted in {:.1} s",
+            "packed store reopened in {:.1} s",
             started.elapsed().as_secs_f64()
         );
-        let status: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(&marker).unwrap()).unwrap();
-        assert_eq!(status["status"], "COMPLETE", "{status}");
-        for descriptor in &opened.descriptors {
-            let body: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(descriptor).unwrap()).unwrap();
-            let report = descriptor
-                .parent()
-                .unwrap()
-                .join(body["execution_report"].as_str().unwrap());
-            assert!(report.is_file(), "{}", report.display());
-        }
+        assert_eq!(from_file, cases);
         // Restoring the saved view onto the opened session reproduces it.
         let mut restored = FarisApp::new(
             session.manifest,

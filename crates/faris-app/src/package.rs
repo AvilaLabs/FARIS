@@ -145,9 +145,20 @@ pub struct SavedStudy {
     pub workspace_tree: String,
 }
 
-/// The evidence store holding the four saved studies, read in place.
+/// Whose evidence store this is, which decides what to tell the user when it
+/// does not verify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoreOrigin {
+    /// The package the app was started from.
+    Package,
+    /// A `.faris` file: the store packed inside it, or one beside it.
+    StudyFile,
+}
+
+/// The evidence store holding saved studies, read in place.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SavedStore {
+    pub origin: StoreOrigin,
     pub path: PathBuf,
     /// Lowercase hex SHA-256 of the store's `store.json`, as the index records it.
     pub index_sha256: String,
@@ -622,6 +633,7 @@ fn saved_store(root: &Path, index: &Index, studies: Vec<SavedStudy>) -> Result<S
         )));
     }
     Ok(SavedStore {
+        origin: StoreOrigin::Package,
         path: root.join(&record.path),
         index_sha256: recorded.to_owned(),
         studies,

@@ -11,23 +11,30 @@ mod error;
 mod manifest;
 mod preview;
 mod read;
+mod store_layer;
 mod tar;
 mod write;
 
 #[cfg(test)]
-mod tests;
+mod store_tests;
+#[cfg(test)]
+pub(crate) mod tests;
 
-pub use descriptor::evidence_from_descriptor;
+pub use descriptor::{DescriptorEvidence, descriptor_evidence, evidence_from_descriptor};
 pub use error::StudyError;
 pub use manifest::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
-    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode, FORMAT,
-    Layers, MIMETYPE, Manifest, ViewState,
+    ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode,
+    EvidenceStoreLayer, EvidenceStoreTree, FORMAT, Layers, MIMETYPE, Manifest, ViewState,
 };
 pub use preview::{MAX_PREVIEW_SIDE, Preview, PreviewStatus, png_dimensions};
 pub use read::{
     ArrangementFiles, BlobInfo, EvidenceFile, EvidenceMiss, EvidenceState, Materialized,
     MissReason, StoredEnsemble, StudyReader, sha256_file,
+};
+pub use store_layer::{
+    EvidenceStoreDraft, STORE_DIR, StoreEvidenceState, StoreMiss, StoreSource, StoreStudy,
+    packed_store_bytes,
 };
 pub use tar::{ExtractReport, RecordedTreeManifest, extract_recorded_tree, extract_tar_gz};
 pub use write::{

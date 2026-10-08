@@ -1,7 +1,8 @@
 use clap::Subcommand;
 use faris_study::{
-    ArrangementDraft, DEFAULT_ZSTD_LEVEL, EvidenceDraft, PreviewStatus, StudyDraft, StudyError,
-    StudyReader, ViewState, evidence_from_descriptor, write_study,
+    ArrangementDraft, DEFAULT_ZSTD_LEVEL, DescriptorEvidence, EvidenceDraft, EvidenceStoreDraft,
+    PreviewStatus, StudyDraft, StudyError, StudyReader, ViewState, descriptor_evidence,
+    write_study,
 };
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -56,10 +57,12 @@ pub enum StudyFileCommand {
         /// Recorded-transport bundle of the allocation sweep; repeatable.
         #[arg(long)]
         sweep_bundle: Vec<PathBuf>,
-        /// Saved-study descriptor naming Core case and workspace archives; repeatable.
+        /// Saved-study descriptor naming Core case and workspace archives
+        /// (`faris-saved-study-archive/v0.1`) or two trees of an evidence store
+        /// (`faris-saved-study-store/v0.1`); repeatable, one kind per file.
         #[arg(long)]
         evidence: Vec<PathBuf>,
-        /// Store the Core evidence archives inside the file (default: by reference).
+        /// Store the Core evidence inside the file (default: by reference).
         #[arg(long, requires = "evidence")]
         pack_evidence: bool,
         /// JSON file with the view to record (any of: step, preset, what_if, year,
@@ -135,8 +138,12 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                 .into());
             }
             let mut drafts: Vec<EvidenceDraft> = Vec::new();
+            let mut trees: Vec<EvidenceStoreDraft> = Vec::new();
             for descriptor in &evidence {
-                drafts.extend(evidence_from_descriptor(descriptor).map_err(convert)?);
+                match descriptor_evidence(descriptor).map_err(convert)? {
+                    DescriptorEvidence::Archives(archives) => drafts.extend(archives),
+                    DescriptorEvidence::Store(found) => trees.extend(found),
+                }
             }
             let draft = StudyDraft {
                 port: arrangement(scenario, physics, bundle),
@@ -144,6 +151,7 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                 sweep: sweep_bundle,
                 assumptions,
                 evidence: drafts,
+                evidence_store: trees,
                 ensembles: Vec::new(),
                 pack_evidence,
                 zstd_level,
@@ -203,6 +211,14 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                     "view": m.view,
                     "preview": preview,
                     "evidence": m.layers.evidence,
+                    "evidence_store": m.layers.evidence_store.as_ref().map(|layer| json!({
+                        "mode": layer.mode,
+                        "trees": layer.trees.iter().map(|t| json!({
+                            "arrangement": t.arrangement, "allocation": t.allocation,
+                            "kind": t.kind, "tree": t.tree, "files": t.files.len(),
+                            "bytes": t.files.iter().map(|f| f.bytes).sum::<u64>(),
+                        })).collect::<Vec<_>>(),
+                    })),
                     "blobs": {
                         "count": blobs.len(),
                         "original_bytes": blobs.iter().map(|b| b.bytes).sum::<u64>(),
@@ -238,7 +254,7 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                 .filter(|p| !p.as_os_str().is_empty())
                 .unwrap_or(Path::new("."));
             let files = reader
-                .materialize(&directory, Some(near))
+                .materialize_with(&directory, Some(near), None)
                 .map_err(convert)?;
             let mut manifest = serde_json::to_vec_pretty(&reader.manifest)?;
             manifest.push(b'\n');
@@ -254,6 +270,19 @@ pub fn run(command: StudyFileCommand) -> Result<(), Box<dyn std::error::Error>> 
                     "evidence_mode": files.evidence.mode.map(|m| format!("{m:?}").to_lowercase()),
                     "evidence_available": files.evidence.available.len(),
                     "evidence_missing": files.evidence.missing.iter().map(|m| &m.archive.file_name).collect::<Vec<_>>(),
+                    "evidence_store": files.evidence_store.as_ref().map(|state| json!({
+                        "mode": format!("{:?}", state.mode).to_lowercase(),
+                        "available": state.found.iter().map(|s| json!({
+                            "arrangement": s.arrangement, "allocation": s.allocation,
+                            "case_tree": s.case_tree, "workspace_tree": s.workspace_tree,
+                            "store": s.store, "source": format!("{:?}", s.source),
+                        })).collect::<Vec<_>>(),
+                        "missing": state.missing.iter().map(|m| json!({
+                            "arrangement": m.arrangement, "allocation": m.allocation,
+                            "case_tree": m.case_tree, "workspace_tree": m.workspace_tree,
+                            "why": m.reason,
+                        })).collect::<Vec<_>>(),
+                    })),
                 }))?
             );
         }
