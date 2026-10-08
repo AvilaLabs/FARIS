@@ -73,7 +73,7 @@ the four recorded arrangements and the sweep. `faris-app --package DIR` opens a
 package elsewhere. If a check fails, the app opens with nothing loaded and says
 why and what to do: download again and check `SHA256SUMS`. Python is not needed.
 
-The optional `FARIS-0.2.0-evidence.tar.gz` (about 36 MB, the same for every
+The optional `FARIS-0.2.0-evidence.tar.gz` (about 10 MB, the same for every
 platform) adds the Avila Core receipts to the Evidence step. Unpack it into the
 same place, so its files merge into `FARIS-0.2.0/`. It holds one evidence store,
 a folder of compressed files in which each distinct file is kept once. With it,

@@ -65,7 +65,7 @@ basis.
   evidence pack. Each record keeps the assumptions, the exact transport rates
   and the history's SHA-256 and size, and `verify.sh` recomputes every history
   with the package's own `faris history run` and requires the same digest. The
-  evidence pack shrinks from 35.8 MB to EVSIZE MB. The package index is
+  evidence pack shrinks from 35.8 MB to 9.6 MB. The package index is
   `faris-recorded-demo-package/v0.7`; the event-history and outage-duration
   provenance and the outage-duration summary are `v0.2`. They record
   `history_bytes` and no longer name a `history_path`. A v0.6 package no longer

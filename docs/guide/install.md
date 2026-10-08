@@ -20,7 +20,7 @@ FARIS 0.2.0 is the same demo study as 0.1.1, plus a recorded [computed maintenan
 | `FARIS-0.2.0-windows-x86_64.zip` | The app for Windows. |
 | `FARIS-0.2.0-macos-aarch64.tar.gz` | The app for a Mac with Apple silicon. |
 | `FARIS-0.2.0-macos-x86_64.tar.gz` | The app for an Intel Mac. |
-| `FARIS-0.2.0-evidence.tar.gz` | Optional. The Core receipts, held in one evidence store, and the files `verify.sh` checks (about 36 MB). The same for every platform. |
+| `FARIS-0.2.0-evidence.tar.gz` | Optional. The Core receipts, held in one evidence store, and the files `verify.sh` checks (about 10 MB). The same for every platform. |
 | `SHA256SUMS` | The SHA-256 of every file above. |
 
 Download the app for your platform, and `SHA256SUMS`. The app download alone opens the whole study: the four recorded arrangements and the allocation sweep. The evidence pack adds the Avila Core receipts to the [Evidence](evidence.md) step.
