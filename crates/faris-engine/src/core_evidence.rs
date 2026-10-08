@@ -500,7 +500,7 @@ fn adapter(
             "allowed_values":["recorded_transport_revalidated","raw_transport_renormalized_and_verified","normalized_transport_extracted","history_calculated","energy_ledger_verified"]}),
     }).collect();
     json!({"schema_version":"avila.core/external-checker-adapter/v0.1-draft",
-        "adapter_id":format!("avila-labs.faris/{stage}@1"),"capability_type":{"id":capability,"major":1},
+        "adapter_id":format!("avila-labs.faris/{stage}@2"),"capability_type":{"id":capability,"major":2},
         "input_slots":inputs.iter().map(|(slot,_)|*slot).collect::<Vec<_>>(),"arguments":arguments,
         "outputs":[{"output_id":"report","workspace_path":"outputs/report.json","media_type":"application/json"}],
         "claims":claims,"timeout_ms":120000,

@@ -53,6 +53,12 @@ pub struct GeneratedStudy {
 fn reference(id: &str) -> Value {
     json!({"id": id, "major": 1})
 }
+
+/// FARIS stage capabilities follow the stage contract: major 2 is
+/// `faris-core-stage-output/v0.2` (each stage forwards only what it computes).
+fn stage_capability(id: &str) -> Value {
+    json!({"id": id, "major": 2})
+}
 fn role(id: &str, quantity: Option<(&str, &str)>) -> Value {
     let mut role = json!({
         "role": reference(id), "owner": "avila-labs.faris",
@@ -147,19 +153,19 @@ pub fn generate_study(
         ));
     }
     let capabilities = vec![
-        json!({"capability_type":reference("faris.verify-transport"),"owner":"avila-labs.faris",
+        json!({"capability_type":stage_capability("faris.verify-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("scenario","faris.scenario"),input("physics","faris.physics"),input("nuclear-data","faris.nuclear-data"),input("recorded","faris.recorded-transport")],
             "outputs":[output("raw","faris.raw-transport",false)]}),
-        json!({"capability_type":reference("faris.normalize-transport"),"owner":"avila-labs.faris",
+        json!({"capability_type":stage_capability("faris.normalize-transport"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("raw","faris.raw-transport"),input("scenario","faris.scenario")],
             "outputs":normalize_outputs}),
-        json!({"capability_type":reference("faris.operating-history"),"owner":"avila-labs.faris",
+        json!({"capability_type":stage_capability("faris.operating-history"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("rates","faris.normalized-transport"),input("scenario","faris.scenario"),input("assumptions","faris.operating-assumptions")],
             "outputs":[output("history","faris.history",false)]}),
-        json!({"capability_type":reference("faris.net-energy"),"owner":"avila-labs.faris",
+        json!({"capability_type":stage_capability("faris.net-energy"),"owner":"avila-labs.faris",
             "reproducibility":{"determinism":"deterministic"},
             "inputs":[input("history","faris.history"),input("scenario","faris.scenario")],
             "outputs":[output("energy","faris.energy",false)]}),
@@ -173,23 +179,23 @@ pub fn generate_study(
             "owner":"avila-labs.faris","units":[{"symbol":"neutrons/m²/s","factor":"1"}]}));
     }
     let registry = json!({"schema_version":"avila.core/registry-snapshot/v0.2-draft",
-        "semantic_profile":"avila.core/semantic/0.2-draft","registry_id":"faris.demo.registry","revision":1,
+        "semantic_profile":"avila.core/semantic/0.2-draft","registry_id":"faris.demo.registry","revision":2,
         "kinds":kinds,
         "purposes":[{"purpose":reference("faris.conditional-research-comparison"),"owner":"avila-labs.faris",
             "description":"Comparison conditional on authored geometry/material/source/history inputs; not a qualified reactor claim."}],
         "roles":roles,"capability_types":capabilities});
     let mut workflow = vec![
-        json!({"step_id":"transport","capability_type":reference("faris.verify-transport"),
+        json!({"step_id":"transport","capability_type":stage_capability("faris.verify-transport"),
             "bindings":[binding("scenario",authored("scenario")),binding("physics",authored("physics")),binding("nuclear-data",authored("nuclear-data")),binding("recorded",authored("recorded"))]}),
-        json!({"step_id":"normalize","capability_type":reference("faris.normalize-transport"),
+        json!({"step_id":"normalize","capability_type":stage_capability("faris.normalize-transport"),
             "bindings":[binding("raw",produced("transport","raw")),binding("scenario",authored("scenario"))]}),
     ];
     if history {
-        workflow.push(json!({"step_id":"history","capability_type":reference("faris.operating-history"),
+        workflow.push(json!({"step_id":"history","capability_type":stage_capability("faris.operating-history"),
         "bindings":[binding("rates",produced("normalize","normalized")),binding("scenario",authored("scenario")),binding("assumptions",authored("assumptions"))]}));
     }
     if selection.electricity {
-        workflow.push(json!({"step_id":"energy","capability_type":reference("faris.net-energy"),
+        workflow.push(json!({"step_id":"energy","capability_type":stage_capability("faris.net-energy"),
         "bindings":[binding("history",produced("history","history")),binding("scenario",authored("scenario"))]}));
     }
     let requirements = if selection.breeding {
