@@ -12,6 +12,7 @@
 - [Design: the plant in 3D](design.md)
 - [Simulate: transport results](simulate.md)
 - [Operate: the 30-year history](operate.md)
+- [Computed maintenance durations](maintenance.md)
 - [Uncertainty ensembles](uncertainty.md)
 - [Compare and the allocation sweep](compare.md)
 - [Evidence and Avila Core receipts](evidence.md)

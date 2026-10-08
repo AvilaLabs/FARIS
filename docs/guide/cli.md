@@ -22,6 +22,8 @@ Errors exit with status 2. A study file that fails verification exits 1.
 | `faris history ensemble` | An ensemble of histories on sampled transport rates. |
 | `faris history compare-runs` | Compares two runs under identical assumptions. |
 | `faris history sensitivity` | Full-rerun sensitivity over a `--grid` file. |
+| `faris maintenance run` | Computes replacement outages from decay heat for every design and compares them with the fixed ones. Needs ACTINV and Python. See [Computed maintenance durations](maintenance.md). |
+| `faris maintenance report RESULT` | Prints a maintenance result as tables. |
 | `faris transport pack` | Packages a completed run into a portable bundle. |
 | `faris transport validate-request` | Validates a transport request against the exact scenario bytes. |
 | `faris transport normalize` | Converts solver-reported per-source scores to physical rates and densities. |
