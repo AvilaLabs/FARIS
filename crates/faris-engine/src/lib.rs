@@ -4,6 +4,7 @@ pub mod brief;
 pub mod case_archive;
 pub mod comparison;
 pub mod core_evidence;
+pub mod evidence_store;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
 pub mod geometry;

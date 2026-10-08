@@ -5,6 +5,7 @@
 
 use crate::{
     core_evidence::{CoreEvidenceRun, RecordedTransportBundle},
+    evidence_store::EvidenceStore,
     history::TransportDrivingRates,
     reactor::ReactorError,
 };
@@ -12,7 +13,8 @@ use faris_model::history::OperatingHistoryAssumptions;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeSet,
+    cell::RefCell,
+    collections::{BTreeSet, HashMap},
     fs::{self, File},
     io::Read,
     path::{Component, Path, PathBuf},
@@ -96,6 +98,140 @@ struct VerifiedCompilation {
     executable_sha256: String,
 }
 
+/// The saved execution report inside a case tree of an evidence store.
+pub const STORE_EXECUTION_REPORT: &str = "execution-report.json";
+
+/// Where one saved tree (a case or a workspace) is read from. The checks in
+/// [`inspect_trees`] go through this, so a directory and a store tree holding
+/// the same files give the same inspection.
+trait EvidenceTree {
+    /// Refuse a tree beyond the file, directory and byte bounds.
+    fn check_limits(&self) -> Result<(), ReactorError>;
+    /// A regular file of at most `max_bytes`, read whole; `relative` has
+    /// already passed [`safe_relative_path`].
+    fn read(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, ReactorError>;
+    fn contains(&self, relative: &Path) -> bool;
+}
+
+/// A tree on disk, as a prepared case or an execution workspace.
+struct DirectoryTree {
+    root: PathBuf,
+}
+
+impl DirectoryTree {
+    fn open(directory: &Path, what: &str) -> Result<Self, ReactorError> {
+        let root = directory.canonicalize()?;
+        if !root.is_dir() {
+            return Err(format!("{what} must be a directory").into());
+        }
+        Ok(Self { root })
+    }
+}
+
+impl EvidenceTree for DirectoryTree {
+    fn check_limits(&self) -> Result<(), ReactorError> {
+        validate_tree_limits(&self.root)
+    }
+
+    fn read(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, ReactorError> {
+        read_root_file(&self.root, relative, max_bytes)
+    }
+
+    fn contains(&self, relative: &Path) -> bool {
+        self.root.join(relative).exists()
+    }
+}
+
+/// Most bytes of decompressed files a store keeps for rereading while one
+/// case is inspected.
+const STORE_CACHE_BYTES: usize = 128 * 1024 * 1024;
+
+/// Files already read and verified, by content digest. Several files are read
+/// more than once, and a workspace repeats the case's files, so rereading
+/// would decompress the same blob again.
+#[derive(Default)]
+struct ReadCache {
+    files: RefCell<HashMap<String, Vec<u8>>>,
+    bytes: RefCell<usize>,
+}
+
+/// One named tree of an evidence store, read in place.
+struct StoreTree<'a> {
+    store: &'a EvidenceStore,
+    name: &'a str,
+    cache: &'a ReadCache,
+}
+
+impl<'a> StoreTree<'a> {
+    fn open(
+        store: &'a EvidenceStore,
+        name: &'a str,
+        cache: &'a ReadCache,
+    ) -> Result<Self, ReactorError> {
+        if store.tree(name).is_none() {
+            return Err(format!("the evidence store has no tree `{name}`").into());
+        }
+        Ok(Self { store, name, cache })
+    }
+
+    fn key(relative: &Path) -> String {
+        relative
+            .components()
+            .filter_map(|component| component.as_os_str().to_str())
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+}
+
+impl EvidenceTree for StoreTree<'_> {
+    fn check_limits(&self) -> Result<(), ReactorError> {
+        let tree = self
+            .store
+            .tree(self.name)
+            .ok_or("saved evidence tree is missing")?;
+        let directories = tree.directory_count();
+        if directories > MAX_PACKAGE_FILES {
+            return Err("saved evidence tree exceeds directory-count bound".into());
+        }
+        if tree.files.len() > MAX_PACKAGE_FILES || tree.total_bytes() > MAX_PACKAGE_BYTES {
+            return Err("saved evidence tree exceeds file-count or total-size bounds".into());
+        }
+        if tree.files.len() + directories > MAX_TREE_ENTRIES {
+            return Err("saved evidence tree exceeds directory-entry bound".into());
+        }
+        Ok(())
+    }
+
+    fn read(&self, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, ReactorError> {
+        let key = Self::key(relative);
+        let entry = self
+            .store
+            .entry(self.name, &key)
+            .ok_or_else(|| format!("saved evidence file `{key}` is not in tree `{}`", self.name))?;
+        if let Some(bytes) = self.cache.files.borrow().get(&entry.sha256) {
+            return if bytes.len() as u64 > max_bytes {
+                Err("saved evidence file exceeds its read bound".into())
+            } else {
+                Ok(bytes.clone())
+            };
+        }
+        let bytes = self.store.read_file(self.name, &key, max_bytes)?;
+        let mut held = self.cache.bytes.borrow_mut();
+        if *held + bytes.len() <= STORE_CACHE_BYTES {
+            *held += bytes.len();
+            self.cache
+                .files
+                .borrow_mut()
+                .insert(entry.sha256.clone(), bytes.clone());
+        }
+        Ok(bytes)
+    }
+
+    fn contains(&self, relative: &Path) -> bool {
+        self.store.entry(self.name, &Self::key(relative)).is_some()
+    }
+}
+
 /// Verify a prepared Core case, the saved FARIS/Core run report, and its
 /// read-only execution workspace. No file is created, removed, or modified.
 pub fn inspect_saved_case(
@@ -103,19 +239,40 @@ pub fn inspect_saved_case(
     execution_report_path: &Path,
     execution_workspace: &Path,
 ) -> Result<SavedCaseInspection, ReactorError> {
-    let case_root = case_directory.canonicalize()?;
-    if !case_root.is_dir() {
-        return Err("saved case root must be a directory".into());
-    }
-    let workspace_root = execution_workspace.canonicalize()?;
-    if !workspace_root.is_dir() {
-        return Err("saved Core workspace must be a directory".into());
-    }
+    let case = DirectoryTree::open(case_directory, "saved case root")?;
+    let workspace = DirectoryTree::open(execution_workspace, "saved Core workspace")?;
+    inspect_trees(&case, &workspace, || {
+        read_explicit_file(execution_report_path, MAX_REPORT_BYTES)
+    })
+}
+
+/// The same verification as [`inspect_saved_case`] for a case tree and a
+/// workspace tree of an evidence store, read in place: nothing is expanded
+/// and no file is created. The execution report is `execution-report.json`
+/// in the case tree.
+pub fn inspect_saved_case_in_store(
+    store: &EvidenceStore,
+    case_tree: &str,
+    workspace_tree: &str,
+) -> Result<SavedCaseInspection, ReactorError> {
+    let cache = ReadCache::default();
+    let case = StoreTree::open(store, case_tree, &cache)?;
+    let workspace = StoreTree::open(store, workspace_tree, &cache)?;
+    inspect_trees(&case, &workspace, || {
+        case.read(Path::new(STORE_EXECUTION_REPORT), MAX_REPORT_BYTES)
+    })
+}
+
+fn inspect_trees(
+    case_root: &dyn EvidenceTree,
+    workspace_root: &dyn EvidenceTree,
+    read_report: impl FnOnce() -> Result<Vec<u8>, ReactorError>,
+) -> Result<SavedCaseInspection, ReactorError> {
     // Bound complete trees before following declarations that could otherwise
     // induce repeated reads of a large or excessive set of files.
-    validate_tree_limits(&case_root)?;
-    validate_tree_limits(&workspace_root)?;
-    let report_bytes = read_explicit_file(execution_report_path, MAX_REPORT_BYTES)?;
+    case_root.check_limits()?;
+    workspace_root.check_limits()?;
+    let report_bytes = read_report()?;
     let saved: CoreEvidenceRun = serde_json::from_slice(&report_bytes)?;
     if saved.schema_version != "faris-core-evidence-run/v0.1" || !saved.completed() {
         return Err("saved Core execution report is unsupported or incomplete".into());
@@ -129,7 +286,7 @@ pub fn inspect_saved_case(
     }
     validate_prefixed_sha256(&saved.compiled_snapshot_sha256)?;
 
-    let package_bytes = read_case_file(&case_root, "package.json", MAX_REPORT_BYTES)?;
+    let package_bytes = read_case_file(case_root, "package.json", MAX_REPORT_BYTES)?;
     let package_sha = hash_bytes(&package_bytes);
     if package_sha != saved.package_sha256 {
         return Err("saved Core report does not bind this exact case package".into());
@@ -163,7 +320,7 @@ pub fn inspect_saved_case(
             return Err("case package repeats a document identity".into());
         }
         verify_declared_file(
-            &case_root,
+            case_root,
             string_at(document, "/path")?,
             string_at(document, "/sha256")?,
             &mut verified_paths,
@@ -181,17 +338,17 @@ pub fn inspect_saved_case(
             );
         }
         verify_declared_file(
-            &case_root,
+            case_root,
             string_at(artifact, "/path")?,
             string_at(artifact, "/sha256")?,
             &mut verified_paths,
         )?;
     }
-    let scenario_bytes = read_case_file(&case_root, "inputs/scenario.json", MAX_REPORT_BYTES)?;
+    let scenario_bytes = read_case_file(case_root, "inputs/scenario.json", MAX_REPORT_BYTES)?;
     let scenario: Value = serde_json::from_slice(&scenario_bytes)?;
     let scenario_id = string_at(&scenario, "/id")?.to_owned();
     let scenario_sha = hash_bytes(&scenario_bytes);
-    let study_bytes = read_case_file(&case_root, "study.json", MAX_REPORT_BYTES)?;
+    let study_bytes = read_case_file(case_root, "study.json", MAX_REPORT_BYTES)?;
     let study: Value = serde_json::from_slice(&study_bytes)?;
     let variant_id = string_at(&study, "/variant_id")?.to_owned();
     if string_at(&study, "/scenario_sha256")? != scenario_sha {
@@ -215,12 +372,12 @@ pub fn inspect_saved_case(
         return Err("saved execution step order differs from case package".into());
     }
     let contract_value: Value = serde_json::from_slice(&read_case_file(
-        &case_root,
+        case_root,
         "contract.json",
         MAX_REPORT_BYTES,
     )?)?;
     let registry_value: Value = serde_json::from_slice(&read_case_file(
-        &case_root,
+        case_root,
         "registry.json",
         MAX_REPORT_BYTES,
     )?)?;
@@ -229,19 +386,16 @@ pub fn inspect_saved_case(
     {
         return Err("saved study contract or registry differs from the case package".into());
     }
-    let claims: Value = serde_json::from_slice(&read_case_file(
-        &case_root,
-        "claims.json",
-        MAX_REPORT_BYTES,
-    )?)?;
+    let claims: Value =
+        serde_json::from_slice(&read_case_file(case_root, "claims.json", MAX_REPORT_BYTES)?)?;
     if string_at(&claims, "/compiled_snapshot_sha256")? != saved.compiled_snapshot_sha256 {
         return Err("committed claims use a different compiled snapshot".into());
     }
-    let compiled = verify_compilation(&case_root, &saved)?;
+    let compiled = verify_compilation(case_root, &saved)?;
 
     // Revalidate the recorded transport embedded as an input. This verifies
     // its scenario/run/raw artifact/normalization identities, not the physics.
-    let recorded_bytes = read_case_file(&case_root, "inputs/recorded.json", MAX_FILE_BYTES)?;
+    let recorded_bytes = read_case_file(case_root, "inputs/recorded.json", MAX_FILE_BYTES)?;
     let recorded: RecordedTransportBundle = serde_json::from_slice(&recorded_bytes)?;
     let (recorded_scenario, run) = recorded.verify()?;
     if recorded_scenario.source_sha256 != scenario_sha || run.variant_id != variant_id {
@@ -249,13 +403,13 @@ pub fn inspect_saved_case(
             "recorded transport does not match the package scenario and arrangement".into(),
         );
     }
-    let physics_bytes = read_case_file(&case_root, "inputs/physics.json", MAX_REPORT_BYTES)?;
+    let physics_bytes = read_case_file(case_root, "inputs/physics.json", MAX_REPORT_BYTES)?;
     let physics: Value = serde_json::from_slice(&physics_bytes)?;
     let transport_input: Value = serde_json::from_str(&recorded.files["input.json"])?;
     if physics != transport_input["physics"] {
         return Err("case physics input differs from the verified recorded transport".into());
     }
-    let audit_bytes = read_case_file(&case_root, "inputs/nuclear-data.json", MAX_REPORT_BYTES)?;
+    let audit_bytes = read_case_file(case_root, "inputs/nuclear-data.json", MAX_REPORT_BYTES)?;
     if audit_bytes != recorded.files["audit.json"].as_bytes() {
         return Err("case nuclear-data audit differs from the recorded transport".into());
     }
@@ -271,7 +425,7 @@ pub fn inspect_saved_case(
             "Core report identity fields do not match the saved case and compilation".into(),
         );
     }
-    verify_core_integrity_inventory(report, &package, &case_root)?;
+    verify_core_integrity_inventory(report, &package, case_root)?;
 
     let report_steps = report["execution"]["steps"]
         .as_array()
@@ -289,7 +443,7 @@ pub fn inspect_saved_case(
         }
         let receipt = &step["receipt"];
         let receipt_path = safe_workspace_path(string_at(receipt, "/workspace_path")?)?;
-        let receipt_bytes = read_root_file(&workspace_root, &receipt_path, MAX_REPORT_BYTES)?;
+        let receipt_bytes = workspace_root.read(&receipt_path, MAX_REPORT_BYTES)?;
         let receipt_hash = hash_bytes(&receipt_bytes);
         let expected_receipt_hash = string_at(receipt, "/sha256")?;
         verify_prefixed_digest(expected_receipt_hash, &receipt_hash)?;
@@ -343,7 +497,7 @@ pub fn inspect_saved_case(
             }
             let relative = safe_workspace_path(string_at(entry, "/workspace_path")?)?;
             let path = step_dir.join(relative);
-            let bytes = read_root_file(&workspace_root, &path, MAX_FILE_BYTES)?;
+            let bytes = workspace_root.read(&path, MAX_FILE_BYTES)?;
             verify_prefixed_digest(string_at(entry, "/actual_sha256")?, &hash_bytes(&bytes))?;
             input_count += 1;
         }
@@ -374,7 +528,7 @@ pub fn inspect_saved_case(
             }
             let relative = safe_workspace_path(string_at(output, "/workspace_path")?)?;
             let path = step_dir.join(relative);
-            let bytes = read_root_file(&workspace_root, &path, MAX_FILE_BYTES)?;
+            let bytes = workspace_root.read(&path, MAX_FILE_BYTES)?;
             verify_prefixed_digest(string_at(output, "/sha256")?, &hash_bytes(&bytes))?;
             if output["bytes"].as_u64() != Some(bytes.len() as u64) {
                 return Err(format!("Core output byte count differs for {step_id}").into());
@@ -389,7 +543,7 @@ pub fn inspect_saved_case(
         }
         for log in logs {
             let relative = safe_workspace_path(string_at(log, "/workspace_path")?)?;
-            let bytes = read_root_file(&workspace_root, &step_dir.join(relative), MAX_FILE_BYTES)?;
+            let bytes = workspace_root.read(&step_dir.join(relative), MAX_FILE_BYTES)?;
             verify_prefixed_digest(string_at(log, "/sha256")?, &hash_bytes(&bytes))?;
             if log["bytes"].as_u64() != Some(bytes.len() as u64) {
                 return Err(format!("Core log byte count differs for {step_id}").into());
@@ -432,8 +586,8 @@ pub fn inspect_saved_case(
     if summaries.len() != saved.expected_step_ids.len() {
         return Err("Core report omitted one or more committed execution steps".into());
     }
-    validate_tree_limits(&case_root)?;
-    validate_tree_limits(&workspace_root)?;
+    case_root.check_limits()?;
+    workspace_root.check_limits()?;
 
     let requirement_verdicts = parse_verdicts(report)?;
     let limitations = package["limitations"]
@@ -451,7 +605,7 @@ pub fn inspect_saved_case(
         .ok_or("Core report scope notice is missing")?
         .to_owned();
 
-    let history = load_history_result(&case_root, report, &scenario, &run)?;
+    let history = load_history_result(case_root, report, &scenario, &run)?;
 
     Ok(SavedCaseInspection {
         schema_version: "faris-saved-case-inspection/v0.2".into(),
@@ -503,7 +657,7 @@ pub fn inspect_saved_case(
 }
 
 fn verify_compilation(
-    root: &Path,
+    root: &dyn EvidenceTree,
     saved: &CoreEvidenceRun,
 ) -> Result<VerifiedCompilation, ReactorError> {
     let bytes = read_case_file(root, "compile/compilation.json", MAX_REPORT_BYTES)?;
@@ -565,7 +719,7 @@ fn checked_identity_label(value: &str, label: &str) -> Result<String, ReactorErr
 fn verify_core_integrity_inventory(
     report: &Value,
     package: &Value,
-    root: &Path,
+    root: &dyn EvidenceTree,
 ) -> Result<(), ReactorError> {
     for (package_key, report_key, id_key) in [
         ("documents", "documents", "document_id"),
@@ -606,7 +760,7 @@ fn verify_core_integrity_inventory(
 }
 
 fn load_history_result(
-    root: &Path,
+    root: &dyn EvidenceTree,
     core_report: &Value,
     scenario: &Value,
     run: &crate::reactor::ReactorRun,
@@ -614,9 +768,8 @@ fn load_history_result(
     let has_history_step = core_report["execution"]["steps"]
         .as_array()
         .is_some_and(|steps| steps.iter().any(|step| step["step_id"] == "history"));
-    let history_path = root.join("expected/history.json");
     if !has_history_step {
-        if history_path.exists() {
+        if root.contains(Path::new("expected/history.json")) {
             return Err("case has a history artifact but no committed history execution".into());
         }
         return Ok(LoadedHistory {
@@ -742,7 +895,7 @@ fn parse_verdicts(report: &Value) -> Result<Vec<SavedRequirementVerdict>, Reacto
 }
 
 fn verify_declared_file(
-    root: &Path,
+    root: &dyn EvidenceTree,
     relative: &str,
     digest: &str,
     seen: &mut BTreeSet<String>,
@@ -753,15 +906,19 @@ fn verify_declared_file(
     if !seen.insert(key.clone()) {
         return Err("case package declares a file more than once".into());
     }
-    let bytes = read_root_file(root, &relative_path, MAX_FILE_BYTES)?;
+    let bytes = root.read(&relative_path, MAX_FILE_BYTES)?;
     verify_prefixed_digest(digest, &hash_bytes(&bytes))?;
     let _ = key;
     Ok(())
 }
 
-fn read_case_file(root: &Path, relative: &str, max_bytes: u64) -> Result<Vec<u8>, ReactorError> {
+fn read_case_file(
+    root: &dyn EvidenceTree,
+    relative: &str,
+    max_bytes: u64,
+) -> Result<Vec<u8>, ReactorError> {
     let relative = safe_relative_path(relative)?;
-    read_root_file(root, &relative, max_bytes)
+    root.read(&relative, max_bytes)
 }
 
 fn read_root_file(root: &Path, relative: &Path, max_bytes: u64) -> Result<Vec<u8>, ReactorError> {
@@ -927,6 +1084,246 @@ mod tests {
         );
         for invalid in ["", "bad\nlabel", &"x".repeat(257)] {
             assert!(checked_identity_label(invalid, "Core identity").is_err());
+        }
+    }
+
+    fn write(path: &Path, bytes: &[u8]) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, bytes).unwrap();
+    }
+
+    /// A case directory and a workspace directory, and one store holding both
+    /// as trees `case` and `workspace`.
+    fn trees(dir: &Path) -> (PathBuf, PathBuf, PathBuf) {
+        let case = dir.join("case");
+        write(&case.join("package.json"), b"{\"case_id\":\"x\"}\n");
+        write(&case.join("expected/history.json"), &vec![b'h'; 4096]);
+        write(&case.join("empty"), b"");
+        let workspace = dir.join("workspace");
+        write(
+            &workspace.join("history/inputs/history.json"),
+            &vec![b'h'; 4096],
+        );
+        write(&workspace.join("history/receipt.json"), b"{}\n");
+        let store = dir.join("store");
+        crate::evidence_store::pack_store(
+            &store,
+            &[
+                ("case".into(), case.clone()),
+                ("workspace".into(), workspace.clone()),
+            ],
+        )
+        .unwrap();
+        (case, workspace, store)
+    }
+
+    // Verifies: SEC-002
+    #[test]
+    fn a_directory_tree_and_a_store_tree_read_the_same_files_the_same_way() {
+        let temp = tempfile::tempdir().unwrap();
+        let (case, _, store_dir) = trees(temp.path());
+        let store = EvidenceStore::open(&store_dir).unwrap();
+        let cache = ReadCache::default();
+        let directory = DirectoryTree::open(&case, "case").unwrap();
+        let stored = StoreTree::open(&store, "case", &cache).unwrap();
+        for relative in ["package.json", "expected/history.json", "empty"] {
+            let path = Path::new(relative);
+            assert!(
+                directory.contains(path) && stored.contains(path),
+                "{relative}"
+            );
+            assert_eq!(
+                directory.read(path, 1 << 20).unwrap(),
+                stored.read(path, 1 << 20).unwrap(),
+                "{relative}"
+            );
+        }
+        // Rereading comes from the cache and gives the same bytes.
+        assert_eq!(
+            stored
+                .read(Path::new("expected/history.json"), 1 << 20)
+                .unwrap()
+                .len(),
+            4096
+        );
+        for missing in ["nope.json", "expected/nope.json"] {
+            let path = Path::new(missing);
+            assert!(!directory.contains(path) && !stored.contains(path));
+            assert!(directory.read(path, 1 << 20).is_err());
+            assert!(stored.read(path, 1 << 20).is_err());
+        }
+        // Both refuse a read bound smaller than the file, also when cached.
+        let big = Path::new("expected/history.json");
+        assert!(directory.read(big, 100).is_err());
+        assert!(stored.read(big, 100).is_err());
+        assert!(StoreTree::open(&store, "no-such-tree", &cache).is_err());
+    }
+
+    // Verifies: SEC-002
+    #[test]
+    fn tree_limits_are_enforced_alike_on_a_directory_and_on_the_store_index() {
+        let temp = tempfile::tempdir().unwrap();
+        let many = temp.path().join("many");
+        for number in 0..=MAX_PACKAGE_FILES {
+            write(&many.join(format!("f{number}")), b"");
+        }
+        let store_dir = temp.path().join("store");
+        crate::evidence_store::pack_store(&store_dir, &[("many".into(), many.clone())]).unwrap();
+        let store = EvidenceStore::open(&store_dir).unwrap();
+        let cache = ReadCache::default();
+        let by_directory = DirectoryTree::open(&many, "many").unwrap().check_limits();
+        let by_store = StoreTree::open(&store, "many", &cache)
+            .unwrap()
+            .check_limits();
+        let message = by_directory.unwrap_err().to_string();
+        assert!(message.contains("file-count"), "{message}");
+        assert_eq!(by_store.unwrap_err().to_string(), message);
+
+        let (case, _, ok_store) = trees(&temp.path().join("ok"));
+        assert!(
+            DirectoryTree::open(&case, "case")
+                .unwrap()
+                .check_limits()
+                .is_ok()
+        );
+        let ok = EvidenceStore::open(&ok_store).unwrap();
+        assert!(
+            StoreTree::open(&ok, "case", &cache)
+                .unwrap()
+                .check_limits()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn an_unusable_report_fails_the_same_way_from_a_directory_and_from_a_store() {
+        use crate::core_evidence::CoreEvidenceRun;
+        use crate::jobs::{ExecutionStatus, JobResult};
+        let run = |schema: &str| CoreEvidenceRun {
+            schema_version: schema.into(),
+            core_sha256: "a".repeat(64),
+            faris_sha256: "b".repeat(64),
+            package_sha256: "c".repeat(64),
+            execution: JobResult {
+                execution_status: ExecutionStatus::Failed,
+                exit_code: Some(1),
+                elapsed_seconds: 0.0,
+                stdout: String::new(),
+                stderr: String::new(),
+                stdout_truncated: false,
+                stderr_truncated: false,
+                resource_limits: Default::default(),
+                artifact_files_observed: 0,
+                artifact_bytes_observed: 0,
+                largest_artifact_file_bytes_observed: 0,
+            },
+            report: json!({}),
+            expected_case_id: "x".into(),
+            expected_step_ids: Vec::new(),
+            compiled_snapshot_sha256: format!("sha256:{}", "d".repeat(64)),
+        };
+        for (report, fragment) in [
+            (b"not json".to_vec(), "expected"),
+            (
+                serde_json::to_vec(&run("faris-core-evidence-run/v0.1")).unwrap(),
+                "unsupported or incomplete",
+            ),
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let (case, workspace, _) = trees(temp.path());
+            write(&case.join(STORE_EXECUTION_REPORT), &report);
+            let store_dir = temp.path().join("with-report");
+            crate::evidence_store::pack_store(
+                &store_dir,
+                &[
+                    ("case".into(), case.clone()),
+                    ("workspace".into(), workspace.clone()),
+                ],
+            )
+            .unwrap();
+            let by_directory =
+                inspect_saved_case(&case, &case.join(STORE_EXECUTION_REPORT), &workspace)
+                    .unwrap_err()
+                    .to_string();
+            let by_store = inspect_saved_case_in_store(
+                &EvidenceStore::open(&store_dir).unwrap(),
+                "case",
+                "workspace",
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(by_directory.contains(fragment), "{by_directory}");
+            assert_eq!(by_directory, by_store);
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let (_, _, store_dir) = trees(temp.path());
+        let store = EvidenceStore::open(&store_dir).unwrap();
+        // The case tree of this store has no execution report at all.
+        assert!(inspect_saved_case_in_store(&store, "case", "workspace").is_err());
+        assert!(inspect_saved_case_in_store(&store, "nope", "workspace").is_err());
+    }
+
+    /// Opt in with the eight recorded trees of a package, as
+    /// `FARIS_REAL_TREES=<dir holding control-reference-case, ...>`; set
+    /// `FARIS_REAL_STORE` to a store of the same trees to skip packing.
+    /// Every one of the four saved cases must inspect identically from the
+    /// directories and from the store.
+    #[test]
+    #[ignore = "needs the recorded Core trees; set FARIS_REAL_TREES"]
+    fn real_recorded_cases_inspect_identically_from_directories_and_from_a_store() {
+        let Some(root) = std::env::var_os("FARIS_REAL_TREES").map(PathBuf::from) else {
+            panic!("set FARIS_REAL_TREES to the folder holding the eight recorded trees");
+        };
+        let names = [
+            "control-reference",
+            "control-breeder-emphasis",
+            "port-reference",
+            "port-breeder-emphasis",
+        ];
+        let packed = tempfile::tempdir().unwrap();
+        let store_dir = match std::env::var_os("FARIS_REAL_STORE") {
+            Some(path) => PathBuf::from(path),
+            None => {
+                let trees: Vec<(String, PathBuf)> = names
+                    .iter()
+                    .flat_map(|name| ["case", "workspace"].map(|kind| format!("{name}-{kind}")))
+                    .map(|tree| (tree.clone(), root.join(&tree)))
+                    .collect();
+                let out = packed.path().join("store");
+                crate::evidence_store::pack_store(&out, &trees).unwrap();
+                out
+            }
+        };
+        let store = EvidenceStore::open(&store_dir).unwrap();
+        for name in names {
+            let case = root.join(format!("{name}-case"));
+            let from_directory = inspect_saved_case(
+                &case,
+                &case.join(STORE_EXECUTION_REPORT),
+                &root.join(format!("{name}-workspace")),
+            )
+            .unwrap();
+            let from_store = inspect_saved_case_in_store(
+                &store,
+                &format!("{name}-case"),
+                &format!("{name}-workspace"),
+            )
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(&from_directory).unwrap(),
+                serde_json::to_value(&from_store).unwrap(),
+                "{name}"
+            );
+            assert_eq!(
+                serde_json::to_value(&from_directory.history_result).unwrap(),
+                serde_json::to_value(&from_store.history_result).unwrap(),
+                "{name} history"
+            );
+            assert_eq!(
+                from_directory.history_assumptions,
+                from_store.history_assumptions
+            );
+            assert!(from_store.verified_receipt_count > 0, "{name}");
         }
     }
 }

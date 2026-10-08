@@ -2,7 +2,9 @@ use crate::{control, transport::read_bounded};
 use clap::{Subcommand, ValueEnum};
 use faris_engine::{
     build_manifest,
+    case_archive::{inspect_saved_case, inspect_saved_case_in_store},
     core_evidence::{self, RecordedTransportBundle},
+    evidence_store::{EvidenceStore, StoreVerifyStatus, verify_store},
     study::{StudySelection, generate_study},
 };
 use std::path::PathBuf;
@@ -47,14 +49,32 @@ pub enum EvidenceCommand {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Reopen and revalidate a saved case and its completed Core workspace.
+    /// Reopen and revalidate a saved case and its completed Core workspace,
+    /// from directories (--case, --report, --workspace) or in place from an
+    /// evidence store (--store, --case-tree, --workspace-tree).
     Inspect {
+        #[arg(long, requires_all = ["report", "workspace"], conflicts_with = "store")]
+        case: Option<PathBuf>,
         #[arg(long)]
-        case: PathBuf,
+        report: Option<PathBuf>,
         #[arg(long)]
-        report: PathBuf,
+        workspace: Option<PathBuf>,
+        /// Evidence store folder holding the case and workspace trees.
+        #[arg(long, requires_all = ["case_tree", "workspace_tree"])]
+        store: Option<PathBuf>,
+        /// Tree of the store holding the prepared case and its execution-report.json.
+        #[arg(long, requires = "store")]
+        case_tree: Option<String>,
+        /// Tree of the store holding the Core execution workspace.
+        #[arg(long, requires = "store")]
+        workspace_tree: Option<String>,
+    },
+    /// Check an evidence store: its index, every blob's length and SHA-256,
+    /// and that the folder holds nothing else. Prints a JSON report; exits
+    /// non-zero when the store fails.
+    VerifyStore {
         #[arg(long)]
-        workspace: PathBuf,
+        store: PathBuf,
     },
     /// A deterministic FARIS stage invoked by a hash-bound Core descriptor.
     Stage {
@@ -176,11 +196,39 @@ pub fn run(command: EvidenceCommand) -> Result<(), Box<dyn std::error::Error>> {
             case,
             report,
             workspace,
+            store,
+            case_tree,
+            workspace_tree,
         } => {
-            let inspection =
-                faris_engine::case_archive::inspect_saved_case(&case, &report, &workspace)
-                    .map_err(|e| e as Box<dyn std::error::Error>)?;
+            let inspection = match (store, case, report, workspace, case_tree, workspace_tree) {
+                (Some(store), None, None, None, Some(case_tree), Some(workspace_tree)) => {
+                    let store = EvidenceStore::open(&store)?;
+                    inspect_saved_case_in_store(&store, &case_tree, &workspace_tree)
+                }
+                (None, Some(case), Some(report), Some(workspace), None, None) => {
+                    inspect_saved_case(&case, &report, &workspace)
+                }
+                _ => {
+                    return Err(
+                        "give either --case, --report and --workspace (directories), or \
+                                --store, --case-tree and --workspace-tree (an evidence store)"
+                            .into(),
+                    );
+                }
+            }
+            .map_err(|e| e as Box<dyn std::error::Error>)?;
             println!("{}", serde_json::to_string_pretty(&inspection)?);
+        }
+        EvidenceCommand::VerifyStore { store } => {
+            let report = verify_store(&store);
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            if report.status != StoreVerifyStatus::Verified {
+                return Err(format!(
+                    "evidence store failed verification ({} findings); see the report above",
+                    report.finding_count
+                )
+                .into());
+            }
         }
         EvidenceCommand::Stage {
             stage,
