@@ -50,7 +50,7 @@ def write_index(package: Path, index: dict) -> None:
 
 
 def linux_package(root: Path) -> Path:
-    """A small finished linux/x86_64 v0.6 package with fake programs."""
+    """A small finished linux/x86_64 v0.7 package with fake programs."""
     package = root / "linux"
     contents = {
         "bin/faris": (b"linux faris", 0o555, "app"),
@@ -81,7 +81,7 @@ def linux_package(root: Path) -> Path:
     app = [item for item in files if item["part"] == "app"]
     evidence = [item for item in files if item["part"] == "evidence"]
     index = {
-        "schema_version": "faris-recorded-demo-package/v0.6",
+        "schema_version": "faris-recorded-demo-package/v0.7",
         "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
         "faris_cli_sha256": recorded["faris"]["sha256"],
         "faris_app_sha256": recorded["faris-app"]["sha256"],
@@ -451,7 +451,7 @@ class RetargetTests(unittest.TestCase):
             return target
 
         for label, mutate, message in (
-                ("schema", lambda i: i.update(schema_version="faris-recorded-demo-package/v0.5"), "v0.6"),
+                ("schema", lambda i: i.update(schema_version="faris-recorded-demo-package/v0.5"), "v0.7"),
                 ("platform", lambda i: i["local_runtime"].update(platform={"os": "linux", "arch": "aarch64"}),
                  "linux/x86_64"),
                 ("no recorded_with", lambda i: i.pop("evidence_recorded_with"), "evidence_recorded_with"),

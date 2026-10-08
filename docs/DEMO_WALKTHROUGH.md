@@ -350,8 +350,13 @@ probability distributions or lifetime uncertainty bounds.
 The separate outage-duration study contains twelve additional full Rust
 histories: four fixed transport drivers at annual outage durations of 15, 30
 and 60 days. Its one-factor changes preserve outage start dates and every other
-baseline input. Assumptions, driving rates, full histories and provenance are
-retained for independent replay; the 30-day level reproduces the baseline.
+baseline input. Assumptions, driving rates, provenance and each history's
+SHA-256 and size are retained for independent replay. The full histories are not
+stored (about 18 MB each): `verify.sh` recomputes every one with the package's
+`faris history run` and requires the recorded digest, which holds on every
+platform because FARIS's model and engine use `libm` and fixed-order integer
+powers instead of the platform math library. The 30-day level reproduces the
+baseline. The four event-control histories are handled the same way.
 
 The local Linux distribution includes hash-pinned, read-only copies of the
 release FARIS CLI, native app, and Core executable. Launch the offline four-case

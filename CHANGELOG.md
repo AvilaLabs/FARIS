@@ -15,7 +15,7 @@ basis.
   (`evidence-store/`, Avila Core format `avila.core/evidence-store/v0.1`)
   instead of eight `.tar.gz` archives. Each distinct file is kept once,
   xz-compressed, under its SHA-256. The package index is
-  `faris-recorded-demo-package/v0.6` and the saved-study descriptors are
+  `faris-recorded-demo-package/v0.7` and the saved-study descriptors are
   `faris-saved-study-store/v0.1`. The app reads and inspects the saved Core
   evidence in place with length and SHA-256 checked on every read: no
   temporary expansion, no 0.9 GB of temporary space and no wait on opening.
@@ -59,6 +59,25 @@ basis.
   it again with `faris study generate` (the desktop always regenerates it).
   For the recorded port arrangement, the case shrinks from 74 MB to 36 MB and
   its Core workspace from 132 MB to 55 MB.
+
+- The sixteen recorded 30-year histories (four event-control histories and the
+  twelve outage-duration probes, about 18 MB each) are no longer in the
+  evidence pack. Each record keeps the assumptions, the exact transport rates
+  and the history's SHA-256 and size, and `verify.sh` recomputes every history
+  with the package's own `faris history run` and requires the same digest. The
+  evidence pack shrinks from 35.8 MB to EVSIZE MB. The package index is
+  `faris-recorded-demo-package/v0.7`; the event-history and outage-duration
+  provenance and the outage-duration summary are `v0.2`. They record
+  `history_bytes` and no longer name a `history_path`. A v0.6 package no longer
+  opens in this version; build it again with `package_recorded_demo.py`.
+- FARIS's model and engine compute with platform-independent math: every
+  `exp`, `ln`, `powf`, trigonometric and similar function is the pure-Rust
+  `libm` one (`faris_model::math`), and `powi` is repeated multiplication in a
+  fixed order, so a history should be bit-identical on Linux, Windows and macOS (Intel
+  and Apple silicon); the desktop workflow checks this on each. Results recorded earlier are unchanged on the recorded
+  machine: all sixteen histories recompute byte for byte. Clippy rejects the
+  std methods, and `desktop.yml` runs a digest test of a 30-year history and an
+  ensemble on all four platforms.
 
 ## 0.2.0 — 2026-10-08
 

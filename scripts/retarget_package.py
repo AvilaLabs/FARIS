@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Build a CI-built Linux, Windows or macOS package from a finished, verified laptop Linux v0.6 package.
+"""Build a CI-built Linux, Windows or macOS package from a finished, verified laptop Linux v0.7 package.
 
 The recorded study data are produced on Linux on the reference laptop, whose programs
 need that laptop's newest glibc. Every platform's release programs, Linux included, are
@@ -12,7 +12,7 @@ notices files and SOURCE_PROVENANCE.md for the platform's, and rewrites the inde
 executes nothing. The input is always the laptop Linux package, also for a Linux target.
 
 Refuses unless:
-- the Linux package's index is v0.6 for linux/x86_64, has no `desktop_build` (it is not
+- the Linux package's index is v0.7 for linux/x86_64, has no `desktop_build` (it is not
   already retargeted), its package-index.sha256 matches, and every indexed file has the
   indexed size and SHA-256;
 - build.json is a valid faris-desktop-build/v0.1 for linux (x86_64 only, with a `glibc`
@@ -47,7 +47,7 @@ from pathlib import Path
 
 INDEX = "package-index.json"
 CHECKSUM = "package-index.sha256"
-SCHEMA = "faris-recorded-demo-package/v0.6"
+SCHEMA = "faris-recorded-demo-package/v0.7"
 BUILD_SCHEMA = "faris-desktop-build/v0.1"
 PROGRAMS = ("faris", "faris-app", "avila-core")
 TARGET_OS = {"linux", "windows", "macos"}
@@ -75,7 +75,7 @@ def digest(path: Path) -> str:
 
 
 def load_linux_index(package: Path) -> dict:
-    """The package's index, after the checks that make it a finished Linux v0.6 package."""
+    """The package's index, after the checks that make it a finished Linux v0.7 package."""
     if not package.is_dir() or package.is_symlink():
         fail(f"{package} is not a package directory")
     index_path, checksum_path = package / INDEX, package / CHECKSUM
@@ -368,7 +368,7 @@ def retarget(package: Path, build_dir: Path, output: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--package", type=Path, required=True, help="finished, verified Linux v0.6 package")
+    parser.add_argument("--package", type=Path, required=True, help="finished, verified Linux v0.7 package")
     parser.add_argument("--build", type=Path, required=True, help="desktop build folder (bin/ and build.json)")
     parser.add_argument("--output", type=Path, required=True, help="new package directory")
     args = parser.parse_args()

@@ -26,6 +26,16 @@ def write(path: Path, value: bytes | str) -> None:
     path.write_bytes(value.encode() if isinstance(value, str) else value)
 
 
+def fake_history_bytes(assumptions: dict, rates: dict) -> bytes:
+    """What the fixture `faris history run` writes: the history the package does not ship."""
+    return (json.dumps({
+        "schema_version": "faris-history-result/v0.1", "assumptions": assumptions,
+        "driving_rates": {"scenario_sha256": rates["scenario_sha256"],
+                          "transport_artifact_sha256": rates["transport_artifact_sha256"]},
+        "events": [{"kind": "planned_outage_started"}, {"kind": "planned_outage_ended"}],
+        "snapshots": [{"time_s": 1.0}]}, sort_keys=True) + "\n").encode()
+
+
 def apply_parts(index: dict) -> None:
     """Assign every inventoried file to its part and write the `parts` totals."""
     launched = VERIFY.launch_paths(index)
@@ -174,27 +184,21 @@ def make_operating_artifacts(root: Path, pair: str, scenario_sha: str,
         identity = {"run_record_sha256": arrangement["run_record_sha256"],
                     "raw_artifact_sha256": arrangement["raw_artifact_sha256"],
                     "scenario_sha256": scenario_sha, "variant_id": variant}
-        history = {
-            "schema_version": "faris-history-result/v0.1",
-            "assumptions": event_assumptions,
-            "driving_rates": {"scenario_sha256": scenario_sha,
-                              "transport_artifact_sha256": identity["raw_artifact_sha256"]},
-            "events": [{"kind": "planned_outage_started"}, {"kind": "planned_outage_ended"}],
-            "snapshots": [{"time_s": 1.0}],
-        }
-        history_rel = f"{pair}/event-histories/{variant}.json"
+        rates = {"scenario_sha256": scenario_sha,
+                 "transport_artifact_sha256": identity["raw_artifact_sha256"]}
+        history = fake_history_bytes(event_assumptions, rates)
+        history_sha, history_bytes = "sha256:" + hashlib.sha256(history).hexdigest(), len(history)
         rates_rel = f"{pair}/event-histories/{variant}.rates.json"
-        write(root / history_rel, json.dumps(history, sort_keys=True) + "\n")
-        write(root / rates_rel, json.dumps({"transport_artifact_sha256": identity["raw_artifact_sha256"]}) + "\n")
-        history_sha, rates_sha = VERIFY.digest(root / history_rel), VERIFY.digest(root / rates_rel)
+        write(root / rates_rel, json.dumps(rates) + "\n")
+        rates_sha = VERIFY.digest(root / rates_rel)
         event_provenance = {
-            "schema_version": "faris-packaged-event-history-provenance/v0.1",
+            "schema_version": "faris-packaged-event-history-provenance/v0.2",
             **identity, "assumptions_sha256": VERIFY.digest(root / "inputs/event-assumptions.json"),
-            "history_sha256": history_sha, "rates_sha256": rates_sha,
+            "history_sha256": history_sha, "history_bytes": history_bytes, "rates_sha256": rates_sha,
         }
         event_prov_rel = f"{pair}/event-histories/{variant}.provenance.json"
         write(root / event_prov_rel, json.dumps(event_provenance, sort_keys=True) + "\n")
-        events_index.append({"history_path": history_rel, "history_sha256": history_sha,
+        events_index.append({"history_sha256": history_sha, "history_bytes": history_bytes,
                              "rates_path": rates_rel, "rates_sha256": rates_sha,
                              "provenance_path": event_prov_rel,
                              "provenance_sha256": VERIFY.digest(root / event_prov_rel),
@@ -463,19 +467,14 @@ def make_package(root: Path, faris: Path, core: Path,
                 directory = root / "outage-duration-sensitivity" / pair_id / arrangement["variant_id"] / f"multiplier-{factor}"
                 assumptions_path = directory / "assumptions.json"
                 write(assumptions_path, json.dumps(adjusted) + "\n")
-                history = {
-                    "schema_version": "faris-history-result/v0.1",
-                    "assumptions": adjusted,
-                    "driving_rates": {"scenario_sha256": pair["scenario_sha256"],
-                                      "transport_artifact_sha256": arrangement["raw_artifact_sha256"]},
-                    "events": [{"kind": "planned_outage_started"}],
-                    "snapshots": [{"time_s": 1.0}],
-                }
-                history_path, rates_path = directory / "history.json", directory / "rates.json"
-                write(history_path, json.dumps(history) + "\n")
-                write(rates_path, json.dumps({"transport_artifact_sha256": arrangement["raw_artifact_sha256"]}) + "\n")
+                rates = {"scenario_sha256": pair["scenario_sha256"],
+                         "transport_artifact_sha256": arrangement["raw_artifact_sha256"]}
+                history = fake_history_bytes(adjusted, rates)
+                history_sha = "sha256:" + hashlib.sha256(history).hexdigest()
+                rates_path = directory / "rates.json"
+                write(rates_path, json.dumps(rates) + "\n")
                 provenance = {
-                    "schema_version": "faris-outage-duration-provenance/v0.1",
+                    "schema_version": "faris-outage-duration-provenance/v0.2",
                     "pair_id": pair_id, "variant_id": arrangement["variant_id"],
                     "duration_multiplier": multiplier,
                     "run_record_sha256": arrangement["run_record_sha256"],
@@ -484,11 +483,11 @@ def make_package(root: Path, faris: Path, core: Path,
                     "sampling": arrangement["sampling"],
                     "scenario_sha256": pair["scenario_sha256"],
                     "adjusted_assumptions_sha256": VERIFY.digest(assumptions_path),
-                    "history_sha256": VERIFY.digest(history_path),
+                    "history_sha256": history_sha, "history_bytes": len(history),
                     "rates_sha256": VERIFY.digest(rates_path),
                     "base_operating_assumptions_sha256": VERIFY.digest(root / "operating-assumptions.json"),
                     "baseline_refinement_report_sha256": VERIFY.digest(refinement_report),
-                    "baseline_anchor_history_sha256": VERIFY.digest(history_path).removeprefix("sha256:"),
+                    "baseline_anchor_history_sha256": history_sha.removeprefix("sha256:"),
                     "baseline_anchor_rates_sha256": VERIFY.digest(rates_path).removeprefix("sha256:"),
                     "interpretation": "AUTHORED_SCENARIO_PROBE",
                     "not_probability_distribution": True,
@@ -502,15 +501,14 @@ def make_package(root: Path, faris: Path, core: Path,
                     "duration_multiplier": multiplier,
                     "assumptions_path": assumptions_path.relative_to(root).as_posix(),
                     "assumptions_sha256": VERIFY.digest(assumptions_path),
-                    "history_path": history_path.relative_to(root).as_posix(),
-                    "history_sha256": VERIFY.digest(history_path),
+                    "history_sha256": history_sha, "history_bytes": len(history),
                     "rates_path": rates_path.relative_to(root).as_posix(),
                     "rates_sha256": VERIFY.digest(rates_path),
                     "provenance_path": provenance_path.relative_to(root).as_posix(),
                     "provenance_sha256": VERIFY.digest(provenance_path),
                 })
     outage_summary = {
-        "schema_version": "faris-outage-duration-study/v0.1",
+        "schema_version": "faris-outage-duration-study/v0.2",
         "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
         "baseline_refinement_report_sha256": VERIFY.digest(refinement_report),
         "interpretation": "AUTHORED_SCENARIO_PROBE",
@@ -543,7 +541,7 @@ def make_package(root: Path, faris: Path, core: Path,
     ])
     (root / "README.md").write_text("Fixture demo package.\n")
     store_record = PACKAGE.pack_evidence_store(root, tree_sources)
-    index = {"schema_version": "faris-recorded-demo-package/v0.6",
+    index = {"schema_version": "faris-recorded-demo-package/v0.7",
              "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
              "faris_cli_sha256": VERIFY.digest(faris),
              "faris_app_sha256": VERIFY.digest(app),
@@ -648,6 +646,10 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.faris = self.root / "faris-test"
         write(self.faris, "#!/usr/bin/env python3\nimport hashlib,json,sys\nfrom pathlib import Path\n"
                           "if '--version' in sys.argv: print('faris 0.0.1'); raise SystemExit(0)\n"
+                          "if sys.argv[1:3]==['history','run']:\n"
+                          " arg=lambda n: sys.argv[sys.argv.index(n)+1]\n"
+                          " a=json.loads(Path(arg('--assumptions')).read_text()); r=json.loads(Path(arg('--rates')).read_text())\n"
+                          " Path(arg('--output')).write_text(json.dumps({'schema_version':'faris-history-result/v0.1','assumptions':a,'driving_rates':{'scenario_sha256':r['scenario_sha256'],'transport_artifact_sha256':r['transport_artifact_sha256']},'events':[{'kind':'planned_outage_started'},{'kind':'planned_outage_ended'}],'snapshots':[{'time_s':1.0}]},sort_keys=True)+'\\n'); raise SystemExit(0)\n"
                           "assert sys.argv[1:3]==['evidence','inspect'] and '--case' not in sys.argv\n"
                           "store=Path(sys.argv[sys.argv.index('--store')+1]); tree=sys.argv[sys.argv.index('--case-tree')+1]\n"
                           "assert (store/'store.json').is_file() and sys.argv[sys.argv.index('--workspace-tree')+1]==tree[:-4]+'workspace'\n"
@@ -851,7 +853,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
 
     def test_outage_duration_replay_rejects_tampered_input_or_missing_driver(self):
         index = json.loads((self.package / "package-index.json").read_text())
-        VERIFY.verify_outage_duration_study(self.package, index)
+        VERIFY.verify_outage_duration_study(self.package, index, self.faris)
         summary_path = self.package / index["outage_duration_sensitivity"]["path"]
         summary = json.loads(summary_path.read_text())
         target_record = summary["records"][0]
@@ -860,7 +862,7 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         assumptions["recovery_fraction"] = 0.1
         write(assumptions_path, json.dumps(assumptions) + "\n")
         with self.assertRaises(ValueError):
-            VERIFY.verify_outage_duration_study(self.package, index)
+            VERIFY.verify_outage_duration_study(self.package, index, self.faris)
 
     def test_outage_duration_replay_rejects_wrong_anchor_after_valid_reindex(self):
         index = json.loads((self.package / "package-index.json").read_text())
@@ -879,7 +881,41 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         # Establish that the rejection is semantic: the full file inventory is valid.
         valid_index, _ = VERIFY.verify_index(self.package, self.faris, self.core)
         with self.assertRaisesRegex(ValueError, "1.0 outage probe is not byte-bound"):
-            VERIFY.verify_outage_duration_study(self.package, valid_index)
+            VERIFY.verify_outage_duration_study(self.package, valid_index, self.faris)
+
+    def reseal_outage_summary(self, index, summary):
+        summary_path = self.package / index["outage_duration_sensitivity"]["path"]
+        write(summary_path, json.dumps(summary) + "\n")
+        index["outage_duration_sensitivity"]["sha256"] = VERIFY.digest(summary_path)
+        write(self.package / "package-index.json", json.dumps(index, indent=2) + "\n")
+        reindex_package(self.package)
+        return VERIFY.verify_index(self.package, self.faris, self.core)[0]
+
+    def test_outage_history_is_recomputed_not_shipped(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        self.assertFalse(list(self.package.rglob("history.json")))
+        shipped = [path.name for path in self.package.glob("*/event-histories/*.json")
+                   if not path.name.endswith((".rates.json", ".provenance.json"))]
+        self.assertEqual(shipped, [])
+        VERIFY.verify_outage_duration_study(self.package, index, self.faris)
+
+    def test_outage_history_that_recomputes_differently_is_refused(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        summary_path = self.package / index["outage_duration_sensitivity"]["path"]
+        summary = json.loads(summary_path.read_text())
+        summary["records"][0]["history_sha256"] = "sha256:" + "0" * 64
+        valid_index = self.reseal_outage_summary(index, summary)
+        with self.assertRaisesRegex(ValueError, "recomputed to"):
+            VERIFY.verify_outage_duration_study(self.package, valid_index, self.faris)
+
+    def test_outage_history_size_must_match_the_recomputed_size(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        summary_path = self.package / index["outage_duration_sensitivity"]["path"]
+        summary = json.loads(summary_path.read_text())
+        summary["records"][0]["history_bytes"] += 1
+        valid_index = self.reseal_outage_summary(index, summary)
+        with self.assertRaisesRegex(ValueError, "recomputed to"):
+            VERIFY.verify_outage_duration_study(self.package, valid_index, self.faris)
 
     def test_two_port_volume_reports_share_geometry_directory(self):
         staging = self.root / "staging"

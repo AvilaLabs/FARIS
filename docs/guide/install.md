@@ -46,7 +46,7 @@ tar xzf FARIS-0.2.0-evidence.tar.gz    # optional
 FARIS-0.2.0/bin/faris-app
 ```
 
-To recheck every recorded byte and the Core receipts, run `./verify.sh` from the package folder. It needs `python3` and the evidence pack. It checks the package from a relocated copy, takes a while, and confirms that a deliberately changed copy is rejected.
+To recheck every recorded byte and the Core receipts, run `./verify.sh` from the package folder. It needs `python3` and the evidence pack. It checks the package from a relocated copy, recomputes the sixteen recorded 30-year histories with the package's own `faris` (they are not stored; each must match its recorded SHA-256 and size), takes a while, and confirms that a deliberately changed copy is rejected.
 
 ## Windows
 

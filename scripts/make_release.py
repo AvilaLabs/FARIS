@@ -6,7 +6,7 @@ Checks, before writing anything:
 - the workspace version in Cargo.toml equals --version;
 - CHANGELOG.md has a dated section for that version (not "unreleased");
 - the package's bundled `faris` and `faris-app` report that version;
-- the package index is v0.6, names FARIS-<version>-evidence.tar.gz, and covers every
+- the package index is v0.7, names FARIS-<version>-evidence.tar.gz, and covers every
   file in the package (scripts/verify_binary_manifest.py from the package also runs).
 
 A package made by scripts/retarget_package.py has CI-built programs: its version comes
@@ -112,8 +112,8 @@ def split_package(package: Path, version: str) -> tuple[list[str], list[str], st
     """The package-relative files of the app archive and of the evidence archive, and the
     `<os>-<arch>` name. Refuses a package whose files differ from its index."""
     index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
-    if index.get("schema_version") != "faris-recorded-demo-package/v0.6":
-        fail("package index is not faris-recorded-demo-package/v0.6")
+    if index.get("schema_version") != "faris-recorded-demo-package/v0.7":
+        fail("package index is not faris-recorded-demo-package/v0.7")
     evidence_name = f"FARIS-{version}-evidence.tar.gz"
     if index.get("parts", {}).get("evidence", {}).get("archive_name") != evidence_name:
         fail(f"package index does not name {evidence_name}; rebuild the package with --version {version}")

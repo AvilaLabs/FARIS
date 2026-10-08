@@ -82,7 +82,10 @@ file's length and SHA-256 as it reads it. Nothing is unpacked, so it needs no
 temporary space. Without it, everything works except the saved receipts: the
 Evidence step says "Core receipts not included", why, and what to do next.
 
-On Linux, `./verify.sh` rechecks every recorded byte and the Core receipts. It
+On Linux, `./verify.sh` rechecks every recorded byte and the Core receipts, and
+recomputes the sixteen 30-year histories (four event-control, twelve
+outage-duration) with the package's own `faris`: they are not stored, and each
+must match its recorded SHA-256 and size. It
 needs `python3`, the evidence pack and about 1.3 GB of temporary space, and it
 checks the exact amount first. The Windows and macOS downloads are checked by the
 app itself at launch.

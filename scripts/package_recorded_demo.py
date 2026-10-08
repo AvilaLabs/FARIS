@@ -302,12 +302,17 @@ def add_event_history(faris: Path, branch: Path, scenario: Path, run_path: Path,
     kinds = sorted({event.get("kind") for event in history["events"]})
     if not {"planned_outage_started", "planned_outage_ended"} <= set(kinds):
         raise RuntimeError(f"{history_path}: event history does not exercise planned outage transitions")
+    # The history is recomputed by verify.sh from the shipped assumptions and rates, so
+    # only its digest and size are kept.
+    history_sha, history_bytes = sha256(history_path), history_path.stat().st_size
+    history_path.unlink()
     provenance = {
-        "schema_version": "faris-packaged-event-history-provenance/v0.1",
+        "schema_version": "faris-packaged-event-history-provenance/v0.2",
         "generator_faris_cli_sha256": sha256(faris),
         **identity,
         "assumptions_sha256": sha256(assumptions),
-        "history_sha256": sha256(history_path),
+        "history_sha256": history_sha,
+        "history_bytes": history_bytes,
         "rates_sha256": sha256(rates_path),
         "event_kinds": kinds,
         "outcome": history.get("outcome"),
@@ -317,8 +322,8 @@ def add_event_history(faris: Path, branch: Path, scenario: Path, run_path: Path,
     }
     provenance_path = branch / "event-histories" / f"{variant_id}.provenance.json"
     write_bounded_json(provenance_path, provenance)
-    return {"history_path": history_path.relative_to(branch.parent).as_posix(),
-            "history_sha256": sha256(history_path),
+    return {"history_sha256": history_sha,
+            "history_bytes": history_bytes,
             "rates_path": rates_path.relative_to(branch.parent).as_posix(),
             "rates_sha256": sha256(rates_path),
             "provenance_path": provenance_path.relative_to(branch.parent).as_posix(),
@@ -456,12 +461,13 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
                 != identity["raw_artifact_sha256"]
                 or not history.get("snapshots")):
             raise RuntimeError(f"outage history is incomplete or bound to another run: {history_path}")
+        history_sha, history_bytes = sha256(history_path), history_path.stat().st_size
         if multiplier == 1.0 and (
-                sha256(history_path).removeprefix("sha256:") != baseline_output.get("history_sha256")
+                history_sha.removeprefix("sha256:") != baseline_output.get("history_sha256")
                 or sha256(rates_path).removeprefix("sha256:") != baseline_output.get("rates_sha256")):
             raise RuntimeError(f"1.0 outage probe differs from audited 600-second baseline for {driver_id}")
         provenance = {
-            "schema_version": "faris-outage-duration-provenance/v0.1",
+            "schema_version": "faris-outage-duration-provenance/v0.2",
             "pair_id": pair_id,
             "variant_id": variant_id,
             "duration_multiplier": multiplier,
@@ -471,7 +477,8 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
             "base_operating_assumptions_sha256": sha256(base_assumptions),
             "baseline_refinement_report_sha256": baseline_report_sha,
             "adjusted_assumptions_sha256": sha256(assumptions_path),
-            "history_sha256": sha256(history_path),
+            "history_sha256": history_sha,
+            "history_bytes": history_bytes,
             "rates_sha256": sha256(rates_path),
             "event_count": len(history.get("events", [])),
             "snapshot_count": len(history["snapshots"]),
@@ -486,13 +493,15 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
         }
         provenance_path = directory / "provenance.json"
         write_bounded_json(provenance_path, provenance)
+        # verify.sh recomputes the history from assumptions.json and rates.json.
+        history_path.unlink()
         records.append({
             "pair_id": pair_id, "variant_id": variant_id,
             "duration_multiplier": multiplier,
             "assumptions_path": assumptions_path.relative_to(staging).as_posix(),
             "assumptions_sha256": sha256(assumptions_path),
-            "history_path": history_path.relative_to(staging).as_posix(),
-            "history_sha256": sha256(history_path),
+            "history_sha256": history_sha,
+            "history_bytes": history_bytes,
             "rates_path": rates_path.relative_to(staging).as_posix(),
             "rates_sha256": sha256(rates_path),
             "provenance_path": provenance_path.relative_to(staging).as_posix(),
@@ -1010,7 +1019,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "It exposes normalized integrated tritium production and all-particle heating, 12 neutron/photon component spectra, and the complete local mesh field.",
         "The port cases additionally retain independent OpenMC point-ownership/clearance and geometry-volume audit reports.",
         "",
-        "The package includes two descriptive paired-history comparisons, four event-control histories, four 27-point sensitivity results, and a separate 12-case planned-outage duration axis (15/30/60 days for each of four exact transport drivers). The outage axis changes duration only and is an authored scenario probe, not a physical uncertainty range or availability estimate.",
+        "The package includes two descriptive paired-history comparisons, four event-control histories, four 27-point sensitivity results, and a separate 12-case planned-outage duration axis (15/30/60 days for each of four exact transport drivers). The outage axis changes duration only and is an authored scenario probe, not a physical uncertainty range or availability estimate. The sixteen full 30-year histories behind the event-control and outage-duration results are not stored (about 18 MB each): each record keeps the assumptions, the exact transport rates, and the history's SHA-256 and size, and `verify.sh` recomputes every history with `bin/faris history run` and requires the same digest. FARIS computes with platform-independent math, so the digests are the same on every platform.",
         "Their deterministic results are conditional on the authored ledger model; grid points are not probabilities, confidence limits, material allowables, or lifetime predictions.",
         "See `support/` for the bounded scientific background, independent checker scripts, data acquisition route, license notes, and included verification metadata.",
         "The old DEMO_ACCEPTANCE snapshot is intentionally omitted because release acceptance is determined by the final package index and fresh verifier run.",
@@ -1032,7 +1041,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "## The two downloads",
         "",
         f"The program, the transport bundles, the operating assumptions, the licenses and the package index are the platform download (`FARIS-{version}-<os>-<arch>.tar.gz`). That alone opens and runs the whole study.",
-        f"The evidence download (`{evidence_archive_name(version)}`) adds the Core receipts shown in the Evidence step and the files `verify.sh` checks: the Core evidence store (`evidence-store/`), the saved-study descriptors, inspections, exports, comparisons, event histories, sensitivities, outage-duration probes, support files, `inputs/`, `verify.sh` and the verifier scripts. To install it, unpack it into the same folder as the platform download on every platform (both unpack into `FARIS-{version}/`). Without it the Evidence step says the Core receipts are not included, and the rest works.",
+        f"The evidence download (`{evidence_archive_name(version)}`) adds the Core receipts shown in the Evidence step and the files `verify.sh` checks: the Core evidence store (`evidence-store/`), the saved-study descriptors, inspections, exports, comparisons, the inputs and digests of the event histories, sensitivities, outage-duration probes (their histories are recomputed by `verify.sh`), support files, `inputs/`, `verify.sh` and the verifier scripts. To install it, unpack it into the same folder as the platform download on every platform (both unpack into `FARIS-{version}/`). Without it the Evidence step says the Core receipts are not included, and the rest works.",
         "With the evidence part present, the app reads the saved Core studies straight from the evidence store and verifies each file's length and SHA-256 as it reads it. Nothing is expanded, so opening the package needs no temporary space.",
         "",
         "## Verification",
@@ -1387,7 +1396,7 @@ def main() -> None:
         if len(outage_records) != 12:
             raise RuntimeError(f"outage-duration study produced {len(outage_records)} of 12 required runs")
         outage_summary = {
-            "schema_version": "faris-outage-duration-study/v0.1",
+            "schema_version": "faris-outage-duration-study/v0.2",
             "status": "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY",
             "axis": {"base_outage_duration_days": 30, "multipliers": list(OUTAGE_DURATION_MULTIPLIERS),
                      "resulting_duration_days": [15, 30, 60],
@@ -1417,7 +1426,7 @@ def main() -> None:
             indexed_files, {"sweep": sweep_manifest, "maintenance": maintenance_manifest})
         part_totals["evidence"]["archive_name"] = evidence_archive_name(args.version)
         index = {
-            "schema_version": "faris-recorded-demo-package/v0.6",
+            "schema_version": "faris-recorded-demo-package/v0.7",
             "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
             "faris_cli_sha256": sha256(faris),
             "faris_app_sha256": sha256(app),

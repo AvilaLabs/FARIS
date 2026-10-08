@@ -25,3 +25,13 @@ Document what a calculation supports and any consequential limits. Update schema
 or model versions when semantics change. Preserve prior run files. Downloaded
 scientific inputs and customer data belong in ignored directories, with provenance
 and content identity recorded separately.
+
+Numbers that reach a recorded history, ensemble or comparison must be identical
+on every platform, because `verify.sh` recomputes the recorded histories and
+compares SHA-256 digests. In `faris-model` and `faris-engine` use
+`faris_model::math` (`exp`, `ln`, `powf`, `powi`, `sin`, ...; pure-Rust `libm`)
+instead of the `f64` methods of the same names, and never `mul_add`.
+`clippy.toml` rejects the std methods; plotting, camera and display-mesh code
+may allow them with a stated reason. The `determinism_` tests pin the digests
+of a 30-year history and a small ensemble; CI runs them on all four desktop
+platforms (`cargo test --release -p faris-engine determinism_`).

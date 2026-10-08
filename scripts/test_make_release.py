@@ -24,7 +24,7 @@ def package(root: Path) -> Path:
         os.chmod(pkg / relative, mode)
         part = "app" if relative.split("/")[0] in {"bin", "control"} or relative == "README.md" else "evidence"
         files.append({"path": relative, "bytes": len(text), "sha256": "0" * 64, "part": part})
-    index = {"schema_version": "faris-recorded-demo-package/v0.6", "files": files,
+    index = {"schema_version": "faris-recorded-demo-package/v0.7", "files": files,
              "parts": {"evidence": {"archive_name": "FARIS-0.1.0-evidence.tar.gz"}},
              "local_runtime": {"platform": {"os": "linux", "arch": "x86_64"}}}
     (pkg / "package-index.json").write_text(json.dumps(index))

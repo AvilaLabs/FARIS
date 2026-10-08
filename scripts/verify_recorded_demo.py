@@ -30,7 +30,7 @@ CHECKSUM = "package-index.sha256"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 HISTORY_REFINEMENT_REPORT = "references/operating-history-primary-refinement-v4.json"
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
-SCHEMA = "faris-recorded-demo-package/v0.6"
+SCHEMA = "faris-recorded-demo-package/v0.7"
 EVIDENCE_STORE_DIRECTORY = "evidence-store"
 SAVED_STUDY_SCHEMA = "faris-saved-study-store/v0.1"
 # Bounds on the case and workspace trees held in the evidence store.
@@ -503,7 +503,43 @@ def verify_sweep(root: Path, index: dict[str, Any]) -> int:
     return len(records)
 
 
-def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
+_RECOMPUTED: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+
+def recompute_history(faris: Path, assumptions_path: Path, rates_path: Path) -> dict[str, Any]:
+    """Recompute a 30-year history with this package's `faris` from its assumptions and
+    rates, and return its digest, size and the fields the binding checks read. The
+    history is written to a temporary folder and deleted; the package does not ship it
+    (it is about 18 MB). FARIS's math is platform independent, so the digest must equal
+    the one recorded on any machine. Results are kept per input pair for this process."""
+    key = (str(faris), digest(assumptions_path), digest(rates_path))
+    if key in _RECOMPUTED:
+        return _RECOMPUTED[key]
+    with tempfile.TemporaryDirectory(prefix="faris-history-recompute-") as temporary:
+        output = Path(temporary) / "history.json"
+        result = subprocess.run(
+            [str(faris), "history", "run", "--assumptions", str(assumptions_path),
+             "--rates", str(rates_path), "--output", str(output)],
+            check=False, capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode != 0 or not output.is_file():
+            raise ValueError(f"FARIS could not recompute the history for {assumptions_path.parent.name}/"
+                             f"{assumptions_path.name}: {result.stderr[-2000:]}")
+        history = json.loads(output.read_text(encoding="utf-8"))
+        facts = {
+            "digest": digest(output), "bytes": output.stat().st_size,
+            "schema_version": history.get("schema_version"),
+            "assumptions": history.get("assumptions"),
+            "scenario_sha256": history.get("driving_rates", {}).get("scenario_sha256"),
+            "transport_artifact_sha256": history.get("driving_rates", {}).get("transport_artifact_sha256"),
+            "has_snapshots": bool(history.get("snapshots")),
+            "event_kinds": {event.get("kind") for event in history.get("events", [])},
+        }
+    _RECOMPUTED[key] = facts
+    return facts
+
+
+def verify_outage_duration_study(root: Path, index: dict[str, Any], faris: Path) -> None:
     ref = index.get("outage_duration_sensitivity")
     if (not isinstance(ref, dict) or ref.get("case_count") != 12
             or ref.get("multipliers") != [0.5, 1.0, 2.0]
@@ -513,7 +549,7 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
     if digest(summary_path) != ref.get("sha256"):
         raise ValueError("outage-duration summary digest mismatch")
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    if (summary.get("schema_version") != "faris-outage-duration-study/v0.1"
+    if (summary.get("schema_version") != "faris-outage-duration-study/v0.2"
             or summary.get("status") != "COMPLETED_AUTHORED_SCENARIO_PROBES_NOT_PHYSICAL_UNCERTAINTY"
             or summary.get("interpretation") != "AUTHORED_SCENARIO_PROBE"
             or summary.get("not_probability_distribution") is not True
@@ -574,7 +610,7 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
                 or multiplier not in [0.5, 1.0, 2.0] or arrangement is None):
             raise ValueError("outage-duration record has duplicate or unknown run identity")
         seen.add(key)
-        paths = ("assumptions", "history", "rates", "provenance")
+        paths = ("assumptions", "rates", "provenance")
         loaded = {}
         for name in paths:
             path = safe_package_path(root, record.get(f"{name}_path"))
@@ -596,18 +632,24 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
         expected["planned_outages"] = outages
         if adjusted != expected:
             raise ValueError("outage-duration assumptions changed a non-duration input")
-        history, rates, provenance = loaded["history"], loaded["rates"], loaded["provenance"]
+        rates, provenance = loaded["rates"], loaded["provenance"]
+        history = recompute_history(faris, safe_package_path(root, record.get("assumptions_path")),
+                                    safe_package_path(root, record.get("rates_path")))
+        if history["digest"] != record.get("history_sha256") or history["bytes"] != record.get("history_bytes"):
+            raise ValueError(
+                f"outage-duration history for {pair_id}/{variant} x{multiplier} recomputed to "
+                f"{history['digest']} ({history['bytes']} bytes), not the recorded "
+                f"{record.get('history_sha256')} ({record.get('history_bytes')} bytes)")
         raw = arrangement.get("raw_artifact_sha256")
-        if (history.get("schema_version") != "faris-history-result/v0.1"
-                or history.get("assumptions") != adjusted
-                or bare_sha256(history.get("driving_rates", {}).get("scenario_sha256"), str(summary_path))
+        if (history["schema_version"] != "faris-history-result/v0.1"
+                or history["assumptions"] != adjusted
+                or bare_sha256(history["scenario_sha256"], str(summary_path))
                 != arrangement.get("scenario_sha256")
-                or bare_sha256(history.get("driving_rates", {}).get("transport_artifact_sha256"), str(summary_path))
-                != raw
+                or bare_sha256(history["transport_artifact_sha256"], str(summary_path)) != raw
                 or bare_sha256(rates.get("transport_artifact_sha256"), str(summary_path)) != raw
-                or not history.get("snapshots")):
+                or not history["has_snapshots"]):
             raise ValueError("outage-duration history does not match the bound transport run")
-        if (provenance.get("schema_version") != "faris-outage-duration-provenance/v0.1"
+        if (provenance.get("schema_version") != "faris-outage-duration-provenance/v0.2"
                 or provenance.get("pair_id") != pair_id
                 or provenance.get("variant_id") != variant
                 or provenance.get("duration_multiplier") != multiplier
@@ -618,6 +660,7 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
                 or provenance.get("scenario_sha256") != arrangement.get("scenario_sha256")
                 or provenance.get("adjusted_assumptions_sha256") != record.get("assumptions_sha256")
                 or provenance.get("history_sha256") != record.get("history_sha256")
+                or provenance.get("history_bytes") != record.get("history_bytes")
                 or provenance.get("rates_sha256") != record.get("rates_sha256")
                 or provenance.get("base_operating_assumptions_sha256") != base_sha
                 or provenance.get("baseline_refinement_report_sha256") != baseline_report_sha
@@ -782,27 +825,29 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path, core: Path,
             sensitivity_ref = arrangement.get("sensitivity_study")
             if not isinstance(event_ref, dict) or not isinstance(sensitivity_ref, dict):
                 raise ValueError(f"missing event/sensitivity artifact references for {pair_id}/{variant}")
-            event_history_path = safe_package_path(root, event_ref.get("history_path"))
             rates_path = safe_package_path(root, event_ref.get("rates_path"))
             event_provenance_path = safe_package_path(root, event_ref.get("provenance_path"))
-            if (digest(event_history_path) != event_ref.get("history_sha256")
-                    or digest(rates_path) != event_ref.get("rates_sha256")
+            if (digest(rates_path) != event_ref.get("rates_sha256")
                     or digest(event_provenance_path) != event_ref.get("provenance_sha256")):
                 raise ValueError(f"event history content digest mismatch for {pair_id}/{variant}")
-            event_history = json.loads(event_history_path.read_text(encoding="utf-8"))
             event_rates = json.loads(rates_path.read_text(encoding="utf-8"))
             event_provenance = json.loads(event_provenance_path.read_text(encoding="utf-8"))
-            if (event_history.get("schema_version") != "faris-history-result/v0.1"
-                    or event_history.get("assumptions") != event_assumptions
-                    or event_history.get("driving_rates", {}).get("scenario_sha256")
-                    != event_provenance.get("scenario_sha256")
-                    or event_history.get("driving_rates", {}).get("transport_artifact_sha256")
-                    != arrangement.get("raw_artifact_sha256")
+            event_history = recompute_history(faris, event_path, rates_path)
+            if (event_history["digest"] != event_ref.get("history_sha256")
+                    or event_history["bytes"] != event_ref.get("history_bytes")):
+                raise ValueError(
+                    f"event history for {pair_id}/{variant} recomputed to {event_history['digest']} "
+                    f"({event_history['bytes']} bytes), not the recorded {event_ref.get('history_sha256')} "
+                    f"({event_ref.get('history_bytes')} bytes)")
+            if (event_history["schema_version"] != "faris-history-result/v0.1"
+                    or event_history["assumptions"] != event_assumptions
+                    or event_history["scenario_sha256"] != event_provenance.get("scenario_sha256")
+                    or event_history["transport_artifact_sha256"] != arrangement.get("raw_artifact_sha256")
                     or event_rates.get("transport_artifact_sha256") != arrangement.get("raw_artifact_sha256")
-                    or not {"planned_outage_started", "planned_outage_ended"}
-                    <= {event.get("kind") for event in event_history.get("events", [])}
-                    or event_provenance.get("schema_version") != "faris-packaged-event-history-provenance/v0.1"
+                    or not {"planned_outage_started", "planned_outage_ended"} <= event_history["event_kinds"]
+                    or event_provenance.get("schema_version") != "faris-packaged-event-history-provenance/v0.2"
                     or event_provenance.get("history_sha256") != event_ref.get("history_sha256")
+                    or event_provenance.get("history_bytes") != event_ref.get("history_bytes")
                     or event_provenance.get("rates_sha256") != event_ref.get("rates_sha256")
                     or event_provenance.get("run_record_sha256") != arrangement.get("run_record_sha256")
                     or event_provenance.get("raw_artifact_sha256") != arrangement.get("raw_artifact_sha256")
@@ -934,7 +979,7 @@ def scratch_needed(index: dict[str, Any]) -> int:
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, inventory = verify_index(package, faris, core)
     root = package.resolve(strict=True)
-    verify_outage_duration_study(root, index)
+    verify_outage_duration_study(root, index, faris)
     sweep_count = verify_sweep(root, index)
     maintenance_recorded = verify_maintenance(root, index, inventory)
     required_scratch = scratch_needed(index)

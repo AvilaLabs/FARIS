@@ -18,7 +18,7 @@ use std::{
 
 pub const INDEX: &str = "package-index.json";
 pub const CHECKSUM: &str = "package-index.sha256";
-const SCHEMA: &str = "faris-recorded-demo-package/v0.6";
+const SCHEMA: &str = "faris-recorded-demo-package/v0.7";
 const STATUS: &str = "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED";
 const MAX_INDEX_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
@@ -704,7 +704,7 @@ mod tests {
         format!("sha256:{}", faris_study::sha256_hex(bytes))
     }
 
-    /// A v0.6 package in a temporary folder: app part, evidence part, index.
+    /// A v0.7 package in a temporary folder: app part, evidence part, index.
     struct Fixture {
         dir: tempfile::TempDir,
     }
