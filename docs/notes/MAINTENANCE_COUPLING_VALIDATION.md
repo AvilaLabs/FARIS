@@ -129,3 +129,25 @@ protect the variants or the verdict rules. Found when the evaluator was built, b
 above has not changed since `b3d70b7`. The body is now the text up to and including the newline before the line
 "## Amendments", with SHA-256 `a392e5ab35dc0d97f1af3ab5cef1e582317181057e0aa6cb8446d53839490602`, and
 `scripts/maintenance_validation.py` refuses to evaluate against any other. Nothing else changes.
+
+### Amendment 2, 2026-10-07, after the validation result and before any V1 rerun: rerun V1 with the fixed contact-dose proxy
+
+V1 was NOT EVALUATED because ACTINV 1.4.0 refused the contact-dose proxy for the FLiBe blanket at every step: its
+sub-keV K X-rays (about 6 parts in 10 million of the photon power) fell below the 1 keV response data. ACTINV P121
+(master `1b91e5f`) omits such power from the proxy and reports it, while the share is at most 1e-4; its gates showed
+the proxy unchanged for the shield, vessel and first-wall materials and given for FLiBe. This amendment reruns V1 alone
+with that ACTINV. The recorded result, including V1's NOT EVALUATED, stays in the record; the rerun is reported beside
+it.
+
+1. **Binary.** ACTINV release build of `1b91e5f`'s sources, SHA-256
+   `2e921707c05f5d0d8f7eddca3a34db83991f46e1ec9d073731c8eee82096cb2c`, in place of the 1.4.0 binary. Same data
+   directory, libraries, photon response and FARIS driver (`0692d99`).
+2. **Binary check first.** Variant B is rerun with this binary and a fresh cache. It must reproduce the recorded B
+   result (durations, D1/D3 tables and claim outcomes) to within 1e-9 relative. If it does not, V1 is not rerun and the
+   difference is reported.
+3. **Fresh cache.** V1 uses its own empty continuation cache, because cache keys hash the specification, not the
+   binary.
+4. **Evaluation.** The evaluator runs unchanged over the recorded variants with V1's new result in place of the old
+   one. Labels follow the frozen rules. If the dose-governed curve of any governing component still has no proxy at a
+   needed point, V1 stays NOT EVALUATED with that reason.
+5. **The heat-governed variants are not rerun.** Only V1 depends on the proxy.
