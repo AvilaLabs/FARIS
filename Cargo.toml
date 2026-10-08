@@ -19,6 +19,7 @@ faris-report = { path = "crates/faris-report" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"
+libm = "=0.2.16"
 thiserror = "=2.0.21"
 clap = { version = "=4.6.6", features = ["derive"] }
 nix = { version = "=0.31.3", features = ["process", "signal"] }

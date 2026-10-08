@@ -97,7 +97,7 @@ fn rates_with(relative: f64, correlation: f64) -> TransportDrivingRates {
             };
         }
     }
-    let volume_variance = vec![0.0, mc_sd[1].powi(2), mc_sd[2].powi(2), 0.0];
+    let volume_variance = vec![0.0, math::powi(mc_sd[1], 2), math::powi(mc_sd[2], 2), 0.0];
     let total_se = |i: usize| (monte_carlo[i * n + i] + volume_variance[i]).sqrt();
     let flux_unit = "neutrons/m²/s";
     let mut flux = BTreeMap::new();
@@ -267,7 +267,8 @@ fn drawn_moments_match_mean_and_covariance() {
                 .map(|x| (x[i] - mean[i]) * (x[j] - mean[j]))
                 .sum::<f64>()
                 / (count as f64 - 1.0);
-            let se = ((total(i, i) * total(j, j) + total(i, j).powi(2)) / count as f64).sqrt();
+            let se =
+                ((total(i, i) * total(j, j) + math::powi(total(i, j), 2)) / count as f64).sqrt();
             assert!(
                 (sample_cov - total(i, j)).abs() < 4.0 * se,
                 "cov {i},{j}: {sample_cov} vs {}",
@@ -472,7 +473,7 @@ fn generator_streams_are_distinct_and_reproducible() {
     let mut rng = Rng::stream(5, 5);
     let samples: Vec<f64> = (0..100_000).map(|_| rng.next_normal()).collect();
     let mean = samples.iter().sum::<f64>() / samples.len() as f64;
-    let var = samples.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / samples.len() as f64;
+    let var = samples.iter().map(|x| math::powi(x - mean, 2)).sum::<f64>() / samples.len() as f64;
     assert!(mean.abs() < 0.015 && (var - 1.0).abs() < 0.02);
 }
 
@@ -593,7 +594,8 @@ fn driving_covariance_selects_scales_and_separates_volume_variance() {
     let flux_integrated = flux_mean * volume;
     let flux_mc_se: f64 = 5.0e11;
     let flux_integrated_se = flux_mc_se * volume;
-    let flux_total_se = (flux_mc_se.powi(2) + (flux_mean * volume_se / volume).powi(2)).sqrt();
+    let flux_total_se =
+        (math::powi(flux_mc_se, 2) + math::powi(flux_mean * volume_se / volume, 2)).sqrt();
     let breeder_integrated = 1.1 * source_rate;
     let breeder_se = 0.01 * source_rate;
     let heat_se = 1.0e6;
@@ -729,11 +731,13 @@ fn driving_covariance_selects_scales_and_separates_volume_variance() {
     assert_eq!(cov.volume_variance[2], 0.0);
     let flux = &rates.component_average_flux_n_m2_s["blanket"];
     let flux_total = cov.monte_carlo[n + 1] + cov.volume_variance[1];
-    assert!((flux_total / flux.standard_error.unwrap().powi(2) - 1.0).abs() < 1e-9);
-    assert!((cov.monte_carlo[n + 1] / flux_mc_se.powi(2) - 1.0).abs() < 1e-9);
-    assert!((cov.volume_variance[1] / flux_mc_se.powi(2) - 1.0).abs() < 1e-9);
+    assert!((flux_total / math::powi(flux.standard_error.unwrap(), 2) - 1.0).abs() < 1e-9);
+    assert!((cov.monte_carlo[n + 1] / math::powi(flux_mc_se, 2) - 1.0).abs() < 1e-9);
+    assert!((cov.volume_variance[1] / math::powi(flux_mc_se, 2) - 1.0).abs() < 1e-9);
     let breeder = &rates.breeder_h3_per_source_neutron;
-    assert!((cov.monte_carlo[0] / breeder.standard_error.unwrap().powi(2) - 1.0).abs() < 1e-9);
+    assert!(
+        (cov.monte_carlo[0] / math::powi(breeder.standard_error.unwrap(), 2) - 1.0).abs() < 1e-9
+    );
     // Off-diagonal in driving units: correlation 0.3 survives the scaling.
     let corr = cov.monte_carlo[1] / (cov.monte_carlo[0] * cov.monte_carlo[n + 1]).sqrt();
     assert!((corr - 0.3).abs() < 1e-9);
@@ -798,7 +802,7 @@ fn timing_with_synthetic_diagonal_covariance() {
     let n = entries.len();
     let mut monte_carlo = vec![0.0; n * n];
     for (i, (_, r)) in entries.iter().enumerate() {
-        monte_carlo[i * n + i] = r.standard_error.unwrap().powi(2);
+        monte_carlo[i * n + i] = math::powi(r.standard_error.unwrap(), 2);
     }
     let ids = entries.iter().map(|e| e.0.to_string()).collect();
     rates.covariance = Some(DrivingCovariance {
@@ -875,7 +879,7 @@ fn regional_case(
     let n = entries.len();
     let mut monte_carlo = vec![0.0; n * n];
     for (i, (_, rate)) in entries.iter().enumerate() {
-        monte_carlo[i * n + i] = rate.standard_error.unwrap().powi(2);
+        monte_carlo[i * n + i] = math::powi(rate.standard_error.unwrap(), 2);
     }
     let rate_ids: Vec<String> = entries.iter().map(|e| e.0.to_owned()).collect();
     rates.covariance = Some(DrivingCovariance {

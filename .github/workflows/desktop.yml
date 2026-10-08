@@ -62,6 +62,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.98.1
+      - name: Check bit-identical history math
+        # The recorded histories are recomputed and compared by SHA-256 on every
+        # platform (verify.sh), so the digests must match here.
+        run: cargo test --release --locked -p faris-engine determinism_
       - name: Build FARIS
         run: cargo build --release --locked -p faris-cli -p faris-app
       - name: Build Avila Core

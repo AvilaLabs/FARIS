@@ -4,6 +4,8 @@ pub mod brief;
 pub mod case_archive;
 pub mod comparison;
 pub mod core_evidence;
+#[cfg(test)]
+mod determinism_tests;
 pub mod evidence_store;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;
@@ -20,6 +22,7 @@ pub mod study;
 pub mod sweep;
 pub mod transport;
 
+use faris_model::math;
 use faris_model::{LoadedScenario, Penetration, Reference, ScenarioError};
 use serde::Serialize;
 use std::{collections::BTreeMap, f64::consts::PI};
@@ -110,9 +113,9 @@ pub fn build_manifest(loaded: &LoadedScenario) -> Result<DemoManifest, ScenarioE
                 .map(|layer| {
                     let outer = inner + layer.thickness_m;
                     let full_torus_volume_m3 = 2.0
-                        * PI.powi(2)
+                        * math::powi(PI, 2)
                         * geometry.major_radius_m
-                        * (outer.powi(2) - inner.powi(2));
+                        * (math::powi(outer, 2) - math::powi(inner, 2));
                     let penetration_intersection_estimate =
                         scenario.penetration.as_ref().map(|p| {
                             let Penetration::OutboardRectangularPrism { bounds_m, .. } = p;
@@ -252,8 +255,8 @@ mod tests {
         for variant in &result.variants {
             for component in &variant.components {
                 let area = PI
-                    * (component.outer_minor_radius_m.powi(2)
-                        - component.inner_minor_radius_m.powi(2));
+                    * (math::powi(component.outer_minor_radius_m, 2)
+                        - math::powi(component.inner_minor_radius_m, 2));
                 let expected = area * (2.0 * PI * result.major_radius_m);
                 assert!((component.full_torus_volume_m3 - expected).abs() < 1e-10);
             }

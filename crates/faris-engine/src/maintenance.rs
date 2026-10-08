@@ -9,6 +9,7 @@ use crate::history::{HistoryOutcome, HistoryResult};
 use crate::jobs::Cancellation;
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
 use faris_model::maintenance::{CoolingGrid, MaintenanceAssumptions, MaintenanceClass, Threshold};
+use faris_model::math;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -41,7 +42,7 @@ pub fn cooling_grid_s(grid: &CoolingGrid) -> Vec<f64> {
     let ratio = grid.max_s / grid.min_s;
     let last = grid.points - 1;
     let mut out: Vec<f64> = (0..grid.points)
-        .map(|i| grid.min_s * ratio.powf(i as f64 / last as f64))
+        .map(|i| grid.min_s * math::powf(ratio, i as f64 / last as f64))
         .collect();
     out[0] = grid.min_s;
     out[last] = grid.max_s;
@@ -65,9 +66,9 @@ pub fn interpolate(points: &[(f64, f64)], t: f64) -> f64 {
     if t >= t1 {
         return v1;
     }
-    let frac = (t.ln() - t0.ln()) / (t1.ln() - t0.ln());
+    let frac = (math::ln(t) - math::ln(t0)) / (math::ln(t1) - math::ln(t0));
     if v0 > 0.0 && v1 > 0.0 {
-        return (v0.ln() + frac * (v1.ln() - v0.ln())).exp();
+        return math::exp(math::ln(v0) + frac * (math::ln(v1) - math::ln(v0)));
     }
     v0 + frac * (v1 - v0)
 }
@@ -141,8 +142,8 @@ pub fn cooldown(curve: &[(f64, f64)], q_star: f64, max_s: f64) -> Result<Cooldow
         let ((t0, q0), (t1, q1)) = (pair[0], pair[1]);
         if q1 <= q_star {
             let t = if q0 > 0.0 && q1 > 0.0 && q_star > 0.0 {
-                let frac = (q_star.ln() - q0.ln()) / (q1.ln() - q0.ln());
-                (t0.ln() + frac * (t1.ln() - t0.ln())).exp()
+                let frac = (math::ln(q_star) - math::ln(q0)) / (math::ln(q1) - math::ln(q0));
+                math::exp(math::ln(t0) + frac * (math::ln(t1) - math::ln(t0)))
             } else {
                 t0 + (q0 - q_star) / (q0 - q1) * (t1 - t0)
             };

@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_methods)]
+// Plotting, colour and camera arithmetic only; nothing here is recorded as evidence.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod archive_panel;

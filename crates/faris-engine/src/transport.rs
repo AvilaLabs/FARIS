@@ -1,5 +1,6 @@
 //! Checked normalization for fixed-source transport artifacts.
 
+use faris_model::math;
 use faris_model::transport::{
     ACTIVATION_SPECTRA_FISPACT_709, ResponseDomain, ScoreDefinition,
     TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
@@ -577,8 +578,8 @@ pub fn normalize_transport_artifact(
         let mean = integrated_mean / divisor;
         // Geometry and transport estimates use separate random streams, so
         // their standard errors are propagated as independent quantities.
-        let se = ((integrated_se / divisor).powi(2)
-            + (integrated_mean * volume_se / divisor.powi(2)).powi(2))
+        let se = (math::powi(integrated_se / divisor, 2)
+            + math::powi(integrated_mean * volume_se / math::powi(divisor, 2), 2))
         .sqrt();
         if !integrated_scale.is_finite()
             || integrated_scale <= 0.0
@@ -699,7 +700,7 @@ fn normalize_response_covariance(
     }
     for i in 0..n {
         let variance = integrated[i * n + i];
-        let expected = results[index[i]].integrated_standard_error.powi(2);
+        let expected = math::powi(results[index[i]].integrated_standard_error, 2);
         if variance < 0.0
             || (variance - expected).abs() > COVARIANCE_DIAGONAL_TOLERANCE * variance.max(expected)
         {
@@ -934,7 +935,7 @@ mod tests {
         let mut spectra = vec![raw(None, vec![0.0, 1.0e3, 1.0e9], 4.0)];
         if activation {
             let edges: Vec<f64> = (0..=709)
-                .map(|i| 1.0e-5 * 1.0e14_f64.powf(i as f64 / 709.0))
+                .map(|i| 1.0e-5 * math::powf(1.0e14_f64, i as f64 / 709.0))
                 .collect();
             spectra.push(raw(Some("fispact-709"), edges, activation_sum));
         }
@@ -1318,7 +1319,9 @@ mod tests {
         assert_eq!(cov.integrated[2], cov.integrated[1]);
         assert!(close(cov.integrated[3], 0.09 * s_rate * s_rate));
         let flux = &out.results[0];
-        assert!((cov.integrated[0] / flux.integrated_standard_error.powi(2) - 1.0).abs() < 1e-12);
+        assert!(
+            (cov.integrated[0] / math::powi(flux.integrated_standard_error, 2) - 1.0).abs() < 1e-12
+        );
     }
 
     #[test]
@@ -1564,8 +1567,8 @@ mod tests {
             // Standard error: sampling and volume terms in quadrature.
             let volume_se = artifact.volumes[i].standard_error;
             let sampling = u * rate * 0.01 / volumes[i];
-            let from_volume = expected_integrated * volume_se / volumes[i].powi(2);
-            let expected_se = sampling.hypot(from_volume);
+            let from_volume = expected_integrated * volume_se / math::powi(volumes[i], 2);
+            let expected_se = math::hypot(sampling, from_volume);
             assert!((r.standard_error / expected_se - 1.0).abs() < 1e-12);
         }
         // Only the port sector has a stochastic volume.

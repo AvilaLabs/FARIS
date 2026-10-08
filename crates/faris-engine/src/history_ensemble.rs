@@ -27,6 +27,7 @@ use crate::history::{
 };
 use crate::jobs::Cancellation;
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
+use faris_model::math;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -143,10 +144,10 @@ impl Rng {
         // u1 in (0, 1], u2 in [0, 1): 53-bit mantissas.
         let u1 = ((self.next_u64() >> 11) + 1) as f64 * (1.0 / 9_007_199_254_740_992.0);
         let u2 = (self.next_u64() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0);
-        let radius = (-2.0 * u1.ln()).sqrt();
+        let radius = (-2.0 * math::ln(u1)).sqrt();
         let angle = std::f64::consts::TAU * u2;
-        self.spare = Some(radius * angle.sin());
-        radius * angle.cos()
+        self.spare = Some(radius * math::sin(angle));
+        radius * math::cos(angle)
     }
 }
 
@@ -461,14 +462,14 @@ fn quantile_sorted(sorted: &[f64], p: f64) -> f64 {
 /// P(B <= l-1) <= 2.5 %, u the smallest with P(B <= u-1) >= 97.5 %, B ~ Bin(n, p).
 fn quantile_ci_ranks(n: usize, p: f64) -> (Option<usize>, Option<usize>) {
     let mut cdf = Vec::with_capacity(n + 1);
-    let ratio = (p / (1.0 - p)).ln();
-    let mut log_pmf = n as f64 * (1.0 - p).ln();
+    let ratio = math::ln(p / (1.0 - p));
+    let mut log_pmf = n as f64 * math::ln(1.0 - p);
     let mut total = 0.0;
     for k in 0..=n {
-        total += log_pmf.exp();
+        total += math::exp(log_pmf);
         cdf.push(total);
         if k < n {
-            log_pmf += ((n - k) as f64 / (k + 1) as f64).ln() + ratio;
+            log_pmf += math::ln((n - k) as f64 / (k + 1) as f64) + ratio;
         }
     }
     let lower = (1..=n).rev().find(|l| cdf[l - 1] <= 0.025);

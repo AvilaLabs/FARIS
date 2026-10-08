@@ -1,3 +1,6 @@
+// Synthetic decay curve for a test input; not an evidence computation.
+#![allow(clippy::disallowed_methods)]
+
 //! `faris maintenance`: argument handling, input validation before any tool runs, and the
 //! report on a result file.
 

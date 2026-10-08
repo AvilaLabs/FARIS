@@ -3,6 +3,7 @@
 use crate::jobs::Cancellation;
 use crate::transport::{NormalizedTally, NormalizedTransportResult, PhysicalUnit};
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions, ServiceLimit};
+use faris_model::math;
 use faris_model::transport::{
     HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain, ScoreDefinition,
     ToroidalRegion,
@@ -432,8 +433,10 @@ impl TransportDrivingRates {
                 .ok_or("flux response vanished from normalized transport")?;
             // mean = integrated_mean / volume; the stored standard error adds
             // (mean * volume_se / volume)^2 for the independent volume estimate.
-            let volume_variance =
-                (tally.mean * tally.volume_standard_error_m3 / tally.volume_m3).powi(2);
+            let volume_variance = math::powi(
+                tally.mean * tally.volume_standard_error_m3 / tally.volume_m3,
+                2,
+            );
             picks.push((tally, 1.0 / tally.volume_m3, volume_variance));
         }
         for rate in rates.region_flux_n_m2_s.values() {
@@ -442,8 +445,10 @@ impl TransportDrivingRates {
                 .iter()
                 .find(|r| r.response_id == rate.rate.response_id)
                 .ok_or("region flux response vanished from normalized transport")?;
-            let volume_variance =
-                (tally.mean * tally.volume_standard_error_m3 / tally.volume_m3).powi(2);
+            let volume_variance = math::powi(
+                tally.mean * tally.volume_standard_error_m3 / tally.volume_m3,
+                2,
+            );
             picks.push((tally, 1.0 / tally.volume_m3, volume_variance));
         }
         if let Some(h) = heat {
@@ -470,7 +475,7 @@ impl TransportDrivingRates {
                 monte_carlo[i * n + j] =
                     rc.integrated[index[i] * m + index[j]] * picks[i].1 * picks[j].1;
             }
-            let expected = (picks[i].0.integrated_standard_error * picks[i].1).powi(2);
+            let expected = math::powi(picks[i].0.integrated_standard_error * picks[i].1, 2);
             if (monte_carlo[i * n + i] - expected).abs()
                 > COVARIANCE_VARIANCE_RTOL * expected + f64::MIN_POSITIVE
             {
@@ -857,13 +862,13 @@ fn limit_fluence_mut<'a>(state: &'a mut ComponentState, limit: &ServiceLimit) ->
 }
 
 fn decay_factor(lambda: f64, dt: f64) -> f64 {
-    (-lambda * dt).exp()
+    math::exp(-lambda * dt)
 }
 fn flow_integral(lambda: f64, dt: f64) -> f64 {
     if lambda == 0.0 {
         dt
     } else {
-        -(-lambda * dt).exp_m1() / lambda
+        -math::exp_m1(-lambda * dt) / lambda
     }
 }
 fn evolve_stock(stock: f64, inflow: f64, burn: f64, lambda: f64, dt: f64) -> f64 {

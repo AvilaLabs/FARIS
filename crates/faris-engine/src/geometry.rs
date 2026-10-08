@@ -1,5 +1,6 @@
 //! Independent geometry checks and bounded numerical volume estimates.
 
+use faris_model::math;
 use faris_model::transport::ToroidalRegion;
 use serde::Serialize;
 use std::f64::consts::PI;
@@ -109,7 +110,7 @@ pub fn torus_shell_region_volume_m3(
 ) -> f64 {
     let (a, b) = (inner_minor_radius_m, outer_minor_radius_m);
     let half_annulus = major_radius_m * PI * (b * b - a * a) / 2.0;
-    let skew = 2.0 * (b.powi(3) - a.powi(3)) / 3.0;
+    let skew = 2.0 * (math::powi(b, 3) - math::powi(a, 3)) / 3.0;
     let inboard = half_annulus - skew;
     let outboard = half_annulus + skew;
     match region {
@@ -145,7 +146,7 @@ pub fn estimate_torus_shell_box_region_intersection(
         let (xmin, xmax) = (minimum_xyz_m[0], maximum_xyz_m[0]);
         let r0 = major_radius_m;
         let boundary = (r0 * r0 - z * z).max(0.0).sqrt();
-        let sector_edge = |w: f64| z.abs() / w.tan();
+        let sector_edge = |w: f64| z.abs() / math::tan(w);
         match region {
             ToroidalRegion::InboardHalf => (xmin, xmax.min(boundary)),
             ToroidalRegion::OutboardHalf {
@@ -268,7 +269,7 @@ mod tests {
             let r = a + (i as f64 + 0.5) * dr;
             for j in 0..nt {
                 let t = t0 + (j as f64 + 0.5) * dt;
-                sum += (r0 + r * t.cos()) * r * dr * dt;
+                sum += (r0 + r * math::cos(t)) * r * dr * dt;
             }
         }
         sum * dphi

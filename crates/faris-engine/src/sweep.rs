@@ -13,6 +13,7 @@ use crate::{
     jobs::Cancellation,
     reactor::ReactorRun,
 };
+use faris_model::math;
 use faris_model::{
     LoadedScenario, Variant,
     history::{ComponentClass, OperatingHistoryAssumptions},
@@ -41,7 +42,7 @@ impl Estimate {
 /// True when the difference of two independent estimates exceeds two combined
 /// standard errors: |Δ| > 2·sqrt(SE₁² + SE₂²).
 pub fn difference_resolved(a: &Estimate, b: &Estimate) -> bool {
-    let combined = (a.standard_error.powi(2) + b.standard_error.powi(2)).sqrt();
+    let combined = (math::powi(a.standard_error, 2) + math::powi(b.standard_error, 2)).sqrt();
     (a.mean - b.mean).abs() > 2.0 * combined
 }
 

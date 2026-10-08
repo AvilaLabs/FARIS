@@ -1,6 +1,9 @@
 //! Bounded display tessellation of the same toroidal shells used in geometry records.
 //! A cutaway changes display meshes only, never the full-torus volumes or solver inputs.
 
+// Display-only f32 tessellation: nothing here is hashed or recorded as evidence.
+#![allow(clippy::disallowed_methods)]
+
 use std::f32::consts::{PI, TAU};
 
 #[derive(Clone, Copy, Debug)]

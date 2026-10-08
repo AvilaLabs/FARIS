@@ -11,6 +11,7 @@ use crate::{
         normalize_transport_artifact,
     },
 };
+use faris_model::math;
 use faris_model::{
     LoadedScenario,
     physics::{
@@ -1022,7 +1023,9 @@ fn check_geometric_volumes(
         // refinement difference of the independent port-intersection estimate.
         let (expected, refinement_delta) = match &response.domain {
             ResponseDomain::WholeModel => (
-                2.0 * std::f64::consts::PI.powi(2) * manifest.major_radius_m * outer.powi(2),
+                2.0 * math::powi(std::f64::consts::PI, 2)
+                    * manifest.major_radius_m
+                    * math::powi(outer, 2),
                 None,
             ),
             ResponseDomain::Component { component_id } => {
@@ -1085,7 +1088,9 @@ fn check_geometric_volumes(
             _ => return Err("unknown field volume".into()),
         };
         let tolerance = match refinement_delta {
-            Some(delta) => (3.0 * response.volume_standard_error_m3.hypot(delta)).max(1.0e-8),
+            Some(delta) => {
+                (3.0 * math::hypot(response.volume_standard_error_m3, delta)).max(1.0e-8)
+            }
             None => 1.0e-10 * expected,
         };
         if (response.volume_m3 - expected).abs() > tolerance {

@@ -2,6 +2,7 @@
 
 pub mod history;
 pub mod maintenance;
+pub mod math;
 pub mod physics;
 pub mod transport;
 
@@ -327,8 +328,9 @@ impl Scenario {
             let dx_min = minimum[0] - g.major_radius_m;
             let far_y = minimum[1].abs().max(maximum[1].abs());
             let far_z = minimum[2].abs().max(maximum[2].abs());
-            let dx_max =
-                ((maximum[0].hypot(far_z) - g.major_radius_m).powi(2) + far_y.powi(2)).sqrt();
+            let dx_max = (math::powi(math::hypot(maximum[0], far_z) - g.major_radius_m, 2)
+                + math::powi(far_y, 2))
+            .sqrt();
             for variant in &self.variants {
                 let mut inner = g.plasma_minor_radius_m + g.plasma_to_first_wall_gap_m;
                 let mut expected = Vec::new();

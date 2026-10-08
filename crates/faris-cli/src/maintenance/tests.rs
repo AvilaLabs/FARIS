@@ -1,3 +1,6 @@
+// Synthetic decay curve for a test input; not an evidence computation.
+#![allow(clippy::disallowed_methods)]
+
 use super::*;
 use faris_engine::{
     fixtures,

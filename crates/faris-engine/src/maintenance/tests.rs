@@ -292,7 +292,7 @@ fn installed_at(history: &HistoryResult, component: &str, shutdown_s: f64) -> f6
 }
 
 fn analytic_heat_w(amplitude_w: f64, age_s: f64, t: f64) -> f64 {
-    amplitude_w * (1.0 + age_s / 10.0) * (0.7 * (-t / 8.0).exp() + 0.3 * (-t / 300.0).exp())
+    amplitude_w * (1.0 + age_s / 10.0) * (0.7 * math::exp(-t / 8.0) + 0.3 * math::exp(-t / 300.0))
 }
 
 impl DecaySource for Analytic {

@@ -5,6 +5,9 @@
 //!
 //! All numbers come from `faris-engine`; this crate formats and draws them.
 
+// Chart axes and tick arithmetic only; nothing here is recorded as evidence.
+#![allow(clippy::disallowed_methods)]
+
 mod assemble;
 mod charts;
 mod fonts;
