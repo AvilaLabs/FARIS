@@ -1,0 +1,2967 @@
+{
+  "baseline": {
+    "differences": [],
+    "reproduced": true
+  },
+  "protocol": {
+    "body_sha256": "a392e5ab35dc0d97f1af3ab5cef1e582317181057e0aa6cb8446d53839490602",
+    "path": "docs/notes/MAINTENANCE_COUPLING_VALIDATION.md"
+  },
+  "reference": {
+    "sha256": "deee2e67fdce9db02a7e1c4e98617dd78731ce8b168dc6814719ea4b412e2328"
+  },
+  "schema": "faris-maintenance-validation/v0.1",
+  "summary": {
+    "C1": {
+      "fails_in": [
+        "V2-low",
+        "V2-high",
+        "V5a"
+      ],
+      "holds_in": [
+        "B",
+        "V3",
+        "V4",
+        "V5b",
+        "V5c",
+        "V5d"
+      ],
+      "label": "FRAGILE",
+      "not_evaluated_in": [
+        "V1"
+      ]
+    },
+    "C2": {
+      "fails_in": [
+        "V2-low",
+        "V5a",
+        "V5b",
+        "V5c",
+        "V5d"
+      ],
+      "holds_in": [
+        "B",
+        "V3",
+        "V4"
+      ],
+      "label": "FRAGILE",
+      "not_evaluated_in": [
+        "V1",
+        "V2-high"
+      ]
+    },
+    "C3": {
+      "fails_in": [],
+      "holds_in": [
+        "B",
+        "V2-low",
+        "V2-high",
+        "V3",
+        "V4",
+        "V5a",
+        "V5b",
+        "V5c",
+        "V5d"
+      ],
+      "label": "INCOMPLETE",
+      "not_evaluated_in": [
+        "V1"
+      ]
+    },
+    "C4": {
+      "fails_in": [],
+      "holds_in": [
+        "B",
+        "V2-low",
+        "V2-high",
+        "V3",
+        "V4",
+        "V5a",
+        "V5c",
+        "V5d"
+      ],
+      "label": "INCOMPLETE",
+      "not_evaluated_in": [
+        "V1",
+        "V5b"
+      ]
+    }
+  },
+  "variants": {
+    "B": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.05611507764299334,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.023672504314048867,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "HOLDS",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 32,
+              "fixed": 37
+            },
+            "port/reference": {
+              "computed": 32,
+              "fixed": 39
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -49087848.73151335,
+          "fixed_difference_s": -3464658.626464963,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 14.168163165211556
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": true,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.05611507764299334,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            },
+            {
+              "gap_fraction_computed": 0.023672504314048867,
+              "pair": [
+                "port/breeder",
+                "port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -49087848.73151335,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -3464658.626464963,
+              "ratio_computed_over_fixed": 14.168163165211556,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": -830873.1900187731,
+              "considered": true,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -9373343.340862036,
+              "ratio_computed_over_fixed": 0.08864213758144064,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": 223483442.8006321,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 285844684.7143971,
+              "ratio_computed_over_fixed": 0.7818352229425799,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 271740418.34212667,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 279936000.0,
+              "ratio_computed_over_fixed": 0.9707233737072998,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            11014385.799388098,
+            13214988.100029346,
+            15177270.303710125,
+            16919936.44949998,
+            18692932.44736091,
+            20196949.385715183,
+            21582146.47410368,
+            14361905.933637772,
+            23334252.237604465
+          ],
+          "magnets": [
+            24926581.96357027
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            13327784.927948197,
+            14849064.222366506,
+            17481751.506049097,
+            18444035.366536245,
+            20724335.99640318,
+            21691676.984052375,
+            21949465.945320014,
+            24260641.351138197,
+            24946639.520151485,
+            25382708.2553456,
+            25451093.75082215
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2904293.5975991986,
+            3563604.779718267,
+            5352690.060159624,
+            7559462.303131716,
+            9454326.014852554,
+            11141025.407713054
+          ],
+          "magnets": [
+            10285124.525198704,
+            11419123.25012847,
+            12034364.458808552,
+            12693684.946115289,
+            13157177.339068756,
+            13880897.86053798,
+            14408091.199599912,
+            14928906.948385743,
+            15112775.200242877,
+            15782317.875372011,
+            13678375.284099529,
+            14839491.953263383,
+            16064557.315927917,
+            17202003.353386797,
+            17785526.07854013,
+            18118125.489867963,
+            16765075.645665258,
+            18343149.45289569,
+            19056649.197907306,
+            19378589.238347102,
+            17964469.494922288,
+            19724573.986552335,
+            20267040.8425041,
+            20550733.536931597,
+            19235526.4765877,
+            21053492.252520405
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5648198.451850455,
+            10333072.245473795,
+            11975139.749774268,
+            15957564.028689457,
+            18163945.77580971,
+            7781625.432239898,
+            13613456.98149701
+          ],
+          "magnets": [
+            10368000.0,
+            11508051.334531803,
+            12152990.840596694,
+            12291707.196890522,
+            13455271.726143718,
+            13994041.030153971,
+            11672827.540212456,
+            13671646.242417743,
+            14581109.32810657,
+            12675797.55921096,
+            16284609.549592862,
+            16758487.281742904,
+            11167033.761871004,
+            17078660.726898707,
+            17868382.422497265,
+            6888243.134728245,
+            17150857.855296187,
+            18336668.382264353,
+            19118556.24150517,
+            17140381.69236517,
+            18922870.631740935,
+            19899500.33888514,
+            17925197.904786434,
+            20319459.29422199,
+            20988189.45994005
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "e5e4fdaae34bdadceb7332ede39634994ecb6b637040099b5b822cbca16d85a4",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "f21a1d09220a8e6b617bd84388a0b7ac010563463949f67e0c87d5b222feff9d",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4195.524715240712,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 4195.524715240712,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2178.8710963554618,
+          "status": "EVALUATED"
+        }
+      },
+      "reproduction": {
+        "differences": [],
+        "reproduced": true
+      },
+      "result_sha256": "27c68c001e90b5a19dfdd8ea463ff3d71e987015e7696f53751d5743d85f4ecc",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "nothing else changed"
+        ],
+        "derived_files": {},
+        "variant": "B"
+      }
+    },
+    "V1": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "outcome": "NOT_EVALUATED",
+          "reason": "computed case no-port/reference: iteration 1: blanket replacement 4 at 266292195 s: decay curve never falls below q* within 365 days"
+        },
+        "C2": {
+          "outcome": "NOT_EVALUATED",
+          "reason": "computed case port/reference: iteration 1: magnets replacement 8 at 243017218 s: decay curve never falls below q* within 365 days"
+        },
+        "C3": {
+          "outcome": "NOT_EVALUATED",
+          "reason": "D3 not evaluated: a downtime is missing"
+        },
+        "C4": {
+          "outcome": "NOT_EVALUATED",
+          "reason": "a downtime needed by this contrast is missing"
+        }
+      },
+      "decisions": {
+        "D1": {
+          "reason": "a lifetime net electricity is missing",
+          "status": "NOT_EVALUATED"
+        },
+        "D3": {
+          "contrasts": [
+            {
+              "contrast": "breeder-minus-reference, no port",
+              "status": "NOT_EVALUATED"
+            },
+            {
+              "contrast": "breeder-minus-reference, port",
+              "status": "NOT_EVALUATED"
+            },
+            {
+              "contrast": "port-minus-no-port, reference",
+              "status": "NOT_EVALUATED"
+            },
+            {
+              "contrast": "port-minus-no-port, breeder",
+              "status": "NOT_EVALUATED"
+            }
+          ],
+          "reason": "a downtime is missing",
+          "status": "NOT_EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": null,
+        "no-port/reference": null,
+        "port/breeder": null,
+        "port/reference": null
+      },
+      "inputs_sha256": {
+        "assumptions": "e5e4fdaae34bdadceb7332ede39634994ecb6b637040099b5b822cbca16d85a4",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "0472711e1181c79c7c16a1b2fe2eff234d3c7922380be4c83d0bf99ab65c7e5a",
+        "impurities": null,
+        "photon_response": "9efa40486780c9eec663654e13f5835ba36a549b1bae0c9f75677957a5a0acd8"
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "q_star": 49.63720913150329,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4195.524715240712,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 49.63720913150329,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "q_star": 10.35612357671739,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 10.35612357671739,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "adc593498e58da88c03b1c80ec34c65c36cffef9d58560f631ce1ca8626ab809",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "governing_quantity \"dose\"; photon_response <nuclear-data>/photon-response/nist-xcom-all.json"
+        ],
+        "derived_files": {},
+        "variant": "V1"
+      }
+    },
+    "V2-high": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.09174960757391527,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: fixed order already has no-port/breeder first"
+        },
+        "C2": {
+          "outcome": "NOT_EVALUATED",
+          "reason": "computed case port/breeder: no convergence in 10 iterations (last change 29.606 d)"
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -62567807.71447724,
+          "fixed_difference_s": -25847640.0,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 2.4206390879197186
+        }
+      },
+      "decisions": {
+        "D1": {
+          "reason": "a lifetime net electricity is missing",
+          "status": "NOT_EVALUATED"
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -62567807.71447724,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -25847640.0,
+              "ratio_computed_over_fixed": 2.4206390879197186,
+              "status": "EVALUATED"
+            },
+            {
+              "contrast": "breeder-minus-reference, port",
+              "status": "NOT_EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": 160383150.740667,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 215244540.0,
+              "ratio_computed_over_fixed": 0.7451206462225104,
+              "status": "EVALUATED"
+            },
+            {
+              "contrast": "port-minus-no-port, breeder",
+              "status": "NOT_EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            23938205.7993881,
+            26704897.16975531,
+            26710189.024300955,
+            30179126.52558499,
+            32278008.083188184,
+            32922562.559286825,
+            34898924.05048275,
+            27289862.591900706
+          ],
+          "magnets": [
+            24213286.501968794
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            26251604.9279482,
+            28421505.244010203,
+            30220730.52039343,
+            31840794.904990725,
+            33265346.800427787,
+            34686369.32395025,
+            35958235.60668453,
+            37082780.22722437,
+            38122690.29871949,
+            37081032.260414675
+          ]
+        },
+        "port/breeder": null,
+        "port/reference": {
+          "blanket": [
+            18572018.45185046,
+            20802857.310120247,
+            24212164.48703029,
+            28233589.40159711,
+            31076643.78684178,
+            20686909.28165456,
+            26473966.573157877
+          ],
+          "magnets": [
+            10368000.0,
+            11508051.334531803,
+            12152990.840596694,
+            10995736.563522,
+            12549736.51998653,
+            13300272.880363526,
+            10755961.608214043,
+            13352714.906988278,
+            14297041.863235708,
+            10628051.920510717,
+            14842455.42503086,
+            15893651.044992935,
+            9303946.446718488,
+            16565913.293496544,
+            17615571.62056432,
+            5808131.12131023,
+            17898877.777556244,
+            18861518.10116554,
+            19223190.63340544,
+            18497696.654284135,
+            19810899.94721642,
+            17797460.96505796
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "10b5048b0832413b4be021dce87354420f9a4b6c5e16d822e5c74e7ad9db47a5",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "f72c656ff1cc9a986c74334d91434649f6d0111d44c5e144abf1e68d3603f0ef",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4195.524715240712,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2591999.999999998
+          },
+          "q_star": 4195.524715240712,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2178.8710963554618,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "136bac2123424c24341bf8dc761368f31a4d581ca6295c2421eb137c7030c682",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every blanket service_limits replacement_duration_s = 30 d cooldown + 5.9 months work (30.4375 d per month) = 18107820.0 s; class_w blanket = work / duration",
+          "class_w {'blanket': 0.85685742403006}"
+        ],
+        "derived_files": {
+          "assumptions.json": "10b5048b0832413b4be021dce87354420f9a4b6c5e16d822e5c74e7ad9db47a5"
+        },
+        "variant": "V2-high"
+      }
+    },
+    "V2-low": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.03983701670775684,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: fixed order already has no-port/breeder first"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.025408819716868012,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: fixed order already has port/breeder first",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 31,
+              "fixed": 37
+            },
+            "port/reference": {
+              "computed": 31,
+              "fixed": 37
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -25347471.903993815,
+          "fixed_difference_s": -12076871.232352227,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 2.0988442632468853
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": false,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -25347471.903993815,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -12076871.232352227,
+              "ratio_computed_over_fixed": 2.0988442632468853,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": -11778654.165996075,
+              "considered": false,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -326868.2208209634,
+              "ratio_computed_over_fixed": 36.034870983825726,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 213029143.48223898,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 249435519.72117144,
+              "ratio_computed_over_fixed": 0.8540449400324825,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 226597961.22023672,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 261185522.7327027,
+              "ratio_computed_over_fixed": 0.8675747371041583,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            16837745.799388096,
+            19313237.430250183,
+            21517656.746008098,
+            23495150.88068763,
+            25194088.26741226,
+            25071561.138548516,
+            27217901.55560347,
+            20191587.527423523,
+            29489004.5579242
+          ],
+          "magnets": [
+            25078664.529187314
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            19151144.9279482,
+            21077040.298578013,
+            21880694.16816532,
+            25024584.412686273,
+            26268830.506438103,
+            27297396.128252838,
+            28102278.349595767,
+            28607938.783659272,
+            28926260.296398994,
+            31917638.544821545,
+            32681917.5020335
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            8727653.597599199,
+            9386942.03146651,
+            11238457.13229328,
+            13369087.701011235,
+            15273846.140836924,
+            16985293.91447995
+          ],
+          "magnets": [
+            10285124.525198704,
+            11419123.25012847,
+            12034364.458808552,
+            12693684.946115289,
+            12926791.238233821,
+            13873612.12071217,
+            14407478.841563674,
+            14928993.543654177,
+            13964412.954597693,
+            15229500.160956295,
+            15924134.26282922,
+            16580338.185654018,
+            14476875.387233118,
+            16212181.779658783,
+            17211035.661804877,
+            17968603.063861184,
+            16191416.08900215,
+            18154156.702204548,
+            18936846.750022788,
+            19368458.04825496,
+            18090993.200046267,
+            19930485.29656806,
+            20259337.17052751,
+            18441555.69852688,
+            18840473.72347906
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            11471558.451850455,
+            16126367.820532687,
+            19242941.803701855,
+            21649900.560804486,
+            23903188.747697175,
+            13564917.070865639,
+            19456933.058907866
+          ],
+          "magnets": [
+            10368000.0,
+            11508051.334531803,
+            12152990.840596694,
+            9596285.982085314,
+            13446480.518417219,
+            13993012.43557573,
+            12417261.428649146,
+            14730647.836522752,
+            15402503.864274101,
+            11939536.747802861,
+            15527552.617378982,
+            16369430.467499416,
+            10126026.993514916,
+            16427370.421760004,
+            17498986.0725744,
+            6081054.469708245,
+            17133141.952252924,
+            18377035.76921075,
+            19148597.240087487,
+            17954060.12864134,
+            19529020.440397047,
+            20136883.149647534,
+            18351614.140344303,
+            20684845.511135243
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "77aa9d946cf828d80cf6a0f14f5af5ab303b04e6779c524ae0386eb60ab20db5",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "3f24bb7b4e8a80b845e7d971a7ae2ab8e27d62a6ed85330ec7d28565618fa716",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4195.524715240712,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 4195.524715240712,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2178.8710963554618,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "327fb11bc88e7f458b5dd9d6a8af566ed1178a1239e26d4efdc98811166b7b1f",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every blanket service_limits replacement_duration_s = 30 d cooldown + 3.2 months work (30.4375 d per month) = 11007360.0 s; class_w blanket = work / duration",
+          "class_w {'blanket': 0.7645211930926217}"
+        ],
+        "derived_files": {
+          "assumptions.json": "77aa9d946cf828d80cf6a0f14f5af5ab303b04e6779c524ae0386eb60ab20db5"
+        },
+        "variant": "V2-low"
+      }
+    },
+    "V3": {
+      "claim_variant": "specification_maximum_impurities",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.056015115369795726,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.02367250431404752,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "HOLDS",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 32,
+              "fixed": 37
+            },
+            "port/reference": {
+              "computed": 32,
+              "fixed": 39
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -49057959.42772779,
+          "fixed_difference_s": -3464658.626464963,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 14.159536253585328
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": true,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.056015115369795726,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            },
+            {
+              "gap_fraction_computed": 0.02367250431404752,
+              "pair": [
+                "port/breeder",
+                "port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -49057959.42772779,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -3464658.626464963,
+              "ratio_computed_over_fixed": 14.159536253585328,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": -812093.0508323908,
+              "considered": true,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -9373343.340862036,
+              "ratio_computed_over_fixed": 0.08663856868361607,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": 223505600.80133638,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 285844684.7143971,
+              "ratio_computed_over_fixed": 0.7819127405662727,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 271751467.1782318,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 279936000.0,
+              "ratio_computed_over_fixed": 0.9707628428577667,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            11011034.203299116,
+            13209811.409427024,
+            15170564.052811619,
+            16910692.143243372,
+            18683206.97139235,
+            20187802.746628605,
+            21571199.36262147,
+            14353255.595795482,
+            23321454.35916642
+          ],
+          "magnets": [
+            24919188.054399207
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            13324820.469401969,
+            14844238.522826962,
+            17476007.472854055,
+            18437223.1586723,
+            20716788.328045122,
+            21681869.715363413,
+            21934873.392391596,
+            24250861.266756218,
+            24934627.941730008,
+            25366924.243596446,
+            25427933.814874504
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2904432.4428938525,
+            3564243.629321747,
+            5350336.094885938,
+            7554486.415370255,
+            9447609.538961126,
+            11133108.71768124
+          ],
+          "magnets": [
+            10285416.728574807,
+            11419306.322639568,
+            12034573.8987067,
+            12693725.484057024,
+            13155617.027938053,
+            13879475.865112316,
+            14406632.896144085,
+            14927305.150886673,
+            15109887.337935194,
+            15779634.89583546,
+            13672085.519045439,
+            14832179.57511104,
+            16058191.322414402,
+            17195765.5253923,
+            17781975.35437546,
+            18114565.452289127,
+            16752935.003463047,
+            18333955.615591407,
+            19047817.424756102,
+            19373649.297087528,
+            17957119.434475705,
+            19716940.241727084,
+            20261081.059674215,
+            20544745.724703066,
+            19228886.955999535,
+            21047745.346780144
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5648050.145332007,
+            10328713.394983642,
+            11963599.414445719,
+            15951190.102706827,
+            18155139.21524997,
+            7777244.442446833,
+            13606420.334359601
+          ],
+          "magnets": [
+            10368000.0,
+            11507998.430834003,
+            12152941.280912463,
+            12290142.088668248,
+            13454003.47667791,
+            13992753.715962132,
+            11669113.822237298,
+            13667149.67415982,
+            14576323.945671467,
+            12672859.798286632,
+            16280993.750800848,
+            16754953.958518911,
+            11164168.56892807,
+            17069791.70888312,
+            17861535.878271423,
+            6889237.279552918,
+            17142752.145511404,
+            18330022.869242378,
+            19112167.618295535,
+            17130753.55623292,
+            18913478.0325611,
+            19890717.08233528,
+            17909906.959719017,
+            20305956.231655184,
+            20982581.04182995
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "e5e4fdaae34bdadceb7332ede39634994ecb6b637040099b5b822cbca16d85a4",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "ccd1fed0b3552d167bc405eb3f650da4225ffd58358bdac1d1ae6f40fff9050d",
+        "impurities": "3161fd7dfa7655483eac41b067342caeee02eed8dbbf0d7abf1e98e33b653901"
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4200.040778507902,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 4200.040778507902,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2180.4020330161916,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2180.4020330161916,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "a68f9fe5c45b5cc939af4ddb990d70525a0f7cea4af5eb1735201c91ce57c31c",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "impurities: specification-maximum file; claims use the impurity variant of the result"
+        ],
+        "derived_files": {},
+        "variant": "V3"
+      }
+    },
+    "V4": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.05554319399124354,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.023672504314043497,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "HOLDS",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 32,
+              "fixed": 37
+            },
+            "port/reference": {
+              "computed": 32,
+              "fixed": 39
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -48356140.803578615,
+          "fixed_difference_s": -3464658.626464963,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 13.956971239304181
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": true,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.05554319399124354,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            },
+            {
+              "gap_fraction_computed": 0.023672504314043497,
+              "pair": [
+                "port/breeder",
+                "port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -48356140.803578615,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -3464658.626464963,
+              "ratio_computed_over_fixed": 13.956971239304181,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": -481438.11360520124,
+              "considered": true,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -9373343.340862036,
+              "ratio_computed_over_fixed": 0.05136247506334543,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": 223948695.18394524,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 285844684.7143971,
+              "ratio_computed_over_fixed": 0.7834628634347514,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 271823397.87391865,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 279936000.0,
+              "ratio_computed_over_fixed": 0.9710197969318654,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            11024714.264885943,
+            13229171.4745269,
+            15194358.402643714,
+            16942462.1293258,
+            18715565.798912853,
+            20216821.19222862,
+            21604997.173061606,
+            14377575.369652502,
+            23359512.598517306
+          ],
+          "magnets": [
+            24949986.145886924
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            13310252.023869855,
+            14821249.316472854,
+            17450704.46091169,
+            18408475.419953655,
+            20686932.366492756,
+            21644500.38802193,
+            21879331.501217447,
+            24216774.886369,
+            24893477.945675775,
+            25312775.818117067,
+            25346831.22611894
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2905087.1073490996,
+            3566338.591006359,
+            5358404.098177914,
+            7567000.0722773485,
+            9463313.427215012,
+            11151612.877504138
+          ],
+          "magnets": [
+            10290387.846983314,
+            11424640.775475897,
+            12041210.552978143,
+            12702044.571072627,
+            13164336.199111897,
+            13888786.724098643,
+            14416821.80270227,
+            14938496.959555112,
+            15120945.800416514,
+            15791505.264361754,
+            13706369.981116721,
+            14871603.848848749,
+            16084687.851020806,
+            17221682.15200124,
+            17795672.5286664,
+            18128668.135572366,
+            16801445.802863702,
+            18369477.238871463,
+            19079577.41921263,
+            19391062.855129097,
+            17984648.354395457,
+            19743637.923389673,
+            20280241.660034616,
+            20564307.237027347,
+            19248031.759771716,
+            21064433.063411262
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5648204.266975047,
+            10332374.446203843,
+            11968562.230088701,
+            15955273.5856338,
+            18160384.2825433,
+            7780871.130515528,
+            13611527.60697787
+          ],
+          "magnets": [
+            10368000.0,
+            11507599.323263492,
+            12152016.443075202,
+            12290285.254306603,
+            13453614.023592187,
+            13991929.684970714,
+            11669531.153760321,
+            13667495.442135444,
+            14576215.743016928,
+            12672966.746456157,
+            16281164.758949598,
+            16754666.819829099,
+            11163982.636314936,
+            17071314.465473473,
+            17862270.229740188,
+            6886724.497773314,
+            17144271.753672764,
+            18330818.287379514,
+            19112590.815770157,
+            17133154.304603033,
+            18915271.539184958,
+            19891974.662269335,
+            17913991.104196392,
+            20309113.917222403,
+            20983327.733022716
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "e5e4fdaae34bdadceb7332ede39634994ecb6b637040099b5b822cbca16d85a4",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "a4107ef89ba5dc9747a74e5b79f570493cb794a05cbc7f3dccdc1b51188c46bb"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "365a45b3c3ad827b630d5ec7d88e09bf31e14f3d1fcca7bad773e4413ab8ca40"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "99e818ce992d9387a60d6aadb57e00a75388e65ae4d8714494284dc3c3c2a396"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "7c303ae8dc1755b5b1d509185f26a1e4844daf674506e6ef1697f78a594d3afd"
+          }
+        },
+        "config": "449acd3fdd0276972ba68e923e8de0d0402c302caec9698176640f859db486da",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.84020878
+          },
+          "heat": {
+            "q_star": 4193.1415012595835,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 4193.1415012595835,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2177.948003290907,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2177.948003290907,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "862ca4745d18146363701d65c328bf204afbeb30b9925d987e8b5eb160bcdd72",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "spectrum_run of each arrangement replaced by the new run: control-reference -> no-port/reference, control-breeder -> no-port/breeder, port-reference -> port/reference, port-breeder -> port/breeder"
+        ],
+        "derived_files": {},
+        "variant": "V4"
+      }
+    },
+    "V5a": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.06035687490238656,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: fixed order already has no-port/breeder first"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.01753044366171389,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "FAILS",
+          "reason": "computed gap 0.0175 is not above 0.02",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 33,
+              "fixed": 39
+            },
+            "port/reference": {
+              "computed": 34,
+              "fixed": 41
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -39644075.950475514,
+          "fixed_difference_s": -10368000.0,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 3.8236955970751847
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": false,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.01753044366171389,
+              "pair": [
+                "port/breeder",
+                "port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -39644075.950475514,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -10368000.0,
+              "ratio_computed_over_fixed": 3.8236955970751847,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": -7442711.056370139,
+              "considered": true,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -13203094.30536282,
+              "ratio_computed_over_fixed": 0.5637096035394571,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 237463589.85701442,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 279936000.00000006,
+              "ratio_computed_over_fixed": 0.8482781416359967,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 269664954.7511198,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 277100905.69463724,
+              "ratio_computed_over_fixed": 0.9731651871549211,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            6339941.283725181,
+            6572449.839646389,
+            9062465.286665637,
+            10984352.326511383,
+            12534669.011014193,
+            12742373.346813085,
+            14436298.854658468,
+            13922431.451655332,
+            15974830.299635466,
+            9313229.954487933,
+            15776598.823864302,
+            18052079.668455686
+          ],
+          "magnets": [
+            25266516.964814484
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            7934763.987688366,
+            9400622.623459954,
+            10672611.243194584,
+            11819152.384374036,
+            12947933.574612005,
+            14072366.208528496,
+            15245401.102135118,
+            16285989.227740157,
+            17212445.546938688,
+            18120538.20897184,
+            18885603.52605114,
+            19593200.114455048,
+            18567405.4676244,
+            19864279.846649267
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2843506.992816783,
+            4543579.826378806,
+            7219342.38155044,
+            8899811.767788531,
+            3721255.667666655,
+            7690278.6989548085,
+            10513964.38018458,
+            12481375.951445267
+          ],
+          "magnets": [
+            10285124.525198704,
+            11419123.25012847,
+            12034364.458808552,
+            12319599.534930844,
+            13362122.236052245,
+            13886757.153514644,
+            13254327.314924492,
+            14912452.275675572,
+            15368592.614358006,
+            11509735.052152064,
+            14775075.488836788,
+            15730969.562870568,
+            9233278.359521803,
+            17353243.04028439,
+            17791342.19762564,
+            18118721.716302313,
+            16608433.585408866,
+            18082738.559539475,
+            18884792.893934615,
+            15426928.245585283,
+            18305766.949887067,
+            19450780.924456514,
+            16206116.562956303,
+            18451819.95234271,
+            19957869.740985867
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5189698.589030336,
+            2929792.4654920157,
+            8493450.862629255,
+            4253699.612856047,
+            10918788.550894823,
+            5598827.551541007,
+            13018667.57425668,
+            9774311.104994884,
+            14822842.007207
+          ],
+          "magnets": [
+            10368000.0,
+            11508051.334531803,
+            10661114.611859854,
+            12909751.677004192,
+            13461510.517118536,
+            13771760.679894887,
+            14522551.622412134,
+            10772163.240040714,
+            13801874.238822008,
+            14832029.020308772,
+            15640903.96014292,
+            16671201.100302055,
+            11285391.81073783,
+            15845528.708176093,
+            17055113.73732212,
+            17198357.788936228,
+            18569697.37485095,
+            11888587.438245688,
+            18612851.439181037,
+            19451112.2898071,
+            16867590.721384197,
+            19458246.828682438,
+            9831434.021014495,
+            18160139.880781464,
+            19940860.558978148
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "e05f50cc22b6d7a5e5d01bf926d2d63049b1dd8f2b33d61a40fcd662e5b65b06",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "a9e676728979ca7c7f6eff73ba16e2ea4cf6d8f16e0c2e6021a6ec8be76872d5",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 74514315.07209744
+          },
+          "heat": {
+            "q_star": 6479.3584419440185,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 6479.3584419440185,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2178.8710963554618,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "513e32e20fc1c818bd72accfdfd0e50fe2f63dc0bf5a98ed0f008c281023c13c",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every blanket service_limits limit x 0.8"
+        ],
+        "derived_files": {
+          "assumptions.json": "e05f50cc22b6d7a5e5d01bf926d2d63049b1dd8f2b33d61a40fcd662e5b65b06"
+        },
+        "variant": "V5a"
+      }
+    },
+    "V5b": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.028182923794939467,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.0072216037951349414,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "FAILS",
+          "reason": "computed gap 0.0072 is not above 0.02",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 31,
+              "fixed": 36
+            },
+            "port/reference": {
+              "computed": 32,
+              "fixed": 37
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -24414767.183404133,
+          "fixed_difference_s": 0.0,
+          "outcome": "NOT_EVALUATED",
+          "ratio_computed_over_fixed": null,
+          "reason": "the fixed difference is below the D3 minimum, so the ratio is not meaningful"
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": false,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.028182923794939467,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            },
+            {
+              "gap_fraction_computed": 0.0072216037951349414,
+              "pair": [
+                "port/breeder",
+                "port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": false,
+              "computed_difference_s": -24414767.183404133,
+              "considered": false,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": 0.0,
+              "ratio_computed_over_fixed": null,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": true,
+              "computed_difference_s": 268976.1268231869,
+              "considered": true,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -5183999.99999994,
+              "ratio_computed_over_fixed": -0.05188582693348572,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 306077844.78246427,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 290303999.99999994,
+              "ratio_computed_over_fixed": 1.0543356095074967,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 330761588.0926916,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 285120000.0,
+              "ratio_computed_over_fixed": 1.1600785216494514,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            5168894.818206519,
+            5578815.760782085,
+            8428937.653587967,
+            10700929.874252416,
+            12480748.257239893,
+            12419215.554638993,
+            13355649.33721924,
+            15561725.138547406
+          ],
+          "magnets": [
+            24550306.107825343
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            6303648.21340282,
+            9113610.896212818,
+            10633964.709562872,
+            11667348.522218978,
+            12178159.7929533,
+            15062110.46814679,
+            15912143.07798044,
+            16643316.05281617,
+            17256503.324568912,
+            17889184.627841033
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            3731895.4854986523,
+            5099369.15816172,
+            4832356.98426356,
+            3912880.4256962226,
+            4358170.420655078
+          ],
+          "magnets": [
+            10285124.525198704,
+            11419123.25012847,
+            12034364.458808552,
+            12693684.946115289,
+            10753939.803480983,
+            13877015.714688046,
+            14407927.263308428,
+            14928869.402977414,
+            15369482.572391342,
+            13405734.893063534,
+            16186650.13937278,
+            14178242.654675497,
+            15392123.58574865,
+            16433001.661446445,
+            15776203.26678626,
+            18095065.251899734,
+            18437802.543702073,
+            18755855.88941057,
+            17746355.38492351,
+            17994953.488370657,
+            19648941.81362369,
+            19967779.667150132,
+            18439848.302363418,
+            19802404.869161274,
+            19983818.996039424,
+            21057823.775881436
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5244760.015973141,
+            6309915.235157553,
+            6332371.343583688,
+            5134554.917850992,
+            3210147.489995552,
+            12352072.974366968
+          ],
+          "magnets": [
+            10368000.0,
+            11508051.334531803,
+            12152990.840596694,
+            9675534.462367844,
+            13449264.399943402,
+            13993724.069773715,
+            14527586.041770367,
+            12670277.13548249,
+            15463222.169336949,
+            15913226.532855118,
+            14351912.946437214,
+            15147111.858631501,
+            16780107.6601864,
+            17538961.01724322,
+            17927252.951892585,
+            15704246.74227148,
+            17645041.987594277,
+            18559347.442469567,
+            19217273.895453338,
+            19261203.410362706,
+            18467988.184629403,
+            19642409.47001791,
+            10293690.786518708,
+            18323344.491458967,
+            20032036.102696724,
+            21074555.321768112
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "4468325e756393023e75eae387e4339f7530f96c1a5b3bac035c3fcdbff52d38",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "957475ff304ee19d0bcf5fd6707fa90a5574de613ad1c556bd097af74a8823b8",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 110475472.60832013
+          },
+          "heat": {
+            "q_star": 7998.786785382932,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 7998.786785382932,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 20657152.21971264
+          },
+          "heat": {
+            "q_star": 2178.8710963554618,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2178.8710963554618,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "933594cefdbde8a55857b7efd6aec9e48e5e5d7a458a2592172326c5dcd31afe",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every blanket service_limits limit x 1.2"
+        ],
+        "derived_files": {
+          "assumptions.json": "4468325e756393023e75eae387e4339f7530f96c1a5b3bac035c3fcdbff52d38"
+        },
+        "variant": "V5b"
+      }
+    },
+    "V5c": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.044563772860195076,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.012525462108921593,
+          "computed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "fixed_order": [
+            "port/reference",
+            "port/breeder"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: computed order keeps port/reference ahead of port/breeder",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 35,
+              "fixed": 41
+            },
+            "port/reference": {
+              "computed": 36,
+              "fixed": 42
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -41325990.57384807,
+          "fixed_difference_s": -10367999.99999994,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 3.985917300718394
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": true,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/reference",
+            "port/breeder"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/reference",
+            "port/breeder"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.044563772860195076,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -41325990.57384807,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -10367999.99999994,
+              "ratio_computed_over_fixed": 3.985917300718394,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 4680463.887202024,
+              "considered": false,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": 0.0,
+              "ratio_computed_over_fixed": null,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 292030641.21936965,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 316224000.0,
+              "ratio_computed_over_fixed": 0.9234929708667579,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 338037095.6804198,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 326591999.99999994,
+              "ratio_computed_over_fixed": 1.0350440172460436,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            6623194.231508104,
+            8070634.463363123,
+            11138931.797860384,
+            12620904.294227397,
+            13765542.451870233,
+            14848920.117616884,
+            14936233.818983614,
+            16051588.296114473,
+            17075473.698505923,
+            18157426.29934495
+          ],
+          "magnets": [
+            23583057.833622906
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            8901447.884831583,
+            9592518.979497986,
+            12212298.825948976,
+            14091610.429120002,
+            14491240.415129235,
+            16481460.824017616,
+            16457971.54321699,
+            18563292.172596075,
+            18597971.03595064,
+            20281611.964028332,
+            20543102.508925825
+          ],
+          "magnets": [
+            27983371.29360272
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2744143.7073951773,
+            2821681.8446621955,
+            3052511.50743875,
+            3672241.8979508705,
+            4910588.539406245
+          ],
+          "magnets": [
+            10275013.292609245,
+            11124656.992389701,
+            11176598.544539534,
+            10922281.30096526,
+            13138168.422439229,
+            13329437.596881038,
+            13966402.78526313,
+            14387939.711037183,
+            14802371.087284353,
+            15144314.683685794,
+            15111113.238276463,
+            15833052.20838924,
+            16119077.374186285,
+            16421190.934700325,
+            16763800.869183145,
+            16671043.696441146,
+            17459117.921489894,
+            17752598.48075049,
+            18010570.009051405,
+            18266048.77059441,
+            17937024.734980717,
+            18750260.868035864,
+            19008036.275353324,
+            19251848.878363036,
+            19490636.44119645,
+            17937663.163411103,
+            19331882.649373554,
+            19972733.428122386,
+            20426373.474794246,
+            20639339.22217641
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5631325.063017572,
+            8681955.729551021,
+            9939030.312618248,
+            10999499.005055046,
+            11942248.816165894,
+            12748259.279343858,
+            13399546.86759133
+          ],
+          "magnets": [
+            10368000.0,
+            11263340.832396751,
+            11401212.231403053,
+            6206217.396794765,
+            11071013.90370452,
+            13656359.219606733,
+            14087025.960541105,
+            5462587.103115275,
+            14832159.99919833,
+            15292806.7012705,
+            15638548.54329621,
+            7967482.103699608,
+            16277468.235245975,
+            16647077.98662273,
+            16949316.329185348,
+            9011272.739224186,
+            17575329.568280805,
+            17891014.919977926,
+            18157047.561787173,
+            9246695.417131066,
+            18592425.29098461,
+            18920229.586165555,
+            19174401.20933605,
+            11040690.579668928,
+            18818582.197067037,
+            19564520.629381493,
+            20123571.366962492,
+            11150839.829881573,
+            20499436.58096277
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "c5184162cdb0e7429e0789bb03fa1bffd0befe0a3050446cc181ded43a882b90",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "4e6571234d2d59a7a5482ad85ea035d4ebef1863dd0a47a75b59b355a2d4e1a5",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 98974893.8402088
+          },
+          "heat": {
+            "q_star": 6364.043914475593,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 6364.043914475593,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 17044121.77577108
+          },
+          "heat": {
+            "q_star": 1976.5078584337875,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 1976.5078584337875,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "cb7c9105d4ebc26b17328a9c3f8383becb849ae482c4e69110d7fba40aa0f38f",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every magnets service_limits limit x 0.8"
+        ],
+        "derived_files": {
+          "assumptions.json": "c5184162cdb0e7429e0789bb03fa1bffd0befe0a3050446cc181ded43a882b90"
+        },
+        "variant": "V5c"
+      }
+    },
+    "V5d": {
+      "claim_variant": "bare_lower_bound",
+      "claims": {
+        "C1": {
+          "computed_gap_fraction": 0.030215672395118926,
+          "computed_order": [
+            "no-port/breeder",
+            "no-port/reference"
+          ],
+          "fixed_order": [
+            "no-port/reference",
+            "no-port/breeder"
+          ],
+          "outcome": "HOLDS"
+        },
+        "C2": {
+          "computed_gap_fraction": 0.009657779811237601,
+          "computed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_order": [
+            "port/breeder",
+            "port/reference"
+          ],
+          "outcome": "FAILS",
+          "reason": "no swap: fixed order already has port/breeder first",
+          "replacement_counts": {
+            "port/breeder": {
+              "computed": 30,
+              "fixed": 35
+            },
+            "port/reference": {
+              "computed": 31,
+              "fixed": 37
+            }
+          }
+        },
+        "C3": {
+          "outcome": "HOLDS"
+        },
+        "C4": {
+          "computed_difference_s": -25001118.89239414,
+          "fixed_difference_s": -3464658.626464963,
+          "outcome": "HOLDS",
+          "ratio_computed_over_fixed": 7.216041055653184
+        }
+      },
+      "decisions": {
+        "D1": {
+          "changed": true,
+          "computed_ranking": [
+            "no-port/breeder",
+            "no-port/reference",
+            "port/breeder",
+            "port/reference"
+          ],
+          "fixed_ranking": [
+            "no-port/reference",
+            "no-port/breeder",
+            "port/breeder",
+            "port/reference"
+          ],
+          "status": "EVALUATED",
+          "swapped_pairs": [
+            {
+              "gap_fraction_computed": 0.030215672395118926,
+              "pair": [
+                "no-port/breeder",
+                "no-port/reference"
+              ]
+            }
+          ],
+          "threshold_fraction": 0.02
+        },
+        "D3": {
+          "band": [
+            0.8,
+            1.25
+          ],
+          "changed": true,
+          "contrasts": [
+            {
+              "changed": true,
+              "computed_difference_s": -25001118.89239414,
+              "considered": true,
+              "contrast": "breeder-minus-reference, no port",
+              "fixed_difference_s": -3464658.626464963,
+              "ratio_computed_over_fixed": 7.216041055653184,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 8261315.423109353,
+              "considered": false,
+              "contrast": "breeder-minus-reference, port",
+              "fixed_difference_s": -1614834.6726916432,
+              "ratio_computed_over_fixed": -5.115889299886783,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 236365548.2300347,
+              "considered": true,
+              "contrast": "port-minus-no-port, reference",
+              "fixed_difference_s": 252166176.04622662,
+              "ratio_computed_over_fixed": 0.9373404154992803,
+              "status": "EVALUATED"
+            },
+            {
+              "changed": false,
+              "computed_difference_s": 269627982.5455382,
+              "considered": true,
+              "contrast": "port-minus-no-port, breeder",
+              "fixed_difference_s": 254015999.99999994,
+              "ratio_computed_over_fixed": 1.061460626675242,
+              "status": "EVALUATED"
+            }
+          ],
+          "min_fixed_difference_s": 2592000.0,
+          "status": "EVALUATED"
+        }
+      },
+      "durations_s": {
+        "no-port/breeder": {
+          "blanket": [
+            4482362.521497079,
+            5477955.997199454,
+            8692478.937798794,
+            9824528.806539688,
+            10742207.459500188,
+            11359794.955145152,
+            11726855.500239119,
+            14619979.996298699,
+            15366104.479809191,
+            15189892.9041422
+          ],
+          "magnets": [
+            24961115.864937894
+          ]
+        },
+        "no-port/reference": {
+          "blanket": [
+            6677459.216816213,
+            6912983.630909917,
+            9404827.006665941,
+            11354167.714104826,
+            12905268.009333309,
+            13100951.695136843,
+            14911912.896698074,
+            14558094.89415863,
+            16520941.782253208,
+            15818770.57280915,
+            17953975.432297215,
+            17325043.464318298
+          ]
+        },
+        "port/breeder": {
+          "blanket": [
+            2932447.7372609843,
+            4288291.527526977,
+            2897761.4949756274,
+            6509851.165499294,
+            8324027.63231347,
+            4806061.719408901,
+            9931032.223986324
+          ],
+          "magnets": [
+            10293118.858453937,
+            11536874.74669588,
+            12275765.890868962,
+            12502634.940347532,
+            11483797.025653984,
+            12977147.075482752,
+            12272223.242599439,
+            15267967.514192007,
+            15937856.368991295,
+            14285709.250558056,
+            16066007.980572298,
+            17234109.401567683,
+            17859915.468474425,
+            16369810.942550918,
+            18463840.610456303,
+            19017620.50879958,
+            13393477.048106067,
+            19642478.010260954,
+            18056729.031174816,
+            19833481.638417974,
+            20200873.173381545,
+            20007791.281488024,
+            21241908.680180237
+          ]
+        },
+        "port/reference": {
+          "blanket": [
+            5088316.273890814,
+            4083093.2704417985,
+            9102423.321143325,
+            8354491.055270068,
+            5329394.026233593,
+            11718501.980660688,
+            10670630.19562579,
+            7015070.729189024
+          ],
+          "magnets": [
+            10368000.0,
+            11606560.109248048,
+            8028727.327979666,
+            10740598.557358336,
+            12251724.802280053,
+            13469574.198723067,
+            14829786.972730242,
+            7967658.000571569,
+            14200496.276101978,
+            15771603.019179333,
+            14398971.468512228,
+            15477915.941795485,
+            17223474.53085269,
+            17678702.143574227,
+            17248557.637692027,
+            10611105.568091068,
+            19500204.863355085,
+            18796939.67849101,
+            14918870.978149509,
+            19532471.31418992,
+            20825741.961836256,
+            19712921.00602374,
+            21444011.859191213
+          ]
+        }
+      },
+      "inputs_sha256": {
+        "assumptions": "07f3c780219977090486fc42bb5d06c2c18c5f2978ee4b8e2072e891e30dc938",
+        "cases": {
+          "arrangement:no-port/breeder": {
+            "history_run": "fa3d5b3ff80d5eea10e63f7d78c76404bcfaf868c30ff6d5f02389ae4fd954c2",
+            "physics": "2423c11a6023ceb2f0571dc8d845e230a265575bd43050da299bd84d01088306",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "dba53d9691993cf561e0208d5a6cd7b9106c791c08d27bf3655f3826ac7a57fe"
+          },
+          "arrangement:no-port/reference": {
+            "history_run": "1b6baaa64d16318c4234c585b553a01f65832118c67ee43c72bc24529d909e1d",
+            "physics": "ec8da160544fd80e13f0afb9666da0b25825643247816ef275d47232528b773a",
+            "scenario": "99d2ee63187d396dd1b29cbe8c1609d619677903a3e3c2a77fdb6a2aceb499c6",
+            "spectrum_run": "7e0d230370dcc12a4b128e19aec065ac99e2b63484a6d6775ba2f9739ea804ce"
+          },
+          "arrangement:port/breeder": {
+            "history_run": "6ea51e180310b711cbdc61b781f8c0891c2960326aacaea461738d040e27d22f",
+            "physics": "30839ba03d140427de86d03573a31cd3e1084007c5e3864d0d48af07835be693",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "2db829f0c56d4c9f92cc5fb1ddb27d6834a800c1bdd58e3bda1fc526e61fefec"
+          },
+          "arrangement:port/reference": {
+            "history_run": "8bacb89ed36e4dc79c5e6754218c042f382a37166605aeee1374eb48871dc37d",
+            "physics": "1b311a34802171d61ab900805ad2d2713706cca731ef040aec0bad8a70be44df",
+            "scenario": "f89b486c423c6cde91cc637fdcc82632aee676fd5aa6ee2627e69b149f3aa4b5",
+            "spectrum_run": "d76f4544536b882231947e513cdd3acc274cfdb627492e220d1398f1db5f1fb5"
+          }
+        },
+        "config": "aec9fca0214d43f5cd7462f87d57f426c5239ec088466a7ffc05eed0ce81514b",
+        "impurities": null
+      },
+      "q_star": {
+        "blanket": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "blanket",
+            "start_s": 80830893.84020878
+          },
+          "heat": {
+            "q_star": 7867.088582766972,
+            "status": "EVALUATED",
+            "target_cooldown_s": 2592000.0
+          },
+          "q_star": 7867.088582766972,
+          "status": "EVALUATED"
+        },
+        "magnet": {
+          "dose": {
+            "reason": "first-wall has no contact gamma dose: its ACTINV specs have no photon response and run with heat-only outputs",
+            "status": "NOT_EVALUATED"
+          },
+          "event": {
+            "component": "magnets",
+            "start_s": 24270182.6636542
+          },
+          "heat": {
+            "q_star": 2330.1789632593564,
+            "status": "EVALUATED",
+            "target_cooldown_s": 5184000.0
+          },
+          "q_star": 2330.1789632593564,
+          "status": "EVALUATED"
+        }
+      },
+      "result_sha256": "b33f4051504f762aee17255c821768ac51c6f4a3794a27205903f01b3087fad4",
+      "status": "evaluated",
+      "variant": {
+        "changes": [
+          "every magnets service_limits limit x 1.2"
+        ],
+        "derived_files": {
+          "assumptions.json": "07f3c780219977090486fc42bb5d06c2c18c5f2978ee4b8e2072e891e30dc938"
+        },
+        "variant": "V5d"
+      }
+    }
+  }
+}

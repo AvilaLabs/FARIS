@@ -89,3 +89,52 @@ changes the downtime differences between designs by large factors (2 to 14 times
 Whether that changes which design wins depends on how long outages are: with short, ARC-like outages the no-port
 ranking changes, with long, EU-DEMO-like outages it does not. Settling it needs a realistic geometry with that plant's
 own maintenance durations, and the dose-governed check once ACTINV can give the blanket's dose.
+
+## Amendment 2 rerun of V1, 2026-10-07
+
+Protocol: Amendment 2 of `docs/notes/MAINTENANCE_COUPLING_VALIDATION.md` (`ef55f2b`). Record:
+`references/maintenance-coupling-validation-a2.json` (SHA-256
+`49e3cc52b45682909eede9da667f8e7d5b4c2c442ec6635913f905356a146a5a`), the evaluator's output over the recorded
+variants with V1's rerun in their place. The record above and its V1 entry are unchanged.
+
+**The labels do not change.** C1 and C2 stay FRAGILE, C3 and C4 stay INCOMPLETE. V1 is still NOT EVALUATED, now
+for a different reason: the dose works, but the dose-governed cooldown runs past the 365-day window.
+
+- **Binary check passed.** ACTINV built from `1b91e5f` (SHA-256 `2e921707…cb2c`) reproduced variant B exactly with a
+  fresh cache: worst relative difference 0. B's result SHA-256 is `48fb8826…3764`.
+- **The contact-dose proxy now exists for every governing component**, the FLiBe blanket included. Both dose
+  calibrations succeed: q* 49.64 for the blanket class (30-day target) and 10.36 for the magnet class (60-day target),
+  from the first replacement of each class in port/reference.
+- **The dose-governed cooldown grows with plant age until it leaves the window.** Cooldowns per event in V1, compared with
+  heat-governed B:
+
+  | Case | Events (dose, V1) | Same events (heat, B) |
+  | --- | --- | --- |
+  | no-port/reference, blanket | 99, 220, 308 d, then over 365 d at the 4th | 124, 142, 172, 183 d |
+  | no-port/breeder, blanket | 107, 231, 322 d, then over 365 d at the 4th | 97, 123, 146, 166 d |
+  | port/reference, magnets | 60, 149, 216, 261, 310, 342, 356 d, then over 365 d at the 8th | 60, 73, 81, 82, 96, 102, 75, 98 d |
+  | port/breeder, magnets | 13, 120, 197, 252, 295, 331, 362 d, then over 365 d at the 8th | 59, 72, 79, 87, 92, 101, 107, 113 d |
+
+  The rule refuses an event whose curve never falls below q*, so each case stops at its first such event. V1's result
+  SHA-256 is `adc59349…a809`.
+- **What keeps the dose up is the first wall, which is never replaced.** At 365 days after the failing events the
+  first wall's contact dose is far above q*: 975 against 49.64 at the 4th no-port/reference blanket replacement, and
+  559 against 10.36 at the 8th port/reference magnet replacement. The blanket's own dose by then is about 1e-22 (FLiBe's
+  activation is short-lived). Shield (0.87) and vessel (0.03) are below q*. The first wall's long-lived activity
+  accumulates with every year of operation, so a dose threshold fixed from the first outage becomes unreachable. The
+  heat-governed cooldown also grows with age, but much more slowly.
+
+**Why V1 is not evaluated:** under the frozen rule, hands-on contact dose from a component that stays in the machine
+sets the outage, and from about 8 to 10 years of plant time (the failing events start at 7.7 to 10.5 years) that dose does not fall to the first outage's level within a
+year. The dose-governed model therefore has no finite duration for later events, and the claims cannot be scored on it.
+
+**What this says about the plant, separately from the claims:** with these materials, outage length cannot be set by
+waiting for hands-on dose levels after the first few years. Later outages need remote handling or local shielding of
+the first wall, or the first wall has to be replaced with the blanket. That is in line with how fusion plant
+maintenance is planned, and it is a design input for FARIS, not a defect in the coupling.
+
+**Next step, if wanted:** any change to the dose rule now comes after this result, so it would be a new test with its
+own protocol, not a rescue of V1. Candidates are: (a) a first wall replaced with the blanket class; (b) a dose limit
+for remote-handled work instead of a hands-on one; (c) a longer cooling window; at 365 days the first wall is still 20 to 54
+times above q*, and how much longer it would need is not computed. Which plant assumption to test is Connor's call; (a) is the one the ARC-like geometry
+study would decide anyway, since it fixes which components come out together.
