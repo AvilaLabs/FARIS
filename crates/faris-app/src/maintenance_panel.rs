@@ -24,6 +24,7 @@ use faris_engine::{
 };
 use faris_model::maintenance::GoverningQuantity;
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
 };
@@ -319,10 +320,24 @@ fn availability_text(summary: &HistorySummary) -> String {
     format!("{:.2}", summary.availability * 100.0)
 }
 
+/// Whole number with thin-space thousands grouping (1 200 000).
+pub fn group_thousands(value: f64) -> String {
+    let digits = format!("{:.0}", value.abs());
+    let mut grouped = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            grouped.push('\u{2009}');
+        }
+        grouped.push(c);
+    }
+    if value < 0.0 && digits != "0" {
+        grouped.insert(0, '-');
+    }
+    grouped
+}
+
 fn net_text(summary: &HistorySummary) -> Option<String> {
-    summary
-        .lifetime_net_electricity_mwh
-        .map(|v| format!("{v:.0}"))
+    summary.lifetime_net_electricity_mwh.map(group_thousands)
 }
 
 /// Everything known about one event, for hover and the iteration list.
@@ -410,6 +425,24 @@ fn body(ui: &mut egui::Ui, loaded: &Loaded, selected: &mut Option<String>) {
     contrast_table(ui, &result.contrasts);
 }
 
+/// Each class's threshold record in every design that has one.
+fn class_thresholds(result: &MaintenanceResult) -> Vec<(String, Vec<(&str, &ThresholdRecord)>)> {
+    let mut classes: BTreeMap<String, Vec<(&str, &ThresholdRecord)>> = BTreeMap::new();
+    for (name, design) in &result.designs {
+        for (class, record) in &design.thresholds {
+            classes
+                .entry(class.clone())
+                .or_default()
+                .push((name.as_str(), record));
+        }
+    }
+    classes.into_iter().collect()
+}
+
+fn thresholds_differ(records: &[(&str, &ThresholdRecord)]) -> bool {
+    records.iter().any(|(_, r)| *r != records[0].1)
+}
+
 fn header(ui: &mut egui::Ui, loaded: &Loaded) {
     let result = &loaded.result;
     ui.horizontal_wrapped(|ui| {
@@ -424,45 +457,55 @@ fn header(ui: &mut egui::Ui, loaded: &Loaded) {
         .striped(true)
         .spacing([14.0, 3.0])
         .show(ui, |ui| {
-            for caption in [
-                "Design",
-                "Class",
-                "Replaced",
-                "Work",
-                "Threshold q*",
-                "Source",
-            ] {
+            for caption in ["Class", "Replaced", "Work", "Threshold q*", "Source", ""] {
                 ui.strong(caption);
             }
             ui.end_row();
-            for (name, design) in &result.designs {
-                for (class, record) in &design.thresholds {
-                    ui.label(name);
-                    ui.label(class);
-                    let spec = result.assumptions.classes.get(class);
-                    ui.label(spec.map_or("\u{2014}".into(), |c| c.component_id.clone()))
-                        .on_hover_text(spec.map_or(String::new(), |c| {
-                            format!("Governing components: {}", c.governing.join(", "))
-                        }));
-                    ui.label(
-                        spec.map_or("\u{2014}".into(), |c| format!("{:.1} d", days(c.work_s))),
-                    );
-                    match (
-                        &record.status,
-                        record.q_star_w_per_m3,
-                        &record.not_evaluated,
-                    ) {
-                        (Status::Evaluated, Some(q), _) => {
-                            ui.monospace(format!("{q:.3e} W/m\u{b3}"));
-                        }
-                        (_, _, Some(ne)) => ne_label(ui, ne),
-                        _ => {
-                            ui.weak("\u{2014}");
-                        }
+            for (class, records) in class_thresholds(result) {
+                let record = records[0].1;
+                ui.label(&class);
+                let spec = result.assumptions.classes.get(&class);
+                ui.label(spec.map_or("\u{2014}".into(), |c| c.component_id.clone()))
+                    .on_hover_text(spec.map_or(String::new(), |c| {
+                        format!("Governing components: {}", c.governing.join(", "))
+                    }));
+                ui.label(spec.map_or("\u{2014}".into(), |c| format!("{:.1} d", days(c.work_s))));
+                match (
+                    &record.status,
+                    record.q_star_w_per_m3,
+                    &record.not_evaluated,
+                ) {
+                    (Status::Evaluated, Some(q), _) => {
+                        ui.monospace(format!("{q:.3e} W/m\u{b3}"));
                     }
-                    ui.label(threshold_source(record));
-                    ui.end_row();
+                    (_, _, Some(ne)) => ne_label(ui, ne),
+                    _ => {
+                        ui.weak("\u{2014}");
+                    }
                 }
+                ui.label(threshold_source(record));
+                if thresholds_differ(&records) {
+                    let detail = records
+                        .iter()
+                        .map(|(design, r)| {
+                            format!(
+                                "{design}: {}",
+                                r.q_star_w_per_m3
+                                    .map_or("not evaluated".into(), |q| format!("{q:.3e} W/m\u{b3}"))
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    badge::badge(
+                        ui,
+                        Kind::Partial,
+                        "designs differ",
+                        &format!(
+                            "The designs carry different thresholds for this class; a real result uses one threshold per class, so check the file. The first design's record is shown.\n{detail}"
+                        ),
+                    );
+                }
+                ui.end_row();
             }
         });
     egui::CollapsingHeader::new("Input hashes (SHA-256)")
@@ -994,7 +1037,6 @@ mod tests {
         CoolingGrid, MAINTENANCE_ASSUMPTIONS_VERSION, MaintenanceAssumptions, MaintenanceClass,
         Threshold,
     };
-    use std::collections::BTreeMap;
 
     const Y: f64 = JULIAN_YEAR_SECONDS;
 
@@ -1010,15 +1052,18 @@ mod tests {
                     class: "blanket".into(),
                     component: "blanket".into(),
                     k,
-                    start_s: f64::from(k) * 2.0 * Y,
-                    end_s: Some(f64::from(k) * 2.0 * Y + 30.0 * DAY_S),
+                    start_s: f64::from(k) * 3.5 * Y,
+                    end_s: Some(f64::from(k) * 3.5 * Y + 30.0 * DAY_S),
                 })
                 .collect(),
         }
     }
 
     fn event(k: u32, computed_d: Option<f64>, window_limited: bool) -> EventRecord {
-        let start = f64::from(k) * 2.0 * Y;
+        let start = f64::from(k) * 3.5 * Y;
+        // The first wall is never replaced, so it has been in service since the start; the
+        // blanket has run one interval (or since the start, at the first replacement).
+        let first_wall_share = 0.60 + 0.11 * f64::from(k);
         EventRecord {
             class: "blanket".into(),
             component: "blanket".into(),
@@ -1036,13 +1081,13 @@ mod tests {
                 governing: vec![
                     GoverningShare {
                         component: "blanket".into(),
-                        share: 0.18,
-                        in_service_s: 2.1 * Y,
+                        share: 1.0 - first_wall_share,
+                        in_service_s: 3.5 * Y,
                     },
                     GoverningShare {
                         component: "first-wall".into(),
-                        share: 0.82,
-                        in_service_s: 7.7 * Y,
+                        share: first_wall_share,
+                        in_service_s: start,
                     },
                 ],
                 curve_start_s: 3600.0,
@@ -1088,7 +1133,7 @@ mod tests {
             computed: ComputedResult {
                 status: Status::Evaluated,
                 not_evaluated: None,
-                summary: Some(summary(210.0, 30.0, None)),
+                summary: Some(summary(210.0, 30.0, Some(1.05e6))),
                 converged_at_iteration: Some(2),
                 iterations: vec![
                     iteration(
@@ -1104,7 +1149,7 @@ mod tests {
                         vec![
                             event(1, Some(36.0), false),
                             event(2, Some(58.0), false),
-                            event(3, Some(96.0), true),
+                            event(3, Some(96.0), false),
                         ],
                     ),
                 ],
@@ -1126,7 +1171,7 @@ mod tests {
                     vec![event(1, Some(40.0), false), event(2, None, false)],
                 )],
             },
-            thresholds: BTreeMap::from([("blanket".into(), threshold("explicit"))]),
+            thresholds: BTreeMap::from([("blanket".into(), threshold("calibrated"))]),
         };
         MaintenanceResult {
             schema_version: MAINTENANCE_RESULT_VERSION.into(),
@@ -1213,11 +1258,25 @@ mod tests {
     #[test]
     fn why_lists_components_by_share_with_years_in_service() {
         let result = fixture();
-        let event = &final_events(&result.designs["X"])[0];
+        let events = final_events(&result.designs["X"]);
         assert_eq!(
-            why_text(event.why.as_ref().unwrap()),
-            "first-wall 82 % (7.7 y in service), blanket 18 % (2.1 y in service)"
+            why_text(events[1].why.as_ref().unwrap()),
+            "first-wall 82 % (7.0 y in service), blanket 18 % (3.5 y in service)"
         );
+        // The first wall's share and years in service grow from event to event.
+        let first_wall = |i: usize| {
+            events[i]
+                .why
+                .as_ref()
+                .unwrap()
+                .governing
+                .iter()
+                .find(|g| g.component == "first-wall")
+                .map(|g| (g.share, g.in_service_s))
+                .unwrap()
+        };
+        assert!(first_wall(0).0 < first_wall(1).0 && first_wall(1).0 < first_wall(2).0);
+        assert!(first_wall(0).1 < first_wall(1).1 && first_wall(1).1 < first_wall(2).1);
     }
 
     #[test]
@@ -1238,11 +1297,54 @@ mod tests {
     #[test]
     fn event_detail_flags_window_limited_cooldowns() {
         let result = fixture();
-        let detail = event_detail(&final_events(&result.designs["X"])[2]);
+        let first = &result.designs["X"].computed.iterations[0];
+        let detail = event_detail(&first.events[2]);
         assert!(
             detail.contains("Window-limited") && detail.contains("cooldown"),
             "{detail}"
         );
+    }
+
+    #[test]
+    fn an_evaluated_fixture_has_no_window_limited_final_event_and_equal_thresholds() {
+        let result = fixture();
+        let x = &result.designs["X"];
+        assert!(final_events(x).iter().all(|e| !e.window_limited));
+        assert!(
+            x.computed.iterations[0]
+                .events
+                .iter()
+                .any(|e| e.window_limited)
+        );
+        assert!(
+            x.computed
+                .summary
+                .as_ref()
+                .unwrap()
+                .lifetime_net_electricity_mwh
+                .is_some()
+        );
+        let classes = class_thresholds(&result);
+        assert_eq!(classes.len(), 1);
+        assert!(!thresholds_differ(&classes[0].1));
+        let mut other = result.clone();
+        other
+            .designs
+            .get_mut("Y")
+            .unwrap()
+            .thresholds
+            .get_mut("blanket")
+            .unwrap()
+            .q_star_w_per_m3 = Some(9.0);
+        assert!(thresholds_differ(&class_thresholds(&other)[0].1));
+    }
+
+    #[test]
+    fn large_numbers_group_in_thousands() {
+        assert_eq!(group_thousands(1_200_000.0), "1\u{2009}200\u{2009}000");
+        assert_eq!(group_thousands(999.4), "999");
+        assert_eq!(group_thousands(-12_345.0), "-12\u{2009}345");
+        assert_eq!(group_thousands(0.0), "0");
     }
 
     #[test]
