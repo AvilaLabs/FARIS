@@ -36,7 +36,12 @@ FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
 SCHEMA = "faris-recorded-demo-package/v0.5"
 PARTS = ("app", "evidence")
 APP_ROOT_FILES = {"README.md", "SOURCE_PROVENANCE.md"}
-APP_ROOT_DIRECTORIES = ("bin/", "licenses/")
+APP_ROOT_DIRECTORIES = ("bin/", "licenses/", "tools/", "maintenance/")
+MAINTENANCE_RESULT = "maintenance/maintenance-result.json"
+MAINTENANCE_ASSUMPTIONS = "maintenance/maintenance-assumptions.json"
+MAINTENANCE_HISTORY_ASSUMPTIONS = "maintenance/operating-assumptions.json"
+MAINTENANCE_RESULT_SCHEMA = "faris-maintenance-result/v0.1"
+MAINTENANCE_BUILDER = "tools/build_activation_inputs.py"
 LAUNCH_PATHS = ("port/bundles/reference.transport-bundle.json",
                 "port/bundles/breeder-emphasis.transport-bundle.json",
                 "control/scenario.json",
@@ -64,7 +69,66 @@ def launch_paths(index: dict[str, Any]) -> set[str]:
         for run in sweep.get("runs") or []:
             if isinstance(run, dict) and isinstance(run.get("transport_bundle"), str):
                 paths.add(run["transport_bundle"])
+    maintenance = index.get("maintenance")
+    if isinstance(maintenance, dict) and isinstance(maintenance.get("result"), str):
+        paths.add(maintenance["result"])
     return paths
+
+
+def check_maintenance_record(result: Any, assumptions_sha: str, history_sha: str) -> str | None:
+    """The cross-checks between a recorded maintenance result and the two assumptions files
+    packaged beside it. Returns the producing FARIS version recorded in the result, if any."""
+    if not isinstance(result, dict) or result.get("schema_version") != MAINTENANCE_RESULT_SCHEMA:
+        raise ValueError(f"maintenance result schema is not {MAINTENANCE_RESULT_SCHEMA}")
+    inputs = result.get("inputs")
+    if not isinstance(inputs, dict):
+        raise ValueError("maintenance result records no input hashes")
+    if bare_sha256(inputs.get("assumptions"), "maintenance result assumptions") != assumptions_sha:
+        raise ValueError("maintenance result assumptions hash differs from the packaged maintenance assumptions")
+    history_keys = [key for key in inputs if key.startswith("design/") and key.endswith("/history_assumptions")]
+    if not history_keys:
+        raise ValueError("maintenance result records no per-design history assumptions hash")
+    if history_keys != [f"design/{name}/history_assumptions" for name in sorted(result.get("designs") or {})]:
+        raise ValueError("maintenance result history assumptions hashes do not match its designs")
+    for key in history_keys:
+        if bare_sha256(inputs[key], f"maintenance result {key}") != history_sha:
+            raise ValueError(f"maintenance result {key} differs from the packaged operating assumptions")
+    designs = result.get("designs")
+    if not isinstance(designs, dict) or not designs:
+        raise ValueError("maintenance result lists no designs")
+    for design in designs.values():
+        computed = design.get("computed") if isinstance(design, dict) else None
+        if not isinstance(computed, dict) or computed.get("status") != "EVALUATED":
+            raise ValueError("maintenance result has a design that is not EVALUATED")
+    produced = result.get("produced_by")
+    if produced is None:
+        return None
+    version = produced.get("faris_version") if isinstance(produced, dict) else None
+    if not isinstance(version, str):
+        raise ValueError("maintenance result produced_by is malformed")
+    return version
+
+
+def verify_maintenance(root: Path, index: dict[str, Any], inventory: dict[str, dict[str, Any]]) -> bool:
+    """Check the packaged maintenance record when the index declares one."""
+    record = index.get("maintenance")
+    if record is None:
+        if any(path.startswith("maintenance/") for path in inventory):
+            raise ValueError("package has maintenance files but its index declares no maintenance record")
+        return False
+    if not isinstance(record, dict) or record.get("result") != MAINTENANCE_RESULT:
+        raise ValueError("package maintenance record is malformed")
+    for path in (MAINTENANCE_RESULT, MAINTENANCE_ASSUMPTIONS, MAINTENANCE_HISTORY_ASSUMPTIONS, MAINTENANCE_BUILDER):
+        if path not in inventory or inventory[path].get("part") != "app":
+            raise ValueError(f"package maintenance file is missing from the app part: {path}")
+    result = json.loads(safe_package_path(root, MAINTENANCE_RESULT).read_text(encoding="utf-8"))
+    version = check_maintenance_record(
+        result,
+        bare_sha256(inventory[MAINTENANCE_ASSUMPTIONS]["sha256"], MAINTENANCE_ASSUMPTIONS),
+        bare_sha256(inventory[MAINTENANCE_HISTORY_ASSUMPTIONS]["sha256"], MAINTENANCE_HISTORY_ASSUMPTIONS))
+    if record.get("faris_version") != version:
+        raise ValueError("package maintenance record names a different FARIS version than the result")
+    return True
 
 
 def part_for(relative: str, launched: set[str]) -> str:
@@ -850,9 +914,10 @@ def evidence_programs(index: dict[str, Any]) -> str:
 
 
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
-    index, _ = verify_index(package, faris, core)
+    index, inventory = verify_index(package, faris, core)
     verify_outage_duration_study(package.resolve(strict=True), index)
     sweep_count = verify_sweep(package.resolve(strict=True), index)
+    maintenance_recorded = verify_maintenance(package.resolve(strict=True), index, inventory)
     expanded = int(index["expanded_case_workspace_bytes"])
     directory_count = int(index["expanded_case_workspace_directory_count"])
     largest_case = max(int(item["case_archive"]["expanded_bytes"])
@@ -869,6 +934,7 @@ def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     return {"package_index_sha256": digest(package / INDEX), "indexed_file_count": len(index["files"]),
             "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
             "verified_sweep_bundle_count": sweep_count,
+            "maintenance_result_recorded": maintenance_recorded,
             "expanded_case_workspace_bytes": expanded,
             "evidence_programs": evidence_programs(index),
             "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED"}

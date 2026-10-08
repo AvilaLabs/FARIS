@@ -33,6 +33,8 @@ const MAX_EXPANDED_BYTES: u64 = 1536 * 1024 * 1024;
 const MAX_EXPANDED_MEMBERS: u64 = 8192;
 const MAX_EXPANDED_DIRECTORIES: u64 = 8192;
 const SWEEP_BUNDLE_DIRECTORY: &str = "sweep/bundles";
+/// The recorded maintenance result an app-part package may carry.
+const MAINTENANCE_RESULT: &str = "maintenance/maintenance-result.json";
 const MARKER_SCHEMA: &str = "faris-recorded-materialization/v0.1";
 /// The four saved studies the Evidence step reopens, in the order shown.
 const SAVED_STUDIES: [(&str, &str); 4] = [
@@ -168,6 +170,33 @@ pub enum Evidence {
     },
 }
 
+/// A recorded maintenance result in the package's app part and the SHA-256 its index records.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecordedMaintenance {
+    pub path: PathBuf,
+    /// `sha256:<hex>`, as in the index.
+    pub sha256: String,
+}
+
+/// The bytes of `path` when they have the SHA-256 `expected` (`sha256:<hex>`); refuses any
+/// other content, so a file changed after launch is never loaded.
+pub fn read_verified(path: &Path, expected: &str) -> Result<Vec<u8>, String> {
+    let name = path.display();
+    let size = std::fs::metadata(path)
+        .map_err(|e| format!("{name} cannot be read: {e}"))?
+        .len();
+    if size > MAX_FILE_BYTES {
+        return Err(format!("{name} is larger than the package file limit"));
+    }
+    let bytes = std::fs::read(path).map_err(|e| format!("{name} cannot be read: {e}"))?;
+    if format!("sha256:{:x}", Sha256::digest(&bytes)) != expected {
+        return Err(format!(
+            "{name} differs from the package index in SHA-256; download the package again"
+        ));
+    }
+    Ok(bytes)
+}
+
 /// A package that passed its checks, ready to load.
 pub struct Opened {
     pub root: PathBuf,
@@ -182,6 +211,8 @@ pub struct Opened {
     /// `--package` was given and the running app is not the one the index pins.
     pub development_binary: bool,
     pub expanded_bytes: u64,
+    /// The recorded maintenance result, if the package's app part carries one.
+    pub maintenance_result: Option<RecordedMaintenance>,
     trees: Vec<TreeJob>,
 }
 
@@ -472,6 +503,13 @@ fn open_for(
         .ok_or_else(|| fail("the package index names no FARIS app executable"))?;
     in_app(app_relative)?;
 
+    let maintenance_result = match app.get(MAINTENANCE_RESULT) {
+        Some(entry) => Some(RecordedMaintenance {
+            path: in_app(MAINTENANCE_RESULT)?,
+            sha256: entry.sha256.clone(),
+        }),
+        None => None,
+    };
     let trees = tree_jobs(&index)?;
     let evidence = {
         let total = evidence_files.len();
@@ -521,6 +559,7 @@ fn open_for(
         evidence,
         development_binary,
         expanded_bytes: index.expanded_case_workspace_bytes,
+        maintenance_result,
         trees,
         root,
     })
@@ -969,6 +1008,20 @@ mod tests {
             )
         }
 
+        /// Adds a recorded maintenance result to the app part and the index.
+        fn add_recorded_maintenance(&self, bytes: &[u8]) {
+            let path = self.root().join(MAINTENANCE_RESULT);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, bytes).unwrap();
+            let mut index: Value =
+                serde_json::from_slice(&std::fs::read(self.root().join(INDEX)).unwrap()).unwrap();
+            index["files"].as_array_mut().unwrap().push(json!({
+                "path": MAINTENANCE_RESULT, "bytes": bytes.len(), "sha256": sha(bytes),
+                "part": "app",
+            }));
+            self.write_index(&index);
+        }
+
         fn evidence_files(&self) -> Vec<PathBuf> {
             let mut found = Vec::new();
             for dir in ["port/archives", "control/archives"] {
@@ -1015,6 +1068,36 @@ mod tests {
         assert!(!opened.development_binary);
         assert!(!opened.runs_directory.starts_with(&root));
         assert_eq!(opened.trees.len(), 8);
+    }
+
+    #[test]
+    fn a_recorded_maintenance_result_is_found_and_hash_checked() {
+        let plain = Fixture::new().open().unwrap();
+        assert_eq!(plain.maintenance_result, None);
+
+        let fixture = Fixture::new();
+        fixture.add_recorded_maintenance(b"{\"recorded\": true}");
+        let recorded = fixture.open().unwrap().maintenance_result.unwrap();
+        assert_eq!(
+            recorded.path,
+            fixture
+                .root()
+                .canonicalize()
+                .unwrap()
+                .join(MAINTENANCE_RESULT)
+        );
+        assert_eq!(recorded.sha256, sha(b"{\"recorded\": true}"));
+        assert_eq!(
+            read_verified(&recorded.path, &recorded.sha256).unwrap(),
+            b"{\"recorded\": true}"
+        );
+        // Changed after launch: refused, never loaded.
+        std::fs::write(&recorded.path, b"{\"recorded\": false}").unwrap();
+        let error = read_verified(&recorded.path, &recorded.sha256).unwrap_err();
+        assert!(error.contains("differs from the package index"), "{error}");
+        // A changed file also fails the launch checks of the app part.
+        let error = fixture.open().err().unwrap();
+        assert!(error.contains("maintenance-result.json differs"), "{error}");
     }
 
     #[test]

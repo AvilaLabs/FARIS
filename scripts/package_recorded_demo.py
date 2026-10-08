@@ -28,7 +28,9 @@ if SCRIPT_DIR not in sys.path:
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bundle,
                                       check_sweep_set, SWEEP_BUNDLE_DIRECTORY)
-from verify_recorded_demo import launch_paths, part_for, rust_platform
+from verify_recorded_demo import (launch_paths, part_for, rust_platform, check_maintenance_record,
+                                  MAINTENANCE_RESULT, MAINTENANCE_ASSUMPTIONS,
+                                  MAINTENANCE_HISTORY_ASSUMPTIONS, MAINTENANCE_BUILDER)
 from recorded_archives import (create_archive, MAX_PATH_COMPONENTS,
                                MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES)
 
@@ -607,7 +609,7 @@ def assign_parts(records: list[dict], index_fields: dict) -> dict:
     for relative in sorted(launched):
         if relative not in by_path or by_path[relative]["part"] != "app":
             raise RuntimeError(f"app launch path is not in the app part: {relative}")
-    for relative in ("bin/faris-app", "bin/avila-core"):
+    for relative in ("bin/faris-app", "bin/avila-core", MAINTENANCE_BUILDER):
         if by_path.get(relative, {}).get("part") != "app":
             raise RuntimeError(f"app executable is not in the app part: {relative}")
     totals = {}
@@ -615,6 +617,34 @@ def assign_parts(records: list[dict], index_fields: dict) -> dict:
         members = [record for record in records if record["part"] == part]
         totals[part] = {"file_count": len(members), "bytes": sum(item["bytes"] for item in members)}
     return totals
+
+
+def check_maintenance_inputs(result_path: Path, assumptions_path: Path,
+                             history_assumptions_path: Path) -> str | None:
+    """Refuse a maintenance result that does not match the two assumptions files packaged
+    with it; returns the FARIS version that produced it, if the result records one."""
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        return check_maintenance_record(result, sha256(assumptions_path).removeprefix("sha256:"),
+                                        sha256(history_assumptions_path).removeprefix("sha256:"))
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"invalid maintenance input: {error}") from error
+
+
+def install_maintenance(staging: Path, result_path: Path | None, assumptions_path: Path | None,
+                        history_assumptions_path: Path | None, faris_version: str | None) -> dict | None:
+    """The builder for users with their own runs, always; the recorded maintenance result and
+    its two assumptions files when given. Returns the index's `maintenance` record."""
+    builder = staging / MAINTENANCE_BUILDER
+    builder.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve().parent / "build_activation_inputs.py", builder)
+    if result_path is None:
+        return None
+    (staging / "maintenance").mkdir()
+    shutil.copyfile(result_path, staging / MAINTENANCE_RESULT)
+    shutil.copyfile(assumptions_path, staging / MAINTENANCE_ASSUMPTIONS)
+    shutil.copyfile(history_assumptions_path, staging / MAINTENANCE_HISTORY_ASSUMPTIONS)
+    return {"result": MAINTENANCE_RESULT, "faris_version": faris_version}
 
 
 def prune_empty_directories(root: Path) -> None:
@@ -1212,6 +1242,12 @@ def main() -> None:
                         help="additional bounded campaign audit report to retain under support/campaigns")
     parser.add_argument("--sweep-bundle", action="append", default=[], type=Path, metavar="PATH",
                         help="portable allocation-sweep RecordedTransportBundle (from `faris transport pack`); repeatable")
+    parser.add_argument("--maintenance-result", type=Path, metavar="FILE",
+                        help="recorded faris-maintenance-result/v0.1 to package (with the two assumptions files)")
+    parser.add_argument("--maintenance-assumptions", type=Path, metavar="FILE",
+                        help="the maintenance assumptions the result was computed with")
+    parser.add_argument("--maintenance-history-assumptions", type=Path, metavar="FILE",
+                        help="the operating-history assumptions the result was computed with")
     parser.add_argument("--version", required=True,
                         help="release version; names the evidence archive FARIS-<version>-evidence.tar.gz")
     parser.add_argument("--output", required=True, type=Path)
@@ -1223,6 +1259,17 @@ def main() -> None:
              args.port_breeder_run, args.port_reference_volume_report,
              args.port_breeder_volume_report, args.assumptions,
              args.event_assumptions, args.sensitivity_grid]
+    maintenance_files = [args.maintenance_result, args.maintenance_assumptions,
+                         args.maintenance_history_assumptions]
+    maintenance_version = None
+    if any(path is not None for path in maintenance_files):
+        if any(path is None for path in maintenance_files):
+            raise SystemExit("--maintenance-result, --maintenance-assumptions and "
+                             "--maintenance-history-assumptions must be given together")
+        for path in maintenance_files:
+            if not path.is_file() or path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+                raise SystemExit(f"maintenance input is missing or oversized: {path}")
+        maintenance_version = check_maintenance_inputs(*maintenance_files)
     support_reports = []
     for item in args.support_report:
         label, separator, raw_path = item.partition("=")
@@ -1342,10 +1389,14 @@ def main() -> None:
         outage_summary_path = staging / "references" / "outage-duration-sensitivity-summary.json"
         write_bounded_json(outage_summary_path, outage_summary)
         sweep_manifest = add_sweep(staging, [path.resolve() for path in args.sweep_bundle])
+        maintenance_manifest = install_maintenance(
+            staging, args.maintenance_result, args.maintenance_assumptions,
+            args.maintenance_history_assumptions, maintenance_version)
         write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version)
         prune_empty_directories(staging)
         indexed_files = scan_package(staging)
-        part_totals = assign_parts(indexed_files, {"sweep": sweep_manifest})
+        part_totals = assign_parts(
+            indexed_files, {"sweep": sweep_manifest, "maintenance": maintenance_manifest})
         part_totals["evidence"]["archive_name"] = evidence_archive_name(args.version)
         expanded_total = sum(
             int(arrangement[key]["expanded_bytes"])
@@ -1418,6 +1469,7 @@ def main() -> None:
             "archive_path_component_count_cap": MAX_PATH_COMPONENTS,
             "scenario_pairs": branches,
             "sweep": sweep_manifest,
+            **({"maintenance": maintenance_manifest} if maintenance_manifest else {}),
             "files": indexed_files,
             "index_digest_scope": "package-index.json and package-index.sha256 are excluded from files to avoid a self-referential digest.",
             "external_requirements": [

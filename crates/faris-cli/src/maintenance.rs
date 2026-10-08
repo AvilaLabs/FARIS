@@ -8,7 +8,7 @@ use faris_engine::{
     maintenance::{
         ComputedResult, Contrast, DesignResult, EventRecord, HistorySummary,
         MAINTENANCE_RESULT_VERSION, MaintenanceResult, Status,
-        files::{RunConfig, run_from_files},
+        files::{BUILDER_NOT_FOUND, RunConfig, default_builder, run_from_files},
     },
 };
 #[cfg(test)]
@@ -75,12 +75,11 @@ pub enum MaintenanceCommand {
         /// Interpreter that runs the activation-input builder.
         #[arg(long, default_value = "python3")]
         python: PathBuf,
-        /// The activation-input builder script.
-        #[arg(
-            long,
-            default_value = concat!(env!("CARGO_MANIFEST_DIR"), "/../../scripts/build_activation_inputs.py")
-        )]
-        builder: PathBuf,
+        /// The activation-input builder script [default: tools/build_activation_inputs.py
+        /// beside the folder that holds this program (a downloaded package); otherwise the
+        /// script in the source repository this program was built from].
+        #[arg(long)]
+        builder: Option<PathBuf>,
     },
     /// Print a maintenance result: downtime, availability and electricity under both models,
     /// every replacement with its governing component, and the differences between designs.
@@ -141,13 +140,17 @@ struct RunRequest {
     workers: usize,
     impurities: Option<PathBuf>,
     python: PathBuf,
-    builder: PathBuf,
+    builder: Option<PathBuf>,
 }
 
 fn run_designs(request: RunRequest) -> Result<(), Box<dyn std::error::Error>> {
     if request.output.exists() {
         return Err(format!("refusing to overwrite {}", request.output.display()).into());
     }
+    let builder = request
+        .builder
+        .or_else(default_builder)
+        .ok_or(BUILDER_NOT_FOUND)?;
     let work_dir = request
         .work_dir
         .unwrap_or_else(|| append_suffix(&request.output, ".work"));
@@ -161,7 +164,7 @@ fn run_designs(request: RunRequest) -> Result<(), Box<dyn std::error::Error>> {
         workers: request.workers,
         impurities: request.impurities,
         python: request.python,
-        builder: request.builder,
+        builder,
     };
     let interrupts = crate::control::interrupt_cancellation()?;
     #[cfg(unix)]
@@ -276,6 +279,10 @@ fn markdown(result: &MaintenanceResult) -> String {
             "Decay source: {} ({} ACTINV runs, {} cached curves).\n",
             source.kind, source.actinv_runs, source.cache_hits
         );
+    }
+
+    if let Some(produced) = &result.produced_by {
+        let _ = writeln!(out, "Produced by FARIS {}.\n", produced.faris_version);
     }
 
     let _ = writeln!(out, "## Per design\n");

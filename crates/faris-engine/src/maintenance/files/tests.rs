@@ -164,6 +164,12 @@ fn run_from_files_runs_the_real_wiring_end_to_end() {
         result.inputs["designs"],
         sha256_file(&t.path("designs.json")).unwrap()
     );
+    assert_eq!(
+        result.produced_by,
+        Some(ProducedBy {
+            faris_version: env!("CARGO_PKG_VERSION").into()
+        })
+    );
     let source = result.decay_source.as_ref().unwrap();
     assert_eq!(source.kind, "actinv-continuations");
     assert!(source.actinv_runs > 0);
@@ -250,4 +256,52 @@ fn progress_lines_match_what_the_cli_prints() {
         at(Some("ref"), 2, "running").line(),
         "ref: iteration 2: running"
     );
+}
+
+#[test]
+fn produced_by_round_trips_and_old_results_still_load() {
+    let t = tree();
+    let (progress, _) = collector();
+    let result =
+        run_from_files_with(&t.config(), &rates, &Cancellation::default(), progress).unwrap();
+    let text = serde_json::to_string(&result).unwrap();
+    assert!(text.contains("\"produced_by\":{\"faris_version\""));
+    let back: MaintenanceResult = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, result);
+    // A result written before 0.2.0 has no such field.
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    value.as_object_mut().unwrap().remove("produced_by");
+    let old: MaintenanceResult = serde_json::from_value(value).unwrap();
+    assert_eq!(old.produced_by, None);
+    assert!(!serde_json::to_string(&old).unwrap().contains("produced_by"));
+}
+
+#[test]
+fn the_builder_is_found_beside_the_program_then_in_the_repository() {
+    let dir = tempfile::tempdir().unwrap();
+    let bin = dir.path().join("pkg/bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let repository = dir.path().join("repo-builder.py");
+    // Neither exists.
+    assert_eq!(builder_search(Some(&bin), &repository), None);
+    assert_eq!(builder_search(None, &repository), None);
+    // Only the repository script.
+    std::fs::write(&repository, "#").unwrap();
+    assert_eq!(
+        builder_search(Some(&bin), &repository),
+        Some(repository.clone())
+    );
+    assert_eq!(builder_search(None, &repository), Some(repository.clone()));
+    // The package's tools folder wins.
+    std::fs::create_dir_all(dir.path().join("pkg/tools")).unwrap();
+    std::fs::write(dir.path().join("pkg/tools/build_activation_inputs.py"), "#").unwrap();
+    let found = builder_search(Some(&bin), &repository).unwrap();
+    assert_eq!(
+        found.canonicalize().unwrap(),
+        dir.path()
+            .join("pkg/tools/build_activation_inputs.py")
+            .canonicalize()
+            .unwrap()
+    );
+    assert!(BUILDER_NOT_FOUND.contains("activation-input builder not found"));
 }

@@ -3,7 +3,7 @@
 //! [`run_from_files`]; the module does its own bounded reads and no printing.
 
 use super::actinv::{ActinvDecaySource, ActinvSourceConfig, DesignFiles, SourceCounters};
-use super::{DecaySourceRecord, DesignInput, MaintenanceResult, run_maintenance};
+use super::{DecaySourceRecord, DesignInput, MaintenanceResult, ProducedBy, run_maintenance};
 use crate::history::{HistoryResult, TransportDrivingRates, run_operating_history_cancellable};
 use crate::jobs::Cancellation;
 use crate::reactor::load_reactor_run;
@@ -22,6 +22,40 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 pub const DESIGNS_VERSION: &str = "faris-maintenance-designs/v0.1";
+
+// ------------------------------------------------------------------ builder --
+
+/// File name of the activation-input builder script.
+const BUILDER_FILE: &str = "build_activation_inputs.py";
+
+/// What is reported when no builder script is found, and the next step.
+pub const BUILDER_NOT_FOUND: &str = "activation-input builder not found. Next step: pass --builder \
+    (or set the builder under Advanced) with the path of build_activation_inputs.py.";
+
+/// The default builder script: `tools/build_activation_inputs.py` beside the running program's
+/// folder (a downloaded package keeps programs in `bin/` and the script in `tools/`), otherwise
+/// the script in the source repository this program was built from.
+pub fn default_builder() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../scripts")
+        .join(BUILDER_FILE);
+    builder_search(exe_dir.as_deref(), &repository)
+}
+
+/// [`default_builder`] with the program's folder and the repository script supplied.
+pub fn builder_search(exe_dir: Option<&Path>, repository_script: &Path) -> Option<PathBuf> {
+    exe_dir
+        .map(|dir| dir.join("..").join("tools").join(BUILDER_FILE))
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            repository_script
+                .is_file()
+                .then(|| repository_script.to_path_buf())
+        })
+}
 
 // ------------------------------------------------------------------ designs --
 
@@ -361,6 +395,9 @@ pub fn run_from_files_with(
     )?;
     let (actinv_runs, cache_hits) = source.stats();
     result.inputs = inputs;
+    result.produced_by = Some(ProducedBy {
+        faris_version: env!("CARGO_PKG_VERSION").into(),
+    });
     result.decay_source = Some(DecaySourceRecord {
         kind: "actinv-continuations".into(),
         actinv_runs,

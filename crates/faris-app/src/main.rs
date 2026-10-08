@@ -268,6 +268,8 @@ struct PackageSession {
     failure: Option<study_file::EvidenceBadge>,
     development_binary: Option<study_file::EvidenceBadge>,
     evidence: Option<study_file::EvidenceBadge>,
+    /// The recorded maintenance result the package carries, if any.
+    maintenance_result: Option<package::RecordedMaintenance>,
     _materializer: Option<package::Materializer>,
 }
 
@@ -408,6 +410,7 @@ fn open_package(args: &mut Arguments) -> Option<PackageSession> {
     if opened.development_binary {
         session.development_binary = Some(package::development_binary_message());
     }
+    session.maintenance_result = opened.maintenance_result;
     args.core.get_or_insert(opened.core);
     args.bundle = opened.bundles;
     args.control_scenario = Some(opened.control_scenario);
@@ -561,6 +564,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(session) = package_session {
                 if let Some(failure) = &session.failure {
                     app.message = failure.text.clone();
+                }
+                if let Some(recorded) = session.maintenance_result.clone() {
+                    app.maintenance.set_recorded(recorded);
                 }
                 app.package = Some(session);
             }

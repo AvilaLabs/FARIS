@@ -62,6 +62,10 @@ def linux_package(root: Path) -> Path:
         "licenses/faris-THIRD_PARTY_NOTICES.md": (b"linux faris notices\n", 0o444, "app"),
         "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md": (b"linux core notices\n", 0o444, "app"),
         "SOURCE_PROVENANCE.md": (b"linux provenance, debug core\n", 0o444, "app"),
+        "tools/build_activation_inputs.py": (b"# builder\n", 0o444, "app"),
+        "maintenance/maintenance-result.json": (b'{"produced_by": {"faris_version": "0.1.1"}}\n', 0o444, "app"),
+        "maintenance/maintenance-assumptions.json": (b"{}\n", 0o444, "app"),
+        "maintenance/operating-assumptions.json": (b"{}\n", 0o444, "app"),
         "verify.sh": (b"#!/bin/sh\n", 0o555, "evidence"),
         "scripts/verify.py": (b"v\n", 0o444, "evidence"),
         "port/cases/reference.tar.gz": (b"evidence archive bytes\n" * 50, 0o444, "evidence"),
@@ -106,6 +110,7 @@ def linux_package(root: Path) -> Path:
         "parts": {"app": {"file_count": len(app), "bytes": sum(item["bytes"] for item in app)},
                   "evidence": {"file_count": len(evidence), "bytes": sum(item["bytes"] for item in evidence),
                                "archive_name": f"FARIS-{VERSION}-evidence.tar.gz"}},
+        "maintenance": {"result": "maintenance/maintenance-result.json", "faris_version": "0.1.1"},
         "files": files,
     }
     write_index(package, index)
@@ -230,6 +235,10 @@ class RetargetTests(unittest.TestCase):
                                         "SOURCE_PROVENANCE.md", "licenses/faris-THIRD_PARTY_NOTICES.md",
                                         "licenses/core-RUNTIME_DEPENDENCY_NOTICES.md",
                                         "control/scenario.json", "licenses/faris-LICENSE", "verify.sh",
+                                        "tools/build_activation_inputs.py",
+                                        "maintenance/maintenance-result.json",
+                                        "maintenance/maintenance-assumptions.json",
+                                        "maintenance/operating-assumptions.json",
                                         "scripts/verify.py", "port/cases/reference.tar.gz",
                                         "package-index.json", "package-index.sha256"]))
         for name in ("faris", "faris-app", "avila-core"):
@@ -237,6 +246,17 @@ class RetargetTests(unittest.TestCase):
             self.assertFalse(os.path.samefile(self.linux / "bin" / name, out / "bin" / name))
         self.assertEqual((out / "bin/faris").read_bytes(), b"macos-aarch64 faris" * 10)
         self.assertEqual(stat.S_IMODE((self.linux / "bin/faris").stat().st_mode), 0o555)
+
+    def test_maintenance_files_and_record_are_carried_as_app_part_links(self):
+        out = self.retarget("windows-x86_64")
+        index = json.loads((out / "package-index.json").read_text())
+        linux = json.loads((self.linux / "package-index.json").read_text())
+        self.assertEqual(index["maintenance"], linux["maintenance"])
+        by_path = {item["path"]: item for item in index["files"]}
+        for relative in ("tools/build_activation_inputs.py", "maintenance/maintenance-result.json",
+                         "maintenance/maintenance-assumptions.json", "maintenance/operating-assumptions.json"):
+            self.assertEqual(by_path[relative]["part"], "app", relative)
+            self.assertTrue(os.path.samefile(self.linux / relative, out / relative), relative)
 
     def test_notices_are_the_builds_and_indexed(self):
         for platform in ("windows-x86_64", "macos-aarch64"):

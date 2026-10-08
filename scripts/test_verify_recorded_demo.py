@@ -610,6 +610,40 @@ def make_package(root: Path, faris: Path, core: Path,
     write(root / "package-index.sha256", f"{VERIFY.digest(index_path)}  package-index.json\n")
 
 
+def maintenance_fixture(assumptions: bytes, history: bytes, version: str | None = "0.2.0",
+                        status: str = "EVALUATED") -> dict:
+    """A minimal faris-maintenance-result/v0.1 holding what the packager and verifier read."""
+    def bare(data: bytes) -> str:
+        return hashlib.sha256(data).hexdigest()
+    result = {"schema_version": "faris-maintenance-result/v0.1",
+              "inputs": {"assumptions": bare(assumptions), "designs": "0" * 64,
+                         "design/a/history_assumptions": bare(history),
+                         "design/b/history_assumptions": bare(history)},
+              "designs": {"a": {"computed": {"status": status}},
+                          "b": {"computed": {"status": "EVALUATED"}}}}
+    if version is not None:
+        result["produced_by"] = {"faris_version": version}
+    return result
+
+
+def add_maintenance(root: Path, result: dict | None = None, assumptions: bytes = b'{"m": 1}\n',
+                    history: bytes = b'{"h": 1}\n', record: dict | None = None) -> None:
+    """Add the builder and a recorded maintenance result to a fixture package and index them."""
+    result = result if result is not None else maintenance_fixture(assumptions, history)
+    write(root / "tools/build_activation_inputs.py", "# builder\n")
+    write(root / "maintenance/maintenance-result.json", json.dumps(result) + "\n")
+    write(root / "maintenance/maintenance-assumptions.json", assumptions)
+    write(root / "maintenance/operating-assumptions.json", history)
+    index_path = root / "package-index.json"
+    index = json.loads(index_path.read_text())
+    produced = result.get("produced_by")
+    index["maintenance"] = record if record is not None else {
+        "result": "maintenance/maintenance-result.json",
+        "faris_version": produced["faris_version"] if produced else None}
+    write(index_path, json.dumps(index, indent=2) + "\n")
+    reindex_package(root)
+
+
 def add_sweep(root: Path, variants: list[tuple[str, float]], seeds: list[int] | None = None) -> None:
     """Add a synthetic allocation sweep (variant, blanket m) and index it."""
     layers = lambda blanket: [{"id": "blanket", "thickness_m": blanket},
@@ -891,11 +925,124 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
     def test_packager_asserts_launch_paths_are_in_the_app_part(self):
         index = json.loads((self.package / "package-index.json").read_text())
         records = [{"path": item["path"], "bytes": item["bytes"]} for item in index["files"]]
+        records.append({"path": "tools/build_activation_inputs.py", "bytes": 1})
         totals = PACKAGE.assign_parts(records, {"sweep": None})
         self.assertEqual(totals["app"]["file_count"] + totals["evidence"]["file_count"], len(records))
-        for missing in ("control/scenario.json", "bin/faris-app"):
+        for missing in ("control/scenario.json", "bin/faris-app", "tools/build_activation_inputs.py"):
             with self.assertRaisesRegex(RuntimeError, "not in the app part"):
                 PACKAGE.assign_parts([item for item in records if item["path"] != missing], {"sweep": None})
+        maintenance = {"maintenance": {"result": "maintenance/maintenance-result.json"}}
+        with self.assertRaisesRegex(RuntimeError, "maintenance/maintenance-result.json"):
+            PACKAGE.assign_parts(records, {"sweep": None, **maintenance})
+        records.append({"path": "maintenance/maintenance-result.json", "bytes": 1})
+        PACKAGE.assign_parts(records, {"sweep": None, **maintenance})
+        self.assertEqual(records[-1]["part"], "app")
+
+    def test_maintenance_record_is_in_the_app_part_and_verifies(self):
+        add_maintenance(self.package)
+        index, inventory = VERIFY.verify_index(self.package, self.faris, self.core)
+        for path in ("maintenance/maintenance-result.json", "maintenance/maintenance-assumptions.json",
+                     "maintenance/operating-assumptions.json", "tools/build_activation_inputs.py"):
+            self.assertEqual(inventory[path]["part"], "app", path)
+        self.assertEqual(index["maintenance"]["faris_version"], "0.2.0")
+        self.assertTrue(VERIFY.verify_maintenance(self.package, index, inventory))
+        result = VERIFY.verify_package(self.package, self.faris, self.core)
+        self.assertTrue(result["maintenance_result_recorded"])
+
+    def test_package_without_maintenance_still_verifies(self):
+        index, inventory = VERIFY.verify_index(self.package, self.faris, self.core)
+        self.assertNotIn("maintenance", index)
+        self.assertFalse(VERIFY.verify_maintenance(self.package, index, inventory))
+
+    def test_old_maintenance_result_without_produced_by_verifies(self):
+        add_maintenance(self.package, maintenance_fixture(b'{"m": 1}\n', b'{"h": 1}\n', version=None))
+        index, inventory = VERIFY.verify_index(self.package, self.faris, self.core)
+        self.assertIsNone(index["maintenance"]["faris_version"])
+        self.assertTrue(VERIFY.verify_maintenance(self.package, index, inventory))
+
+    def test_verifier_refuses_inconsistent_maintenance_records(self):
+        good_a, good_h = b'{"m": 1}\n', b'{"h": 1}\n'
+        cases = {
+            "assumptions hash": (maintenance_fixture(b"other", good_h), "assumptions hash differs"),
+            "history hash": (maintenance_fixture(good_a, b"other"), "history_assumptions differs"),
+            "not evaluated": (maintenance_fixture(good_a, good_h, status="NOT_EVALUATED"), "not EVALUATED"),
+        }
+        wrong_schema = maintenance_fixture(good_a, good_h)
+        wrong_schema["schema_version"] = "faris-maintenance-result/v9"
+        cases["schema"] = (wrong_schema, "schema")
+        for label, (result, message) in cases.items():
+            with self.subTest(label):
+                package = self.root / f"bad-{label.replace(' ', '-')}"
+                shutil.copytree(self.package, package)
+                add_maintenance(package, result)
+                index, inventory = VERIFY.verify_index(package, self.faris, self.core)
+                with self.assertRaisesRegex(ValueError, message):
+                    VERIFY.verify_maintenance(package, index, inventory)
+
+    def test_verifier_refuses_a_mismatched_version_record_and_unindexed_maintenance_files(self):
+        add_maintenance(self.package, record={"result": "maintenance/maintenance-result.json",
+                                             "faris_version": "0.1.1"})
+        index, inventory = VERIFY.verify_index(self.package, self.faris, self.core)
+        with self.assertRaisesRegex(ValueError, "different FARIS version"):
+            VERIFY.verify_maintenance(self.package, index, inventory)
+        plain = self.root / "plain"
+        shutil.copytree(self.package, plain)
+        index_path = plain / "package-index.json"
+        data = json.loads(index_path.read_text())
+        del data["maintenance"]
+        write(index_path, json.dumps(data, indent=2) + "\n")
+        reindex_package(plain)
+        index, inventory = VERIFY.verify_index(plain, self.faris, self.core)
+        with self.assertRaisesRegex(ValueError, "declares no maintenance record"):
+            VERIFY.verify_maintenance(plain, index, inventory)
+
+    def test_packager_checks_and_installs_maintenance_inputs(self):
+        good_a, good_h = b'{"m": 1}\n', b'{"h": 1}\n'
+        files = {}
+        for name, data in (("assumptions", good_a), ("history", good_h)):
+            files[name] = self.root / f"{name}.json"
+            write(files[name], data)
+
+        def result_file(result: dict) -> Path:
+            path = self.root / "result.json"
+            write(path, json.dumps(result))
+            return path
+        good = result_file(maintenance_fixture(good_a, good_h))
+        self.assertEqual(PACKAGE.check_maintenance_inputs(good, files["assumptions"], files["history"]), "0.2.0")
+        refusals = [
+            (maintenance_fixture(b"x", good_h), "assumptions hash"),
+            (maintenance_fixture(good_a, b"x"), "history_assumptions"),
+            (maintenance_fixture(good_a, good_h, status="NOT_EVALUATED"), "not EVALUATED"),
+        ]
+        for result, message in refusals:
+            with self.assertRaisesRegex(SystemExit, message):
+                PACKAGE.check_maintenance_inputs(result_file(result), files["assumptions"], files["history"])
+        staging = self.root / "staging"
+        staging.mkdir()
+        record = PACKAGE.install_maintenance(staging, good, files["assumptions"], files["history"], "0.2.0")
+        self.assertEqual(record, {"result": "maintenance/maintenance-result.json", "faris_version": "0.2.0"})
+        self.assertEqual((staging / "maintenance/maintenance-assumptions.json").read_bytes(), good_a)
+        self.assertEqual((staging / "maintenance/operating-assumptions.json").read_bytes(), good_h)
+        self.assertTrue((staging / "tools/build_activation_inputs.py").is_file())
+        bare = self.root / "bare"
+        bare.mkdir()
+        self.assertIsNone(PACKAGE.install_maintenance(bare, None, None, None, None))
+        self.assertTrue((bare / "tools/build_activation_inputs.py").is_file())
+        self.assertFalse((bare / "maintenance").exists())
+
+    def test_packager_requires_all_three_maintenance_arguments(self):
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPT.with_name("package_recorded_demo.py")),
+             "--faris", "a", "--faris-app", "a", "--core", "a", "--core-source-repo", "a",
+             "--core-source-revision", "a", "--control-scenario", "a", "--control-reference-run", "a",
+             "--control-breeder-run", "a", "--port-scenario", "a", "--port-reference-run", "a",
+             "--port-breeder-run", "a", "--port-reference-volume-report", "a",
+             "--port-breeder-volume-report", "a", "--assumptions", "a", "--event-assumptions", "a",
+             "--sensitivity-grid", "a", "--version", "0.2.0", "--output", str(self.root / "out"),
+             "--maintenance-result", "a"],
+            capture_output=True, text=True, check=False)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("must be given together", completed.stderr)
 
     def test_empty_staging_directories_are_pruned(self):
         staging = self.root / "prune"

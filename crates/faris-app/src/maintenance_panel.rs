@@ -13,6 +13,7 @@
 use crate::{
     badge::{self, Kind},
     maintenance_run::RunPanel,
+    package::{self, RecordedMaintenance},
     sweep_panel::nice_ticks,
 };
 use eframe::egui;
@@ -34,6 +35,9 @@ const DAY_S: f64 = 86_400.0;
 
 /// What "computed" means, shown under the summary.
 pub const COMPUTED_MEANING: &str = "Computed: each replacement's outage is the cooldown until the decay heat per volume of the governing components falls below the class threshold q*, plus the class's work time; the operating history is rerun with those outages until they stop changing. Fixed is the authored duration. The two models are compared on downtime, availability and lifetime electricity; the comparison makes no ranking claim.";
+
+/// Shown under the button that opens the package's recorded result.
+pub const RECORDED_NOTE: &str = "Recorded with ACTINV for the four packaged arrangements; to recompute, use Run\u{2026} with ACTINV and your own transport runs.";
 
 const NET_UNAVAILABLE: &str = "The operating history recorded no cumulative net electricity at its end (the history assumptions carry no energy assumptions, or no snapshot was recorded), so none is inferred here.";
 
@@ -57,6 +61,10 @@ pub struct MaintenancePanel {
     loading: Option<Receiver<LoadResult>>,
     dialog: Option<Receiver<Option<PathBuf>>>,
     pub run: RunPanel,
+    /// The recorded result of the opened package, if it carries one.
+    recorded: Option<RecordedMaintenance>,
+    /// The first opening of the window in this session has been handled.
+    recorded_offered: bool,
 }
 
 impl Default for MaintenancePanel {
@@ -68,6 +76,8 @@ impl Default for MaintenancePanel {
             loading: None,
             dialog: None,
             run: RunPanel::default(),
+            recorded: None,
+            recorded_offered: false,
         }
     }
 }
@@ -90,6 +100,18 @@ fn read_result(path: &Path) -> LoadResult {
     Ok(Loaded {
         file_name: path.file_name().map_or_else(
             || path.display().to_string(),
+            |n| n.to_string_lossy().into(),
+        ),
+        result: Box::new(parse_result(&bytes)?),
+    })
+}
+
+/// Reads a package's recorded result after checking its SHA-256 against the index.
+fn read_recorded(recorded: &RecordedMaintenance) -> LoadResult {
+    let bytes = package::read_verified(&recorded.path, &recorded.sha256)?;
+    Ok(Loaded {
+        file_name: recorded.path.file_name().map_or_else(
+            || recorded.path.display().to_string(),
             |n| n.to_string_lossy().into(),
         ),
         result: Box::new(parse_result(&bytes)?),
@@ -156,14 +178,46 @@ impl MaintenancePanel {
         }
     }
 
+    /// The package's recorded maintenance result, offered in the window.
+    pub fn set_recorded(&mut self, recorded: RecordedMaintenance) {
+        self.recorded = Some(recorded);
+    }
+
     /// Read and parse `path` on a worker thread and open the window.
     pub fn load_in_background(&mut self, ctx: &egui::Context, path: PathBuf) {
+        self.spawn_load(ctx, move || read_result(&path));
+    }
+
+    /// Verify and load the package's recorded result on a worker thread.
+    fn load_recorded_in_background(&mut self, ctx: &egui::Context) {
+        if let Some(recorded) = self.recorded.clone() {
+            self.spawn_load(ctx, move || read_recorded(&recorded));
+        }
+    }
+
+    /// The first time the window is opened in a session, open the recorded result unless
+    /// something else is open or loading.
+    fn offer_recorded(&mut self, ctx: &egui::Context) {
+        if self.recorded_offered {
+            return;
+        }
+        self.recorded_offered = true;
+        if self.recorded.is_some() && matches!(self.state, State::Empty) && !self.is_pending() {
+            self.load_recorded_in_background(ctx);
+        }
+    }
+
+    fn spawn_load(
+        &mut self,
+        ctx: &egui::Context,
+        job: impl FnOnce() -> LoadResult + Send + 'static,
+    ) {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let spawned = std::thread::Builder::new()
             .name("faris-maintenance-load".into())
             .spawn(move || {
-                let _ = sender.send(read_result(&path));
+                let _ = sender.send(job());
                 context.request_repaint();
             });
         match spawned {
@@ -242,6 +296,7 @@ impl MaintenancePanel {
         if !self.open {
             return;
         }
+        self.offer_recorded(ctx);
         let mut open = self.open;
         egui::Window::new("Maintenance")
             .open(&mut open)
@@ -254,6 +309,7 @@ impl MaintenancePanel {
     /// The window's content.
     pub fn view(&mut self, ui: &mut egui::Ui) {
         let mut open_dialog = false;
+        let mut open_recorded = false;
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(!self.is_pending(), egui::Button::new("Open result\u{2026}"))
@@ -264,11 +320,30 @@ impl MaintenancePanel {
             {
                 open_dialog = true;
             }
+            if self.recorded.is_some()
+                && ui
+                    .add_enabled(
+                        !self.is_pending(),
+                        egui::Button::new("Open the recorded maintenance result"),
+                    )
+                    .on_hover_text(
+                        "Open the result recorded in this package; its SHA-256 is checked against the package index first.",
+                    )
+                    .clicked()
+            {
+                open_recorded = true;
+            }
             if self.loading.is_some() {
                 ui.spinner();
                 ui.weak("Reading the result\u{2026}");
             }
         });
+        if self.recorded.is_some() {
+            ui.weak(RECORDED_NOTE);
+        }
+        if open_recorded {
+            self.load_recorded_in_background(&ui.ctx().clone());
+        }
         if open_dialog {
             self.pick_file(&ui.ctx().clone());
         }
@@ -508,6 +583,9 @@ fn header(ui: &mut egui::Ui, loaded: &Loaded) {
     ui.horizontal_wrapped(|ui| {
         ui.strong(&loaded.file_name);
         ui.weak(&result.schema_version);
+        if let Some(produced) = &result.produced_by {
+            ui.weak(format!("Produced by FARIS {}", produced.faris_version));
+        }
     });
     ui.horizontal_wrapped(|ui| {
         ui.label("Governing quantity:");
@@ -1262,6 +1340,7 @@ mod tests {
             },
             designs: BTreeMap::from([("X".into(), evaluated), ("Y".into(), failing)]),
             decay_source: None,
+            produced_by: None,
             contrasts: vec![
                 Contrast {
                     a: "X".into(),
@@ -1451,6 +1530,95 @@ mod tests {
         }
         let empty = MaintenancePanel::default();
         assert!(!empty.is_pending());
+    }
+
+    fn wait_until_loaded(panel: &mut MaintenancePanel, ctx: &egui::Context) {
+        for _ in 0..500 {
+            panel.poll(ctx);
+            if !panel.is_pending() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("the load did not finish");
+    }
+
+    fn recorded_in(dir: &Path, bytes: &[u8]) -> RecordedMaintenance {
+        use sha2::{Digest, Sha256};
+        let path = dir.join("maintenance-result.json");
+        std::fs::write(&path, bytes).unwrap();
+        RecordedMaintenance {
+            path,
+            sha256: format!("sha256:{:x}", Sha256::digest(bytes)),
+        }
+    }
+
+    #[test]
+    fn the_recorded_result_opens_by_itself_the_first_time_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut result = fixture();
+        result.produced_by = Some(faris_engine::maintenance::ProducedBy {
+            faris_version: "0.2.0".into(),
+        });
+        let recorded = recorded_in(dir.path(), &serde_json::to_vec(&result).unwrap());
+        let ctx = egui::Context::default();
+        let mut panel = MaintenancePanel::default();
+        panel.set_recorded(recorded);
+        assert!(!panel.shows_result_for_tests());
+        panel.offer_recorded(&ctx);
+        wait_until_loaded(&mut panel, &ctx);
+        assert!(panel.shows_result_for_tests());
+        match &panel.state {
+            State::Ready(loaded) => {
+                assert_eq!(loaded.file_name, "maintenance-result.json");
+                assert_eq!(loaded.result.produced_by, result.produced_by);
+            }
+            _ => panic!("recorded result not shown"),
+        }
+        // Closing and reopening the window does not reload it over the user's choice.
+        panel.state = State::Empty;
+        panel.offer_recorded(&ctx);
+        assert!(!panel.is_pending());
+        assert!(!panel.shows_result_for_tests());
+        // The button still works, and the view renders the button and the note.
+        panel.load_recorded_in_background(&ctx);
+        wait_until_loaded(&mut panel, &ctx);
+        assert!(panel.shows_result_for_tests());
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| panel.view(ui))
+            .drop_without_applying_deltas();
+    }
+
+    #[test]
+    fn a_recorded_result_that_differs_from_the_index_is_not_loaded() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut recorded = recorded_in(dir.path(), &serde_json::to_vec(&fixture()).unwrap());
+        recorded.sha256 = format!("sha256:{}", "0".repeat(64));
+        let ctx = egui::Context::default();
+        let mut panel = MaintenancePanel::default();
+        panel.set_recorded(recorded);
+        panel.offer_recorded(&ctx);
+        wait_until_loaded(&mut panel, &ctx);
+        match &panel.state {
+            State::Failed(error) => assert!(error.contains("differs from the package index")),
+            _ => panic!("a changed file must not load"),
+        }
+    }
+
+    #[test]
+    fn without_a_package_result_nothing_is_offered() {
+        let ctx = egui::Context::default();
+        let mut panel = MaintenancePanel::default();
+        panel.offer_recorded(&ctx);
+        assert!(!panel.is_pending());
+        assert!(matches!(panel.state, State::Empty));
+        assert!(RECORDED_NOTE.contains("to recompute, use Run"));
     }
 
     #[test]

@@ -10,7 +10,9 @@ use faris_engine::{
     jobs::Cancellation,
     maintenance::{
         MaintenanceResult,
-        files::{ProgressFn, RunConfig, RunProgress, parse_designs, run_from_files},
+        files::{
+            ProgressFn, RunConfig, RunProgress, default_builder, parse_designs, run_from_files,
+        },
     },
 };
 use faris_model::maintenance::{MaintenanceAssumptions, Threshold};
@@ -96,11 +98,11 @@ impl Default for RunInputs {
             output: String::new(),
             workers: 1,
             python: "python3".into(),
-            builder: concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../scripts/build_activation_inputs.py"
-            )
-            .into(),
+            // Beside the program in a downloaded package, else the source repository's;
+            // empty when neither exists, which the checks below report.
+            builder: default_builder()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
         }
     }
 }
@@ -268,10 +270,10 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         other => problems.push(Problem::new(
             Field::Builder,
             format!(
-                "The activation-input builder script {} was not found.",
-                other.as_ref().map_or("(none)".into(), |p| p.display().to_string())
+                "Activation-input builder not found ({}).",
+                other.as_ref().map_or("none set".into(), |p| p.display().to_string())
             ),
-            "run FARIS from a source checkout that has scripts/build_activation_inputs.py, or choose the script under Advanced.",
+            "set the builder under Advanced to build_activation_inputs.py (a downloaded package has it in its tools folder; a source checkout has it in scripts).",
         )),
     }
     let python = trimmed(&inputs.python).unwrap_or_else(|| "python3".into());
@@ -881,6 +883,7 @@ mod tests {
             designs: BTreeMap::new(),
             contrasts: Vec::new(),
             decay_source: None,
+            produced_by: None,
         }
     }
 
@@ -972,6 +975,35 @@ mod tests {
             "ACTINV not set. Next step: choose the actinv binary (install ACTINV from https://actinv.avilalabs.org)."
         );
         assert!(problems.iter().all(|p| p.text().contains("Next step:")));
+    }
+
+    #[test]
+    fn a_missing_builder_says_it_was_not_found_and_how_to_set_it() {
+        let (_dir, mut inputs) = tree();
+        inputs.builder = String::new();
+        let problems = validate(&inputs).unwrap_err();
+        let builder = problems.iter().find(|p| p.field == Field::Builder).unwrap();
+        assert!(
+            builder
+                .text()
+                .starts_with("Activation-input builder not found"),
+            "{}",
+            builder.text()
+        );
+        assert!(
+            builder
+                .text()
+                .contains("Next step: set the builder under Advanced")
+        );
+    }
+
+    #[test]
+    fn the_default_builder_follows_the_shared_rule() {
+        let expected = default_builder().map(|p| p.display().to_string());
+        assert_eq!(
+            Some(RunInputs::default().builder).filter(|b| !b.is_empty()),
+            expected
+        );
     }
 
     #[test]

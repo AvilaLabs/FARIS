@@ -501,6 +501,13 @@ pub struct DecaySourceRecord {
     pub cache_hits: u64,
 }
 
+/// The program that computed a result, filled by the caller after the run.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ProducedBy {
+    /// The FARIS version, for example "0.2.0".
+    pub faris_version: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct MaintenanceResult {
     pub schema_version: String,
@@ -512,6 +519,9 @@ pub struct MaintenanceResult {
     pub contrasts: Vec<Contrast>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decay_source: Option<DecaySourceRecord>,
+    /// Absent in results written before 0.2.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub produced_by: Option<ProducedBy>,
 }
 
 // --------------------------------------------------------------------- loop --
@@ -1073,6 +1083,7 @@ pub fn run_maintenance(
         designs: results,
         contrasts,
         decay_source: None,
+        produced_by: None,
     })
 }
 

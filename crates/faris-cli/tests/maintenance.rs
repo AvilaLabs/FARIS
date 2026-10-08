@@ -71,7 +71,9 @@ fn run_help_lists_every_option() {
     ] {
         assert!(help.contains(option), "{option} missing from help");
     }
-    assert!(help.contains("scripts/build_activation_inputs.py"));
+    // The default is described by its rule, never as a path on the build machine.
+    assert!(help.contains("tools/build_activation_inputs.py"));
+    assert!(!help.contains(env!("CARGO_MANIFEST_DIR")), "{help}");
 }
 
 #[test]
