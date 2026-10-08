@@ -1,6 +1,7 @@
 //! Scenario semantics and validation. Display labels never imply material properties.
 
 pub mod history;
+pub mod maintenance;
 pub mod physics;
 pub mod transport;
 

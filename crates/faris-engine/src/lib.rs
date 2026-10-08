@@ -11,6 +11,7 @@ pub mod history;
 pub mod history_ensemble;
 pub mod history_uncertainty;
 pub mod jobs;
+pub mod maintenance;
 pub mod mesh;
 pub mod presets;
 pub mod reactor;
