@@ -1,9 +1,11 @@
 //! Reopening saved studies revalidates their identities on a worker thread.
 
 use crate::badge::{self, Kind};
+use crate::package::SavedStore;
 use eframe::egui;
 use faris_engine::{
-    case_archive::{SavedCaseInspection, inspect_saved_case},
+    case_archive::{SavedCaseInspection, inspect_saved_case, inspect_saved_case_in_store},
+    evidence_store::EvidenceStore,
     history::HistoryResult,
     jobs::Cancellation,
 };
@@ -29,13 +31,15 @@ struct Pending {
     cancellation: Cancellation,
 }
 
-/// How long the saved-evidence worker waits for a package's Core evidence to
-/// finish unpacking. The package expands 823 MB; a debug build takes about
-/// 20 s on the reference laptop, so this leaves room for slow disks.
+/// How long the saved-evidence worker waits for a legacy `.faris` file's packed
+/// Core evidence to finish unpacking. The expansion is 823 MB; a debug build
+/// takes about 20 s on the reference laptop, so this leaves room for slow
+/// disks. Packages read their evidence store in place and never wait.
 const MATERIALIZATION_LIMIT: Duration = Duration::from_secs(600);
 
 #[derive(Default)]
 pub struct ArchivePanel {
+    queued_store: Option<SavedStore>,
     queued_descriptors: Vec<PathBuf>,
     ready_marker: Option<PathBuf>,
     pending: Option<Pending>,
@@ -65,12 +69,18 @@ impl ArchivePanel {
         Ok(())
     }
 
+    /// Reopen the saved studies of a package's evidence store in place, on the
+    /// worker thread: nothing is expanded and nothing waits for a copy.
+    pub fn queue_store(&mut self, store: SavedStore) {
+        self.queued_store = Some(store);
+    }
+
     pub fn has_saved(&self) -> bool {
         !self.saved.is_empty()
     }
 
     pub fn is_loading(&self) -> bool {
-        self.pending.is_some() || !self.queued_descriptors.is_empty()
+        self.pending.is_some() || self.queued_store.is_some() || !self.queued_descriptors.is_empty()
     }
 
     pub fn take_histories(&mut self) -> Vec<(String, String, HistoryResult)> {
@@ -98,6 +108,13 @@ impl ArchivePanel {
     }
 
     pub fn poll(&mut self, ctx: &egui::Context) {
+        if self.pending.is_none()
+            && let Some(store) = self.queued_store.take()
+        {
+            self.start(ctx.clone(), move |cancellation| {
+                check_store_studies(&store, &cancellation)
+            });
+        }
         if self.pending.is_none() && !self.queued_descriptors.is_empty() {
             let descriptors = std::mem::take(&mut self.queued_descriptors);
             let marker = self.ready_marker.take();
@@ -304,22 +321,48 @@ fn scenario_digest(saved: &SavedCaseInspection) -> &str {
         .unwrap_or(&saved.scenario_sha256)
 }
 
-/// Headless form of the reopening `poll` starts: wait for the package's
-/// evidence, then reopen each saved study. Each entry is the case ID or why it
-/// failed.
-pub fn check_saved_studies(descriptors: &[PathBuf], marker: &Path) -> Vec<Result<String, String>> {
-    if let Err(error) =
-        wait_for_materialization(marker, &Cancellation::default(), MATERIALIZATION_LIMIT)
-    {
-        return vec![Err(error)];
-    }
-    descriptors
+/// Reopen each saved study of a package's evidence store, reading the store in
+/// place. Each entry is the inspection or why it failed.
+fn check_store_studies(
+    saved: &SavedStore,
+    cancellation: &Cancellation,
+) -> Vec<Result<SavedCaseInspection, String>> {
+    let fail = |what: String| {
+        format!(
+            "{what}\n\nWhy: the saved Core receipts of this package could not be verified from its \
+             evidence store.\n\nNext step: download the package again and check it against the \
+             SHA256SUMS file from the same release; the transport, histories and assumptions \
+             are not affected."
+        )
+    };
+    let store = match EvidenceStore::open_expecting(&saved.path, &saved.index_sha256) {
+        Ok(store) => store,
+        Err(error) => {
+            return vec![Err(fail(format!(
+                "The evidence store cannot be opened: {error}."
+            )))];
+        }
+    };
+    saved
+        .studies
         .iter()
-        .map(|path| {
-            load_descriptor(path)
-                .and_then(inspect)
-                .map(|case| case.case_id)
+        .map(|study| {
+            if cancellation.is_cancelled() {
+                return Err("Saved-study reopening cancelled".into());
+            }
+            let label = format!("{}/{}", study.pair, study.variant);
+            inspect_saved_case_in_store(&store, &study.case_tree, &study.workspace_tree)
+                .map_err(|error| fail(format!("Saved study {label} did not verify: {error}.")))
         })
+        .collect()
+}
+
+/// Headless form of the package reopening `poll` starts: each case ID or why
+/// it failed.
+pub fn check_saved_studies_in_store(saved: &SavedStore) -> Vec<Result<String, String>> {
+    check_store_studies(saved, &Cancellation::default())
+        .into_iter()
+        .map(|result| result.map(|inspection| inspection.case_id))
         .collect()
 }
 

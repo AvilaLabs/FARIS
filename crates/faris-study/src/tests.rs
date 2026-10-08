@@ -129,6 +129,20 @@ fn round_trip_restores_bundles_assumptions_and_view() {
 }
 
 #[test]
+fn a_store_descriptor_is_refused_with_a_next_step() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("saved-study-port-reference.json");
+    std::fs::write(
+        &path,
+        br#"{"schema_version":"faris-saved-study-store/v0.1","store":"evidence-store","case_tree":"port-reference-case","workspace_tree":"port-reference-workspace"}"#,
+    )
+    .unwrap();
+    let message = evidence_from_descriptor(&path).unwrap_err().to_string();
+    assert!(message.contains("evidence store"), "{message}");
+    assert!(message.contains("without --evidence"), "{message}");
+}
+
+#[test]
 fn identical_files_are_stored_once() {
     let dir = tempfile::tempdir().unwrap();
     let draft = draft(dir.path());

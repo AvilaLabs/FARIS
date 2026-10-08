@@ -2,40 +2,30 @@
 //! script. The package index binds every file the app reads at launch; this
 //! module checks that binding before anything is loaded, builds the inputs the
 //! command-line flags would have passed, and (when the evidence part is
-//! present) extracts the recorded Core trees on a background thread.
+//! present) names the evidence store the saved Core studies are read from in
+//! place.
 //!
 //! Full verification of every indexed file stays with `verify.sh`; the checks
 //! here are the launch-relevant part of it. Nothing here interprets physics.
 
-use faris_study::{RecordedTreeManifest, StudyError, extract_recorded_tree, sha256_file};
+use faris_study::sha256_file;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::Write,
     path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread::JoinHandle,
-    time::Instant,
 };
 
 pub const INDEX: &str = "package-index.json";
 pub const CHECKSUM: &str = "package-index.sha256";
-const SCHEMA: &str = "faris-recorded-demo-package/v0.5";
+const SCHEMA: &str = "faris-recorded-demo-package/v0.6";
 const STATUS: &str = "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED";
 const MAX_INDEX_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_FILES: usize = 2048;
-const MAX_EXPANDED_BYTES: u64 = 1536 * 1024 * 1024;
-const MAX_EXPANDED_MEMBERS: u64 = 8192;
-const MAX_EXPANDED_DIRECTORIES: u64 = 8192;
 const SWEEP_BUNDLE_DIRECTORY: &str = "sweep/bundles";
 /// The recorded maintenance result an app-part package may carry.
 const MAINTENANCE_RESULT: &str = "maintenance/maintenance-result.json";
-const MARKER_SCHEMA: &str = "faris-recorded-materialization/v0.1";
 /// The four saved studies the Evidence step reopens, in the order shown.
 const SAVED_STUDIES: [(&str, &str); 4] = [
     ("port", "reference"),
@@ -94,24 +84,25 @@ struct Parts {
     evidence: EvidencePart,
 }
 
-#[derive(Clone, Deserialize)]
-struct TreeArchive {
+#[derive(Deserialize)]
+struct StoreTreeRecord {
+    name: String,
+}
+
+/// The evidence store the package carries: its folder, the SHA-256 of its
+/// `store.json` (which holds every blob's digest) and the trees in it.
+#[derive(Deserialize)]
+struct EvidenceStoreRecord {
     path: String,
-    sha256: String,
-    bytes: u64,
-    manifest_path: String,
-    manifest_sha256: String,
-    expanded_bytes: u64,
-    file_count: u64,
-    archive_member_count: u64,
-    directory_count: u64,
+    store_json_sha256: String,
+    trees: Vec<StoreTreeRecord>,
 }
 
 #[derive(Deserialize)]
 struct Arrangement {
     variant_id: String,
-    case_archive: TreeArchive,
-    workspace_archive: TreeArchive,
+    case_tree: String,
+    workspace_tree: String,
 }
 
 #[derive(Deserialize)]
@@ -139,20 +130,28 @@ struct Index {
     local_runtime: LocalRuntime,
     files: Vec<FileEntry>,
     parts: Parts,
-    expanded_case_workspace_bytes: u64,
+    evidence_store: EvidenceStoreRecord,
     scenario_pairs: Vec<ScenarioPair>,
     #[serde(default)]
     sweep: Option<Sweep>,
 }
 
-/// One recorded Core tree to extract: where its files are and what the index
-/// says they hold.
-#[derive(Clone)]
-pub struct TreeJob {
-    pair: String,
-    variant: String,
-    kind: &'static str,
-    expected: TreeArchive,
+/// One saved Core study: the case tree and the workspace tree that hold it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedStudy {
+    pub pair: String,
+    pub variant: String,
+    pub case_tree: String,
+    pub workspace_tree: String,
+}
+
+/// The evidence store holding the four saved studies, read in place.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SavedStore {
+    pub path: PathBuf,
+    /// Lowercase hex SHA-256 of the store's `store.json`, as the index records it.
+    pub index_sha256: String,
+    pub studies: Vec<SavedStudy>,
 }
 
 /// Whether the evidence part (the Core receipts) is in the package folder.
@@ -199,7 +198,6 @@ pub fn read_verified(path: &Path, expected: &str) -> Result<Vec<u8>, String> {
 
 /// A package that passed its checks, ready to load.
 pub struct Opened {
-    pub root: PathBuf,
     pub core: PathBuf,
     pub bundles: Vec<PathBuf>,
     pub control_scenario: PathBuf,
@@ -210,10 +208,10 @@ pub struct Opened {
     pub evidence: Evidence,
     /// `--package` was given and the running app is not the one the index pins.
     pub development_binary: bool,
-    pub expanded_bytes: u64,
     /// The recorded maintenance result, if the package's app part carries one.
     pub maintenance_result: Option<RecordedMaintenance>,
-    trees: Vec<TreeJob>,
+    /// The saved studies, when the evidence part is present.
+    pub saved_store: Option<SavedStore>,
 }
 
 /// Failure text: why it failed, then what to do.
@@ -510,7 +508,7 @@ fn open_for(
         }),
         None => None,
     };
-    let trees = tree_jobs(&index)?;
+    let saved_studies = saved_studies(&index)?;
     let evidence = {
         let total = evidence_files.len();
         let missing = evidence_files
@@ -532,6 +530,11 @@ fn open_for(
                 total,
             }
         }
+    };
+    let saved_store = if evidence == Evidence::Present {
+        Some(saved_store(&root, &index, saved_studies)?)
+    } else {
+        None
     };
     let name = root
         .file_name()
@@ -558,17 +561,14 @@ fn open_for(
         runs_directory,
         evidence,
         development_binary,
-        expanded_bytes: index.expanded_case_workspace_bytes,
         maintenance_result,
-        trees,
-        root,
+        saved_store,
     })
 }
 
-/// The eight recorded trees and what the index says each holds. Their
-/// files are checked and read during extraction.
-fn tree_jobs(index: &Index) -> Result<Vec<TreeJob>, String> {
-    let mut jobs = Vec::new();
+/// The four saved studies and the trees the index says hold them.
+fn saved_studies(index: &Index) -> Result<Vec<SavedStudy>, String> {
+    let mut studies = Vec::new();
     for (pair_id, variant) in SAVED_STUDIES {
         let arrangement = index
             .scenario_pairs
@@ -581,203 +581,51 @@ fn tree_jobs(index: &Index) -> Result<Vec<TreeJob>, String> {
                     "the package index has no saved case {pair_id}/{variant}"
                 ))
             })?;
-        for (kind, tree) in [
-            ("case", &arrangement.case_archive),
-            ("workspace", &arrangement.workspace_archive),
-        ] {
-            jobs.push(TreeJob {
-                pair: pair_id.into(),
-                variant: variant.into(),
-                kind,
-                expected: tree.clone(),
-            });
-        }
-    }
-    Ok(jobs)
-}
-
-impl Opened {
-    /// Start extracting the evidence trees, if the evidence part is present.
-    pub fn start_materializer(&self) -> Result<Option<Materializer>, String> {
-        if self.evidence != Evidence::Present {
-            return Ok(None);
-        }
-        Materializer::start(&self.root, self.trees.clone(), self.expanded_bytes).map(Some)
-    }
-}
-
-/// The background extraction of the recorded Core trees into a private
-/// temporary folder that lives as long as this value. Dropping it cancels the
-/// thread, waits for it, and removes the folder.
-pub struct Materializer {
-    cancel: Arc<AtomicBool>,
-    handle: Option<JoinHandle<()>>,
-    pub descriptors: Vec<PathBuf>,
-    pub marker: PathBuf,
-    // Dropped after `drop` has joined the thread.
-    _folder: tempfile::TempDir,
-}
-
-impl Materializer {
-    fn start(root: &Path, trees: Vec<TreeJob>, expanded_bytes: u64) -> Result<Self, String> {
-        let folder = tempfile::Builder::new()
-            .prefix("faris-recorded-demo-")
-            .tempdir()
-            .map_err(|e| format!("cannot create a private temporary folder: {e}"))?;
-        let base = folder.path().to_path_buf();
-        let mut descriptors = Vec::new();
-        for (pair, variant) in SAVED_STUDIES {
-            let case = format!("materialized/{pair}/cases/{variant}");
-            let workspace = format!("materialized/{pair}/core-workspaces/{variant}");
-            let text = serde_json::to_string_pretty(&serde_json::json!({
-                "case_directory": case,
-                "execution_report": format!("{case}/execution-report.json"),
-                "execution_workspace": workspace,
-            }))
-            .map_err(|e| e.to_string())?;
-            let path = base.join(format!("saved-study-{pair}-{variant}.json"));
-            std::fs::write(&path, text + "\n")
-                .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
-            descriptors.push(path);
-        }
-        let marker = base.join("materialization.json");
-        let cancel = Arc::new(AtomicBool::new(false));
-        let worker = {
-            let (cancel, base, root) = (cancel.clone(), base.clone(), root.to_path_buf());
-            move || {
-                let started = Instant::now();
-                let outcome = extract_all(&root, &base, &trees, &cancel);
-                let status = match outcome {
-                    Ok(()) => {
-                        eprintln!(
-                            "FARIS: materialized {expanded_bytes} bytes of Core evidence in {:.3} s; \
-                             the private temporary copy remains until the app exits.",
-                            started.elapsed().as_secs_f64()
-                        );
-                        Ok(())
-                    }
-                    Err(error @ StudyError::Io { .. }) => Err(format!(
-                        "{error}; extracting the saved Core evidence needs about {} MB of free temporary space",
-                        expanded_bytes / 1_000_000 + 1
-                    )),
-                    Err(error) => Err(error.to_string()),
-                };
-                if let Err(error) = publish_marker(&base, &status) {
-                    eprintln!("FARIS: cannot publish the materialization marker: {error}");
-                }
+        for tree in [&arrangement.case_tree, &arrangement.workspace_tree] {
+            if !index.evidence_store.trees.iter().any(|t| &t.name == tree) {
+                return Err(fail(format!(
+                    "the package index names the tree {tree} for {pair_id}/{variant}, but the \
+                     evidence store record does not list it"
+                )));
             }
-        };
-        let handle = std::thread::Builder::new()
-            .name("faris-materialization".into())
-            .spawn(worker)
-            .map_err(|e| format!("cannot start the evidence extraction thread: {e}"))?;
-        Ok(Self {
-            cancel,
-            handle: Some(handle),
-            descriptors,
-            marker,
-            _folder: folder,
-        })
+        }
+        studies.push(SavedStudy {
+            pair: pair_id.into(),
+            variant: variant.into(),
+            case_tree: arrangement.case_tree.clone(),
+            workspace_tree: arrangement.workspace_tree.clone(),
+        });
     }
+    Ok(studies)
 }
 
-impl Drop for Materializer {
-    fn drop(&mut self) {
-        self.cancel.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
+/// Where the evidence store is, once its `store.json` is an indexed evidence
+/// file of the package. Its content is checked against the recorded digest
+/// when the store is opened, and every file read from it against `store.json`.
+fn saved_store(root: &Path, index: &Index, studies: Vec<SavedStudy>) -> Result<SavedStore, String> {
+    let record = &index.evidence_store;
+    let index_file = format!("{}/store.json", record.path);
+    safe_file(root, &index_file).map_err(fail)?;
+    let in_index = index
+        .files
+        .iter()
+        .any(|f| f.path == index_file && f.part.as_deref() == Some("evidence"));
+    let recorded = record.store_json_sha256.strip_prefix("sha256:");
+    let Some(recorded) = recorded.filter(|hex| hex.len() == 64) else {
+        return Err(fail(
+            "the package index records no valid SHA-256 for store.json",
+        ));
+    };
+    if !in_index {
+        return Err(fail(format!(
+            "the package index does not list {index_file} as an evidence file"
+        )));
     }
-}
-
-fn extract_all(
-    root: &Path,
-    base: &Path,
-    trees: &[TreeJob],
-    cancel: &AtomicBool,
-) -> Result<(), StudyError> {
-    let corrupt = |message: String| StudyError::Corrupt(message);
-    let (mut bytes, mut members, mut directories) = (0u64, 0u64, 0u64);
-    for job in trees {
-        let label = format!("{}/{} {}", job.pair, job.variant, job.kind);
-        let archive = safe_file(root, &job.expected.path).map_err(&corrupt)?;
-        let manifest = safe_file(root, &job.expected.manifest_path).map_err(&corrupt)?;
-        let (manifest_digest, _) = sha256_text(&manifest).map_err(&corrupt)?;
-        if manifest_digest != job.expected.manifest_sha256 {
-            return Err(corrupt(format!(
-                "{label} archive manifest differs from the package index"
-            )));
-        }
-        let destination = base
-            .join("materialized")
-            .join(&job.pair)
-            .join(match job.kind {
-                "case" => "cases",
-                _ => "core-workspaces",
-            });
-        let tree =
-            extract_recorded_tree(&archive, &manifest, &destination.join(&job.variant), cancel)
-                .map_err(|e| match e {
-                    StudyError::Corrupt(message) => corrupt(format!("{label}: {message}")),
-                    other => other,
-                })?;
-        if !matches_index(&tree, &job.expected) {
-            return Err(corrupt(format!(
-                "{label} archive totals differ from the package index"
-            )));
-        }
-        bytes += tree.expanded_bytes;
-        members += tree.archive_member_count;
-        directories += tree.directory_count;
-        if bytes > MAX_EXPANDED_BYTES
-            || members > MAX_EXPANDED_MEMBERS
-            || directories > MAX_EXPANDED_DIRECTORIES
-        {
-            return Err(corrupt(
-                "combined case and workspace expansion exceeds the package limits".into(),
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn matches_index(tree: &RecordedTreeManifest, index: &TreeArchive) -> bool {
-    tree.archive_sha256 == index.sha256
-        && tree.archive_bytes == index.bytes
-        && tree.expanded_bytes == index.expanded_bytes
-        && tree.file_count == index.file_count
-        && tree.archive_member_count == index.archive_member_count
-        && tree.directory_count == index.directory_count
-}
-
-/// Write the completion marker the saved-study worker waits for: staged
-/// beside it, synced, then renamed into place.
-fn publish_marker(base: &Path, outcome: &Result<(), String>) -> std::io::Result<()> {
-    let mut value = serde_json::json!({ "schema_version": MARKER_SCHEMA });
-    match outcome {
-        Ok(()) => value["status"] = "COMPLETE".into(),
-        Err(error) => {
-            let mut end = error.len().min(1024);
-            while !error.is_char_boundary(end) {
-                end -= 1;
-            }
-            value["status"] = "FAILED".into();
-            value["error"] = if end == 0 {
-                "extraction failed".into()
-            } else {
-                error[..end].into()
-            };
-        }
-    }
-    let staging = base.join(".materialization.json.tmp");
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&staging)?;
-    file.write_all((value.to_string() + "\n").as_bytes())?;
-    file.sync_all()?;
-    drop(file);
-    std::fs::rename(&staging, base.join("materialization.json"))
+    Ok(SavedStore {
+        path: root.join(&record.path),
+        index_sha256: recorded.to_owned(),
+        studies,
+    })
 }
 
 /// The Evidence-step message for a package without all its Core receipts, or
@@ -837,45 +685,14 @@ pub fn development_binary_message() -> crate::study_file::EvidenceBadge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flate2::{Compression, write::GzEncoder};
+    use faris_engine::evidence_store::{EvidenceStore, pack_store};
     use serde_json::{Value, json};
 
     fn sha(bytes: &[u8]) -> String {
         format!("sha256:{}", faris_study::sha256_hex(bytes))
     }
 
-    /// A one-file USTAR archive, gzipped, plus its tree manifest.
-    fn tree(file: &str, data: &[u8]) -> (Vec<u8>, Value) {
-        let mut block = [0u8; 512];
-        block[..file.len()].copy_from_slice(file.as_bytes());
-        block[100..107].copy_from_slice(b"0000444");
-        block[124..135].copy_from_slice(format!("{:011o}", data.len()).as_bytes());
-        block[148..156].copy_from_slice(b"        ");
-        block[156] = b'0';
-        block[257..263].copy_from_slice(b"ustar\0");
-        block[263..265].copy_from_slice(b"00");
-        let sum: u64 = block.iter().map(|b| u64::from(*b)).sum();
-        block[148..155].copy_from_slice(format!("{sum:06o}\0").as_bytes());
-        let mut tar = block.to_vec();
-        tar.extend_from_slice(data);
-        tar.resize(tar.len().div_ceil(512) * 512 + 1024, 0);
-        let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
-        encoder.write_all(&tar).unwrap();
-        let gz = encoder.finish().unwrap();
-        let manifest = json!({
-            "schema_version": "faris-recorded-tree-archive/v0.1",
-            "archive_sha256": sha(&gz),
-            "archive_bytes": gz.len(),
-            "expanded_bytes": data.len(),
-            "file_count": 1,
-            "archive_member_count": 1,
-            "directory_count": 0,
-            "members": [{"path": file, "bytes": data.len(), "sha256": sha(data)}],
-        });
-        (gz, manifest)
-    }
-
-    /// A v0.5 package in a temporary folder: app part, evidence part, index.
+    /// A v0.6 package in a temporary folder: app part, evidence part, index.
     struct Fixture {
         dir: tempfile::TempDir,
     }
@@ -926,32 +743,29 @@ mod tests {
             put("operating-assumptions.json", b"assumptions", "app");
             put("sweep/bundles/a.transport-bundle.json", b"sweep a", "app");
             put("verify.sh", b"#!/bin/sh\n", "evidence");
+            // Eight small trees (a case and a workspace for each saved study) in
+            // one store inside the package's evidence part.
+            let sources = fixture.dir.path().join("trees");
+            let mut trees = Vec::new();
             let mut pairs = Vec::new();
-            let mut expanded = 0u64;
             for pair in ["port", "control"] {
                 let mut arrangements = Vec::new();
                 for variant in ["reference", "breeder-emphasis"] {
-                    let mut descriptor = |kind: &str, file: &str| {
-                        let data = format!("{pair} {variant} {kind}").into_bytes();
-                        let (gz, manifest) = tree(file, &data);
-                        let archive = format!("{pair}/archives/{variant}-{kind}.tar.gz");
-                        let manifest_path =
-                            format!("{pair}/archives/{variant}-{kind}.manifest.json");
-                        let manifest_bytes = manifest.to_string().into_bytes();
-                        put(&archive, &gz, "evidence");
-                        put(&manifest_path, &manifest_bytes, "evidence");
-                        expanded += data.len() as u64;
-                        json!({
-                            "path": archive, "sha256": sha(&gz), "bytes": gz.len(),
-                            "manifest_path": manifest_path, "manifest_sha256": sha(&manifest_bytes),
-                            "expanded_bytes": data.len(), "file_count": 1,
-                            "archive_member_count": 1, "directory_count": 0,
-                        })
+                    let mut tree = |kind: &str, file: &str| {
+                        let name = format!("{pair}-{variant}-{kind}");
+                        let directory = sources.join(&name);
+                        std::fs::create_dir_all(&directory).unwrap();
+                        std::fs::write(directory.join(file), format!("{pair} {variant} {kind}"))
+                            .unwrap();
+                        std::fs::write(directory.join("shared.json"), b"shared by every tree")
+                            .unwrap();
+                        trees.push((name.clone(), directory));
+                        name
                     };
                     arrangements.push(json!({
                         "variant_id": variant,
-                        "case_archive": descriptor("case", "execution-report.json"),
-                        "workspace_archive": descriptor("workspace", "workspace.json"),
+                        "case_tree": tree("case", "execution-report.json"),
+                        "workspace_tree": tree("workspace", "workspace.json"),
                     }));
                 }
                 pairs.push(json!({
@@ -959,6 +773,31 @@ mod tests {
                     "arrangements": arrangements,
                 }));
             }
+            let store = root.join("evidence-store");
+            pack_store(&store, &trees).unwrap();
+            let mut store_files = vec!["store.json".to_owned()];
+            for fanout in std::fs::read_dir(store.join("blobs")).unwrap() {
+                let fanout = fanout.unwrap();
+                for blob in std::fs::read_dir(fanout.path()).unwrap() {
+                    store_files.push(format!(
+                        "blobs/{}/{}",
+                        fanout.file_name().to_string_lossy(),
+                        blob.unwrap().file_name().to_string_lossy()
+                    ));
+                }
+            }
+            for relative in &store_files {
+                let bytes = std::fs::read(store.join(relative)).unwrap();
+                files.push(json!({
+                    "path": format!("evidence-store/{relative}"), "bytes": bytes.len(),
+                    "sha256": sha(&bytes), "part": "evidence",
+                }));
+            }
+            let record = json!({
+                "path": "evidence-store",
+                "store_json_sha256": sha(&std::fs::read(store.join("store.json")).unwrap()),
+                "trees": trees.iter().map(|(name, _)| json!({"name": name})).collect::<Vec<_>>(),
+            });
             let platform = Platform::current();
             let mut index = json!({
                 "schema_version": SCHEMA,
@@ -977,7 +816,7 @@ mod tests {
                     "app": {"file_count": 0, "bytes": 0},
                     "evidence": {"file_count": 0, "bytes": 0, "archive_name": "FARIS-test-evidence.tar.gz"},
                 },
-                "expanded_case_workspace_bytes": expanded,
+                "evidence_store": record,
                 "scenario_pairs": pairs,
                 "sweep": {"runs": [{
                     "transport_bundle": "sweep/bundles/a.transport-bundle.json",
@@ -1023,29 +862,20 @@ mod tests {
         }
 
         fn evidence_files(&self) -> Vec<PathBuf> {
-            let mut found = Vec::new();
-            for dir in ["port/archives", "control/archives"] {
-                for entry in std::fs::read_dir(self.root().join(dir)).unwrap() {
-                    found.push(entry.unwrap().path());
+            let mut found = vec![self.root().join("verify.sh")];
+            let store = self.root().join("evidence-store");
+            found.push(store.join("store.json"));
+            for fanout in std::fs::read_dir(store.join("blobs")).unwrap() {
+                for blob in std::fs::read_dir(fanout.unwrap().path()).unwrap() {
+                    found.push(blob.unwrap().path());
                 }
             }
-            found.push(self.root().join("verify.sh"));
             found
         }
     }
 
-    fn wait_for_marker(materializer: &Materializer) -> Value {
-        for _ in 0..6000 {
-            if let Ok(bytes) = std::fs::read(&materializer.marker) {
-                return serde_json::from_slice(&bytes).unwrap();
-            }
-            std::thread::sleep(std::time::Duration::from_millis(20));
-        }
-        panic!("no materialization marker");
-    }
-
     #[test]
-    fn opens_a_v05_package_and_builds_the_inputs() {
+    fn opens_a_v06_package_and_builds_the_inputs() {
         let fixture = Fixture::new();
         let opened = fixture.open().unwrap();
         let root = fixture.root().canonicalize().unwrap();
@@ -1067,7 +897,18 @@ mod tests {
         assert_eq!(opened.evidence, Evidence::Present);
         assert!(!opened.development_binary);
         assert!(!opened.runs_directory.starts_with(&root));
-        assert_eq!(opened.trees.len(), 8);
+        let saved = opened.saved_store.expect("the evidence part is present");
+        assert_eq!(saved.path, root.join("evidence-store"));
+        assert_eq!(saved.studies.len(), 4);
+        assert_eq!(
+            saved.studies[0],
+            SavedStudy {
+                pair: "port".into(),
+                variant: "reference".into(),
+                case_tree: "port-reference-case".into(),
+                workspace_tree: "port-reference-workspace".into(),
+            }
+        );
     }
 
     #[test]
@@ -1101,59 +942,87 @@ mod tests {
     }
 
     #[test]
-    fn extracts_the_evidence_trees_and_removes_them_on_exit() {
+    fn the_saved_studies_are_read_from_the_store_in_place_with_nothing_expanded() {
         let fixture = Fixture::new();
         let opened = fixture.open().unwrap();
-        let materializer = opened.start_materializer().unwrap().unwrap();
-        assert_eq!(materializer.descriptors.len(), 4);
-        let marker = wait_for_marker(&materializer);
-        assert_eq!(marker["status"], "COMPLETE", "{marker}");
-        assert_eq!(marker["schema_version"], MARKER_SCHEMA);
-        let descriptor = &materializer.descriptors[0];
-        assert!(descriptor.ends_with("saved-study-port-reference.json"));
-        let value: Value = serde_json::from_slice(&std::fs::read(descriptor).unwrap()).unwrap();
-        let base = descriptor.parent().unwrap().to_path_buf();
-        let report = base.join(value["execution_report"].as_str().unwrap());
-        assert_eq!(std::fs::read(report).unwrap(), b"port reference case");
-        assert!(
-            base.join(value["execution_workspace"].as_str().unwrap())
-                .join("workspace.json")
-                .is_file()
+        let saved = opened.saved_store.unwrap();
+        let store = EvidenceStore::open_expecting(&saved.path, &saved.index_sha256).unwrap();
+        let study = &saved.studies[0];
+        assert_eq!(
+            store
+                .read_file(&study.case_tree, "execution-report.json", 1 << 20)
+                .unwrap(),
+            b"port reference case"
         );
-        drop(materializer);
-        assert!(!base.exists());
+        assert_eq!(
+            store
+                .read_file(&study.workspace_tree, "workspace.json", 1 << 20)
+                .unwrap(),
+            b"port reference workspace"
+        );
+        // Opening the package and reading it wrote nothing into the package
+        // and made no temporary expansion.
+        assert!(!fixture.root().join("materialized").exists());
+        assert!(store.verify().finding_count == 0);
     }
 
     #[test]
-    fn a_failed_extraction_publishes_a_failed_marker() {
+    fn a_changed_store_index_is_not_used() {
         let fixture = Fixture::new();
-        let archive = fixture.root().join("port/archives/reference-case.tar.gz");
-        // The index still records the original hash, so the index mismatch is
-        // what the extraction reports.
-        let mut bytes = std::fs::read(&archive).unwrap();
-        let last = bytes.len() - 1;
-        bytes[last] ^= 0xff;
-        std::fs::write(&archive, bytes).unwrap();
         let opened = fixture.open().unwrap();
-        let materializer = opened.start_materializer().unwrap().unwrap();
-        let marker = wait_for_marker(&materializer);
-        assert_eq!(marker["status"], "FAILED");
+        let saved = opened.saved_store.unwrap();
+        let index_path = saved.path.join("store.json");
+        let mut text = std::fs::read_to_string(&index_path).unwrap();
+        text.push(' ');
+        std::fs::write(&index_path, text).unwrap();
+        let error = EvidenceStore::open_expecting(&saved.path, &saved.index_sha256)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("package index records"), "{error}");
+    }
+
+    #[test]
+    fn a_tampered_blob_is_refused_when_its_file_is_read() {
+        let fixture = Fixture::new();
+        let opened = fixture.open().unwrap();
+        let saved = opened.saved_store.unwrap();
+        let store = EvidenceStore::open_expecting(&saved.path, &saved.index_sha256).unwrap();
+        let entry = store
+            .entry(&saved.studies[0].case_tree, "execution-report.json")
+            .unwrap()
+            .clone();
+        let blob = saved
+            .path
+            .join("blobs")
+            .join(&entry.sha256[..2])
+            .join(format!("{}.xz", entry.sha256));
+        let mut bytes = std::fs::read(&blob).unwrap();
+        let middle = bytes.len() / 2;
+        bytes[middle] ^= 1;
+        std::fs::write(&blob, bytes).unwrap();
         assert!(
-            marker["error"]
-                .as_str()
-                .is_some_and(|e| e.contains("port/reference case")),
-            "{marker}"
+            store
+                .read_file(
+                    &saved.studies[0].case_tree,
+                    "execution-report.json",
+                    1 << 20
+                )
+                .is_err()
         );
     }
 
     #[test]
-    fn dropping_the_materializer_cancels_and_joins_the_thread() {
-        let fixture = Fixture::new();
-        let opened = fixture.open().unwrap();
-        let materializer = opened.start_materializer().unwrap().unwrap();
-        let base = materializer.marker.parent().unwrap().to_path_buf();
-        drop(materializer);
-        assert!(!base.exists());
+    fn the_index_must_list_the_trees_it_assigns_to_the_saved_studies() {
+        let fixture = Fixture::with(|i| {
+            i["evidence_store"]["trees"] = json!([{"name": "port-reference-case"}]);
+        });
+        let error = fixture.open().err().unwrap();
+        assert!(error.contains("does not list it"), "{error}");
+        let fixture = Fixture::with(|i| i["evidence_store"]["store_json_sha256"] = "x".into());
+        let error = fixture.open().err().unwrap();
+        assert!(error.contains("no valid SHA-256"), "{error}");
+        let fixture = Fixture::with(|i| i["evidence_store"]["path"] = "../elsewhere".into());
+        assert!(fixture.open().is_err());
     }
 
     #[test]
@@ -1167,7 +1036,7 @@ mod tests {
             matches!(&opened.evidence, Evidence::Absent { archive_name, .. }
             if archive_name == "FARIS-test-evidence.tar.gz")
         );
-        assert!(opened.start_materializer().unwrap().is_none());
+        assert!(opened.saved_store.is_none());
         let note = evidence_message(&opened.evidence).unwrap();
         assert_eq!(note.label, "Core receipts not included");
         assert_eq!(note.kind, crate::badge::Kind::NotEvaluated);
@@ -1184,9 +1053,15 @@ mod tests {
             opened.evidence,
             Evidence::Incomplete { missing: 1, .. }
         ));
+        let Evidence::Incomplete { total, .. } = opened.evidence else {
+            unreachable!()
+        };
         let note = evidence_message(&opened.evidence).unwrap();
-        assert!(note.text.contains("1 of the 17 evidence files are missing"));
-        assert!(opened.start_materializer().unwrap().is_none());
+        assert!(
+            note.text
+                .contains(&format!("1 of the {} evidence files are missing", total))
+        );
+        assert!(opened.saved_store.is_none());
         assert!(evidence_message(&Evidence::Present).is_none());
     }
 
@@ -1201,8 +1076,8 @@ mod tests {
             );
         };
         refused(
-            Fixture::with(|i| i["schema_version"] = "faris-recorded-demo-package/v0.4".into()),
-            "v0.4",
+            Fixture::with(|i| i["schema_version"] = "faris-recorded-demo-package/v0.5".into()),
+            "v0.5",
         );
         refused(
             Fixture::with(|i| i["local_runtime"]["platform"]["os"] = "plan9".into()),
@@ -1438,24 +1313,5 @@ mod tests {
         assert!(supplies(&["--bundle", "b.json"]));
         assert!(supplies(&["--assumptions", "a.json"]));
         assert!(supplies(&["--saved-study", "d.json"]));
-    }
-
-    /// Against a real 0.1.0 package (schema v0.4, no part tags): extract all
-    /// eight recorded trees. Set FARIS_REAL_PACKAGE to the package folder.
-    #[test]
-    #[ignore = "needs a real package folder"]
-    fn extracts_the_real_package_trees() {
-        let root = PathBuf::from(std::env::var("FARIS_REAL_PACKAGE").unwrap());
-        let mut value: Value =
-            serde_json::from_slice(&std::fs::read(root.join(INDEX)).unwrap()).unwrap();
-        let platform = Platform::current();
-        value["local_runtime"]["platform"] = json!({"os": platform.os, "arch": platform.arch});
-        value["parts"] = json!({"evidence": {"archive_name": "x"}});
-        let index: Index = serde_json::from_value(value).unwrap();
-        let trees = tree_jobs(&index).unwrap();
-        let materializer =
-            Materializer::start(&root, trees, index.expanded_case_workspace_bytes).unwrap();
-        let marker = wait_for_marker(&materializer);
-        assert_eq!(marker["status"], "COMPLETE", "{marker}");
     }
 }

@@ -1,5 +1,6 @@
 //! Evidence archives named by a packaged saved-study descriptor
-//! (`faris-saved-study-archive/v0.1`).
+//! (`faris-saved-study-archive/v0.1`). A store descriptor
+//! (`faris-saved-study-store/v0.1`) is refused with a next step.
 
 use crate::{
     ArchiveKind, EvidenceArchive, EvidenceDraft, StudyError, is_sha256_hex, read::sha256_file,
@@ -12,6 +13,11 @@ struct Descriptor {
     schema_version: String,
     case_archive: ArchiveField,
     workspace_archive: ArchiveField,
+}
+
+#[derive(Deserialize)]
+struct Probe {
+    schema_version: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -35,10 +41,19 @@ pub fn evidence_from_descriptor(descriptor: &Path) -> Result<Vec<EvidenceDraft>,
             descriptor.display()
         )));
     }
-    let parsed: Descriptor = serde_json::from_slice(
-        &std::fs::read(descriptor).map_err(|e| StudyError::io(context(), e))?,
-    )
-    .map_err(|e| {
+    let bytes = std::fs::read(descriptor).map_err(|e| StudyError::io(context(), e))?;
+    if let Ok(Probe {
+        schema_version: Some(schema),
+    }) = serde_json::from_slice(&bytes)
+        && schema == "faris-saved-study-store/v0.1"
+    {
+        return Err(StudyError::Input(format!(
+            "{} names trees in an evidence store; evidence records for store trees come in a later change. \
+             Use a descriptor from an older package that names archives, or create the study file without --evidence.",
+            descriptor.display()
+        )));
+    }
+    let parsed: Descriptor = serde_json::from_slice(&bytes).map_err(|e| {
         StudyError::Input(format!(
             "{} is not a saved-study descriptor: {e}",
             descriptor.display()

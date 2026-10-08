@@ -168,8 +168,9 @@ struct Arguments {
     /// case_directory, execution_report and execution_workspace paths. Repeatable.
     #[arg(long)]
     saved_study: Vec<PathBuf>,
-    /// Wait in the saved-evidence worker for bounded archive materialization.
-    /// Transport exploration stays available; this marker verifies no Core claims.
+    /// Wait in the saved-evidence worker for a legacy study file's packed
+    /// evidence to finish unpacking. Transport exploration stays available;
+    /// this marker verifies no Core claims.
     #[arg(long, requires = "saved_study")]
     saved_study_ready_marker: Option<PathBuf>,
     #[arg(long)]
@@ -270,7 +271,8 @@ struct PackageSession {
     evidence: Option<study_file::EvidenceBadge>,
     /// The recorded maintenance result the package carries, if any.
     maintenance_result: Option<package::RecordedMaintenance>,
-    _materializer: Option<package::Materializer>,
+    /// The package's evidence store with its saved studies, read in place.
+    saved_store: Option<package::SavedStore>,
 }
 
 /// The study inputs that the command-line flags (or package mode) supply.
@@ -319,9 +321,8 @@ fn check_package(
     if let Some(failure) = &session.failure {
         problems.push(failure.text.clone());
     } else {
-        if let Some(materializer) = &session._materializer {
-            saved =
-                archive_panel::check_saved_studies(&materializer.descriptors, &materializer.marker);
+        if let Some(store) = &session.saved_store {
+            saved = archive_panel::check_saved_studies_in_store(store);
             problems.extend(saved.iter().filter_map(|r| r.as_ref().err().cloned()));
         }
         match build_session(session_inputs_from(args, runs_directory)) {
@@ -391,21 +392,7 @@ fn open_package(args: &mut Arguments) -> Option<PackageSession> {
             return Some(session);
         }
     };
-    match opened.start_materializer() {
-        Ok(materializer) => {
-            if let Some(materializer) = &materializer {
-                args.saved_study = materializer.descriptors.clone();
-                args.saved_study_ready_marker = Some(materializer.marker.clone());
-            }
-            session._materializer = materializer;
-        }
-        Err(error) => {
-            session.failure = Some(package::failure_message(&format!(
-                "Why: {error}.\n\nNext step: free some space or check the temporary folder, then reopen FARIS."
-            )));
-            return Some(session);
-        }
-    }
+    session.saved_store = opened.saved_store;
     session.evidence = package::evidence_message(&opened.evidence);
     if opened.development_binary {
         session.development_binary = Some(package::development_binary_message());
@@ -567,6 +554,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 if let Some(recorded) = session.maintenance_result.clone() {
                     app.maintenance.set_recorded(recorded);
+                }
+                if let Some(store) = session.saved_store.clone() {
+                    app.study.archive.queue_store(store);
                 }
                 app.package = Some(session);
             }
