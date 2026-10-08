@@ -6,6 +6,7 @@ use std::path::PathBuf;
 mod control;
 mod evidence;
 mod history;
+mod maintenance;
 mod reactor;
 mod study;
 mod study_export;
@@ -29,6 +30,11 @@ enum Command {
     History {
         #[command(subcommand)]
         command: history::HistoryCommand,
+    },
+    /// Compute replacement outages from activation decay heat and compare them with fixed ones.
+    Maintenance {
+        #[command(subcommand)]
+        command: maintenance::MaintenanceCommand,
     },
     /// Package and execute identified simulation evidence with real Avila Core.
     Evidence {
@@ -98,6 +104,7 @@ fn main() -> std::process::ExitCode {
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
     match arguments.command {
         Command::History { command } => history::run(command)?,
+        Command::Maintenance { command } => maintenance::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,
         Command::Control { command } => control::run(command)?,
         Command::Reactor { command } => reactor::run(command)?,

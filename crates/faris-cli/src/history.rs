@@ -294,7 +294,7 @@ fn write_new_json<T: serde::Serialize>(
     Ok(())
 }
 
-fn rates_from_run(
+pub(crate) fn rates_from_run(
     scenario: &faris_model::LoadedScenario,
     run_path: &std::path::Path,
 ) -> Result<TransportDrivingRates, Box<dyn std::error::Error>> {

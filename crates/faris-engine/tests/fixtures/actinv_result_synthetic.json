@@ -1,0 +1,152 @@
+{
+ "version": "synthetic-1",
+ "ms": 1234,
+ "meta": {
+  "title": "unicode éè 中文 🚀",
+  "steps": "not the steps",
+  "deep": [
+   [
+    [
+     {
+      "a": [
+       null,
+       true,
+       false
+      ]
+     }
+    ]
+   ]
+  ]
+ },
+ "steps": [
+  {
+   "t_s": 1.0,
+   "heat_W_per_g": {
+    "total": 0.125,
+    "by_nuclide": {
+     "Fe-55": {
+      "atoms": 1.5e+22,
+      "activity_Bq": 4987.0
+     },
+     "Mn-54": {
+      "atoms": 0.0025,
+      "activity_Bq": [
+       1,
+       2,
+       3
+      ]
+     }
+    }
+   },
+   "flux": 25000000000000.0,
+   "label": "irradiation µ-Ω 😀",
+   "nuclides": {
+    "Fe-55": {
+     "atoms": 1.5e+22,
+     "activity_Bq": 4987.0
+    },
+    "Mn-54": {
+     "atoms": 0.0025,
+     "activity_Bq": [
+      1,
+      2,
+      3
+     ]
+    }
+   }
+  },
+  {
+   "t_s": 3600,
+   "heat_W_per_g": {
+    "total": 5,
+    "gamma": 3
+   },
+   "flux": 7
+  },
+  {
+   "t_s": 7200.5,
+   "heat_W_per_g": {
+    "total": 4987.0
+   },
+   "photon_source": {
+    "contact_gamma_air_dose_proxy_Gy_h": 0.0625,
+    "groups": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "t_s": 10000.0,
+   "heat_W_per_g": {
+    "total": 1e-300
+   },
+   "flux": 0.0,
+   "photon_source": {
+    "other": 1
+   }
+  },
+  {
+   "t_s": 20000.0,
+   "heat_W_per_g": {
+    "total": 2.2250738585072014e-308
+   },
+   "flux": 0,
+   "photon_source": null
+  },
+  {
+   "t_s": 30000.0,
+   "heat_W_per_g": {
+    "total": 5e-324
+   },
+   "flux": 0.0,
+   "photon_source": {}
+  },
+  {
+   "t_s": 40000.0,
+   "heat_W_per_g": {
+    "total": 1.7976931348623157e+308
+   },
+   "flux": -0.0,
+   "photon_source": {
+    "contact_gamma_air_dose_proxy_Gy_h": 123456789.12345678
+   }
+  },
+  {
+   "t_s": 50000.0,
+   "heat_W_per_g": {
+    "total": 0.1
+   },
+   "flux": 1e-05
+  },
+  {
+   "t_s": 60000.0,
+   "heat_W_per_g": {
+    "total": 0.30000000000000004
+   },
+   "flux": 0.0,
+   "photon_source": {
+    "contact_gamma_air_dose_proxy_Gy_h": 0.0
+   }
+  },
+  {
+   "t_s": 31536000.0,
+   "heat_W_per_g": {
+    "total": 3.14159e-07
+   },
+   "flux": 0.0,
+   "text": "a \"steps\": [ 1, 2 ] } in a string, and a tab\t and \\ backslash"
+  }
+ ],
+ "pruned_states": 17,
+ "total_states": 4987,
+ "trailer": {
+  "steps": [
+   {
+    "t_s": 1
+   }
+  ],
+  "ms": -1
+ }
+}

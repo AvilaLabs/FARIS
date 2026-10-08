@@ -490,6 +490,17 @@ pub struct Contrast {
     pub not_evaluated: Option<NotEvaluated>,
 }
 
+/// What the decay source did, filled by the caller after the run.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DecaySourceRecord {
+    /// For example "actinv-continuations".
+    pub kind: String,
+    /// ACTINV runs started in this run.
+    pub actinv_runs: u64,
+    /// Decay curves found in the points cache instead of being run.
+    pub cache_hits: u64,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct MaintenanceResult {
     pub schema_version: String,
@@ -499,6 +510,8 @@ pub struct MaintenanceResult {
     pub assumptions: MaintenanceAssumptions,
     pub designs: BTreeMap<String, DesignResult>,
     pub contrasts: Vec<Contrast>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decay_source: Option<DecaySourceRecord>,
 }
 
 // --------------------------------------------------------------------- loop --
@@ -1059,8 +1072,11 @@ pub fn run_maintenance(
         assumptions: assumptions.clone(),
         designs: results,
         contrasts,
+        decay_source: None,
     })
 }
+
+pub mod actinv;
 
 #[cfg(test)]
 mod tests;
