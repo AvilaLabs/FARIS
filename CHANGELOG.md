@@ -73,11 +73,11 @@ basis.
 - FARIS's model and engine compute with platform-independent math: every
   `exp`, `ln`, `powf`, trigonometric and similar function is the pure-Rust
   `libm` one (`faris_model::math`), and `powi` is repeated multiplication in a
-  fixed order, so a history should be bit-identical on Linux, Windows and macOS (Intel
-  and Apple silicon); the desktop workflow checks this on each. Results recorded earlier are unchanged on the recorded
-  machine: all sixteen histories recompute byte for byte. Clippy rejects the
-  std methods, and `desktop.yml` runs a digest test of a 30-year history and an
-  ensemble on all four platforms.
+  fixed order, so a history is bit-identical on Linux, Windows and macOS (Intel
+  and Apple silicon). `desktop.yml` checks this on all four with a SHA-256 test
+  of a 30-year history and an ensemble, and Clippy rejects the std methods.
+  Results recorded earlier are unchanged: all sixteen recorded histories
+  recompute byte for byte.
 
 ## 0.2.0 — 2026-10-08
 
