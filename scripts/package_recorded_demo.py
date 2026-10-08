@@ -31,8 +31,7 @@ from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bu
 from verify_recorded_demo import (launch_paths, part_for, rust_platform, check_maintenance_record,
                                   MAINTENANCE_RESULT, MAINTENANCE_ASSUMPTIONS,
                                   MAINTENANCE_HISTORY_ASSUMPTIONS, MAINTENANCE_BUILDER)
-from recorded_archives import (create_archive, MAX_PATH_COMPONENTS,
-                               MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES)
+import evidence_store
 
 REQUIRED_RESPONSES = {"total-tritium-production", "heating-total-whole-model"}
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
@@ -43,9 +42,11 @@ MAX_TREE_BYTES = 512 * 1024 * 1024
 # Delivered package total; each expanded case/workspace tree keeps MAX_TREE_BYTES.
 MAX_PACKAGE_BYTES = 1024 * 1024 * 1024
 MAX_TREE_FILES = 2048
-MAX_TREE_MEMBERS = 4096
+MAX_TREE_DIRECTORIES = 1024
 MAX_EXPANDED_PACKAGE_BYTES = 1536 * 1024 * 1024
 MAX_EXPANDED_PACKAGE_FILES = 8192
+EVIDENCE_STORE_DIRECTORY = "evidence-store"
+SAVED_STUDY_SCHEMA = "faris-saved-study-store/v0.1"
 OUTAGE_DURATION_MULTIPLIERS = (0.5, 1.0, 2.0)
 HISTORY_REFINEMENT_REPORT_NAME = "operating-history-primary-refinement-v4.json"
 HISTORY_REFINEMENT_SCHEMA = "faris-operating-history-primary-refinement-v4"
@@ -500,27 +501,6 @@ def add_outage_duration_study(faris: Path, staging: Path, pair_id: str,
     return records
 
 
-def archive_tree(staging: Path, branch: Path, variant_id: str,
-                 kind: str, source: Path) -> dict[str, object]:
-    archives = branch / "archives"
-    archives.mkdir(exist_ok=True)
-    stem = f"{variant_id}-{kind}"
-    archive_path = archives / f"{stem}.tar.gz"
-    manifest_path = archives / f"{stem}.manifest.json"
-    manifest = create_archive(source, archive_path, manifest_path)
-    return {
-        "path": archive_path.relative_to(staging).as_posix(),
-        "sha256": sha256(archive_path),
-        "bytes": archive_path.stat().st_size,
-        "manifest_path": manifest_path.relative_to(staging).as_posix(),
-        "manifest_sha256": sha256(manifest_path),
-        "expanded_bytes": manifest["expanded_bytes"],
-        "file_count": manifest["file_count"],
-        "archive_member_count": manifest["archive_member_count"],
-        "directory_count": manifest["directory_count"],
-    }
-
-
 def copy_port_volume_report(staging: Path, branch: Path, variant_id: str,
                             source: Path) -> dict[str, str]:
     """Copy a bound port-volume report; both variants share the geometry directory."""
@@ -712,7 +692,7 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
     scripts_dir.mkdir()
     for name in ("verify_recorded_demo.py", "recorded_bundle_contract.py",
                  "port_geometry_contract.py", "verify_binary_manifest.py",
-                 "recorded_archives.py"):
+                 "evidence_store.py"):
         source = Path(__file__).with_name(name)
         shutil.copyfile(source, scripts_dir / name)
 
@@ -948,21 +928,45 @@ def add_sweep(staging: Path, bundle_paths: list[Path]) -> dict | None:
             "scenario_sha256": scenario_sha, "runs": runs}
 
 
+def pack_evidence_store(staging: Path, tree_sources: dict[str, Path]) -> dict:
+    """Pack every case and workspace tree into one evidence store, so each distinct
+    file is kept once, then delete the expanded trees. Returns the index's
+    `evidence_store` record."""
+    store = staging / EVIDENCE_STORE_DIRECTORY
+    report = evidence_store.pack_store(store, tree_sources)
+    index = evidence_store.load_index(store)
+    trees = evidence_store.tree_summary(index)
+    if (any(tree["bytes"] > MAX_TREE_BYTES or tree["file_count"] > MAX_TREE_FILES
+            or tree["directory_count"] > MAX_TREE_DIRECTORIES for tree in trees)
+            or report["uncompressed_bytes"] > MAX_EXPANDED_PACKAGE_BYTES
+            or report["files"] > MAX_EXPANDED_PACKAGE_FILES):
+        raise RuntimeError("case/workspace trees exceed the evidence store bounds")
+    evidence_store.check_store(store)
+    for source in tree_sources.values():
+        shutil.rmtree(source)
+    return {
+        "path": EVIDENCE_STORE_DIRECTORY,
+        "schema_version": evidence_store.SCHEMA_VERSION,
+        "store_json_sha256": sha256(store / "store.json"),
+        "blob_count": report["blob_count"],
+        "uncompressed_bytes": report["uncompressed_bytes"],
+        "distinct_bytes": report["distinct_bytes"],
+        "stored_bytes": report["stored_bytes"],
+        "trees": trees,
+    }
+
+
 def evidence_archive_name(version: str) -> str:
     return f"FARIS-{version}-evidence.tar.gz"
 
 
 def write_package_readme(staging: Path, pairs: list[dict], support: dict,
-                         sweep: dict | None, version: str, maintenance: dict | None = None) -> None:
-    expanded_bytes = sum(int(arrangement[key]["expanded_bytes"])
-                         for pair in pairs for arrangement in pair["arrangements"]
-                         for key in ("case_archive", "workspace_archive"))
-    expanded_files = sum(int(arrangement[key]["file_count"])
-                         for pair in pairs for arrangement in pair["arrangements"]
-                         for key in ("case_archive", "workspace_archive"))
-    compressed_archive_bytes = sum(int(arrangement[key]["bytes"])
-                                   for pair in pairs for arrangement in pair["arrangements"]
-                                   for key in ("case_archive", "workspace_archive"))
+                         sweep: dict | None, version: str, store: dict,
+                         maintenance: dict | None = None) -> None:
+    trees = store["trees"]
+    tree_files = sum(int(tree["file_count"]) for tree in trees)
+    case_names = {arrangement["case_tree"] for pair in pairs for arrangement in pair["arrangements"]}
+    largest_case = max((int(tree["bytes"]) for tree in trees if tree["name"] in case_names), default=0)
     lines = [
         "# FARIS recorded coupled-transport demo",
         "",
@@ -1028,15 +1032,15 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "## The two downloads",
         "",
         f"The program, the transport bundles, the operating assumptions, the licenses and the package index are the platform download (`FARIS-{version}-<os>-<arch>.tar.gz`). That alone opens and runs the whole study.",
-        f"The evidence download (`{evidence_archive_name(version)}`) adds the Core receipts shown in the Evidence step and the files `verify.sh` checks: the eight Core case/workspace archives, the saved-study descriptors, inspections, exports, comparisons, event histories, sensitivities, outage-duration probes, support files, `inputs/`, `verify.sh` and the verifier scripts. To install it, unpack it into the same folder as the platform download on every platform (both unpack into `FARIS-{version}/`). Without it the Evidence step says the Core receipts are not included, and the rest works.",
-        f"With the evidence part present, the app expands the eight Core case/workspace archives into a private temporary folder while it runs and removes it when it exits. The temporary space for that is the indexed expanded total, {expanded_bytes} bytes in {expanded_files} files, plus one filesystem block per indexed implicit directory and 64 MiB.",
+        f"The evidence download (`{evidence_archive_name(version)}`) adds the Core receipts shown in the Evidence step and the files `verify.sh` checks: the Core evidence store (`evidence-store/`), the saved-study descriptors, inspections, exports, comparisons, event histories, sensitivities, outage-duration probes, support files, `inputs/`, `verify.sh` and the verifier scripts. To install it, unpack it into the same folder as the platform download on every platform (both unpack into `FARIS-{version}/`). Without it the Evidence step says the Core receipts are not included, and the rest works.",
+        "With the evidence part present, the app reads the saved Core studies straight from the evidence store and verifies each file's length and SHA-256 as it reads it. Nothing is expanded, so opening the package needs no temporary space.",
         "",
         "## Verification",
         "",
-        "`./verify.sh` needs Linux, `python3` and the evidence part; the Windows and macOS downloads are checked by the app itself at launch. It relocates a copy of the compressed package, expands the archives, revalidates saved Core evidence and export reports, and checks rejection of a separate tampered copy. It needs temporary space for the relocated compressed package (`package_bytes` in `package-index.json`) plus the expanded bytes above, one largest one-case export copy, directory blocks and 64 MiB; the verifier checks this. A later tamper negative control needs a third compressed copy only after expanded scratch is released. No files are expanded inside the read-only distribution.",
+        f"`./verify.sh` needs Linux, `python3` and the evidence part; the Windows and macOS downloads are checked by the app itself at launch. It relocates a copy of the package, verifies the evidence store (every blob's length and SHA-256), revalidates the saved Core evidence from the store and the export reports, and checks rejection of a separate tampered copy. Only one case tree at a time is unpacked into a temporary folder, because `avila-core export` needs a real folder. It needs temporary space for the relocated package (`package_bytes` in `package-index.json`), the largest case tree ({largest_case} bytes) and its export copy, directory blocks and 64 MiB; the verifier checks this. The tamper negative control needs a second package copy once the unpacked tree is released. No files are expanded inside the read-only distribution.",
         "",
         "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
-        f"The eight Core case/workspace archives occupy {compressed_archive_bytes} compressed bytes and expand to {expanded_bytes} bytes across {expanded_files} files. Expansion reproduces the original files byte-for-byte. The full package's indexed compressed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 1 GiB total. Each expanded case or workspace is capped at 512 MiB, 2,048 files, 4,096 archive members, and 1,024 implicit directories; aggregate expansion is capped at 1.5 GiB, 8,192 files, 8,192 archive members, and 8,192 implicit directories. Paths are limited to 64 components. Each expanded file remains capped at 64 MiB.",
+        f"The evidence store (format `{store['schema_version']}`) holds the {len(trees)} case and workspace trees: {tree_files} files, {store['uncompressed_bytes']} bytes before sharing, {store['distinct_bytes']} distinct bytes, stored as {store['blob_count']} xz-compressed files of {store['stored_bytes']} bytes. Each distinct file content is stored once; reading or unpacking reproduces the original files byte for byte. The full package's indexed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 1 GiB total. Each tree is capped at 512 MiB, 2,048 files, and 1,024 implicit directories; all trees together at 1.5 GiB and 8,192 files. Paths are limited to 64 components. Each file remains capped at 64 MiB.",
         "",
     ])
     destination = staging / "README.md"
@@ -1048,7 +1052,9 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
 def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
              scenario_path: Path, reference_run: Path, breeder_run: Path,
              assumptions: Path, event_assumptions: Path, sensitivity_grid: Path,
-             port_reports: tuple[Path, Path] | None) -> dict:
+             port_reports: tuple[Path, Path] | None, tree_sources: dict[str, Path]) -> dict:
+    """Record one scenario pair. Its case and workspace trees stay on disk and are
+    registered in `tree_sources`; the caller packs all of them into one store."""
     scenario_data = json.loads(scenario_path.read_text())
     scenario_sha = hashlib.sha256(scenario_path.read_bytes()).hexdigest()
     branch = staging / pair_id
@@ -1167,18 +1173,19 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             faris, staging, branch.name, scenario_path, run_path,
             assumptions, scenario_sha, variant_id))
         case_report_sha = sha256(execution_report)
-        case_archive = archive_tree(staging, branch, variant_id, "case", case)
-        workspace_archive = archive_tree(staging, branch, variant_id, "workspace", workspace)
+        case_tree = f"{pair_id}-{variant_id}-case"
+        workspace_tree = f"{pair_id}-{variant_id}-workspace"
+        tree_sources[case_tree] = case
+        tree_sources[workspace_tree] = workspace
         descriptor_path = staging / f"saved-study-{pair_id}-{variant_id}.json"
         descriptor = {
-            "schema_version": "faris-saved-study-archive/v0.1",
-            "case_archive": case_archive,
-            "workspace_archive": workspace_archive,
+            "schema_version": SAVED_STUDY_SCHEMA,
+            "store": EVIDENCE_STORE_DIRECTORY,
+            "case_tree": case_tree,
+            "workspace_tree": workspace_tree,
             "execution_report_member": "execution-report.json",
         }
         descriptor_path.write_text(json.dumps(descriptor, indent=2) + "\n", encoding="utf-8")
-        shutil.rmtree(case)
-        shutil.rmtree(workspace)
         run_summaries.append({
             "variant_id": variant_id,
             "run_record_sha256": sha256(run_path),
@@ -1201,8 +1208,8 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
             "core_export_report_sha256": sha256(export_report),
             "saved_study_descriptor": descriptor_path.relative_to(staging).as_posix(),
             "saved_study_descriptor_sha256": sha256(descriptor_path),
-            "case_archive": case_archive,
-            "workspace_archive": workspace_archive,
+            "case_tree": case_tree,
+            "workspace_tree": workspace_tree,
             "transport_bundle": bundle_path.relative_to(staging).as_posix(),
             "transport_bundle_sha256": sha256(bundle_path),
             "port_volume_report": volume_identity,
@@ -1367,11 +1374,15 @@ def main() -> None:
         shutil.copyfile(event_assumptions, inputs_dir / "event-assumptions.json")
         shutil.copyfile(sensitivity_grid, inputs_dir / "sensitivity-grid.json")
         branches = []
+        tree_sources: dict[str, Path] = {}
         for pair_id, (scenario_path, reference_run, breeder_run, volume_reports) in zip(
                 ("control", "port"), pairs, strict=True):
             branches.append(add_pair(staging, pair_id, faris, core, scenario_path,
                                      reference_run, breeder_run, assumptions,
-                                     event_assumptions, sensitivity_grid, volume_reports))
+                                     event_assumptions, sensitivity_grid, volume_reports,
+                                     tree_sources))
+        # One store for all eight trees, so identical files across them share a blob.
+        store_record = pack_evidence_store(staging, tree_sources)
         outage_records = [record for pair in branches for record in pair["outage_duration_studies"]]
         if len(outage_records) != 12:
             raise RuntimeError(f"outage-duration study produced {len(outage_records)} of 12 required runs")
@@ -1399,30 +1410,14 @@ def main() -> None:
             staging, args.maintenance_result, args.maintenance_assumptions,
             args.maintenance_history_assumptions, maintenance_version)
         write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version,
-                             maintenance_manifest)
+                             store_record, maintenance_manifest)
         prune_empty_directories(staging)
         indexed_files = scan_package(staging)
         part_totals = assign_parts(
             indexed_files, {"sweep": sweep_manifest, "maintenance": maintenance_manifest})
         part_totals["evidence"]["archive_name"] = evidence_archive_name(args.version)
-        expanded_total = sum(
-            int(arrangement[key]["expanded_bytes"])
-            for pair in branches for arrangement in pair["arrangements"]
-            for key in ("case_archive", "workspace_archive"))
-        expanded_file_count = sum(
-            int(arrangement[key]["file_count"])
-            for pair in branches for arrangement in pair["arrangements"]
-            for key in ("case_archive", "workspace_archive"))
-        expanded_directory_count = sum(
-            int(arrangement[key]["directory_count"])
-            for pair in branches for arrangement in pair["arrangements"]
-            for key in ("case_archive", "workspace_archive"))
-        if (expanded_total > MAX_EXPANDED_PACKAGE_BYTES
-                or expanded_file_count > MAX_EXPANDED_PACKAGE_FILES
-                or expanded_directory_count > MAX_EXPANDED_DIRECTORIES):
-            raise RuntimeError("case/workspace archives exceed the expanded bytes/files/directories bounds")
         index = {
-            "schema_version": "faris-recorded-demo-package/v0.5",
+            "schema_version": "faris-recorded-demo-package/v0.6",
             "status": "IDENTITIES_REVALIDATED_CORE_EXECUTIONS_COMPLETED_PHYSICS_NOT_EVALUATED",
             "faris_cli_sha256": sha256(faris),
             "faris_app_sha256": sha256(app),
@@ -1454,26 +1449,7 @@ def main() -> None:
             "package_file_count": len(indexed_files),
             "package_bytes": sum(item["bytes"] for item in indexed_files),
             "parts": part_totals,
-            "expanded_case_workspace_bytes": expanded_total,
-            "expanded_case_workspace_file_count": expanded_file_count,
-            "expanded_case_workspace_member_count": sum(
-                int(arrangement[key]["archive_member_count"])
-                for pair in branches for arrangement in pair["arrangements"]
-                for key in ("case_archive", "workspace_archive")),
-            "expanded_case_workspace_directory_count": expanded_directory_count,
-            "compressed_case_workspace_archive_bytes": sum(
-                int(arrangement[key]["bytes"])
-                for pair in branches for arrangement in pair["arrangements"]
-                for key in ("case_archive", "workspace_archive")),
-            "expanded_size_cap_bytes": MAX_EXPANDED_PACKAGE_BYTES,
-            "expanded_file_count_cap": MAX_EXPANDED_PACKAGE_FILES,
-            "expanded_archive_member_count_cap": MAX_EXPANDED_PACKAGE_FILES,
-            "expanded_directory_count_cap": MAX_EXPANDED_DIRECTORIES,
-            "per_tree_expanded_size_cap_bytes": MAX_TREE_BYTES,
-            "per_tree_file_count_cap": MAX_TREE_FILES,
-            "per_tree_archive_member_count_cap": MAX_TREE_MEMBERS,
-            "per_tree_directory_count_cap": MAX_TREE_DIRECTORIES,
-            "archive_path_component_count_cap": MAX_PATH_COMPONENTS,
+            "evidence_store": store_record,
             "scenario_pairs": branches,
             "sweep": sweep_manifest,
             **({"maintenance": maintenance_manifest} if maintenance_manifest else {}),

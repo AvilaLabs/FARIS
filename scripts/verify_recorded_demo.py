@@ -23,17 +23,23 @@ sys.dont_write_bytecode = True
 from port_geometry_contract import validate_ownership_audits
 from recorded_bundle_contract import (validate_recorded_bundle, inspect_sweep_bundle,
                                       check_sweep_set, SWEEP_BUNDLE_DIRECTORY)
-from recorded_archives import (extract_indexed_trees, MAX_EXPANDED_BYTES, MAX_MEMBERS,
-                               MAX_TREE_BYTES, MAX_TREE_FILES, MAX_TREE_MEMBERS,
-                               MAX_TREE_DIRECTORIES, MAX_EXPANDED_DIRECTORIES,
-                               MAX_PATH_COMPONENTS, count_implicit_directories)
+import evidence_store
 
 INDEX = "package-index.json"
 CHECKSUM = "package-index.sha256"
 MAX_FILE_BYTES = 64 * 1024 * 1024
 HISTORY_REFINEMENT_REPORT = "references/operating-history-primary-refinement-v4.json"
 FORBIDDEN_SUFFIXES = {".h5", ".hdf5", ".endf", ".zip"}
-SCHEMA = "faris-recorded-demo-package/v0.5"
+SCHEMA = "faris-recorded-demo-package/v0.6"
+EVIDENCE_STORE_DIRECTORY = "evidence-store"
+SAVED_STUDY_SCHEMA = "faris-saved-study-store/v0.1"
+# Bounds on the case and workspace trees held in the evidence store.
+MAX_TREE_BYTES = 512 * 1024 * 1024
+MAX_TREE_FILES = 2048
+MAX_TREE_DIRECTORIES = 1024
+MAX_EXPANDED_BYTES = 1536 * 1024 * 1024
+MAX_EXPANDED_FILES = 8192
+STORE_TREE_KINDS = ("case", "workspace")
 PARTS = ("app", "evidence")
 APP_ROOT_FILES = {"README.md", "SOURCE_PROVENANCE.md"}
 APP_ROOT_DIRECTORIES = ("bin/", "licenses/", "tools/", "maintenance/")
@@ -179,6 +185,74 @@ def safe_package_path(root: Path, relative: str, *, must_be_file: bool = True) -
     if not kind_matches or not resolved.is_relative_to(root):
         raise ValueError(f"package file is missing or escapes package: {relative!r}")
     return resolved
+
+
+def store_blob_paths(store_index: dict[str, Any]) -> set[str]:
+    """Package-relative paths of the blobs a store index references."""
+    digests = {entry["sha256"] for tree in store_index["trees"] for entry in tree["files"]}
+    return {f"{EVIDENCE_STORE_DIRECTORY}/blobs/{value[:2]}/{value}.xz" for value in digests}
+
+
+def case_tree_names(index: dict[str, Any]) -> list[str]:
+    return [arrangement["case_tree"] for pair in index["scenario_pairs"]
+            for arrangement in pair["arrangements"]]
+
+
+def verify_evidence_store_record(root: Path, index: dict[str, Any],
+                                 inventory: dict[str, dict[str, Any]]) -> None:
+    """The package index's evidence store record against the indexed store files:
+    `store.json` and its blobs are exactly the store's files, the trees and totals
+    follow from `store.json`, and the trees are inside the bounds. Blob contents
+    are decoded by `evidence_store.check_store`, not here."""
+    record = index.get("evidence_store")
+    if (not isinstance(record, dict) or record.get("path") != EVIDENCE_STORE_DIRECTORY
+            or record.get("schema_version") != evidence_store.SCHEMA_VERSION):
+        raise ValueError("package index lacks its evidence store record")
+    store_json = f"{EVIDENCE_STORE_DIRECTORY}/store.json"
+    if store_json not in inventory or inventory[store_json].get("part") != "evidence":
+        raise ValueError("evidence store index is missing from the evidence part")
+    if digest(safe_package_path(root, store_json)) != record.get("store_json_sha256"):
+        raise ValueError("evidence store index digest differs from the package index")
+    store_index = evidence_store.load_index(root / EVIDENCE_STORE_DIRECTORY)
+    expected = {store_json} | store_blob_paths(store_index)
+    actual = {path for path in inventory if path.startswith(EVIDENCE_STORE_DIRECTORY + "/")}
+    if actual != expected:
+        raise ValueError("evidence store files differ from its index (missing="
+                         f"{sorted(expected - actual)[:3]}, extra={sorted(actual - expected)[:3]})")
+    summary = evidence_store.tree_summary(store_index)
+    blobs = store_blob_paths(store_index)
+    distinct = {entry["sha256"]: entry["bytes"]
+                for tree in store_index["trees"] for entry in tree["files"]}
+    if (record.get("trees") != summary
+            or record.get("blob_count") != len(blobs)
+            or record.get("uncompressed_bytes") != sum(tree["bytes"] for tree in summary)
+            or record.get("distinct_bytes") != sum(distinct.values())
+            or record.get("stored_bytes") != sum(inventory[path]["bytes"] for path in blobs)):
+        raise ValueError("evidence store totals differ from the store index")
+    if (any(tree["bytes"] > MAX_TREE_BYTES or tree["file_count"] > MAX_TREE_FILES
+            or tree["directory_count"] > MAX_TREE_DIRECTORIES for tree in summary)
+            or record["uncompressed_bytes"] > MAX_EXPANDED_BYTES
+            or sum(tree["file_count"] for tree in summary) > MAX_EXPANDED_FILES):
+        raise ValueError("evidence store trees exceed the package bounds")
+    wanted = set()
+    for pair in index.get("scenario_pairs", []):
+        for arrangement in pair.get("arrangements", []):
+            variant = arrangement.get("variant_id")
+            pair_id = str(pair.get("scenario_path", "")).split("/", 1)[0]
+            for kind in STORE_TREE_KINDS:
+                wanted.add(f"{pair_id}-{variant}-{kind}")
+                if arrangement.get(f"{kind}_tree") != f"{pair_id}-{variant}-{kind}":
+                    raise ValueError(f"{kind} tree name differs from the arrangement for {pair_id}/{variant}")
+            descriptor_path = safe_package_path(root, arrangement.get("saved_study_descriptor"))
+            if digest(descriptor_path) != arrangement.get("saved_study_descriptor_sha256"):
+                raise ValueError("saved-study descriptor digest mismatch")
+            if json.loads(descriptor_path.read_text(encoding="utf-8")) != {
+                    "schema_version": SAVED_STUDY_SCHEMA, "store": EVIDENCE_STORE_DIRECTORY,
+                    "case_tree": arrangement["case_tree"], "workspace_tree": arrangement["workspace_tree"],
+                    "execution_report_member": "execution-report.json"}:
+                raise ValueError("saved-study descriptor is malformed or names other trees")
+    if {tree["name"] for tree in summary} != wanted:
+        raise ValueError("evidence store trees differ from the arrangements the package index records")
 
 
 def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
@@ -338,70 +412,7 @@ def verify_index(package: Path, faris: Path, core: Path) -> tuple[dict[str, Any]
         if (not isinstance(record, dict) or record.get("file_count") != len(members)
                 or record.get("bytes") != sum(item["bytes"] for item in members)):
             raise ValueError(f"package index {part} part totals are incorrect")
-    if (index.get("expanded_size_cap_bytes") != MAX_EXPANDED_BYTES
-            or index.get("expanded_file_count_cap") != MAX_MEMBERS
-            or index.get("expanded_archive_member_count_cap") != MAX_MEMBERS
-            or index.get("expanded_directory_count_cap") != MAX_EXPANDED_DIRECTORIES
-            or index.get("per_tree_expanded_size_cap_bytes") != MAX_TREE_BYTES
-            or index.get("per_tree_file_count_cap") != MAX_TREE_FILES
-            or index.get("per_tree_archive_member_count_cap") != MAX_TREE_MEMBERS
-            or index.get("per_tree_directory_count_cap") != MAX_TREE_DIRECTORIES
-            or index.get("archive_path_component_count_cap") != MAX_PATH_COMPONENTS):
-        raise ValueError("package expansion caps differ from the bounded extractor")
-    expanded_bytes = 0
-    expanded_files = 0
-    expanded_members = 0
-    expanded_directories = 0
-    compressed_archives = 0
-    for pair in index.get("scenario_pairs", []):
-        for arrangement in pair.get("arrangements", []):
-            descriptor_path = safe_package_path(root, arrangement.get("saved_study_descriptor"))
-            if digest(descriptor_path) != arrangement.get("saved_study_descriptor_sha256"):
-                raise ValueError("saved-study archive descriptor digest mismatch")
-            descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-            if (descriptor.get("schema_version") != "faris-saved-study-archive/v0.1"
-                    or descriptor.get("execution_report_member") != "execution-report.json"):
-                raise ValueError("saved-study archive descriptor is malformed")
-            for kind in ("case", "workspace"):
-                archive = arrangement.get(f"{kind}_archive")
-                if not isinstance(archive, dict) or descriptor.get(f"{kind}_archive") != archive:
-                    raise ValueError(f"{kind} archive descriptor mismatch")
-                archive_path = safe_package_path(root, archive.get("path"))
-                manifest_path = safe_package_path(root, archive.get("manifest_path"))
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                if (digest(archive_path) != archive.get("sha256")
-                        or digest(manifest_path) != archive.get("manifest_sha256")
-                        or archive_path.stat().st_size != archive.get("bytes")
-                        or manifest.get("archive_sha256") != archive.get("sha256")
-                        or manifest.get("archive_bytes") != archive.get("bytes")
-                        or manifest.get("expanded_bytes") != archive.get("expanded_bytes")
-                        or manifest.get("file_count") != archive.get("file_count")
-                        or manifest.get("archive_member_count") != archive.get("archive_member_count")
-                        or manifest.get("directory_count") != archive.get("directory_count")
-                        or manifest.get("directory_count") != count_implicit_directories(manifest.get("members"))):
-                    raise ValueError(f"{kind} archive manifest identity/size mismatch")
-                caps = (("bytes", MAX_FILE_BYTES), ("expanded_bytes", MAX_TREE_BYTES),
-                        ("file_count", MAX_TREE_FILES),
-                        ("archive_member_count", MAX_TREE_MEMBERS),
-                        ("directory_count", MAX_TREE_DIRECTORIES))
-                if any(not isinstance(archive.get(key), int) or isinstance(archive.get(key), bool)
-                       or archive[key] < 0 or archive[key] > maximum
-                       for key, maximum in caps):
-                    raise ValueError(f"{kind} archive exceeds individual Core tree caps")
-                expanded_bytes += int(archive.get("expanded_bytes", -1))
-                expanded_files += int(archive.get("file_count", -1))
-                expanded_members += int(archive.get("archive_member_count", -1))
-                expanded_directories += int(archive.get("directory_count", -1))
-                compressed_archives += int(archive.get("bytes", -1))
-    if (expanded_bytes > MAX_EXPANDED_BYTES or expanded_files > MAX_MEMBERS
-            or expanded_members > MAX_MEMBERS or expanded_directories > MAX_EXPANDED_DIRECTORIES
-            or index.get("expanded_case_workspace_bytes") != expanded_bytes
-            or index.get("expanded_case_workspace_file_count") != expanded_files
-            or expanded_members > MAX_MEMBERS
-            or index.get("expanded_case_workspace_member_count") != expanded_members
-            or index.get("expanded_case_workspace_directory_count") != expanded_directories
-            or index.get("compressed_case_workspace_archive_bytes") != compressed_archives):
-        raise ValueError("expanded case/workspace totals exceed or differ from their declared limits")
+    verify_evidence_store_record(root, index, inventory)
     actual = set()
     tree_entries = 0
     for path in root.rglob("*"):
@@ -627,9 +638,13 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any]) -> None:
         raise ValueError("outage-duration records do not cover every pair, variant, and level")
 
 
-def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
-                  core: Path, extracted: dict[tuple[str, str], tuple[Path, Path]]) -> list[dict[str, str]]:
+def inspect_cases(package: Path, index: dict[str, Any], faris: Path, core: Path,
+                  scratch: Path) -> list[dict[str, str]]:
+    """Reopen the four saved cases from the evidence store, in place, and replay each
+    Core export from its case tree, unpacked alone into `scratch` and removed again."""
     root = package.resolve(strict=True)
+    store = root / EVIDENCE_STORE_DIRECTORY
+    store_index = evidence_store.load_index(store)
     event_ref = index.get("event_assumptions")
     grid_ref = index.get("sensitivity_grid")
     event_path = safe_package_path(root, event_ref.get("path") if isinstance(event_ref, dict) else None)
@@ -679,29 +694,18 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
             if key in seen_variants or variant not in {"reference", "breeder-emphasis"}:
                 raise ValueError("package repeats or contains an unexpected arrangement")
             seen_variants.add(key)
-            descriptor_rel = arrangement.get("saved_study_descriptor")
-            descriptor_path = safe_package_path(root, descriptor_rel)
-            if digest(descriptor_path) != arrangement.get("saved_study_descriptor_sha256"):
-                raise ValueError(f"saved-study descriptor digest mismatch: {descriptor_rel}")
-            descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-            if (set(descriptor) != {"schema_version", "case_archive", "workspace_archive",
-                                   "execution_report_member"}
-                    or descriptor.get("schema_version") != "faris-saved-study-archive/v0.1"):
-                raise ValueError(f"unsupported saved-study archive descriptor: {descriptor_rel}")
-            if (descriptor.get("case_archive") != arrangement.get("case_archive")
-                    or descriptor.get("workspace_archive") != arrangement.get("workspace_archive")
-                    or descriptor.get("execution_report_member") != "execution-report.json"):
-                raise ValueError(f"saved-study archive paths differ from indexed case for {pair_id}/{variant}")
-            case, workspace = extracted[(pair_id, variant)]
-            report = case / "execution-report.json"
-            if (not report.is_file()
-                    or digest(report) != arrangement.get("core_execution_report_sha256")
-                    or arrangement.get("core_execution_report_member") != "execution-report.json"):
-                raise ValueError(f"extracted Core execution report is missing or changed for {pair_id}/{variant}")
+            case_tree, workspace_tree = arrangement["case_tree"], arrangement["workspace_tree"]
+            if arrangement.get("core_execution_report_member") != "execution-report.json":
+                raise ValueError(f"unexpected Core execution report member for {pair_id}/{variant}")
+            report_bytes = evidence_store.read_file(
+                store, store_index, case_tree, "execution-report.json")
+            if "sha256:" + hashlib.sha256(report_bytes).hexdigest() != arrangement.get(
+                    "core_execution_report_sha256"):
+                raise ValueError(f"stored Core execution report changed for {pair_id}/{variant}")
             output = subprocess.run(
-                [str(faris), "evidence", "inspect", "--case", str(case),
-                 "--report", str(report), "--workspace", str(workspace)],
-                check=False, capture_output=True, text=True, timeout=180,
+                [str(faris), "evidence", "inspect", "--store", str(store),
+                 "--case-tree", case_tree, "--workspace-tree", workspace_tree],
+                check=False, capture_output=True, text=True, timeout=600,
             )
             if output.returncode != 0:
                 raise ValueError(f"FARIS evidence inspect rejected {pair_id}/{variant}: {output.stderr[-2000:]}")
@@ -733,12 +737,15 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
             if digest(export_report_path) != arrangement.get("core_export_report_sha256"):
                 raise ValueError(f"Core export report digest mismatch for {pair_id}/{variant}")
             stored_export_report = json.loads(export_report_path.read_text(encoding="utf-8"))
-            with tempfile.TemporaryDirectory(prefix="faris-export-recheck-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="faris-export-recheck-", dir=scratch) as temporary:
+                # `avila-core export` needs a real folder: unpack only this case tree.
+                evidence_store.unpack_store(store, Path(temporary) / "unpacked", [case_tree])
+                case = Path(temporary) / "unpacked" / case_tree
                 export_dir = Path(temporary) / "export"
                 export = subprocess.run(
                     [str(core), "export", str(case), "--source-root", f"case={case}",
                      "--out", str(export_dir)],
-                    check=False, capture_output=True, text=True, timeout=180,
+                    check=False, capture_output=True, text=True, timeout=600,
                 )
                 if export.returncode != 0:
                     raise ValueError(f"Core export recheck failed for {pair_id}/{variant}: {export.stderr[-2000:]}")
@@ -913,66 +920,91 @@ def evidence_programs(index: dict[str, Any]) -> str:
     return "CI_BUILD_OF_RECORDED_COMMITS_CHECKED_BY_REPRODUCTION"
 
 
+def scratch_needed(index: dict[str, Any]) -> int:
+    """Temporary space for one verification pass: the largest case tree unpacked for
+    `avila-core export`, its export copy, directory blocks and 64 MiB. Everything else is
+    read from the evidence store in place."""
+    trees = {tree["name"]: tree for tree in index["evidence_store"]["trees"]}
+    largest = max(int(trees[name]["bytes"]) for name in case_tree_names(index))
+    directories = max(int(trees[name]["directory_count"]) for name in case_tree_names(index))
+    block_bytes = max(4096, os.statvfs(tempfile.gettempdir()).f_frsize)
+    return 2 * largest + (2 * directories + 16) * block_bytes + 64 * 1024 * 1024
+
+
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, inventory = verify_index(package, faris, core)
-    verify_outage_duration_study(package.resolve(strict=True), index)
-    sweep_count = verify_sweep(package.resolve(strict=True), index)
-    maintenance_recorded = verify_maintenance(package.resolve(strict=True), index, inventory)
-    expanded = int(index["expanded_case_workspace_bytes"])
-    directory_count = int(index["expanded_case_workspace_directory_count"])
-    largest_case = max(int(item["case_archive"]["expanded_bytes"])
-                       for pair in index["scenario_pairs"] for item in pair["arrangements"])
-    temporary_parent = Path(tempfile.gettempdir())
-    block_bytes = max(4096, os.statvfs(temporary_parent).f_frsize)
-    required_scratch = expanded + largest_case + (directory_count + 16) * block_bytes + 64 * 1024 * 1024
-    free = shutil.disk_usage(temporary_parent).free
+    root = package.resolve(strict=True)
+    verify_outage_duration_study(root, index)
+    sweep_count = verify_sweep(root, index)
+    maintenance_recorded = verify_maintenance(root, index, inventory)
+    required_scratch = scratch_needed(index)
+    free = shutil.disk_usage(tempfile.gettempdir()).free
     if free < required_scratch:
-        raise ValueError(f"verification needs {required_scratch} bytes free for expansion and one Core export; have {free}")
-    with tempfile.TemporaryDirectory(prefix="faris-package-extract-") as temporary:
-        extracted = extract_indexed_trees(package.resolve(strict=True), index, Path(temporary) / "materialized")
-        inspected = inspect_cases(package, index, faris, core, extracted)
+        raise ValueError(f"verification needs {required_scratch} bytes free to unpack one case tree for the "
+                         f"Core export recheck; have {free}")
+    store_report = evidence_store.check_store(root / EVIDENCE_STORE_DIRECTORY)
+    with tempfile.TemporaryDirectory(prefix="faris-package-scratch-") as temporary:
+        inspected = inspect_cases(package, index, faris, core, Path(temporary))
     return {"package_index_sha256": digest(package / INDEX), "indexed_file_count": len(index["files"]),
             "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
             "verified_sweep_bundle_count": sweep_count,
             "maintenance_result_recorded": maintenance_recorded,
-            "expanded_case_workspace_bytes": expanded,
+            "evidence_store_trees": store_report["trees"],
+            "evidence_store_distinct_blobs": store_report["distinct_blobs"],
+            "evidence_store_uncompressed_bytes": store_report["uncompressed_bytes"],
+            "evidence_store_stored_bytes": store_report["stored_bytes"],
             "evidence_programs": evidence_programs(index),
-            "archive_integrity_status": "EXPANDED_HASHES_AND_CORE_RECEIPTS_REVALIDATED"}
+            "archive_integrity_status": "STORE_BLOBS_AND_CORE_RECEIPTS_REVALIDATED"}
 
 
 def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> dict[str, str]:
-    package_bytes = sum(item["bytes"] for item in json.loads(
-        (source / INDEX).read_text(encoding="utf-8"))["files"])
+    """Two tampered copies must be refused: a blob with one flipped byte (the package
+    index's file digest catches it), and the same blob with the package index rewritten
+    to match (the evidence store's own length and SHA-256 check catches it)."""
+    source_index = json.loads((source / INDEX).read_text(encoding="utf-8"))
+    package_bytes = sum(item["bytes"] for item in source_index["files"])
     free = shutil.disk_usage(Path(tempfile.gettempdir())).free
     if free < package_bytes + 64 * 1024 * 1024:
         raise ValueError("tamper control lacks scratch space for a relocated package copy")
-    with tempfile.TemporaryDirectory(prefix="faris-package-tamper-test-") as temporary:
-        target = Path(temporary) / "tampered-package"
-        shutil.copytree(source, target, symlinks=True)
-        index = json.loads((target / INDEX).read_text(encoding="utf-8"))
-        if not index.get("files"):
-            raise ValueError("cannot run tamper control on an empty file inventory")
-        chosen = index["files"][0]["path"]
-        sweep_files = [item["path"] for item in index["files"]
-                       if item["path"].startswith(SWEEP_BUNDLE_DIRECTORY + "/")]
-        if sweep_files:
-            chosen = sweep_files[0]
-        victim = safe_package_path(target.resolve(strict=True), chosen)
-        original_bytes_sha = digest(safe_package_path(source.resolve(strict=True), chosen))
-        content = bytearray(victim.read_bytes())
-        if not content:
-            raise ValueError("cannot tamper with an empty indexed artifact")
-        content[len(content) // 2] ^= 0x01
-        victim.chmod(victim.stat().st_mode | stat.S_IWUSR)
-        victim.write_bytes(content)
-        try:
-            verify_package(target, faris, core)
-        except ValueError:
-            if digest(safe_package_path(source.resolve(strict=True), chosen)) != original_bytes_sha:
-                raise ValueError("tamper negative control unexpectedly modified the source package")
-            return {"tamper_control": "EXPECTED_REJECTION", "tampered_copy_path": chosen,
-                    "original_preserved": True}
-        raise ValueError("tampered copy unexpectedly passed package verification")
+    blobs = sorted(item["path"] for item in source_index["files"]
+                   if item["path"].startswith(EVIDENCE_STORE_DIRECTORY + "/blobs/"))
+    if not blobs:
+        raise ValueError("cannot run tamper control on a package without evidence store blobs")
+    chosen = blobs[0]
+    original_bytes_sha = digest(safe_package_path(source.resolve(strict=True), chosen))
+    outcomes = {}
+    for control in ("tamper_control", "store_tamper_control"):
+        with tempfile.TemporaryDirectory(prefix="faris-package-tamper-test-") as temporary:
+            target = Path(temporary) / "tampered-package"
+            shutil.copytree(source, target, symlinks=True)
+            victim = safe_package_path(target.resolve(strict=True), chosen)
+            content = bytearray(victim.read_bytes())
+            if not content:
+                raise ValueError("cannot tamper with an empty indexed artifact")
+            content[len(content) // 2] ^= 0x01
+            victim.chmod(victim.stat().st_mode | stat.S_IWUSR)
+            victim.write_bytes(content)
+            if control == "store_tamper_control":
+                index = json.loads((target / INDEX).read_text(encoding="utf-8"))
+                for item in index["files"]:
+                    if item["path"] == chosen:
+                        item["sha256"] = digest(victim)
+                (target / INDEX).write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+                (target / CHECKSUM).write_text(f"{digest(target / INDEX)}  {INDEX}\n", encoding="ascii")
+            try:
+                verify_package(target, faris, core)
+            except ValueError as error:
+                expected = ("failed size or SHA-256 check" if control == "tamper_control"
+                            else "failed verification")
+                if expected not in str(error):
+                    raise ValueError(f"{control} was refused for another reason: {error}") from error
+                if digest(safe_package_path(source.resolve(strict=True), chosen)) != original_bytes_sha:
+                    raise ValueError("tamper negative control unexpectedly modified the source package")
+                outcomes[control] = "EXPECTED_REJECTION"
+            else:
+                raise ValueError("tampered copy unexpectedly passed package verification")
+    return {"tamper_control": outcomes["tamper_control"], "tampered_copy_path": chosen,
+            "original_preserved": True, "store_tamper_control": outcomes["store_tamper_control"]}
 
 
 def main() -> int:
@@ -998,15 +1030,11 @@ def main() -> int:
     except ValueError as error:
         raise SystemExit(f"verify_recorded_demo: {error}")
     package_bytes = source_index["package_bytes"]
-    expanded_bytes = source_index["expanded_case_workspace_bytes"]
-    directory_count = source_index["expanded_case_workspace_directory_count"]
-    largest_case = max(int(item["case_archive"]["expanded_bytes"])
-                       for pair in source_index["scenario_pairs"] for item in pair["arrangements"])
     free = shutil.disk_usage(relocated.parent).free
-    block_bytes = max(4096, os.statvfs(relocated.parent).f_frsize)
-    required_scratch = package_bytes + expanded_bytes + largest_case + (directory_count + 16) * block_bytes + 64 * 1024 * 1024
+    required_scratch = package_bytes + scratch_needed(source_index)
     if free < required_scratch:
-        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for compressed copy, expanded trees, and Core export; have {free}")
+        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for the package copy, one "
+                         f"unpacked case tree and its Core export; have {free}")
     shutil.copytree(source, relocated, symlinks=True)
     try:
         result = verify_package(relocated, args.faris.resolve(strict=True), args.core.resolve(strict=True))
