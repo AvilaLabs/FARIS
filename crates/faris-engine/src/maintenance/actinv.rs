@@ -22,7 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -454,6 +454,13 @@ impl ActinvSourceConfig {
     }
 }
 
+/// Running totals of a source, readable from another thread while it works.
+#[derive(Debug, Default)]
+pub struct SourceCounters {
+    pub actinv_runs: AtomicU64,
+    pub cache_hits: AtomicU64,
+}
+
 /// Receives progress lines.
 pub type LogFn = Box<dyn Fn(&str) + Send + Sync>;
 
@@ -466,6 +473,7 @@ pub struct ActinvDecaySource {
     design_keys: BTreeMap<String, String>,
     actinv_runs: u64,
     cache_hits: u64,
+    counters: Option<Arc<SourceCounters>>,
     log: Option<LogFn>,
 }
 
@@ -636,6 +644,7 @@ impl ActinvDecaySource {
             design_keys: keys,
             actinv_runs: 0,
             cache_hits: 0,
+            counters: None,
             log: None,
         })
     }
@@ -643,6 +652,12 @@ impl ActinvDecaySource {
     /// Receives progress lines (design, ACTINV runs, cache hits).
     pub fn with_log(mut self, log: LogFn) -> Self {
         self.log = Some(log);
+        self
+    }
+
+    /// Mirrors the running totals into `counters` as they change.
+    pub fn with_counters(mut self, counters: Arc<SourceCounters>) -> Self {
+        self.counters = Some(counters);
         self
     }
 
@@ -895,8 +910,16 @@ impl ActinvDecaySource {
             missing.len()
         ));
         self.cache_hits += hits;
+        if let Some(counters) = &self.counters {
+            counters.cache_hits.fetch_add(hits, Ordering::Relaxed);
+        }
         self.run_missing(&missing, design, cancel)?;
         self.actinv_runs += missing.len() as u64;
+        if let Some(counters) = &self.counters {
+            counters
+                .actinv_runs
+                .fetch_add(missing.len() as u64, Ordering::Relaxed);
+        }
         let mut out = BTreeMap::new();
         for (prov, spec, sha) in &provs {
             let name = spec

@@ -298,19 +298,9 @@ pub(crate) fn rates_from_run(
     scenario: &faris_model::LoadedScenario,
     run_path: &std::path::Path,
 ) -> Result<TransportDrivingRates, Box<dyn std::error::Error>> {
-    let run = load_reactor_run(run_path, scenario).map_err(std::io::Error::other)?;
-    let normalized = run
-        .normalized
-        .as_ref()
-        .ok_or("verified run has no normalized result")?;
-    Ok(TransportDrivingRates::from_normalized(
-        normalized,
-        scenario.scenario.operating_plan.fusion_power_mw,
-        run.raw_artifact_sha256
-            .as_deref()
-            .ok_or("verified run lacks raw artifact identity")?,
-    )
-    .map_err(std::io::Error::other)?)
+    Ok(faris_engine::maintenance::files::rates_from_run(
+        scenario, run_path,
+    )?)
 }
 
 struct CompareRunRequest {

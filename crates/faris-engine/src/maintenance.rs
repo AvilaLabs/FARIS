@@ -1077,6 +1077,7 @@ pub fn run_maintenance(
 }
 
 pub mod actinv;
+pub mod files;
 
 #[cfg(test)]
 mod tests;

@@ -8,6 +8,7 @@ mod export_panel;
 mod history_panel;
 mod interface_check;
 mod maintenance_panel;
+mod maintenance_run;
 mod package;
 mod recorder;
 mod study_file;
@@ -137,6 +138,20 @@ struct Arguments {
     /// Open a faris-maintenance-result/v0.1 file in the Maintenance window.
     #[arg(long, value_name = "RESULT.json")]
     maintenance: Option<PathBuf>,
+    /// Open the Maintenance window on its Run section, optionally prefilled by
+    /// --maintenance-designs, --maintenance-assumptions, --actinv and --actinv-data.
+    #[arg(long)]
+    maintenance_run: bool,
+    #[arg(long, value_name = "DESIGNS.json")]
+    maintenance_designs: Option<PathBuf>,
+    #[arg(long, value_name = "ASSUMPTIONS.json")]
+    maintenance_assumptions: Option<PathBuf>,
+    /// The actinv executable, for the Maintenance window's Run section.
+    #[arg(long)]
+    actinv: Option<PathBuf>,
+    /// ACTINV data root, for the Maintenance window's Run section.
+    #[arg(long)]
+    actinv_data: Option<PathBuf>,
     /// Matched feature-free scenario to compare against the penetration.
     #[arg(long)]
     control_scenario: Option<PathBuf>,
@@ -530,6 +545,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 history,
             )?;
             app.sweep = sweep;
+            app.maintenance.prefill_run(
+                args.maintenance_designs.as_deref(),
+                args.maintenance_assumptions.as_deref(),
+                args.actinv.as_deref(),
+                args.actinv_data.as_deref(),
+            );
+            if args.maintenance_run {
+                app.maintenance.open = true;
+            }
             if let Some(path) = args.maintenance.clone() {
                 app.maintenance.load_in_background(&cc.egui_ctx, path);
             }

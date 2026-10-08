@@ -12,6 +12,7 @@
 
 use crate::{
     badge::{self, Kind},
+    maintenance_run::RunPanel,
     sweep_panel::nice_ticks,
 };
 use eframe::egui;
@@ -55,6 +56,7 @@ pub struct MaintenancePanel {
     selected: Option<String>,
     loading: Option<Receiver<LoadResult>>,
     dialog: Option<Receiver<Option<PathBuf>>>,
+    pub run: RunPanel,
 }
 
 impl Default for MaintenancePanel {
@@ -65,6 +67,7 @@ impl Default for MaintenancePanel {
             selected: None,
             loading: None,
             dialog: None,
+            run: RunPanel::default(),
         }
     }
 }
@@ -107,7 +110,50 @@ impl MaintenancePanel {
     }
 
     pub fn is_pending(&self) -> bool {
-        self.loading.is_some() || self.dialog.is_some()
+        self.loading.is_some() || self.dialog.is_some() || self.run.is_running()
+    }
+
+    #[cfg(test)]
+    pub fn poll_run_for_tests(&mut self) {
+        self.poll_run();
+    }
+
+    #[cfg(test)]
+    pub fn shows_result_for_tests(&self) -> bool {
+        matches!(self.state, State::Ready(_))
+    }
+
+    /// Start values for the Run section's inputs (command-line options).
+    pub fn prefill_run(
+        &mut self,
+        designs: Option<&Path>,
+        assumptions: Option<&Path>,
+        actinv: Option<&Path>,
+        data_dir: Option<&Path>,
+    ) {
+        let text = |p: &Path| p.display().to_string();
+        if let Some(p) = designs {
+            self.run.inputs.designs = text(p);
+        }
+        if let Some(p) = assumptions {
+            self.run.inputs.assumptions = text(p);
+        }
+        if let Some(p) = actinv {
+            self.run.inputs.actinv = text(p);
+        }
+        if let Some(p) = data_dir {
+            self.run.inputs.data_dir = text(p);
+        }
+    }
+
+    /// Takes a finished run's result into the view; called every frame, window open or not.
+    fn poll_run(&mut self) {
+        if let Some((file_name, result)) = self.run.poll() {
+            self.install(Ok(Loaded {
+                file_name,
+                result: Box::new(result),
+            }));
+        }
     }
 
     /// Read and parse `path` on a worker thread and open the window.
@@ -192,6 +238,7 @@ impl MaintenancePanel {
     /// The floating window; does nothing while closed.
     pub fn window(&mut self, ctx: &egui::Context) {
         self.poll(ctx);
+        self.poll_run();
         if !self.open {
             return;
         }
@@ -226,6 +273,17 @@ impl MaintenancePanel {
             self.pick_file(&ui.ctx().clone());
         }
         ui.separator();
+        let running = self.run.is_running();
+        egui::CollapsingHeader::new(if running {
+            "Run (in progress)"
+        } else {
+            "Run\u{2026}"
+        })
+        .id_salt("maintenance-run-section")
+        .default_open(matches!(self.state, State::Empty) || running)
+        .show(ui, |ui| self.run.ui(ui));
+        self.poll_run();
+        ui.separator();
         let selected = &mut self.selected;
         match &self.state {
             State::Empty => {
@@ -239,7 +297,9 @@ impl MaintenancePanel {
                 );
             }
             State::Ready(loaded) => {
-                egui::ScrollArea::both()
+                // Vertical only: each wide table scrolls horizontally inside the window's
+                // width, so its scroll bar is where the table is and no column is cut off.
+                egui::ScrollArea::vertical()
                     .id_salt("maintenance-scroll")
                     .auto_shrink([false, false])
                     .show(ui, |ui| body(ui, loaded, selected));
@@ -528,6 +588,7 @@ fn summary_table(ui: &mut egui::Ui, result: &MaintenanceResult) {
     ui.strong("Designs");
     egui::ScrollArea::horizontal()
         .id_salt("maintenance-summary-scroll")
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
         .show(ui, |ui| {
             egui::Grid::new("maintenance-summary")
                 .striped(true)
@@ -536,12 +597,12 @@ fn summary_table(ui: &mut egui::Ui, result: &MaintenanceResult) {
                     for caption in [
                         "Design",
                         "History",
-                        "Downtime fixed (d)",
-                        "Downtime computed (d)",
-                        "Availability fixed (%)",
-                        "Availability computed (%)",
-                        "Net electricity fixed (MWh)",
-                        "Net electricity computed (MWh)",
+                        "Downtime\nfixed (d)",
+                        "Downtime\ncomputed (d)",
+                        "Availability\nfixed (%)",
+                        "Availability\ncomputed (%)",
+                        "Net electricity\nfixed (MWh)",
+                        "Net electricity\ncomputed (MWh)",
                         "Computed status",
                     ] {
                         ui.strong(caption);
@@ -832,6 +893,7 @@ fn event_table(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
     });
     egui::ScrollArea::horizontal()
         .id_salt("maintenance-events-scroll")
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
         .show(ui, |ui| {
             egui::Grid::new(("maintenance-events", name))
                 .striped(true)
@@ -973,56 +1035,60 @@ fn contrast_table(ui: &mut egui::Ui, contrasts: &[Contrast]) {
         ui.weak("The file holds one design, so there is nothing to contrast.");
         return;
     }
-    egui::Grid::new("maintenance-contrasts")
-        .striped(true)
-        .spacing([14.0, 3.0])
+    egui::ScrollArea::horizontal()
+        .id_salt("maintenance-contrasts-scroll")
         .show(ui, |ui| {
-            for caption in [
-                "Designs",
-                "Fixed difference (d)",
-                "Computed difference (d)",
-                "Ratio computed / fixed",
-            ] {
-                ui.strong(caption);
-            }
-            ui.end_row();
-            for contrast in contrasts {
-                ui.label(format!("{} \u{2212} {}", contrast.a, contrast.b));
-                ui.monospace(format!("{:+.1}", days(contrast.fixed_difference_s)));
-                match (
-                    contrast.computed_difference_s,
-                    contrast.ratio_computed_over_fixed,
-                ) {
-                    (Some(diff), ratio) => {
-                        ui.monospace(format!("{:+.1}", days(diff)));
-                        match ratio {
-                            Some(r) => {
-                                ui.monospace(format!("{r:.2}\u{d7}"));
-                            }
-                            None => {
-                                ui.weak("\u{2014}").on_hover_text(
+            egui::Grid::new("maintenance-contrasts")
+                .striped(true)
+                .spacing([14.0, 3.0])
+                .show(ui, |ui| {
+                    for caption in [
+                        "Designs",
+                        "Fixed difference (d)",
+                        "Computed difference (d)",
+                        "Ratio computed / fixed",
+                    ] {
+                        ui.strong(caption);
+                    }
+                    ui.end_row();
+                    for contrast in contrasts {
+                        ui.label(format!("{} \u{2212} {}", contrast.a, contrast.b));
+                        ui.monospace(format!("{:+.1}", days(contrast.fixed_difference_s)));
+                        match (
+                            contrast.computed_difference_s,
+                            contrast.ratio_computed_over_fixed,
+                        ) {
+                            (Some(diff), ratio) => {
+                                ui.monospace(format!("{:+.1}", days(diff)));
+                                match ratio {
+                                    Some(r) => {
+                                        ui.monospace(format!("{r:.2}\u{d7}"));
+                                    }
+                                    None => {
+                                        ui.weak("\u{2014}").on_hover_text(
                                     "The ratio is undefined when the fixed difference is zero.",
                                 );
+                                    }
+                                }
                             }
-                        }
-                    }
-                    (None, _) => {
-                        ui.weak("\u{2014}");
-                        match &contrast.not_evaluated {
-                            Some(ne) => {
-                                ui.horizontal_wrapped(|ui| {
-                                    ne_label(ui, ne);
-                                    ui.label(not_evaluated_text(ne));
-                                });
-                            }
-                            None => {
+                            (None, _) => {
                                 ui.weak("\u{2014}");
+                                match &contrast.not_evaluated {
+                                    Some(ne) => {
+                                        ui.horizontal_wrapped(|ui| {
+                                            ne_label(ui, ne);
+                                            ui.label(not_evaluated_text(ne));
+                                        });
+                                    }
+                                    None => {
+                                        ui.weak("\u{2014}");
+                                    }
+                                }
                             }
                         }
+                        ui.end_row();
                     }
-                }
-                ui.end_row();
-            }
+                });
         });
 }
 
