@@ -26,13 +26,18 @@ point with the full method's cached curves (tolerance 1e-6 relative):
 
 - **Heat matches.** Every heat curve agrees within 8.5e-7.
 - **Dose does not match to 1e-6.** In set 5, the only set with dose curves, first-wall dose differs by up to 5.4e-4 at
-  late shutdowns. Those trunks have about 1,030 states below ACTINV's output floor, and the restart inventory leaves
-  them out. ACTINV bounds their heat (`heat_bound_from_below_floor_W_per_g`, at most 2e-9 W/g here) but gives no
-  equivalent bound for dose.
+  late shutdowns; vessel and shield stay within 8e-7. ACTINV's contact-dose proxy takes the material's attenuation from
+  the run's starting composition. A full-history run starts from pristine tungsten. A restart run starts from the
+  transmuted metal, which after decades is about 10 % rhenium, tantalum and osmium by mass. The restart value uses the
+  real composition at shutdown; the difference is in a screening quantity, not an error in the inventory.
 
 ## Status
 
-The method stays opt-in and the full method stays the default. It is fit for heat-governed runs. It is not fit for
-dose-governed runs until the below-floor states are carried into the restart (or ACTINV bounds their dose). The speed
-gain in the trial runs was small, because each cooling run still pays ACTINV's start-up and data load. Batching the
-cooling runs into one ACTINV call (for example through `actinv mesh`) is the next thing to try for speed.
+The method stays opt-in and the full method stays the default. Heat-governed runs can use either. Dose-governed reruns
+under a frozen protocol keep the full method so they stay comparable with earlier variants; new dose work can use the
+restart method, whose attenuation follows the transmuted material.
+
+Speed: baseline B from an empty cache took 8 min 54 s with the restart method and reproduced the full method's verdict
+and decisions within about 1e-9. The gain over the full method was only about 1.2×, because a cooling run takes about
+0.85 s and most of that is ACTINV loading its data. Batching the cooling runs into one ACTINV call (for example through
+`actinv mesh`, which loads the data once) is the next thing to try for speed.
