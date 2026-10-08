@@ -26,7 +26,7 @@ The app finds the study beside its `bin` folder, checks the SHA-256 of every fil
 
 The optional evidence pack, `FARIS-0.1.1-evidence.tar.gz`, adds the Avila Core receipts to the Evidence step. Unpack it into the same place, so its files merge into `FARIS-0.1.1/`. It holds one evidence store, a folder of compressed files in which each distinct file is kept once. With it, the app reads the saved Core evidence straight from the store and checks each file's length and SHA-256 as it reads it, so nothing is unpacked and no temporary space is needed. Without it, everything works except the saved receipts: the Evidence step says "Core receipts not included", why, and the next step (download the evidence pack, unpack it into the folder, reopen FARIS).
 
-`verify.sh` needs Linux, `python3` and the evidence pack, and about @@VERIFY@@ of temporary space; it checks the exact amount first. It checks the package from a relocated copy and takes a while. The Windows and macOS downloads are checked by the app itself at launch.
+`verify.sh` needs Linux, `python3` and the evidence pack, and about 1.3 GB of temporary space; it checks the exact amount first. It checks the package from a relocated copy and takes a while. The Windows and macOS downloads are checked by the app itself at launch.
 
 The programs are hash-pinned, not signed. Windows SmartScreen may warn: choose More info, then Run anyway. On macOS the programs are neither signed nor notarized: after unpacking, run `xattr -dr com.apple.quarantine FARIS-0.1.1` once in Terminal, or open `bin/faris-app` and allow it under System Settings, Privacy & Security, Open Anyway.
 

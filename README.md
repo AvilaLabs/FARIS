@@ -73,7 +73,7 @@ the four recorded arrangements and the sweep. `faris-app --package DIR` opens a
 package elsewhere. If a check fails, the app opens with nothing loaded and says
 why and what to do: download again and check `SHA256SUMS`. Python is not needed.
 
-The optional `FARIS-0.2.0-evidence.tar.gz` (about @@PACK@@ MB, the same for every
+The optional `FARIS-0.2.0-evidence.tar.gz` (about 36 MB, the same for every
 platform) adds the Avila Core receipts to the Evidence step. Unpack it into the
 same place, so its files merge into `FARIS-0.2.0/`. It holds one evidence store,
 a folder of compressed files in which each distinct file is kept once. With it,
@@ -83,7 +83,7 @@ temporary space. Without it, everything works except the saved receipts: the
 Evidence step says "Core receipts not included", why, and what to do next.
 
 On Linux, `./verify.sh` rechecks every recorded byte and the Core receipts. It
-needs `python3`, the evidence pack and about @@VERIFY@@ of temporary space, and it
+needs `python3`, the evidence pack and about 1.3 GB of temporary space, and it
 checks the exact amount first. The Windows and macOS downloads are checked by the
 app itself at launch.
 
