@@ -46,12 +46,9 @@ keep the file small without weakening verification. v1 reserves both:
    and workspace archives, complete raw solver output) is either packed or
    referenced by hash only. A referenced study opens and displays fully. Its
    Evidence step says the receipts are not included, and anyone who later
-   supplies the archives can check them against the recorded hashes. A
-   package descriptor that names trees in an evidence store
-   (`faris-saved-study-store/v0.1`) cannot yet be recorded here:
-   `faris study-file create --evidence` refuses it and says so. Evidence
-   records for store trees come in a later change; use a descriptor from an
-   older package that names archives, or create the file without `--evidence`.
+   supplies the archives can check them against the recorded hashes.
+   Evidence recorded as trees of an evidence store (minor version 1.1, below)
+   follows the same rule.
 
 ## Container
 
@@ -62,6 +59,7 @@ A zip archive. Entries:
 | `mimetype` | `application/vnd.avila-labs.faris-study`, first entry, stored uncompressed, so the type is detectable from the first bytes |
 | `manifest.json` | format `faris-study/1`, roles, view state, blob table, layers |
 | `blobs/<sha256>` | exact bytes of one file, named by its SHA-256; identical files are stored once |
+| `evidence-store/store.json`, `evidence-store/blobs/<h0h1>/<h>.xz` | optional, only with packed store evidence: a content-addressed evidence store holding exactly the recorded trees (see "Evidence store layer"), stored uncompressed. Not listed in the blob table |
 | `preview.png` | optional thumbnail of the 3D view: PNG, at most 512 px on the long side and 512 KiB (the desktop aims for under 150 kB), stored uncompressed. Written by the desktop app on save; not listed in the manifest |
 
 Blobs are zstd-compressed, except blobs that are already compressed (evidence
@@ -123,6 +121,8 @@ lowercase hexadecimal SHA-256 without a prefix.
   file (a study saved beside the package root finds `port/archives/...`
   unchanged). Referenced archives found there are used only when size and hash
   both match; one that exists with a different hash is reported as such, never used.
+- `layers.evidence_store`: Core evidence as store trees, described under
+  "Evidence store layer" below. A file has this or `layers.evidence`, never both.
 - `blobs`: `[{sha256, bytes, media_type, encoding}]`, one per distinct file.
 
 Recorded-transport members are whatever the bundle holds: six required files
@@ -138,6 +138,84 @@ minor-version rule above (`files` is a free map of member name to digest).
 
 Packed evidence archives are blobs with media type `application/gzip`, stored
 rather than recompressed.
+
+## Evidence store layer (minor version 1.1)
+
+Decided 2026-10-08. The recorded package keeps its Core evidence in one
+content-addressed store (`evidence-store/`, Avila Core ADR-0028,
+`avila.core/evidence-store/v0.1`) instead of `.tar.gz` archives. A study file
+records saved cases as trees of that store in a new optional layer. The format
+string stays `faris-study/1`: the manifest has no `deny_unknown_fields`, so a
+reader without this layer ignores it and reports the evidence as not included,
+an existing, explained state.
+
+```json
+"layers": {
+  "evidence_store": {
+    "mode": "packed" | "referenced",
+    "trees": [
+      { "arrangement": "port" | "control", "allocation": "reference",
+        "kind": "case" | "workspace", "tree": "port-reference-case",
+        "files": [ { "path": "...", "sha256": "...", "bytes": 123 } ] }
+    ]
+  }
+}
+```
+
+- **Identity.** A tree is identified by its full file listing (path, SHA-256 and
+  size of every file, sorted by path; a case tree is a few dozen files). The
+  tree name says where to look; the listing says what is accepted.
+- **Structure.** Every saved study has exactly one case and one workspace tree.
+  Arrangements are `port` or `control`; allocation and tree names are safe file
+  names; role and tree name are unique; listings are sorted and bounded. A file
+  has `layers.evidence` (archives) or `layers.evidence_store`, never both: a
+  file that records both is refused.
+- **Packed.** The zip carries a valid ADR-0028 store holding exactly the
+  recorded trees: `evidence-store/store.json` and one
+  `evidence-store/blobs/<first two hex digits>/<sha256>.xz` per distinct file
+  content, written as stored (uncompressed) zip entries. The writer copies the
+  `.xz` bytes of the source store after decompressing and checking each blob; it
+  never recompresses. The reader requires the entries to be exactly `store.json`
+  and the distinct digests of the listed files, each entry no larger than its
+  listing allows (the file's size plus 0.1 percent plus 1 KiB, and 64 MiB for
+  `store.json`), within the file's 4 GiB total. A file with store entries but no
+  packed layer is refused.
+- **Opening packed.** The embedded store is extracted (exclusively created,
+  bounded reads) to `evidence-store/` in the study's run workspace, opened and
+  verified with the FARIS store verifier (every blob decompresses to its recorded
+  length and SHA-256, and nothing else is in `blobs/`), and its trees must equal
+  the manifest's listings exactly. Any failure refuses the file. The app then
+  inspects the saved cases in place from that store; no tree is expanded.
+  `faris study-file verify` runs the same check on a scratch copy.
+- **Referenced.** Only the listings are recorded. A tree is looked for, in this
+  order, in (a) an `evidence-store/` folder beside the `.faris` file (the file
+  was saved into an unpacked package or next to a copy of the store), then (b)
+  the store of the package the desktop app was started from. It is accepted only
+  where the store's index lists exactly the recorded files (path, SHA-256, size);
+  a saved study needs both its trees from one store. Accepted trees are read in
+  place, and every file read is checked against the store's index, so a damaged
+  blob is reported by the saved-study check, not used. Otherwise the saved study
+  is "not included": the Evidence step names the tree that was not found or did
+  not match and where it looked, and the next step (put the file next to the
+  package's `evidence-store` folder, open it from the package, or save with
+  evidence packed). Nothing claims Core verification for a study that is not
+  included.
+- **Writing.** `faris study-file create --evidence DESCRIPTOR [--pack-evidence]`
+  accepts a `faris-saved-study-store/v0.1` descriptor (store folder relative to
+  the descriptor, a case tree and a workspace tree). Arrangement and allocation
+  come from the tree names, `<port|control>-<allocation>-case` and `-workspace`;
+  the listings are read from the store's index. The desktop app, started from a
+  package, offers "Include Core evidence in saved files": packed embeds the
+  package's trees for the saved cases, otherwise it records the listings. A file
+  opened with new-format evidence saves it again the same way (packed stays
+  packed, referenced stays referenced unless the box says otherwise). A file that
+  carries old `layers.evidence` archives still saves them as archives and is not
+  converted.
+- **Older readers.** A reader without this layer ignores a referenced layer and
+  shows the evidence as not included. It refuses a packed file, because it does
+  not know the `evidence-store/` entry names (see "Reader limits as built").
+  Re-saving without evidence, or from a package-launched session, gives such a
+  reader a file it opens.
 
 ## History ensembles
 
@@ -208,7 +286,9 @@ managers and quick look. Decisions (2026-10-05):
 
 Beyond the reading rules above, the reader refuses: a first entry that is not a
 stored `mimetype` with the exact type string; entry names other than
-`mimetype`, `manifest.json`, `preview.png` and `blobs/<64 hex>`; repeated entry
+`mimetype`, `manifest.json`, `preview.png`, `blobs/<64 hex>` and, with packed
+store evidence, `evidence-store/store.json` and
+`evidence-store/blobs/<2 hex>/<64 hex>.xz`; repeated entry
 names (checked in the central directory, because the zip library silently keeps
 the last of two); a blob entry missing from the table or a table entry missing
 from the file; zip64 containers; more than 4 GiB of declared blob bytes or 1 GiB
@@ -226,6 +306,9 @@ workspace is removed when another study is opened or the app exits normally.
 Core evidence archives, packed or found beside the file, are extracted
 (regular files only, bounded, created exclusively) in the background and
 reopened by the existing saved-study code, so the study is usable first and
-the receipts verify afterwards. Saving writes the inputs from those files plus
+the receipts verify afterwards. Evidence recorded as store trees is not
+expanded at all: a packed store is extracted into the workspace and the saved
+cases are inspected in place from it, and referenced trees are read in place
+from the store beside the file or the package's store. Saving writes the inputs from those files plus
 the current view; a session started from `--run` records cannot be saved
 because a study file holds recorded-transport bundles.

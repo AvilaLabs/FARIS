@@ -72,10 +72,41 @@ duplication and the expansion.
 7. **`.faris` files.** Old files keep opening: packed tar.gz evidence still
    expands through the legacy path; referenced evidence still resolves beside
    the file, and is reported as not included when the archives are absent
-   (an existing, explained state). New evidence records name store trees
-   (separate change, after this one).
+   (an existing, explained state). New evidence records name store trees; see
+   the follow-up below.
+
+## Decision 7 follow-up: `.faris` evidence records for store trees
+
+Decided 2026-10-08; the format is specified in `docs/STUDY_FILE.md` ("Evidence
+store layer").
+
+- A new optional manifest layer, `layers.evidence_store`: `mode` (`packed` or
+  `referenced`) and `trees`, each tree `{arrangement, allocation, kind, tree,
+  files[{path, sha256, bytes}]}` sorted. The full listing is the tree's identity.
+  Older readers ignore the layer (no `deny_unknown_fields`) and show the evidence
+  as not included. A file has the old `layers.evidence` or the new layer, never
+  both. Files carrying tar.gz evidence keep their writer and reader paths and are
+  not converted.
+- Packed: the zip carries a valid ADR-0028 store of exactly those trees
+  (`evidence-store/store.json`, `evidence-store/blobs/<h0h1>/<h>.xz`) as stored
+  entries. The writer copies verified `.xz` bytes from the source store and does
+  not recompress. On open the store is extracted (bounded) into the run workspace,
+  verified with the FARIS verifier, matched against the manifest listings, and the
+  app inspects the saved cases in place.
+- Referenced: tried against `<dir of .faris>/evidence-store/`, then the running
+  package's store; accepted only where the index listing equals the recorded
+  listing; reads are checked per file against the index. Otherwise "not included"
+  with the tree, where it looked, and the next step.
+- Writers: `faris study-file create --evidence <store descriptor>
+  [--pack-evidence]`; a package-launched desktop session saves evidence
+  (packed or referenced); opened new-format files re-save the same way.
+- Judgment calls: the descriptor carries no arrangement or allocation, so they
+  are read from the tree names (`<port|control>-<allocation>-case|workspace`);
+  the format string stays `faris-study/1` (the layer is optional and the reader
+  already ignores unknown fields); an older reader refuses a packed file on its
+  unexpected-entry rule, as it did before this change for any unknown entry.
 
 ## Out of scope here
 
-New `.faris` evidence records for store trees; Core verifying a store in place
-(ADR-0028 follow-up); compacting the history snapshot format.
+Core verifying a store in place (ADR-0028 follow-up); compacting the history
+snapshot format.

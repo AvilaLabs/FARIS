@@ -22,9 +22,23 @@ basis.
   `verify.sh` unpacks one case tree at a time and needs far less temporary
   space. New: `faris evidence inspect --store DIR --case-tree NAME
   --workspace-tree NAME` and `faris evidence verify-store DIR`.
-  `faris study-file create --evidence` refuses a store descriptor and says
-  why; use a descriptor from an older package or omit `--evidence`. Older
-  `.faris` files and packages still open.
+  Older `.faris` files and packages still open.
+
+- `.faris` files can carry Core evidence as trees of the evidence store
+  (study file format 1.1, optional `layers.evidence_store`). A packed file
+  embeds a valid evidence store holding exactly the recorded trees, copied
+  without recompression; opening extracts it into the run workspace, verifies
+  it and inspects the saved cases in place. A referenced file records each
+  tree's full file list and finds the trees in an `evidence-store` folder
+  beside the file, then in the store of the package the app was started from,
+  accepting a tree only when the store lists exactly the recorded files;
+  otherwise the Evidence step names the tree, where it looked and what to do.
+  `faris study-file create --evidence` accepts a `faris-saved-study-store/v0.1`
+  descriptor (with `--pack-evidence` to embed), `inspect` and `unpack` report
+  the store layer, and a session started from a package can now save its Core
+  evidence. A file opened with its evidence packed keeps it on the next save.
+  Older FARIS versions open a referenced file with the evidence marked as not
+  included and refuse a packed one; files with archives are unchanged.
 
 - Core stage outputs are now `faris-core-stage-output/v0.2`. Each stage writes
   only what it newly computes: the transport output no longer carries the whole

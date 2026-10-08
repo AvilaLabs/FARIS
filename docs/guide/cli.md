@@ -47,7 +47,7 @@ faris study-file unpack demo.faris out/
 faris study-file export demo.faris --output exports/
 ```
 
-`--bundle`, `--physics` and `--sweep-bundle` are repeatable. `--pack-evidence` stores the Core evidence inside the file. `--view` records a view from a JSON file, `--zstd-level` sets the compression level (default 15), and `--preview` stores a PNG thumbnail. `create` never overwrites an existing file. See [Study files](study-files.md).
+`--bundle`, `--physics` and `--sweep-bundle` are repeatable. `--evidence` takes a saved-study descriptor from a package (`faris-saved-study-store/v0.1`, naming two trees of the package's evidence store) or from an older package (archives); use one kind per file. `--pack-evidence` stores the Core evidence inside the file; without it the file records the trees' file lists and hashes and the evidence stays in the package. `--view` records a view from a JSON file, `--zstd-level` sets the compression level (default 15), and `--preview` stores a PNG thumbnail. `create` never overwrites an existing file. See [Study files](study-files.md).
 
 ## Calculate a history
 

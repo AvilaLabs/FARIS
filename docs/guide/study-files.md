@@ -30,13 +30,20 @@ faris study-file verify demo.faris
 
 ## Referenced or packed evidence
 
-By default the Core evidence archives (the File menu shows their size) are recorded by name and hash and are not stored. The study opens fully without them. Its Evidence step says "Core receipts not included", and why, and what to do.
+By default the Core evidence (the File menu shows its size) is recorded by name, file list and hash and is not stored. The study opens fully without it. Its Evidence step says "Core receipts not included", and why, and what to do.
 
-To use the archives, put them next to the file at the recorded relative paths and reopen it. For example, `port/archives/reference-case.tar.gz` goes at that path beside the file when it sits at the package root. Archives found there are checked against their hashes and used. One whose hash differs from the record is reported and never used.
+For the current recorded package the evidence is the package's evidence store. A study file records each saved case as a tree of that store, with the full list of its files. The app looks for the trees in two places, in this order:
 
-The current recorded package keeps its Core evidence in one evidence store instead of archives. A new study file cannot yet record store evidence: `faris study-file create --evidence` refuses a store descriptor and says so. Use a descriptor from an older package that names archives, or create the file without `--evidence`; the study then opens fully with its receipts marked as not included.
+1. An `evidence-store` folder next to the `.faris` file. Save the file into an unpacked package folder, or copy the package's `evidence-store` folder next to it.
+2. The evidence store of the package the app was started from.
 
-Or tick **Include Core evidence in saved files** in the File menu and save again. The label shows the added size.
+A tree is used only when that store lists exactly the files the study recorded; every file read from it is checked against its hash. If a tree is missing or does not match, the Evidence step names it, says where the app looked, and says what to do: put the file next to the package's `evidence-store` folder, open it with FARIS started from that package, or save it again with the evidence included.
+
+Study files saved with older packages record `.tar.gz` archives instead. They still open: put the archives next to the file at the recorded relative paths (for example `port/archives/reference-case.tar.gz` at the package root) and reopen it. Archives found there are checked against their hashes and used. One whose hash differs from the record is reported and never used.
+
+To keep the evidence inside the file, tick **Include Core evidence in saved files** in the File menu and save. The label shows the added size. A package-launched session can do this: the file then carries the evidence store for exactly the saved cases, checked on every open, and the receipts can be re-checked from that one file. A file opened with its evidence included keeps it on the next save unless you clear the box.
+
+An older FARIS that does not know store evidence opens a referenced file with the evidence marked as not included, and refuses a file with evidence included. Save the study without the box ticked to give it a file it opens.
 
 ## Open files from your file manager
 
