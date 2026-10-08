@@ -130,8 +130,8 @@ prints markdown tables, or the result itself with `--format json`. See [Command 
 Open a result with **Maintenance → Open result…**, or start FARIS with `--maintenance result.json`. In the
 downloaded package, **Open the recorded maintenance result** opens the result recorded for the four demo
 arrangements after checking its SHA-256. It was computed with ACTINV at the coupling test's settings: each class's
-work time and calibration target are half its fixed duration, with q\* calibrated on the port, reference
-arrangement and the "Demountable magnets" operating assumptions (in the package as
+work time and calibration target are half its fixed duration, with q\* calibrated on the `reference-port`
+arrangement, and the "Demountable magnets" operating assumptions (in the package as
 `maintenance/operating-assumptions.json`).
 
 - **Thresholds**: q\* per class and where it came from.
