@@ -1101,5 +1101,6 @@ impl DecaySource for ActinvDecaySource {
     }
 }
 
-#[cfg(test)]
+// The tests run stand-in executables, which needs Unix file permissions.
+#[cfg(all(test, unix))]
 mod tests;
