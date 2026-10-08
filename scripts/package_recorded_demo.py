@@ -953,7 +953,7 @@ def evidence_archive_name(version: str) -> str:
 
 
 def write_package_readme(staging: Path, pairs: list[dict], support: dict,
-                         sweep: dict | None, version: str) -> None:
+                         sweep: dict | None, version: str, maintenance: dict | None = None) -> None:
     expanded_bytes = sum(int(arrangement[key]["expanded_bytes"])
                          for pair in pairs for arrangement in pair["arrangements"]
                          for key in ("case_archive", "workspace_archive"))
@@ -1019,6 +1019,12 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "- macOS: the programs are not signed or notarized. After unpacking, run `xattr -dr com.apple.quarantine <folder>` once in Terminal (with this folder in place of `<folder>`), or open `bin/faris-app` and allow it under System Settings, Privacy & Security, Open Anyway.",
         "The bundled executables are hash-pinned and not signed. Their hashes establish byte identity, not authenticity.",
         "",
+        *([
+            "## Computed maintenance durations",
+            "",
+            "`maintenance/maintenance-result.json` is a recorded result for the four arrangements: replacement outages computed from the decay heat of the parts around each replaced component, compared with the fixed durations. Open it from the Maintenance window (top bar), which checks its SHA-256 first. `maintenance/maintenance-assumptions.json` and `maintenance/operating-assumptions.json` are the inputs it records by hash. Computing a new result needs ACTINV, its data, Python and your own transport runs with a 709-group spectrum; `tools/build_activation_inputs.py` writes the ACTINV inputs. Decay heat governs the outages; the result is a research screening, not a maintenance plan.",
+            "",
+        ] if maintenance else []),
         "## The two downloads",
         "",
         f"The program, the transport bundles, the operating assumptions, the licenses and the package index are the platform download (`FARIS-{version}-<os>-<arch>.tar.gz`). That alone opens and runs the whole study.",
@@ -1392,7 +1398,8 @@ def main() -> None:
         maintenance_manifest = install_maintenance(
             staging, args.maintenance_result, args.maintenance_assumptions,
             args.maintenance_history_assumptions, maintenance_version)
-        write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version)
+        write_package_readme(staging, branches, support_manifest, sweep_manifest, args.version,
+                             maintenance_manifest)
         prune_empty_directories(staging)
         indexed_files = scan_package(staging)
         part_totals = assign_parts(
