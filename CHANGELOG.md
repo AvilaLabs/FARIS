@@ -7,6 +7,48 @@ are listed here under **Changed** with what to do.
 Research screening only. FARIS results are not a licensing, safety or design
 basis.
 
+## 0.2.0 — 2026-10-08
+
+Replacement outages computed from activation. FARIS can now work out how long
+each replacement takes from the decay heat of the parts around the replaced
+component, rerun the 30-year history with those outages, and compare every
+design's downtime, availability and lifetime electricity with the fixed-duration
+model. The demo study and its recorded results are otherwise the same as 0.1.1.
+
+### Added
+
+- `faris maintenance run` computes replacement outages for every design in a
+  designs file (`faris-maintenance-designs/v0.1`) from a maintenance
+  assumptions file (`faris-maintenance-assumptions/v0.1`): per replacement
+  class, the governing components, the work time and a threshold q*, either
+  calibrated on one design's first replacement or given in W/m³. Each outage is
+  the cooldown until the governing components' decay heat per volume falls
+  below q*, plus the work time; the history is rerun until no outage changes by
+  more than a day. It needs ACTINV, its data and Python, and writes
+  `faris-maintenance-result/v0.1`. `faris maintenance report` prints a result as
+  tables.
+- A **Maintenance** window in the desktop (top bar). It opens a result and
+  shows each design's downtime, availability and lifetime net electricity under
+  both models, a chart of every replacement's fixed and computed outage, and
+  for each replacement which components held the cooldown up and how long they
+  had been in the machine. **Run…** computes a result from the desktop with
+  progress and cancel. `--maintenance FILE` opens a result at launch.
+- The package carries a recorded maintenance result for the four arrangements,
+  opened from the Maintenance window, and the activation-input builder
+  (`tools/build_activation_inputs.py`) for computing results from your own
+  transport runs.
+
+### Limits
+
+- Decay heat governs the cooldown. Contact dose is refused as the governing
+  quantity: with a threshold fixed at the first outage, the never-replaced first
+  wall kept dose above it for more than a year at later replacements.
+- With a calibrated threshold, outages are relative to the calibration outage:
+  FARIS shows how they differ between designs and grow over the plant's life,
+  not how long they are in absolute terms.
+- Running the calculation needs your own transport runs with a 709-group
+  spectrum; the packaged arrangements' spectrum runs are not in the download.
+
 ## 0.1.1 — 2026-10-06
 
 The same demo study and results as 0.1.0. What changes is how it is

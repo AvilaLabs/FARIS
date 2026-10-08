@@ -1,7 +1,7 @@
 # Computed maintenance durations
 
-> **Available from FARIS 0.2.** The 0.1.1 download does not include it. Until 0.2 is released, build FARIS from the
-> `main` branch to use it.
+> **New in FARIS 0.2.** The download includes a recorded result for the four demo arrangements: open
+> **Maintenance** in the top bar and choose **Open the recorded maintenance result**.
 
 Most plant models give every replacement the same fixed outage length. In a real plant the length depends on how
 long the parts around the replaced component take to cool down, and that grows as the parts that stay in the machine
@@ -31,10 +31,12 @@ outages are assumed to be.
 ## What you need
 
 - **ACTINV** and its nuclear data. See [actinv.avilalabs.org](https://actinv.avilalabs.org).
-- **Python 3** for FARIS's activation-input builder, which writes the ACTINV inputs.
+- **Python 3** for FARIS's activation-input builder, which writes the ACTINV inputs. The package has it as
+  `tools/build_activation_inputs.py`, and FARIS finds it there.
 - **Per design**: a scenario, its physics file, a verified transport run for the history, a 709-group spectrum run
   and operating-history assumptions. These are the same files the [history](operate.md) and
-  [transport](transport.md) chapters use.
+  [transport](transport.md) chapters use. The download does not hold the demo arrangements' 709-group spectrum runs,
+  so recomputing needs your own [transport runs](transport.md).
 
 ### The designs file
 
@@ -125,7 +127,12 @@ prints markdown tables, or the result itself with `--format json`. See [Command 
 
 ## Read the result
 
-Open a result with **Maintenance → Open result…**, or start FARIS with `--maintenance result.json`.
+Open a result with **Maintenance → Open result…**, or start FARIS with `--maintenance result.json`. In the
+downloaded package, **Open the recorded maintenance result** opens the result recorded for the four demo
+arrangements after checking its SHA-256. It was computed with ACTINV at the coupling test's settings: each class's
+work time and calibration target are half its fixed duration, with q\* calibrated on the port, reference
+arrangement and the "Demountable magnets" operating assumptions (in the package as
+`maintenance/operating-assumptions.json`).
 
 - **Thresholds**: q\* per class and where it came from.
 - **Designs**: downtime, availability and lifetime net electricity, fixed beside computed, and whether the computed

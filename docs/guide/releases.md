@@ -4,6 +4,23 @@ FARIS follows [semantic versioning](https://semver.org/) from 0.1.0. Before 1.0,
 
 The full history is in the [changelog](https://github.com/AvilaLabs/FARIS/blob/main/CHANGELOG.md). Releases are on the [releases page](https://github.com/AvilaLabs/FARIS/releases).
 
+## 0.2.0, 2026-10-08
+
+Replacement outages computed from activation. See [Computed maintenance durations](maintenance.md).
+
+- **Maintenance.** FARIS computes how long each replacement takes from the decay heat of the parts around the
+  replaced component, reruns the 30-year history with those outages, and compares every design's downtime,
+  availability and lifetime electricity with the fixed durations. In the validation runs, the downtime difference
+  between designs came out 2 to 14 times its fixed-duration value.
+- **Desktop.** A **Maintenance** window shows a result: both models side by side, a chart of every outage, and for
+  each replacement which parts held the cooldown up and how long they had been in the machine. **Run…** computes a
+  result with progress and cancel.
+- **Command line.** `faris maintenance run` and `faris maintenance report`.
+- **Package.** A recorded result for the four demo arrangements, and the activation-input builder for your own runs.
+  Computing a result needs ACTINV, its data, Python and your own transport runs.
+
+The demo study and its recorded transport and history results are the same as in 0.1.1.
+
 ## 0.1.1, 2026-10-06
 
 The same demo study and results as 0.1.0. What changes is how it is distributed.
