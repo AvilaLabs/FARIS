@@ -1,0 +1,3848 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "oktavian-al",
+  "title": "OKTAVIAN aluminium sphere, leakage neutron and photon spectra (D-T point source)",
+  "evidence_class": "experiment",
+  "source": {
+    "url": "https://github.com/IAEA-NDS/open-benchmarks",
+    "commit": "1d9855b00e05c5d5e25a11026ac56940dc75b516",
+    "retrieved": "2026-10-09",
+    "original_experiment": "Osaka University OKTAVIAN fusion neutronics benchmark (via the IAEA-NDS repository, partly adopted from CoNDERC); the original publication was not read in this pass",
+    "fetch": "git clone https://github.com/IAEA-NDS/open-benchmarks && git -C open-benchmarks checkout 1d9855b00e05c5d5e25a11026ac56940dc75b516"
+  },
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "attribution": "Experimental spectra and input files from IAEA-NDS/open-benchmarks (IAEA Nuclear Data Section), CC BY 4.0, https://creativecommons.org/licenses/by/4.0/, commit 1d9855b00e05c5d5e25a11026ac56940dc75b516; partly adopted from the IAEA CoNDERC compilation. The tables in this manifest were copied unchanged from the experimental CSV files named under files; no other change was made.",
+    "terms": "Upstream states that all contents, including input files, reference output and experimental data, are CC-BY-4.0."
+  },
+  "files": [
+    {
+      "role": "openmc geometry (as published)",
+      "path_in_source": "jade_open_benchmarks/inputs/Oktavian/Oktavian_Al/openmc/geometry.xml",
+      "sha256": "897260d3cc5f90aa9c7b8b5527b0bc4edfea96e327e13c61556176506c8813ce",
+      "bytes": 1145
+    },
+    {
+      "role": "openmc materials (as published; see not_covered and the runner for the material defect)",
+      "path_in_source": "jade_open_benchmarks/inputs/Oktavian/Oktavian_Al/openmc/materials.xml",
+      "sha256": "91604e953a3f294ef173d4b87c5d977190d8b21436a87a6bda18092aa2ce06ec",
+      "bytes": 273
+    },
+    {
+      "role": "mcnp input (source spectrum, tallies, full material compositions)",
+      "path_in_source": "jade_open_benchmarks/inputs/Oktavian/Oktavian_Al/mcnp/Oktavian_Al.i",
+      "sha256": "569a7fc42ebe51ae8d98250fb739e20ba478ceed744618e5a4c986b1bed5a4b4",
+      "bytes": 5119
+    },
+    {
+      "role": "serpent input",
+      "path_in_source": "jade_open_benchmarks/inputs/Oktavian/Oktavian_Al/serpent/Oktavian_Al.i",
+      "sha256": "48644c11255563551de57de2a7d55d6476481c45e3b926b8fb17139c6f7c3091",
+      "bytes": 622
+    },
+    {
+      "role": "benchmark metadata",
+      "path_in_source": "jade_open_benchmarks/inputs/Oktavian/benchmark_metadata.json",
+      "sha256": "fbb1b307d9510c1bcf38b9663f31133768d81dbcb18a8b0dcd1057e1d30f40f0",
+      "bytes": 123
+    },
+    {
+      "role": "experimental neutron leakage spectrum",
+      "path_in_source": "jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Neutron flux.csv",
+      "sha256": "26b3fac092cb4ea75936a36e4994411db17345619787861edd73b3c38ea7f20a",
+      "bytes": 3273
+    },
+    {
+      "role": "experimental photon leakage spectrum",
+      "path_in_source": "jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Gamma flux.csv",
+      "sha256": "a0cb21f6b8310587e1a10a27d5290ed21404cce7859747bee9b8a7fb914f8337",
+      "bytes": 1142
+    },
+    {
+      "role": "experimental neutron spectrum, coarse bins (derived sums, not scored)",
+      "path_in_source": "jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Coarse neutron flux.csv",
+      "sha256": "8d23b6afdc1b6d19a29e54f7b090d32fd899633b8f9f2a89d24c1318a3db8593",
+      "bytes": 212
+    },
+    {
+      "role": "experimental photon spectrum, coarse bins (derived sums, not scored)",
+      "path_in_source": "jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Coarse gamma flux.csv",
+      "sha256": "01656937fd2d62defece4ca7c13da3db186f788f317c4a216a3387aaae968927",
+      "bytes": 225
+    },
+    {
+      "role": "licence text",
+      "path_in_source": "LICENSE",
+      "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94",
+      "bytes": 18656
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "normalisation": {
+    "status": "inferred",
+    "blocks_scoring": true,
+    "quantity": "leakage spectrum from the sphere surface at r = 19.95 cm",
+    "units": "neutrons per source neutron per unit lethargy; photons per source neutron per MeV",
+    "source_normalisation": "per source neutron (D-T source, MCNP sdef histogram si1/sp1 in the MCNP input)",
+    "location": "spherical surface 6 (r = 19.95 cm) of the MCNP model; the experiment is a time-of-flight detector at about 11 m",
+    "reaction_or_particle": "neutrons above 100 keV; photons 0.5 to 11 MeV",
+    "energy_integration": "neutron: log-spaced bins of constant lethargy width (about 0.04); photon: 0.1 MeV bins to 5 MeV, then 0.5 MeV bins",
+    "area_cm2": 4778.362426110075,
+    "basis": "Inferred from numbers, not documented upstream. The packaged openmc_fusion_benchmarks experiment.h5 holds per-cm2 surface values; the CSV values equal those times 4*pi*19.5^2 = 4778.36 cm2 divided by the lethargy width (neutrons, constant ratio 1.1946e5 = 4778.36/0.04, scatter 0.05 %) or the bin width in MeV (photons, ratio constant to 1e-11 within each width). The area uses r = 19.5 cm although the tally surface is at 19.95 cm.",
+    "why": "the unit is inferred from a numeric identity with a second packaging, the upstream tally is a flux (MCNP F2) not a current, and the area radius differs from the tally surface",
+    "next_step": "confirm against the CoNDERC record or the original publication, then set status to confirmed"
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "Error column as provided",
+        "kind": "unspecified",
+        "meaning": "absolute 1 sigma assumed, same units as Value; upstream does not state whether it is statistical only or includes systematic terms or a normalisation uncertainty"
+      }
+    ],
+    "note": "Relative values run from about 0.2 % near the 15 MeV peak to above 80 % in the last bins; a statistical-only column would make the test stricter than the experiment justifies."
+  },
+  "compatibility": {
+    "declared": "2026-10-09",
+    "k": 2.0,
+    "k_basis": "authored: coverage factor 2 on the combined standard uncertainty, assuming the Error column is a 1 sigma value (unconfirmed)",
+    "covariance": {
+      "kind": "independent",
+      "basis": "authored: the calculation shares no random input or measurement with the experiment, so Cov(C, E) = 0; shared source or normalisation terms are inside u_E as published or not stated"
+    }
+  },
+  "response_classes": {
+    "neutron_leakage_spectrum": {
+      "unit": "n per source neutron per unit lethargy",
+      "description": "neutron leakage, 134 bins from 97 keV to 20.66 MeV"
+    },
+    "photon_leakage_spectrum": {
+      "unit": "photons per source neutron per MeV",
+      "description": "photon leakage, 57 bins from 0.5 MeV"
+    }
+  },
+  "detectors": [
+    {
+      "id": "n-0.10109",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.097122,
+        "hi_mev": 0.10109,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.10109,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00623,
+        "u": 0.003557
+      },
+      "blocked": {
+        "why": "the first bin (97.1 to 101.1 keV) straddles the 100 keV lower limit of the time-of-flight measurement",
+        "next_step": "score only bins entirely above 100 keV, or confirm the measurement range in the original publication"
+      }
+    },
+    {
+      "id": "n-0.10521",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.10109,
+        "hi_mev": 0.10521,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.10521,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01289,
+        "u": 0.003257
+      }
+    },
+    {
+      "id": "n-0.1095",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.10521,
+        "hi_mev": 0.1095,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1095,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01159,
+        "u": 0.002912
+      }
+    },
+    {
+      "id": "n-0.11397",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1095,
+        "hi_mev": 0.11397,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.11397,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008544,
+        "u": 0.002564
+      }
+    },
+    {
+      "id": "n-0.11862",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.11397,
+        "hi_mev": 0.11862,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.11862,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008838,
+        "u": 0.002309
+      }
+    },
+    {
+      "id": "n-0.12347",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.11862,
+        "hi_mev": 0.12347,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.12347,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009435,
+        "u": 0.002097
+      }
+    },
+    {
+      "id": "n-0.1285",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.12347,
+        "hi_mev": 0.1285,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1285,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01149,
+        "u": 0.001935
+      }
+    },
+    {
+      "id": "n-0.13375",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1285,
+        "hi_mev": 0.13375,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.13375,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009426,
+        "u": 0.001744
+      }
+    },
+    {
+      "id": "n-0.13921",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.13375,
+        "hi_mev": 0.13921,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.13921,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.005602,
+        "u": 0.00155
+      }
+    },
+    {
+      "id": "n-0.14489",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.13921,
+        "hi_mev": 0.14489,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.14489,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004172,
+        "u": 0.001404
+      }
+    },
+    {
+      "id": "n-0.1508",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.14489,
+        "hi_mev": 0.1508,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1508,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004657,
+        "u": 0.001307
+      }
+    },
+    {
+      "id": "n-0.15696",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1508,
+        "hi_mev": 0.15696,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.15696,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.003615,
+        "u": 0.001206
+      }
+    },
+    {
+      "id": "n-0.16336",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.15696,
+        "hi_mev": 0.16336,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.16336,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01015,
+        "u": 0.001217
+      }
+    },
+    {
+      "id": "n-0.17003",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.16336,
+        "hi_mev": 0.17003,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.17003,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01321,
+        "u": 0.001185
+      }
+    },
+    {
+      "id": "n-0.17697",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.17003,
+        "hi_mev": 0.17697,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.17697,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01198,
+        "u": 0.001103
+      }
+    },
+    {
+      "id": "n-0.18419",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.17697,
+        "hi_mev": 0.18419,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.18419,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01239,
+        "u": 0.001048
+      }
+    },
+    {
+      "id": "n-0.19171",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.18419,
+        "hi_mev": 0.19171,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.19171,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008653,
+        "u": 0.000942
+      }
+    },
+    {
+      "id": "n-0.19953",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.19171,
+        "hi_mev": 0.19953,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.19953,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.007314,
+        "u": 0.000872
+      }
+    },
+    {
+      "id": "n-0.20767",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.19953,
+        "hi_mev": 0.20767,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.20767,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008257,
+        "u": 0.0008514
+      }
+    },
+    {
+      "id": "n-0.21615",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.20767,
+        "hi_mev": 0.21615,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.21615,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01231,
+        "u": 0.000874
+      }
+    },
+    {
+      "id": "n-0.22497",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.21615,
+        "hi_mev": 0.22497,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.22497,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01547,
+        "u": 0.0008837
+      }
+    },
+    {
+      "id": "n-0.23415",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.22497,
+        "hi_mev": 0.23415,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.23415,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01889,
+        "u": 0.0008959
+      }
+    },
+    {
+      "id": "n-0.24371",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.23415,
+        "hi_mev": 0.24371,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.24371,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02166,
+        "u": 0.0008998
+      }
+    },
+    {
+      "id": "n-0.25365",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.24371,
+        "hi_mev": 0.25365,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.25365,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02257,
+        "u": 0.000883
+      }
+    },
+    {
+      "id": "n-0.264",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.25365,
+        "hi_mev": 0.264,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.264,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02091,
+        "u": 0.0008384
+      }
+    },
+    {
+      "id": "n-0.27478",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.264,
+        "hi_mev": 0.27478,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.27478,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0136,
+        "u": 0.0007332
+      }
+    },
+    {
+      "id": "n-0.28599",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.27478,
+        "hi_mev": 0.28599,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.28599,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01638,
+        "u": 0.0007558
+      }
+    },
+    {
+      "id": "n-0.29766",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.28599,
+        "hi_mev": 0.29766,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.29766,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01888,
+        "u": 0.0007738
+      }
+    },
+    {
+      "id": "n-0.30981",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.29766,
+        "hi_mev": 0.30981,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.30981,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02134,
+        "u": 0.0007904
+      }
+    },
+    {
+      "id": "n-0.32245",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.30981,
+        "hi_mev": 0.32245,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.32245,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02788,
+        "u": 0.0008489
+      }
+    },
+    {
+      "id": "n-0.33561",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.32245,
+        "hi_mev": 0.33561,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.33561,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03111,
+        "u": 0.0008699
+      }
+    },
+    {
+      "id": "n-0.34931",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.33561,
+        "hi_mev": 0.34931,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.34931,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03068,
+        "u": 0.0008543
+      }
+    },
+    {
+      "id": "n-0.36357",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.34931,
+        "hi_mev": 0.36357,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.36357,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02944,
+        "u": 0.0008305
+      }
+    },
+    {
+      "id": "n-0.3784",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.36357,
+        "hi_mev": 0.3784,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.3784,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03073,
+        "u": 0.0008362
+      }
+    },
+    {
+      "id": "n-0.39385",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.3784,
+        "hi_mev": 0.39385,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.39385,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02779,
+        "u": 0.0007999
+      }
+    },
+    {
+      "id": "n-0.40992",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.39385,
+        "hi_mev": 0.40992,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.40992,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02476,
+        "u": 0.0007613
+      }
+    },
+    {
+      "id": "n-0.42665",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.40992,
+        "hi_mev": 0.42665,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.42665,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02412,
+        "u": 0.0007475
+      }
+    },
+    {
+      "id": "n-0.44406",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.42665,
+        "hi_mev": 0.44406,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.44406,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03078,
+        "u": 0.0008087
+      }
+    },
+    {
+      "id": "n-0.46218",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.44406,
+        "hi_mev": 0.46218,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.46218,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03237,
+        "u": 0.0008171
+      }
+    },
+    {
+      "id": "n-0.48105",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.46218,
+        "hi_mev": 0.48105,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.48105,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03631,
+        "u": 0.0008469
+      }
+    },
+    {
+      "id": "n-0.50068",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.48105,
+        "hi_mev": 0.50068,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.50068,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03954,
+        "u": 0.0008721
+      }
+    },
+    {
+      "id": "n-0.52111",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.50068,
+        "hi_mev": 0.52111,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.52111,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04038,
+        "u": 0.0008798
+      }
+    },
+    {
+      "id": "n-0.54238",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.52111,
+        "hi_mev": 0.54238,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.54238,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0462,
+        "u": 0.0009303
+      }
+    },
+    {
+      "id": "n-0.56451",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.54238,
+        "hi_mev": 0.56451,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.56451,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04582,
+        "u": 0.0009277
+      }
+    },
+    {
+      "id": "n-0.58755",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.56451,
+        "hi_mev": 0.58755,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.58755,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05114,
+        "u": 0.0009726
+      }
+    },
+    {
+      "id": "n-0.61153",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.58755,
+        "hi_mev": 0.61153,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.61153,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0496,
+        "u": 0.000961
+      }
+    },
+    {
+      "id": "n-0.63648",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.61153,
+        "hi_mev": 0.63648,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.63648,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04957,
+        "u": 0.000962
+      }
+    },
+    {
+      "id": "n-0.66246",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.63648,
+        "hi_mev": 0.66246,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.66246,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05723,
+        "u": 0.001025
+      }
+    },
+    {
+      "id": "n-0.6895",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.66246,
+        "hi_mev": 0.6895,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.6895,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05772,
+        "u": 0.00103
+      }
+    },
+    {
+      "id": "n-0.71763",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.6895,
+        "hi_mev": 0.71763,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.71763,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05971,
+        "u": 0.001047
+      }
+    },
+    {
+      "id": "n-0.74692",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.71763,
+        "hi_mev": 0.74692,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.74692,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05651,
+        "u": 0.001024
+      }
+    },
+    {
+      "id": "n-0.7774",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.74692,
+        "hi_mev": 0.7774,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.7774,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05496,
+        "u": 0.001014
+      }
+    },
+    {
+      "id": "n-0.80913",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.7774,
+        "hi_mev": 0.80913,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.80913,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0607,
+        "u": 0.001061
+      }
+    },
+    {
+      "id": "n-0.84215",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.80913,
+        "hi_mev": 0.84215,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.84215,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06588,
+        "u": 0.001103
+      }
+    },
+    {
+      "id": "n-0.87652",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.84215,
+        "hi_mev": 0.87652,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.87652,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07278,
+        "u": 0.001156
+      }
+    },
+    {
+      "id": "n-0.91229",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.87652,
+        "hi_mev": 0.91229,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.91229,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07811,
+        "u": 0.001198
+      }
+    },
+    {
+      "id": "n-0.94952",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.91229,
+        "hi_mev": 0.94952,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.94952,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07729,
+        "u": 0.001196
+      }
+    },
+    {
+      "id": "n-0.98827",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.94952,
+        "hi_mev": 0.98827,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.98827,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07351,
+        "u": 0.001174
+      }
+    },
+    {
+      "id": "n-1.0286",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.98827,
+        "hi_mev": 1.0286,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0286,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.078,
+        "u": 0.001211
+      }
+    },
+    {
+      "id": "n-1.0706",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0286,
+        "hi_mev": 1.0706,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0706,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08255,
+        "u": 0.001249
+      }
+    },
+    {
+      "id": "n-1.1143",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0706,
+        "hi_mev": 1.1143,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1143,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07953,
+        "u": 0.001233
+      }
+    },
+    {
+      "id": "n-1.1598",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1143,
+        "hi_mev": 1.1598,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1598,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0814,
+        "u": 0.001253
+      }
+    },
+    {
+      "id": "n-1.2071",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1598,
+        "hi_mev": 1.2071,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2071,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0869,
+        "u": 0.001298
+      }
+    },
+    {
+      "id": "n-1.2563",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2071,
+        "hi_mev": 1.2563,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2563,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08818,
+        "u": 0.001305
+      }
+    },
+    {
+      "id": "n-1.3076",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2563,
+        "hi_mev": 1.3076,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.3076,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09031,
+        "u": 0.001318
+      }
+    },
+    {
+      "id": "n-1.361",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.3076,
+        "hi_mev": 1.361,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.361,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0871,
+        "u": 0.001294
+      }
+    },
+    {
+      "id": "n-1.4165",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.361,
+        "hi_mev": 1.4165,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4165,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08542,
+        "u": 0.001281
+      }
+    },
+    {
+      "id": "n-1.4743",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4165,
+        "hi_mev": 1.4743,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4743,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08882,
+        "u": 0.001302
+      }
+    },
+    {
+      "id": "n-1.5345",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4743,
+        "hi_mev": 1.5345,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5345,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09099,
+        "u": 0.001315
+      }
+    },
+    {
+      "id": "n-1.5971",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5345,
+        "hi_mev": 1.5971,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5971,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09417,
+        "u": 0.001335
+      }
+    },
+    {
+      "id": "n-1.6623",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5971,
+        "hi_mev": 1.6623,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.6623,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09448,
+        "u": 0.001339
+      }
+    },
+    {
+      "id": "n-1.7301",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.6623,
+        "hi_mev": 1.7301,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.7301,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0956,
+        "u": 0.001352
+      }
+    },
+    {
+      "id": "n-1.8008",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.7301,
+        "hi_mev": 1.8008,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8008,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09988,
+        "u": 0.001387
+      }
+    },
+    {
+      "id": "n-1.8742",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8008,
+        "hi_mev": 1.8742,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8742,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09852,
+        "u": 0.001385
+      }
+    },
+    {
+      "id": "n-1.9507",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8742,
+        "hi_mev": 1.9507,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.9507,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09895,
+        "u": 0.001396
+      }
+    },
+    {
+      "id": "n-2.0303",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.9507,
+        "hi_mev": 2.0303,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.0303,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09723,
+        "u": 0.001392
+      }
+    },
+    {
+      "id": "n-2.1132",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.0303,
+        "hi_mev": 2.1132,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1132,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1006,
+        "u": 0.001423
+      }
+    },
+    {
+      "id": "n-2.1994",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1132,
+        "hi_mev": 2.1994,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1994,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09916,
+        "u": 0.001423
+      }
+    },
+    {
+      "id": "n-2.2892",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1994,
+        "hi_mev": 2.2892,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.2892,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1001,
+        "u": 0.001433
+      }
+    },
+    {
+      "id": "n-2.3826",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.2892,
+        "hi_mev": 2.3826,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.3826,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1012,
+        "u": 0.001444
+      }
+    },
+    {
+      "id": "n-2.4799",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.3826,
+        "hi_mev": 2.4799,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.4799,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09564,
+        "u": 0.00141
+      }
+    },
+    {
+      "id": "n-2.5811",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.4799,
+        "hi_mev": 2.5811,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.5811,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09417,
+        "u": 0.001403
+      }
+    },
+    {
+      "id": "n-2.6864",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.5811,
+        "hi_mev": 2.6864,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.6864,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1002,
+        "u": 0.001449
+      }
+    },
+    {
+      "id": "n-2.796",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.6864,
+        "hi_mev": 2.796,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.796,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1032,
+        "u": 0.001474
+      }
+    },
+    {
+      "id": "n-2.9101",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.796,
+        "hi_mev": 2.9101,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.9101,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0971,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-3.0289",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.9101,
+        "hi_mev": 3.0289,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.0289,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09233,
+        "u": 0.001413
+      }
+    },
+    {
+      "id": "n-3.1525",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.0289,
+        "hi_mev": 3.1525,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.1525,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09188,
+        "u": 0.001427
+      }
+    },
+    {
+      "id": "n-3.2812",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.1525,
+        "hi_mev": 3.2812,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.2812,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0901,
+        "u": 0.001431
+      }
+    },
+    {
+      "id": "n-3.4151",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.2812,
+        "hi_mev": 3.4151,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.4151,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08812,
+        "u": 0.001435
+      }
+    },
+    {
+      "id": "n-3.5545",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.4151,
+        "hi_mev": 3.5545,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.5545,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08851,
+        "u": 0.001459
+      }
+    },
+    {
+      "id": "n-3.6995",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.5545,
+        "hi_mev": 3.6995,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.6995,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09326,
+        "u": 0.001518
+      }
+    },
+    {
+      "id": "n-3.8505",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.6995,
+        "hi_mev": 3.8505,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.8505,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09163,
+        "u": 0.001531
+      }
+    },
+    {
+      "id": "n-4.0076",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.8505,
+        "hi_mev": 4.0076,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.0076,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09169,
+        "u": 0.001559
+      }
+    },
+    {
+      "id": "n-4.1712",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.0076,
+        "hi_mev": 4.1712,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.1712,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08939,
+        "u": 0.001543
+      }
+    },
+    {
+      "id": "n-4.3414",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.1712,
+        "hi_mev": 4.3414,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.3414,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08775,
+        "u": 0.001532
+      }
+    },
+    {
+      "id": "n-4.5186",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.3414,
+        "hi_mev": 4.5186,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.5186,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08986,
+        "u": 0.001553
+      }
+    },
+    {
+      "id": "n-4.703",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.5186,
+        "hi_mev": 4.703,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.703,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08407,
+        "u": 0.001508
+      }
+    },
+    {
+      "id": "n-4.8949",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.703,
+        "hi_mev": 4.8949,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.8949,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07946,
+        "u": 0.001471
+      }
+    },
+    {
+      "id": "n-5.0947",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.8949,
+        "hi_mev": 5.0947,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.0947,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0806,
+        "u": 0.001484
+      }
+    },
+    {
+      "id": "n-5.3026",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.0947,
+        "hi_mev": 5.3026,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.3026,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07666,
+        "u": 0.001453
+      }
+    },
+    {
+      "id": "n-5.519",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.3026,
+        "hi_mev": 5.519,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.519,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0764,
+        "u": 0.001458
+      }
+    },
+    {
+      "id": "n-5.7443",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.519,
+        "hi_mev": 5.7443,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.7443,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07479,
+        "u": 0.001456
+      }
+    },
+    {
+      "id": "n-5.9787",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.7443,
+        "hi_mev": 5.9787,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.9787,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07129,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-6.2227",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.9787,
+        "hi_mev": 6.2227,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.2227,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07135,
+        "u": 0.001451
+      }
+    },
+    {
+      "id": "n-6.4766",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.2227,
+        "hi_mev": 6.4766,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.4766,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06948,
+        "u": 0.001448
+      }
+    },
+    {
+      "id": "n-6.741",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.4766,
+        "hi_mev": 6.741,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.741,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07071,
+        "u": 0.001476
+      }
+    },
+    {
+      "id": "n-7.0161",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.741,
+        "hi_mev": 7.0161,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.0161,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06868,
+        "u": 0.001474
+      }
+    },
+    {
+      "id": "n-7.3024",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.0161,
+        "hi_mev": 7.3024,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.3024,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06483,
+        "u": 0.001453
+      }
+    },
+    {
+      "id": "n-7.6004",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.3024,
+        "hi_mev": 7.6004,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.6004,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06145,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-7.9106",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.6004,
+        "hi_mev": 7.9106,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.9106,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06315,
+        "u": 0.001465
+      }
+    },
+    {
+      "id": "n-8.2334",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.9106,
+        "hi_mev": 8.2334,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.2334,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06195,
+        "u": 0.00146
+      }
+    },
+    {
+      "id": "n-8.5694",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.2334,
+        "hi_mev": 8.5694,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.5694,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06282,
+        "u": 0.001479
+      }
+    },
+    {
+      "id": "n-8.9192",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.5694,
+        "hi_mev": 8.9192,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.9192,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07218,
+        "u": 0.001588
+      }
+    },
+    {
+      "id": "n-9.2832",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.9192,
+        "hi_mev": 9.2832,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.2832,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07791,
+        "u": 0.001657
+      }
+    },
+    {
+      "id": "n-9.662",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.2832,
+        "hi_mev": 9.662,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.662,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08239,
+        "u": 0.001711
+      }
+    },
+    {
+      "id": "n-10.056",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.662,
+        "hi_mev": 10.056,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.056,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08692,
+        "u": 0.001765
+      }
+    },
+    {
+      "id": "n-10.467",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.056,
+        "hi_mev": 10.467,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.467,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1022,
+        "u": 0.001931
+      }
+    },
+    {
+      "id": "n-10.894",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.467,
+        "hi_mev": 10.894,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.894,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1234,
+        "u": 0.002151
+      }
+    },
+    {
+      "id": "n-11.339",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.894,
+        "hi_mev": 11.339,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 11.339,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.171,
+        "u": 0.002555
+      }
+    },
+    {
+      "id": "n-11.801",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 11.339,
+        "hi_mev": 11.801,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 11.801,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2127,
+        "u": 0.002847
+      }
+    },
+    {
+      "id": "n-12.283",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 11.801,
+        "hi_mev": 12.283,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 12.283,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2486,
+        "u": 0.003078
+      }
+    },
+    {
+      "id": "n-12.784",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 12.283,
+        "hi_mev": 12.784,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 12.784,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.318,
+        "u": 0.003474
+      }
+    },
+    {
+      "id": "n-13.306",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 12.784,
+        "hi_mev": 13.306,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 13.306,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.4452,
+        "u": 0.004101
+      }
+    },
+    {
+      "id": "n-13.849",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 13.306,
+        "hi_mev": 13.849,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 13.849,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 1.026,
+        "u": 0.0062
+      }
+    },
+    {
+      "id": "n-14.414",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 13.849,
+        "hi_mev": 14.414,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 14.414,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 3.767,
+        "u": 0.01184
+      }
+    },
+    {
+      "id": "n-15.002",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 14.414,
+        "hi_mev": 15.002,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 15.002,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 6.44,
+        "u": 0.01542
+      }
+    },
+    {
+      "id": "n-15.615",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 15.002,
+        "hi_mev": 15.615,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 15.615,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 3.5,
+        "u": 0.01135
+      }
+    },
+    {
+      "id": "n-16.252",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 15.615,
+        "hi_mev": 16.252,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 16.252,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.4853,
+        "u": 0.00424
+      }
+    },
+    {
+      "id": "n-16.915",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 16.252,
+        "hi_mev": 16.915,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 16.915,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02432,
+        "u": 0.001018
+      }
+    },
+    {
+      "id": "n-17.605",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 16.915,
+        "hi_mev": 17.605,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 17.605,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00306,
+        "u": 0.0005026
+      }
+    },
+    {
+      "id": "n-18.324",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 17.605,
+        "hi_mev": 18.324,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 18.324,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.002431,
+        "u": 0.0004761
+      }
+    },
+    {
+      "id": "n-19.072",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 18.324,
+        "hi_mev": 19.072,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 19.072,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.001259,
+        "u": 0.0004252
+      }
+    },
+    {
+      "id": "n-19.85",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 19.072,
+        "hi_mev": 19.85,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 19.85,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0004715,
+        "u": 0.0003861
+      }
+    },
+    {
+      "id": "n-20.66",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 19.85,
+        "hi_mev": 20.66,
+        "edge_convention": "CSV energy is the upper edge of the e21 tally bin (identical edge list in the MCNP input)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 20.66,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.000441,
+        "u": 0.0003812
+      }
+    },
+    {
+      "id": "g-0.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.5,
+        "hi_mev": 0.6,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2025,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.6,
+        "hi_mev": 0.7,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.181,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.7,
+        "hi_mev": 0.8,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1655,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.8,
+        "hi_mev": 0.9,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2199,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.9,
+        "hi_mev": 1.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2042,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0,
+        "hi_mev": 1.1,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.181,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1,
+        "hi_mev": 1.2,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1364,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2,
+        "hi_mev": 1.3,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1203,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.3,
+        "hi_mev": 1.4,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1159,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4,
+        "hi_mev": 1.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1033,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5,
+        "hi_mev": 1.6,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08601,
+        "u": 0.00062
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.6,
+        "hi_mev": 1.7,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08412,
+        "u": 0.00052
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.7,
+        "hi_mev": 1.8,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1108,
+        "u": 0.0006
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8,
+        "hi_mev": 1.9,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1251,
+        "u": 0.0006
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.9,
+        "hi_mev": 2.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09976,
+        "u": 0.00042
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.0,
+        "hi_mev": 2.1,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07944,
+        "u": 0.00052
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1,
+        "hi_mev": 2.2,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09377,
+        "u": 0.00071
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.2,
+        "hi_mev": 2.3,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1112,
+        "u": 0.0007
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.3,
+        "hi_mev": 2.4,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0963,
+        "u": 0.00069
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.4,
+        "hi_mev": 2.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06832,
+        "u": 0.00105
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.5,
+        "hi_mev": 2.6,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05362,
+        "u": 0.00088
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.6,
+        "hi_mev": 2.7,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04855,
+        "u": 0.00054
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.7,
+        "hi_mev": 2.8,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04804,
+        "u": 0.00099
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.8,
+        "hi_mev": 2.9,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05524,
+        "u": 0.00101
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.9,
+        "hi_mev": 3.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06851,
+        "u": 0.00081
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.0,
+        "hi_mev": 3.1,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07359,
+        "u": 0.00081
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.1,
+        "hi_mev": 3.2,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06203,
+        "u": 0.00075
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.2,
+        "hi_mev": 3.3,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0447,
+        "u": 0.00061
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.3,
+        "hi_mev": 3.4,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03335,
+        "u": 0.00069
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.4,
+        "hi_mev": 3.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02885,
+        "u": 0.00091
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.5,
+        "hi_mev": 3.6,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02788,
+        "u": 0.00096
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.6,
+        "hi_mev": 3.7,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.028,
+        "u": 0.00097
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.7,
+        "hi_mev": 3.8,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02814,
+        "u": 0.00086
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.8,
+        "hi_mev": 3.9,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02828,
+        "u": 0.00074
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.9,
+        "hi_mev": 4.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02817,
+        "u": 0.00096
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.0,
+        "hi_mev": 4.1,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02716,
+        "u": 0.00122
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.1,
+        "hi_mev": 4.2,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02539,
+        "u": 0.00144
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.2,
+        "hi_mev": 4.3,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02371,
+        "u": 0.00203
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.3,
+        "hi_mev": 4.4,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02253,
+        "u": 0.00261
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.4,
+        "hi_mev": 4.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0219,
+        "u": 0.00245
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.5,
+        "hi_mev": 4.6,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02213,
+        "u": 0.00162
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.6,
+        "hi_mev": 4.7,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02346,
+        "u": 0.00255
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.7,
+        "hi_mev": 4.8,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02536,
+        "u": 0.00465
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.8,
+        "hi_mev": 4.9,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02654,
+        "u": 0.00547
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.9,
+        "hi_mev": 5.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0255,
+        "u": 0.00383
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.0,
+        "hi_mev": 5.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01596,
+        "u": 0.00232
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-5.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.5,
+        "hi_mev": 6.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01899,
+        "u": 0.00186
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.0,
+        "hi_mev": 6.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0163,
+        "u": 0.00136
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-6.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.5,
+        "hi_mev": 7.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.006569,
+        "u": 0.002461
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.0,
+        "hi_mev": 7.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01641,
+        "u": 0.0023
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-7.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.5,
+        "hi_mev": 8.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004856,
+        "u": 0.001785
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.0,
+        "hi_mev": 8.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009137,
+        "u": 0.001409
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-8.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.5,
+        "hi_mev": 9.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.005316,
+        "u": 0.000696
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.0,
+        "hi_mev": 9.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00166,
+        "u": 0.000589
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-9.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.5,
+        "hi_mev": 10.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.003036,
+        "u": 0.000405
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-10",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.0,
+        "hi_mev": 10.5,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.001489,
+        "u": 0.000241
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-10.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.5,
+        "hi_mev": 11.0,
+        "edge_convention": "read as the lower edge by openmc_fusion_benchmarks; the MCNP e41 card would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0006201,
+        "u": 0.0001409
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in one packaging, upper edge by the MCNP e41 card), and the upstream MCNP photon tally f41:p names cell 6, which has zero importance",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    }
+  ],
+  "not_covered": [
+    "fusion plant geometry: ports, streaming paths, plasma source shape, divertor and breeder blanket",
+    "tritium production and activation reaction rates (leakage spectra only)",
+    "nuclear heating and dose",
+    "materials other than aluminium and the stainless-steel shells at 14 MeV; deep penetration beyond 20 cm",
+    "time dependence, burnup and cooling-time behaviour",
+    "magnet and superconductor response"
+  ],
+  "qualified_range": {
+    "materials": [
+      "aluminium (density 1.223 g/cm3 in the model)",
+      "stainless steel shells (7.824 g/cm3)"
+    ],
+    "geometry_class": "spherical shell assembly, 19.95 cm outer radius, one beam-tube cylinder",
+    "spectrum_class": "D-T point source with the MCNP histogram energy distribution, leakage observed above 100 keV",
+    "parameters": [
+      {
+        "name": "outer_radius",
+        "min": 19.95,
+        "max": 19.95,
+        "unit": "cm"
+      },
+      {
+        "name": "source_energy",
+        "min": 0.1,
+        "max": 20.25,
+        "unit": "MeV"
+      }
+    ],
+    "cooling_time": "not applicable (prompt transport only)"
+  },
+  "known_upstream_defects": [
+    "The published OpenMC materials.xml gives the steel shells as pure Cr50 (weight fraction 1.0, 7.824 g/cm3) and aluminium as pure Al27, while the MCNP input gives 13-nuclide stainless steel and aluminium with Si, Fe and Cu impurities. The OpenMC file also has no settings, source or tallies. The FARIS runner builds materials from the MCNP input and keeps the OpenMC geometry; it does not use the published OpenMC materials.",
+    "The MCNP photon tally f41:p names cell 6, which has zero importance."
+  ],
+  "literature_context": [
+    {
+      "kind": "literature",
+      "label": "eepeterson/openmc_fusion_benchmarks, OpenMC 0.14.0 with FENDL-3.2, CSG geometry",
+      "source": {
+        "url": "https://github.com/eepeterson/openmc_fusion_benchmarks",
+        "commit": "653d6aba04d993d2915a4e4e983e2a2119fa0e27",
+        "license": "MIT",
+        "files": {
+          "experiment.h5": "bab8f8f9a03d543bac4a3549fb8d1cdb621e493d06cd8a1b0161f8de113211c7",
+          "openmc-0-14-0_fendl32_csg.h5": "f56591458520ab3fa7420d873edea36c2d777cce59dee3fc3567a17c8c8b0dad"
+        }
+      },
+      "summary": "ratio of the packaged calculation to the packaged experiment values above 1 MeV (n = 75 bins, as stored, not independently checked): median 0.727, minimum 0.148, maximum 46.260. Context for FARIS's own C/E; computed by that project's code, library build and tally definition, not a FARIS run.",
+      "scored": false
+    }
+  ]
+}

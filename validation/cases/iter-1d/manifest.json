@@ -1,0 +1,137 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "iter-1d",
+  "title": "ITER_1D neutron flux and absorption by material cell (code-to-code reference exercise)",
+  "evidence_class": "code-to-code",
+  "source": {
+    "url": "https://github.com/IAEA-NDS/open-benchmarks",
+    "commit": "1d9855b00e05c5d5e25a11026ac56940dc75b516",
+    "retrieved": "2026-10-09",
+    "registration": "references/iter-1d-reference.json",
+    "local_version": "OpenMC input 1.1"
+  },
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "attribution": "ITER_1D inputs from IAEA-NDS/open-benchmarks (IAEA Nuclear Data Section), CC BY 4.0. No upstream file is copied into this repository; identities are hashes.",
+    "terms": "CC BY 4.0, per upstream repository LICENSE"
+  },
+  "files": [
+    {
+      "role": "openmc geometry",
+      "path_in_source": "jade_open_benchmarks/inputs/ITER_1D/ITER_1D/openmc/geometry.xml",
+      "sha256": "80bef907daab030cf2175e54383c20a0cbf92b5b1a8aa26e9bc88b744fbb6228",
+      "bytes": 13938
+    },
+    {
+      "role": "openmc materials",
+      "path_in_source": "jade_open_benchmarks/inputs/ITER_1D/ITER_1D/openmc/materials.xml",
+      "sha256": "8219dd5bacc7bfdde4c5a11e222665986ecdcfe70663f5cd1f942163ad0351ea",
+      "bytes": 16799
+    },
+    {
+      "role": "openmc source law (C++ text)",
+      "path_in_source": "jade_open_benchmarks/inputs/ITER_1D/ITER_1D/openmc/iter_1d_source.cpp",
+      "sha256": "06862214422bb3c09f93b0107f0b4badac1bda1796019f704ff4547a7f5c2779",
+      "bytes": 2191
+    },
+    {
+      "role": "openmc source build file",
+      "path_in_source": "jade_open_benchmarks/inputs/ITER_1D/ITER_1D/openmc/CMakeLists.txt",
+      "sha256": "f658b9a4688ac6c15378cbc09f7378874265a0b39d6476704f43853761b01541",
+      "bytes": 222
+    },
+    {
+      "role": "benchmark metadata",
+      "path_in_source": "jade_open_benchmarks/inputs/ITER_1D/benchmark_metadata.json",
+      "sha256": "1d7d7a81535cfe8779a99caa447cd0ab4c3a4f9f84991cd70c45b983093a4c59"
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "normalisation": {
+    "status": "confirmed",
+    "quantity": "volume-average neutron flux and absorption rate per material cell",
+    "units": "flux: particle/cm2 per source neutron; absorption: reactions/cm3 per source neutron",
+    "source_normalisation": "per source neutron, unit-weight sites, 14.056 MeV normal source in void cell 51",
+    "location": "97 material-filled cells (concentric z-cylinder annuli, exact analytic volumes)",
+    "reaction_or_particle": "neutron; absorption scored analog, flux track-length",
+    "energy_integration": "all energies",
+    "basis": "references/iter-1d-reference.json response_plan and docs/ITER_1D_REFERENCE.md"
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "Monte Carlo sampling of the calculation",
+        "kind": "statistical"
+      }
+    ],
+    "note": "No reference response set is registered, so no reference uncertainty exists yet."
+  },
+  "compatibility": {
+    "declared": "2026-10-09",
+    "k": 2.0,
+    "k_basis": "authored: coverage factor 2 on the combined standard uncertainty",
+    "covariance": {
+      "kind": "unknown",
+      "basis": "no second code has been run; correlation between the two codes' results (same nuclear data, same source law) is not characterised"
+    }
+  },
+  "response_classes": {
+    "neutron_flux": {
+      "unit": "particle/cm2 per source neutron",
+      "description": "track-length flux averaged over each material cell"
+    },
+    "neutron_absorption": {
+      "unit": "reactions/cm3 per source neutron",
+      "description": "analog absorption rate density in each material cell"
+    }
+  },
+  "detectors": [
+    {
+      "id": "neutron_flux:cells-97",
+      "response_class": "neutron_flux",
+      "reference": null,
+      "reference_missing_why": "no provenance-qualified reference response set exists for ITER_1D (references/iter-1d-reference.json comparison status NOT_EVALUATED)",
+      "reference_missing_next_step": "obtain a reference run of a second code (MCNP or Serpent inputs exist upstream) or recover the producing inputs of the JADE statepoint, then add reference values with uncertainties",
+      "controlling_variable": {
+        "name": "radial position",
+        "value": null,
+        "unit": "cm"
+      }
+    },
+    {
+      "id": "neutron_absorption:cells-97",
+      "response_class": "neutron_absorption",
+      "reference": null,
+      "reference_missing_why": "no provenance-qualified reference response set exists for ITER_1D (references/iter-1d-reference.json comparison status NOT_EVALUATED)",
+      "reference_missing_next_step": "obtain a reference run of a second code (MCNP or Serpent inputs exist upstream) or recover the producing inputs of the JADE statepoint, then add reference values with uncertainties",
+      "controlling_variable": {
+        "name": "radial position",
+        "value": null,
+        "unit": "cm"
+      }
+    }
+  ],
+  "not_covered": [
+    "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data and geometry with the reference code",
+    "photon transport, nuclear heating and activation (the registered control is neutron-only)",
+    "three-dimensional effects, ports and streaming (one-dimensional cylindrical model)",
+    "temperature dependence (single 293.6 K evaluation)"
+  ],
+  "qualified_range": {
+    "materials": [
+      "ITER bulk shield and vacuum vessel region materials as in the benchmark (97 material cells)"
+    ],
+    "geometry_class": "one-dimensional concentric cylinder, reflective at z = +/-1000 cm, outer vacuum radius 1389.5 cm",
+    "spectrum_class": "14.06 MeV D-T line source (normal, sigma 0.24 MeV) with moderated spectrum behind the first wall",
+    "parameters": [
+      {
+        "name": "histories",
+        "min": 10000,
+        "max": 10000000,
+        "unit": "histories"
+      }
+    ],
+    "cooling_time": "not applicable (prompt transport only)"
+  },
+  "literature_context": []
+}

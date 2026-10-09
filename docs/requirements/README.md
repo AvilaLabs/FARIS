@@ -117,7 +117,7 @@ Its main gaps against these targets:
 | [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 1 | 9 | 0 | 87 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 4 | 16 | 0 | 79 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 2 | 8 | 0 | 35 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 1 | 18 | 0 | 53 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 1 | 27 | 0 | 44 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 12 | 0 | 47 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 12 | 6 | 18 |
 | [Usability](09-usability.md) | UX | 71 | 0 | 21 | 3 | 47 |
@@ -135,7 +135,7 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 21 | 1 | 52 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 16 | 1 | 28 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 5 | 16 | 2 | 13 |
-| **Total** | | **1408** | **46** | **408** | **38** | **916** |
+| **Total** | | **1408** | **46** | **417** | **38** | **907** |
 
 Counts are generated from the tables by `scripts/requirement_trace.py`. 46 of 1408 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->

@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 95 of 1408 requirements.
+Traced: 110 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -15,7 +15,7 @@ Traced: 95 of 1408 requirements.
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 1 |
-| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 1 |
+| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 16 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
 | [08-performance.md](08-performance.md) | 37 | 3 |
 | [09-usability.md](09-usability.md) | 71 | 2 |
@@ -63,7 +63,22 @@ Traced: 95 of 1408 requirements.
 | MAG-025 | F3 | `crates/faris-engine/src/history.rs::kth_replacement_uses_kth_duration_then_falls_back`<br>`crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
 | PWR-012 | F5 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
 | OPS-002 | F1 | `crates/faris-engine/src/history.rs::daily_snapshot_outputs_converge_under_step_refinement` |
+| VAL-001 | F1 | `validation/test_manifest.py::test_evidence_class_is_required_and_closed`<br>`validation/test_scoring.py::test_rows_carry_verdicts_and_evidence_class` |
+| VAL-006 | F1 | `validation/test_scoring.py::test_no_run_record_is_not_evaluated_with_reason` |
 | VAL-014 | F1 | `crates/faris-engine/src/history.rs::delayed_recovery_restarts_only_after_release_threshold_is_reached`<br>`crates/faris-engine/src/history.rs::demountable_history_with_perturbed_rates_conserves_tritium`<br>`crates/faris-engine/src/history.rs::release_window_closes_at_the_step_bound_despite_rounding` |
+| VAL-027 | F2 | `validation/test_manifest.py::test_rule_parameters_are_per_case_and_checked`<br>`validation/test_scoring.py::test_covariance_sign_changes_the_allowed_difference`<br>`validation/test_scoring.py::test_exact_boundary_passes_and_just_beyond_fails`<br>`validation/test_scoring.py::test_impossible_covariance_is_inconclusive`<br>`validation/test_scoring.py::test_k_scales_the_allowed_difference`<br>`validation/test_scoring.py::test_missing_uncertainty_is_inconclusive`<br>`validation/test_scoring.py::test_rows_carry_verdicts_and_evidence_class`<br>`validation/test_scoring.py::test_shared_normalisation_term_tightens_the_test`<br>`validation/test_scoring.py::test_unknown_covariance_is_inconclusive_never_pass` |
+| VAL-028 | F2 | `validation/test_scoring.py::test_monte_carlo_error_dominating_is_inconclusive` |
+| VAL-029 | F2 | `validation/test_manifest.py::test_case_record_fields_are_required`<br>`validation/test_scoring.py::test_unconfirmed_normalisation_keeps_ce_but_blocks_pass` |
+| VAL-030 | F2 | `validation/test_report.py::test_markdown_carries_the_distribution_and_worst_case`<br>`validation/test_scoring.py::test_distribution_matches_hand_values`<br>`validation/test_scoring.py::test_single_detector_has_no_standard_deviation`<br>`validation/test_scoring.py::test_two_response_classes_are_kept_apart`<br>`validation/test_scoring.py::test_worst_case_is_named_and_first` |
+| VAL-031 | F2 | `validation/test_scoring.py::test_bias_interval_brackets_the_mean_and_is_deterministic`<br>`validation/test_scoring.py::test_bias_recovers_a_known_value_and_interval`<br>`validation/test_scoring.py::test_fewer_than_five_detectors_is_labelled_too_few`<br>`validation/test_scoring.py::test_too_few_resamples_refused`<br>`validation/test_scoring.py::test_two_response_classes_are_kept_apart` |
+| VAL-035 | F2 | `validation/test_scoring.py::test_one_class_one_library_one_version_aggregates`<br>`validation/test_scoring.py::test_refuses_to_mix_classes_libraries_or_code_versions` |
+| VAL-036 | F2 | `validation/test_manifest.py::test_literature_context_must_be_labelled`<br>`validation/test_oktavian_runner.py::test_run_record_is_sealed_as_a_faris_run`<br>`validation/test_scoring.py::test_literature_record_is_never_scored`<br>`validation/test_scoring.py::test_run_record_is_hash_bound` |
+| VAL-037 | F2 | `validation/test_scoring.py::test_changed_identity_marks_rows_stale`<br>`validation/test_scoring.py::test_rows_record_library_code_and_adapter` |
+| VAL-044 | F2 | `validation/test_manifest.py::test_both_evidence_classes_are_covered_and_literature_is_context` |
+| VAL-056 | F4 | `validation/test_report.py::test_coverage_comes_with_its_list` |
+| VAL-070 | F2 | `validation/test_manifest.py::test_qualified_range_fields_are_required` |
+| VAL-075 | F2 | `validation/test_manifest.py::test_not_covered_list_is_required`<br>`validation/test_report.py::test_markdown_lists_what_is_not_covered` |
+| VAL-091 | F2 | `validation/test_report.py::test_one_command_writes_json_and_markdown_for_the_registered_cases` |
 | UNC-001 | F1 | `crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units` |
 | UNC-011 | F2 | `controls/test_response_covariance.py::test_covariance_matches_hand_calculation`<br>`controls/test_response_covariance.py::test_missing_covariance_is_an_error`<br>`crates/faris-engine/src/history_ensemble/tests.rs::drawn_moments_match_mean_and_covariance`<br>`crates/faris-engine/src/history_ensemble/tests.rs::driving_covariance_selects_scales_and_separates_volume_variance`<br>`crates/faris-engine/src/history_ensemble/tests.rs::missing_covariance_is_not_evaluated_with_exact_text`<br>`crates/faris-engine/src/history_ensemble/tests.rs::perfectly_correlated_draws_move_together`<br>`crates/faris-engine/src/transport.rs::covariance_is_scaled_like_integrated_means`<br>`crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
 | UNC-054 | F1 | `crates/faris-engine/src/history_ensemble/tests.rs::large_relative_errors_fail_closed_on_rejections`<br>`crates/faris-engine/src/history_ensemble/tests.rs::missing_covariance_is_not_evaluated_with_exact_text` |
