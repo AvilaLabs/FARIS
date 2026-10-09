@@ -1,0 +1,1386 @@
+{
+ "bounding_sphere_radius": {
+  "label": "authored",
+  "note": "",
+  "source": "vacuum boundary outside the TF coils (largest extent 645 cm); the random-ray box corner is at 962 cm",
+  "unit": "cm",
+  "value": 1000.0
+ },
+ "build_log": {
+  "stages": {
+   "build": {
+    "peak_rss_mb": 641.12109375,
+    "seconds": 3.9385030269622803
+   },
+   "convert": {
+    "peak_rss_mb": 4627.5625,
+    "seconds": 551.2271385192871
+   },
+   "convert_random_ray": {
+    "peak_rss_mb": 4829.04296875,
+    "seconds": 770.6819975376129
+   },
+   "overlap_checks": {
+    "peak_rss_mb": 691.671875,
+    "seconds": 17.930912971496582
+   },
+   "step": {
+    "peak_rss_mb": 1134.98046875,
+    "seconds": 22.717751264572144
+   }
+  }
+ },
+ "builder": "CadQuery directly (Paramak 0.10.0 assessed, not used; see build_rm_m.py docstring)",
+ "cad_volume_checks": {
+  "cut": [
+   {
+    "direct_cm3": 2103323.5813669316,
+    "name": "first_wall_tungsten",
+    "parts_cm3": 2103323.5813569813,
+    "relative_difference": 4.730660307927792e-12
+   },
+   {
+    "direct_cm3": 2115658.9273708174,
+    "name": "vv_inner_wall",
+    "parts_cm3": 2115658.9273719764,
+    "relative_difference": -5.477840403500522e-13
+   },
+   {
+    "direct_cm3": 4268323.91434803,
+    "name": "vv_flibe_channel",
+    "parts_cm3": 4268323.914337708,
+    "relative_difference": 2.418509836843441e-12
+   },
+   {
+    "direct_cm3": 2152664.9977431553,
+    "name": "vv_beryllium",
+    "parts_cm3": 2152664.9977407595,
+    "relative_difference": 1.112887559884257e-12
+   },
+   {
+    "direct_cm3": 6532007.220176114,
+    "name": "vv_outer_wall",
+    "parts_cm3": 6532007.220158848,
+    "relative_difference": 2.6432189770275727e-12
+   },
+   {
+    "direct_cm3": 181384270.4940965,
+    "name": "blanket_flibe",
+    "parts_cm3": 181384270.49417147,
+    "relative_difference": -4.133360320679458e-13
+   },
+   {
+    "direct_cm3": 9607696.76315814,
+    "name": "tank_wall",
+    "parts_cm3": 9607696.763147738,
+    "relative_difference": 1.0826894936144527e-12
+   },
+   {
+    "direct_cm3": 9727888.42720393,
+    "name": "thermal_shield",
+    "parts_cm3": 9727888.427193625,
+    "relative_difference": 1.0593748100973244e-12
+   },
+   {
+    "direct_cm3": 108563092.47317408,
+    "name": "tih2_shield",
+    "parts_cm3": 108563092.47310571,
+    "relative_difference": 6.297184995673888e-13
+   }
+  ],
+  "cut_direct_matches_parts": true,
+  "tolerance": 1e-06,
+  "uncut": [
+   {
+    "gprop_cm3": 145665642.03459585,
+    "name": "plasma",
+    "pappus_cm3": 145665642.0345959,
+    "relative_difference": -4.440892098500626e-16
+   },
+   {
+    "gprop_cm3": 6238661.525181322,
+    "name": "scrape_off_layer",
+    "pappus_cm3": 6238661.525181115,
+    "relative_difference": 3.3306690738754696e-14
+   },
+   {
+    "gprop_cm3": 11527587.07919647,
+    "name": "tf_coil_00",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.219646771412954e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196468,
+    "name": "tf_coil_01",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.4416913763379853e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196481,
+    "name": "tf_coil_02",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -2.220446049250313e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196448,
+    "name": "tf_coil_03",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -5.218048215738236e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196459,
+    "name": "tf_coil_04",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -4.218847493575595e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196453,
+    "name": "tf_coil_05",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -4.6629367034256575e-15
+   },
+   {
+    "gprop_cm3": 11527587.07919646,
+    "name": "tf_coil_06",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.9968028886505635e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196475,
+    "name": "tf_coil_07",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -2.7755575615628914e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196459,
+    "name": "tf_coil_08",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -4.218847493575595e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196468,
+    "name": "tf_coil_09",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.4416913763379853e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196468,
+    "name": "tf_coil_10",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.4416913763379853e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196481,
+    "name": "tf_coil_11",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -2.220446049250313e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196457,
+    "name": "tf_coil_12",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -4.3298697960381105e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196451,
+    "name": "tf_coil_13",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -4.884981308350689e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196448,
+    "name": "tf_coil_14",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -5.218048215738236e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196464,
+    "name": "tf_coil_15",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.6637359812630166e-15
+   },
+   {
+    "gprop_cm3": 11527587.079196472,
+    "name": "tf_coil_16",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.1086244689504383e-15
+   },
+   {
+    "gprop_cm3": 11527587.07919646,
+    "name": "tf_coil_17",
+    "pappus_cm3": 11527587.079196507,
+    "relative_difference": -3.9968028886505635e-15
+   }
+  ],
+  "uncut_pass": true
+ },
+ "conversion": {
+  "tolerance_cm": 0.1
+ },
+ "conversion_settings": {
+  "angular_tolerance_rad": 0.1,
+  "converted_from": "step",
+  "implicit_complement_tag": "void",
+  "imprint_threads": 1,
+  "meshing_backend": "cad-to-dagmc-mesher",
+  "scale_factor": 0.1,
+  "tolerance_cm": 0.1
+ },
+ "deviations": [
+  {
+   "detail": "a = 1.13 m (published, S15 Table 1) puts the inboard separatrix at R = 217 cm, while S15 Fig. 2 places the plasma/scrape-off boundary at 223 cm (implied a = 1.07 m). All published layer thicknesses and the 64 cm TF leg are kept; the inboard build therefore sits 6 cm closer to the machine axis than Fig. 2: TF inboard leg R = 64-128 cm, not 70-134 cm.",
+   "id": "D1",
+   "label": "authored",
+   "what": "inboard absolute radii"
+  },
+  {
+   "detail": "R = R0 + a cos(t + delta sin t), Z = kappa a sin t, the convention of openmc-plasma-source, so the CAD plasma boundary and the source use one definition of kappa and delta.",
+   "id": "D2",
+   "label": "authored",
+   "what": "plasma shape convention"
+  },
+  {
+   "detail": "D-shaped by construction: a constant 64 cm normal offset of the shield-plus-gap boundary, revolved through a 16 degree toroidal wedge (not a Princeton constant-tension D, not planar).",
+   "id": "D3",
+   "label": "authored",
+   "what": "TF coil poloidal shape"
+  },
+  {
+   "detail": "each coil is one homogenised solid (pack fraction 0.9375 from the authored 2 cm case wall, rest case steel). A separate pack solid made cad_to_dagmc 0.14.2 report the full model as overlapping; the case wall dimension only sets the homogenised fraction.",
+   "id": "D4",
+   "label": "authored",
+   "what": "TF coil case and winding pack"
+  },
+  {
+   "detail": "every profile (plasma, layer boundaries, TF rings) joins POLOIDAL_POINTS sampled points with straight segments. OCCT booleans and volume integration failed on periodic-spline surfaces of revolution: an imprint of the layers plus one coil gave an inverted scrape-off-layer region and a filled-torus tungsten region, and default and adaptive volumes disagreed by 1 % to 15x. With polygons the imprint gives one region per solid and the volumes agree. The geometric cost is the chord sag and thickness departure in profile_fidelity.",
+   "id": "D5",
+   "label": "authored",
+   "what": "poloidal profiles are closed polygons"
+  }
+ ],
+ "gap_to_tf": {
+  "label": "published",
+  "note": "",
+  "source": "S15 Fig. 2 (R 134-135 cm vacuum gaps)",
+  "unit": "cm",
+  "value": 1.0
+ },
+ "label_counts": {
+  "authored": 17,
+  "published": 23
+ },
+ "layers": {
+  "blanket_flibe": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Fig. 2 (R 192-212 cm)",
+    "unit": "cm",
+    "value": 20.0
+   },
+   "outboard": {
+    "label": "published",
+    "note": "",
+    "source": "Seg20 Sec 2 and K18 Sec 1: outboard FLiBe 'about 1 m'",
+    "unit": "cm",
+    "value": 100.0
+   },
+   "role": "bulk FLiBe blanket",
+   "tag": "flibe"
+  },
+  "first_wall_tungsten": {
+   "inboard": {
+    "label": "published",
+    "note": "Seg20 gives 0.1 cm; S15 value used",
+    "source": "S15 Sec 5.4.3 (1 cm W)",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "role": "W armour, vacuum vessel",
+   "tag": "tungsten"
+  },
+  "scrape_off_layer": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Fig. 2 (R 220-223 cm)",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "role": "vacuum scrape-off layer",
+   "tag": "void"
+  },
+  "tank_wall": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Fig. 2 (R 189-192 cm)",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "role": "blanket tank wall (Fe surrogate)",
+   "tag": "structure"
+  },
+  "thermal_shield": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Fig. 2 (R 186-189 cm)",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "role": "thermal shield (aluminium silicate in ARC)",
+   "tag": "thermal_insulation"
+  },
+  "tih2_shield": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Fig. 2 (R 135-186 cm)",
+    "unit": "cm",
+    "value": 51.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "published outboard value is a gap (ARC_GEOMETRY_SOURCES_0.2.md, Outboard)",
+    "unit": "cm",
+    "value": 20.0
+   },
+   "role": "TiH2 neutron shield",
+   "tag": "tih2"
+  },
+  "vv_beryllium": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 5.4.3",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "role": "non-structural Be multiplier",
+   "tag": "beryllium"
+  },
+  "vv_flibe_channel": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 5.4.3",
+    "unit": "cm",
+    "value": 2.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 2.0
+   },
+   "role": "vacuum vessel FLiBe channel",
+   "tag": "flibe"
+  },
+  "vv_inner_wall": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 5.4.3",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 1.0
+   },
+   "role": "vacuum vessel inner wall (Fe surrogate for Inconel 718)",
+   "tag": "structure"
+  },
+  "vv_outer_wall": {
+   "inboard": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 5.4.3",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "outboard": {
+    "label": "authored",
+    "note": "",
+    "source": "same as the published inboard value",
+    "unit": "cm",
+    "value": 3.0
+   },
+   "role": "vacuum vessel outer wall (Fe surrogate for Inconel 718)",
+   "tag": "structure"
+  }
+ },
+ "materials": {
+  "beryllium": {
+   "basis": "Be-9, 1850 kg/m3 (docs/DEMO_INPUT_SPEC.md candidate recipe)",
+   "label": "authored"
+  },
+  "filler": {
+   "basis": "random-ray only: H-1 at 0.001 g/cm3 in place of void",
+   "label": "authored"
+  },
+  "flibe": {
+   "basis": "demo-input-spec flibe-cold-solid, Li2BeF4 90 atom% Li-6, 2137.175 kg/m3 (cold solid state)",
+   "label": "authored"
+  },
+  "structure": {
+   "basis": "demo-input-spec pure-iron-surrogate, 7874 kg/m3; a surrogate, not Inconel 718",
+   "label": "authored"
+  },
+  "tf_coil": {
+   "basis": "case and winding pack homogenised by volume: pack fraction (64 - 2 x case wall)/64 = 0.9375, case steel the rest; pack = WP volume fractions 45.9% Cu, 46.1% steel, 8.0% REBCO (published); REBCO fraction represented as Cu because Y, Ba and O are not in the audited library (authored substitution); Cu and Fe densities from the baseline",
+   "label": "authored"
+  },
+  "thermal_insulation": {
+   "basis": "Fe at 1.0 g/cm3: aluminium and silicon are not in the audited library",
+   "label": "authored"
+  },
+  "tih2": {
+   "basis": "demo-input-spec ti-hydride-shield-surrogate, TiH2, 3750 kg/m3",
+   "label": "authored"
+  },
+  "tungsten": {
+   "basis": "demo-input-spec tungsten-natural, 19300 kg/m3",
+   "label": "authored"
+  },
+  "void": {
+   "basis": "vacuum (plasma, scrape-off layer, port duct)",
+   "label": "published"
+  }
+ },
+ "outputs": {
+  "h5m": "rm_m.h5m",
+  "h5m_bytes": 64500204,
+  "h5m_random_ray": "rm_m_rr.h5m",
+  "h5m_random_ray_sha256": "5144ec9ab9289b93062d1c35273f33b790a7257dfd46368ca2c3b2babe12c5b2",
+  "h5m_sha256": "24fda3185ccd4ee1fb91ebb1499f8bb69063401234c3c1221e2b55c7bd617738",
+  "random_ray_geometry_identical": true,
+  "step": "rm_m.step",
+  "step_sha256": "79b1481b5867baaa33b6c5c7d79e0f6c8fcd81f6683b424aab87bf00d2277a17"
+ },
+ "overlap_checks": [
+  {
+   "a": "plasma",
+   "b": "scrape_off_layer",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "scrape_off_layer",
+   "b": "first_wall_tungsten",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "first_wall_tungsten",
+   "b": "vv_inner_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "vv_inner_wall",
+   "b": "vv_flibe_channel",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "vv_flibe_channel",
+   "b": "vv_beryllium",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "vv_beryllium",
+   "b": "vv_outer_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "vv_outer_wall",
+   "b": "blanket_flibe",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "blanket_flibe",
+   "b": "tank_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tank_wall",
+   "b": "thermal_shield",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "thermal_shield",
+   "b": "tih2_shield",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "first_wall_tungsten",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "vv_inner_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "vv_flibe_channel",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "vv_beryllium",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "vv_outer_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "blanket_flibe",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "tank_wall",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "thermal_shield",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "port_duct",
+   "b": "tih2_shield",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_00",
+   "b": "tf_coil_01",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_01",
+   "b": "tf_coil_02",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_02",
+   "b": "tf_coil_03",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_03",
+   "b": "tf_coil_04",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_04",
+   "b": "tf_coil_05",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_05",
+   "b": "tf_coil_06",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_06",
+   "b": "tf_coil_07",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_07",
+   "b": "tf_coil_08",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_08",
+   "b": "tf_coil_09",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_09",
+   "b": "tf_coil_10",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_10",
+   "b": "tf_coil_11",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_11",
+   "b": "tf_coil_12",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_12",
+   "b": "tf_coil_13",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_13",
+   "b": "tf_coil_14",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_14",
+   "b": "tf_coil_15",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_15",
+   "b": "tf_coil_16",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_16",
+   "b": "tf_coil_17",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_17",
+   "b": "tf_coil_00",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_00",
+   "b": "tih2_shield",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_00",
+   "b": "port_duct",
+   "common_volume_cm3": 0.0
+  },
+  {
+   "a": "tf_coil_17",
+   "b": "port_duct",
+   "common_volume_cm3": 0.0
+  }
+ ],
+ "plasma": {
+  "elongation": {
+   "label": "published",
+   "note": "",
+   "source": "S15 Table 1",
+   "unit": "1",
+   "value": 1.84
+  },
+  "fusion_power": {
+   "label": "published",
+   "note": "",
+   "source": "S15 Table 1",
+   "unit": "W",
+   "value": 525000000.0
+  },
+  "major_radius": {
+   "label": "published",
+   "note": "",
+   "source": "S15 Table 1",
+   "unit": "cm",
+   "value": 330.0
+  },
+  "minor_radius": {
+   "label": "published",
+   "note": "S15 Fig. 2 implies 107 cm; see D1",
+   "source": "S15 Table 1",
+   "unit": "cm",
+   "value": 113.0
+  },
+  "source_rate": {
+   "label": "published",
+   "note": "",
+   "source": "Seg20 Sec 2; 525 MW / 17.6 MeV (SRC-001)",
+   "unit": "n/s",
+   "value": 1.8618137864158527e+20
+  },
+  "triangularity": {
+   "label": "published",
+   "note": "",
+   "source": "K18 Sec 3.2 (quoting S15)",
+   "unit": "1",
+   "value": 0.375
+  }
+ },
+ "plasma_volume_m3": 145.66564203459583,
+ "port": {
+  "angle": {
+   "label": "authored",
+   "note": "",
+   "source": "outboard midplane, centred between two TF coils",
+   "unit": "deg",
+   "value": 0.0
+  },
+  "extent": {
+   "label": "authored",
+   "note": "",
+   "source": "no plug",
+   "unit": "",
+   "value": "from the scrape-off layer outer surface through vessel, tank, thermal shield and TiH2 shield"
+  },
+  "height": {
+   "label": "authored",
+   "note": "",
+   "source": "FARIS 0.2 port: 0.30 m x 0.30 m duct (docs/guide/design.md)",
+   "unit": "cm",
+   "value": 30.0
+  },
+  "width": {
+   "label": "authored",
+   "note": "",
+   "source": "FARIS 0.2 port: 0.30 m x 0.30 m duct (docs/guide/design.md)",
+   "unit": "cm",
+   "value": 30.0
+  }
+ },
+ "profile_fidelity": {
+  "chord_sag_cm": {
+   "blanket_flibe": 0.04582588796102478,
+   "first_wall_tungsten": 0.020842381810981612,
+   "plasma": 0.0190553998191821,
+   "scrape_off_layer": 0.02039563632351539,
+   "tank_wall": 0.047153784553770735,
+   "tf_inner": 0.06658403446597176,
+   "tf_outer": 0.095139532006701,
+   "thermal_shield": 0.048482359652208394,
+   "tih2_shield": 0.06613810251187585,
+   "vv_beryllium": 0.02262936370202301,
+   "vv_flibe_channel": 0.022182618237369296,
+   "vv_inner_wall": 0.02128912729216789,
+   "vv_outer_wall": 0.023969600067715736
+  },
+  "max_chord_sag_cm": 0.095139532006701,
+  "max_thickness_departure_cm": 0.4296319532240602,
+  "points": 240,
+  "thickness_departure_cm": {
+   "blanket_flibe": 0.023969599177902978,
+   "first_wall_tungsten": 0.020395636295178043,
+   "scrape_off_layer": 0.019055399717518018,
+   "tank_wall": 0.039878355738981686,
+   "thermal_shield": 0.04015045500472292,
+   "tih2_shield": 0.4296319532240602,
+   "vv_beryllium": 0.02218261821484213,
+   "vv_flibe_channel": 0.02128912724180365,
+   "vv_inner_wall": 0.020842381784266673,
+   "vv_outer_wall": 0.022629363638088318
+  }
+ },
+ "protocol": "docs/notes/CAD_TRANSPORT_RISK_TESTS.md",
+ "schema": "faris-rm-m-model-card/v1",
+ "solids": [
+  {
+   "cad_volume_cm3": 145665642.03459585,
+   "centroid_cm": [
+    6.059435416444723e-14,
+    -4.667755766754627e-14,
+    2.3506382272435777e-14
+   ],
+   "faceted_volume_cm3": 145652876.6497386,
+   "h5m_material_tag": null,
+   "name": "plasma",
+   "role": "plasma (neutron source volume)",
+   "tag": "void",
+   "triangles": 83410,
+   "valid": true,
+   "volume_id": 1
+  },
+  {
+   "cad_volume_cm3": 6238661.525181322,
+   "centroid_cm": [
+    1.1276761720741594e-13,
+    -3.7959489434413116e-13,
+    -1.0172262664801814e-12
+   ],
+   "faceted_volume_cm3": 6238156.706480545,
+   "h5m_material_tag": null,
+   "name": "scrape_off_layer",
+   "role": "vacuum scrape-off layer",
+   "tag": "void",
+   "triangles": 166802,
+   "valid": true,
+   "volume_id": 2
+  },
+  {
+   "cad_volume_cm3": 2103323.5813569813,
+   "centroid_cm": [
+    -0.19113074528411758,
+    -1.2489900750887478e-12,
+    -4.471737714632484e-12
+   ],
+   "faceted_volume_cm3": 2103011.4088657736,
+   "h5m_material_tag": null,
+   "name": "first_wall_tungsten",
+   "role": "W armour, vacuum vessel",
+   "tag": "tungsten",
+   "triangles": 166738,
+   "valid": true,
+   "volume_id": 3
+  },
+  {
+   "cad_volume_cm3": 2115658.9273719764,
+   "centroid_cm": [
+    -0.19044123504442684,
+    -1.1169868498112827e-12,
+    -1.0267983619174626e-12
+   ],
+   "faceted_volume_cm3": 2115515.3761743726,
+   "h5m_material_tag": null,
+   "name": "vv_inner_wall",
+   "role": "vacuum vessel inner wall (Fe surrogate for Inconel 718)",
+   "tag": "structure",
+   "triangles": 166692,
+   "valid": true,
+   "volume_id": 4
+  },
+  {
+   "cad_volume_cm3": 4268323.914337708,
+   "centroid_cm": [
+    -0.18942189735580922,
+    -1.1016991554417567e-12,
+    8.916747646510464e-13
+   ],
+   "faceted_volume_cm3": 4267788.820097782,
+   "h5m_material_tag": null,
+   "name": "vv_flibe_channel",
+   "role": "vacuum vessel FLiBe channel",
+   "tag": "flibe",
+   "triangles": 166622,
+   "valid": true,
+   "volume_id": 5
+  },
+  {
+   "cad_volume_cm3": 2152664.9977407595,
+   "centroid_cm": [
+    -0.18842006573359704,
+    -1.7500955219759412e-13,
+    -2.322213936275098e-12
+   ],
+   "faceted_volume_cm3": 2152589.107414359,
+   "h5m_material_tag": null,
+   "name": "vv_beryllium",
+   "role": "non-structural Be multiplier",
+   "tag": "beryllium",
+   "triangles": 166554,
+   "valid": true,
+   "volume_id": 6
+  },
+  {
+   "cad_volume_cm3": 6532007.220158848,
+   "centroid_cm": [
+    -0.18711074299272498,
+    -5.929942584317482e-13,
+    -5.538541747200061e-13
+   ],
+   "faceted_volume_cm3": 6531304.951567709,
+   "h5m_material_tag": null,
+   "name": "vv_outer_wall",
+   "role": "vacuum vessel outer wall (Fe surrogate for Inconel 718)",
+   "tag": "structure",
+   "triangles": 166438,
+   "valid": true,
+   "volume_id": 7
+  },
+  {
+   "cad_volume_cm3": 181384270.49417147,
+   "centroid_cm": [
+    -0.24996158712198796,
+    -6.272238564018549e-14,
+    1.771428183902302e-13
+   ],
+   "faceted_volume_cm3": 181371197.66170588,
+   "h5m_material_tag": null,
+   "name": "blanket_flibe",
+   "role": "bulk FLiBe blanket",
+   "tag": "flibe",
+   "triangles": 167268,
+   "valid": true,
+   "volume_id": 8
+  },
+  {
+   "cad_volume_cm3": 9607696.763147738,
+   "centroid_cm": [
+    -0.15615144756877658,
+    -1.1694790817066692e-12,
+    -1.963281633403679e-12
+   ],
+   "faceted_volume_cm3": 9606975.733348608,
+   "h5m_material_tag": null,
+   "name": "tank_wall",
+   "role": "blanket tank wall (Fe surrogate)",
+   "tag": "structure",
+   "triangles": 168082,
+   "valid": true,
+   "volume_id": 9
+  },
+  {
+   "cad_volume_cm3": 9727888.427193625,
+   "centroid_cm": [
+    -0.15505408778826352,
+    -5.471311873521959e-13,
+    4.784750984697075e-12
+   ],
+   "faceted_volume_cm3": 9726888.952525621,
+   "h5m_material_tag": null,
+   "name": "thermal_shield",
+   "role": "thermal shield (aluminium silicate in ARC)",
+   "tag": "thermal_insulation",
+   "triangles": 167884,
+   "valid": true,
+   "volume_id": 10
+  },
+  {
+   "cad_volume_cm3": 108563092.47310571,
+   "centroid_cm": [
+    -0.09462296906455389,
+    8.072119744688397e-15,
+    -3.1706892123318505e-13
+   ],
+   "faceted_volume_cm3": 108550499.02377044,
+   "h5m_material_tag": null,
+   "name": "tih2_shield",
+   "role": "TiH2 neutron shield",
+   "tag": "tih2",
+   "triangles": 167056,
+   "valid": true,
+   "volume_id": 11
+  },
+  {
+   "cad_volume_cm3": 120647.32271106822,
+   "centroid_cm": [
+    512.7466737553444,
+    1.5421144240905882e-13,
+    1.1459265771492764e-13
+   ],
+   "faceted_volume_cm3": 120651.21722258229,
+   "h5m_material_tag": null,
+   "name": "port_duct",
+   "role": "equatorial port duct (vacuum, no plug)",
+   "tag": "void",
+   "triangles": 612,
+   "valid": true,
+   "volume_id": 12
+  },
+  {
+   "cad_volume_cm3": 11527587.07919647,
+   "centroid_cm": [
+    437.06272509444943,
+    77.06595069611845,
+    -9.27970966711085e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419625,
+   "h5m_material_tag": null,
+   "name": "tf_coil_00",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 13
+  },
+  {
+   "cad_volume_cm3": 11527587.079196468,
+   "centroid_cm": [
+    384.3465100892192,
+    221.90256106210413,
+    1.3978516629589562e-13
+   ],
+   "faceted_volume_cm3": 11526527.662420051,
+   "h5m_material_tag": null,
+   "name": "tf_coil_01",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 14
+  },
+  {
+   "cad_volume_cm3": 11527587.079196481,
+   "centroid_cm": [
+    285.2724336168619,
+    339.97444763098787,
+    8.211374539368061e-14
+   ],
+   "faceted_volume_cm3": 11526528.672816485,
+   "h5m_material_tag": null,
+   "name": "tf_coil_02",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 15
+  },
+  {
+   "cad_volume_cm3": 11527587.079196448,
+   "centroid_cm": [
+    151.79029147758794,
+    417.04039832710777,
+    4.301566885457805e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419094,
+   "h5m_material_tag": null,
+   "name": "tf_coil_03",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 16
+  },
+  {
+   "cad_volume_cm3": 11527587.079196459,
+   "centroid_cm": [
+    -1.058940710326944e-15,
+    443.8051221242072,
+    1.2808252708845923e-13
+   ],
+   "faceted_volume_cm3": 11526527.662418855,
+   "h5m_material_tag": null,
+   "name": "tf_coil_04",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 17
+  },
+  {
+   "cad_volume_cm3": 11527587.079196453,
+   "centroid_cm": [
+    -151.7902914775879,
+    417.04039832710805,
+    7.290592499841593e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419362,
+   "h5m_material_tag": null,
+   "name": "tf_coil_05",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 18
+  },
+  {
+   "cad_volume_cm3": 11527587.07919646,
+   "centroid_cm": [
+    -285.27243361686163,
+    339.97444763098804,
+    3.300950643941837e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419742,
+   "h5m_material_tag": null,
+   "name": "tf_coil_06",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 19
+  },
+  {
+   "cad_volume_cm3": 11527587.079196475,
+   "centroid_cm": [
+    -384.3465100892194,
+    221.90256106210398,
+    1.1077443073226573e-13
+   ],
+   "faceted_volume_cm3": 11526527.662420142,
+   "h5m_material_tag": null,
+   "name": "tf_coil_07",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 20
+  },
+  {
+   "cad_volume_cm3": 11527587.079196459,
+   "centroid_cm": [
+    -437.0627250944488,
+    77.06595069611853,
+    -4.073320116122543e-14
+   ],
+   "faceted_volume_cm3": 11526527.66241967,
+   "h5m_material_tag": null,
+   "name": "tf_coil_08",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 21
+  },
+  {
+   "cad_volume_cm3": 11527587.079196468,
+   "centroid_cm": [
+    -437.0627250944496,
+    -77.06595069611828,
+    -1.0882758706203555e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419777,
+   "h5m_material_tag": null,
+   "name": "tf_coil_09",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 22
+  },
+  {
+   "cad_volume_cm3": 11527587.079196468,
+   "centroid_cm": [
+    -384.3465100892192,
+    -221.90256106210413,
+    1.3978516629589562e-13
+   ],
+   "faceted_volume_cm3": 11526527.66242017,
+   "h5m_material_tag": null,
+   "name": "tf_coil_10",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 23
+  },
+  {
+   "cad_volume_cm3": 11527587.079196481,
+   "centroid_cm": [
+    -285.2724336168619,
+    -339.97444763098787,
+    8.211374539368061e-14
+   ],
+   "faceted_volume_cm3": 11526528.672816653,
+   "h5m_material_tag": null,
+   "name": "tf_coil_11",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 24
+  },
+  {
+   "cad_volume_cm3": 11527587.079196457,
+   "centroid_cm": [
+    -151.79029147758783,
+    -417.0403983271067,
+    9.782412358829681e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419362,
+   "h5m_material_tag": null,
+   "name": "tf_coil_12",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 25
+  },
+  {
+   "cad_volume_cm3": 11527587.079196451,
+   "centroid_cm": [
+    -2.0119873496211948e-13,
+    -443.80512212420683,
+    5.620692637501793e-14
+   ],
+   "faceted_volume_cm3": 11526527.662418894,
+   "h5m_material_tag": null,
+   "name": "tf_coil_13",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 26
+  },
+  {
+   "cad_volume_cm3": 11527587.079196448,
+   "centroid_cm": [
+    151.79029147758803,
+    -417.0403983271065,
+    6.113348257032811e-14
+   ],
+   "faceted_volume_cm3": 11526527.662419206,
+   "h5m_material_tag": null,
+   "name": "tf_coil_14",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 27
+  },
+  {
+   "cad_volume_cm3": 11527587.079196464,
+   "centroid_cm": [
+    285.27243361686214,
+    -339.97444763098804,
+    4.301980534172775e-14
+   ],
+   "faceted_volume_cm3": 11526527.66241977,
+   "h5m_material_tag": null,
+   "name": "tf_coil_15",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 28
+  },
+  {
+   "cad_volume_cm3": 11527587.079196472,
+   "centroid_cm": [
+    384.3465100892196,
+    -221.90256106210413,
+    1.8342355454270368e-13
+   ],
+   "faceted_volume_cm3": 11526527.662420182,
+   "h5m_material_tag": null,
+   "name": "tf_coil_16",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 29
+  },
+  {
+   "cad_volume_cm3": 11527587.07919646,
+   "centroid_cm": [
+    437.0627250944507,
+    -77.06595069611848,
+    -1.1737713743650027e-13
+   ],
+   "faceted_volume_cm3": 11526527.662419755,
+   "h5m_material_tag": null,
+   "name": "tf_coil_17",
+   "role": "TF coil, case and winding pack homogenised",
+   "tag": "tf_coil",
+   "triangles": 9018,
+   "valid": true,
+   "volume_id": 30
+  }
+ ],
+ "tf_coils": {
+  "case_wall": {
+   "label": "authored",
+   "note": "",
+   "source": "case/winding-pack split not published (GAP); S15 gives 15 layers of 4 cm jackets = 60 cm of 64 cm; sets the homogenised pack fraction only",
+   "unit": "cm",
+   "value": 2.0
+  },
+  "coil_centres_deg": {
+   "label": "authored",
+   "note": "",
+   "source": "evenly spaced, port between two coils",
+   "unit": "deg",
+   "value": [
+    10.0,
+    30.0,
+    50.0,
+    70.0,
+    90.0,
+    110.0,
+    130.0,
+    150.0,
+    170.0,
+    190.0,
+    210.0,
+    230.0,
+    250.0,
+    270.0,
+    290.0,
+    310.0,
+    330.0,
+    350.0
+   ]
+  },
+  "count": {
+   "label": "published",
+   "note": "",
+   "source": "S15 Sec 4.2",
+   "unit": "1",
+   "value": 18
+  },
+  "radial_thickness": {
+   "label": "published",
+   "note": "applied as a normal thickness around the whole coil (outside the inboard leg: authored)",
+   "source": "S15 Fig. 2 (R 70-134 cm)",
+   "unit": "cm",
+   "value": 64.0
+  },
+  "toroidal_span": {
+   "label": "authored",
+   "note": "",
+   "source": "toroidal width not published (GAP); 16 of 20 degrees per coil",
+   "unit": "deg",
+   "value": 16.0
+  },
+  "winding_pack_fractions": {
+   "copper": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 4.2.1",
+    "unit": "volume fraction",
+    "value": 0.459
+   },
+   "rebco": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 4.2.1",
+    "unit": "volume fraction",
+    "value": 0.08
+   },
+   "steel": {
+    "label": "published",
+    "note": "",
+    "source": "S15 Sec 4.2.1",
+    "unit": "volume fraction",
+    "value": 0.461
+   }
+  }
+ },
+ "tf_total_cad_volume_cm3": 207496567.42553633,
+ "tools": {
+  "cad_to_dagmc": "0.14.2",
+  "cadquery": "2.8.0",
+  "python": "3.14.4"
+ },
+ "total_cad_volume_cm3": 685976445.1066093,
+ "units": "cm in this card; CAD built in mm (x10), converted to cm by cad_to_dagmc scale_factor 0.1",
+ "volume_conservation": {
+  "filled_tih2_envelope_cm3": 478479877.68107414,
+  "sum_of_solids_up_to_tih2_cm3": 478479877.68107307
+ }
+}
