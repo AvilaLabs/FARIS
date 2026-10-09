@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+import rm_m_checks as checks  # noqa: E402
 import rm_m_spec as spec
 
 REPO = Path(__file__).resolve().parents[3]
@@ -272,17 +273,19 @@ def read_tf_flux(openmc, run_dir: Path, batches: int, tally_name: str = "tf_fast
 
 
 def run_analog(openmc, model_dir: Path, run_dir: Path, histories: int, batches: int, seed: int, threads: int,
-               max_lost: int = 10000, weight_windows_file: Path | None = None, h5m_name: str = "rm_m.h5m") -> dict:
+               max_lost: int = 10000, weight_windows_file: Path | None = None, h5m_name: str = "rm_m.h5m",
+               rate: float = 1.0) -> dict:
     """One continuous-energy neutron run of RM-M with the tokamak source and the TF fast-flux tally.
 
-    With weight_windows_file the windows are applied; otherwise the run is analog.
+    With weight_windows_file the windows are applied; otherwise the run is analog. The source
+    strength is `rate` (default 1: tallies are "cm per source neutron"; pass SOURCE_RATE_N_S for a rate).
     """
     model_dir, run_dir = Path(model_dir), Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     roles = load_roles(model_dir)
     ids = role_ids(roles)
     model, _ = build_model(openmc, model_dir / h5m_name, roles)
-    source, unscaled = tokamak_mesh_source(openmc, ids["plasma"])
+    source, unscaled = tokamak_mesh_source(openmc, ids["plasma"], rate=rate)
     settings = model.settings
     settings.run_mode = "fixed source"
     settings.batches = batches
@@ -308,4 +311,6 @@ def run_analog(openmc, model_dir: Path, run_dir: Path, histories: int, batches: 
     if run["returncode"] == 0:
         result["lost"] = count_lost_particles(run_dir)
         result["tf_fast_flux"] = read_tf_flux(openmc, run_dir, batches)
+        result["tf_fast_flux"]["unit"] = checks.UNIT_PER_SOURCE if rate == 1.0 else checks.UNIT_RATE
+    result["source_strength"] = rate
     return result

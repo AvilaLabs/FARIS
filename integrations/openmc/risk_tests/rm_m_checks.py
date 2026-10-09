@@ -110,3 +110,41 @@ def r6_choice(steps_a: dict, steps_b: dict, flux_a: tuple[float, float], flux_b:
         reasons.append("both conditions hold: every step runs on 0.16.0 with no extra workaround, and the analog flux agrees")
     return {"rule1_steps_clean": rule1, "rule2_flux_agrees": rule2, "flux_agreement": agreement,
             "choice": chosen, "reasons": reasons}
+
+
+# ---------------------------------------------------------------------------
+# Units of tallied responses
+#
+# OpenMC fixed-source tallies are normalised per source particle times the total source strength.
+# A "flux" score is a track length (particle-cm), not divided by volume. With the source strength
+# set to 1 a tally is "cm per source neutron"; with the strength set to the fusion rate it is a
+# rate. Stored responses carry their unit, and conversion between the two is explicit.
+
+UNIT_PER_SOURCE = "cm per source neutron"
+SOURCE_RATE_N_S = 525.0e6 / (17.6e6 * 1.602176634e-19)  # 525 MW / 17.6 MeV per D-T neutron, n/s (SRC-001)
+UNIT_RATE = "n.cm/s at 525 MW"
+
+
+def quantity(value: float, unit: str, **extra) -> dict:
+    return {"value": float(value), "unit": unit, **extra}
+
+
+def to_rate(q: dict, rate: float = SOURCE_RATE_N_S) -> dict:
+    """Per-source-neutron response to a rate. Refuses anything that is not per source neutron."""
+    if q["unit"] != UNIT_PER_SOURCE:
+        raise ValueError(f"cannot multiply a quantity in '{q['unit']}' by the source rate; expected '{UNIT_PER_SOURCE}'")
+    out = {**q, "value": q["value"] * rate, "unit": UNIT_RATE, "factor_n_per_s": rate}
+    if "std_error" in q:
+        out["std_error"] = q["std_error"] * rate
+    return out
+
+
+def to_per_source(q: dict, rate: float = SOURCE_RATE_N_S) -> dict:
+    """A rate response back to per source neutron. Refuses anything that is not a rate."""
+    if q["unit"] != UNIT_RATE:
+        raise ValueError(f"cannot divide a quantity in '{q['unit']}' by the source rate; expected '{UNIT_RATE}'")
+    out = {**q, "value": q["value"] / rate, "unit": UNIT_PER_SOURCE}
+    out.pop("factor_n_per_s", None)
+    if "std_error" in q:
+        out["std_error"] = q["std_error"] / rate
+    return out

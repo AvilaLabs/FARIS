@@ -270,3 +270,30 @@ class R6Rule(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResponseUnits(unittest.TestCase):
+    def test_per_source_to_rate_changes_the_unit(self):
+        q = C.quantity(9.6e-4, C.UNIT_PER_SOURCE, std_error=3e-4)
+        r = C.to_rate(q)
+        self.assertEqual(r["unit"], C.UNIT_RATE)
+        self.assertAlmostEqual(r["value"] / q["value"], 1.8618e20, delta=1e16)
+        self.assertEqual(r["factor_n_per_s"], C.SOURCE_RATE_N_S)
+
+    def test_rate_cannot_be_multiplied_again(self):
+        r = C.to_rate(C.quantity(1.0, C.UNIT_PER_SOURCE))
+        with self.assertRaises(ValueError):
+            C.to_rate(r)
+
+    def test_unlabelled_unit_is_refused(self):
+        with self.assertRaises(ValueError):
+            C.to_rate(C.quantity(1.0, "cm"))
+        with self.assertRaises(ValueError):
+            C.to_per_source(C.quantity(1.0, C.UNIT_PER_SOURCE))
+
+    def test_round_trip(self):
+        q = C.quantity(680.4, C.UNIT_PER_SOURCE)
+        self.assertAlmostEqual(C.to_per_source(C.to_rate(q))["value"], 680.4, places=9)
+
+    def test_source_rate_matches_the_spec(self):
+        self.assertAlmostEqual(C.SOURCE_RATE_N_S / S.SOURCE_RATE_N_S, 1.0, places=12)
