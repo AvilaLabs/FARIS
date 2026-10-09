@@ -76,6 +76,10 @@ class CompatibilityRule(unittest.TestCase):
         self.assertEqual(noisy["verdict"], S.INCONCLUSIVE)
         self.assertIn("0.5", noisy["next_step"])
 
+    def test_any_monte_carlo_error_dominates_a_zero_reference_uncertainty(self):
+        exact = S.compatibility(10.0, 10.0, 0.1, 0.0, 2.0, IND, u_c_mc=0.1)
+        self.assertEqual(exact["verdict"], S.INCONCLUSIVE)
+
 
 class Statistics(unittest.TestCase):
     ITEMS = [("a", 0.5), ("b", 1.0), ("c", 1.5), ("d", 2.0), ("e", 4.0)]
