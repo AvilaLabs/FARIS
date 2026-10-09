@@ -27,7 +27,9 @@ jobs:
       - name: Independent analytic control checks (no OpenMC installation)
         run: python3 -m unittest discover -s controls -p 'test_*.py'
       - name: Package, release and verification script tests
-        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+        run: |
+          python3 -m pip install --user pillow==12.1.1
+          python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
       - name: Wording lint over user-facing text
