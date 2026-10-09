@@ -12,7 +12,7 @@ on:
     inputs:
       core_ref:
         description: Avila Core tag or commit to build
-        default: faris-0.1.0-core
+        default: faris-core-2026-10-09
   push:
     tags: ["v*"]
 
@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 env:
-  CORE_REF: ${{ github.event.inputs.core_ref || 'faris-0.1.0-core' }}
+  CORE_REF: ${{ github.event.inputs.core_ref || 'faris-core-2026-10-09' }}
 
 jobs:
   build:

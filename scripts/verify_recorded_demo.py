@@ -681,10 +681,11 @@ def verify_outage_duration_study(root: Path, index: dict[str, Any], faris: Path)
         raise ValueError("outage-duration records do not cover every pair, variant, and level")
 
 
-def inspect_cases(package: Path, index: dict[str, Any], faris: Path, core: Path,
-                  scratch: Path) -> list[dict[str, str]]:
+def inspect_cases(package: Path, index: dict[str, Any], faris: Path,
+                  core: Path) -> list[dict[str, str]]:
     """Reopen the four saved cases from the evidence store, in place, and replay each
-    Core export from its case tree, unpacked alone into `scratch` and removed again."""
+    Core export from the store itself: `avila-core export --report-only` reads the case
+    tree in place and writes nothing, so no case tree is unpacked."""
     root = package.resolve(strict=True)
     store = root / EVIDENCE_STORE_DIRECTORY
     store_index = evidence_store.load_index(store)
@@ -780,25 +781,16 @@ def inspect_cases(package: Path, index: dict[str, Any], faris: Path, core: Path,
             if digest(export_report_path) != arrangement.get("core_export_report_sha256"):
                 raise ValueError(f"Core export report digest mismatch for {pair_id}/{variant}")
             stored_export_report = json.loads(export_report_path.read_text(encoding="utf-8"))
-            with tempfile.TemporaryDirectory(prefix="faris-export-recheck-", dir=scratch) as temporary:
-                # `avila-core export` needs a real folder: unpack only this case tree.
-                evidence_store.unpack_store(store, Path(temporary) / "unpacked", [case_tree])
-                case = Path(temporary) / "unpacked" / case_tree
-                export_dir = Path(temporary) / "export"
-                export = subprocess.run(
-                    [str(core), "export", str(case), "--source-root", f"case={case}",
-                     "--out", str(export_dir)],
-                    check=False, capture_output=True, text=True, timeout=600,
-                )
-                if export.returncode != 0:
-                    raise ValueError(f"Core export recheck failed for {pair_id}/{variant}: {export.stderr[-2000:]}")
-                try:
-                    reconstructed_export = json.loads(export.stdout)
-                    written_export = json.loads((export_dir / "export-report.json").read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError) as exc:
-                    raise ValueError(f"Core export recheck returned invalid report for {pair_id}/{variant}") from exc
-            if (reconstructed_export != stored_export_report
-                    or written_export != stored_export_report
+            case_root = f"store:{store}#{case_tree}"
+            export = subprocess.run(
+                [str(core), "export", "--report-only", case_root, "--source-root", f"case={case_root}"],
+                check=False, capture_output=True, timeout=300,
+            )
+            if export.returncode != 0:
+                raise ValueError(f"Core export recheck failed for {pair_id}/{variant}: "
+                                 f"{export.stderr[-2000:].decode('utf-8', 'replace')}")
+            # `--report-only` prints the report byte for byte as `export --out` writes it.
+            if (export.stdout != export_report_path.read_bytes()
                     or stored_export_report.get("export_sha256") != arrangement.get("core_export_sha256")):
                 raise ValueError(f"Core export report no longer reconstructs from canonical case for {pair_id}/{variant}")
             verdicts = fresh.get("requirement_verdicts", [])
@@ -965,31 +957,43 @@ def evidence_programs(index: dict[str, Any]) -> str:
     return "CI_BUILD_OF_RECORDED_COMMITS_CHECKED_BY_REPRODUCTION"
 
 
-def scratch_needed(index: dict[str, Any]) -> int:
-    """Temporary space for one verification pass: the largest case tree unpacked for
-    `avila-core export`, its export copy, directory blocks and 64 MiB. Everything else is
-    read from the evidence store in place."""
-    trees = {tree["name"]: tree for tree in index["evidence_store"]["trees"]}
-    largest = max(int(trees[name]["bytes"]) for name in case_tree_names(index))
-    directories = max(int(trees[name]["directory_count"]) for name in case_tree_names(index))
+def scratch_needed(root: Path, index: dict[str, Any]) -> int:
+    """Temporary space for one verification pass: the largest recomputed history (its
+    size is recorded in the package), directory blocks and 64 MiB. The saved cases and
+    their Core exports are read from the evidence store in place and need none."""
+    sizes = [0]
+    for pair in index.get("scenario_pairs", []):
+        for arrangement in pair.get("arrangements", []):
+            reference = arrangement.get("event_history")
+            if isinstance(reference, dict) and isinstance(reference.get("history_bytes"), int):
+                sizes.append(reference["history_bytes"])
+    summary_ref = index.get("outage_duration_sensitivity")
+    try:
+        summary = json.loads(safe_package_path(
+            root, summary_ref.get("path") if isinstance(summary_ref, dict) else None
+        ).read_text(encoding="utf-8"))
+        sizes.extend(record["history_bytes"] for record in summary.get("records", [])
+                     if isinstance(record, dict) and isinstance(record.get("history_bytes"), int))
+    except (OSError, ValueError, AttributeError):
+        pass  # the outage-duration check below reports a missing or malformed summary
     block_bytes = max(4096, os.statvfs(tempfile.gettempdir()).f_frsize)
-    return 2 * largest + (2 * directories + 16) * block_bytes + 64 * 1024 * 1024
+    return max(sizes) + 16 * block_bytes + 64 * 1024 * 1024
 
 
 def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
     index, inventory = verify_index(package, faris, core)
     root = package.resolve(strict=True)
+    required_scratch = scratch_needed(root, index)
+    free = shutil.disk_usage(tempfile.gettempdir()).free
+    if free < required_scratch:
+        raise ValueError(f"verification needs {required_scratch} bytes free in the temporary folder to recompute "
+                         f"the largest 30-year history; have {free}. Free some space or point TMPDIR at a "
+                         f"folder with more room, then run it again")
     verify_outage_duration_study(root, index, faris)
     sweep_count = verify_sweep(root, index)
     maintenance_recorded = verify_maintenance(root, index, inventory)
-    required_scratch = scratch_needed(index)
-    free = shutil.disk_usage(tempfile.gettempdir()).free
-    if free < required_scratch:
-        raise ValueError(f"verification needs {required_scratch} bytes free to unpack one case tree for the "
-                         f"Core export recheck; have {free}")
     store_report = evidence_store.check_store(root / EVIDENCE_STORE_DIRECTORY)
-    with tempfile.TemporaryDirectory(prefix="faris-package-scratch-") as temporary:
-        inspected = inspect_cases(package, index, faris, core, Path(temporary))
+    inspected = inspect_cases(package, index, faris, core)
     return {"package_index_sha256": digest(package / INDEX), "indexed_file_count": len(index["files"]),
             "inspected_saved_case_count": len(inspected), "saved_cases": inspected,
             "verified_sweep_bundle_count": sweep_count,
@@ -1076,10 +1080,11 @@ def main() -> int:
         raise SystemExit(f"verify_recorded_demo: {error}")
     package_bytes = source_index["package_bytes"]
     free = shutil.disk_usage(relocated.parent).free
-    required_scratch = package_bytes + scratch_needed(source_index)
+    required_scratch = package_bytes + scratch_needed(source, source_index)
     if free < required_scratch:
-        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for the package copy, one "
-                         f"unpacked case tree and its Core export; have {free}")
+        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for the package copy and the "
+                         f"largest recomputed history; have {free}. Free some space or set "
+                         f"TMPDIR to a folder on a disk with more room, then run verify.sh again")
     shutil.copytree(source, relocated, symlinks=True)
     try:
         result = verify_package(relocated, args.faris.resolve(strict=True), args.core.resolve(strict=True))

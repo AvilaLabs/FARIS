@@ -91,12 +91,12 @@ def sha256(path: Path) -> str:
     return "sha256:" + digest.hexdigest()
 
 
-def invoke(command: list[str], timeout: int = 180) -> subprocess.CompletedProcess:
-    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
+def invoke(command: list[str], timeout: int = 180, text: bool = True) -> subprocess.CompletedProcess:
+    result = subprocess.run(command, capture_output=True, text=text, timeout=timeout,
                             check=False)
     if result.returncode != 0:
         raise RuntimeError(f"command failed ({result.returncode}): {' '.join(command)}\n"
-                           f"{result.stderr[-4000:]}")
+                           f"{result.stderr[-4000:] if text else result.stderr[-4000:].decode('utf-8', 'replace')}")
     return result
 
 
@@ -974,8 +974,9 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
                          maintenance: dict | None = None) -> None:
     trees = store["trees"]
     tree_files = sum(int(tree["file_count"]) for tree in trees)
-    case_names = {arrangement["case_tree"] for pair in pairs for arrangement in pair["arrangements"]}
-    largest_case = max((int(tree["bytes"]) for tree in trees if tree["name"] in case_names), default=0)
+    largest_history = max((int(record["history_bytes"]) for pair in pairs
+                           for record in [*pair["event_histories"], *pair["outage_duration_studies"]]),
+                          default=0)
     lines = [
         "# FARIS recorded coupled-transport demo",
         "",
@@ -1046,7 +1047,7 @@ def write_package_readme(staging: Path, pairs: list[dict], support: dict,
         "",
         "## Verification",
         "",
-        f"`./verify.sh` needs Linux, `python3` and the evidence part; the Windows and macOS downloads are checked by the app itself at launch. It relocates a copy of the package, verifies the evidence store (every blob's length and SHA-256), revalidates the saved Core evidence from the store and the export reports, and checks rejection of a separate tampered copy. Only one case tree at a time is unpacked into a temporary folder, because `avila-core export` needs a real folder. It needs temporary space for the relocated package (`package_bytes` in `package-index.json`), the largest case tree ({largest_case} bytes) and its export copy, directory blocks and 64 MiB; the verifier checks this. The tamper negative control needs a second package copy once the unpacked tree is released. No files are expanded inside the read-only distribution.",
+        f"`./verify.sh` needs Linux, `python3` and the evidence part; the Windows and macOS downloads are checked by the app itself at launch. It relocates a copy of the package, verifies the evidence store (every blob's length and SHA-256), revalidates the saved Core evidence from the store and the export reports, and checks rejection of a separate tampered copy. Each Core export is replayed with `avila-core export --report-only` straight from the evidence store, so no case tree is unpacked. It needs temporary space for the relocated package (`package_bytes` in `package-index.json`), the largest recomputed history ({largest_history} bytes), directory blocks and 64 MiB; the verifier checks this. The tamper negative control needs a second package copy once the relocated one is released. No files are expanded inside the read-only distribution.",
         "",
         "No OpenMC statepoint, neutron/photon nuclear-data file, ENDF input, or data archive is included. Follow `support/docs/PHOTON_LIBRARY_ACQUISITION.md` for local fresh-run data setup; redistribution terms for the evaluated libraries remain unresolved.",
         f"The evidence store (format `{store['schema_version']}`) holds the {len(trees)} case and workspace trees: {tree_files} files, {store['uncompressed_bytes']} bytes before sharing, {store['distinct_bytes']} distinct bytes, stored as {store['blob_count']} xz-compressed files of {store['stored_bytes']} bytes. Each distinct file content is stored once; reading or unpacking reproduces the original files byte for byte. The full package's indexed total is `package_bytes` in `package-index.json`; outer caps are 64 MiB per indexed file, 2,048 files, and 1 GiB total. Each tree is capped at 512 MiB, 2,048 files, and 1,024 implicit directories; all trees together at 1.5 GiB and 8,192 files. Paths are limited to 64 components. Each file remains capped at 64 MiB.",
@@ -1141,19 +1142,18 @@ def add_pair(staging: Path, pair_id: str, faris: Path, core: Path,
         # Core export duplicates the complete case tree byte-for-byte. Validate
         # the export in a temporary directory, but retain only its report: the
         # canonical case below is already the portable export payload.
-        with tempfile.TemporaryDirectory(prefix="faris-core-export-") as temporary:
-            export_dir = Path(temporary) / "export"
-            export_result = run_json([str(core), "export", str(case), "--source-root",
-                                      f"case={case}", "--out", str(export_dir)])
-            if (export_result.get("schema_version") != "avila.core/export-report/v0.1-draft"
-                    or export_result.get("status") != "exported"
-                    or export_result.get("case_id") != evidence.get("expected_case_id")):
-                raise RuntimeError(f"Core export did not verify the completed case {pair_id}/{variant_id}")
-            temporary_report = export_dir / "export-report.json"
-            if (not temporary_report.is_file()
-                    or json.loads(temporary_report.read_text()) != export_result):
-                raise RuntimeError(f"Core export report did not match its published copy: {temporary_report}")
-            export_report_data = temporary_report.read_bytes()
+        # The canonical case below is the portable export payload, so only the export
+        # report is kept. `--report-only` prints it byte for byte as `--out` would write it.
+        export_report_data = invoke([str(core), "export", "--report-only", str(case),
+                                     "--source-root", f"case={case}"], text=False).stdout
+        try:
+            export_result = json.loads(export_report_data)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"Core export did not print a report for {pair_id}/{variant_id}") from error
+        if (export_result.get("schema_version") != "avila.core/export-report/v0.1-draft"
+                or export_result.get("status") != "exported"
+                or export_result.get("case_id") != evidence.get("expected_case_id")):
+            raise RuntimeError(f"Core export did not verify the completed case {pair_id}/{variant_id}")
         export_report = branch / "core-exports" / variant_id / "export-report.json"
         export_report.parent.mkdir(parents=True, exist_ok=True)
         export_report.write_bytes(export_report_data)

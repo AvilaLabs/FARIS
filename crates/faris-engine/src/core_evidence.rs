@@ -777,6 +777,9 @@ pub fn run_case(
             format!("case={}", package.display()).into(),
             "--workspace".into(),
             workspace.as_os_str().into(),
+            // FARIS reads the workspace folder after the run and packs it into its own
+            // store; Core would otherwise persist it to an evidence store and remove it.
+            "--directory".into(),
             "--no-reuse".into(),
             "--expect-manifest".into(),
             format!("sha256:{package_sha256}").into(),

@@ -11,6 +11,16 @@ basis.
 
 ### Changed
 
+- FARIS now pins Avila Core at `faris-core-2026-10-09` (commit `d6e984a`,
+  reported as `avila-core 0.1.0`); the desktop workflow builds that tag by
+  default. `verify.sh` replays each Core export with `avila-core export
+  --report-only` straight from the evidence store, so it no longer unpacks any
+  case tree or needs temporary space for the Core exports: it needs room for a
+  package copy, a second copy for the tamper check and one recomputed history
+  (about 600 MB). FARIS passes `--directory` to `avila-core run`, because Core
+  now keeps run results in an evidence store by default and FARIS packs the
+  workspace folder itself. Nothing changes in the package or `.faris` formats.
+
 - The package's Core evidence is one content-addressed evidence store
   (`evidence-store/`, Avila Core format `avila.core/evidence-store/v0.1`)
   instead of eight `.tar.gz` archives. Each distinct file is kept once,

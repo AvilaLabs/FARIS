@@ -263,7 +263,7 @@ python3 scripts/package_recorded_demo.py \
   --faris-app target/release/faris-app \
   --core /tmp/faris-demo-avila-core \
   --core-source-repo ../project-north-star-blanket \
-  --core-source-revision 2f8f838c081ae375f2ff3d542e986d0f4c104f96 \
+  --core-source-revision d6e984a67b978b85206a50f24fef95a5a3ec18ee \
   --control-scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --control-reference-run runs/<control-reference>/run.json \
   --control-breeder-run runs/<control-breeder>/run.json \
@@ -339,9 +339,9 @@ SHA-256 checked on every read; nothing is expanded and no temporary directory
 is used. The validated transport scene opens while saved Core evidence is read
 in the background, and evidence becomes available only after actual receipt
 inspection. Path depth and implicit-directory counts are bounded. `verify.sh`
-unpacks one case tree at a time because `avila-core export` needs a real
-folder; its free-space check covers the largest tree, its export copy,
-directory blocks and 64 MiB. Opening a legacy `.faris` file with referenced
+replays each Core export with `avila-core export --report-only` straight from
+the store, so it unpacks nothing; its free-space check covers the relocated
+package copy, the largest recomputed history, directory blocks and 64 MiB. Opening a legacy `.faris` file with referenced
 archives still extracts them to a private temporary directory.
 These deterministic history
 probes are authored scenario studies, not

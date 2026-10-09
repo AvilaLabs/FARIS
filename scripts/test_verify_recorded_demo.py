@@ -324,7 +324,7 @@ def make_package(root: Path, faris: Path, core: Path,
                 "export_sha256": "sha256:" + hashlib.sha256(
                     (case / "case.marker").read_bytes()).hexdigest(),
             }
-            write(root / export_report_rel, json.dumps(export_report) + "\n")
+            write(root / export_report_rel, json.dumps(export_report))
             descriptor_rel = f"saved-study-{pair}-{variant}.json"
             descriptor = {"schema_version": "faris-saved-study-store/v0.1",
                           "store": "evidence-store",
@@ -660,13 +660,15 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.core = self.root / "core-test"
         write(self.core, "#!/usr/bin/env python3\nimport hashlib,json,sys\nfrom pathlib import Path\n"
                          "if '--version' in sys.argv: print('avila-core 0.1.0'); raise SystemExit(0)\n"
-                         "case=Path(sys.argv[2]); out=Path(sys.argv[sys.argv.index('--out')+1])\n"
-                         "assert case.is_dir() and (case/'case.marker').is_file()\n"
+                         f"sys.path.insert(0,{str(Path(__file__).resolve().parent)!r}); import evidence_store\n"
+                         "assert sys.argv[1:3]==['export','--report-only'] and '--out' not in sys.argv\n"
+                         "store,tree=sys.argv[3].removeprefix('store:').rsplit('#',1)\n"
+                         "assert sys.argv[sys.argv.index('--source-root')+1]=='case='+sys.argv[3]\n"
+                         "marker=evidence_store.read_file(store,evidence_store.load_index(store),tree,'case.marker')\n"
                          "report={'schema_version':'avila.core/export-report/v0.1-draft',"
-                         "'status':'exported','case_id':case.name,"
-                         "'export_sha256':'sha256:'+hashlib.sha256((case/'case.marker').read_bytes()).hexdigest()}\n"
-                         "out.mkdir(parents=True); (out/'export-report.json').write_text(json.dumps(report)+'\\n')\n"
-                         "print(json.dumps(report))\n")
+                         "'status':'exported','case_id':tree,"
+                         "'export_sha256':'sha256:'+hashlib.sha256(marker).hexdigest()}\n"
+                         "sys.stdout.write(json.dumps(report))\n")
         self.core.chmod(0o755)
         self.core_source_repo = self.root / "core-source"
         self.core_source_repo.mkdir()
@@ -1285,13 +1287,29 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
                          ["control/reference", "control/breeder-emphasis",
                           "port/reference", "port/breeder-emphasis"])
 
-    def test_scratch_space_covers_one_case_tree_and_its_export_not_the_whole_evidence(self):
+    def test_scratch_space_covers_the_largest_recomputed_history_not_the_exports(self):
         index = json.loads((self.package / "package-index.json").read_text())
-        needed = VERIFY.scratch_needed(index)
-        largest = max(tree["bytes"] for tree in index["evidence_store"]["trees"]
-                      if tree["name"].endswith("-case"))
-        self.assertGreaterEqual(needed, 2 * largest + 64 * 1024 * 1024)
-        self.assertLess(needed, 2 * largest + 70 * 1024 * 1024 + 4096 * 64)
+        needed = VERIFY.scratch_needed(self.package, index)
+        summary = json.loads((self.package / index["outage_duration_sensitivity"]["path"]).read_text())
+        largest = max([record["history_bytes"] for record in summary["records"]]
+                      + [arrangement["event_history"]["history_bytes"]
+                         for pair in index["scenario_pairs"] for arrangement in pair["arrangements"]])
+        largest_case = max(tree["bytes"] for tree in index["evidence_store"]["trees"]
+                           if tree["name"].endswith("-case"))
+        self.assertGreaterEqual(needed, largest + 64 * 1024 * 1024)
+        self.assertLess(needed, largest + 70 * 1024 * 1024 + 4096 * 64)
+        self.assertLess(needed - largest, largest_case + 64 * 1024 * 1024 + 4096 * 64)
+
+    def test_low_free_space_refuses_with_the_amount_and_the_next_step(self):
+        free = shutil.disk_usage(tempfile.gettempdir()).free
+        original = VERIFY.shutil.disk_usage
+        VERIFY.shutil.disk_usage = lambda path: type("U", (), {"free": 1024})()
+        try:
+            with self.assertRaisesRegex(ValueError, "bytes free.*TMPDIR"):
+                VERIFY.verify_package(self.package, self.faris, self.core)
+        finally:
+            VERIFY.shutil.disk_usage = original
+        self.assertGreater(free, 1024)
 
     def test_an_unindexed_extra_blob_or_a_missing_blob_is_refused(self):
         extra = self.package / "evidence-store/blobs/ab"
@@ -1351,19 +1369,28 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "execution report changed"):
             VERIFY.verify_package(self.package, self.faris, self.core)
 
-    def test_only_one_case_tree_is_unpacked_for_the_export_replay(self):
-        seen = []
+    def test_exports_are_replayed_from_the_store_without_unpacking_any_tree(self):
+        unpacked = []
         original = VERIFY.evidence_store.unpack_store
-        def spy(store, out, trees=None):
-            seen.append(list(trees or []))
-            return original(store, out, trees)
-        VERIFY.evidence_store.unpack_store = spy
+        VERIFY.evidence_store.unpack_store = lambda *args, **kwargs: unpacked.append(args)
         try:
             VERIFY.verify_package(self.package, self.faris, self.core)
         finally:
             VERIFY.evidence_store.unpack_store = original
-        self.assertEqual(len(seen), 4)
-        self.assertTrue(all(len(trees) == 1 and trees[0].endswith("-case") for trees in seen), seen)
+        self.assertEqual(unpacked, [])
+
+    def test_a_stored_export_report_that_differs_by_one_byte_is_refused(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        arrangement = index["scenario_pairs"][0]["arrangements"][0]
+        report_path = self.package / arrangement["core_export_report"]
+        report_path.chmod(0o644)
+        # Same JSON value, different bytes: only the exact comparison can refuse it.
+        write(report_path, report_path.read_text() + "\n")
+        arrangement["core_export_report_sha256"] = VERIFY.digest(report_path)
+        write(self.package / "package-index.json", json.dumps(index, indent=2) + "\n")
+        reindex_package(self.package)
+        with self.assertRaisesRegex(ValueError, "no longer reconstructs"):
+            VERIFY.verify_package(self.package, self.faris, self.core)
 
     # Verifies: GEO-022
     def test_port_geometry_contract_rejects_material_in_clearance(self):

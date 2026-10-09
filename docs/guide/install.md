@@ -4,7 +4,7 @@
 
 - A desktop session with working graphics drivers: Linux, Windows or macOS.
 - No temporary space is needed to open the study, with or without the evidence pack: the app reads the saved Core evidence straight from the evidence store in the package folder.
-- For `verify.sh` only: Linux, `python3`, the evidence pack and about 1.3 GB of temporary space. It checks the exact amount before it starts.
+- For `verify.sh` only: Linux, `python3`, the evidence pack and about 600 MB of temporary space (a copy of the package, a second copy for the tamper check, and one recomputed history). It checks the amount before it starts; if space is short it says how much is needed and you can point `TMPDIR` at a folder with more room.
 
 Python is not needed to open the study. You do not need OpenMC, nuclear data or network access to explore the recorded study.
 
