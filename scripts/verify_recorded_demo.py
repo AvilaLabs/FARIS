@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import math
@@ -957,6 +958,82 @@ def evidence_programs(index: dict[str, Any]) -> str:
     return "CI_BUILD_OF_RECORDED_COMMITS_CHECKED_BY_REPRODUCTION"
 
 
+LINK_FALLBACK_ERRNOS = {errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EMLINK}
+
+
+def link_tree(source: Path, target: Path) -> dict[str, int]:
+    """Recreate the directory tree of `source` at `target`, hard-linking every regular
+    file and recreating symlinks as symlinks. A file that cannot be linked (another
+    file system, or links not allowed) is copied instead, so the result is always
+    correct, only bigger. Returns how many files were linked and how many copied.
+    Linked files share storage with the source: never write through them; use
+    `replace_file`."""
+    counts = {"linked": 0, "copied": 0}
+    target.mkdir()
+    for entry in sorted(os.scandir(source), key=lambda item: item.name):
+        destination = target / entry.name
+        if entry.is_symlink():
+            os.symlink(os.readlink(entry.path), destination)
+        elif entry.is_dir(follow_symlinks=False):
+            inner = link_tree(Path(entry.path), destination)
+            counts["linked"] += inner["linked"]
+            counts["copied"] += inner["copied"]
+        elif entry.is_file(follow_symlinks=False):
+            try:
+                os.link(entry.path, destination, follow_symlinks=False)
+                counts["linked"] += 1
+            except OSError as error:
+                if error.errno not in LINK_FALLBACK_ERRNOS:
+                    raise
+                shutil.copy2(entry.path, destination)
+                counts["copied"] += 1
+        else:
+            raise ValueError(f"cannot relocate {entry.path}: not a regular file, directory or symlink")
+    return counts
+
+
+def replace_file(path: Path, data: bytes) -> None:
+    """Write `data` to a temporary file beside `path` and rename it over `path`, so a
+    hard link to the old file keeps the old bytes. The new file keeps the old mode
+    (plus owner write) and is the only thing the rename changes."""
+    mode = (path.lstat().st_mode if path.exists() else 0o644) & 0o7777
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".replace-")
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+        os.chmod(temporary, mode | stat.S_IWUSR)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def copy_allowance(root: Path, index: dict[str, Any]) -> int:
+    """Space for the files a linked copy may have to rewrite: the largest blob, the
+    package index and its checksum file, plus directory blocks."""
+    largest = max([item["bytes"] for item in index["files"]
+                   if item["path"].startswith(EVIDENCE_STORE_DIRECTORY + "/blobs/")] + [0])
+    sizes = sum((root / name).stat().st_size for name in (INDEX, CHECKSUM) if (root / name).exists())
+    return largest + sizes + 16 * 4096
+
+
+def same_file_system(first: Path, second: Path) -> bool:
+    return os.stat(first).st_dev == os.stat(second).st_dev
+
+
+def scratch_requirement(source: Path, index: dict[str, Any], scratch: Path) -> int:
+    """Bytes the relocated copy and the history recompute need: with links on the
+    package's own file system only the files that get rewritten; across file systems
+    links fail and the whole package is copied."""
+    base = scratch_needed(source, index)
+    if same_file_system(source, scratch):
+        return base + copy_allowance(source, index)
+    return base + index["package_bytes"]
+
+
 def scratch_needed(root: Path, index: dict[str, Any]) -> int:
     """Temporary space for one verification pass: the largest recomputed history (its
     size is recorded in the package), directory blocks and 64 MiB. The saved cases and
@@ -1006,40 +1083,60 @@ def verify_package(package: Path, faris: Path, core: Path) -> dict[str, Any]:
             "archive_integrity_status": "STORE_BLOBS_AND_CORE_RECEIPTS_REVALIDATED"}
 
 
-def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> dict[str, str]:
+def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path,
+                                     scratch: Path | None = None) -> dict[str, Any]:
     """Two tampered copies must be refused: a blob with one flipped byte (the package
     index's file digest catches it), and the same blob with the package index rewritten
-    to match (the evidence store's own length and SHA-256 check catches it)."""
+    to match (the evidence store's own length and SHA-256 check catches it). The copies
+    are made of hard links under `scratch` (default: beside the package) and every
+    write replaces the file instead of writing through the link."""
+    scratch = (scratch if scratch is not None else source.parent).resolve(strict=True)
     source_index = json.loads((source / INDEX).read_text(encoding="utf-8"))
     package_bytes = sum(item["bytes"] for item in source_index["files"])
-    free = shutil.disk_usage(Path(tempfile.gettempdir())).free
-    if free < package_bytes + 64 * 1024 * 1024:
-        raise ValueError("tamper control lacks scratch space for a relocated package copy")
+    needed = (copy_allowance(source, source_index) if same_file_system(source, scratch)
+              else package_bytes) + 64 * 1024 * 1024
+    free = shutil.disk_usage(scratch).free
+    if free < needed:
+        raise ValueError(f"tamper control needs {needed} bytes free in {scratch} for a tampered copy; "
+                         f"have {free}. Free some space, then run it again")
     blobs = sorted(item["path"] for item in source_index["files"]
                    if item["path"].startswith(EVIDENCE_STORE_DIRECTORY + "/blobs/"))
     if not blobs:
         raise ValueError("cannot run tamper control on a package without evidence store blobs")
     chosen = blobs[0]
-    original_bytes_sha = digest(safe_package_path(source.resolve(strict=True), chosen))
+    source_blob = safe_package_path(source.resolve(strict=True), chosen)
+    original_bytes_sha = digest(source_blob)
+    original_index_sha = digest(source / INDEX)
+    original_blob_mode = source_blob.lstat().st_mode
+
+    def source_unchanged() -> None:
+        if (digest(safe_package_path(source.resolve(strict=True), chosen)) != original_bytes_sha
+                or digest(source / INDEX) != original_index_sha
+                or source_blob.lstat().st_mode != original_blob_mode):
+            raise ValueError("tamper negative control unexpectedly modified the source package")
+
     outcomes = {}
+    copies = {"linked": 0, "copied": 0}
     for control in ("tamper_control", "store_tamper_control"):
-        with tempfile.TemporaryDirectory(prefix="faris-package-tamper-test-") as temporary:
-            target = Path(temporary) / "tampered-package"
-            shutil.copytree(source, target, symlinks=True)
+        temporary = Path(tempfile.mkdtemp(prefix=".faris-package-tamper-test-", dir=scratch))
+        try:
+            target = temporary / "tampered-package"
+            made = link_tree(source, target)
+            copies["linked"] += made["linked"]
+            copies["copied"] += made["copied"]
             victim = safe_package_path(target.resolve(strict=True), chosen)
             content = bytearray(victim.read_bytes())
             if not content:
                 raise ValueError("cannot tamper with an empty indexed artifact")
             content[len(content) // 2] ^= 0x01
-            victim.chmod(victim.stat().st_mode | stat.S_IWUSR)
-            victim.write_bytes(content)
+            replace_file(victim, bytes(content))
             if control == "store_tamper_control":
                 index = json.loads((target / INDEX).read_text(encoding="utf-8"))
                 for item in index["files"]:
                     if item["path"] == chosen:
                         item["sha256"] = digest(victim)
-                (target / INDEX).write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
-                (target / CHECKSUM).write_text(f"{digest(target / INDEX)}  {INDEX}\n", encoding="ascii")
+                replace_file(target / INDEX, (json.dumps(index, indent=2) + "\n").encode("utf-8"))
+                replace_file(target / CHECKSUM, f"{digest(target / INDEX)}  {INDEX}\n".encode("ascii"))
             try:
                 verify_package(target, faris, core)
             except ValueError as error:
@@ -1047,13 +1144,17 @@ def mutate_copy_for_negative_control(source: Path, faris: Path, core: Path) -> d
                             else "failed verification")
                 if expected not in str(error):
                     raise ValueError(f"{control} was refused for another reason: {error}") from error
-                if digest(safe_package_path(source.resolve(strict=True), chosen)) != original_bytes_sha:
-                    raise ValueError("tamper negative control unexpectedly modified the source package")
+                source_unchanged()
                 outcomes[control] = "EXPECTED_REJECTION"
             else:
+                source_unchanged()
                 raise ValueError("tampered copy unexpectedly passed package verification")
+        finally:
+            shutil.rmtree(temporary, ignore_errors=True)
+    source_unchanged()
     return {"tamper_control": outcomes["tamper_control"], "tampered_copy_path": chosen,
-            "original_preserved": True, "store_tamper_control": outcomes["store_tamper_control"]}
+            "original_preserved": True, "store_tamper_control": outcomes["store_tamper_control"],
+            "tamper_copies": copies}
 
 
 def main() -> int:
@@ -1080,16 +1181,18 @@ def main() -> int:
         raise SystemExit(f"verify_recorded_demo: {error}")
     package_bytes = source_index["package_bytes"]
     free = shutil.disk_usage(relocated.parent).free
-    required_scratch = package_bytes + scratch_needed(source, source_index)
+    required_scratch = scratch_requirement(source, source_index, relocated.parent)
     if free < required_scratch:
-        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free for the package copy and the "
-                         f"largest recomputed history; have {free}. Free some space or set "
-                         f"TMPDIR to a folder on a disk with more room, then run verify.sh again")
-    shutil.copytree(source, relocated, symlinks=True)
+        raise SystemExit(f"relocation/replay needs {required_scratch} bytes free in {relocated.parent} for the "
+                         f"relocated copy and the largest recomputed history; have {free}. Free some space "
+                         f"there (or, when the package sits in a read-only folder, set TMPDIR to a folder on "
+                         f"a disk with more room), then run verify.sh again")
+    relocation = link_tree(source, relocated)
     try:
         result = verify_package(relocated, args.faris.resolve(strict=True), args.core.resolve(strict=True))
+        result["relocation"] = relocation
         result.update(mutate_copy_for_negative_control(relocated, args.faris.resolve(strict=True),
-                                                        args.core.resolve(strict=True)))
+                                                        args.core.resolve(strict=True), relocated.parent))
     except Exception:
         shutil.rmtree(relocated, ignore_errors=True)
         raise

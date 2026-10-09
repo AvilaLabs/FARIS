@@ -791,7 +791,14 @@ def install_local_runtime(staging: Path, faris: Path, app: Path, core: Path,
 set -eu
 export PYTHONDONTWRITEBYTECODE=1
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-temporary=$(mktemp -d)
+# Scratch space goes beside the package so the relocated copy can be made of hard
+# links (it then costs almost no disk); fall back to the temporary folder.
+if temporary=$(mktemp -d "$(dirname -- "$root")/.faris-verify.XXXXXX" 2>/dev/null); then
+  :
+else
+  echo "verify.sh: the folder holding the package is not writable; using the temporary folder, which needs room for a full copy of the package." >&2
+  temporary=$(mktemp -d)
+fi
 trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 python3 "$root/scripts/verify_recorded_demo.py" \\
   --package "$root" \\

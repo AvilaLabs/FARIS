@@ -4,10 +4,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import errno
+import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HISTORY_REFINEMENT_REPORT_NAME = "operating-history-primary-refinement-v4.json"
 SCRIPT = Path(__file__).with_name("verify_recorded_demo.py")
@@ -1299,6 +1302,106 @@ class RecordedDemoPackageVerificationTests(unittest.TestCase):
         self.assertGreaterEqual(needed, largest + 64 * 1024 * 1024)
         self.assertLess(needed, largest + 70 * 1024 * 1024 + 4096 * 64)
         self.assertLess(needed - largest, largest_case + 64 * 1024 * 1024 + 4096 * 64)
+
+    def snapshot(self, root):
+        """Every file's inode, mode and digest, so a write through a link shows up."""
+        return {path.relative_to(root).as_posix(): (path.lstat().st_ino, path.lstat().st_mode,
+                                                    VERIFY.digest(path))
+                for path in sorted(root.rglob("*")) if path.is_file() and not path.is_symlink()}
+
+    def test_link_tree_links_files_and_recreates_symlinks(self):
+        source = self.root / "link-source"
+        write(source / "a/file.txt", "payload\n")
+        os.symlink("file.txt", source / "a/alias")
+        target = self.root / "link-target"
+        counts = VERIFY.link_tree(source, target)
+        self.assertEqual(counts, {"linked": 1, "copied": 0})
+        self.assertEqual((source / "a/file.txt").stat().st_ino, (target / "a/file.txt").stat().st_ino)
+        self.assertTrue((target / "a/alias").is_symlink())
+        self.assertEqual(os.readlink(target / "a/alias"), "file.txt")
+
+    def test_link_tree_copies_when_links_are_refused_and_counts_them(self):
+        source = self.root / "link-source"
+        write(source / "one.txt", "1\n")
+        write(source / "d/two.txt", "2\n")
+        for code in (errno.EXDEV, errno.EPERM, errno.ENOTSUP):
+            target = self.root / f"copy-target-{code}"
+            with mock.patch.object(VERIFY.os, "link", side_effect=OSError(code, "refused")):
+                counts = VERIFY.link_tree(source, target)
+            self.assertEqual(counts, {"linked": 0, "copied": 2})
+            self.assertEqual((target / "d/two.txt").read_text(), "2\n")
+            self.assertNotEqual((source / "d/two.txt").stat().st_ino, (target / "d/two.txt").stat().st_ino)
+        with mock.patch.object(VERIFY.os, "link", side_effect=OSError(errno.ENOENT, "gone")):
+            with self.assertRaises(OSError):
+                VERIFY.link_tree(source, self.root / "copy-target-other")
+
+    def test_replace_file_breaks_the_link_and_leaves_the_source_alone(self):
+        source = self.root / "replace-source"
+        write(source / "blob", "original\n")
+        (source / "blob").chmod(0o444)
+        target = self.root / "replace-target"
+        VERIFY.link_tree(source, target)
+        VERIFY.replace_file(target / "blob", b"changed\n")
+        self.assertEqual((source / "blob").read_text(), "original\n")
+        self.assertEqual(stat.S_IMODE((source / "blob").stat().st_mode), 0o444)
+        self.assertEqual((target / "blob").read_text(), "changed\n")
+        self.assertNotEqual((source / "blob").stat().st_ino, (target / "blob").stat().st_ino)
+        self.assertEqual([path.name for path in target.iterdir()], ["blob"])
+
+    def test_tamper_controls_with_linked_copies_leave_the_source_untouched(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        blob = next(item["path"] for item in sorted(index["files"], key=lambda item: item["path"])
+                    if item["path"].startswith("evidence-store/blobs/"))
+        (self.package / blob).chmod(0o444)  # read-only, as shipped: the hardest case for a link
+        before = self.snapshot(self.package)
+        result = VERIFY.mutate_copy_for_negative_control(self.package, self.faris, self.core, self.root)
+        self.assertEqual(before, self.snapshot(self.package))
+        self.assertEqual(stat.S_IMODE((self.package / blob).stat().st_mode), 0o444)
+        self.assertEqual(result["store_tamper_control"], "EXPECTED_REJECTION")
+        self.assertGreater(result["tamper_copies"]["linked"], 0)
+        self.assertEqual(result["tamper_copies"]["copied"], 0)
+        self.assertEqual([path.name for path in self.root.iterdir() if path.name.startswith(".faris-")], [])
+
+    def test_a_write_through_a_link_would_be_caught_by_the_source_guard(self):
+        real = VERIFY.replace_file
+        def writes_through(path, data):
+            path.write_bytes(data)  # the bug the helper exists to prevent
+        with mock.patch.object(VERIFY, "replace_file", writes_through):
+            with self.assertRaisesRegex(ValueError, "modified the source package"):
+                VERIFY.mutate_copy_for_negative_control(self.package, self.faris, self.core, self.root)
+        self.assertIs(VERIFY.replace_file, real)
+
+    def test_scratch_requirement_is_small_on_the_same_file_system_and_full_across_file_systems(self):
+        index = json.loads((self.package / "package-index.json").read_text())
+        linked = VERIFY.scratch_requirement(self.package, index, self.root)
+        self.assertLess(linked, VERIFY.scratch_needed(self.package, index) + 64 * 1024 * 1024)
+        with mock.patch.object(VERIFY, "same_file_system", return_value=False):
+            across = VERIFY.scratch_requirement(self.package, index, self.root)
+        self.assertEqual(across - linked, index["package_bytes"] - VERIFY.copy_allowance(self.package, index))
+
+    def test_verify_sh_scratch_is_beside_the_package_and_falls_back_when_not_writable(self):
+        script = (self.package / "verify.sh").read_text()
+        self.assertIn('mktemp -d "$(dirname -- "$root")/.faris-verify.XXXXXX"', script)
+        result = subprocess.run([str(self.package / "verify.sh")], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertGreater(output["relocation"]["linked"], 0)
+        self.assertEqual(output["relocation"]["copied"], 0)
+        self.assertEqual([path.name for path in self.root.iterdir() if path.name.startswith(".faris-")], [])
+        if os.geteuid() == 0:
+            self.skipTest("a read-only parent folder is still writable for root")
+        # Package one level down so its parent can be made read-only.
+        parent = self.root / "readonly-parent"
+        parent.mkdir()
+        shutil.copytree(self.package, parent / "package")
+        parent.chmod(0o555)
+        try:
+            result = subprocess.run([str(parent / "package/verify.sh")], text=True, capture_output=True)
+        finally:
+            parent.chmod(0o755)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("not writable; using the temporary folder", result.stderr)
+        self.assertEqual(json.loads(result.stdout)["tamper_control"], "EXPECTED_REJECTION")
 
     def test_low_free_space_refuses_with_the_amount_and_the_next_step(self):
         free = shutil.disk_usage(tempfile.gettempdir()).free
