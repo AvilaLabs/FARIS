@@ -8,6 +8,7 @@ import copy
 import math
 import unittest
 
+import r1_configs as R1
 import rm_m_checks as C
 import rm_m_spec as S
 
@@ -297,3 +298,51 @@ class ResponseUnits(unittest.TestCase):
 
     def test_source_rate_matches_the_spec(self):
         self.assertAlmostEqual(C.SOURCE_RATE_N_S / S.SOURCE_RATE_N_S, 1.0, places=12)
+
+
+class R1Rules(unittest.TestCase):
+    def _rec(self, mean, se, t, b=None):
+        return {"response": {"a": {"mean": mean, "std_error": se, "relative_error": se / mean}, "seconds_to_statepoint": t,
+                             "histories": 1000, "b": b}}
+
+    def test_seeds_are_disjoint(self):
+        self.assertTrue(R1.disjoint_seeds())
+
+    def test_six_declared_configurations(self):
+        self.assertEqual(sorted(R1.CONFIGS), ["C1", "C2", "C3", "C4", "C5", "C6"])
+        self.assertEqual(R1.CONFIGS["C5"]["upper_lower_ratio"], 10.0)
+        self.assertEqual(R1.CONFIGS["C5"]["survival_ratio"], 5.0)
+        self.assertEqual([k for k in R1.CONFIGS if R1.objective_includes_b(k)], ["C4", "C6"])
+
+    def test_fast_response_edges_follow_group_edges(self):
+        self.assertEqual(R1.fast_response_edges("CASMO-8"), [821000.0, 20000000.0])
+        self.assertEqual(R1.fast_response_edges("CASMO-25")[0], 111000.0)
+        self.assertEqual(len(R1.fast_response_edges("1")), 2)
+
+    def test_peak_mesh_has_one_phi_bin_per_coil(self):
+        g = R1.peak_mesh_grids()
+        self.assertEqual(len(g["coil_phi_bins"]), 18)
+        self.assertEqual(len(g["phi_grid_deg"]), 36)
+        self.assertEqual(g["phi_grid_deg"][:2], [2.0, 18.0])
+        self.assertEqual(g["r_grid_cm"][1] - g["r_grid_cm"][0], 5.0)
+        self.assertEqual(g["z_grid_cm"][1] - g["z_grid_cm"][0], 10.0)
+
+    def test_fom_gain_and_lower_bound(self):
+        self.assertAlmostEqual(R1.figure_of_merit(0.1, 100.0), 1.0)
+        out = R1.summarise({"C2": self._rec(1.0, 0.01, 100.0)}, self._rec(1.0, 0.3, 7200.0))
+        self.assertTrue(out["analog"]["gain_is_lower_bound"])
+        self.assertEqual(out["analog"]["unbiasedness"], "NOT_EVALUATED")
+        self.assertAlmostEqual(out["configs"]["C2"]["gain_vs_analog"], (1 / (0.01**2 * 100)) / (1 / (0.3**2 * 7200)), places=6)
+        self.assertEqual(out["verdict"]["verdict"], "PASS")
+
+    def test_fail_below_target(self):
+        out = R1.summarise({"C1": self._rec(1.0, 0.2, 1800.0)}, self._rec(1.0, 0.3, 7200.0))
+        self.assertEqual(out["verdict"]["verdict"], "FAIL")
+
+    def test_analog_counts_when_r_is_small(self):
+        out = R1.summarise({"C1": self._rec(1.0, 0.2, 1800.0)}, self._rec(1.0, 0.05, 7200.0))
+        self.assertFalse(out["analog"]["gain_is_lower_bound"])
+        self.assertEqual(out["analog"]["unbiasedness"], "evaluated")
+
+    def test_z_score(self):
+        self.assertAlmostEqual(R1.z_score(2.0, 0.3, 1.0, 0.4), 2.0)
