@@ -16,8 +16,11 @@ basis.
   default. `verify.sh` replays each Core export with `avila-core export
   --report-only` straight from the evidence store, so it no longer unpacks any
   case tree or needs temporary space for the Core exports: it needs room for a
-  package copy, a second copy for the tamper check and one recomputed history
-  (about 600 MB). FARIS passes `--directory` to `avila-core run`, because Core
+  relocated copy of the package and one recomputed history. The copies are
+  made of hard links in a hidden folder beside the package (measured: 0.1 MB
+  of new data there and 18 MB of temporary space; it asks for about 100 MB
+  free as a margin, and says how many files it linked or copied); if links
+  are impossible it copies the files instead and needs about 260 MB more. FARIS passes `--directory` to `avila-core run`, because Core
   now keeps run results in an evidence store by default and FARIS packs the
   workspace folder itself. Nothing changes in the package or `.faris` formats.
 
