@@ -166,3 +166,104 @@ use only the chosen version.
 - The result summary is committed as `references/cad-transport-risk-tests.json`
   plus a results section here.
 - A wrapped run that outlives its timeout is stopped by its own PID and reported.
+
+## Results
+
+Appended after runs. The protocol above is unchanged (sha256 b18e1e09…).
+
+### Model RM-M (built 2026-10-09)
+
+- **Build:** CadQuery 2.8.0, not Paramak. Paramak 0.10.0 has no graded
+  inboard/outboard build, no conformal coil and no port builder.
+  - The model has 30 solids: the plasma, 11 layers, the port duct and 18
+    TF coils.
+  - The protocol's route was used unchanged: STEP export, re-import, then
+    `cad_to_dagmc` 0.14.2 with the default `cad-to-dagmc-mesher` backend and
+    imprint on.
+  - Tolerance is 0.1 cm and angular tolerance 0.1 rad, giving 1,916,482
+    triangles.
+  - STEP sha256 79b1481b…; h5m sha256 24fda318….
+- **Labels:** 23 dimensions published, 17 authored. Deviations, each recorded
+  in the model card:
+  - **D1:** the published minor radius puts the inboard separatrix at
+    R = 217 cm, while S15 Fig. 2 puts it at 223 cm. All published thicknesses
+    are kept, so the inboard TF leg sits at R = 64–128 cm, not 70–134 cm.
+  - **D2:** the plasma shape is R = R0 + a cos(t + δ sin t), matching
+    `openmc-plasma-source`. Its CAD volume is 145.7 m³, against the published
+    141 and 137 m³.
+  - **D3:** the coils are 18 wedges of 16 degrees cut from a D-shaped ring with
+    a 64 cm normal offset. Layer thickness is graded by cos θ between the
+    inboard and outboard values, which is exact at both midplanes.
+  - **D4:** each coil is one solid, with the case and winding pack homogenised.
+  - **D5:** every poloidal profile is a closed polygon of 240 points, not a
+    periodic spline. The reason is that OCCT imprinting of spline surfaces of
+    revolution produced inverted and duplicated regions with no error: for the
+    layers alone, the scrape-off layer got a region of minus the plasma volume.
+    OCCT volume integration on those surfaces was also off by up to 1 %, and by
+    15× on one port-cut layer. With polygons the imprint is clean and twice as
+    fast, and each uncut solid's volume matches Pappus within 1e-6. The
+    geometric cost is a chord sag of at most 0.095 cm, and a departure of the
+    normal layer thickness from the published value of at most 0.43 cm, almost
+    all of it in the graded TiH2 shield.
+- **Cost (reference laptop):** the build (STEP, imprint, mesh and both h5m
+  files) took 23 min 10 s at a peak of 4.94 GB.
+
+### Model acceptance: PASS
+
+| Check | Rule | Result |
+| --- | --- | --- |
+| GEO-030 faceted vs CAD volume | ≤ 0.5 % per solid | worst −0.0148 % (`first_wall_tungsten`); all 30 solids pass |
+| GEO-025 lost particles | ≤ 1e-6 per history over 1e6 | 0 lost in 1,000,000 histories |
+| SRC-018 source sites in the plasma | 100 % | 200,000 of 200,000 inside (also 100 % without the cell constraint, and against the analytic polygon) |
+
+Notes:
+
+- The mesher's own pre-imprint overlap scan stopped at its 60 s budget with
+  283 solid pairs unchecked. Its mesh-level overlap check, which covers every
+  solid, found no overlap. FARIS's own GEO-021 check (stage S1) has to close
+  this, not rely on the mesher.
+- `rel_max_lost_particles` was set to 0.5, because OpenMC rejects 1.0, so a
+  run with losses still completes and is counted.
+
+### R6: OpenMC version: 0.15.3
+
+- **Rule 1 fails on 0.16.0:**
+  - MGXS generation needed an extra workaround: the stochastic-slab model
+    does not inherit `model.materials.cross_sections`, so
+    `openmc.config['cross_sections']` had to be set.
+  - The random-ray FW-CADIS solve then aborted ("No zero or negative total
+    macroscopic cross sections"), because the 0.16.0 MGXS file gives the
+    low-density filler material a negative total in one group. The 0.15.3
+    file has none.
+  - The windows file and the windowed run were therefore not reached.
+  - On 0.15.3 every step ran.
+- **Rule 2 holds:**
+  - The analog TF fast flux agrees between the versions within 0.34σ.
+  - The check is weak, because the relative errors are 32–37 % after 1e6
+    histories.
+  - The absolute value's unit label is under review (an R6 note, below).
+    A common scale factor does not change the z-score.
+- **Choice:** 0.15.3. R1 to R3 use only 0.15.3.
+- **Open note, not part of the rule:** the same 1e6-history analog run took
+  146 s on 0.16.0 and 1980 s on 0.15.3, with identical model XML. Why is not
+  yet known. It matters for PERF-025 and for when FARIS moves to 0.16.
+- **Note on the R6 flux value:** the stored analog response was labelled "per
+  source particle", but its magnitude (1.8e17) is not a per-particle track
+  length. The normalisation is being traced before any absolute value is used.
+
+### R1 configurations (declared 2026-10-09, before any R1 run)
+
+| Config | Energy groups | Objective | Window settings |
+| --- | --- | --- | --- |
+| C1 | 1 | (a) | OpenMC defaults |
+| C2 | CASMO-8 | (a) | defaults |
+| C3 | CASMO-25 | (a) | defaults |
+| C4 | CASMO-8 | (a) + (b) | defaults |
+| C5 | CASMO-8 | (a) | wider: upper/lower ratio 10, survival ratio 5 |
+| C6 | CASMO-25 | (a) + (b) | defaults |
+
+- Objective (a) + (b) uses two adjoint sources, each weighted by the inverse
+  of its forward estimate.
+- Each windowed production run gets 1800 s wall time at 4 threads.
+- The analog reference gets 7200 s at 4 threads.
+- Generation and production seeds are disjoint and recorded.
