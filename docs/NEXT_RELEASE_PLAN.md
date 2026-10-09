@@ -1,7 +1,6 @@
 # Next FARIS release: plan
 
-Status: DRAFT for review, 2026-10-09. Nothing here is built. The version number
-is decided at release.
+Status: approved 2026-10-09. The version number is decided at release.
 
 ## The question this release answers
 
@@ -220,9 +219,13 @@ after S0, under change control.
 - Automatic CAD repair. FARIS reports defects and blocks; the user fixes them in
   their CAD tool.
 
-## Decisions needed
+## Decisions
 
-1. Approve this scope and gate.
-2. Validation data access. Requesting SINBAD from NEA or RSICC is an outward step
-   with a licence. If it is not taken, the FNG cases are shown as "not validated"
-   with that reason, and the open benchmarks carry the suite.
+1. 2026-10-09: scope and gate approved.
+2. 2026-10-09: validation data access. Plan on **not** having the SINBAD FNG
+   tables. Access will be sought separately. Until the data is in hand, the FNG
+   cases (VAL-021, VAL-022, VAL-023) are shown as "not validated", with the
+   reason "experimental tables not available under an open licence" and the next
+   step "obtain the SINBAD package". The open benchmarks carry the suite.
+   VAL-020 and VAL-023 are then settled under change control at the end of S0,
+   with this as the recorded reason.
