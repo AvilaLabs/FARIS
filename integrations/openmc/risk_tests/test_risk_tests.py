@@ -9,6 +9,7 @@ import math
 import unittest
 
 import r1_configs as R1
+import r2_preview as R2
 import r3_scenario as R3
 import rm_m_checks as C
 import rm_m_spec as S
@@ -393,3 +394,11 @@ class R3Rules(unittest.TestCase):
         top = R3.top_contributors({"a": 1.0, "b": 3.0, "c": 6.0}, 2)
         self.assertEqual([t["nuclide"] for t in top], ["c", "b"])
         self.assertAlmostEqual(top[0]["fraction"], 0.6)
+
+
+class R2Rule(unittest.TestCase):
+    def test_pass_needs_both(self):
+        self.assertEqual(R2.rule(0.02, 0.2)["verdict"], "PASS")
+        self.assertEqual(R2.rule(0.021, 0.1)["verdict"], "FAIL")
+        self.assertEqual(R2.rule(0.01, 0.21)["verdict"], "FAIL")
+        self.assertEqual(R2.rule(None, 0.1)["verdict"], "FAIL")
