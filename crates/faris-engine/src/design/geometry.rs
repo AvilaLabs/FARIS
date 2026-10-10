@@ -163,13 +163,19 @@ pub struct DeviationRequest<'a> {
     pub map: &'a [(u32, usize)],
     pub directory: &'a Path,
     pub workers: usize,
+    /// Points per solid, 0 for all.
+    pub max_points: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeviationRow {
     pub volume: u32,
     pub step_index: usize,
+    /// Points measured.
     pub points: u64,
+    /// Points the solid's triangles give; more than `points` when the run took a stride.
+    #[serde(default)]
+    pub points_available: u64,
     pub faces: u64,
     pub max_distance_m: f64,
     #[serde(default)]
@@ -214,6 +220,9 @@ pub struct GeometryOptions {
     pub samples: usize,
     pub chords: usize,
     pub source_sites: usize,
+    /// Points per solid the faceting deviation measures; 0 measures every triangle centroid and
+    /// edge midpoint. A positive number takes an even stride of them, which is recorded.
+    pub deviation_points: usize,
     pub imprint_threads: u32,
     pub cancellation: Cancellation,
     pub progress: Option<ProgressFn>,
@@ -229,6 +238,7 @@ impl Default for GeometryOptions {
             samples: 1_000_000,
             chords: 100_000,
             source_sites: 100_000,
+            deviation_points: 0,
             imprint_threads: 1,
             cancellation: Cancellation::default(),
             progress: None,
@@ -285,6 +295,8 @@ pub struct DeviationSolid {
     pub max_distance_m: f64,
     pub at_m: Option<[f64; 3]>,
     pub points: u64,
+    #[serde(default)]
+    pub points_available: u64,
     pub above_tolerance: bool,
 }
 
@@ -820,6 +832,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         map: &map,
         directory: &deviation_dir,
         workers: options.threads.clamp(1, 4),
+        max_points: options.deviation_points,
     })? {
         ToolResult::Done(out) => {
             let mut solids = Vec::new();
@@ -855,16 +868,24 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     max_distance_m: row.max_distance_m,
                     at_m: row.at_m,
                     points: row.points,
+                    points_available: row.points_available,
                     above_tolerance: above,
                 });
             }
+            let capped = solids.iter().any(|s| s.points_available > s.points);
             records.deviation = Some(DeviationRecord {
                 method: out.method,
                 chord_tolerance_m: chord_m,
                 seconds: out.seconds,
-                statement: "sampled maximum: exact over the triangle centroids and edge midpoints \
-                            tested, not a bound over every point of every triangle"
-                    .into(),
+                statement: if capped {
+                    "sampled maximum: exact over the points tested, an even stride of the triangle \
+                     centroids and edge midpoints (--deviation-points), not a bound over every \
+                     point of every triangle"
+                } else {
+                    "sampled maximum: exact over the triangle centroids and edge midpoints \
+                     tested, not a bound over every point of every triangle"
+                }
+                .into(),
                 solids,
             });
         }

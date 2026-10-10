@@ -195,6 +195,7 @@ Every void solid is listed in the report, because a void region hides streaming 
 | `--work-dir DIR` | Keep the conversion and its products here. A conversion found here is reused only when the STEP hash, the tags and the tolerances all match; `--no-reuse` converts again. Without it, a temporary directory is used and removed. |
 | `--threads N` | Worker threads for check 8. Default: the available cores, at most 16. |
 | `--seed N`, `--samples N`, `--chords N`, `--source-sites N` | The sampling seed and sizes. The same seed gives the same report. Defaults 1, 1,000,000, 100,000, 100,000. |
+| `--deviation-points N` | Points per solid for the faceting deviation of check 7. Default 0 measures every triangle centroid and edge midpoint, which takes hours on a model with many spline surfaces (a 30-solid fusion model with 1.1 million triangles did not finish in two hours). A positive number takes an even stride of the points, and the report says so. |
 | `--imprint-threads N` | Threads the converter may use. Default 1. |
 | `--cad-python`, `--openmc-python`, `--plasma-source-path DIR` | The interpreters and the folder holding `openmc_plasma_source`. |
 

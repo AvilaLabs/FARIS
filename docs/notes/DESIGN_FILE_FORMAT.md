@@ -406,6 +406,13 @@ settled a detail.
 - **Findings per class.** The report lists at most 100 findings per class, then one blocking summary of the rest.
 - **Check 9.** 100,000 sites sampled by `openmc-plasma-source` through OpenMC, then FARIS's own exact
   point-in-volume test against the faceted volume of the chamber solid matched in check 7.
+- **RM-M measured (2026-10-10, a laptop shared with other jobs, 1 conversion thread).** Conversion 2500 s, peak
+  4.3 GB; with the pre-imprint tessellation (about 14 min) and booleans (about 3 min) check 6 took about 58 min,
+  against GEO-013's 10 min. Check 7: 2.5 s. Check 8: 37 to 55 s. Check 9: 81 s. Without GEO-032 that is 2 minutes,
+  inside GEO-029's 5 minutes. GEO-032 over every point (4.3 million) did not finish in 7200 s (OpenCASCADE projects a
+  point onto a spline face in about 25 ms and onto a revolved face in about 1.2 ms); with `--deviation-points 200` it
+  took 153 s and with 2000 it took 716 s. RM-M's three 1 cm layers measure 2V/A just under ten chords (0.9998 cm
+  against 1.0 cm) and are reported as slivers, which block until waived.
 - **Verdict.** The import is complete only when all nine checks ran and none failed.
 
 ## Appendix: `faris-facets/v1`

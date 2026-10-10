@@ -19,7 +19,8 @@ basis.
   slivers, self-intersections, duplicate surfaces, overlaps, gaps and lost particles, each finding with the solids,
   a position, why it stops the import and what to change in the CAD tool. Check 9 samples 100,000 source sites from
   the plasma block and tests that all lie in the plasma chamber. New options: `--work-dir`, `--no-reuse`,
-  `--threads`, `--seed`, `--samples`, `--chords`, `--source-sites`, `--imprint-threads`, `--plasma-source-path`.
+  `--threads`, `--seed`, `--samples`, `--chords`, `--source-sites`, `--deviation-points`, `--imprint-threads`,
+  `--plasma-source-path`.
   The report schema is now `faris-design-import-report/v0.2`.
 - An optional `waivers` array in the design file lets an author accept a named integrity finding; the finding stays
   in the report and receipts. Open or non-manifold surfaces, inverted normals, zero-volume cells and degenerate

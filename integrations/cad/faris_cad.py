@@ -785,6 +785,9 @@ def deviation(args) -> int:
         p = vertices[triangles[tri_ids]] * to_shape  # (n, 3 corners, 3)
         mids = (p + np.roll(p, -1, axis=1)) / 2.0
         points = np.concatenate([p.mean(axis=1), mids.reshape(-1, 3)])
+        available = int(len(points))
+        if 0 < args.max_points_per_solid < available:
+            points = points[np.linspace(0, available - 1, args.max_points_per_solid).astype(np.int64)]
         explorer = TopExp_Explorer(solids[index], TopAbs_FACE)
         faces, lows, highs = [], [], []
         while explorer.More():
@@ -796,7 +799,7 @@ def deviation(args) -> int:
             lows.append([lo.X(), lo.Y(), lo.Z()])
             highs.append([hi.X(), hi.Y(), hi.Z()])
             explorer.Next()
-        per_solid.append({"volume": volume, "step_index": index, "points": int(len(points)), "faces": len(faces)})
+        per_solid.append({"volume": volume, "step_index": index, "points": int(len(points)), "points_available": available, "faces": len(faces)})
         jobs.append((points, np.array(lows), np.array(highs), faces))
         owners.append(len(per_solid) - 1)
     # A short exact pass over a stride of each solid's points sets the floor every worker prunes against.
@@ -893,6 +896,8 @@ def main(argv: list[str] | None = None) -> int:
     dev.add_argument("--workers", type=int, default=3)
     dev.add_argument("--chunk-points", type=int, default=2000)
     dev.add_argument("--floor-points", type=int, default=400)
+    dev.add_argument("--max-points-per-solid", type=int, default=0,
+                     help="measure an even stride of this many points per solid (0: every point)")
 
     args = parser.parse_args(argv)
     if args.command == "export-facets":

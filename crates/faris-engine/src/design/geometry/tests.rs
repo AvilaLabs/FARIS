@@ -182,6 +182,7 @@ fn geo() -> Geo {
                 volume: 1,
                 step_index: 0,
                 points: 100,
+                points_available: 100,
                 faces: 12,
                 max_distance_m: 1.0e-5,
                 at_m: Some([1.0, 0.0, 0.0]),
@@ -190,6 +191,7 @@ fn geo() -> Geo {
                 volume: 2,
                 step_index: 1,
                 points: 100,
+                points_available: 100,
                 faces: 6,
                 max_distance_m: 2.0e-5,
                 at_m: Some([0.0, 0.0, 2.0]),
@@ -429,6 +431,27 @@ fn deviation_above_the_tolerance_blocks_and_can_be_waived() {
     let waived = run_with(&design(vec![waiver("GEO-032", &["core"])]), &b);
     assert_eq!(waived.checks[2].status, Pass);
     assert_eq!(statuses(&waived).len(), 4);
+}
+
+// Verifies: GEO-032
+#[test]
+fn a_capped_deviation_says_it_measured_a_stride() {
+    let mut b = geo();
+    b.deviation.as_mut().unwrap()[0].points = 50;
+    let report = run_with(&design(Vec::new()), &b);
+    let record = report.geometry.deviation.as_ref().unwrap();
+    assert!(record.statement.contains("--deviation-points"));
+    assert_eq!(record.solids[0].points_available, 100);
+    let plain = run_with(&design(Vec::new()), &geo());
+    assert!(
+        !plain
+            .geometry
+            .deviation
+            .as_ref()
+            .unwrap()
+            .statement
+            .contains("--deviation-points")
+    );
 }
 
 #[test]

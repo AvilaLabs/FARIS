@@ -85,6 +85,11 @@ pub enum DesignCommand {
         /// Source sites sampled from the plasma block (check 9).
         #[arg(long, default_value_t = 100_000)]
         source_sites: usize,
+        /// Points per solid for the faceting deviation (GEO-032) [default: 0, every triangle
+        /// centroid and edge midpoint]. A positive number takes an even stride, and the report
+        /// says so.
+        #[arg(long, default_value_t = 0)]
+        deviation_points: usize,
         /// Threads the converter may use to imprint.
         #[arg(long, default_value_t = 1)]
         imprint_threads: u32,
@@ -142,6 +147,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             report,
             work_dir,
             no_reuse,
+            deviation_points,
             threads,
             seed,
             samples,
@@ -162,6 +168,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 samples,
                 chords,
                 source_sites,
+                deviation_points,
                 imprint_threads,
                 cancellation: cancel,
                 progress: Some(progress_printer()),

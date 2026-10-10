@@ -406,6 +406,8 @@ pub(super) fn deviation(
         map_path.into_os_string(),
         "--workers".into(),
         request.workers.to_string().into(),
+        "--max-points-per-solid".into(),
+        request.max_points.to_string().into(),
         "--report".into(),
         report_path.clone().into_os_string(),
     ];
