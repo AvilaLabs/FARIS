@@ -1,0 +1,122 @@
+{
+  "schema": "faris-step-inspect/v1",
+  "versions": {
+    "python": "3.14.4",
+    "interpreter": "/opt/cad/bin/python",
+    "cadquery": "2.8.0",
+    "ocp": "7.9.3.1",
+    "occt": "7.9",
+    "helper": "1"
+  },
+  "step": {
+    "file_name": "fixture.step",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "size_bytes": 1234
+  },
+  "unit": {
+    "declared": "mm",
+    "factor_to_m": 0.001,
+    "used": "mm",
+    "used_is_assumed": false,
+    "text_units": [
+      "mm"
+    ],
+    "ocp_units": [
+      "mm"
+    ],
+    "problems": []
+  },
+  "solids": [
+    {
+      "step_index": 0,
+      "step_name": null,
+      "cad_volume_m3": 10.0,
+      "centroid_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "bbox_min_m": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max_m": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "occt_valid": true,
+      "gprop_relative_error_estimate": 1e-15
+    },
+    {
+      "step_index": 1,
+      "step_name": "first wall",
+      "cad_volume_m3": 2.5,
+      "centroid_m": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "bbox_min_m": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max_m": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "occt_valid": true,
+      "gprop_relative_error_estimate": 1e-15
+    },
+    {
+      "step_index": 2,
+      "step_name": null,
+      "cad_volume_m3": 7.25,
+      "centroid_m": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "bbox_min_m": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max_m": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "occt_valid": true,
+      "gprop_relative_error_estimate": 1e-15
+    },
+    {
+      "step_index": 3,
+      "step_name": "Coil 1",
+      "cad_volume_m3": 3.0,
+      "centroid_m": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "bbox_min_m": [
+        -1.0,
+        -1.0,
+        -1.0
+      ],
+      "bbox_max_m": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "occt_valid": true,
+      "gprop_relative_error_estimate": 1e-15
+    }
+  ],
+  "model_bbox_diagonal_m": 20.0,
+  "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
+  "problems": []
+}
