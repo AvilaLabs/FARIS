@@ -92,6 +92,18 @@ basis.
   Results recorded earlier are unchanged: all sixteen recorded histories
   recompute byte for byte.
 
+### Added
+
+- The design file `faris-design/v0.1` and import checks 1 to 5 for a STEP model.
+  `faris design init MODEL.step` (and `faris-app --design-init MODEL.step`) writes
+  a draft that lists every solid with its fingerprint and leaves every material,
+  role and plasma value null. `faris design check DESIGN.json` runs the checks
+  (schema and nulls, STEP hash, unit and extent, solid count and fingerprints,
+  ids and references, roles, materials and the nuclear-data audit) and writes a
+  JSON report. A separate CAD process reads the STEP file; it needs a Python with
+  cadquery, which FARIS does not install. Conversion and the later checks 6 to 9
+  are reported as not evaluated. See [The design file](docs/guide/design-file.md).
+
 ## 0.2.0 — 2026-10-08
 
 Replacement outages computed from activation. FARIS can now work out how long

@@ -29,6 +29,7 @@ Errors exit with status 2. A study file that fails verification exits 1.
 | `faris transport normalize` | Converts solver-reported per-source scores to physical rates and densities. |
 | `faris reactor run` | Runs fixed-source transport through OpenMC. Needs your own OpenMC and data. See [Run your own transport](transport.md). |
 | `faris reactor inspect` | Revalidates a saved run's input, artifact, volumes and normalization. |
+| `faris design init STEP` and `faris design check DESIGN` | Available from the next release. Write a draft design file for a STEP model, and run import checks 1 to 5 on it. Needs a Python with cadquery. See [The design file](design-file.md). |
 | `faris control absorber` | A synthetic one-group absorber, a mathematical control and not reactor physics. Needs OpenMC. |
 | `faris study generate` and `faris study compile` | Generate a Core study, and compile it with an Avila Core executable you choose. No solver runs. |
 | `faris evidence prepare`, `run`, `inspect`, `stage`, `verify-store` | Package and execute identified evidence with Avila Core. See [Evidence](evidence.md). |

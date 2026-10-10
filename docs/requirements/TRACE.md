@@ -6,11 +6,11 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 110 of 1408 requirements.
+Traced: 115 of 1408 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
-| [01-geometry-and-model.md](01-geometry-and-model.md) | 69 | 9 |
+| [01-geometry-and-model.md](01-geometry-and-model.md) | 69 | 14 |
 | [02-radiation-transport.md](02-radiation-transport.md) | 104 | 8 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
@@ -39,10 +39,15 @@ Traced: 110 of 1408 requirements.
 | ID | Phase | Tests |
 | --- | --- | --- |
 | GEO-004 | F1 | `crates/faris-engine/src/mesh.rs::rejects_mesh_domain_errors`<br>`crates/faris-model/src/lib.rs::refuses_invalid_dimensions_and_changed_envelope` |
+| GEO-010 | F7 | `crates/faris-engine/src/design/tests.rs::fingerprint_failure_in_volume_and_in_centroid_fails_check_3`<br>`crates/faris-engine/src/design/tests.rs::solid_count_mismatch_fails_check_3`<br>`crates/faris-model/src/design/tests.rs::check_3_passes_on_matching_fingerprints`<br>`crates/faris-model/src/design/tests.rs::check_3_solid_count_mismatch_names_the_missing_solid`<br>`integrations/cad/test_faris_cad.py::test_box_and_cylinder_in_mm` |
+| GEO-011 | F7 | `crates/faris-engine/src/design/tests.rs::a_file_with_no_declared_unit_is_read_in_the_design_unit_and_the_report_says_so`<br>`crates/faris-engine/src/design/tests.rs::unit_mismatch_sector_axis_and_multiple_units_fail_check_2`<br>`crates/faris-model/src/design/tests.rs::check_2_no_declared_unit_uses_the_design_unit_and_says_so`<br>`crates/faris-model/src/design/tests.rs::check_2_several_units_or_disagreeing_readers_stop`<br>`crates/faris-model/src/design/tests.rs::check_2_unit_mismatch_and_unaccepted_units`<br>`integrations/cad/test_faris_cad.py::test_box_and_cylinder_in_mm`<br>`integrations/cad/test_faris_cad.py::test_same_model_in_metres_and_inches_gives_same_si_numbers`<br>`integrations/cad/test_faris_cad.py::test_several_length_units_are_a_problem_and_give_no_si_numbers` |
+| GEO-019 | F7 | `crates/faris-engine/src/design/tests.rs::a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated`<br>`crates/faris-engine/src/design/tests.rs::hash_mismatch_fails_check_2_without_running_the_helper`<br>`crates/faris-model/src/design/tests.rs::check_2_step_hash_mismatch` |
 | GEO-022 | F1 | `scripts/test_verify_recorded_demo.py::test_port_geometry_contract_rejects_material_in_clearance` |
 | GEO-024 | F1 | `controls/test_region_volumes.py::test_membership_samples_reproduce_analytic_fractions` |
+| GEO-027 | F7 | `crates/faris-engine/src/design/tests.rs::a_draft_with_nulls_stops_at_check_1_and_a_filled_draft_passes`<br>`crates/faris-model/src/design/tests.rs::unfilled_nulls_are_all_listed_by_path` |
 | GEO-030 | F1 | `controls/test_region_volumes.py::test_formulas_match_numerical_quadrature`<br>`controls/test_region_volumes.py::test_wrong_region_volume_or_flux_sum_is_rejected`<br>`crates/faris-engine/src/geometry.rs::midpoint_estimates_match_independent_scipy_adaptive_controls`<br>`crates/faris-engine/src/geometry.rs::region_volumes_sum_to_the_full_torus_and_match_quadrature`<br>`crates/faris-engine/src/lib.rs::volume_matches_area_times_centroid_path_length` |
 | GEO-031 | F1 | `controls/test_region_volumes.py::test_regions_sum_to_the_full_torus`<br>`controls/test_region_volumes.py::test_unperforated_regions_partition_and_add`<br>`crates/faris-engine/src/geometry.rs::prism_intersection_estimate_is_bounded_and_partition_conserving`<br>`crates/faris-engine/src/geometry.rs::region_volumes_close_for_a_thick_low_aspect_shell`<br>`crates/faris-engine/src/geometry.rs::region_volumes_sum_to_the_full_torus_and_match_quadrature` |
+| GEO-039 | F2 | `crates/faris-engine/src/design/tests.rs::a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated`<br>`crates/faris-engine/src/design/tests.rs::role_rules_fail_check_5_and_skip_the_audit`<br>`crates/faris-model/src/design/tests.rs::check_5_passes_on_the_fixture_and_lists_the_void_solid`<br>`crates/faris-model/src/design/tests.rs::check_5_void_is_allowed_only_in_three_roles` |
 | GEO-040 | F1 | `crates/faris-model/src/physics.rs::exact_scenario_assignment_and_explicit_void_are_required` |
 | GEO-041 | F1 | `crates/faris-model/src/physics.rs::temperature_rounding_is_tolerated_but_distant_data_is_not` |
 | GEO-043 | F1 | `crates/faris-model/src/physics.rs::validates_composition_temperature_and_nuclide_syntax` |

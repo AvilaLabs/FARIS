@@ -321,3 +321,32 @@ These do not block the format. Each is settled when its stage needs it.
   needs its constituents listed. A `homogenised_from` field is added in S1 if
   RM-M's winding pack needs it, and is otherwise deferred.
 - **Sector models:** see decision 5.
+
+## Implementation notes (stage S1a)
+
+Where the text above left a detail open, S1a settled it as follows. Nothing here changes a decision above.
+
+- **Fingerprint.** Volume and centroid come from OpenCASCADE's adaptive `BRepGProp.VolumeProperties` (relative
+  tolerance 1e-7; the reached error estimate is reported per solid), in the shape's unit, converted to SI. The
+  STEP reader converts a file with a declared unit to millimetres on read, and reads a file with no declared unit
+  unscaled; the helper accounts for both. RM-M's 30 solids reproduce the S0 volumes to 1e-9.
+- **STEP names.** A name is read from the product of each solid. A name OpenCASCADE made up when the file has none
+  (`Open CASCADE STEP translator 7.9 1.2`) counts as no name, and is stored as `null`.
+- **Unit.** `design init` takes the unit from the file. A file with no declared unit needs `--length-unit`, and the
+  draft and the check report say the unit was assumed. A declared unit other than m, cm and mm (for example inch)
+  stops the import: the helper reads it, `cad.length_unit` cannot name it.
+- **`isotopes`.** Values are atom fractions within the element. On a weight basis the element's weight fraction is
+  split by atomic mass.
+- **Catalog.** `catalog_id` names a material of `references/demo-input-spec.json` that has a recipe. `vacuum-gap`
+  has none and is not a catalog material; empty space is `void`.
+- **`voxel_m`.** `null` is allowed in any of the three positions and means the full solid width in that direction.
+- **`service_limits`.** A linked operating-history file stops the import when its `service_limits` list is not
+  empty, or when it is not a valid `faris-operating-history/v0.1` document.
+- **Names that differ.** A STEP name that differs from the stored `step_name` is reported as a notice. It never
+  stops the import, because the name is never the binding.
+- **Order of work.** Check 2 does not run the CAD helper when the STEP hash does not match: the unit of a different
+  file says nothing about this design.
+- **Material audit.** Natural abundances come from OpenMC's own element expansion, the source of the FARIS
+  baseline. The audit passes when every nuclide has a library entry that `h5py` and the OpenMC data API both read.
+  Photon data are listed in the audit record and do not decide the result in S1a, which has no photon transport.
+  With no OpenMC interpreter or no `cross_sections.xml`, check 5 is `NOT_EVALUATED`.

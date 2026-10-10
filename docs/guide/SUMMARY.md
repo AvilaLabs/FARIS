@@ -23,6 +23,7 @@
 - [Export a brief, tables and charts](export.md)
 - [Command line](cli.md)
 - [Run your own transport](transport.md)
+- [The design file (bring your own CAD)](design-file.md)
 
 # Understand the results
 
