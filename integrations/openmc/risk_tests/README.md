@@ -135,3 +135,22 @@ one needed by 0.16.0:
 not inherit `model.materials.cross_sections`); `r6_worker.py` retries once with it and records it on the step.
 
 Model-building notes (CadQuery and OCCT) are in the docstrings of `build_rm_m.py`.
+
+## S0b diagnostics
+
+Scripts for [docs/notes/CAD_TRANSPORT_DIAGNOSTICS_S0B.md](../../../docs/notes/CAD_TRANSPORT_DIAGNOSTICS_S0B.md). Same environments
+and memory cap as above; the double-down build is `~/micromamba/envs/openmc0153dd` (OpenMC 0.15.3, commit 27e38e89). FOM runs use
+`taskset -c 0-3` (a second job only on cores 4-7); timing runs (D1, D4) run alone.
+
+| File | Purpose |
+| --- | --- |
+| `s0b_common.py` | Rules and statistics (FOM and its sigma, z, D1 rule, G5 selection, G*, D4 rule, D5a ratio rule, single-step Bateman, D5c rule), log parsers and the machine-time ledger. Standard library only. |
+| `s0b_run.py` | Monitored RM-M run: analog or windowed, TBR and response (a), stop at a budget or at R. D1, D2, D3 production, D4 helper, TF spectrum. |
+| `r1_worker.py generate --config G0..G6` | Window generation for D3 (mesh size, rays, source shape and energy structure are config fields). |
+| `r2_preview.py --max-split --checkpoints` | The 60 s preview of D4 with the windows' `max_split` and the weight-window checkpoints. |
+| `s0b_d5a.py` | D5a reaction-pathway audit on 5 cm spheres: `neutron`, `d1s`, `photon`, `analyse`. |
+| `s0b_d5b.py` | D5b D1S cost, four configurations. |
+| `r3_r2s.py --photon-indices 2` | D5c: S0's R2S with new seeds and the photon step at 1 d only. |
+| `s0b_analyse.py` | Tables and mechanical rule outcomes from the run records. |
+| `d6/` | Minimal reproducers for the upstream defect candidates (no FARIS imports). |
+| `test_s0b.py` | Unit tests for the helpers. |
