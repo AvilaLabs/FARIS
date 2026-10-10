@@ -23,7 +23,9 @@ use std::{
 pub const MAX_CAPTURE_BYTES: usize = 4 * 1024 * 1024;
 pub const ARTIFACT_SCAN_INTERVAL: Duration = Duration::from_millis(100);
 
-/// Default per-job ceilings; callers may request lower limits, never higher.
+/// Per-job ceilings. Callers may request lower limits than the defaults; only the address
+/// space may be raised, up to [`ResourceLimits::ADDRESS_SPACE_CEILING`], because a CAD
+/// conversion of a whole reactor model peaks above the 4 GiB default (RM-M: 4.6 GB resident).
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ResourceLimits {
@@ -41,9 +43,20 @@ impl ResourceLimits {
         artifact_file_count: 2048,
     };
 
+    /// The most address space any job may ask for.
+    pub const ADDRESS_SPACE_CEILING: u64 = 16 * 1024 * 1024 * 1024;
+
+    /// The default limits with a different address space (bounded by the ceiling when run).
+    pub const fn with_address_space(address_space_bytes: u64) -> Self {
+        Self {
+            address_space_bytes,
+            ..Self::DEFAULT
+        }
+    }
+
     fn valid(self) -> bool {
         self.address_space_bytes > 0
-            && self.address_space_bytes <= Self::DEFAULT.address_space_bytes
+            && self.address_space_bytes <= Self::ADDRESS_SPACE_CEILING
             && self.single_file_bytes > 0
             && self.single_file_bytes <= Self::DEFAULT.single_file_bytes
             && self.artifact_total_bytes > 0
@@ -568,6 +581,20 @@ mod tests {
             result.resource_limits.address_space_bytes,
             4 * 1024 * 1024 * 1024
         );
+    }
+
+    // Verifies: AUTO-040, SEC-061
+    #[test]
+    fn only_the_address_space_may_be_raised_and_only_to_the_ceiling() {
+        assert!(ResourceLimits::DEFAULT.valid());
+        assert!(ResourceLimits::with_address_space(12 << 30).valid());
+        assert!(ResourceLimits::with_address_space(ResourceLimits::ADDRESS_SPACE_CEILING).valid());
+        assert!(
+            !ResourceLimits::with_address_space(ResourceLimits::ADDRESS_SPACE_CEILING + 1).valid()
+        );
+        let mut more_files = ResourceLimits::DEFAULT;
+        more_files.artifact_file_count += 1;
+        assert!(!more_files.valid());
     }
 
     // Verifies: AUTO-040, SEC-061

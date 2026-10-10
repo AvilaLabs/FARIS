@@ -146,7 +146,7 @@ use CheckStatus::{Fail, NotEvaluated, Pass};
 
 #[test]
 // Verifies: GEO-019, GEO-039
-fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated() {
+fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated_without_a_geometry_toolset() {
     let case = Case::new();
     let fake = Fake::new();
     let report = case.check(&fake);
@@ -164,12 +164,18 @@ fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated() {
             (9, NotEvaluated),
         ]
     );
+    assert!(
+        report.checks[5]
+            .why
+            .as_deref()
+            .unwrap()
+            .contains("not available from this tool set")
+    );
     for check in &report.checks[5..] {
-        assert_eq!(check.why.as_deref(), Some("implemented in stage S1b"));
         assert!(check.next_step.is_some());
     }
     assert!(report.evaluated_checks_pass);
-    assert!(!report.import_complete, "conversion does not exist yet");
+    assert!(!report.import_complete, "nothing converted the model");
     assert_eq!(report.schema_version, IMPORT_REPORT_VERSION);
     assert_eq!(report.design.id.as_deref(), Some("fixture"));
     assert_eq!(report.void_solids.len(), 1);
@@ -188,7 +194,7 @@ fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated() {
     let readable = render_text(&report);
     assert!(readable.contains("Check 1  PASS"));
     assert!(readable.contains("Check 6  NOT_EVALUATED"));
-    assert!(readable.contains("implemented in stage S1b"));
+    assert!(readable.contains("not available from this tool set"));
     assert!(readable.contains("Void solids"));
 }
 

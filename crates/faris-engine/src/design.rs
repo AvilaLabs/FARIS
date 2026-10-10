@@ -1,11 +1,12 @@
-//! Design-file import checks 1 to 5 and the first-draft writer (`design init`).
+//! Design-file import checks 1 to 9 and the first-draft writer (`design init`).
 //!
 //! The model crate holds the format and the pure checks. This module runs the
-//! two external helpers as bounded jobs (the CAD helper that reads the STEP file,
-//! and the OpenMC material audit), runs the checks in the order of the format
-//! document, stops before a later stage when an earlier one fails, and returns
-//! a report. Checks 6 to 9 (conversion, DAGMC binding, integrity, source sites)
-//! belong to stage S1b and are listed as NOT_EVALUATED. Nothing is repaired.
+//! external helpers as bounded jobs (the CAD helper that reads, converts and
+//! measures the STEP file, the OpenMC material audit and the source sampler),
+//! runs the checks in the order of the format document, stops before a later
+//! stage when an earlier one fails, and returns a report. Checks 6 to 9
+//! (conversion, DAGMC binding, integrity, source sites) live in `geometry`;
+//! the exact-arithmetic integrity checks are FARIS's own Rust. Nothing is repaired.
 
 use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
 use faris_model::design::{
@@ -27,6 +28,8 @@ use std::{
 pub mod binding;
 mod bvh;
 mod exact;
+mod external;
+mod geometry;
 mod integrity;
 mod intersections;
 mod mesh;
@@ -38,12 +41,30 @@ mod rays;
 mod testutil;
 mod topology;
 
-pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.1";
+pub use geometry::{
+    BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
+    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DeviationOutcome, DeviationRecord,
+    DeviationRequest, DeviationRow, GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn,
+    SourceOutcome, SourceRecord, SourceRequest, StageClock, TagEntry, TessellateOutcome,
+    TessellateRequest, ToolResult, WaiverUse,
+};
+
+pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
+const CAD_FACETS_HELPER: &str = include_str!("../../../integrations/cad/faris_facets.py");
+const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
 const MATERIAL_AUDIT: &str = include_str!("../../../integrations/openmc/material_audit.py");
 const AUDIT_LIBRARY: &str = include_str!("../../../integrations/openmc/audit_library.py");
 const MAX_JSON_BYTES: u64 = 64 * 1024 * 1024;
 const CAD_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const CONVERT_TIMEOUT: Duration = Duration::from_secs(3 * 3600);
+const TESSELLATE_TIMEOUT: Duration = Duration::from_secs(3600);
+const BOOLEAN_TIMEOUT: Duration = Duration::from_secs(2 * 3600);
+const DEVIATION_TIMEOUT: Duration = Duration::from_secs(2 * 3600);
+const SOURCE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+/// A CAD conversion of a whole reactor model peaks above the runner's 4 GiB default
+/// (RM-M: 4.6 GB resident), so conversion and measurement jobs ask for more address space.
+const CAD_ADDRESS_SPACE: u64 = 12 * 1024 * 1024 * 1024;
 const AUDIT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, thiserror::Error)]
@@ -93,6 +114,9 @@ pub struct ToolPaths {
     pub openmc_python: Option<PathBuf>,
     /// `cross_sections.xml` of the audited library.
     pub cross_sections: Option<PathBuf>,
+    /// A directory holding the `openmc_plasma_source` package, added to the OpenMC
+    /// interpreter's `PYTHONPATH` for the source sampler (check 9).
+    pub plasma_source_path: Option<PathBuf>,
 }
 
 impl ToolPaths {
@@ -107,7 +131,16 @@ impl ToolPaths {
             cad_python: cad_python.or_else(|| from_env("FARIS_CAD_PYTHON")),
             openmc_python: openmc_python.or_else(|| from_env("FARIS_OPENMC_PYTHON")),
             cross_sections: cross_sections.or_else(|| from_env("FARIS_CROSS_SECTIONS")),
+            plasma_source_path: from_env("FARIS_PLASMA_SOURCE_PATH"),
         }
+    }
+
+    /// An explicit `--plasma-source-path` wins over `FARIS_PLASMA_SOURCE_PATH`.
+    pub fn with_plasma_source_path(mut self, path: Option<PathBuf>) -> Self {
+        if path.is_some() {
+            self.plasma_source_path = path;
+        }
+        self
     }
 }
 
@@ -183,6 +216,41 @@ pub trait Backends {
         assume: Option<LengthUnit>,
     ) -> Result<InspectOutcome, DesignError>;
     fn audit_materials(&self, materials: &[AuditMaterial]) -> Result<AuditOutcome, DesignError>;
+
+    /// Check 6: convert the STEP file with `cad_to_dagmc`, one tag per solid, imprinted.
+    fn convert(&self, _: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
+        Ok(not_configured("the conversion"))
+    }
+    /// Check 6: mesh every solid on its own, not imprinted.
+    fn tessellate(
+        &self,
+        _: &TessellateRequest,
+    ) -> Result<ToolResult<TessellateOutcome>, DesignError> {
+        Ok(not_configured("the per-solid tessellation"))
+    }
+    /// Check 6: OpenCASCADE boolean intersection of candidate solid pairs.
+    fn overlap_booleans(
+        &self,
+        _: &BooleanRequest,
+    ) -> Result<ToolResult<BooleanOutcome>, DesignError> {
+        Ok(not_configured("the overlap booleans"))
+    }
+    /// GEO-032: faceting deviation from the CAD solids.
+    fn deviation(&self, _: &DeviationRequest) -> Result<ToolResult<DeviationOutcome>, DesignError> {
+        Ok(not_configured("the faceting deviation"))
+    }
+    /// Check 9: sample source sites from the plasma block.
+    fn source_sites(&self, _: &SourceRequest) -> Result<ToolResult<SourceOutcome>, DesignError> {
+        Ok(not_configured("the source sampler"))
+    }
+}
+
+fn not_configured<T>(what: &str) -> ToolResult<T> {
+    ToolResult::Unavailable {
+        why: format!("{what} is not available from this tool set"),
+        next_step: "Pass --cad-python (and --openmc-python for the source sites) and check again."
+            .into(),
+    }
 }
 
 pub struct ExternalBackends<'a> {
@@ -208,14 +276,24 @@ fn read_json_bounded(path: &Path) -> Result<Vec<u8>, DesignError> {
     std::fs::read(path).map_err(|e| io_error(path, e))
 }
 
-fn run_python(
+/// How a helper job went, when it could be run at all.
+enum Launched {
+    Succeeded(f64),
+    /// It ran and failed (non-zero exit, a limit, a timeout); the text says how.
+    Failed(String),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn launch_python(
     python: &Path,
     arguments: Vec<OsString>,
     scratch: &Path,
     timeout: Duration,
     what: &str,
     cancellation: &Cancellation,
-) -> Result<f64, DesignError> {
+    environment: Vec<(OsString, OsString)>,
+    limits: ResourceLimits,
+) -> Result<Launched, DesignError> {
     // Not canonicalised: a virtual environment's python is a symlink, and the
     // interpreter finds its packages from the path it was started by.
     let python = std::path::absolute(python)
@@ -228,26 +306,28 @@ fn run_python(
                 python.display()
             ))
         })?;
+    let mut env: Vec<(OsString, OsString)> = vec![("PYTHONDONTWRITEBYTECODE".into(), "1".into())];
+    env.extend(environment);
     let spec = JobSpec {
         program: python,
         arguments,
         working_directory: scratch.to_path_buf(),
-        environment: vec![("PYTHONDONTWRITEBYTECODE".into(), "1".into())],
+        environment: env,
         timeout,
         capture_limit_bytes: 1 << 20,
         artifact_roots: Vec::new(),
-        resource_limits: ResourceLimits::default(),
+        resource_limits: limits,
     };
     let result =
         run_job(&spec, cancellation).map_err(|e| DesignError::Tool(format!("{what}: {e}")))?;
     match result.execution_status {
-        ExecutionStatus::Succeeded => Ok(result.elapsed_seconds),
+        ExecutionStatus::Succeeded => Ok(Launched::Succeeded(result.elapsed_seconds)),
         ExecutionStatus::Cancelled => Err(DesignError::Tool(format!("{what}: cancelled"))),
-        ExecutionStatus::TimedOut => Err(DesignError::Tool(format!(
+        ExecutionStatus::TimedOut => Ok(Launched::Failed(format!(
             "{what} did not finish within {} s and was stopped",
             timeout.as_secs()
         ))),
-        other => Err(DesignError::Tool(format!(
+        other => Ok(Launched::Failed(format!(
             "{what} failed ({other:?}, exit {:?}); the job runner limits memory to {} MiB: {}",
             result.exit_code,
             result.resource_limits.address_space_bytes >> 20,
@@ -256,7 +336,58 @@ fn run_python(
     }
 }
 
+fn run_python(
+    python: &Path,
+    arguments: Vec<OsString>,
+    scratch: &Path,
+    timeout: Duration,
+    what: &str,
+    cancellation: &Cancellation,
+) -> Result<f64, DesignError> {
+    match launch_python(
+        python,
+        arguments,
+        scratch,
+        timeout,
+        what,
+        cancellation,
+        Vec::new(),
+        ResourceLimits::default(),
+    )? {
+        Launched::Succeeded(seconds) => Ok(seconds),
+        Launched::Failed(text) => Err(DesignError::Tool(text)),
+    }
+}
+
 impl Backends for ExternalBackends<'_> {
+    fn convert(&self, request: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
+        external::convert(self, request)
+    }
+    fn tessellate(
+        &self,
+        request: &TessellateRequest,
+    ) -> Result<ToolResult<TessellateOutcome>, DesignError> {
+        external::tessellate(self, request)
+    }
+    fn overlap_booleans(
+        &self,
+        request: &BooleanRequest,
+    ) -> Result<ToolResult<BooleanOutcome>, DesignError> {
+        external::overlap_booleans(self, request)
+    }
+    fn deviation(
+        &self,
+        request: &DeviationRequest,
+    ) -> Result<ToolResult<DeviationOutcome>, DesignError> {
+        external::deviation(self, request)
+    }
+    fn source_sites(
+        &self,
+        request: &SourceRequest,
+    ) -> Result<ToolResult<SourceOutcome>, DesignError> {
+        external::source_sites(self, request)
+    }
+
     fn inspect_step(
         &self,
         step: &Path,
@@ -483,15 +614,18 @@ pub struct ImportReport {
     /// Every void solid (GEO-039, NUC-056).
     pub void_solids: Vec<VoidSolid>,
     pub notices: Vec<Notice>,
+    /// What checks 6 to 9 measured: conversion, binding, integrity, deviation, sources, waivers, times.
+    #[serde(default)]
+    pub geometry: GeometryRecords,
     /// No check among those evaluated failed.
     pub evaluated_checks_pass: bool,
-    /// Always false in stage S1a: conversion and the later checks do not exist yet.
+    /// All nine checks were evaluated and none failed.
     pub import_complete: bool,
     pub summary: String,
 }
 
-const SCOPE: &str = "Stage S1a: checks 1 to 5 of 9. Checks 6 to 9 (conversion, DAGMC binding, \
-                     integrity, source sites) are stage S1b and are not evaluated.";
+const SCOPE: &str = "Stage S1b: checks 1 to 9 (design file, STEP fingerprints, references, \
+                     materials, conversion, DAGMC binding, integrity, source sites).";
 
 fn check_name(check: u8) -> &'static str {
     match check {
@@ -512,10 +646,10 @@ fn outcome(check: u8, findings: Vec<Finding>) -> CheckOutcome {
     CheckOutcome {
         check,
         name: check_name(check).into(),
-        status: if findings.is_empty() {
-            CheckStatus::Pass
-        } else {
+        status: if findings.iter().any(Finding::blocks) {
             CheckStatus::Fail
+        } else {
+            CheckStatus::Pass
         },
         findings,
         why: None,
@@ -544,13 +678,11 @@ fn stopped(check: u8, failed: u8) -> CheckOutcome {
     )
 }
 
-fn later_stage(check: u8) -> CheckOutcome {
+fn did_not_run(check: u8) -> CheckOutcome {
     not_evaluated(
         check,
-        "implemented in stage S1b".into(),
-        "Nothing to do yet: this check runs once stage S1b is released. Until then FARIS checks \
-         the design file and the STEP fingerprints but does not convert or run it."
-            .into(),
+        "an earlier stage ended before this check".into(),
+        "Check again once the earlier stage can run.".into(),
     )
 }
 
@@ -644,10 +776,19 @@ struct Stage {
     notices: Vec<Notice>,
 }
 
-/// Run checks 1 to 5 on a design file.
+/// Run checks 1 to 9 on a design file with the default options.
 pub fn check_design(
     design_path: &Path,
     backends: &dyn Backends,
+) -> Result<ImportReport, DesignError> {
+    check_design_with(design_path, backends, &GeometryOptions::default())
+}
+
+/// Run checks 1 to 9 on a design file.
+pub fn check_design_with(
+    design_path: &Path,
+    backends: &dyn Backends,
+    options: &GeometryOptions,
 ) -> Result<ImportReport, DesignError> {
     let bytes = std::fs::read(design_path).map_err(|e| io_error(design_path, e))?;
     let mut report = ImportReport {
@@ -664,11 +805,12 @@ pub fn check_design(
         checks: Vec::new(),
         void_solids: Vec::new(),
         notices: Vec::new(),
+        geometry: GeometryRecords::default(),
         evaluated_checks_pass: true,
         import_complete: false,
         summary: String::new(),
     };
-    let result = run_stages(design_path, &bytes, backends, &mut report);
+    let result = run_stages(design_path, &bytes, backends, options, &mut report);
     // Whatever happened, the nine checks are all listed.
     let failed_at = report
         .checks
@@ -677,45 +819,44 @@ pub fn check_design(
         .map(|c| c.check);
     while report.checks.len() < 9 {
         let next = report.checks.len() as u8 + 1;
-        report.checks.push(match (next, failed_at) {
-            (6..=9, _) => later_stage(next),
-            (_, Some(failed)) => stopped(next, failed),
-            _ => later_stage(next),
+        report.checks.push(match failed_at {
+            Some(failed) => stopped(next, failed),
+            None => did_not_run(next),
         });
     }
     result?;
     report.evaluated_checks_pass = failed_at.is_none();
-    let evaluated = report
+    let blocking = |c: &CheckOutcome| c.findings.iter().filter(|f| f.blocks()).count();
+    let waived: usize = report
         .checks
         .iter()
-        .filter(|c| c.status != CheckStatus::NotEvaluated)
-        .count();
+        .map(|c| c.findings.iter().filter(|f| !f.blocks()).count())
+        .sum();
+    let waived_note = if waived > 0 {
+        format!(" {waived} finding(s) are waived by the design file; they stay in the report.")
+    } else {
+        String::new()
+    };
+    let unevaluated: Vec<String> = report
+        .checks
+        .iter()
+        .filter(|c| c.status == CheckStatus::NotEvaluated)
+        .map(|c| c.check.to_string())
+        .collect();
+    report.import_complete = failed_at.is_none() && unevaluated.is_empty();
     report.summary = match failed_at {
         Some(failed) => format!(
-            "FAIL: check {failed} found {} problem(s); later checks were not run.",
-            report.checks[usize::from(failed) - 1].findings.len()
+            "FAIL: check {failed} found {} blocking problem(s); later checks were not run.{waived_note}",
+            blocking(&report.checks[usize::from(failed) - 1])
         ),
-        None => {
-            let unevaluated: Vec<String> = report
-                .checks
-                .iter()
-                .take(5)
-                .filter(|c| c.status == CheckStatus::NotEvaluated)
-                .map(|c| c.check.to_string())
-                .collect();
-            if unevaluated.is_empty() {
-                format!(
-                    "No check failed: {evaluated} of 9 evaluated, all PASS. The import is not \
-                     complete; checks 6 to 9 are stage S1b."
-                )
-            } else {
-                format!(
-                    "No check failed, but check {} could not be fully evaluated. The import is \
-                     not complete; checks 6 to 9 are stage S1b.",
-                    unevaluated.join(", ")
-                )
-            }
-        }
+        None if unevaluated.is_empty() => format!(
+            "No check failed: all 9 checks evaluated, all PASS. The design imports.{waived_note}"
+        ),
+        None => format!(
+            "No check failed, but check {} could not be fully evaluated, so the import is not \
+             complete.{waived_note}",
+            unevaluated.join(", ")
+        ),
     };
     Ok(report)
 }
@@ -724,6 +865,7 @@ fn run_stages(
     design_path: &Path,
     bytes: &[u8],
     backends: &dyn Backends,
+    options: &GeometryOptions,
     report: &mut ImportReport,
 ) -> Result<(), DesignError> {
     // Check 1.
@@ -928,8 +1070,23 @@ fn run_stages(
             .and_then(|s| s.next_step.clone());
     }
     five.sub_checks = sub_checks;
+    let five_failed = five.status == CheckStatus::Fail;
     report.checks.push(five);
-    Ok(())
+    if five_failed {
+        return Ok(());
+    }
+
+    // Checks 6 to 9.
+    geometry::run(
+        &geometry::Inputs {
+            design: &design,
+            inspection: &inspection,
+            step: &step_path,
+            backends,
+            options,
+        },
+        report,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -992,9 +1149,25 @@ pub fn render_text(report: &ImportReport) -> String {
             }
         }
         for finding in &check.findings {
+            let waived = finding.waived.as_ref().map_or(String::new(), |w| {
+                format!("   [WAIVED by {} on {}: {}]", w.author, w.date, w.reason)
+            });
+            out.push_str(&format!("    * {}{waived}\n", finding.item));
+            if let Some(requirement) = &finding.requirement {
+                out.push_str(&format!("        requirement: {requirement}\n"));
+            }
+            if !finding.cells.is_empty() {
+                out.push_str(&format!("        solids: {}\n", finding.cells.join(", ")));
+            }
+            if let Some(p) = finding.location_m {
+                out.push_str(&format!(
+                    "        at: ({:.6}, {:.6}, {:.6}) m\n",
+                    p[0], p[1], p[2]
+                ));
+            }
             out.push_str(&format!(
-                "    * {}\n        why: {}\n        next step: {}\n",
-                finding.item, finding.why, finding.next_step
+                "        why: {}\n        next step: {}\n",
+                finding.why, finding.next_step
             ));
         }
     }
@@ -1009,6 +1182,7 @@ pub fn render_text(report: &ImportReport) -> String {
             ));
         }
     }
+    out.push_str(&render_geometry(&report.geometry));
     if !report.notices.is_empty() {
         out.push_str("\nNotices:\n");
         for n in &report.notices {
@@ -1016,6 +1190,119 @@ pub fn render_text(report: &ImportReport) -> String {
         }
     }
     out.push_str(&format!("\n{}\n{}\n", report.summary, report.scope));
+    out
+}
+
+fn render_geometry(g: &GeometryRecords) -> String {
+    let mut out = String::new();
+    if let Some(c) = &g.conversion {
+        let total = c
+            .timing_seconds
+            .get("total")
+            .or(c.timing_seconds.get("convert"));
+        out.push_str(&format!(
+            "\nConversion (check 6): chord {} cm, angular {} rad, scale to cm {}, imprint on ({} thread(s)){}\n  \
+             wall {} s, peak memory {:.0} MB, h5m sha256 {} ({} bytes)\n",
+            c.chord_cm,
+            c.angular_rad,
+            c.scale_factor_to_cm,
+            c.imprint_threads,
+            if c.reused { "; REUSED from an earlier run (times are the recorded ones)" } else { "" },
+            total.map_or("?".into(), |t| format!("{t:.1}")),
+            c.peak_rss_mb,
+            &c.h5m_sha256[..16.min(c.h5m_sha256.len())],
+            c.h5m_bytes
+        ));
+        out.push_str(&format!("  versions: {}\n", c.versions));
+    }
+    if let Some(p) = &g.pre_imprint {
+        let overlapping = p.pairs.iter().filter(|x| x.verdict == "overlap").count();
+        let touching = p.pairs.iter().filter(|x| x.verdict == "touching").count();
+        let undecided = p.pairs.iter().filter(|x| x.verdict == "undecided").count();
+        out.push_str(&format!(
+            "\nOverlap before imprinting: {} candidate pair(s): {overlapping} overlap, {touching} touching, {undecided} undecided\n",
+            p.candidate_pairs
+        ));
+    }
+    if let Some(i) = &g.integrity {
+        out.push_str(&format!(
+            "\nIntegrity (check 8): {} vertices, {} triangles, {} surfaces. {}\n  \
+             sampling: {} points, {} outside, {} in two or more solids, {} in cavities, {} undecided\n  \
+             chords: {}, crossings {}, inconsistent {}, undecided {}\n",
+            i.vertices,
+            i.triangles,
+            i.surfaces,
+            i.snap,
+            i.sampling.points,
+            i.sampling.outside,
+            i.sampling.in_two_or_more,
+            i.sampling.in_cavities,
+            i.sampling.undecided,
+            i.chords.chords,
+            i.chords.crossings,
+            i.chords.inconsistent,
+            i.chords.undecided
+        ));
+        if let Some(p) = &i.partition {
+            out.push_str(&format!(
+                "  partition: faceted {:.6e} m3 + cavities {:.6e} m3 against sampled {:.6e} m3 ({:.2} standard errors)\n",
+                p.faceted_sum_m3, p.cavity_sum_m3, p.sampled_assembly_m3, p.sigmas
+            ));
+        }
+        for reason in &i.skipped {
+            out.push_str(&format!("  not run: {reason}\n"));
+        }
+        for c in &i.cavities {
+            out.push_str(&format!(
+                "  enclosed region (GEO-039): walls {}, {:.6e} m3\n",
+                c.wall_volumes.join(", "),
+                c.volume_m3
+            ));
+        }
+    }
+    if let Some(d) = &g.deviation {
+        let worst = d
+            .solids
+            .iter()
+            .max_by(|a, b| a.max_distance_m.total_cmp(&b.max_distance_m));
+        out.push_str(&format!(
+            "\nFaceting deviation (GEO-032, {}): {} solid(s); {}",
+            d.statement,
+            d.solids.len(),
+            worst.map_or(String::new(), |w| format!(
+                "largest {:.3e} m in {} against the tolerance {:.3e} m",
+                w.max_distance_m, w.solid_id, d.chord_tolerance_m
+            ))
+        ));
+        out.push('\n');
+    }
+    if let Some(s) = &g.sources {
+        out.push_str(&format!(
+            "\nSource sites (check 9): {} of {} inside {} (seed {}, {:.1} s sampling, {:.1} s test)\n",
+            s.inside, s.sites, s.plasma_chamber_solid, s.seed, s.sampling_seconds, s.test_seconds
+        ));
+    }
+    if !g.waivers.is_empty() {
+        out.push_str("\nWaivers:\n");
+        for w in &g.waivers {
+            out.push_str(&format!(
+                "  [{}] {} by {} on {} covered {} finding(s): {}\n",
+                w.index, w.check_id, w.author, w.date, w.covered_findings, w.reason
+            ));
+        }
+    }
+    if !g.stages.is_empty() {
+        out.push_str("\nTimes (seconds; peak memory is the whole process so far):\n");
+        for st in &g.stages {
+            out.push_str(&format!(
+                "  {:<24} {:>9.1}   {}\n",
+                st.stage,
+                st.seconds,
+                st.peak_rss_bytes
+                    .map_or(String::new(), |b| format!("{:.0} MB", b as f64 / 1.0e6))
+            ));
+        }
+    }
     out
 }
 
@@ -1316,14 +1603,15 @@ pub fn design_init_with_tools(
 pub fn check_design_with_tools(
     design_path: &Path,
     tools: &ToolPaths,
-    cancellation: &Cancellation,
+    options: &GeometryOptions,
 ) -> Result<ImportReport, DesignError> {
-    check_design(
+    check_design_with(
         design_path,
         &ExternalBackends {
             tools,
-            cancellation,
+            cancellation: &options.cancellation,
         },
+        options,
     )
 }
 
