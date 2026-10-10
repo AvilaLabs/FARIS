@@ -1,0 +1,846 @@
+{
+  "schema": "faris-cad-transport-risk-tests/v1",
+  "protocol": {
+    "path": "docs/notes/CAD_TRANSPORT_RISK_TESTS.md",
+    "frozen_sha256": "b18e1e09a49a280e97ed06b8bd985c2a3b5f215e9c88512c7e168386ce4b1c6c"
+  },
+  "openmc": "0.15.3 (chosen by R6)",
+  "hardware": "reference laptop RL: Intel Core i3-N305, 8 cores, 30 GB",
+  "model": {
+    "solids": 30,
+    "labels": {
+      "authored": 17,
+      "published": 23
+    },
+    "deviations": [
+      "D1",
+      "D2",
+      "D3",
+      "D4",
+      "D5"
+    ],
+    "profile_fidelity": {
+      "max_chord_sag_cm": 0.095139532006701,
+      "max_thickness_departure_cm": 0.4296319532240602,
+      "points": 240
+    },
+    "h5m_sha256": "24fda3185ccd4ee1fb91ebb1499f8bb69063401234c3c1221e2b55c7bd617738",
+    "step_sha256": "79b1481b5867baaa33b6c5c7d79e0f6c8fcd81f6683b424aab87bf00d2277a17",
+    "total_triangles": 1916482
+  },
+  "acceptance": {
+    "accepted": true,
+    "geo_030_volumes": {
+      "pass": true,
+      "max_abs_relative_error": 0.0001484186712756852,
+      "worst_solid": "first_wall_tungsten",
+      "limit": 0.005,
+      "solids": 30
+    },
+    "geo_025_lost_particles": {
+      "pass": true,
+      "lost": 0,
+      "histories": 1000000,
+      "lost_per_history": 0.0,
+      "note": "post-processing of the finished 1e6-history run (wall 2799 s, 4 threads); the first two evaluations failed on a statepoint-name bug in the reader, fixed, run not repeated Tallies in that run were also at strength 1.8618e20 (units as above)."
+    },
+    "src_018_source_sites": {
+      "pass": true,
+      "sites": 200000,
+      "inside": 200000,
+      "fraction": 1.0,
+      "unconstrained_fraction": 1.0,
+      "analytic_polygon_cross_check": 1.0
+    }
+  },
+  "r6": {
+    "choice": "0.15.3",
+    "reasons": [
+      "step mgxs: 0.16.0 needs workarounds beyond 0.15.3: [\"openmc.config['cross_sections'] set to the audited library, because the stochastic-slab generation model does not inherit model.materials.cross_sections\"]",
+      "step random_ray_fw_cadis: failed on 0.16.0",
+      "step windowed_run: not run on 0.16.0",
+      "step windows_file: not run on 0.16.0"
+    ],
+    "rule1_steps_clean": false,
+    "rule2_flux_agrees": true,
+    "flux_agreement": {
+      "agree": true,
+      "combined_sd": 8.064896251157378e+16,
+      "difference": 2.718779873912336e+16,
+      "z": 0.3371128145042373
+    },
+    "timing": {
+      "0.15.3": {
+        "generate_s": 2378.5,
+        "generate_peak_mb": 725,
+        "analog_s": 1980.3,
+        "analog_peak_mb": 463
+      },
+      "0.16.0": {
+        "generate_s": 236.8,
+        "generate_peak_mb": 1299.5,
+        "analog_s": 145.8,
+        "analog_peak_mb": 846.6
+      }
+    },
+    "analog_tf_fast_response_a": {
+      "0.15.3": {
+        "as_stored_rate": {
+          "value": 1.778510407337659e+17,
+          "std_error": 5.761608156612887e+16,
+          "unit": "n.cm/s at 525 MW",
+          "factor_n_per_s": 1.8618137864158527e+20
+        },
+        "per_source_neutron": {
+          "value": 0.0009552568684978105,
+          "std_error": 0.00030946210618111624,
+          "unit": "cm per source neutron"
+        }
+      },
+      "0.16.0": {
+        "as_stored_rate": {
+          "value": 1.5066324199464253e+17,
+          "std_error": 5.643263505418135e+16,
+          "unit": "n.cm/s at 525 MW",
+          "factor_n_per_s": 1.8618137864158527e+20
+        },
+        "per_source_neutron": {
+          "value": 0.0008092283078678983,
+          "std_error": 0.000303105689011031,
+          "unit": "cm per source neutron"
+        }
+      },
+      "relative_std_error": {
+        "0.15.3": 0.324,
+        "0.16.0": 0.375
+      }
+    },
+    "flux_agreement_note": "z = 0.337 is unchanged by the common source-rate factor (both versions were run with strength 1.8618e20 n/s); difference and combined sd shown in the stored rate unit, n.cm/s at 525 MW",
+    "units_correction": {
+      "finding": "The earlier label 'per source particle, cm' was wrong. Those runs set the source strength to 1.8618e20 n/s, and OpenMC multiplies fixed-source tallies by the total source strength, so the stored 1.78e17 is a rate in n.cm/s at 525 MW. The score is a track length (OpenMC 'flux' is particle-cm, not divided by volume). Divided by the rate it is 9.55e-4 cm per source neutron (0.15.3) and 8.09e-4 (0.16.0), summed over 18 TF coils above 0.1 MeV.",
+      "hand_check": "Same model, strength 1, 5x2000 histories: plasma-cell track length 680 cm per source neutron; strength 1.8618e20 gives 1.267e23, ratio exactly 1.8618e20. Order check: mean isotropic chord 4V/S with V=1.457e8 cm3 and S ~ 1.8e6 cm2 is about 330 cm for a first flight; scattering returns from the first wall roughly double it, consistent with 680 cm.",
+      "from_now_on": "R1 to R3 runs use strength 1 and report 'cm per source neutron'; rates are produced only through rm_m_checks.to_rate."
+    }
+  },
+  "r1": {
+    "verdict": "FAIL",
+    "best_config": "C2",
+    "best_gain_lower_bound": 6.27,
+    "rule_gain": 100,
+    "unbiasedness": "NOT_EVALUATED (analog R 0.196 > 0.1); all six windowed results within 1.13 sigma of analog",
+    "summary": {
+      "analog": {
+        "FOM_a": 0.0036387122052205906,
+        "R_a": 0.19645924170138182,
+        "T_seconds": 7120.448762178421,
+        "a_mean": 0.00087223819245437,
+        "a_std_error": 0.00017135925387256948,
+        "analog_fom_counts": false,
+        "analog_r": 0.19645924170138182,
+        "b": {
+          "peak_value": 7.423110954725566e-06,
+          "relative_error": 1.0,
+          "std_error": 7.423110954725566e-06,
+          "unit": "cm per source neutron",
+          "voxel": {
+            "coil": 13,
+            "index": [
+              12,
+              26,
+              9
+            ],
+            "phi_deg": [
+              262.0,
+              278.0
+            ],
+            "r_cm": [
+              120.0,
+              125.0
+            ],
+            "z_cm": [
+              40.0,
+              50.0
+            ]
+          }
+        },
+        "gain_is_lower_bound": true,
+        "histories": 3500000,
+        "unbiasedness": "NOT_EVALUATED"
+      },
+      "configs": {
+        "C1": {
+          "FOM_a": 0.010666100104858434,
+          "R_a": 0.23074326017750302,
+          "T_seconds": 1760.9064962863922,
+          "a_mean": 0.0008624031505581333,
+          "a_std_error": 0.00019899371454713366,
+          "b": {
+            "peak_value": 2.1229030236596312e-06,
+            "relative_error": 0.8942163868095119,
+            "std_error": 1.8983346713639031e-06,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 10,
+              "index": [
+                12,
+                20,
+                2
+              ],
+              "phi_deg": [
+                202.0,
+                218.0
+              ],
+              "r_cm": [
+                120.0,
+                125.0
+              ],
+              "z_cm": [
+                -30.0,
+                -20.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 1157,
+          "gain_vs_analog": 2.9312843399803366,
+          "histories": 150000,
+          "z_vs_analog": -0.03745154513186695
+        },
+        "C2": {
+          "FOM_a": 0.02280482394592574,
+          "R_a": 0.15828450601428748,
+          "T_seconds": 1750.2354090213776,
+          "a_mean": 0.0010553198024429024,
+          "a_std_error": 0.00016704077361677025,
+          "b": {
+            "peak_value": 3.0638665393806853e-06,
+            "relative_error": 0.9755434676787689,
+            "std_error": 2.988934988332383e-06,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 11,
+              "index": [
+                11,
+                22,
+                4
+              ],
+              "phi_deg": [
+                222.0,
+                238.0
+              ],
+              "r_cm": [
+                115.0,
+                120.0
+              ],
+              "z_cm": [
+                -10.0,
+                0.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 2502,
+          "gain_vs_analog": 6.2672788227678025,
+          "histories": 750000,
+          "z_vs_analog": 0.7650573123159506
+        },
+        "C3": {
+          "FOM_a": 0.012105043798597604,
+          "R_a": 0.21796729084123767,
+          "T_seconds": 1738.805408000946,
+          "a_mean": 0.0010671149963133334,
+          "a_std_error": 0.00023259616476247459,
+          "b": {
+            "peak_value": 1.3381339781680161e-06,
+            "relative_error": 0.7019792444231415,
+            "std_error": 9.393422789313165e-07,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 15,
+              "index": [
+                12,
+                30,
+                6
+              ],
+              "phi_deg": [
+                302.0,
+                318.0
+              ],
+              "r_cm": [
+                120.0,
+                125.0
+              ],
+              "z_cm": [
+                10.0,
+                20.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 1762,
+          "gain_vs_analog": 3.3267384491771743,
+          "histories": 950000,
+          "z_vs_analog": 0.6745404966651952
+        },
+        "C4": {
+          "FOM_a": 0.014179685767311118,
+          "R_a": 0.2011836435825158,
+          "T_seconds": 1742.400771856308,
+          "a_mean": 0.0008875110873073345,
+          "a_std_error": 0.00017855271426436985,
+          "b": {
+            "peak_value": 1.3282218739554202e-06,
+            "relative_error": 1.0,
+            "std_error": 1.3282218739554202e-06,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 4,
+              "index": [
+                12,
+                8,
+                2
+              ],
+              "phi_deg": [
+                82.0,
+                98.0
+              ],
+              "r_cm": [
+                120.0,
+                125.0
+              ],
+              "z_cm": [
+                -30.0,
+                -20.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 1265,
+          "gain_vs_analog": 3.896896750165351,
+          "histories": 650000,
+          "z_vs_analog": 0.06171430031637339
+        },
+        "C5": {
+          "FOM_a": 0.005513250632820605,
+          "R_a": 0.3175562529826143,
+          "T_seconds": 1798.6676609516144,
+          "a_mean": 0.0009369422224590366,
+          "a_std_error": 0.0002975318614252947,
+          "b": {
+            "peak_value": 6.091586863199193e-06,
+            "relative_error": 1.0,
+            "std_error": 6.091586863199193e-06,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 12,
+              "index": [
+                11,
+                24,
+                6
+              ],
+              "phi_deg": [
+                242.0,
+                258.0
+              ],
+              "r_cm": [
+                115.0,
+                120.0
+              ],
+              "z_cm": [
+                10.0,
+                20.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 1574,
+          "gain_vs_analog": 1.5151653447366755,
+          "histories": 550000,
+          "z_vs_analog": 0.18844920782486946
+        },
+        "C6": {
+          "FOM_a": 0.010601792147644564,
+          "R_a": 0.2323702373201017,
+          "T_seconds": 1746.8664803504944,
+          "a_mean": 0.0012559652134427346,
+          "a_std_error": 0.00029184893471348043,
+          "b": {
+            "peak_value": 3.196217541557996e-06,
+            "relative_error": 1.0,
+            "std_error": 3.196217541557996e-06,
+            "unit": "cm per source neutron",
+            "voxel": {
+              "coil": 15,
+              "index": [
+                6,
+                30,
+                7
+              ],
+              "phi_deg": [
+                302.0,
+                318.0
+              ],
+              "r_cm": [
+                90.0,
+                95.0
+              ],
+              "z_cm": [
+                20.0,
+                30.0
+              ]
+            }
+          },
+          "b_nonzero_voxels": 2376,
+          "gain_vs_analog": 2.9136110661441688,
+          "histories": 950000,
+          "z_vs_analog": 1.133820179301371
+        }
+      },
+      "verdict": {
+        "best_config": "C2",
+        "best_gain": 6.2672788227678025,
+        "gain_is_lower_bound": true,
+        "verdict": "FAIL"
+      }
+    },
+    "seeds": {
+      "generation": {
+        "C1": 81150101,
+        "C2": 81150102,
+        "C3": 81150103,
+        "C4": 81150104,
+        "C5": 81150105,
+        "C6": 81150106
+      },
+      "production": {
+        "C1": 20261101,
+        "C2": 20261102,
+        "C3": 20261103,
+        "C4": 20261104,
+        "C5": 20261105,
+        "C6": 20261106
+      },
+      "mgxs": 81150100,
+      "analog": 20261100
+    }
+  },
+  "r2": {
+    "verdict": "FAIL",
+    "runs": {
+      "run1": {
+        "batches": 16,
+        "histories": 16000,
+        "seconds_to_first_batch": 20.541252851486206,
+        "seconds_to_last_statepoint": 57.343053579330444,
+        "tbr": {
+          "mean": 1.233606170242357,
+          "relative_error": 0.020225809498978467,
+          "std_error": 0.024950683396086314,
+          "unit": "tritons per source neutron"
+        },
+        "a": {
+          "mean": 0.0006224920635180693,
+          "relative_error": 0.5659158494188337,
+          "std_error": 0.00035227812488231074,
+          "unit": "cm per source neutron"
+        },
+        "rule": {
+          "a_ok": false,
+          "rule": "TBR R <= 2 % and response (a) R <= 20 % at 60 s (1 sigma)",
+          "tbr_ok": false,
+          "verdict": "FAIL"
+        },
+        "seed": 20261401,
+        "particles_per_batch": 1000,
+        "process_wall_s": 60.06717085838318,
+        "peak_rss_mb": 511.8359375
+      },
+      "run2": {
+        "batches": 18,
+        "histories": 18000,
+        "seconds_to_first_batch": 20.09636926651001,
+        "seconds_to_last_statepoint": 58.16919755935669,
+        "tbr": {
+          "mean": 1.2304114242182298,
+          "relative_error": 0.018696334472803878,
+          "std_error": 0.023004183526343005,
+          "unit": "tritons per source neutron"
+        },
+        "a": {
+          "mean": 0.0005619431504007489,
+          "relative_error": 0.5601955199336537,
+          "std_error": 0.0003147980353119029,
+          "unit": "cm per source neutron"
+        },
+        "rule": {
+          "a_ok": false,
+          "rule": "TBR R <= 2 % and response (a) R <= 20 % at 60 s (1 sigma)",
+          "tbr_ok": true,
+          "verdict": "FAIL"
+        },
+        "seed": 20261401,
+        "particles_per_batch": 1000,
+        "process_wall_s": 60.06508731842041,
+        "peak_rss_mb": 511.28125
+      }
+    },
+    "one_time_costs_excluded_from_60s": {
+      "cad_conversion": {
+        "seconds": 1389.5,
+        "peak_rss_mb": 4829,
+        "log": "logs/build_a1.log (build, STEP round trip, imprint, two h5m)"
+      },
+      "mgxs_generation_C2": {
+        "seconds": 69.5
+      },
+      "random_ray_fw_cadis_C2": {
+        "seconds": 2341.2,
+        "run_wall_s": 2341.2261440753937
+      },
+      "generate_job_C2": {
+        "wall_s": 2415,
+        "peak_rss_mb": 604
+      },
+      "note": "C2 timings were measured with another 4-thread job running beside it (R3 or R1 analog)"
+    },
+    "windows_sha256": "96777dad18b78a4891fc885772e00f7993fae91d90675dcfe2e4fb4727821a3f"
+  },
+  "r3": {
+    "verdict": {
+      "conservation": "FAIL",
+      "ratio_band": "FAIL"
+    },
+    "cooling_times": {
+      "1 d": {
+        "d1s": {
+          "mean_dose_rate_uSv_per_h": 254722826.96674865,
+          "relative_error": 0.13807072847001606,
+          "std_error": 1.1488790317232006e+16,
+          "sum_pSv_cm_per_s": 8.320945680913789e+16,
+          "voxels_nonzero": 426
+        },
+        "in_band": false,
+        "r2s": {
+          "mean_dose_rate_uSv_per_h": 399924274.5381697,
+          "relative_error": 0.0011305166993978968,
+          "std_error": 147692883147596.72,
+          "sum_pSv_cm_per_s": 1.3064192968246877e+17,
+          "voxels_nonzero": 1175
+        },
+        "r2s_conservation": {
+          "inventory_photons_per_s": 2.5809653615437176e+16,
+          "limit": 1e-06,
+          "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+          "pass": false,
+          "relative_difference": 5.063151331664492e-05,
+          "source_photons_per_s": 2.580834683361645e+16,
+          "unclipped_source_check": {
+            "inventory_photons_per_s": 2.5809653615437176e+16,
+            "limit": 1e-06,
+            "pass": true,
+            "relative_difference": 2.882642328663417e-14,
+            "source_photons_per_s": 2.580965361543792e+16
+          }
+        },
+        "ratio_d1s_over_r2s": 0.6369276465173341,
+        "ratio_std_error": 0.08794401198593256,
+        "top5_nuclides": {
+          "d1s_dose_by_parent_pSv_cm_per_s": [
+            {
+              "fraction": 0.7520265072899806,
+              "nuclide": "W187",
+              "value": 6.257571717767245e+16
+            },
+            {
+              "fraction": 0.2120502668735156,
+              "nuclide": "Mn54",
+              "value": 1.7644587522777956e+16
+            },
+            {
+              "fraction": 0.020623934162941553,
+              "nuclide": "Mn56",
+              "value": 1716106358965788.2
+            },
+            {
+              "fraction": 0.012228113945677514,
+              "nuclide": "Fe59",
+              "value": 1017494719220069.6
+            },
+            {
+              "fraction": 0.0010170124274082757,
+              "nuclide": "W181",
+              "value": 84625051652785.39
+            }
+          ],
+          "r2s_photon_power_MeV_per_s": [
+            {
+              "fraction": 0.4247949334397935,
+              "nuclide": "Mn54",
+              "value": 1609148299551253.8
+            },
+            {
+              "fraction": 0.32232933296800104,
+              "nuclide": "W187",
+              "value": 1221002552551538.2
+            },
+            {
+              "fraction": 0.19846229344968247,
+              "nuclide": "W181",
+              "value": 751786890308711.5
+            },
+            {
+              "fraction": 0.012270768239288124,
+              "nuclide": "Sc48",
+              "value": 46482394897105.234
+            },
+            {
+              "fraction": 0.009624079055459535,
+              "nuclide": "Ta182",
+              "value": 36456579934785.09
+            }
+          ]
+        },
+        "voxel_ratio": {
+          "limit_r": 0.1,
+          "median": null,
+          "p05": null,
+          "p95": null,
+          "voxels_d1s_r_le_10": 0,
+          "voxels_r2s_r_le_10": 810,
+          "voxels_total": 1176,
+          "voxels_used": 0
+        }
+      },
+      "30 d": {
+        "d1s": {
+          "mean_dose_rate_uSv_per_h": 52883516.093790755,
+          "relative_error": 0.5049076486819049,
+          "std_error": 8722421976549539.0,
+          "sum_pSv_cm_per_s": 1.7275281923971648e+16,
+          "voxels_nonzero": 426
+        },
+        "in_band": false,
+        "r2s": {
+          "mean_dose_rate_uSv_per_h": 213051231.67207354,
+          "relative_error": 0.0012450886128678863,
+          "std_error": 86654103087376.39,
+          "sum_pSv_cm_per_s": 6.959673567954402e+16,
+          "voxels_nonzero": 1176
+        },
+        "r2s_conservation": {
+          "inventory_photons_per_s": 1.9544061773745932e+16,
+          "limit": 1e-06,
+          "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+          "pass": false,
+          "relative_difference": 4.994539513824449e-05,
+          "source_photons_per_s": 1.9543085637858036e+16,
+          "unclipped_source_check": {
+            "inventory_photons_per_s": 1.9544061773745932e+16,
+            "limit": 1e-06,
+            "pass": true,
+            "relative_difference": 1.2075279065942434e-14,
+            "source_photons_per_s": 1.954406177374617e+16
+          }
+        },
+        "ratio_d1s_over_r2s": 0.24821971541187135,
+        "ratio_std_error": 0.12532841392582525,
+        "top5_nuclides": {
+          "d1s_dose_by_parent_pSv_cm_per_s": [
+            {
+              "fraction": 0.9576581254925408,
+              "nuclide": "Mn54",
+              "value": 1.6543814104665864e+16
+            },
+            {
+              "fraction": 0.037489368459645,
+              "nuclide": "Fe59",
+              "value": 647639409292018.1
+            },
+            {
+              "fraction": 0.004149972070266691,
+              "nuclide": "W181",
+              "value": 71691937490465.38
+            },
+            {
+              "fraction": 0.0006410375788116177,
+              "nuclide": "Hf181",
+              "value": 11074104897830.89
+            },
+            {
+              "fraction": 5.031416583222918e-05,
+              "nuclide": "W185",
+              "value": 869191399521.2208
+            }
+          ],
+          "r2s_photon_power_MeV_per_s": [
+            {
+              "fraction": 0.675353305283028,
+              "nuclide": "Mn54",
+              "value": 1508760139631980.2
+            },
+            {
+              "fraction": 0.28508669338205217,
+              "nuclide": "W181",
+              "value": 636892476796372.8
+            },
+            {
+              "fraction": 0.013696286256653598,
+              "nuclide": "Ta182",
+              "value": 30597926453277.94
+            },
+            {
+              "fraction": 0.0105862288313017,
+              "nuclide": "Sc46",
+              "value": 23649962123154.56
+            },
+            {
+              "fraction": 0.006462489393404007,
+              "nuclide": "Fe59",
+              "value": 14437400873423.184
+            }
+          ]
+        },
+        "voxel_ratio": {
+          "limit_r": 0.1,
+          "median": null,
+          "p05": null,
+          "p95": null,
+          "voxels_d1s_r_le_10": 0,
+          "voxels_r2s_r_le_10": 660,
+          "voxels_total": 1176,
+          "voxels_used": 0
+        }
+      },
+      "7 d": {
+        "d1s": {
+          "mean_dose_rate_uSv_per_h": 59445277.05509601,
+          "relative_error": 0.47304993230196857,
+          "std_error": 9186057533617744.0,
+          "sum_pSv_cm_per_s": 1.9418790504664696e+16,
+          "voxels_nonzero": 426
+        },
+        "in_band": false,
+        "r2s": {
+          "mean_dose_rate_uSv_per_h": 230531445.75436565,
+          "relative_error": 0.0012442748679917784,
+          "std_error": 93702531516429.27,
+          "sum_pSv_cm_per_s": 7.530693894642611e+16,
+          "voxels_nonzero": 1175
+        },
+        "r2s_conservation": {
+          "inventory_photons_per_s": 2.188006217573385e+16,
+          "limit": 1e-06,
+          "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+          "pass": false,
+          "relative_difference": 5.489682923534535e-05,
+          "source_photons_per_s": 2.187886102969693e+16,
+          "unclipped_source_check": {
+            "inventory_photons_per_s": 2.188006217573385e+16,
+            "limit": 1e-06,
+            "pass": true,
+            "relative_difference": 4.2047412507827736e-15,
+            "source_photons_per_s": 2.188006217573394e+16
+          }
+        },
+        "ratio_d1s_over_r2s": 0.2578619019222035,
+        "ratio_std_error": 0.1219819772180729,
+        "top5_nuclides": {
+          "d1s_dose_by_parent_pSv_cm_per_s": [
+            {
+              "fraction": 0.8966051375611934,
+              "nuclide": "Mn54",
+              "value": 1.7410987331706886e+16
+            },
+            {
+              "fraction": 0.05035048813499805,
+              "nuclide": "W187",
+              "value": 977745580901132.6
+            },
+            {
+              "fraction": 0.047721832540747945,
+              "nuclide": "Fe59",
+              "value": 926700268607474.9
+            },
+            {
+              "fraction": 0.004210893865420967,
+              "nuclide": "W181",
+              "value": 81770465809987.48
+            },
+            {
+              "fraction": 0.0008306528348907502,
+              "nuclide": "Hf181",
+              "value": 16130273382849.31
+            }
+          ],
+          "r2s_photon_power_MeV_per_s": [
+            {
+              "fraction": 0.6487339556835195,
+              "nuclide": "Mn54",
+              "value": 1587844466307682.8
+            },
+            {
+              "fraction": 0.2967911478520968,
+              "nuclide": "W181",
+              "value": 726427494102000.2
+            },
+            {
+              "fraction": 0.014364585286096049,
+              "nuclide": "Ta182",
+              "value": 35158830607688.207
+            },
+            {
+              "fraction": 0.011687471859867942,
+              "nuclide": "Sc46",
+              "value": 28606314430181.316
+            },
+            {
+              "fraction": 0.008440218826997635,
+              "nuclide": "Fe59",
+              "value": 20658321707168.46
+            }
+          ]
+        },
+        "voxel_ratio": {
+          "limit_r": 0.1,
+          "median": null,
+          "p05": null,
+          "p95": null,
+          "voxels_d1s_r_le_10": 0,
+          "voxels_r2s_r_le_10": 687,
+          "voxels_total": 1176,
+          "voxels_used": 0
+        }
+      }
+    },
+    "ratio_band": [
+      0.85,
+      1.15
+    ],
+    "mesh": {
+      "dimension": [
+        24,
+        7,
+        7
+      ],
+      "lower_left_cm": [
+        346.0,
+        -35.0,
+        -35.0
+      ],
+      "upper_right_cm": [
+        586.0,
+        35.0,
+        35.0
+      ]
+    },
+    "conservation_pass_as_built": false,
+    "conservation_pass_unclipped": true,
+    "unit": "pSv.cm/s summed over voxels (track length x ICRP-116 AP coefficient x source rate)"
+  },
+  "evidence_files": {
+    "results-r1.json": "6c13720382be86e3987844930d3ef7cfbfbfc3ab5721588490a02ba3fb16a59a",
+    "results-r2.json": "d0c814f250d48422ed05158391f34b177b151cf5254f927db1c52a82d4cbd02f",
+    "results-r3.json": "c78c3b1f1edb009ae5b172d064e3774bd5777ece4cde3036aabf4eeeff527403",
+    "results-r6-0.15.3.json": "6fe3f70dcb86edb58c911a709a7a10cd21dd889f8c4cd84f0e7179dd4ffb3c3b",
+    "results-r6-0.16.0.json": "5261a551067f1a74da374079106e1760c32e0955ef98910211e608a7fca6eeab",
+    "results-r6.json": "826c428dba7c752aa921f363a6f94d73ac3ec84dbcccac86e46ad86ea30bc4c0",
+    "results-rm-m-r6.json": "f83f83057b03a3d60eb3dc25a5106d46b9d025a5b40df5484d59a905c8300ef7",
+    "acceptance.json": "91fc4c06afb646b2fd81ff37a90a554f3c7f4d8e295cbb31f374b382c3a410fd"
+  },
+  "evidence_location": "~/.cache/avila-night/cad-risk-tests on the reference laptop (not in the repository; hashes above)"
+}

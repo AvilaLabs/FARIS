@@ -431,3 +431,59 @@ these measurements, as the plan states (risk 1).
 - VAL-043 and the S3 dose design go to change control with these measurements.
 - The 13× analog speed difference between 0.15.3 and 0.16.0 noted under R6 is
   still unexplained. It affects every run time here, but no ratio or gain.
+
+### R2: laptop preview: FAIL
+
+**Setup:**
+
+- RM-M with the C2 windows, OpenMC 0.15.3, 8 threads, run alone.
+- 1000 histories per batch, with a statepoint every batch.
+- `openmc` was stopped by process group 60.0 s after its process started, so
+  cross-section and window loading count.
+- Both runs used the same seed.
+
+| | Run 1 | Run 2 |
+| --- | --- | --- |
+| Histories at the last statepoint | 16,000 | 18,000 |
+| Startup (to first batch) | 20.5 s | 20.1 s |
+| Last statepoint | 57.3 s | 58.2 s |
+| TBR (tritons per source neutron) | 1.234, R 2.02 % | 1.230, R 1.87 % |
+| Response (a), cm per source neutron | 6.2e-4, R 56.6 % | 5.6e-4, R 56.0 % |
+| Peak memory | 512 MB | 511 MB |
+
+**Verdict:**
+
+- FAIL in both runs.
+- Response (a) reaches R ≈ 0.56 against the 0.20 rule.
+- TBR sits at the 2 % rule: it fails run 1 and passes run 2.
+- About a third of the 60 s is startup.
+
+**One-time costs, excluded from the 60 s:**
+
+- CAD conversion: 1390 s, peak 4.83 GB.
+- MGXS: 70 s.
+- Random-ray FW-CADIS solve: 2341 s. The whole generation job took 2415 s at a
+  peak of 604 MB, measured beside another 4-thread job, so these times are
+  pessimistic.
+
+**Context, not a rule:** the TBR of 1.23 comes from this authored model, which
+has no divertor, one port and 100 cm of outboard FLiBe. It is not compared
+with ARC's published 1.08–1.1.
+
+**Consequence:** PERF-025 goes to change control with these measurements. The
+plan's fallbacks (a coarser preview tally, or a stated longer preview target)
+are the options. A preview can rank designs by TBR in 60 s on this laptop. It
+cannot rank them by magnet fluence.
+
+### S0 summary
+
+| Test | Verdict | Measured |
+| --- | --- | --- |
+| Acceptance | PASS | volumes within 0.015 %; 0 lost in 1e6; 100 % of source sites in plasma |
+| R6 | 0.15.3 | 0.16.0 needed an extra workaround and its random-ray solve failed |
+| R1 | FAIL | best FW-CADIS gain 6.3× (lower bound) against 100× |
+| R2 | FAIL | TBR R ≈ 2 %; magnet R ≈ 56 % at 60 s against 20 % |
+| R3 | FAIL | D1S/R2S 0.64 ± 0.09 at 1 d; 7 d and 30 d inconclusive; conservation needs `clip_tolerance = 0` |
+
+Summary and evidence hashes:
+[`references/cad-transport-risk-tests.json`](../../references/cad-transport-risk-tests.json).

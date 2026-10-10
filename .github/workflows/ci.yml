@@ -28,6 +28,8 @@ jobs:
         run: python3 -m unittest discover -s controls -p 'test_*.py'
       - name: Validation harness tests (no OpenMC installation)
         run: python3 -m unittest discover -s validation -p 'test_*.py'
+      - name: CAD transport risk-test checks (no OpenMC installation)
+        run: python3 -m unittest discover -s integrations/openmc/risk_tests -p 'test_*.py'
       - name: Package, release and verification script tests
         run: |
           python3 -m pip install --user pillow==12.1.1
