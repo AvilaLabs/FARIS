@@ -31,6 +31,7 @@ mod integrity;
 mod intersections;
 mod mesh;
 mod model;
+mod overlap;
 mod par;
 mod rays;
 #[cfg(test)]
