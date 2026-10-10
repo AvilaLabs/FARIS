@@ -35,6 +35,7 @@ import r6_worker as W  # noqa: E402
 import rm_m_checks as checks  # noqa: E402
 import rm_m_openmc as RM  # noqa: E402
 import rm_m_spec as spec  # noqa: E402
+import s0b_common as s0b_c  # noqa: E402
 
 GEN_DEFAULTS = dict(W.DEFAULTS)
 
@@ -69,10 +70,17 @@ def generate(args) -> int:
     import openmc
     import openmc.mgxs
 
-    conf = cfg.CONFIGS[args.config]
+    s0b = args.config in cfg.S0B_CONFIGS
+    conf = dict(cfg.S0B_CONFIGS[args.config] if s0b else cfg.CONFIGS[args.config])
     params = dict(GEN_DEFAULTS)
-    for key in ("rays", "batches", "inactive"):
-        if getattr(args, key) is not None:
+    if s0b:  # S0b: mesh, rays and source shape come from the config; command-line values (G5 and G6) override
+        for key in ("ww_cell_cm", "rays", "source_shape"):
+            if conf.get(key) is not None:
+                params[key] = conf[key]
+        if args.structure:
+            conf["structure"] = args.structure
+    for key in ("rays", "batches", "inactive", "ww_cell_cm", "source_shape"):
+        if getattr(args, key, None) is not None:
             params[key] = getattr(args, key)
     edges = cfg.STRUCTURES[conf["structure"]]
     resp_edges = cfg.fast_response_edges(conf["structure"])
@@ -81,10 +89,11 @@ def generate(args) -> int:
     os.chdir(run_dir)
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
-    gen_seed = cfg.GENERATION_SEEDS[args.config]
+    gen_seed = cfg.S0B_GENERATION_SEEDS[args.config] if s0b else cfg.GENERATION_SEEDS[args.config]
+    mgxs_seed = cfg.S0B_MGXS_SEED if s0b else cfg.MGXS_SEED
     record = {"kind": "r1-generate", "config": args.config, "definition": conf, "openmc_version": openmc.__version__,
               "parameters": params, "group_edges_ev": edges, "adjoint_response_energy_edges_ev": resp_edges,
-              "generation_seed": gen_seed, "mgxs_seed": cfg.MGXS_SEED, "threads": args.threads, "steps": {},
+              "generation_seed": gen_seed, "mgxs_seed": mgxs_seed, "threads": args.threads, "steps": {},
               "library": RM.library_identity()}
     roles = RM.load_roles(args.model_dir)
     ids = RM.role_ids(roles)
@@ -115,7 +124,7 @@ def generate(args) -> int:
     mgxs_path = run_dir / "mgxs.h5"
 
     def mgxs():
-        model.settings.seed = cfg.MGXS_SEED
+        model.settings.seed = mgxs_seed
         model.convert_to_multigroup(method=params["mgxs_method"], groups=openmc.mgxs.EnergyGroups(edges),
                                     nparticles=params["mgxs_nparticles"], overwrite_mgxs_library=False,
                                     mgxs_path=str(mgxs_path), correction=params["mgxs_correction"])
@@ -168,6 +177,7 @@ def generate(args) -> int:
     if log.is_file():
         text = log.read_text(encoding="utf-8", errors="replace")
         record["random_ray_log_warnings"] = sorted({ln.strip() for ln in text.splitlines() if "WARNING" in ln.upper()})[:20]
+        record["random_ray_log_stats"] = s0b_c.parse_random_ray_log(text)
     if record["steps"]["random_ray_fw_cadis"]["ok"]:
         summarise_windows(openmc, record)
     return W.finish(record, args.out)
@@ -182,7 +192,11 @@ def summarise_windows(openmc, record):
     record["windows"] = {"sets": len(wws), "energy_bins": len(wws[0].energy_bounds) - 1, "mesh_dimension": list(map(int, wws[0].mesh.dimension)),
                          "fraction_positive": float(pos.mean()), "upper_over_lower": float(np.median(up[pos] / lo[pos])),
                          "survival_ratio": wws[0].survival_ratio, "max_split": wws[0].max_split, "lower_max": float(lo.max()),
-                         "lower_min_positive": float(lo[pos].min())}
+                         "lower_min_positive": float(lo[pos].min()),
+                         # S0b: how much of the window grid is populated (a floor of tiny positive values counts as positive)
+                         "fraction_above_1e-9_of_max": float((lo > 1.0e-9 * lo.max()).mean()),
+                         "fraction_positive_top_group": float(pos.reshape(-1, pos.shape[-1])[:, -1].mean()) if pos.ndim > 1 else None,
+                         "lower_shape": list(map(int, lo.shape)), "window_cells": int(lo.size)}
 
 
 def run_budgeted(run_dir: Path, threads: int, budget_s: float, log_name: str = "openmc.out") -> dict:
@@ -338,11 +352,14 @@ def main() -> int:
         p.add_argument("--out", required=True, type=Path)
         p.add_argument("--threads", type=int, default=4)
         if name != "analog":
-            p.add_argument("--config", required=True, choices=sorted(cfg.CONFIGS))
+            p.add_argument("--config", required=True, choices=sorted(cfg.CONFIGS) + sorted(cfg.S0B_CONFIGS))
         if name == "generate":
             p.add_argument("--rays", type=int)
             p.add_argument("--batches", type=int)
             p.add_argument("--inactive", type=int)
+            p.add_argument("--ww-cell-cm", type=float, dest="ww_cell_cm", help="S0b: window and source-region mesh cell size")
+            p.add_argument("--source-shape", dest="source_shape", choices=["flat", "linear"])
+            p.add_argument("--structure", choices=sorted(cfg.STRUCTURES), help="S0b G5/G6: energy-group structure override")
         else:
             p.add_argument("--budget", type=float, default=cfg.PRODUCTION_BUDGET_S if name == "produce" else cfg.ANALOG_BUDGET_S)
             p.add_argument("--particles", type=int, default=10000)

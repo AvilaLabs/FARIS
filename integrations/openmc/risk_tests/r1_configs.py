@@ -25,7 +25,9 @@ CASMO_8 = [0.0, 0.058, 0.14, 0.28, 0.625, 4.0, 5530.0, 821000.0, 20000000.0]
 CASMO_25 = [0.0, 0.03, 0.058, 0.14, 0.28, 0.35, 0.625, 0.972, 1.02, 1.097, 1.15, 1.855, 4.0, 9.877, 15.968, 148.73,
             5530.0, 9118.0, 111000.0, 500000.0, 821000.0, 1353000.0, 2231000.0, 3679000.0, 6065500.0, 20000000.0]
 ONE_GROUP = [1.0e-5, 2.0e7]
-STRUCTURES = {"1": ONE_GROUP, "CASMO-8": CASMO_8, "CASMO-25": CASMO_25}
+# S0b G6: CASMO-8 plus an edge at 0.1 MeV, so the adjoint source matches response (a)'s 0.1 MeV cut.
+CASMO_8_PLUS_01MEV = [0.0, 0.058, 0.14, 0.28, 0.625, 4.0, 5530.0, 100000.0, 821000.0, 20000000.0]
+STRUCTURES = {"1": ONE_GROUP, "CASMO-8": CASMO_8, "CASMO-25": CASMO_25, "CASMO-8+0.1MeV": CASMO_8_PLUS_01MEV}
 
 FAST_CUT_EV = 1.0e5
 DEFAULT_RATIO = 5.0      # upper/lower bound ratio of generated windows (read from the generated file)
@@ -45,6 +47,21 @@ GENERATION_SEEDS = {"C1": 81150101, "C2": 81150102, "C3": 81150103, "C4": 811501
 PRODUCTION_SEEDS = {"C1": 20261101, "C2": 20261102, "C3": 20261103, "C4": 20261104, "C5": 20261105, "C6": 20261106}
 ANALOG_SEED = 20261100
 MGXS_SEED = 81150100
+
+# S0b (docs/notes/CAD_TRANSPORT_DIAGNOSTICS_S0B.md, D3). G0 is S0's C2 on the D1 build; the others change one thing from G0.
+# G3 and G4 reuse G0's windows (production-time changes). G5 is chosen at run time by s0b_common.select_g5; G6 builds on G5.
+# Seeds are new and disjoint from S0's: generation 9003xxxx, production 9004xxxx.
+S0B_CONFIGS = {
+    "G0": {"structure": "CASMO-8", "objective": "a", "ww_cell_cm": 25.0, "rays": 20000, "source_shape": "flat"},
+    "G1": {"structure": "CASMO-8", "objective": "a", "ww_cell_cm": 10.0, "rays": 312000, "source_shape": "flat"},
+    "G2": {"structure": "CASMO-8", "objective": "a", "ww_cell_cm": 25.0, "rays": 20000, "source_shape": "linear"},
+    "G5": {"structure": "CASMO-8", "objective": "a", "ww_cell_cm": None, "rays": None, "source_shape": None},
+    "G6": {"structure": "CASMO-8+0.1MeV", "objective": "a", "ww_cell_cm": None, "rays": None, "source_shape": None},
+}
+S0B_GENERATION_SEEDS = {"G0": 90030000, "G1": 90030001, "G2": 90030002, "G5": 90030005, "G6": 90030006}
+S0B_PRODUCTION_SEEDS = {"G0": 90040000, "G1": 90040001, "G2": 90040002, "G3": 90040003, "G4": 90040004, "G5": 90040005, "G6": 90040006}
+S0B_MGXS_SEED = 90030100
+S0B_RAYS_FACTOR_G1 = 15.6
 
 PRODUCTION_BUDGET_S = 1800.0
 ANALOG_BUDGET_S = 7200.0
@@ -68,6 +85,13 @@ def fast_response_edges(structure: str) -> list[float]:
 
 def objective_includes_b(config: str) -> bool:
     return CONFIGS[config]["objective"] == "a+b"
+
+
+def s0b_seeds_disjoint_from_s0() -> bool:
+    s0 = set(GENERATION_SEEDS.values()) | set(PRODUCTION_SEEDS.values()) | {ANALOG_SEED, MGXS_SEED}
+    s0b = set(S0B_GENERATION_SEEDS.values()) | set(S0B_PRODUCTION_SEEDS.values()) | {S0B_MGXS_SEED}
+    return not (s0 & s0b) and len(set(S0B_GENERATION_SEEDS.values())) == len(S0B_GENERATION_SEEDS) \
+        and len(set(S0B_PRODUCTION_SEEDS.values())) == len(S0B_PRODUCTION_SEEDS)
 
 
 def disjoint_seeds() -> bool:
