@@ -45,7 +45,7 @@ def read_statepoint(openmc, path: Path) -> dict:
         t = sp.get_tally(name="tbr")
         tm = float(t.mean.sum())
         ts = float((t.std_dev ** 2).sum() ** 0.5)
-        batches = int(sp.n_batches) if hasattr(sp, "n_batches") else sp_number(path)
+        batches = int(sp.current_batch)  # n_batches is the configured maximum, not the batches run
     return {"batches": batches,
             "a": {"mean": am, "std_error": asd, "relative_error": asd / am if am > 0 else None, "unit": checks.UNIT_PER_SOURCE},
             "tbr": {"mean": tm, "std_error": ts, "relative_error": ts / tm if tm > 0 else None, "unit": "tritons per source neutron"}}

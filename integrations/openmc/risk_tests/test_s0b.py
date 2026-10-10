@@ -169,6 +169,19 @@ class BestGain(unittest.TestCase):
         out = C.best_unbiased({"G0": {"gain": 5.0}}, {"G0": None})
         self.assertIsNone(out["best"])
 
+    def test_coarse_d2_makes_gains_lower_bounds(self):
+        gains = {"G0": {"gain": 5.0}, "G3": {"gain": 12.0}, "G2": {"gain": None}}
+        out = C.best_unbiased(gains, {"G0": None, "G3": None, "G2": None}, 0.12)
+        self.assertEqual((out["best"], out["band"], out["lower_bound"]), ("G3", "10 <= G* < 100", True))
+        # a coarse D2 does not exclude a configuration whose z is outside 3 sigma: bias is NOT_EVALUATED, not False
+        self.assertEqual(C.best_unbiased(gains, {"G0": True, "G3": False}, 0.12)["best"], "G3")
+
+    def test_fine_d2_keeps_the_unbiased_filter(self):
+        gains = {"G0": {"gain": 5.0}, "G3": {"gain": 12.0}}
+        out = C.best_unbiased(gains, {"G0": True, "G3": False}, 0.0647)
+        self.assertEqual((out["best"], out["lower_bound"]), ("G0", False))
+        self.assertIsNone(C.best_unbiased(gains, {"G0": None, "G3": None}, 0.1)["best"])
+
     def test_bands(self):
         self.assertEqual(C.best_unbiased({"a": {"gain": 100.0}}, {"a": True})["band"], "G* >= 100")
         self.assertEqual(C.best_unbiased({"a": {"gain": 9.99}}, {"a": True})["band"], "G* < 10")

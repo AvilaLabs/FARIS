@@ -110,11 +110,12 @@ def d3(args) -> int:
     configs = args.configs.split(",")
     rows = d3_rows(args.root, d2, configs)
     out = {"d2": {"R_a": d2["response"]["a"]["relative_error"], "T_seconds": d2["response"]["seconds_to_statepoint"],
-                  "histories": d2["response"]["histories"], "FOM_a": d2["fom_a"]["fom"], "FOM_sigma": d2["fom_a"]["sigma"]},
+                  "histories": d2["response"]["histories"], "FOM_a": d2["fom_a"]["fom"], "FOM_sigma": d2["fom_a"]["sigma"],
+                  "gains_are_lower_bounds": d2["response"]["a"]["relative_error"] > C.D2_R_LIMIT},
            "rows": rows}
     flags = {k: v["production"]["unbiased"] for k, v in rows.items() if "production" in v}
     gains = {k: {"gain": v["production"]["gain_vs_D2"]} for k, v in rows.items() if "production" in v}
-    out["g_star"] = C.best_unbiased(gains, flags)
+    out["g_star"] = C.best_unbiased(gains, flags, d2["response"]["a"]["relative_error"])
     Path(args.out).write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(f"D2: R(a) {out['d2']['R_a']:.4f}  T {out['d2']['T_seconds']:.0f} s  FOM {out['d2']['FOM_a']:.4g}")
     for k, v in rows.items():
@@ -122,7 +123,8 @@ def d3(args) -> int:
         if p:
             print(f"{k}: R {p['R_a']:.4f}  T {p['T_seconds']:.0f}  hist {p['histories']}  hist/s {p['histories_per_second']:.1f}  FOM {p['FOM_a']:.4g} +- {p['FOM_sigma']:.2g}"
                   f"  gain {p['gain_vs_D2']:.3g} +- {p['gain_sigma']:.2g}  z {p['z_vs_D2']}  unbiased {p['unbiased']}")
-    print("G*:", out["g_star"])
+    gs = out["g_star"]
+    print("G*:", gs, "(labelled lower bound: D2 R(a) > 0.1, unbiasedness NOT_EVALUATED)" if gs.get("lower_bound") else "")
     return 0
 
 

@@ -14,6 +14,7 @@ import time
 R_LIMIT_D2 = 0.05
 FOM_SIGMA_Z = 1.0
 Z_UNBIASED = 3.0
+D2_R_LIMIT = 0.1  # above this the analog reference is too coarse to judge bias (gains become lower bounds)
 D1_SPEEDUP_MIN = 3.0
 D1_LOST_PER_HISTORY = 1.0e-6
 D1_SIGMA = 3.0
@@ -159,14 +160,23 @@ def select_g5(fom_g0: dict, g1: dict | None, g2: dict | None, g3: dict | None, g
             "arithmetic": arith}
 
 
-def best_unbiased(gains: dict[str, dict], unbiased_flags: dict[str, bool | None]) -> dict:
-    """G*: the largest gain among configurations whose (a) agrees with D2 within 3 sigma. NOT_EVALUATED flags are not eligible."""
-    ok = {k: v["gain"] for k, v in gains.items() if v.get("gain") is not None and unbiased_flags.get(k) is True}
+def best_unbiased(gains: dict[str, dict], unbiased_flags: dict[str, bool | None], d2_relative_error: float | None = None) -> dict:
+    """G*: the largest gain among configurations whose (a) agrees with D2 within 3 sigma. NOT_EVALUATED flags are not eligible.
+
+    When D2's R(a) exceeds R_LIMIT every gain is a labelled lower bound and unbiasedness is NOT_EVALUATED (as in S0), so G* is
+    the largest gain among all configurations that have one, with "lower_bound": true.
+    """
+    if d2_relative_error is not None and d2_relative_error > D2_R_LIMIT:
+        ok = {k: v["gain"] for k, v in gains.items() if v.get("gain") is not None}
+        lower_bound = True
+    else:
+        ok = {k: v["gain"] for k, v in gains.items() if v.get("gain") is not None and unbiased_flags.get(k) is True}
+        lower_bound = False
     if not ok:
-        return {"best": None, "gain": None, "note": "no unbiased configuration with a gain"}
+        return {"best": None, "gain": None, "lower_bound": lower_bound, "note": "no unbiased configuration with a gain"}
     best = max(ok, key=ok.get)
     band = "G* >= 100" if ok[best] >= 100.0 else ("10 <= G* < 100" if ok[best] >= 10.0 else "G* < 10")
-    return {"best": best, "gain": ok[best], "band": band}
+    return {"best": best, "gain": ok[best], "band": band, "lower_bound": lower_bound}
 
 
 # ---------------------------------------------------------------------------

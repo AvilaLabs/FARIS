@@ -84,7 +84,7 @@ def fast_response_edges(structure: str) -> list[float]:
 
 
 def objective_includes_b(config: str) -> bool:
-    return CONFIGS[config]["objective"] == "a+b"
+    return (S0B_CONFIGS[config] if config in S0B_CONFIGS else CONFIGS[config])["objective"] == "a+b"
 
 
 def s0b_seeds_disjoint_from_s0() -> bool:
