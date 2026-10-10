@@ -196,3 +196,41 @@ GEO-013's 10 min, so conversion speed is a known gap. It is reported, not hidden
 Viewport highlighting of defects (GEO-028's UI half) comes with the desktop
 design workflow. The report carries coordinates and cell ids now. The 50-file
 real STEP corpus (GEO-010) is S1c.
+
+## Amendment 1 (2026-10-10, after the first RM-M run)
+
+The first implementation ran on RM-M (DESIGN_FILE_FORMAT.md, S1b notes). Three parts of this design did not hold up.
+
+**Sliver rule replaced.** "Mean thickness 2V/A below 10 × the chord tolerance" flagged RM-M's 1 cm first wall and vessel
+layers (2V/A 0.9998 cm against 1.0 cm). By that rule every tungsten armour layer of a real design (2–3 mm) is a sliver,
+however accurately it is faceted. Thickness alone is the wrong evidence; what matters is whether the faceted layer still
+has the CAD thickness. The replacement, both waivable, both reporting 2V/A:
+
+- **Thinner than the faceting:** 2V/A below the chord tolerance. The faceting cannot represent the body at all.
+- **Thickness misrepresented:** the solid's GEO-032 maximum deviation above 10 % of its 2V/A. The faceted layer's
+  thickness may be off by more than 10 %; the next step is a smaller chord tolerance for that model.
+
+This is stricter where it matters (2 mm armour faceted at 1 mm now blocks for the right reason) and stops blocking
+accurately faceted layers.
+
+**GEO-032 made complete where it can be exact.** Projecting every triangle centroid and edge midpoint with OCCT took
+1.2 ms per point on revolved faces and 25 ms on spline faces; RM-M's 4.3 million points did not finish in two hours.
+Replacement:
+
+- Faces whose surface is a plane, cylinder, cone, sphere or torus: the distance from every sample point to the surface
+  in closed form (vectorised), accepted when the foot point lies inside the face (OCCT face classifier); otherwise the
+  point falls back to OCCT projection. Every point on these faces is evaluated.
+- Other faces (B-spline, Bézier, offset, revolved or extruded curves): OCCT projection on an even stride of the points,
+  at most 2000 per solid by default (`--deviation-points` overrides).
+- The report states the coverage per solid ("all N points" on analytic faces, "n of N" on the others) and calls the
+  result "maximum over all points" or "sampled maximum" accordingly.
+
+**Conversion-side work cached and faster.**
+
+- The per-solid tessellation for the pre-imprint overlap check uses OCCT's `BRepMesh_IncrementalMesh` directly, with the
+  same chord and angular tolerances, instead of the cad_to_dagmc mesher, one solid at a time.
+- Tessellations and boolean results are cached in the work directory, keyed by the STEP sha256, tolerances and helper
+  version, as the conversion already is.
+- The conversion's imprint step uses 4 threads by default.
+
+GEO-013 and GEO-029 are re-measured on RM-M after these changes.
