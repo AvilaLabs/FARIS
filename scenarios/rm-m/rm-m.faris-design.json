@@ -1,0 +1,738 @@
+{
+  "schema_version": "faris-design/v0.1",
+  "id": "rm-m",
+  "title": "ARC-like reference model RM-M",
+  "description": "Medium reference model of the CAD transport risk tests (S0): an ARC-inspired tokamak built in CadQuery by integrations/openmc/risk_tests/build_rm_m.py. Dimensions and materials are those of the S0 model card.",
+  "cad": {
+    "step_file": "rm-m.step",
+    "step_sha256": "79b1481b5867baaa33b6c5c7d79e0f6c8fcd81f6683b424aab87bf00d2277a17",
+    "length_unit": "mm",
+    "extent": {
+      "kind": "full"
+    },
+    "machine_axis": "z",
+    "faceting_tolerance_m": null,
+    "implicit_complement_material_id": "void"
+  },
+  "materials": [
+    {
+      "id": "tungsten",
+      "catalog_id": "tungsten-natural"
+    },
+    {
+      "id": "structure",
+      "catalog_id": "pure-iron-surrogate"
+    },
+    {
+      "id": "flibe",
+      "catalog_id": "flibe-cold-solid"
+    },
+    {
+      "id": "tih2",
+      "catalog_id": "ti-hydride-shield-surrogate"
+    },
+    {
+      "id": "beryllium",
+      "label": "Beryllium (Be-9)",
+      "density_kg_m3": 1850.0,
+      "composition_basis": "atom",
+      "components": [
+        {
+          "nuclide": "Be9",
+          "fraction": 1.0
+        }
+      ],
+      "temperature_k": null,
+      "provenance": {
+        "label": "authored",
+        "note": "Be-9 at 1850 kg/m3, the candidate recipe in docs/DEMO_INPUT_SPEC.md, as in the S0 model card."
+      }
+    },
+    {
+      "id": "thermal-insulation",
+      "label": "Thermal shield (iron at 1.0 g/cm3)",
+      "density_kg_m3": 1000.0,
+      "composition_basis": "atom",
+      "components": [
+        {
+          "element": "Fe",
+          "fraction": 1.0
+        }
+      ],
+      "temperature_k": null,
+      "provenance": {
+        "label": "authored",
+        "note": "Fe at 1.0 g/cm3 stands in for the aluminium silicate of ARC: aluminium and silicon are not in the audited library."
+      }
+    },
+    {
+      "id": "tf-coil",
+      "label": "TF coil: winding pack and case, homogenised",
+      "density_kg_m3": 8422.769375000002,
+      "composition_basis": "atom",
+      "components": [
+        {
+          "nuclide": "Cu63",
+          "fraction": 0.34942704694733445
+        },
+        {
+          "nuclide": "Cu65",
+          "fraction": 0.15589044683044492
+        },
+        {
+          "nuclide": "Fe54",
+          "fraction": 0.02891419248868879
+        },
+        {
+          "nuclide": "Fe56",
+          "fraction": 0.45389098675913614
+        },
+        {
+          "nuclide": "Fe57",
+          "fraction": 0.01048232230684885
+        },
+        {
+          "nuclide": "Fe58",
+          "fraction": 0.0013950046675466616
+        }
+      ],
+      "temperature_k": null,
+      "provenance": {
+        "label": "published",
+        "reference_id": "sorbom-2015",
+        "note": "Winding pack 45.9 % Cu, 46.1 % steel, 8.0 % REBCO by volume (published); the REBCO fraction is represented as Cu because Y, Ba and O are not in the audited library (authored substitution); pack fraction 0.9375 from the authored 2 cm case wall, case steel the rest; Cu and Fe densities from the FARIS baseline."
+      }
+    }
+  ],
+  "solids": [
+    {
+      "id": "plasma",
+      "step_index": 0,
+      "step_name": "plasma",
+      "fingerprint": {
+        "cad_volume_m3": 145.6656420345901,
+        "centroid_m": [
+          3.2295261123511915e-16,
+          -4.2370149293918004e-14,
+          -8.050778800085826e-15
+        ]
+      },
+      "material_id": "void",
+      "role": "plasma_chamber",
+      "replacement_group_id": null,
+      "tally": false
+    },
+    {
+      "id": "scrape-off-layer",
+      "step_index": 1,
+      "step_name": "scrape_off_layer",
+      "fingerprint": {
+        "cad_volume_m3": 6.238661525180979,
+        "centroid_m": [
+          2.9361858898906606e-16,
+          -1.2669468767414352e-13,
+          -1.5146741246386482e-13
+        ]
+      },
+      "material_id": "void",
+      "role": "vacuum",
+      "replacement_group_id": null,
+      "tally": false
+    },
+    {
+      "id": "first-wall-tungsten",
+      "step_index": 2,
+      "step_name": "first_wall_tungsten",
+      "fingerprint": {
+        "cad_volume_m3": 2.103323580651758,
+        "centroid_m": [
+          -0.001911299716446643,
+          -3.969510384291282e-09,
+          5.092017846244886e-12
+        ]
+      },
+      "material_id": "tungsten",
+      "role": "first_wall",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "vv-inner-wall",
+      "step_index": 3,
+      "step_name": "vv_inner_wall",
+      "fingerprint": {
+        "cad_volume_m3": 2.1156589274564888,
+        "centroid_m": [
+          -0.0019044046155477267,
+          -4.106540020543365e-09,
+          7.164038489666433e-12
+        ]
+      },
+      "material_id": "structure",
+      "role": "vacuum_vessel",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "vv-flibe-channel",
+      "step_index": 4,
+      "step_name": "vv_flibe_channel",
+      "fingerprint": {
+        "cad_volume_m3": 4.2683239144455,
+        "centroid_m": [
+          -0.0018942112089389857,
+          -4.083251483006871e-09,
+          1.6277256800154462e-12
+        ]
+      },
+      "material_id": "flibe",
+      "role": "vacuum_vessel",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "vv-beryllium",
+      "step_index": 5,
+      "step_name": "vv_beryllium",
+      "fingerprint": {
+        "cad_volume_m3": 2.1526649986021225,
+        "centroid_m": [
+          -0.0018841929657193392,
+          -4.243513752173487e-09,
+          -2.533255348886842e-11
+        ]
+      },
+      "material_id": "beryllium",
+      "role": "multiplier",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "vv-outer-wall",
+      "step_index": 6,
+      "step_name": "vv_outer_wall",
+      "fingerprint": {
+        "cad_volume_m3": 6.532007220215189,
+        "centroid_m": [
+          -0.0018710996781522266,
+          -4.071239201754572e-09,
+          -1.7464251115160998e-14
+        ]
+      },
+      "material_id": "structure",
+      "role": "vacuum_vessel",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "blanket-flibe",
+      "step_index": 7,
+      "step_name": "blanket_flibe",
+      "fingerprint": {
+        "cad_volume_m3": 181.38427049406417,
+        "centroid_m": [
+          -0.0024996148485843398,
+          -5.381086738304671e-10,
+          -2.3380748662060175e-14
+        ]
+      },
+      "material_id": "flibe",
+      "role": "blanket",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "tank-wall",
+      "step_index": 8,
+      "step_name": "tank_wall",
+      "fingerprint": {
+        "cad_volume_m3": 9.607696763198309,
+        "centroid_m": [
+          -0.0015615098511881048,
+          -2.482458604910649e-09,
+          5.000793972243644e-14
+        ]
+      },
+      "material_id": "structure",
+      "role": "structure",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "thermal-shield",
+      "step_index": 9,
+      "step_name": "thermal_shield",
+      "fingerprint": {
+        "cad_volume_m3": 9.727888427192447,
+        "centroid_m": [
+          -0.0015505362728257537,
+          -2.484611501140876e-09,
+          -1.1186253544975599e-13
+        ]
+      },
+      "material_id": "thermal-insulation",
+      "role": "structure",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "tih2-shield",
+      "step_index": 10,
+      "step_name": "tih2_shield",
+      "fingerprint": {
+        "cad_volume_m3": 108.56309247313968,
+        "centroid_m": [
+          -0.0009462268410802184,
+          -1.53268720741512e-09,
+          -3.3787869636748605e-14
+        ]
+      },
+      "material_id": "tih2",
+      "role": "shield",
+      "replacement_group_id": null,
+      "tally": true
+    },
+    {
+      "id": "port-duct",
+      "step_index": 11,
+      "step_name": "port_duct",
+      "fingerprint": {
+        "cad_volume_m3": 0.12064732270843198,
+        "centroid_m": [
+          5.127466737572125,
+          5.141546622146995e-14,
+          1.3103432035522474e-14
+        ]
+      },
+      "material_id": "void",
+      "role": "port_plug",
+      "replacement_group_id": null,
+      "tally": false
+    },
+    {
+      "id": "tf-coil-00",
+      "step_index": 12,
+      "step_name": "tf_coil_00",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079195655,
+        "centroid_m": [
+          4.370627250944825,
+          0.7706595069611729,
+          1.2967548036742048e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-01",
+      "step_index": 13,
+      "step_name": "tf_coil_01",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079197412,
+        "centroid_m": [
+          3.843465100892225,
+          2.219025610621053,
+          2.284055434524523e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-02",
+      "step_index": 14,
+      "step_name": "tf_coil_02",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079195017,
+        "centroid_m": [
+          2.8527243361677748,
+          3.399744476310618,
+          1.1654107886285939e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-03",
+      "step_index": 15,
+      "step_name": "tf_coil_03",
+      "fingerprint": {
+        "cad_volume_m3": 11.52758707919734,
+        "centroid_m": [
+          1.5179029147761025,
+          4.170403983271226,
+          7.63783376203269e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-04",
+      "step_index": 16,
+      "step_name": "tf_coil_04",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079193886,
+        "centroid_m": [
+          -2.289853392011495e-13,
+          4.43805122124216,
+          8.068311399801857e-15
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-05",
+      "step_index": 17,
+      "step_name": "tf_coil_05",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079194928,
+        "centroid_m": [
+          -1.5179029147762853,
+          4.17040398327102,
+          -4.07331502676805e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-06",
+      "step_index": 18,
+      "step_name": "tf_coil_06",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079196012,
+        "centroid_m": [
+          -2.8527243361685373,
+          3.3997444763099947,
+          4.005452558240037e-14
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-07",
+      "step_index": 19,
+      "step_name": "tf_coil_07",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079199705,
+        "centroid_m": [
+          -3.843465100892095,
+          2.2190256106213155,
+          4.575886842983311e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-08",
+      "step_index": 20,
+      "step_name": "tf_coil_08",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079196765,
+        "centroid_m": [
+          -4.370627250944755,
+          0.770659506961475,
+          5.293314934331628e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-09",
+      "step_index": 21,
+      "step_name": "tf_coil_09",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079195843,
+        "centroid_m": [
+          -4.3706272509448105,
+          -0.770659506961162,
+          1.5548832873925887e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-10",
+      "step_index": 22,
+      "step_name": "tf_coil_10",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079197602,
+        "centroid_m": [
+          -3.8434651008921925,
+          -2.219025610621029,
+          2.3188002202811356e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-11",
+      "step_index": 23,
+      "step_name": "tf_coil_11",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079195118,
+        "centroid_m": [
+          -2.8527243361677583,
+          -3.3997444763106013,
+          1.143210003565616e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-12",
+      "step_index": 24,
+      "step_name": "tf_coil_12",
+      "fingerprint": {
+        "cad_volume_m3": 11.52758707919768,
+        "centroid_m": [
+          -1.51790291477607,
+          -4.170403983271172,
+          7.533971947136437e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-13",
+      "step_index": 25,
+      "step_name": "tf_coil_13",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079194003,
+        "centroid_m": [
+          2.2896416038694067e-13,
+          -4.438051221242121,
+          2.6096788624227303e-15
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-14",
+      "step_index": 26,
+      "step_name": "tf_coil_14",
+      "fingerprint": {
+        "cad_volume_m3": 11.52758707919485,
+        "centroid_m": [
+          1.5179029147762964,
+          -4.170403983271015,
+          -4.0903068886816776e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-15",
+      "step_index": 27,
+      "step_name": "tf_coil_15",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079196147,
+        "centroid_m": [
+          2.8527243361685146,
+          -3.399744476309974,
+          2.4771322415734373e-14
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-16",
+      "step_index": 28,
+      "step_name": "tf_coil_16",
+      "fingerprint": {
+        "cad_volume_m3": 11.527587079199686,
+        "centroid_m": [
+          3.8434651008920997,
+          -2.219025610621308,
+          4.3972932347031005e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    },
+    {
+      "id": "tf-coil-17",
+      "step_index": 29,
+      "step_name": "tf_coil_17",
+      "fingerprint": {
+        "cad_volume_m3": 11.52758707919691,
+        "centroid_m": [
+          4.370627250944777,
+          -0.7706595069614656,
+          5.50188442403966e-13
+        ]
+      },
+      "material_id": "tf-coil",
+      "role": "tf_magnet",
+      "replacement_group_id": "tf-coils",
+      "tally": true
+    }
+  ],
+  "replacement_groups": [
+    {
+      "id": "tf-coils",
+      "label": "All 18 TF coils",
+      "limits": [
+        {
+          "metric": "fast_neutron_fluence",
+          "energy_threshold_ev": 100000.0,
+          "limit": 3e+22,
+          "averaging": {
+            "kind": "peak_mesh",
+            "voxel_m": [
+              0.05,
+              0.1,
+              null
+            ]
+          },
+          "provenance": {
+            "label": "published",
+            "reference_id": "sorbom-2015",
+            "note": "REBCO screening value, not a qualified allowable."
+          }
+        }
+      ],
+      "replacement_duration": {
+        "kind": "computed"
+      }
+    }
+  ],
+  "plasma": {
+    "chamber_solid_id": "plasma",
+    "major_radius_m": 3.3,
+    "minor_radius_m": 1.13,
+    "elongation": 1.84,
+    "triangularity": 0.375,
+    "shafranov_shift_m": 0.0,
+    "pedestal_radius_m": 1.0170000000000001,
+    "mode": "H",
+    "ion_density_m3": {
+      "centre": 1.5e+20,
+      "pedestal": 1.1e+20,
+      "separatrix": 4e+19,
+      "peaking_factor": 1.0
+    },
+    "ion_temperature_ev": {
+      "centre": 20000.0,
+      "pedestal": 4000.0,
+      "separatrix": 100.0,
+      "peaking_factor": 1.5,
+      "beta": 1.5
+    },
+    "fuel": {
+      "D": 0.5,
+      "T": 0.5
+    },
+    "fusion_power_mw": 525.0,
+    "provenance": {
+      "label": "published",
+      "reference_id": "sorbom-2015",
+      "note": "Major radius, minor radius, elongation and fusion power: Table 1 of the reference."
+    },
+    "field_provenance": {
+      "triangularity": {
+        "label": "published",
+        "reference_id": "kuang-2018",
+        "note": "0.375, quoted in Sec 3.2 of the reference from Sorbom et al."
+      },
+      "mode": {
+        "label": "authored",
+        "note": "H-mode pedestal profile chosen by the S0 model card."
+      },
+      "ion_density_m3": {
+        "label": "authored",
+        "note": "Profile values are authored in the S0 model."
+      },
+      "ion_temperature_ev": {
+        "label": "authored",
+        "note": "Profile values are authored in the S0 model."
+      },
+      "pedestal_radius_m": {
+        "label": "authored",
+        "note": "0.9 of the minor radius, as in the S0 model."
+      },
+      "shafranov_shift_m": {
+        "label": "authored",
+        "note": "Zero, as in the S0 model."
+      },
+      "fuel": {
+        "label": "authored",
+        "note": "50 % D, 50 % T, the openmc-plasma-source default used by S0."
+      }
+    }
+  },
+  "operating_scenario": {
+    "path": "rm-m.operating-history.json",
+    "sha256": "f582eab653223f33b85a20a36461a3cd429aa0063a29bbae715b7e5669cf61d2"
+  },
+  "references": [
+    {
+      "id": "sorbom-2015",
+      "title": "ARC: A compact, high-field, fusion nuclear science facility and demonstration power plant with demountable magnets (Sorbom et al., Fusion Eng. Des. 100, 2015)",
+      "url": "https://arxiv.org/abs/1409.3540",
+      "use": "Plasma shape, inboard build, winding-pack composition and the REBCO screening fluence."
+    },
+    {
+      "id": "kuang-2018",
+      "title": "Conceptual design study for heat exhaust management in the ARC fusion pilot plant (Kuang et al., Fusion Eng. Des. 137, 2018)",
+      "url": "https://arxiv.org/abs/1809.10555",
+      "use": "Triangularity 0.375 of the ARC plasma."
+    }
+  ],
+  "assumptions": [
+    "Materials and dimensions are those of the S0 model card (integrations/openmc/risk_tests/rm_m_model_card.json); each is labelled published or authored there.",
+    "The inboard build sits 6 cm closer to the machine axis than the published figure, because the published minor radius and the published radial build disagree (model card deviation D1).",
+    "Iron stands in for Inconel 718 in the vacuum vessel and tank walls.",
+    "Each TF coil is one homogenised solid of winding pack and case, not separate solids.",
+    "The operating history is the demo's operating assumptions without service limits, because a CAD design takes its limits from its replacement groups.",
+    "The solids named plasma, scrape_off_layer and port_duct are not tallied; they are empty."
+  ]
+}
