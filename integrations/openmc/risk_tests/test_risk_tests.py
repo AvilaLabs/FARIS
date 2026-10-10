@@ -9,6 +9,7 @@ import math
 import unittest
 
 import r1_configs as R1
+import r3_scenario as R3
 import rm_m_checks as C
 import rm_m_spec as S
 
@@ -346,3 +347,49 @@ class R1Rules(unittest.TestCase):
 
     def test_z_score(self):
         self.assertAlmostEqual(R1.z_score(2.0, 0.3, 1.0, 0.4), 2.0)
+
+
+class R3Rules(unittest.TestCase):
+    def test_mesh_covers_port_and_chamber(self):
+        self.assertEqual(R3.MESH_LOWER_CM, (346.0, -35.0, -35.0))
+        self.assertEqual(R3.MESH_UPPER_CM, (586.0, 35.0, 35.0))
+        self.assertLessEqual(R3.MESH_LOWER_CM[0], R3.PORT_MOUTH_X_CM - 100.0)
+        self.assertGreaterEqual(R3.MESH_UPPER_CM[0], R3.DUCT_END_X_CM)
+        self.assertEqual(R3.mesh_volume_cm3(), 24 * 7 * 7 * 1000.0)
+
+    def test_times_and_steps(self):
+        self.assertEqual(R3.PHOTON_TIME_INDICES, [2, 3, 4])
+        self.assertEqual(R3.SOURCE_RATES[1:], [0.0, 0.0, 0.0])
+        self.assertAlmostEqual(R3.SOURCE_RATES[0] / S.SOURCE_RATE_N_S, 1.0, places=12)
+
+    def test_dose_rate_conversion(self):
+        self.assertAlmostEqual(R3.dose_rate_usv_per_h(1.0e12), 1.0e12 / 1000.0 * 3600.0 / 1.0e6)
+
+    def test_band(self):
+        self.assertTrue(R3.band_check(1.0))
+        self.assertTrue(R3.band_check(0.85))
+        self.assertFalse(R3.band_check(1.16))
+        self.assertFalse(R3.band_check(None))
+
+    def test_voxel_ratio_uses_only_good_voxels(self):
+        out = R3.ratio_summary([2.0, 4.0, 6.0, 8.0], [1.0, 2.0, 2.0, 0.0], [0.05, 0.05, 0.5, 0.05], [0.05, 0.05, 0.05, 0.05])
+        self.assertEqual(out["voxels_used"], 2)
+        self.assertAlmostEqual(out["median"], 2.0)
+
+    def test_voxel_ratio_percentiles(self):
+        n = 101
+        d = [float(i + 1) for i in range(n)]
+        out = R3.ratio_summary(d, [1.0] * n, [0.01] * n, [0.01] * n)
+        self.assertAlmostEqual(out["median"], 51.0)
+        self.assertAlmostEqual(out["p05"], 6.0)
+        self.assertAlmostEqual(out["p95"], 96.0)
+
+    def test_conservation(self):
+        self.assertTrue(R3.conservation(1.0 + 5e-7, 1.0)["pass"])
+        self.assertFalse(R3.conservation(1.0 - 4.5e-5, 1.0)["pass"])
+        self.assertTrue(R3.conservation(0.0, 0.0)["pass"])
+
+    def test_top_contributors(self):
+        top = R3.top_contributors({"a": 1.0, "b": 3.0, "c": 6.0}, 2)
+        self.assertEqual([t["nuclide"] for t in top], ["c", "b"])
+        self.assertAlmostEqual(top[0]["fraction"], 0.6)
