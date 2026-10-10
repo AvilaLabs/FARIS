@@ -267,3 +267,167 @@ Notes:
 - Each windowed production run gets 1800 s wall time at 4 threads.
 - The analog reference gets 7200 s at 4 threads.
 - Generation and production seeds are disjoint and recorded.
+
+### Units correction (applies to the R6 and acceptance values above)
+
+- **What was wrong:** the R6 and acceptance runs set the source strength to the
+  plant rate, 1.8618e20 n/s. OpenMC multiplies fixed-source tallies by the total
+  source strength, so the stored R6 analog value (1.78e17) was a rate in
+  n·cm/s, not a value per source neutron.
+- **Corrected values:** per source neutron, the analog TF fast track length
+  (E > 0.1 MeV, summed over the 18 coils) is 9.55e-4 cm on 0.15.3 and 8.09e-4 cm
+  on 0.16.0.
+- **What does not change:** the R6 z-score is unchanged, because both runs
+  carry the same factor.
+- **Hand check:** the plasma-cell track length is 680 cm per source neutron at
+  strength 1, which is plausible against the plasma's mean chord, and exactly
+  1.8618e20 times smaller than at plant strength.
+- **Guard for later runs:** R1 to R3 run at strength 1, and the scripts refuse
+  to convert between "cm per source neutron" and "n·cm/s at 525 MW" without the
+  unit changing (unit-tested).
+
+### R1: weight-window gain on the magnet: FAIL
+
+| Run | R(a) | T (s) | Histories | FOM(a) | Gain | z vs analog |
+| --- | --- | --- | --- | --- | --- | --- |
+| Analog | 0.196 | 7120 | 3.5M | 3.64e-3 | 1 | — |
+| C1 (1 group) | 0.231 | 1761 | 0.15M | 1.07e-2 | 2.93 | −0.04 |
+| C2 (CASMO-8) | 0.158 | 1750 | 0.75M | 2.28e-2 | **6.27** | 0.77 |
+| C3 (CASMO-25) | 0.218 | 1739 | 0.95M | 1.21e-2 | 3.33 | 0.67 |
+| C4 (CASMO-8, a+b) | 0.201 | 1742 | 0.65M | 1.42e-2 | 3.90 | 0.06 |
+| C5 (CASMO-8, wide) | 0.318 | 1799 | 0.55M | 5.51e-3 | 1.52 | 0.19 |
+| C6 (CASMO-25, a+b) | 0.232 | 1747 | 0.95M | 1.06e-2 | 2.91 | 1.13 |
+
+**Verdict and statistics:**
+
+- **Verdict:** FAIL. The best gain is 6.3× (C2), against the 100× rule.
+- **The gain is a lower bound:** the analog reached R = 0.196 in its 7200 s
+  budget, above 0.1, so each gain is a labelled lower bound.
+- **Unbiasedness:** NOT_EVALUATED for the same reason. All six windowed results
+  lie within 1.13σ of the analog.
+- **The gains are imprecise:** R itself rests on 15 (C1) to 95 batches.
+
+**Response (b), the inboard midplane peak:**
+
+- Every run's peak voxel has R between 0.7 and 1.0.
+- So the peak is reported only as a location, with no pass rule, as the protocol
+  says.
+- Response (b) is not resolved at these run lengths with any configuration.
+
+**Implementation notes recorded by the run:**
+
+- **Group structures:** R6's generation used a custom 8-group structure. R1 used
+  the declared CASMO-8 and CASMO-25 from `openmc.mgxs.GROUP_STRUCTURES`.
+- **Adjoint energy range:** a multigroup adjoint response must follow group
+  edges. It therefore covers E > 0.821 MeV for CASMO-8 and E > 0.111 MeV for
+  CASMO-25. The 1-group case covers everything.
+  - The production tally is exactly E > 0.1 MeV.
+  - CASMO-25, which matches the response, did no better than CASMO-8.
+- **Objective (a)+(b):** OpenMC 0.15.3 builds the adjoint source itself from
+  the model's tallies, weighted by the inverse forward estimate, and does not
+  expose user weights.
+  - C4 and C6 therefore add the (b) mesh tally and leave the weighting to
+    OpenMC.
+  - The C4 windows differ from C2 only as much as two seeds of the same
+    objective do (median ratio 0.994 against 1.013).
+  - So the second objective made no detectable difference.
+- **C5 settings:** upper bound = 10 × lower bound, `survival_ratio` = 5. Every
+  other config used the generated windows (ratio 5, survival 3, `max_split` 10).
+- **Seeds:**
+  - generation 81150101–81150106;
+  - MGXS 81150100;
+  - production 20261101–20261106;
+  - analog 20261100.
+- **Cost:** generation took 2415–2788 s per config, at 0.54–0.60 GB with
+  8 groups and 1.33 GB with 25 groups.
+
+**Not varied, because outside the declared configurations:**
+
+- the weight-window mesh resolution;
+- the random-ray source-region resolution and ray count;
+- the filler density;
+- `max_split`.
+
+These are candidates for a separate diagnostic protocol. They are not a retune
+of this rule.
+
+**Consequence:** NUC-050's provisional 100× target goes to change control with
+these measurements, as the plan states (risk 1).
+
+### R3: shutdown dose, D1S against R2S: FAIL
+
+**Setup:**
+
+- Mesh: 24 × 7 × 7 cubes of 10 cm over x 346–586 cm and y, z ±35 cm. This
+  covers the port duct (mouth at x = 446 cm, end at x = 580 cm), 100 cm of
+  chamber in front of the mouth, and a 20 cm margin.
+- Irradiation: 1 FPY at 525 MW in one constant-power step.
+- Dose: ICRP-116 AP coefficients with log-log interpolation.
+- Chain: both methods use the same chain, p32.
+- Source domain:
+  - Both methods count only decay photons born inside the scored mesh.
+  - D1S's dose tally carries a one-bin `MeshBornFilter`.
+  - Mesh R2S activates only material in the mesh, so this is like for like.
+  - The run made this choice before any dose was computed. The coordinator
+    accepted it on review, after the results were reported.
+
+**Results** (dose rate summed over the mesh, pSv·cm/s per unit source):
+
+| Cooling | D1S | R2S | D1S/R2S | In 0.85–1.15 |
+| --- | --- | --- | --- | --- |
+| 1 d | 8.32e16 (R 0.14) | 1.306e17 (R 0.0011) | 0.637 ± 0.088 | no |
+| 7 d | 1.94e16 (R 0.47) | 7.53e16 (R 0.0012) | 0.258 ± 0.122 | no |
+| 30 d | 1.73e16 (R 0.50) | 6.96e16 (R 0.0012) | 0.248 ± 0.125 | no |
+
+**Verdict and statistics:**
+
+- **Verdict:** FAIL as the rule is written.
+- **D1S statistics are weak:** the D1S run completed only 70,000 coupled
+  histories in its 7000 s budget, about 12 per second.
+- **What is inconclusive:** the 7 d and 30 d ratios are not conclusive, because
+  their D1S relative errors are 0.47–0.50.
+- **What is real:** the 1 d ratio is about 4σ below 1, so that discrepancy is
+  real at this precision.
+- **Voxel-ratio check:** NOT_EVALUATED. No voxel reached D1S R ≤ 10 %.
+- **Next step:** a D1S run long enough, or variance-reduced, to reach about 5 %
+  on the total, under a separate protocol.
+
+**Dominant nuclides:**
+
+- The two methods rank on different bases (R2S by decay-photon power, D1S by
+  dose by parent nuclide), so the lists are indicative only.
+- At 1 d:
+  - R2S: Mn-54 42 %, W-187 32 %, W-181 20 %, then Sc-48, Ta-182.
+  - D1S: W-187 75 %, Mn-54 21 %, then Mn-56, Fe-59, W-181.
+- At 7 d and 30 d, Mn-54 dominates both methods (R2S 65–68 %, D1S 90–96 %).
+
+**Conservation (ACT-023): FAIL at the default setting.**
+
+- The R2S decay-photon source falls short of the inventory's photon emission by
+  5.0–5.5e-5 relative. The rule asks for 1e-6.
+- The cause is the default `clip_tolerance = 1e-6` in
+  `Material.get_decay_photon_energy`.
+- With `clip_tolerance = 0` the source matches to 1e-14.
+- The inventory emission was computed independently from the chain's photon
+  data.
+- **Consequence:** FARIS must set `clip_tolerance = 0`, or state the 5e-5
+  shortfall.
+
+**Cost:**
+
+- R2S:
+  - neutron step 1594 s (8e5 histories, 1026 regions, VITAMIN-J-42);
+  - activation 187 s;
+  - three photon runs of about 3000 s each;
+  - peak 1.49 GB.
+- D1S: one 7000 s coupled run, peak 0.49 GB.
+- R2S needed one extra workaround: its sub-models do not inherit the library
+  path, so `openmc.config['cross_sections']` is set.
+
+**Consequence:**
+
+- The plan made D1S the fast method and R2S the check.
+- On this model with 0.15.3, D1S was neither fast nor converged.
+- VAL-043 and the S3 dose design go to change control with these measurements.
+- The 13× analog speed difference between 0.15.3 and 0.16.0 noted under R6 is
+  still unexplained. It affects every run time here, but no ratio or gain.
