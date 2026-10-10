@@ -1,0 +1,112 @@
+{
+ "schema": "faris-facets/v1",
+ "unit": "m",
+ "unimprinted": false,
+ "counts": {
+  "vertices": 24,
+  "triangles": 36,
+  "surfaces": 18,
+  "volumes": 3
+ },
+ "source": {
+  "kind": "h5m",
+  "sha256": "94d571a968481f75954ee7ad124c908a1702ecb60da2d54b1f80f607f33ef310"
+ },
+ "binary_sha256": "ded758d1fe62e40def78342f40c723c7f4053d3031cdce1ae1083792c39b2267",
+ "helper_version": "2",
+ "volumes": [
+  {
+   "index": 1,
+   "global_id": 1,
+   "material_tag": "mat:core",
+   "triangles": 12
+  },
+  {
+   "index": 2,
+   "global_id": 2,
+   "material_tag": "mat:shell1",
+   "triangles": 24
+  },
+  {
+   "index": 3,
+   "global_id": 3,
+   "material_tag": "mat:shell2",
+   "triangles": 24
+  }
+ ],
+ "surfaces": [
+  {
+   "index": 0,
+   "global_id": 1
+  },
+  {
+   "index": 1,
+   "global_id": 2
+  },
+  {
+   "index": 2,
+   "global_id": 3
+  },
+  {
+   "index": 3,
+   "global_id": 4
+  },
+  {
+   "index": 4,
+   "global_id": 5
+  },
+  {
+   "index": 5,
+   "global_id": 6
+  },
+  {
+   "index": 6,
+   "global_id": 7
+  },
+  {
+   "index": 7,
+   "global_id": 8
+  },
+  {
+   "index": 8,
+   "global_id": 9
+  },
+  {
+   "index": 9,
+   "global_id": 10
+  },
+  {
+   "index": 10,
+   "global_id": 11
+  },
+  {
+   "index": 11,
+   "global_id": 12
+  },
+  {
+   "index": 12,
+   "global_id": 13
+  },
+  {
+   "index": 13,
+   "global_id": 14
+  },
+  {
+   "index": 14,
+   "global_id": 15
+  },
+  {
+   "index": 15,
+   "global_id": 16
+  },
+  {
+   "index": 16,
+   "global_id": 17
+  },
+  {
+   "index": 17,
+   "global_id": 18
+  }
+ ],
+ "implicit_complement_tag": "mat:void_comp"
+}

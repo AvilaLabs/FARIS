@@ -546,30 +546,38 @@ def tessellate(args) -> int:
         if len(solids) != len(tags):
             print(f"STEP holds {len(solids)} solids but {len(tags)} tags were given", file=sys.stderr)
             return 3
-        assembly = cq.Assembly()
-        configs = []
+        # Each solid is meshed on its own: the mesher refuses an assembly whose solids overlap,
+        # and an overlap is exactly what the candidate-pair search has to find from these meshes.
+        vertex_blocks = []
+        faces_of_volume: dict[int, dict] = {}
+        offset = 0
         for entry in tags:
             part = cq.Shape.cast(solids[entry["step_index"]]).scale(scale_to_cm)
             name = f"s{entry['step_index']}"
+            assembly = cq.Assembly()
             assembly.add(part, name=name)
-            configs.append(SolidConfig(name=name, tolerance=args.chord_cm, angular_tolerance=args.angular))
-        result = mesh_assembly(assembly, solid_config=configs, imprint=False, auto_refine=False, check=False)
-    all_vertices = np.asarray(result["vertices"], dtype=np.float64)
-    names = result["material_tags"]
-    volume_of_solid = {sid: int(names[sid - 1][1:]) + 1 for sid in result["triangles_by_solid_by_face"]}
+            config = [SolidConfig(name=name, tolerance=args.chord_cm, angular_tolerance=args.angular)]
+            result = mesh_assembly(assembly, solid_config=config, imprint=False, auto_refine=False, check=False)
+            block = np.asarray(result["vertices"], dtype=np.float64)
+            (only,) = result["triangles_by_solid_by_face"]
+            faces_of_volume[entry["step_index"] + 1] = {
+                face_id: np.asarray(tris, dtype=np.int64).reshape(-1, 3) + offset
+                for face_id, tris in result["triangles_by_solid_by_face"][only].items()
+            }
+            vertex_blocks.append(block)
+            offset += len(block)
+    all_vertices = np.concatenate(vertex_blocks)
     blocks, surfaces, surface_ids = [], [], []
     first = 0
     signed = {}
-    for sid in sorted(result["triangles_by_solid_by_face"]):
-        faces = result["triangles_by_solid_by_face"][sid]
-        for face_id in sorted(faces):
-            tris = np.asarray(faces[face_id], dtype=np.int64).reshape(-1, 3)
+    for volume in sorted(faces_of_volume):
+        for face_id in sorted(faces_of_volume[volume]):
+            tris = faces_of_volume[volume][face_id]
             if len(tris) == 0:
                 continue
             # The triangles come out oriented outward from their solid; the mesher's "reversed"
             # flag describes the face against its imprinted neighbour and does not apply here.
             blocks.append(tris)
-            volume = volume_of_solid[sid]
             surfaces.append((first, len(tris), volume, 0))
             surface_ids.append(int(face_id))
             first += len(tris)

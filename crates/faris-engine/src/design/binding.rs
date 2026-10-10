@@ -15,6 +15,7 @@
 
 use super::mesh::{GRID3_PER_M3, Mesh, to_metres};
 use faris_model::design::{Design, Facets, FacetsManifest, Finding};
+use faris_model::math::powi;
 use serde::{Deserialize, Serialize};
 
 const CHECK: u8 = 7;
@@ -108,13 +109,12 @@ pub struct BindingOutcome {
 
 struct Candidate {
     solid: usize,
-    volume_term: f64,
     centroid_term: f64,
     distance: f64,
 }
 
 fn dist3(a: [f64; 3], b: [f64; 3]) -> f64 {
-    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    (powi(a[0] - b[0], 2) + powi(a[1] - b[1], 2) + powi(a[2] - b[2], 2)).sqrt()
 }
 
 pub fn bind(design: &Design, stats: &[VolumeStats], model_diagonal_m: f64) -> BindingOutcome {
@@ -152,7 +152,6 @@ pub fn bind(design: &Design, stats: &[VolumeStats], model_diagonal_m: f64) -> Bi
                     / (CENTROID_FRACTION * model_diagonal_m);
                 Candidate {
                     solid: s,
-                    volume_term,
                     centroid_term,
                     distance: volume_term.max(centroid_term),
                 }

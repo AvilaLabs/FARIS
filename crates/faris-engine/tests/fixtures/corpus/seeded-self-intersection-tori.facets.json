@@ -1,0 +1,52 @@
+{
+ "schema": "faris-facets/v1",
+ "unit": "m",
+ "unimprinted": false,
+ "counts": {
+  "vertices": 2616,
+  "triangles": 5232,
+  "surfaces": 3,
+  "volumes": 3
+ },
+ "source": {
+  "kind": "h5m",
+  "sha256": "26cffaf6f90c1a2e709de07128655be619c266b696ff39d9e737d619ad2f3028"
+ },
+ "binary_sha256": "272f146962dcf31a31289ade5cdf04040274773e932b6d15ad678c9d72187c11",
+ "helper_version": "2",
+ "volumes": [
+  {
+   "index": 1,
+   "global_id": 1,
+   "material_tag": "mat:core",
+   "triangles": 1680
+  },
+  {
+   "index": 2,
+   "global_id": 2,
+   "material_tag": "mat:shell1",
+   "triangles": 3464
+  },
+  {
+   "index": 3,
+   "global_id": 3,
+   "material_tag": "mat:shell2",
+   "triangles": 3552
+  }
+ ],
+ "surfaces": [
+  {
+   "index": 0,
+   "global_id": 1
+  },
+  {
+   "index": 1,
+   "global_id": 2
+  },
+  {
+   "index": 2,
+   "global_id": 3
+  }
+ ],
+ "implicit_complement_tag": "mat:void_comp"
+}

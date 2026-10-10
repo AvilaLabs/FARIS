@@ -1,0 +1,115 @@
+{
+ "schema": "faris-step-inspect/v1",
+ "versions": {
+  "python": "3.14.4",
+  "interpreter": "/home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python",
+  "cadquery": "2.8.0",
+  "ocp": "7.9.3.1",
+  "occt": "7.9",
+  "helper": "2"
+ },
+ "step": {
+  "file_name": "seeded-wrong-units-tori.step",
+  "sha256": "bb3afb4d04fc54e1699e64e895ff83706f8f46d1218d0a6dab66bbc87ef2c1cc",
+  "size_bytes": 19176
+ },
+ "unit": {
+  "declared": "mm",
+  "factor_to_m": 0.001,
+  "used": "mm",
+  "used_is_assumed": false,
+  "text_units": [
+   "mm"
+  ],
+  "ocp_units": [
+   "mm"
+  ],
+  "problems": []
+ },
+ "solids": [
+  {
+   "step_index": 0,
+   "step_name": "core",
+   "gprop_relative_error_estimate": 0.0,
+   "occt_valid": true,
+   "cad_volume_m3": 0.11843525281307225,
+   "centroid_m": [
+    -2.2737367544323206e-16,
+    -6.07761903294674e-17,
+    1.1772680703894339e-17
+   ],
+   "bbox_min_m": [
+    -0.7000000001,
+    -0.7000000001,
+    -0.1000000001
+   ],
+   "bbox_max_m": [
+    0.7000000001,
+    0.7000000001,
+    0.1000000001
+   ]
+  },
+  {
+   "step_index": 1,
+   "step_name": "shell1",
+   "gprop_relative_error_estimate": 1.9763278848416525e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.35530575843921686,
+   "centroid_m": [
+    0.0,
+    -1.1808293409535712e-16,
+    5.3661127358045275e-17
+   ],
+   "bbox_min_m": [
+    -0.8000000000999999,
+    -0.8000000000999999,
+    -0.2000000001
+   ],
+   "bbox_max_m": [
+    0.8000000000999999,
+    0.8000000000999999,
+    0.2000000001
+   ]
+  },
+  {
+   "step_index": 2,
+   "step_name": "shell2",
+   "gprop_relative_error_estimate": 8.783679488185117e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.5921762640653623,
+   "centroid_m": [
+    -9.09494701772927e-17,
+    -1.3680499265456964e-16,
+    -4.768461230677549e-17
+   ],
+   "bbox_min_m": [
+    -0.9000000001,
+    -0.9000000001,
+    -0.30000000010000005
+   ],
+   "bbox_max_m": [
+    0.9000000001,
+    0.9000000001,
+    0.30000000010000005
+   ]
+  }
+ ],
+ "model_bbox_diagonal_m": 2.6153393664455864,
+ "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
+ "problems": [],
+ "timing_seconds": {
+  "unit_text_parse": 0.003755912184715271,
+  "read_and_transfer": 0.018729842035099864,
+  "measure_solids": 0.26135733304545283
+ },
+ "model_bbox_min_m": [
+  -0.9000000001,
+  -0.9000000001,
+  -0.30000000010000005
+ ],
+ "model_bbox_max_m": [
+  0.9000000001,
+  0.9000000001,
+  0.30000000010000005
+ ]
+}

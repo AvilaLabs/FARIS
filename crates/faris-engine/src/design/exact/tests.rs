@@ -387,9 +387,9 @@ fn seg_tri_basic_cases() {
 
 fn dedup_shared(t1: [P3; 3], t2: [P3; 3]) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
-    for i in 0..3 {
-        for j in 0..3 {
-            if t1[i] == t2[j] {
+    for (i, a) in t1.iter().enumerate() {
+        for (j, b) in t2.iter().enumerate() {
+            if a == b {
                 out.push((i, j));
             }
         }

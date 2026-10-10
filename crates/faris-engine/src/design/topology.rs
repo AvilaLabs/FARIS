@@ -28,6 +28,7 @@ pub struct EdgeProblems {
 }
 
 impl EdgeProblems {
+    #[cfg(test)]
     pub fn clean(&self) -> bool {
         self.open == 0
             && self.non_manifold == 0
@@ -226,9 +227,9 @@ pub fn boundary_components(mesh: &Mesh) -> Result<(Vec<Component>, Vec<u32>), St
                 .checked_add(super::mesh::six_volume_term(mesh.lo, a, b, cc))
                 .ok_or("a boundary component's enclosed volume overflows the exact 128-bit sum")?;
             for p in [a, b, cc] {
-                for k in 0..3 {
-                    c.lo[k] = c.lo[k].min(p[k]);
-                    c.hi[k] = c.hi[k].max(p[k]);
+                for (k, &coordinate) in p.iter().enumerate() {
+                    c.lo[k] = c.lo[k].min(coordinate);
+                    c.hi[k] = c.hi[k].max(coordinate);
                 }
             }
         }

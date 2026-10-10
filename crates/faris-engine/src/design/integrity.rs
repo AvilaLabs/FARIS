@@ -51,6 +51,7 @@ pub struct Config {
 }
 
 impl Config {
+    #[cfg(test)]
     pub fn new(chord_m: f64, seed: u64) -> Self {
         Self {
             chord_m,
@@ -354,7 +355,7 @@ fn capped_all(findings: Vec<Finding>) -> Vec<Finding> {
         .into_iter()
         .flat_map(|class| {
             let list = by_class.remove(&class).unwrap_or_default();
-            capped(list, &format!("{class}"), &class)
+            capped(list, &class.to_string(), &class)
         })
         .collect()
 }
@@ -1170,7 +1171,7 @@ impl Run<'_> {
 
         // GEO-031: the faceted volumes and the cavities fill the assembly.
         let faceted: f64 = record.volumes.iter().map(|v| v.faceted_volume_m3).sum();
-        let cavity_sum: f64 = cavities.iter().map(|c| c.volume_m3).sum();
+        let cavity_sum: f64 = cavities.iter().map(|c| c.volume_m3).sum::<f64>() + 0.0;
         let sampled = box_volume * total.assembly as f64 / nf;
         let se = standard_error(total.assembly).max(box_volume / nf);
         let sigmas = ((faceted + cavity_sum) - sampled).abs() / se;
@@ -1597,7 +1598,7 @@ mod tests {
         });
         let r = run(&f, CHORD);
         assert_eq!(r.record.cavities.len(), 1);
-        let expected = 8.0f64.powi(3) - 2.0f64.powi(3);
+        let expected = 8.0 * 8.0 * 8.0 - 2.0 * 2.0 * 2.0;
         assert!(
             (r.record.cavities[0].volume_m3 - expected).abs() < 1e-6,
             "{:?}",

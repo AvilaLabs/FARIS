@@ -122,12 +122,9 @@ impl Bvh {
         self.boxes[t as usize]
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.order.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.order.len()
     }
 
     /// Visit every triangle whose box overlaps `[lo, hi]` (inclusive, exact).

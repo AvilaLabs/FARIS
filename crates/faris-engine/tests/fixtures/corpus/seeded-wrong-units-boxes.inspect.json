@@ -1,0 +1,115 @@
+{
+ "schema": "faris-step-inspect/v1",
+ "versions": {
+  "python": "3.14.4",
+  "interpreter": "/home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python",
+  "cadquery": "2.8.0",
+  "ocp": "7.9.3.1",
+  "occt": "7.9",
+  "helper": "2"
+ },
+ "step": {
+  "file_name": "seeded-wrong-units-boxes.step",
+  "sha256": "ff9277f8812bc0bc78af507ec16a7b0a1c6c9feb076ba2638423fcab804fa88f",
+  "size_bytes": 78074
+ },
+ "unit": {
+  "declared": "mm",
+  "factor_to_m": 0.001,
+  "used": "mm",
+  "used_is_assumed": false,
+  "text_units": [
+   "mm"
+  ],
+  "ocp_units": [
+   "mm"
+  ],
+  "problems": []
+ },
+ "solids": [
+  {
+   "step_index": 0,
+   "step_name": "core",
+   "gprop_relative_error_estimate": 1.3642420526593927e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.0009999999999999998,
+   "centroid_m": [
+    4.547473508864641e-19,
+    4.547473508864641e-19,
+    0.0
+   ],
+   "bbox_min_m": [
+    -0.05,
+    -0.05,
+    -0.05
+   ],
+   "bbox_max_m": [
+    0.05,
+    0.05,
+    0.05
+   ]
+  },
+  {
+   "step_index": 1,
+   "step_name": "shell1",
+   "gprop_relative_error_estimate": 1.3642420526593927e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.006999999999999997,
+   "centroid_m": [
+    0.0,
+    6.262520660779309e-19,
+    0.0
+   ],
+   "bbox_min_m": [
+    -0.1,
+    -0.1,
+    -0.1
+   ],
+   "bbox_max_m": [
+    0.1,
+    0.1,
+    0.1
+   ]
+  },
+  {
+   "step_index": 2,
+   "step_name": "shell2",
+   "gprop_relative_error_estimate": 1.3642420526593927e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.01900000000000001,
+   "centroid_m": [
+    -7.842716417814553e-19,
+    -2.582582007897527e-18,
+    2.352814925344366e-18
+   ],
+   "bbox_min_m": [
+    -0.15,
+    -0.15,
+    -0.15
+   ],
+   "bbox_max_m": [
+    0.15,
+    0.15,
+    0.15
+   ]
+  }
+ ],
+ "model_bbox_diagonal_m": 0.5196152422706632,
+ "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
+ "problems": [],
+ "timing_seconds": {
+  "unit_text_parse": 0.009623320074751973,
+  "read_and_transfer": 0.07035606005229056,
+  "measure_solids": 0.03636163892224431
+ },
+ "model_bbox_min_m": [
+  -0.15,
+  -0.15,
+  -0.15
+ ],
+ "model_bbox_max_m": [
+  0.15,
+  0.15,
+  0.15
+ ]
+}

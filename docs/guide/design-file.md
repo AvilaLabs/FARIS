@@ -161,15 +161,76 @@ the interpreter that ran them, and every void solid.
    that each is in your nuclear-data library. A missing nuclide stops the run. If OpenMC is not configured, this
    part is `NOT_EVALUATED`, never `PASS`.
 
+6. **The STEP model converts.** The CAD helper meshes every solid, imprints touching surfaces and writes a DAGMC
+   model, as a bounded job (memory cap, time limit, cancel). Each solid gets the material tag `mat:<solid id>`.
+   The faceting tolerance is 0.1 cm and 0.1 rad unless `faceting_tolerance_m` in the design file says otherwise.
+   The report records both, the versions of `cad_to_dagmc` and OpenCASCADE, the wall time, the peak memory, the
+   triangle count of every volume and the hash of the converted file. Before imprinting, FARIS also looks for
+   solids that overlap in the CAD model itself (OpenCASCADE's boolean common of every candidate pair). A pair
+   whose common volume is more than 1e-6 of the smaller solid is an overlap; a pair the kernel cannot decide is
+   reported as undecided and stops the import.
+7. **Every converted volume is one of your solids.** Volumes are matched to solids by faceted volume (within 0.5 %)
+   and centroid (within 1e-3 of the model's bounding-box diagonal). The next-best solid must be at least ten times
+   farther away, and the material tag on the volume must be the matched solid's id. Each solid and each volume
+   is matched exactly once. FARIS also reports the largest distance between the faceted surface and the CAD
+   surface (GEO-032, a sampled maximum); a deviation larger than the faceting tolerance stops the import.
+8. **The faceted model is sound.** FARIS reads the converted model itself and checks it with its own code, using
+   exact arithmetic for every yes-or-no decision. It stops on an edge used once or three times (a hole or a fold),
+   neighbouring triangles that disagree about the inside, a volume with negative or zero volume, a solid thinner
+   than ten faceting tolerances (a sliver), a solid that intersects itself, two surfaces that coincide but were
+   not merged, overlapping solids, an enclosed region that belongs to no solid (a gap), sampled points that are
+   in two solids or in a gap, random chords that cross a surface that does not lead out of the region they are in
+   (a particle there would be lost), and a sum of volumes that disagrees with the sampled volume of the whole.
+   Every finding gives the solids, a position in metres, why it stops the import and what to change in your CAD
+   tool. Nothing is repaired.
+9. **The plasma source lies inside the chamber.** FARIS samples 100,000 source sites from the plasma block with
+   OpenMC's plasma source and tests each against the `plasma_chamber` volume. All must be inside.
+
 Every void solid is listed in the report, because a void region hides streaming paths.
+
+### Options
+
+| Option | Meaning |
+| --- | --- |
+| `--work-dir DIR` | Keep the conversion and its products here. A conversion found here is reused only when the STEP hash, the tags and the tolerances all match; `--no-reuse` converts again. Without it, a temporary directory is used and removed. |
+| `--threads N` | Worker threads for check 8. Default: the available cores, at most 16. |
+| `--seed N`, `--samples N`, `--chords N`, `--source-sites N` | The sampling seed and sizes. The same seed gives the same report. Defaults 1, 1,000,000, 100,000, 100,000. |
+| `--imprint-threads N` | Threads the converter may use. Default 1. |
+| `--cad-python`, `--openmc-python`, `--plasma-source-path DIR` | The interpreters and the folder holding `openmc_plasma_source`. |
+
+Progress goes to the terminal. Ctrl-C cancels cleanly; a cancelled run reports nothing partial.
+
+## Waivers
+
+Some findings are real but acceptable to you, for example a deliberate thin layer. You can accept one by adding an
+entry to the design file's optional `waivers` array:
+
+```json
+"waivers": [
+  {
+    "check_id": "SLIVER",
+    "solid_ids": ["first-wall"],
+    "reason": "A 2 mm sacrificial layer, modelled on purpose.",
+    "author": "A. Designer",
+    "date": "2026-10-10"
+  }
+]
+```
+
+A waiver names the finding's class, the solids it covers (all of them, as a set) or, for a gap, the point FARIS
+reported (`"point_m": [x, y, z]`, to a nanometre), a reason, who accepted it and when. A waiver matches exactly;
+nothing matches loosely. A waived finding stays in the report and in every receipt, marked with the waiver, and
+no longer stops the import. A waiver that covers nothing is reported.
+
+You can waive `GEO-021` (overlap), `GEO-022` (gap), `GEO-024`, `GEO-025`, `GEO-031`, `GEO-032`, `SLIVER`,
+`SELF-INTERSECTION` and `DUPLICATE-SURFACE`. A gap is found by two checks that share a position; one waiver covers
+both. You cannot waive an open or non-manifold surface (`GEO-020`), inverted normals, a zero-volume solid or a
+degenerate triangle, because transport is not defined for them. You also cannot waive a failed conversion
+(`GEO-012`) or source sites outside the chamber (`SRC-018`).
 
 ## What this version does not do
 
-Checks 6 to 9 are `NOT_EVALUATED` with the reason "implemented in stage S1b":
-
-6. Conversion of the STEP model to a DAGMC model.
-7. Matching each converted volume to one solid by fingerprint, and the faceted volume.
-8. The integrity checks: watertightness, overlaps, gaps and lost particles.
-9. That source sites sampled from the plasma block all lie in the plasma chamber.
-
-A design that passes checks 1 to 5 is checked, not converted and not run.
+A design that passes checks 1 to 9 is checked and convertible, but not yet run: the transport and maintenance
+studies that use it come in later releases. The integrity checks need the converted model to fit the 1 nm exact grid (about 270 m across); larger models are
+refused with the reason. Check 8 finds defects on the faceted model; a defect smaller than the faceting tolerance can only be
+seen through the sampled checks.

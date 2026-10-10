@@ -10,11 +10,10 @@
 
 use super::exact::{MAX_EXTENT, P3, dominant_axis};
 use faris_model::design::Facets;
+use faris_model::math::powi;
 
 /// Grid units per metre.
 pub const GRID_PER_M: f64 = 1.0e9;
-/// The largest distance a vertex moves when snapped, per axis, in nm.
-pub const MAX_SNAP_NM: f64 = 0.5;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceInfo {
@@ -159,7 +158,7 @@ impl Mesh {
     /// Length of the box diagonal, nm.
     pub fn diagonal(&self) -> f64 {
         let e = self.extent();
-        ((e[0] as f64).powi(2) + (e[1] as f64).powi(2) + (e[2] as f64).powi(2)).sqrt()
+        (powi(e[0] as f64, 2) + powi(e[1] as f64, 2) + powi(e[2] as f64, 2)).sqrt()
     }
 
     pub fn bbox_volume_m3(&self) -> f64 {

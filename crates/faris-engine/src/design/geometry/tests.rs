@@ -2,7 +2,7 @@ use super::super::mesh::fixtures::*;
 use super::super::testutil::{design_for, manifest_of};
 use super::super::*;
 use super::*;
-use faris_model::design::Surface;
+use faris_model::math::{cos, sin};
 use std::cell::{Cell, RefCell};
 
 const INSPECT: &str =
@@ -168,11 +168,7 @@ fn geo() -> Geo {
     let sites = (0..500)
         .map(|i| {
             let t = f64::from(i) / 500.0;
-            [
-                1.5 * (t * 7.0).sin(),
-                1.5 * (t * 11.0).cos(),
-                1.5 * (t * 3.0).sin(),
-            ]
+            [1.5 * sin(t * 7.0), 1.5 * cos(t * 11.0), 1.5 * sin(t * 3.0)]
         })
         .collect();
     Geo {

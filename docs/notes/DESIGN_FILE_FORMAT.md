@@ -119,6 +119,7 @@ Each decision gives its reason.
 | `replacement_groups` | array | Parts replaced together, and their limits. |
 | `plasma` | object | Plasma shape, profiles and power. |
 | `operating_scenario` | object | Linked operating-history file. |
+| `waivers` | array | Optional. Integrity findings the author accepts, one entry each (see `waivers[]`). |
 | `references`, `assumptions` | arrays | As in `faris-scenario/v0.1`. |
 
 Unknown keys stop the import, so a misspelt key cannot be ignored without
@@ -179,6 +180,30 @@ Role rules, checked at import:
 - `void` is allowed only in `plasma_chamber`, `vacuum` and `port_plug` solids;
   other roles must have a material, so an empty blanket cannot pass unseen;
 - every void solid is listed in the report (GEO-039, NUC-056).
+
+### `waivers[]`
+
+Optional (GEO-026). Added in S1b without changing the schema version: a file
+without `waivers` is unchanged and stays valid.
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `check_id` | string | The class of finding: `GEO-021`, `GEO-022`, `GEO-024`, `GEO-025`, `GEO-031`, `GEO-032`, `SLIVER`, `SELF-INTERSECTION` or `DUPLICATE-SURFACE`. |
+| `solid_ids` | array of string | The solids the finding is about, as a set; it must equal the finding's set. |
+| `point_m` | `[x, y, z]` | For a gap, the interior point FARIS reported, equal to 1e-9 m. Give `solid_ids`, `point_m` or both. |
+| `reason`, `author` | string | Not empty. |
+| `date` | string | `YYYY-MM-DD`. |
+
+A waiver matches exactly. A waived finding stays in the report and in every
+receipt, labelled with the waiver (index, author, date, reason), and does not
+stop the import. A waiver that covers no finding is reported as a notice. The
+classes `GEO-020`, `INVERTED-NORMALS`, `ZERO-VOLUME` and `DEGENERATE-TRIANGLE`
+cannot be waived: check 1 rejects a waiver for them. A failed conversion
+(`GEO-012`) and source sites outside the chamber (`SRC-018`) have no waiver id.
+Check 4 requires every `solid_ids` entry to exist. A gap raises two findings at
+the same place (the topological cavity, `GEO-022`, and the sampled points in no
+solid, `GEO-024`); a `GEO-022` waiver covers both, and an overlap (`GEO-021`)
+likewise covers its sampled points.
 
 ### `replacement_groups[]`
 
@@ -350,3 +375,68 @@ Where the text above left a detail open, S1a settled it as follows. Nothing here
   baseline. The audit passes when every nuclide has a library entry that `h5py` and the OpenMC data API both read.
   Photon data are listed in the audit record and do not decide the result in S1a, which has no photon transport.
   With no OpenMC interpreter or no `cross_sections.xml`, check 5 is `NOT_EVALUATED`.
+
+## Implementation notes (stage S1b)
+
+Checks 6 to 9 run in `faris design check`. The method of checks 6 to 8 is in
+[CAD_INTEGRITY_CHECKS.md](CAD_INTEGRITY_CHECKS.md); these notes record where S1b
+settled a detail.
+
+- **Conversion.** The helper converts with `cad_to_dagmc` 0.14.2, tag `mat:<solid id>`, imprint on, chord 0.1 cm,
+  angular 0.1 rad (the design file's `faceting_tolerance_m` overrides the chord). The declared STEP unit is read as
+  OpenCASCADE's millimetre; a file with no declared unit is read in the design unit. The conversion job asks for
+  12 GiB of address space (the default job limit is 4 GiB, the ceiling 16 GiB); the memory the job actually uses is
+  recorded.
+- **Reuse.** A conversion in `--work-dir` is reused only when the STEP sha256, the tags, the chord and angular
+  tolerances, the unit scale, the h5m sha256 and the facets sha256 all match what was recorded. Otherwise it is
+  made again.
+- **Overlap before imprinting.** The mesher stops with an error on overlapping solids, so the unimprinted check
+  meshes every solid on its own (flag bit 0 of the facets file, below). FARIS finds candidate pairs from those
+  meshes with its exact predicates: crossing or coincident triangles, solids nearer than twice the chord, and a
+  vertex of one inside the other. OpenCASCADE's `BRepAlgoAPI_Common` then decides each candidate in a worker
+  process; a common volume above 1e-6 of the smaller solid is an overlap. A failed or timed-out boolean is
+  undecided, blocks, and may be waived.
+- **Binding.** GEO-030 (volume within 0.5 %) is evaluated in check 7 and shown as a sub-check of check 8.
+- **Exact predicates.** Vertices are snapped to a 1 nm integer grid; the largest model side is 2^38 nm (about
+  275 m). Orientation and intersection tests use an `f64` filter and then `i128` arithmetic. Point-in-volume uses
+  ray parity with seeded redraws; a ray through an edge or vertex is never nudged, it is redrawn, and after 64
+  redraws the point is undecided and blocks.
+- **Zero volume.** A volume of at most 1e-12 of the model's bounding-box volume.
+- **Sliver.** Mean thickness 2V/A below ten chord tolerances.
+- **Findings per class.** The report lists at most 100 findings per class, then one blocking summary of the rest.
+- **Check 9.** 100,000 sites sampled by `openmc-plasma-source` through OpenMC, then FARIS's own exact
+  point-in-volume test against the faceted volume of the chamber solid matched in check 7.
+- **Verdict.** The import is complete only when all nine checks ran and none failed.
+
+## Appendix: `faris-facets/v1`
+
+The CAD helper exports the converted model as the faceted geometry FARIS checks. FARIS parses it itself, rejects
+a malformed file with the reason, and compares every count in the manifest with the binary. The layout is also
+the module documentation of `crates/faris-model/src/design/facets.rs`.
+
+Binary, little-endian, no padding:
+
+| Offset | Size | Field |
+| --- | --- | --- |
+| 0 | 8 | magic `FARISFC1` |
+| 8 | 4 | `u32` version, 1 |
+| 12 | 4 | `u32` flags; bit 0 set means unimprinted per-solid meshes |
+| 16 | 8 | `u64` vertices |
+| 24 | 8 | `u64` triangles |
+| 32 | 8 | `u64` surfaces |
+| 40 | 8 | `u64` volumes |
+| 48 | 24 per vertex | `f64` x y z, metres |
+| | 12 per triangle | `u32` a b c vertex indices, grouped by surface |
+| | 24 per surface | `u64` first triangle, `u64` triangle count, `u32` forward volume, `u32` reverse volume |
+
+Volumes are numbered from 1; 0 is the implicit complement. A triangle's normal (right-hand rule) points out of the
+surface's forward volume towards its reverse volume (the DAGMC convention). Vertices are the mesh's own vertices
+(the MOAB handle), never merged by position. Beside the binary is a JSON manifest (`faris-facets/v1`): counts, the
+unit `m`, the source kind and sha256, the binary's sha256, the helper version, and per volume its index, DAGMC
+global id, material tag and triangle count, per surface its global id, and, if the model has one, the
+`implicit_complement_tag`.
+
+The helper reads the h5m's MOAB HDF5 layout with `h5py` alone: node coordinates, `Tri3` connectivity, the sets and
+their contents, and the `GEOM_DIMENSION`, `GLOBAL_ID`, `GEOM_SENSE_2`, `CATEGORY` and `NAME` tags. It does not
+import MOAB, so the geometry FARIS checks does not pass through the code that will transport on it. The tests
+compare its triangle and vertex counts with MOAB's `mbsize`.

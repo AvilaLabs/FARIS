@@ -34,6 +34,7 @@ pub type P3 = [i64; 3];
 pub const MAX_EXTENT: i64 = 1 << 38;
 
 /// Largest coordinate difference any predicate may see, 2^41.
+#[cfg(test)]
 pub const MAX_DIFFERENCE: i64 = 1 << 41;
 
 #[inline]

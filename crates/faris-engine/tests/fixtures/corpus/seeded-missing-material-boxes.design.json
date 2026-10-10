@@ -1,0 +1,165 @@
+{
+ "schema_version": "faris-design/v0.1",
+ "id": "fixture",
+ "title": "Fixture design",
+ "description": "Four solids for the design-file tests.",
+ "cad": {
+  "step_file": "seeded-missing-material-boxes.step",
+  "step_sha256": "e2257d7e501cae81e20c509690e20a9f07f34cc2512d84caff57341eb37aae38",
+  "length_unit": "mm",
+  "extent": {
+   "kind": "full"
+  },
+  "machine_axis": "z",
+  "faceting_tolerance_m": null,
+  "implicit_complement_material_id": "void"
+ },
+ "materials": [
+  {
+   "id": "tungsten",
+   "catalog_id": "tungsten-natural"
+  },
+  {
+   "id": "flibe",
+   "catalog_id": "flibe-cold-solid"
+  },
+  {
+   "id": "magnet-pack",
+   "label": "Coil pack (Cu, steel)",
+   "density_kg_m3": 8500.0,
+   "composition_basis": "weight",
+   "components": [
+    {
+     "element": "Cu",
+     "fraction": 0.6
+    },
+    {
+     "element": "Fe",
+     "fraction": 0.3
+    },
+    {
+     "element": "Li",
+     "fraction": 0.1,
+     "isotopes": {
+      "Li6": 0.9,
+      "Li7": 0.1
+     }
+    }
+   ],
+   "temperature_k": null,
+   "provenance": {
+    "label": "published",
+    "reference_id": "sorbom-2015",
+    "note": "Example winding-pack mix."
+   }
+  }
+ ],
+ "solids": [
+  {
+   "id": "core",
+   "step_index": 0,
+   "step_name": "core",
+   "fingerprint": {
+    "cad_volume_m3": 0.0009999999999999998,
+    "centroid_m": [
+     4.547473508864641e-19,
+     4.547473508864641e-19,
+     0.0
+    ]
+   },
+   "material_id": "void",
+   "role": "plasma_chamber",
+   "replacement_group_id": null,
+   "tally": false
+  },
+  {
+   "id": "shell1",
+   "step_index": 1,
+   "step_name": "shell1",
+   "fingerprint": {
+    "cad_volume_m3": 0.006999999999999997,
+    "centroid_m": [
+     0.0,
+     6.262520660779309e-19,
+     0.0
+    ]
+   },
+   "material_id": null,
+   "role": "first_wall",
+   "replacement_group_id": null,
+   "tally": true
+  },
+  {
+   "id": "shell2",
+   "step_index": 2,
+   "step_name": "shell2",
+   "fingerprint": {
+    "cad_volume_m3": 0.01900000000000001,
+    "centroid_m": [
+     -7.842716417814553e-19,
+     -2.582582007897527e-18,
+     2.352814925344366e-18
+    ]
+   },
+   "material_id": "tungsten",
+   "role": "first_wall",
+   "replacement_group_id": null,
+   "tally": true
+  }
+ ],
+ "replacement_groups": [],
+ "plasma": {
+  "chamber_solid_id": "core",
+  "major_radius_m": 3.3,
+  "minor_radius_m": 1.13,
+  "elongation": 1.84,
+  "triangularity": 0.375,
+  "shafranov_shift_m": 0.0,
+  "pedestal_radius_m": 1.0,
+  "mode": "H",
+  "ion_density_m3": {
+   "centre": 1.5e+20,
+   "pedestal": 1.1e+20,
+   "separatrix": 4e+19,
+   "peaking_factor": 1.0
+  },
+  "ion_temperature_ev": {
+   "centre": 20000.0,
+   "pedestal": 4000.0,
+   "separatrix": 100.0,
+   "peaking_factor": 1.5,
+   "beta": 1.5
+  },
+  "fuel": {
+   "D": 0.5,
+   "T": 0.5
+  },
+  "fusion_power_mw": 525.0,
+  "provenance": {
+   "label": "published",
+   "reference_id": "sorbom-2015",
+   "note": "Shape and power are published."
+  },
+  "field_provenance": {
+   "ion_density_m3": {
+    "label": "authored",
+    "note": "Profile values are authored."
+   }
+  }
+ },
+ "operating_scenario": {
+  "path": "pass.operating-history.json",
+  "sha256": "f582eab653223f33b85a20a36461a3cd429aa0063a29bbae715b7e5669cf61d2"
+ },
+ "references": [
+  {
+   "id": "sorbom-2015",
+   "title": "ARC: a compact, high-field, fusion nuclear science facility and demonstration power plant",
+   "url": "https://arxiv.org/abs/1409.3540",
+   "use": "Plasma shape and REBCO screening fluence."
+  }
+ ],
+ "assumptions": [
+  "The coil pack is a smeared mix."
+ ]
+}

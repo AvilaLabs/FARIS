@@ -510,6 +510,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         backends,
         options,
     } = *inputs;
+    // The helpers run in a job directory, so the STEP path must not depend on the working directory.
+    let step_abs = std::path::absolute(step).map_err(|e| super::io_error(step, e))?;
+    let step = step_abs.as_path();
     let temporary;
     let work: PathBuf = match &options.work_dir {
         Some(dir) => {
@@ -1083,7 +1086,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 vec![{
                     let mut s = sub("sites inside the plasma chamber (SRC-018)", &[]);
                     s.note = Some(format!(
-                        "{} of {count} sites tested with FARIS's exact point-in-volume",
+                        "{} of {count} sites are inside; each is tested with FARIS's exact point-in-volume",
                         total.inside
                     ));
                     s

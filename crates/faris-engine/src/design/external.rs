@@ -482,6 +482,8 @@ pub(super) fn source_sites(
         out_base.clone().into_os_string(),
     ];
     let mut env = job_environment(dir)?;
+    // OpenMC initialises MPI, which refuses to start without a home directory.
+    env.push(("HOME".into(), dir.as_os_str().to_owned()));
     env.push(("PYTHONPATH".into(), package_path.as_os_str().to_owned()));
     match launch_python(
         python,
@@ -515,7 +517,9 @@ pub(super) fn source_sites(
         )));
     }
     let points: Vec<[f64; 3]> = bytes
-        .chunks_exact(24)
+        .as_chunks::<24>()
+        .0
+        .iter()
         .map(|c| {
             let f = |k: usize| f64::from_le_bytes(c[8 * k..8 * k + 8].try_into().unwrap());
             [f(0), f(1), f(2)]

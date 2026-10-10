@@ -93,7 +93,7 @@ impl<'a> Ctl<'a> {
         } else {
             std::thread::scope(|scope| {
                 for _ in 0..threads {
-                    scope.spawn(&worker);
+                    scope.spawn(worker);
                 }
             });
         }

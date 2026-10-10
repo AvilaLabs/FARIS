@@ -1,0 +1,115 @@
+{
+ "schema": "faris-step-inspect/v1",
+ "versions": {
+  "python": "3.14.4",
+  "interpreter": "/home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python",
+  "cadquery": "2.8.0",
+  "ocp": "7.9.3.1",
+  "occt": "7.9",
+  "helper": "2"
+ },
+ "step": {
+  "file_name": "seeded-missing-material-port.step",
+  "sha256": "47776ad2067a05d2660b643c97066b314a986498202e8fe45045866404f1194a",
+  "size_bytes": 58626
+ },
+ "unit": {
+  "declared": "mm",
+  "factor_to_m": 0.001,
+  "used": "mm",
+  "used_is_assumed": false,
+  "text_units": [
+   "mm"
+  ],
+  "ocp_units": [
+   "mm"
+  ],
+  "problems": []
+ },
+ "solids": [
+  {
+   "step_index": 0,
+   "step_name": "plug",
+   "gprop_relative_error_estimate": 1.2062548125254225e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.0011309733552923255,
+   "centroid_m": [
+    -7.411229568156198e-18,
+    1.1216561416736397e-17,
+    -8.234699520173554e-19
+   ],
+   "bbox_min_m": [
+    -0.06,
+    -0.06,
+    -0.05
+   ],
+   "bbox_max_m": [
+    0.06,
+    0.06,
+    0.05
+   ]
+  },
+  {
+   "step_index": 1,
+   "step_name": "shell",
+   "gprop_relative_error_estimate": 1.4680095317684743e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.014869026644707671,
+   "centroid_m": [
+    -7.469232497637999e-18,
+    1.6304692532841854e-18,
+    3.3641885103027544e-20
+   ],
+   "bbox_min_m": [
+    -0.2,
+    -0.2,
+    -0.05
+   ],
+   "bbox_max_m": [
+    0.2,
+    0.2,
+    0.05
+   ]
+  },
+  {
+   "step_index": 2,
+   "step_name": "frame",
+   "gprop_relative_error_estimate": 1.3642420526593927e-16,
+   "occt_valid": true,
+   "cad_volume_m3": 0.020000000000000007,
+   "centroid_m": [
+    -2.9802322387695302e-18,
+    -3.1257513910531985e-18,
+    1.7053025658242398e-19
+   ],
+   "bbox_min_m": [
+    -0.3,
+    -0.3,
+    -0.05
+   ],
+   "bbox_max_m": [
+    0.3,
+    0.3,
+    0.05
+   ]
+  }
+ ],
+ "model_bbox_diagonal_m": 0.8544003745317531,
+ "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
+ "problems": [],
+ "timing_seconds": {
+  "unit_text_parse": 0.004514060914516449,
+  "read_and_transfer": 0.05418961984105408,
+  "measure_solids": 0.026079284958541393
+ },
+ "model_bbox_min_m": [
+  -0.3,
+  -0.3,
+  -0.05
+ ],
+ "model_bbox_max_m": [
+  0.3,
+  0.3,
+  0.05
+ ]
+}

@@ -15,6 +15,7 @@
 use super::bvh::Bvh;
 use super::exact::{P3, SegTri, point_on_triangle, seg_tri, side};
 use super::mesh::Mesh;
+use faris_model::math::{cos, powi, sin};
 
 pub const MAX_REDRAWS: u32 = 64;
 /// Two crossings of one chord closer than this (nm along the chord) are not ordered
@@ -59,7 +60,7 @@ impl Rng {
         let z = 2.0 * self.next_f64() - 1.0;
         let phi = std::f64::consts::TAU * self.next_f64();
         let r = (1.0 - z * z).sqrt();
-        [r * phi.cos(), r * phi.sin(), z]
+        [r * cos(phi), r * sin(phi), z]
     }
 }
 
@@ -263,9 +264,9 @@ impl<'a> Caster<'a> {
         scratch.hits.clear();
         let mut degenerate = false;
         let direction = [e[0] - s[0], e[1] - s[1], e[2] - s[2]];
-        let length = ((direction[0] as f64).powi(2)
-            + (direction[1] as f64).powi(2)
-            + (direction[2] as f64).powi(2))
+        let length = (powi(direction[0] as f64, 2)
+            + powi(direction[1] as f64, 2)
+            + powi(direction[2] as f64, 2))
         .sqrt();
         let hits = &mut scratch.hits;
         self.bvh.query_segment(s, e, &mut |t| {
@@ -312,15 +313,6 @@ impl<'a> Caster<'a> {
             s[1] + ((e[1] - s[1]) as f64 * t).round() as i64,
             s[2] + ((e[2] - s[2]) as f64 * t).round() as i64,
         ])
-    }
-
-    /// The grid point at position `t` along the chord.
-    pub fn chord_point(s: P3, e: P3, t: f64) -> P3 {
-        [
-            s[0] + ((e[0] - s[0]) as f64 * t).round() as i64,
-            s[1] + ((e[1] - s[1]) as f64 * t).round() as i64,
-            s[2] + ((e[2] - s[2]) as f64 * t).round() as i64,
-        ]
     }
 }
 
@@ -411,8 +403,8 @@ mod tests {
         // entering the cube moves against the outward normal; leaving moves along it
         assert!(!hits[0].towards_normal);
         assert!(hits[3].towards_normal);
-        let first_point = Caster::chord_point(start, end, hits[0].t);
-        assert!((first_point[0] + 10 * M).abs() <= 2);
+        let first_x = start[0] + ((end[0] - start[0]) as f64 * hits[0].t).round() as i64;
+        assert!((first_x + 10 * M).abs() <= 2);
     }
 
     #[test]

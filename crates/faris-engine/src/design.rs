@@ -27,6 +27,8 @@ use std::{
 
 pub mod binding;
 mod bvh;
+#[cfg(test)]
+mod corpus_tests;
 mod exact;
 mod external;
 mod geometry;
