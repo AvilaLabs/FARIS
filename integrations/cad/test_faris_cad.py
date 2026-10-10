@@ -94,6 +94,7 @@ class StepInspect(unittest.TestCase):
         diagonal = math.sqrt(0.060**2 + 0.020**2 + 0.030**2)
         self.assertTrue(close(report["model_bbox_diagonal_m"], diagonal, rel=1e-6))
 
+    # Verifies: GEO-010, GEO-011
     def test_box_and_cylinder_in_mm(self):
         step = self.path / "mm.step"
         make_step(step, "MM")
@@ -107,6 +108,7 @@ class StepInspect(unittest.TestCase):
         self.assertEqual(len(report["step"]["sha256"]), 64)
         self.assertEqual(report["step"]["sha256"], faris_cad.sha256_file(step))
 
+    # Verifies: GEO-011
     def test_same_model_in_metres_and_inches_gives_same_si_numbers(self):
         for unit, label in (("M", "m"), ("INCH", "inch")):
             step = self.path / f"{label}.step"
@@ -152,6 +154,7 @@ class StepInspect(unittest.TestCase):
         _, report = inspect(step, "--assume-unit", "m")
         self.assertTrue(close(report["solids"][0]["cad_volume_m3"], 6000.0))
 
+    # Verifies: GEO-011
     def test_several_length_units_are_a_problem_and_give_no_si_numbers(self):
         step = self.path / "mixed.step"
         make_step(step, "MM", "named")

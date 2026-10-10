@@ -25,6 +25,7 @@ import json
 import math
 import re
 import sys
+import time
 from pathlib import Path
 
 SCHEMA = "faris-step-inspect/v1"
@@ -76,12 +77,20 @@ def describe_factor(factor: float) -> str:
     return unit_label(factor) or f"{factor:g} m"
 
 
-def _entity_text(text: str, number: str) -> str | None:
-    match = re.search(r"(?m)^#" + number + r"\s*=\s*([^;]*);", text)
+def _entity_text(text: str, number: str, near: int | None = None) -> str | None:
+    """Body of entity #number. Units sit beside the context that names them, so
+    search a window around `near` first; a whole-file search of a large file is slow."""
+    pattern = re.compile(r"(?m)^#" + number + r"\s*=\s*([^;]*);")
+    if near is not None:
+        low = max(0, near - 20000)
+        match = pattern.search(text, low, near + 20000)
+        if match:
+            return match.group(1)
+    match = pattern.search(text)
     return match.group(1) if match else None
 
 
-def _statement_factor(text: str, statement: str, depth: int = 0) -> tuple[float | None, str | None]:
+def _statement_factor(text: str, statement: str, near: int | None = None, depth: int = 0) -> tuple[float | None, str | None]:
     """Metres per unit of one LENGTH_UNIT statement body, and a problem text if unreadable."""
     si = re.search(r"SI_UNIT\s*\(\s*(\$|\.[A-Z]+\.)\s*,\s*\.METRE\.\s*\)", statement)
     if si:
@@ -91,16 +100,16 @@ def _statement_factor(text: str, statement: str, depth: int = 0) -> tuple[float 
         return SI_PREFIX[prefix], None
     conv = re.search(r"CONVERSION_BASED_UNIT\s*\(\s*'([^']*)'\s*,\s*#(\d+)\s*\)", statement)
     if conv and depth < 3:
-        measure = _entity_text(text, conv.group(2))
+        measure = _entity_text(text, conv.group(2), near)
         if measure is None:
             return None, f"conversion unit '{conv.group(1)}' references a missing entity"
         value = re.search(r"LENGTH_MEASURE_WITH_UNIT\s*\(\s*(?:LENGTH_MEASURE\s*\(\s*)?([-+0-9.eEdD]+)\s*\)?\s*,\s*#(\d+)", measure)
         if not value:
             return None, f"conversion unit '{conv.group(1)}' has no readable length measure"
-        base = _entity_text(text, value.group(2))
+        base = _entity_text(text, value.group(2), near)
         if base is None:
             return None, f"conversion unit '{conv.group(1)}' references a missing base unit"
-        base_factor, problem = _statement_factor(text, base, depth + 1)
+        base_factor, problem = _statement_factor(text, base, near, depth + 1)
         if base_factor is None:
             return None, problem
         return float(value.group(1).replace("D", "E").replace("d", "e")) * base_factor, None
@@ -121,11 +130,11 @@ def text_length_units(path: Path) -> tuple[list[float], list[str]]:
     for context in re.finditer(r"GLOBAL_UNIT_ASSIGNED_CONTEXT\s*\(\s*\(([^)]*)\)\s*\)", text):
         for number in re.findall(r"#(\d+)", context.group(1)):
             if number not in cache:
-                cache[number] = _entity_text(text, number)
+                cache[number] = _entity_text(text, number, context.start())
             statement = cache[number]
             if statement is None or not re.search(r"LENGTH_UNIT\s*\(\s*\)", statement):
                 continue
-            factor, problem = _statement_factor(text, statement)
+            factor, problem = _statement_factor(text, statement, context.start())
             if factor is None:
                 problems.append(problem or "length unit unreadable")
             elif not any(math.isclose(factor, seen, rel_tol=1e-12) for seen in factors):
@@ -273,14 +282,20 @@ def inspect_step(path: Path, assume_unit: str | None) -> dict:
         "model_bbox_diagonal_m": None,
         "volume_method": f"BRepGProp.VolumeProperties adaptive, eps={VOLUME_EPS:g}",
         "problems": [],
+        "timing_seconds": {},
     }
+    started = time.monotonic()
     text_factors, text_problems = text_length_units(path)
+    timing = report["timing_seconds"]
+    timing["unit_text_parse"] = time.monotonic() - started
+    started = time.monotonic()
     try:
         reader, solids, named = read_step(path)
     except Exception as error:
         report["problems"].append(f"STEP read failed: {type(error).__name__}: {error}")
         report["unit"] = {"declared": None, "factor_to_m": None, "used": None, "text_units": [describe_factor(f) for f in text_factors], "ocp_units": [], "problems": text_problems}
         return report
+    timing["read_and_transfer"] = time.monotonic() - started
     ocp_factors, ocp_problems = ocp_length_units(reader.Reader())
     unit_problems = list(text_problems) + list(ocp_problems)
     declared = None
@@ -318,12 +333,14 @@ def inspect_step(path: Path, assume_unit: str | None) -> dict:
         "problems": unit_problems,
     }
     lows, highs = [], []
+    started = time.monotonic()
     for index, solid in enumerate(solids):
         item = measure(solid, used_factor)
         native = item.pop("_native")
         lows.append(native["min"])
         highs.append(native["max"])
         report["solids"].append({"step_index": index, "step_name": solid_name(solid, named), **item})
+    timing["measure_solids"] = time.monotonic() - started
     if used_factor is not None and lows:
         low = [min(v[i] for v in lows) for i in range(3)]
         high = [max(v[i] for v in highs) for i in range(3)]
