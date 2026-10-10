@@ -316,6 +316,7 @@ fn schema_rules(design: &Design, findings: &mut Vec<Finding>) {
             );
         }
     }
+    findings.extend(super::check_waivers(design));
     if let Some(provenance) = &design.plasma.provenance {
         provenance_rules("plasma.provenance", provenance, findings);
     }

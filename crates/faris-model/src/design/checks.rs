@@ -606,6 +606,7 @@ pub fn check_4(design: &Design) -> Vec<Finding> {
             &mut findings,
         );
     }
+    findings.extend(super::waiver_references(design));
     findings
 }
 

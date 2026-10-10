@@ -853,3 +853,81 @@ fn a_draft_round_trips_through_the_types() {
     assert_eq!(again["solids"][1]["material_id"], Value::Null);
     assert_eq!(parse(&again).findings.len(), 1);
 }
+
+// ---- waivers ---------------------------------------------------------------
+
+fn waiver_json(check_id: &str) -> Value {
+    json!({
+        "check_id": check_id,
+        "solid_ids": ["first-wall"],
+        "reason": "a thin sacrificial layer",
+        "author": "A. Designer",
+        "date": "2026-10-10"
+    })
+}
+
+// Verifies: GEO-026
+#[test]
+fn a_design_without_waivers_stays_valid_and_is_written_without_the_key() {
+    let d = design();
+    assert!(d.waivers.is_empty());
+    let value = serde_json::to_value(&d).unwrap();
+    assert!(value.get("waivers").is_none());
+}
+
+// Verifies: GEO-026
+#[test]
+fn a_well_formed_waiver_parses_and_resolves() {
+    let outcome = edit(|v| v["waivers"] = json!([waiver_json("SLIVER")]));
+    assert!(outcome.findings.is_empty(), "{:#?}", outcome.findings);
+    let d = outcome.design.unwrap();
+    assert_eq!(d.waivers.len(), 1);
+    assert!(check_4(&d).is_empty());
+}
+
+// Verifies: GEO-026
+#[test]
+fn waiver_schema_rules_name_the_item_and_the_next_step() {
+    for (edit_waiver, item_ends) in [
+        (json!({"check_id": "GEO-020"}), "check_id"),
+        (json!({"check_id": "NOT-A-CHECK"}), "check_id"),
+        (json!({"reason": " "}), "reason"),
+        (json!({"author": ""}), "author"),
+        (json!({"date": "10/10/2026"}), "date"),
+        (json!({"solid_ids": []}), "]"),
+    ] {
+        let outcome = edit(|v| {
+            let mut w = waiver_json("SLIVER");
+            for (k, x) in edit_waiver.as_object().unwrap() {
+                w[k] = x.clone();
+            }
+            v["waivers"] = json!([w]);
+        });
+        explains(&outcome.findings);
+        assert!(
+            outcome
+                .findings
+                .iter()
+                .any(|f| f.item.starts_with("waivers[0]") && f.item.ends_with(item_ends)),
+            "{item_ends}: {:#?}",
+            outcome.findings
+        );
+    }
+    // an unknown key is refused
+    let outcome = edit(|v| {
+        let mut w = waiver_json("SLIVER");
+        w["colour"] = json!("red");
+        v["waivers"] = json!([w]);
+    });
+    assert!(outcome.findings.iter().any(|f| f.why.contains("colour")));
+}
+
+#[test]
+fn a_waiver_for_a_missing_solid_stops_at_check_4() {
+    let mut d = design();
+    let mut w = waiver_json("GEO-021");
+    w["solid_ids"] = json!(["first-wall", "ghost"]);
+    d.waivers = vec![serde_json::from_value(w).unwrap()];
+    let findings = check_4(&d);
+    assert_eq!(one(&findings).item, "waivers[0].solid_ids[1]");
+}

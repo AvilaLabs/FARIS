@@ -27,6 +27,8 @@ fixtures = []
 
 [dev-dependencies]
 tempfile.workspace = true
+# Exact big-integer reference for the predicate property tests; test builds only.
+num-bigint = "=0.4.8"
 
 [lints]
 workspace = true

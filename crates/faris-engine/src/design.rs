@@ -24,6 +24,12 @@ use std::{
     time::Duration,
 };
 
+mod bvh;
+mod exact;
+mod mesh;
+mod par;
+mod rays;
+
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.1";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
 const MATERIAL_AUDIT: &str = include_str!("../../../integrations/openmc/material_audit.py");
@@ -1171,6 +1177,7 @@ pub fn build_draft(
         },
         references: Vec::new(),
         assumptions: Vec::new(),
+        waivers: Vec::new(),
     })
 }
 

@@ -14,14 +14,25 @@ use std::collections::BTreeMap;
 
 mod catalog;
 mod checks;
+mod facets;
 mod parse;
+mod waivers;
 
 pub use catalog::{CatalogMaterial, catalog, catalog_material};
 pub use checks::{
     ScenarioFacts, VoidSolid, check_2_static, check_2_unit, check_3, check_4, check_5,
     scenario_facts, void_solids,
 };
+pub use facets::{
+    FACETS_MAGIC, FACETS_SCHEMA, FACETS_VERSION, FLAG_UNIMPRINTED, Facets, FacetsManifest,
+    LoadedFacets, ManifestCounts, ManifestSource, ManifestSurface, ManifestVolume, Surface,
+    load_facets, parse_facets, sha256_hex,
+};
 pub use parse::{ParseOutcome, nullable_paths, parse_design};
+pub use waivers::{
+    NON_WAIVABLE_IDS, WAIVABLE_IDS, Waiver, WaiverRecord, apply_waivers, check_waivers,
+    waiver_id_is_known, waiver_references,
+};
 
 pub const DESIGN_VERSION: &str = "faris-design/v0.1";
 pub const INSPECT_SCHEMA: &str = "faris-step-inspect/v1";
@@ -37,13 +48,36 @@ pub const CENTROID_TOLERANCE: f64 = 1e-6;
 pub const FRACTION_SUM_TOLERANCE: f64 = 1e-9;
 
 /// A failed rule: the item, why it failed and the user's next step.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+///
+/// Findings from the CAD integrity checks (6 to 8) also carry the requirement
+/// they come from, the solids involved, a 3D location (GEO-028) and whether a
+/// waiver may cover them. A waived finding stays in the report (GEO-026).
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Finding {
     pub check: u8,
     pub item: String,
     pub why: String,
     pub next_step: String,
+    /// The requirement or check id a waiver names, for example `GEO-021`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement: Option<String>,
+    /// Design-file solid ids the finding is about, sorted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cells: Vec<String>,
+    /// Where in the model, metres (GEO-028).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_m: Option<[f64; 3]>,
+    /// May a waiver cover this finding?
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub waivable: bool,
+    /// Further waiver ids that also cover this finding (a sampled point in two
+    /// solids is covered by the overlap waiver for the same pair).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also_covered_by: Vec<String>,
+    /// Set when a waiver covers the finding; the finding then does not block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waived: Option<WaiverRecord>,
 }
 
 impl Finding {
@@ -58,7 +92,45 @@ impl Finding {
             item: item.into(),
             why: why.into(),
             next_step: next_step.into(),
+            requirement: None,
+            cells: Vec::new(),
+            location_m: None,
+            waivable: false,
+            also_covered_by: Vec::new(),
+            waived: None,
         }
+    }
+
+    pub fn requirement(mut self, id: impl Into<String>) -> Self {
+        self.requirement = Some(id.into());
+        self
+    }
+
+    pub fn cells(mut self, mut cells: Vec<String>) -> Self {
+        cells.sort();
+        cells.dedup();
+        self.cells = cells;
+        self
+    }
+
+    pub fn at(mut self, location_m: [f64; 3]) -> Self {
+        self.location_m = Some(location_m);
+        self
+    }
+
+    pub fn waivable(mut self) -> Self {
+        self.waivable = true;
+        self
+    }
+
+    pub fn also_covered_by(mut self, ids: &[&str]) -> Self {
+        self.also_covered_by = ids.iter().map(|s| (*s).to_string()).collect();
+        self
+    }
+
+    /// Does this finding stop the import?
+    pub fn blocks(&self) -> bool {
+        self.waived.is_none()
     }
 }
 
@@ -109,6 +181,9 @@ pub struct Design {
     pub operating_scenario: OperatingScenarioLink,
     pub references: Vec<Reference>,
     pub assumptions: Vec<String>,
+    /// Accepted integrity findings (GEO-026). Optional; a v0.1 file without it stays valid.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub waivers: Vec<Waiver>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
