@@ -105,6 +105,7 @@ fn a_misspelt_key_is_not_ignored() {
 }
 
 #[test]
+// Verifies: GEO-027
 fn unfilled_nulls_are_all_listed_by_path() {
     let outcome = edit(|v| {
         v["solids"][1]["material_id"] = Value::Null;
@@ -266,6 +267,7 @@ fn check_2_passes_on_the_fixture() {
 }
 
 #[test]
+// Verifies: GEO-019
 fn check_2_step_hash_mismatch() {
     let (d, facts) = linked_design();
     let findings = check_2_static(&d, &"f".repeat(64), Ok(&facts));
@@ -340,6 +342,7 @@ fn a_real_history_file_with_service_limits_is_counted() {
 }
 
 #[test]
+// Verifies: GEO-011
 fn check_2_unit_mismatch_and_unaccepted_units() {
     let mut d = design();
     d.cad.length_unit = LengthUnit::M;
@@ -355,6 +358,7 @@ fn check_2_unit_mismatch_and_unaccepted_units() {
 }
 
 #[test]
+// Verifies: GEO-011
 fn check_2_several_units_or_disagreeing_readers_stop() {
     let mut multiple = inspection();
     multiple.unit.declared = None;
@@ -370,6 +374,7 @@ fn check_2_several_units_or_disagreeing_readers_stop() {
 }
 
 #[test]
+// Verifies: GEO-011
 fn check_2_no_declared_unit_uses_the_design_unit_and_says_so() {
     let mut none = inspection();
     none.unit.declared = None;
@@ -404,12 +409,14 @@ fn inspection_schema_is_checked() {
 // ---- check 3 --------------------------------------------------------------
 
 #[test]
+// Verifies: GEO-010
 fn check_3_passes_on_matching_fingerprints() {
     let (findings, notices) = check_3(&design(), &inspection());
     assert!(findings.is_empty() && notices.is_empty(), "{findings:#?}");
 }
 
 #[test]
+// Verifies: GEO-010
 fn check_3_solid_count_mismatch_names_the_missing_solid() {
     let mut i = inspection();
     i.solids.push(InspectSolid {
@@ -638,6 +645,7 @@ fn check_4_a_group_needs_a_solid_and_void_resolves() {
 // ---- check 5 --------------------------------------------------------------
 
 #[test]
+// Verifies: GEO-039
 fn check_5_passes_on_the_fixture_and_lists_the_void_solid() {
     let d = design();
     let (findings, notices) = check_5(&d);
@@ -687,6 +695,7 @@ fn check_5_plasma_chamber_rules() {
 }
 
 #[test]
+// Verifies: GEO-039
 fn check_5_void_is_allowed_only_in_three_roles() {
     for role in [Role::PlasmaChamber, Role::Vacuum, Role::PortPlug] {
         assert!(role.allows_void());

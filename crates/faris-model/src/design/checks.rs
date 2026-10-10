@@ -234,7 +234,11 @@ pub fn check_2_unit(
 }
 
 fn distance(a: [f64; 3], b: [f64; 3]) -> f64 {
-    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    libm::sqrt(
+        (0..3)
+            .map(|i| crate::math::powi(a[i] - b[i], 2))
+            .sum::<f64>(),
+    )
 }
 
 /// Check 3: solid count and fingerprints.
@@ -302,7 +306,7 @@ pub fn check_3(design: &Design, inspection: &StepInspection) -> (Vec<Finding>, V
         let fingerprint = &solid.fingerprint;
         let volume_error =
             (fingerprint.cad_volume_m3 - volume).abs() / volume.abs().max(f64::MIN_POSITIVE);
-        if !(volume_error <= VOLUME_TOLERANCE) {
+        if volume_error.is_nan() || volume_error > VOLUME_TOLERANCE {
             findings.push(Finding::new(
                 CHECK,
                 format!("{item}.fingerprint.cad_volume_m3"),
@@ -321,7 +325,7 @@ pub fn check_3(design: &Design, inspection: &StepInspection) -> (Vec<Finding>, V
             ));
         }
         let centroid_error = distance(fingerprint.centroid_m, centroid);
-        if !(centroid_error <= centroid_tolerance) {
+        if centroid_error.is_nan() || centroid_error > centroid_tolerance {
             findings.push(Finding::new(
                 CHECK,
                 format!("{item}.fingerprint.centroid_m"),

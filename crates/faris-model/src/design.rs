@@ -489,6 +489,9 @@ pub struct StepInspection {
     pub model_bbox_diagonal_m: Option<f64>,
     pub volume_method: String,
     pub problems: Vec<String>,
+    /// Wall seconds of the helper's phases; absent in older reports.
+    #[serde(default)]
+    pub timing_seconds: BTreeMap<String, f64>,
 }
 
 impl StepInspection {
@@ -548,7 +551,7 @@ pub fn suggest_id(step_name: Option<&str>, step_index: usize, taken: &[String]) 
     }
     let mut candidate = base.clone();
     let mut n = 2;
-    while taken.iter().any(|t| *t == candidate) || is_reserved(&candidate) {
+    while taken.contains(&candidate) || is_reserved(&candidate) {
         let suffix = format!("-{n}");
         let keep = MAX_ID_LEN - suffix.len();
         let mut stem: String = base.chars().take(keep).collect();
