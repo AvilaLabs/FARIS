@@ -142,13 +142,19 @@ What the first pass found, all recorded in the manifest:
 The runner (`run_case.py`) has three subcommands: `plan` reads files only and prints the
 settings, library coverage and cost estimate; `build` exports the OpenMC XML; `run`
 runs transport and needs `--i-have-the-cpu`. The runner tallies the current on the published
-surface 6 itself (`SurfaceFilter` on surface 6 with `CellFromFilter` on the cells just inside,
-energy edges from the MCNP `e21`/`e41` cards, score `current`), which is the outward partial
-current per source particle. It also tallies all crossings of surface 6 and the run record
-states whether the two agree within 3 combined standard deviations in every bin (nothing
-returns through the void outside); if not, the record says so. The conversion divides by the
-lethargy width (neutrons) or the MeV width (photons) and nothing else. There is no extra
-shell and no dilution factor.
+surface 6 itself, with the energy edges of the MCNP `e21`/`e41` cards and score `current`.
+The scored values are the net current (outward minus inward), one `SurfaceFilter` bin per
+energy: OpenMC weights each surface crossing by +1 or -1 (`filter_surface.cpp`, v0.15.3, lines
+55-59). Surface 6 is convex with only void outside it, so nothing can cross it inward and the
+net current equals the outward current. The runner checks that with a second tally, the
+outward partial current (`SurfaceFilter` plus `CellFromFilter` on cells 1, 2 and 4, the cells
+that border surface 6 from inside, summed over those cells with the standard deviations added
+in quadrature). The run record states whether net and partial agree within 3 combined
+standard deviations in every bin; if not, it says so. The conversion divides by the lethargy
+width (neutrons) or the MeV width (photons) and nothing else. There is no extra shell and no
+dilution factor. The photon CSV bin-edge convention stays unresolved (the spectrum integrates
+to 0.372 or 0.399 photons per source neutron depending on it), which is why the photon bins
+remain blocked; that is the existing photon blocker, not a new one.
 
 Literature context (never scored): the MIT-licensed repository holds OpenMC 0.14.0 and
 MCNP results for the same sphere with several libraries, including FENDL-3.2.

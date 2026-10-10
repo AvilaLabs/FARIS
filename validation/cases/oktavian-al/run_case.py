@@ -12,11 +12,13 @@ Subcommands:
 The model uses the geometry of the published OpenMC input with the materials and the
 D-T source histogram of the published MCNP input (the published OpenMC materials are
 pure Cr50 and pure Al27; see the manifest's known_upstream_defects). The tally is the
-MCNP one: the current through surface 6 itself (r = 19.95 cm), per source particle, as the
-outward partial current (SurfaceFilter + CellFromFilter on the cells just inside) and as all
-crossings of the surface, to check that nothing returns from the void outside. The run
-record divides by the lethargy width (neutrons) or the MeV width (photons), with no area
-factor (docs/VALIDATION.md). Upstream files are read from --upstream and never copied into
+MCNP one: the current through surface 6 itself (r = 19.95 cm), per source particle. The
+scored values are the net current (outward minus inward: OpenMC's SurfaceFilter weights
+each crossing by +1 or -1, filter_surface.cpp in v0.15.3), one bin per energy. Nothing can
+cross surface 6 inward (void outside, a convex surface), so the outward partial current
+(SurfaceFilter + CellFromFilter on cells 1, 2 and 4, summed over those cells) must agree with
+it; the run record checks that and says so if not. The run record divides by the lethargy
+width (neutrons) or the MeV width (photons), with no area factor (docs/VALIDATION.md). Upstream files are read from --upstream and never copied into
 this repository.
 
 `run` takes hours of CPU time at the default particle count; it refuses to start
@@ -135,11 +137,43 @@ def to_manifest_units(current: float, err: float, width: float) -> tuple[float, 
     return current / width, err / width
 
 
-def partial_net_agreement(partial: list[float], partial_err: list[float], net: list[float], net_err: list[float], sigmas: float = AGREEMENT_SIGMAS) -> dict:
-    """Whether the outward partial current and the all-crossings current agree in every bin within `sigmas` combined standard deviations.
+def neutron_bin_index(e21_mev: list[float], hi_mev: float) -> int:
+    """Tally bin of the detector whose upper edge is hi_mev: the bins are (0, e21[0]], (e21[0], e21[1]], ..., so e21[j] closes bin j."""
+    return e21_mev.index(hi_mev)
 
-    They differ only if particles cross surface 6 from the outside (return through the void), which would make the
-    published tally (all crossings, MCNP type 1) differ from the outward one.
+
+def photon_bin_index(e41_mev: list[float], lo_mev: float) -> int:
+    """Tally bin of the detector whose lower edge is lo_mev; the bins are [e41[j], e41[j+1]) and the last ends at 11 MeV."""
+    return [round(e, 6) for e in e41_mev + [11.0]].index(round(lo_mev, 6))
+
+
+def sum_over_cells(mean, std, n_cells: int, n_energy: int) -> tuple[list[float], list[float]]:
+    """Sum a flattened (cell-from bin, energy bin) tally over the cell axis; the standard deviations add in quadrature (disjoint cells)."""
+    require(len(mean) == len(std) == n_cells * n_energy, f"tally has {len(mean)} values, expected {n_cells} cells x {n_energy} energy bins")
+    m = [sum(mean[c * n_energy + e] for c in range(n_cells)) for e in range(n_energy)]
+    u = [math.sqrt(sum(std[c * n_energy + e] ** 2 for c in range(n_cells))) for e in range(n_energy)]
+    return m, u
+
+
+def surface_currents(arrays: dict, n_cells: int, n_neutron_bins: int, n_photon_bins: int) -> dict:
+    """Per particle, the net current and the outward partial current summed over cells, each as (mean, std) lists with one entry per energy bin.
+
+    `arrays` maps tally names to flattened (mean, std). Filter order is surface, [cell-from], particle, energy.
+    """
+    out = {}
+    for particle, n_energy in (("neutron", n_neutron_bins), ("photon", n_photon_bins)):
+        net_m, net_s = arrays[f"{particle}_net_current"]
+        require(len(net_m) == len(net_s) == n_energy, f"{particle} net tally has {len(net_m)} values, expected {n_energy}")
+        out[particle] = {"net": (list(map(float, net_m)), list(map(float, net_s))),
+                         "partial": sum_over_cells(*arrays[f"{particle}_partial_current"], n_cells, n_energy)}
+    return out
+
+
+def partial_net_agreement(partial: list[float], partial_err: list[float], net: list[float], net_err: list[float], sigmas: float = AGREEMENT_SIGMAS) -> dict:
+    """Whether the outward partial current (summed over cells) and the net current agree in every bin within `sigmas` combined standard deviations.
+
+    They differ only if particles cross surface 6 inward (return through the void), which cannot happen for a convex
+    surface with void outside; a difference would mean a tally or geometry error.
     """
     require(len(partial) == len(partial_err) == len(net) == len(net_err), "partial and net tallies must have the same bins")
     worst, failing = 0.0, []
@@ -151,7 +185,7 @@ def partial_net_agreement(partial: list[float], partial_err: list[float], net: l
             failing.append(i)
     return {"agree": not failing, "sigmas": sigmas, "worst_sigma": worst, "bins_exceeding": failing,
             "note": "partial and net agree in every bin" if not failing else
-                    "partial and net differ beyond the stated sigmas in the listed bins: particles cross surface 6 from the outside"}
+                    "partial and net differ beyond the stated sigmas in the listed bins: particles cross surface 6 inward or a tally is wrong"}
 
 
 def cross_sections_entries(xml_path: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -302,32 +336,34 @@ def command_run(args) -> int:
     os.environ["OPENMC_CROSS_SECTIONS"] = str(xml)
     openmc = import_openmc()
     out = fresh_dir(args.work_dir)
-    model, _ = build_model(openmc, args.upstream.expanduser(), parsed, args)
+    model, inside = build_model(openmc, args.upstream.expanduser(), parsed, args)
     model.export_to_model_xml(str(out / "model.xml"))
+    n_edges_mev, p_edges_mev = [0.0] + parsed["e21_mev"], parsed["e41_mev"] + [11.0]
     statepoint = model.run(cwd=str(out), threads=args.threads, output=True)
     with openmc.StatePoint(statepoint) as sp:
-        cur = {name: (sp.get_tally(name=name).mean.ravel(), sp.get_tally(name=name).std_dev.ravel())
-               for name in ("neutron_partial_current", "neutron_net_current", "photon_partial_current", "photon_net_current")}
-    agreement = {p: partial_net_agreement(*cur[f"{p}_partial_current"], *cur[f"{p}_net_current"]) for p in ("neutron", "photon")}
+        arrays = {name: (sp.get_tally(name=name).mean.ravel(), sp.get_tally(name=name).std_dev.ravel())
+                  for name in ("neutron_partial_current", "neutron_net_current", "photon_partial_current", "photon_net_current")}
+    cur = surface_currents(arrays, len(inside), len(n_edges_mev) - 1, len(p_edges_mev) - 1)
+    agreement = {p: partial_net_agreement(*cur[p]["partial"], *cur[p]["net"]) for p in ("neutron", "photon")}
     results = []
     for det in manifest["detectors"]:
         bin_ = det["bin"]
         if det["response_class"] == "neutron_leakage_spectrum":
-            i = parsed["e21_mev"].index(bin_["hi_mev"]) + 1  # bin 0 is (0, e21[0]]
+            i = neutron_bin_index(parsed["e21_mev"], bin_["hi_mev"])
             width = math.log(bin_["hi_mev"] / bin_["lo_mev"])
-            mean, err = cur["neutron_partial_current"][0][i], cur["neutron_partial_current"][1][i]
+            mean, err = cur["neutron"]["net"][0][i], cur["neutron"]["net"][1][i]
         else:
-            i = [round(e, 6) for e in parsed["e41_mev"] + [11.0]].index(round(bin_["lo_mev"], 6))
+            i = photon_bin_index(parsed["e41_mev"], bin_["lo_mev"])
             width = bin_["hi_mev"] - bin_["lo_mev"]
-            mean, err = cur["photon_partial_current"][0][i], cur["photon_partial_current"][1][i]
+            mean, err = cur["photon"]["net"][0][i], cur["photon"]["net"][1][i]
         value, u = to_manifest_units(mean, err, width)
         results.append({"detector_id": det["id"], "value": value, "u_mc": u})
     identity = {"library_sha256": sha256(xml), "code_version": f"openmc-{openmc.__version__}", "adapter_sha256": sha256(Path(__file__))}
     context = {"particles": args.particles, "batches": args.batches, "seed": args.seed, "threads": args.threads, "manifest_sha256": manifest_sha256(manifest), "upstream_commit": manifest["source"]["commit"], "model_xml_sha256": sha256(out / "model.xml"),
-               "tally": {"surface": TALLY_SURFACE_ID, "score": "current", "partial": "outward, from the cells just inside surface 6", "net": "all crossings of surface 6"},
+               "tally": {"surface": TALLY_SURFACE_ID, "score": "current", "scored": "net current (outward minus inward)",
+                         "check": f"outward partial current, summed over cells {', '.join(str(c.id) for c in inside)}"},
                "partial_net_agreement": agreement,
-               "partial_net_current": {p: {"partial": [list(map(float, cur[f"{p}_partial_current"][0])), list(map(float, cur[f"{p}_partial_current"][1]))],
-                                           "net": [list(map(float, cur[f"{p}_net_current"][0])), list(map(float, cur[f"{p}_net_current"][1]))]} for p in ("neutron", "photon")}}
+               "partial_net_current": {p: {"partial": cur[p]["partial"], "net": cur[p]["net"]} for p in ("neutron", "photon")}}
     record = build_run_record(out.name, identity, results, context)
     path = out / "oktavian-al.run.json"
     path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -78,6 +78,19 @@ class RunnerHelpers(unittest.TestCase):
         self.assertAlmostEqual(err, 2.0e-4)
         self.assertFalse(hasattr(RC, "shell_dilution"))
 
+    def test_sum_over_cells_and_shapes(self):
+        # 2 cells x 3 energy bins, cell axis first
+        m, u = RC.sum_over_cells([1.0, 2.0, 3.0, 10.0, 20.0, 30.0], [3.0, 0.0, 1.0, 4.0, 0.0, 0.0], 2, 3)
+        self.assertEqual(m, [11.0, 22.0, 33.0])
+        self.assertEqual(u, [5.0, 0.0, 1.0])
+        with self.assertRaises(SystemExit):
+            RC.sum_over_cells([1.0] * 6, [0.0] * 6, 3, 3)
+
+    def test_bin_indices_follow_the_tally_edges(self):
+        e21 = [0.1, 0.2, 0.4]
+        self.assertEqual([RC.neutron_bin_index(e21, hi) for hi in e21], [0, 1, 2])  # bin 0 is (0, 0.1]
+        self.assertEqual([RC.photon_bin_index([0.5, 0.6], lo) for lo in (0.5, 0.6)], [0, 1])
+
     def test_partial_and_net_agreement_check(self):
         ok = RC.partial_net_agreement([1.0, 2.0, 0.0], [0.1, 0.1, 0.0], [1.1, 1.9, 0.0], [0.1, 0.1, 0.0])
         self.assertTrue(ok["agree"])
@@ -87,7 +100,7 @@ class RunnerHelpers(unittest.TestCase):
         self.assertFalse(bad["agree"])
         self.assertEqual(bad["bins_exceeding"], [1])
         self.assertAlmostEqual(bad["worst_sigma"], 0.5 / math.hypot(0.1, 0.1))
-        self.assertIn("outside", bad["note"])
+        self.assertIn("inward", bad["note"])
         # exactly 3 sigma still agrees; a difference with no uncertainty never does
         edge = RC.partial_net_agreement([0.0], [3.0], [15.0], [4.0])
         self.assertTrue(edge["agree"])
@@ -134,6 +147,22 @@ class RunnerHelpers(unittest.TestCase):
             surf = next(f for f in t.filters if type(f).__name__ == "SurfaceFilter")
             self.assertEqual([int(b) for b in surf.bins], [6])
             self.assertEqual("CellFromFilter" in kinds, name.endswith("partial_current"))
+        # post-processing shapes: the flattened partial tally is cells x energy bins, the net tally is energy bins only
+        n_e, p_e = 134, 57
+        arrays = {}
+        for name, t in tallies.items():
+            size = 1
+            for f in t.filters:
+                size *= f.num_bins
+            expected = (3 if name.endswith("partial_current") else 1) * (n_e if name.startswith("neutron") else p_e)
+            self.assertEqual(size, expected, name)
+            arrays[name] = ([1.0] * size, [0.1] * size)
+        cur = RC.surface_currents(arrays, len(inside), n_e, p_e)
+        self.assertEqual((len(cur["neutron"]["net"][0]), len(cur["neutron"]["partial"][0])), (n_e, n_e))
+        self.assertEqual((len(cur["photon"]["net"][0]), len(cur["photon"]["partial"][0])), (p_e, p_e))
+        self.assertEqual(cur["neutron"]["partial"][0][0], 3.0)  # three cells summed
+        self.assertTrue(RC.partial_net_agreement(*cur["neutron"]["partial"], *cur["neutron"]["net"])["agree"] is False)  # synthetic 3 vs 1
+        self.assertEqual(RC.neutron_bin_index(parsed["e21_mev"], parsed["e21_mev"][-1]), n_e - 1)
         edges = next(f for f in tallies["neutron_partial_current"].filters if type(f).__name__ == "EnergyFilter").values
         self.assertEqual(len(edges), 135)  # 134 e21 edges plus 0
         photon_edges = next(f for f in tallies["photon_net_current"].filters if type(f).__name__ == "EnergyFilter").values

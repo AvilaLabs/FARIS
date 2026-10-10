@@ -18,8 +18,8 @@ basis.
   flux (F2) was wrong; the manifest and `docs/VALIDATION.md` say so. The neutron
   bins other than the first are no longer blocked by the normalisation (photon
   bins and the first bin stay blocked). The OpenMC runner tallies the current on
-  surface 6 itself instead of a 0.2 cm void shell and records a partial/net
-  agreement check; no transport run has been made with it yet.
+  surface 6 itself instead of a 0.2 cm void shell, scores the net current and
+  records a check against the outward partial current; no transport run has been made with it yet.
 - FARIS now pins Avila Core at `faris-core-2026-10-09` (commit `d6e984a`,
   reported as `avila-core 0.1.0`); the desktop workflow builds that tag by
   default. `verify.sh` replays each Core export with `avila-core export
