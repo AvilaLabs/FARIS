@@ -1,0 +1,103 @@
+{
+ "date": "2026-10-10",
+ "deviations": [
+  "D4 first pair not alone; rerun alone by coordinator (d4b)",
+  "D2 batch count corrected from statepoint",
+  "D5a iron surrogate for Inconel 718 and SS316L (library lacks Ni, Cr, Mn, Nb, Mo)",
+  "D5a supplementary radial reference (not in protocol)"
+ ],
+ "files_sha256": {
+  "d1/dd.json": "92a5e6271599355472d3d97fb7291b9d2bd3b32c1a23fbf7f9efe0eb17c4bf05",
+  "d1/moab.json": "a1d3e3bc5363086e264a1bbaab0ef5d7bcc0fea6cc5bf74e6c612aa274c756e9",
+  "d1/result.json": "0f9b9185b6352704826cc7ed5f7ac818e8a94ad85b8a91196c81d0e69c8be238",
+  "d1_pair.ps": "24243e78da0c55632022b996aca338bace5ecbaebbde537f576e9103e66cea05",
+  "d2/analog.json": "ab4d1e1a55b2d388447f95ce2349887b410b2de85c978944ab89ca5b4f257dd8",
+  "d3/G1/NOT_EVALUATED.json": "ef2ce9ed3f7de37984c1feb4bd066f0417fa3abec9fd93d3615590bb3c28c6c1",
+  "d3/G2/diag.json": "e2cf4d78bb78df830e01d66b4d6444e3790868ee3c102ae2ac770b2b50f03206",
+  "d3/g5.json": "e853acb4f7e77cacc94e4b2f9a19d50831f6960ab6ba97c8a571d6c214145bf3",
+  "d3/table.json": "e5a4dec8867033a1f64b714ac5c018fb4834d463480fbfbdac3b478d54b86c4b",
+  "d4/result.json": "558b66faeadeba06834d0d490c95f84a8445002b9f66a7344378b59ac23f2213",
+  "d4/run1.json": "e1b28296b725c955df8786eb4ee18ba98b3452b3f08c6247e01f599e4ac4ed3b",
+  "d4/run2.json": "ea7ae447971a7570874def37e0710b354e1d0083f2c5b5b626d62b10a6f444ad",
+  "d4/startup_nowin.json": "4c5fe494a561022281f4fc7382c77a12a4bad50abaef753e5bf6d0077d40f9eb",
+  "d4/startup_win.json": "a6e51d380fdc0d25782fc4bdceca1268dc4001eef545cc3b1df4287ff1ce571e",
+  "d4_all.ps": "92536dd99df23bb743cc41c43488696df4605f7db51550c14a98410cf1a3c951",
+  "d4b/run1.json": "06f85582da5ccad3dc3fa943fb555f3dad1afaae9550f9cbb069b80f4b312ba7",
+  "d4b/run2.json": "8ebb3251c8e0a4327009c030973992a76c34616baaafad51ea3680f666069aa7",
+  "d4b_all.ps": "330e7d677500eb82c9471aa44b27041701f77b2a0633e95c868f462c3944bc3c",
+  "d5a/summary_table.txt": "c120fc6ffed8273cc8c6bdba17d756299b47902ad3fc263a0177872f4a70cc89",
+  "d5a/tf_spectrum.json": "d825f364bd70597f74f4293d9c231b856857e3db8c0f82f9572602758d88b90f",
+  "d5a/v016_vs_v0153.txt": "8598b1e225e822d07b061154eeb4b8c14e80459475857ad4937e5e6640164b9e",
+  "d5b/mode1.json": "04c24d7e49c4eb152e6f4f7dc8a7bcf8986dc6f0672368f4e6aa61c775877ce6",
+  "d5b/mode2.json": "1c3415034bf546d85f015e385d0952365e00c5c5eaf4a0ac20a477ee580c9774",
+  "d5b/mode3.json": "99b46505ba5e483cb72f5d53a4cb53afdd5e1dbd6c08e694c749c782f7e6dcf3",
+  "d5b/mode4.json": "594eea13b0acc8d009598f52b93544f5a2c7fc6103b46829759fb7274111ed38",
+  "d5c/result.json": "f6dd6d67e9c98ed63f7e47c41bb9ef7b073fa54225b7be68ec8c23aee62b7f5a",
+  "ledger.json": "a31f1e26c7ff5f464cf359977c8f9fbf062e59676bc0918150c0852c4da4fe1a",
+  "results-s0b.json": "1870bf1332f83937ffe672a9bddc6cde762b66803580a5c129a0af6f868577da"
+ },
+ "machine_time": {
+  "cap_hours": 16,
+  "elapsed_wall_hours": 8.327849483291308,
+  "job_wall_sum_hours": 11.771944444444445,
+  "note": "job sum double-counts jobs that overlapped on cores 0-3 and 4-7"
+ },
+ "protocol": "docs/notes/CAD_TRANSPORT_DIAGNOSTICS_S0B.md",
+ "protocol_frozen_commit": "03d7771",
+ "protocol_sha256_at_freeze": "71faefbf9aa6cce7eea078d8cb59b99ebf76419ef9f339b02f46f0e7046cd653",
+ "rule_outcomes": {
+  "D1": {
+   "adopt_double_down": true,
+   "speedup": 33.19905802094039
+  },
+  "D3": {
+   "band": "G* < 10",
+   "g_star": "G6",
+   "gain": 8.874,
+   "gain_sigma": 0.62,
+   "lower_bound": false,
+   "not_evaluated": [
+    "G1",
+    "G2"
+   ]
+  },
+  "D4": {
+   "excluded_pair": "d4 (not alone)",
+   "pair_applied": "d4b (alone)",
+   "perf_025_keeps_numbers": false,
+   "runs_alone": [
+    {
+     "a_r": 0.24917114680118263,
+     "batches": 74,
+     "seconds_to_first_batch": 41.672516107559204,
+     "tbr_r": 0.006769385217111998
+    },
+    {
+     "a_r": 0.24734597092812624,
+     "batches": 69,
+     "seconds_to_first_batch": 43.938820600509644,
+     "tbr_r": 0.007157672434867268
+    }
+   ]
+  },
+  "D5a": {
+   "judgment": "protocol reference (uniform source) invalid by design; supplementary radial reference agrees within 2 %; no D1S defect; H1 rejected; H2 raised",
+   "protocol_reference": "every scored nuclide meets the defect rule; H1 confirmed for none"
+  },
+  "D5c": {
+   "relative_std_dev": 0.01929,
+   "threshold": 0.00338,
+   "uncertainty_understated": true
+  },
+  "D6": {
+   "drafted": [
+    "OPENMC-001",
+    "OPENMC-002",
+    "OPENMC-003"
+   ],
+   "posted": []
+  }
+ },
+ "schema": "faris.s0b-diagnostics/1",
+ "scratch_root": "~/.cache/avila-night/cad-risk-tests/s0b"
+}

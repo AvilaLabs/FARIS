@@ -246,3 +246,164 @@ documentation first; they are reported only if the behaviour contradicts it.
 ## Results
 
 Appended after runs.
+
+### Results, 2026-10-10
+
+Every run is reported. Records: `~/.cache/avila-night/cad-risk-tests/s0b/` (per-item directories, `results-s0b.json`,
+`ledger.json`); hashes in `references/cad-transport-diagnostics-s0b.json`. Elapsed machine time 8.3 h of the 16 h cap.
+Rule outcomes below are the mechanical results of the rules above (`risk_tests/s0b_common.py`, 114 tests); the
+judgments are marked as such.
+
+#### Execution notes and deviations
+
+- **D4 was not run alone the first time.** The first pair overlapped another agent's CAD checks and tests (`d4_all.ps`),
+  against the "run alone" condition. The coordinator re-ran the identical command alone (`d4b/`, `d4b_all.ps`, load 1.9 at
+  start). Both pairs are reported; the rule is applied to the pair run alone.
+- **D2's batch count** was first read from the configured maximum. It was recomputed from the statepoint (3050 batches)
+  before any gain was formed and is marked `correction` in `d2/analog.json`.
+- **D5a materials.** The FARIS audited library has no Ni, Cr, Mn, Nb or Mo, so Inconel 718 and SS316L could not be built.
+  RM-M's iron surrogate (pure Fe) stands in for both. Tungsten, iron and TiH2 were run.
+- **D5a supplementary reference.** Besides the protocol's reference (decay photons born uniformly in the sphere), a
+  reference with the photons born along the radial production profile was run and labelled supplementary. See D5a.
+- **Not evaluated:** G1 (out of memory at the 6 GB cap), G2's production (no batch finished), split counts (0.15.3 exposes
+  none), and the D4 split between geometry loading and window loading (not separable in the 0.15.3 log).
+
+#### D1: ray tracer
+
+Seed 90010001, 1e6 histories, 4 threads, alone.
+
+| | `openmc0153dd` (double-down) | `w003env` (MOAB) |
+| --- | --- | --- |
+| Active particles/s | 5879 | 177 |
+| Wall time (s) | 178 | 5670 |
+| Initialization (s) | 7.7 | 21.2 |
+| Peak memory (MB) | 845 | 463 |
+| Lost particles | 0 | 0 |
+| (a), TBR | 1.5511e-3, 1.22492 | identical |
+
+Speed-up 33.2×. The results agree to rounding (same seed). **Rule outcome: adopt double-down** for all FARIS CAD
+transport. D2–D5 used `openmc0153dd`.
+
+#### D2: analog reference
+
+Seed 90020001, 4 threads on cores 0–3. The 7200 s budget ended the run first: at batch 3050 (30.5 M histories,
+T = 7191 s), (a) = 1.0707e-3 with R = 0.0647, FOM(a) = 0.0332 ± 0.0008, TBR = 1.22430 (R 1.9e-4). R ≤ 0.1, so the gains
+below are not lower bounds and unbiasedness is evaluated.
+
+#### D3: weight-window gain
+
+1200 s productions, 4 threads on cores 0–3, 10,000 histories per batch, no lost particles.
+
+| Config | R(a) | Histories | Histories/s | FOM(a) | Gain vs D2 | z vs D2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| G0 (S0's C2) | 0.0977 | 3.50 M | 2887 | 0.0864 ± 0.0065 | 2.61 ± 0.21 | +0.76 |
+| G1 (10 cm mesh) | NOT_EVALUATED: the random-ray forward solve was killed at 5.4 GB under the 6 GB cap; scaling G0's 1.0 GB by 15.6× source regions gives about 15 GB. Next step: rerun with a 16 GB cap on an idle machine, or refine the mesh only where the shield is | | | | | |
+| G2 (linear source) | NOT_EVALUATED: windows span 2.3e-20 to 0.092 with 14 % of cells unpopulated; no 10,000-history batch finished in 1200 s, nor a 100-history batch in a 240 s diagnostic | | | | | |
+| G3 (`max_split` 1000) | 0.0809 | 3.55 M | 2965 | 0.128 ± 0.010 | 3.84 ± 0.31 | −0.17 |
+| G4 (surface + collision checkpoints) | 0.0637 | 3.20 M | 2670 | 0.206 ± 0.016 | 6.20 ± 0.52 | −1.08 |
+| G5 (G0 windows + G3 + G4) | 0.0573 | 4.65 M | 3875 | 0.254 ± 0.017 | 7.65 ± 0.54 | −0.16 |
+| G6 (G5, 9 groups with a 0.1 MeV edge) | 0.0532 | 4.70 M | 3924 | 0.295 ± 0.019 | 8.87 ± 0.62 | −0.85 |
+
+Window generation took 1299 s (G0), 1341 s (G2) and 742 s (G6), at about 1.0–1.3 GB. Every configuration with a result is
+unbiased. **Rule outcome: G\* = G6, gain 8.87 ± 0.62, band "G\* < 10".**
+
+Judgment (coordinator):
+
+- **What the levers gave.** Checkpoints ×2.4 (G4/G0), `max_split` 1000 ×1.5 (G3/G0), both ×2.9 (G5), and the 0.1 MeV group
+  edge a further ×1.16 (G6/G5). None of these changes the windows themselves.
+- **Remaining lever: window resolution, untested.** The most likely limit is still what S0 found: one 25 cm cell
+  spans a quarter of the 90 cm inboard build, so each window boundary steps by a large factor. G1 would have tested that
+  and was not evaluated, for memory. G2 shows that window range matters too: windows reaching 1e-20 stalled the production.
+- **Rule application.** Because a lever remains, the rule says NUC-050 is not lowered. A follow-up protocol tests window
+  resolution (a 16 GB cap, a mesh refined only in the shield, or a cylindrical mesh following the radial build) together
+  with bounded window range. The "G\* < 10" band also flags FW-CADIS on DAGMC to Connor as a release risk; that flag is
+  raised in the change-control proposal.
+- **The faster tracer lowered the gain, not the FOM.** S0's 6.3× for C2 came from runs on the MOAB build. On the
+  double-down build the analog speeds up more than the windowed runs (4240 against 2887 histories/s), so the same windows
+  now measure 2.61×. In absolute terms G6's FOM (0.295) is 13× S0's best C2 FOM (0.0228) and 81× S0's analog.
+
+#### D4: laptop preview
+
+G6 windows with `max_split` 1000 and checkpoints, 8 threads, seed 90060001, stopped 60 s after process start.
+
+| Pair | Run | Batches (1000 histories) | TBR R | (a) R | Time to first batch (s) |
+| --- | --- | --- | --- | --- | --- |
+| Not alone (excluded) | 1 | 81 | 0.0064 | 0.232 | 33.2 |
+| Not alone (excluded) | 2 | 127 | 0.0052 | 0.193 | 25.2 |
+| Alone (rule applied) | 1 | 74 | 0.0068 | 0.249 | 41.7 |
+| Alone (rule applied) | 2 | 69 | 0.0072 | 0.247 | 43.9 |
+
+Peak memory 0.9 GB. **Rule outcome: PERF-025 does not keep its numbers.** TBR passes by a wide margin; (a) misses
+0.20 in both runs alone.
+
+Judgment: start-up takes 42–44 s of the 60 s, so transport gets about 17 s. Removing the start-up, for example with a
+library session that stays loaded between previews, would give about 3.5× the histories and R(a) near 0.13. That lever
+goes to change control.
+
+#### D5a: reaction-pathway audit
+
+Per protocol rule, with the uniform-source reference: **every scored nuclide meets the defect rule**, with ratios from
+0.24 (W-181) to 0.95 (Sc-46, Sc-48). **H1 is confirmed for no nuclide.** Nuclides with no partial-MT production (W-181,
+W-187, the Sc isotopes) deviate as much as those with only partial-MT production (Ta-182, Mn-54), so the deviation does
+not track the partial-MT fraction. Reading the source settles it: the redundant MT 103 still adds to photon production
+(`nuclide.cpp` around lines 399–404).
+
+Judgment (coordinator): the protocol's reference was designed wrongly. With a point source at the centre, activation
+peaks at the centre, so decay photons born uniformly over the sphere escape more easily than the real ones. The
+supplementary reference, with photons born along the radial production profile, agrees with D1S within 2 % for every
+nuclide (from 0.957 ± 0.075 to 1.15 ± 0.10; the tightest are Mn-54 1.00 ± 0.003, Mn-56 0.981 ± 0.001 and Sc-48
+0.993 ± 0.001). D1S on 0.16.0 agrees with 0.15.3 (all |z| ≤ 1.42). **No D1S defect was found and H1 is rejected.**
+
+That changes the question for R3. A uniform source over a volume overestimated leakage by 1.25–4× here. Mesh R2S spreads
+each voxel's photon source over the voxel, so on 10 cm voxels with steep production gradients it would read high. That
+would explain S0's D1S/R2S of 0.64. It is hypothesis H2 for the next shutdown-dose protocol, to be tested with cell-based
+or finer-mesh R2S against D1S on RM-M.
+
+#### D5b: D1S cost on RM-M
+
+300 s each, 4 threads, cores 0–3.
+
+| Mode | Particles/s | Histories |
+| --- | --- | --- |
+| Neutron-only analog | 6098 | 1.66 M |
+| Photon transport on, no decay photons | 940 | 241 k |
+| D1S decay photons on, no tallies | 280 | 72 k |
+| Full D1S tally (52 radionuclides) | 265 | 69 k |
+
+S0 measured 12 histories/s. The ray tracer accounts for about 22× of that. What remains is physics: photon transport costs
+×6.5, decay-photon sampling a further ×3.4, and the tallies about 5 %.
+
+#### D5c: R2S neutron-step uncertainty
+
+| Seed | Total dose at 1 d (pSv·cm/s) | Photon-step R |
+| --- | --- | --- |
+| S0 | 1.3064e17 | 0.00113 |
+| 90080001 | 1.3572e17 | 0.00113 |
+| 90080011 | 1.3256e17 | 0.00112 |
+
+Seed-to-seed relative standard deviation 1.93 %, against 3 × photon R = 0.34 %. **Rule outcome: S0's R2S uncertainty is
+understated** (by about 17×), so VAL-043 must propagate the neutron-step uncertainty in S3. A 2 % spread does not explain
+R3's 0.64.
+
+#### D6: upstream defects
+
+Three drafts in `docs/defects/`, each reproduced on both versions, checked against OpenMC's issues, and checked on
+develop (aa4afc41eb) by the coordinator:
+
+- **OPENMC-001:** stochastic-slab MGXS ignores `model.materials.cross_sections`. 0.16.0 and develop; not 0.15.3.
+- **OPENMC-002:** the R2S neutron step ignores it. Both versions and develop.
+- **OPENMC-003:** a negative transport-corrected total for a low-density material aborts random ray. 0.16.0 and develop;
+  not 0.15.3. Likely introduced by PR #3658.
+
+None is posted. `rel_max_lost_particles` and `clip_tolerance` behave as documented and are not defects. D5a found no
+defect.
+
+#### Summary for change control
+
+| Item | Rule outcome | Goes to |
+| --- | --- | --- |
+| D1 | adopt double-down (33×) | FARIS default build |
+| D3 | G\* 8.87×, band < 10; window-resolution lever untested | NUC-050 proposal + release-risk flag; follow-up protocol |
+| D4 | PERF-025 numbers not kept; start-up is 70 % of the budget | PERF-025 proposal |
+| D5a | no D1S defect; H1 rejected; H2 (mesh-R2S voxel source) raised | S3 dose design; new shutdown-dose protocol |
+| D5c | R2S uncertainty understated | VAL-043 proposal |

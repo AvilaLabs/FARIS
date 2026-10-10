@@ -86,6 +86,10 @@ model.geometry = stoch_geom
 The generation model is built from the slab geometry alone, so its `materials` collection is new and carries no `cross_sections`. In
 v0.15.3 `Model._generate_stochastic_slab_mgxs` writes `model.materials = self.materials` (line 1920), which keeps the attribute.
 
+## Status on develop
+
+Still present on develop at aa4afc41eb (2026-10-10): `_isothermal_stochastic_slab_mgxs` still builds `model = openmc.Model(); model.geometry = stoch_geom`, and its body is identical to v0.16.0. No open pull request fixes it.
+
 ## Issue-search record (2026-10-10, `gh search issues|prs --repo openmc-dev/openmc`)
 
 No open or closed issue or pull request describes this. Closest, not the same:

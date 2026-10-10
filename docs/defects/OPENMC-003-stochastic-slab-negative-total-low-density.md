@@ -11,7 +11,7 @@ Status: drafted, not posted. Found by the S0 risk tests (R6) and reproduced in S
 | OpenMC 0.15.3 commit 27e38e89 (conda-forge `dagmc_nompi_py313h6424856_102`, `~/micromamba/envs/openmc0153dd`) | all totals positive; the random-ray solve completes |
 
 Linux x86-64, Python 3.13, 3 threads. Nuclear data: FENDL-3.2 neutron HDF5 files (294 K) with an ENDF/B-VII.1 photon overlay.
-The same negative value (-1.54e-4 in group 2 of the filler) appeared in the S0 R6 run on the full 30-solid DAGMC model, so it is
+The same negative value (-1.54e-4 in the second group of the filler, 6 to 13.5 MeV) appeared in the S0 R6 run on the full 30-solid DAGMC model, so it is
 not specific to this small model.
 
 ## Reproducer
@@ -145,10 +145,11 @@ negative or zero totals (material, groups): []
 RESULT: random-ray solve completed
 ```
 
-Further observation, not part of the failure: in 0.16.0 the group-2 totals (1 eV to 1 keV) of the hydrogen-bearing and beryllium
-materials are lower than in 0.15.3 for the same inputs, while iron and tungsten agree to a few percent (beryllium 0.032 against
-0.102, FLiBe 0.057 against 0.099, TiH2 0.069 against 0.121 cm^-1). The negative value is in the lowest-density material of the
-same group.
+Further observation, not part of the failure: OpenMC MGXS arrays run from the highest energy group to the lowest, so the
+second entry is the 6 to 13.5 MeV group and the last is the thermal group. In 0.16.0 that 6 to 13.5 MeV group's totals of the
+hydrogen-bearing and beryllium materials are lower than in 0.15.3 for the same inputs, while iron and tungsten agree to a few
+percent (beryllium 0.032 against 0.102, FLiBe 0.057 against 0.099, TiH2 0.069 against 0.121 cm^-1). The negative value is in the
+lowest-density material of the same group.
 
 ## Notes on cause (read from source, not proven)
 
@@ -159,6 +160,17 @@ P1 scattering moment, and each is a tally estimate. For a material at 1e-3 g/cm3
 in a group, so the difference is negative. No clipping was found in the code path read. In `_generate_stochastic_slab_mgxs` the
 random-ray solver's own check (`No zero or negative total macroscopic cross sections allowed in random ray mode`) then stops the
 run. This has not been confirmed by changing the code.
+
+What changed between 0.15.3 and 0.16.0 (likely, not proven): PR #3658 ("Improved automatic MGXS generation for random ray",
+merged 2025-12-03, first released in 0.16.0) replaced the slab source, which was a discrete source spread uniformly over all
+groups, with the model's own source at strength 0.99 plus that uniform discrete source at strength 0.01
+(`Model._create_mgxs_sources`). Its docstring says the uniform part is there "to ensure that total cross sections are
+non-zero". With 1 % of the particles born uniformly over the groups, a group away from the source peak gets few tallies, and for
+hydrogen (lab-frame mean scattering cosine 2/3, so the transport-corrected total is about a third of the total) at low density the
+tallied P1 term can exceed the tallied total. The function is unchanged on develop (aa4afc41eb, 2026-10-10).
+
+Possible remedies, for the maintainers to choose: flag or clip a non-positive transport-corrected total, keep a larger uniform
+share, or fall back to the uncorrected total in a group whose correction is not resolved.
 
 ## Issue-search record (2026-10-10, `gh search issues|prs --repo openmc-dev/openmc`)
 

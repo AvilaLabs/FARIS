@@ -98,6 +98,10 @@ versions, with the library named only on `model.materials.cross_sections`.
 
 (An alternative fix is `TemporarySession(self.neutron_model)`.)
 
+## Status on develop
+
+Still present on develop at aa4afc41eb (2026-10-10): `openmc/deplete/r2s.py` line 371 `with TemporarySession(output=False):`. The photon step in the same file (line 684) already passes its model, `TemporarySession(self.photon_model, cwd=photon_dir)`, so passing `self.neutron_model` in the neutron step would match it.
+
 ## Issue-search record (2026-10-10, `gh search issues|prs --repo openmc-dev/openmc`)
 
 No open or closed issue or pull request describes this. Related history, not the same: #1843 (closed, 2021) "Operator should
