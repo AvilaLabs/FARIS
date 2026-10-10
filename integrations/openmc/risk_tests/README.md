@@ -87,6 +87,36 @@ that loads it), then one analog run. The driver applies the protocol's rule (`rm
 writes the choice and its reasons. The generation step takes 1 to 1.5 hours on 0.15.3 (random-ray run, then a
 windowed run of 2e5 histories), so its default timeout is 3 hours; the analog run takes 35 minutes on 0.15.3. A job that outlives its timeout is stopped by process group and recorded.
 
+## Units
+
+OpenMC fixed-source tallies are multiplied by the total source strength, and the `flux` score is a track length (particle-cm),
+not divided by volume. Stored responses therefore carry a unit: with the source strength set to 1 a tally is
+"cm per source neutron"; with the fusion rate (1.8618e20 n/s at 525 MW) it is "n.cm/s at 525 MW".
+`rm_m_checks.to_rate` and `to_per_source` convert between them and refuse anything else. R1 and R3 run at strength 1
+(R3 carries the rate in the time correction factors or the decay-photon source). The acceptance and R6 runs were done at
+the fusion rate, so their stored fluxes are rates; `results-rm-m-r6.json` shows both forms.
+
+## 4. R1 (weight-window gain), OpenMC 0.15.3 only
+
+    python3 r1_driver.py --model-dir $S/models/rm-m --work-dir $S/r1 --out $S/results-r1.json
+
+The six declared configurations are in `r1_configs.py` (C1 to C6; do not edit). Per configuration: a generation job (MGXS,
+random-ray FW-CADIS, seed in `GENERATION_SEEDS`) and a production job of 1800 s at 4 threads (seed in `PRODUCTION_SEEDS`).
+The analog reference runs 7200 s (seed `ANALOG_SEED`). Production runs are stopped by process group at the budget; the last
+statepoint (every 5 batches of 10 000 histories) gives R, and T is the time that statepoint was written. Response (a) is a
+single-bin material tally over the TF coil material; response (b) is a cylindrical mesh (5 cm radial, 10 cm vertical, one bin per
+coil toroidal width) on the TF material, and the peak voxel is reported. Run the analog in the second job slot with
+`r1_worker.py analog` first and the driver will skip it.
+
+## 5. R3 (D1S against R2S), OpenMC 0.15.3 only
+
+    r3_r2s.py --model-dir $S/models/rm-m --out-dir $S/r3/r2s --neutron-particles 20000 --neutron-batches 40 --photon-particles 20000 --photon-budget 3000
+    r3_d1s.py --model-dir $S/models/rm-m --out-dir $S/r3/d1s --particles 5000 --budget 7000
+    r3_compare.py --r2s $S/r3/r2s --d1s $S/r3/d1s --out $S/results-r3.json
+
+The mesh is in `r3_scenario.py`. Both methods score the ICRP-116 AP photon dose on it. The D1S tally has a one-bin
+`MeshBornFilter` over the same box so both methods use photons born in the box. R2S workarounds are recorded in its result.
+
 ## Tests
 
     python3 -m unittest discover -s integrations/openmc/risk_tests -p 'test_*.py'
