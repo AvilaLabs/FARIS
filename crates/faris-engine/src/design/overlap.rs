@@ -486,10 +486,7 @@ mod tests {
         let up = |h: i64| [[0, 0, h], [10, 0, h], [0, 10, h]];
         assert!((triangle_distance(a, up(7)) - 7.0).abs() < 1e-9);
         let skew = [[20, 0, 3], [30, 0, 3], [20, 10, 3]];
-        assert!(
-            (triangle_distance(a, skew) - (100.0f64 + 9.0).sqrt()).abs() < 1e-6
-                || triangle_distance(a, skew) > 9.0
-        );
+        assert!((triangle_distance(a, skew) - 109.0f64.sqrt()).abs() < 1e-9);
         // edge to edge, crossing in projection
         let b = [[5, -5, 4], [5, 5, 4], [6, 0, 9]];
         assert!((triangle_distance(a, b) - 4.0).abs() < 1e-9);
