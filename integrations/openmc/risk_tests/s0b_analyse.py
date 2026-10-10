@@ -144,12 +144,17 @@ def g5(args) -> int:
 
 
 def d4(args) -> int:
-    runs = []
+    runs, detail = [], []
     for p in (args.run1, args.run2):
         r = load(p)
-        runs.append({"tbr_r": r["response"]["tbr"]["relative_error"], "a_r": r["response"]["a"]["relative_error"],
-                     "histories": r["response"]["histories"], "seconds_to_last_statepoint": r["response"]["seconds_to_statepoint"]})
+        runs.append({"tbr_r": r["tbr"]["relative_error"], "a_r": r["a"]["relative_error"], "histories": r["histories"],
+                     "seconds_to_last_statepoint": r["seconds_to_last_statepoint"]})
+        detail.append({"batches": r["batches"], "seconds_to_first_batch": r["seconds_to_first_batch"], "peak_rss_mb": r["peak_rss_mb"],
+                       "loadavg_start": r["loadavg_start"], "loadavg_end": r["loadavg_end"], "seed": r["seed"],
+                       "windows_sha256": r["windows_sha256"], "max_split_override": r["max_split_override"],
+                       "checkpoints": r["checkpoints_surface_and_collision"], "threads": r["threads"], "affinity_cpus": r["affinity_cpus"]})
     out = C.d4_rule(runs)
+    out["runs_detail"] = detail
     Path(args.out).write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(out, indent=1))
     return 0

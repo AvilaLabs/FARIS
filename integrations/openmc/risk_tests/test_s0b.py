@@ -196,6 +196,33 @@ class D4Rule(unittest.TestCase):
         self.assertFalse(C.d4_rule([ok, {"tbr_r": None, "a_r": 0.1}])["perf_025_keeps_numbers"])
 
 
+class D4Record(unittest.TestCase):
+    """s0b_analyse.d4 reads r2_preview's record layout (tbr and a at the top level)."""
+
+    def record(self, tbr_r, a_r):
+        return {"tbr": {"relative_error": tbr_r}, "a": {"relative_error": a_r}, "histories": 81000, "seconds_to_last_statepoint": 59.8,
+                "batches": 81, "seconds_to_first_batch": 30.0, "peak_rss_mb": 900.0, "loadavg_start": "1 1 1", "loadavg_end": "1 1 1",
+                "seed": 1, "windows_sha256": "x", "max_split_override": 1000, "checkpoints_surface_and_collision": True, "threads": 8,
+                "affinity_cpus": [0], "run": {}}
+
+    def test_d4_command(self):
+        import argparse
+        import contextlib
+        import io
+
+        import s0b_analyse as A
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "r1.json").write_text(json.dumps(self.record(0.006, 0.23)))
+            (d / "r2.json").write_text(json.dumps(self.record(0.005, 0.19)))
+            with contextlib.redirect_stdout(io.StringIO()):
+                A.d4(argparse.Namespace(run1=d / "r1.json", run2=d / "r2.json", out=d / "out.json"))
+            out = json.loads((d / "out.json").read_text())
+        self.assertFalse(out["perf_025_keeps_numbers"])
+        self.assertEqual([r["a_ok"] for r in out["runs"]], [False, True])
+
+
 class Bateman(unittest.TestCase):
     def test_short_irradiation_is_production_times_time(self):
         lam = 1.0e-12

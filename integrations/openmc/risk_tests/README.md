@@ -154,3 +154,5 @@ and memory cap as above; the double-down build is `~/micromamba/envs/openmc0153d
 | `s0b_analyse.py` | Tables and mechanical rule outcomes from the run records. |
 | `d6/` | Minimal reproducers for the upstream defect candidates (no FARIS imports). |
 | `test_s0b.py` | Unit tests for the helpers. |
+
+`s0b_scripts/` holds the shell drivers the S0b run used (job ledger wrapper, exclusive-window wrapper, and the D1 to D5 drivers). `d2_d3a.sh` and `d3_gens.sh` are the launch scripts as first run; the G0 to G4 productions were restarted with `d3_prods.sh` after a batch-count fix, and G1 is not part of the final sequence because its generation exceeds the 6 GB cap.
