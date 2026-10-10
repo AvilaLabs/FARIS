@@ -313,12 +313,16 @@ def read_loadavg() -> str:
 
 
 def ledger_add(path: Path, item: str, label: str, wall_s: float, **extra) -> dict:
-    """Append a run to the S0b ledger. Wall time is job wall time; elapsed since the first entry is recorded too."""
+    """Append a run to the S0b ledger (several jobs can finish together, so the file is locked). Wall time is job wall time."""
+    import fcntl
+
     path = Path(path)
-    data = json.loads(path.read_text(encoding="utf-8"))
-    entry = {"item": item, "label": label, "wall_s": wall_s, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **extra}
-    data["entries"].append(entry)
-    data["job_wall_total_s"] = sum(e["wall_s"] for e in data["entries"])
-    data["elapsed_since_start_s"] = time.time() - data["start_epoch"]
-    path.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    with open(str(path) + ".lock", "w", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        entry = {"item": item, "label": label, "wall_s": wall_s, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **extra}
+        data["entries"].append(entry)
+        data["job_wall_total_s"] = sum(e["wall_s"] for e in data["entries"])
+        data["elapsed_since_start_s"] = time.time() - data["start_epoch"]
+        path.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     return data

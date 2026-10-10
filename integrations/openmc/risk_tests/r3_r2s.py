@@ -150,6 +150,8 @@ def main() -> int:
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--mat-vol-samples", type=int, default=50000)
     ap.add_argument("--seed", type=int, default=20261201)
+    ap.add_argument("--photon-indices", type=int, nargs="+", default=list(sc.PHOTON_TIME_INDICES),
+                    help="time indices for the photon step (S0b D5c: 2 = 1 d only)")
     args = ap.parse_args()
     import openmc
     import openmc.deplete
@@ -208,7 +210,7 @@ def main() -> int:
         import numpy as np
 
         record["photon"] = {}
-        for idx in sc.PHOTON_TIME_INDICES:
+        for idx in args.photon_indices:
             label = sc.COOLING_LABELS[idx]
             t0 = time.time()
             sources = mgr.get_decay_photon_source_mesh(idx)

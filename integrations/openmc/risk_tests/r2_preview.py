@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r1_worker  # noqa: E402
 import rm_m_checks as checks  # noqa: E402
 import rm_m_openmc as RM  # noqa: E402
+import s0b_common as C  # noqa: E402
 
 TBR_LIMIT = 0.02
 RESPONSE_A_LIMIT = 0.20
@@ -47,6 +48,8 @@ def main() -> int:
     ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--budget", type=float, default=BUDGET_S)
     ap.add_argument("--seed", type=int, default=20261401)
+    ap.add_argument("--max-split", type=int, help="S0b D4: override the windows' max_split")
+    ap.add_argument("--checkpoints", action="store_true", help="S0b D4: weight-window checkpoints at surface crossings and collisions")
     args = ap.parse_args()
     import openmc
 
@@ -72,6 +75,10 @@ def main() -> int:
     wws = openmc.hdf5_to_wws(str(args.windows))
     for ww in wws:
         ww.mesh.id = 9000  # the file's mesh id can collide with the source mesh
+        if args.max_split is not None:
+            ww.max_split = args.max_split
+    if args.checkpoints:
+        s.weight_window_checkpoints = {"surface": True, "collision": True}
     s.weight_windows = wws
     s.weight_windows_on = True
     li_mats = [m for m in model.materials if {"Li6", "Li7"} & set(m.get_nuclides())]
@@ -82,11 +89,13 @@ def main() -> int:
     model.export_to_model_xml(str(run_dir))
 
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
+    loadavg_start = C.read_loadavg()
     run = r1_worker.run_budgeted(run_dir, args.threads, args.budget)
     files = sorted(run_dir.glob("statepoint.*.h5"), key=lambda p: int(p.stem.split(".")[1]))
     record = {"kind": "r2-preview", "openmc_version": openmc.__version__, "threads": args.threads, "budget_s": args.budget,
-              "seed": args.seed, "particles_per_batch": BATCH, "source_strength": 1.0, "windows": str(args.windows),
-              "windows_sha256": RM.sha256(args.windows), "lithium_materials": [m.name for m in li_mats], "run": run}
+              "seed": args.seed, "loadavg_start": loadavg_start, "loadavg_end": C.read_loadavg(), "particles_per_batch": BATCH, "source_strength": 1.0, "windows": str(args.windows),
+              "windows_sha256": RM.sha256(args.windows), "max_split_override": args.max_split,
+              "checkpoints_surface_and_collision": bool(args.checkpoints), "affinity_cpus": sorted(os.sched_getaffinity(0)), "lithium_materials": [m.name for m in li_mats], "run": run}
     if not files:
         record["error"] = "no statepoint written inside the budget"
     else:
