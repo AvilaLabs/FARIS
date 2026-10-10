@@ -4,6 +4,7 @@ use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
 mod control;
+mod design;
 mod evidence;
 mod history;
 mod maintenance;
@@ -40,6 +41,11 @@ enum Command {
     Evidence {
         #[command(subcommand)]
         command: evidence::EvidenceCommand,
+    },
+    /// Write and check the design file that says what a STEP model's solids are.
+    Design {
+        #[command(subcommand)]
+        command: design::DesignCommand,
     },
     /// Validate a scenario without running physics.
     Validate { scenario: PathBuf },
@@ -91,6 +97,7 @@ fn main() -> std::process::ExitCode {
                     || error
                         .downcast_ref::<study_file::StudyFileRejected>()
                         .is_some()
+                    || error.downcast_ref::<design::DesignCheckFailed>().is_some()
                 {
                     1
                 } else {
@@ -106,6 +113,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::History { command } => history::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,
+        Command::Design { command } => design::run(command)?,
         Command::Control { command } => control::run(command)?,
         Command::Reactor { command } => reactor::run(command)?,
         Command::Study { command } => study::run(command)?,

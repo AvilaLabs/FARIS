@@ -121,6 +121,27 @@ struct Arguments {
     /// report to this new file and exit (non-zero if anything failed).
     #[arg(long, hide = true)]
     check_package: Option<PathBuf>,
+    /// Headless: read this STEP file, write a draft design file (every solid listed,
+    /// every material and role null), print a one-line summary and exit.
+    #[arg(
+        long,
+        value_name = "STEP",
+        conflicts_with_all = [
+            "study", "package", "scenario", "capture", "interface_check", "benchmark_seconds",
+            "check_package", "export_on_load", "record_frames",
+        ]
+    )]
+    design_init: Option<PathBuf>,
+    /// With --design-init: where to write the draft [default: beside the STEP file].
+    #[arg(long, requires = "design_init")]
+    out: Option<PathBuf>,
+    /// With --design-init: the unit of a STEP file that declares none.
+    #[arg(long, requires = "design_init", value_parser = ["m", "cm", "mm"])]
+    length_unit: Option<String>,
+    /// With --design-init: Python with cadquery, used to read the STEP file
+    /// [env: FARIS_CAD_PYTHON].
+    #[arg(long, requires = "design_init", value_name = "PYTHON")]
+    cad_python: Option<PathBuf>,
     /// Directory for generated study records [default: runs; a package's own
     /// per-user folder in package mode].
     #[arg(long)]
@@ -410,8 +431,35 @@ fn open_package(args: &mut Arguments) -> Option<PackageSession> {
     Some(session)
 }
 
+/// `--design-init`: the same engine function as `faris design init`, no window.
+fn design_init(args: &Arguments, step: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let unit = match args.length_unit.as_deref() {
+        Some("m") => Some(faris_model::design::LengthUnit::M),
+        Some("cm") => Some(faris_model::design::LengthUnit::Cm),
+        Some("mm") => Some(faris_model::design::LengthUnit::Mm),
+        _ => None,
+    };
+    let tools = faris_engine::design::ToolPaths::from_flags_and_environment(
+        args.cad_python.clone(),
+        None,
+        None,
+    );
+    let summary = faris_engine::design::design_init_with_tools(
+        step,
+        args.out.as_deref(),
+        unit,
+        &tools,
+        &faris_engine::jobs::Cancellation::default(),
+    )?;
+    println!("{}", summary.line());
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = Arguments::parse();
+    if let Some(step) = args.design_init.clone() {
+        return design_init(&args, &step);
+    }
     let package_session = open_package(&mut args);
     let runs_directory = args
         .runs_directory
