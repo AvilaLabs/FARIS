@@ -1,6 +1,6 @@
 # OPENMC-003: stochastic-slab MGXS can hold a negative total cross section for a low-density material; random ray then aborts (0.16.0)
 
-Status: drafted, not posted. Found by the S0 risk tests (R6) and reproduced in S0b D6. Draft for an issue against
+Status: drafted, not reported. Verification and significance: see [README.md](README.md). Found by the S0 risk tests (R6) and reproduced in S0b D6. Draft for an issue against
 `openmc-dev/openmc`.
 
 ## Versions and builds
