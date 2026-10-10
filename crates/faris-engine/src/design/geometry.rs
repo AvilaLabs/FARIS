@@ -380,12 +380,14 @@ impl<'a> Waivers<'a> {
     }
 
     fn apply(&mut self, findings: &mut [Finding]) {
+        let before: Vec<bool> = findings.iter().map(|f| f.waived.is_some()).collect();
         let used = apply_waivers(findings, self.list);
         for (a, b) in self.used.iter_mut().zip(used) {
             *a |= b;
         }
-        for f in findings.iter() {
-            if let Some(w) = &f.waived {
+        // Count each finding once, however many times the stage's list is passed through.
+        for (f, was) in findings.iter().zip(before) {
+            if let (false, Some(w)) = (was, &f.waived) {
                 self.covered[w.index] += 1;
             }
         }

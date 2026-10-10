@@ -528,3 +528,175 @@ pub(super) fn source_sites(
         seconds: report.timing_seconds.values().sum(),
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::geometry::{
+        ConversionFacets, ConversionFile, ConversionStep, ConversionTolerances, TagEntry,
+    };
+    use super::super::mesh::fixtures::shell_and_core;
+    use super::super::testutil::manifest_of;
+    use super::*;
+
+    const STEP_SHA: &str = "ab";
+
+    struct Recorded {
+        dir: tempfile::TempDir,
+        tags: Vec<TagEntry>,
+    }
+
+    impl Recorded {
+        fn new() -> Self {
+            let dir = tempfile::tempdir().unwrap();
+            let f = shell_and_core(10.0, 2.0);
+            let mut manifest = manifest_of(&f, &["mat:shell", "mat:core"]);
+            std::fs::write(dir.path().join("model.h5m"), b"stand-in h5m").unwrap();
+            manifest.source.sha256 = sha256_hex(b"stand-in h5m");
+            std::fs::write(dir.path().join("model.facets.bin"), f.to_bytes()).unwrap();
+            std::fs::write(
+                dir.path().join("model.facets.json"),
+                serde_json::to_vec(&manifest).unwrap(),
+            )
+            .unwrap();
+            let tags = vec![
+                TagEntry {
+                    step_index: 0,
+                    tag: "shell".into(),
+                },
+                TagEntry {
+                    step_index: 1,
+                    tag: "core".into(),
+                },
+            ];
+            let report = ConversionReport {
+                schema: "faris-conversion/v1".into(),
+                step: ConversionStep {
+                    file_name: "m.step".into(),
+                    sha256: STEP_SHA.into(),
+                },
+                tolerances: ConversionTolerances {
+                    chord_cm: 0.1,
+                    angular_rad: 0.1,
+                    scale_factor_to_cm: 0.1,
+                    imprint_threads: 1,
+                    implicit_complement_tag: "void".into(),
+                },
+                tags: tags.clone(),
+                versions: serde_json::json!({}),
+                timing_seconds: Default::default(),
+                peak_rss_mb: 1.0,
+                h5m: ConversionFile {
+                    file: "model.h5m".into(),
+                    sha256: sha256_hex(b"stand-in h5m"),
+                    bytes: 12,
+                },
+                facets: ConversionFacets {
+                    bin: "model.facets.bin".into(),
+                    json: "model.facets.json".into(),
+                    bin_sha256: manifest.binary_sha256.clone(),
+                },
+                counts: serde_json::json!({}),
+                log_tail: Vec::new(),
+            };
+            std::fs::write(
+                dir.path().join("conversion.json"),
+                serde_json::to_vec(&report).unwrap(),
+            )
+            .unwrap();
+            Self { dir, tags }
+        }
+
+        fn request<'a>(&'a self, chord_cm: f64, step_sha: &'a str) -> ConvertRequest<'a> {
+            ConvertRequest {
+                step: Path::new("m.step"),
+                step_sha256: step_sha,
+                shape_unit_m: 1.0e-3,
+                tags: &self.tags,
+                chord_cm,
+                angular_rad: 0.1,
+                imprint_threads: 1,
+                directory: self.dir.path(),
+                reuse: true,
+            }
+        }
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn a_recorded_conversion_is_reused_only_when_hashes_and_tolerances_match() {
+        let r = Recorded::new();
+        assert!(reuse(&r.request(0.1, STEP_SHA)).unwrap().unwrap().reused);
+        assert!(
+            reuse(&r.request(0.1, "AB")).unwrap().is_some(),
+            "hex case does not matter"
+        );
+        assert!(
+            reuse(&r.request(0.05, STEP_SHA)).unwrap().is_none(),
+            "other chord"
+        );
+        assert!(
+            reuse(&r.request(0.1, "cd")).unwrap().is_none(),
+            "other STEP file"
+        );
+        let mut other_tags = r.request(0.1, STEP_SHA);
+        let swapped = vec![
+            TagEntry {
+                step_index: 0,
+                tag: "core".into(),
+            },
+            TagEntry {
+                step_index: 1,
+                tag: "shell".into(),
+            },
+        ];
+        other_tags.tags = &swapped;
+        assert!(reuse(&other_tags).unwrap().is_none(), "other tags");
+        let mut other_unit = r.request(0.1, STEP_SHA);
+        other_unit.shape_unit_m = 1.0e-2;
+        assert!(reuse(&other_unit).unwrap().is_none(), "other scale");
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn a_changed_product_is_never_reused() {
+        let r = Recorded::new();
+        std::fs::write(r.dir.path().join("model.h5m"), b"edited").unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "h5m edited"
+        );
+        let r = Recorded::new();
+        let mut bytes = std::fs::read(r.dir.path().join("model.facets.bin")).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        std::fs::write(r.dir.path().join("model.facets.bin"), bytes).unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "facets edited"
+        );
+        let r = Recorded::new();
+        std::fs::remove_file(r.dir.path().join("conversion.json")).unwrap();
+        assert!(
+            reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
+            "no record"
+        );
+    }
+
+    #[test]
+    fn a_tool_that_is_not_configured_says_what_to_pass() {
+        let tools = super::super::ToolPaths::default();
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends {
+            tools: &tools,
+            cancellation: &cancel,
+        };
+        let r = Recorded::new();
+        let ToolResult::Unavailable { why, next_step } =
+            convert(&ext, &r.request(0.1, STEP_SHA)).unwrap()
+        else {
+            panic!("expected Unavailable");
+        };
+        assert!(why.contains("no CAD interpreter"));
+        assert!(next_step.contains("--cad-python"));
+    }
+}

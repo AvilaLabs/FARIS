@@ -146,7 +146,8 @@ use CheckStatus::{Fail, NotEvaluated, Pass};
 
 #[test]
 // Verifies: GEO-019, GEO-039
-fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated_without_a_geometry_toolset() {
+fn a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated_without_a_geometry_toolset()
+ {
     let case = Case::new();
     let fake = Fake::new();
     let report = case.check(&fake);
@@ -857,4 +858,7 @@ fn the_embedded_helpers_are_the_files_in_the_repository() {
     assert!(CAD_HELPER.contains("faris-step-inspect/v1"));
     assert!(MATERIAL_AUDIT.contains("faris-material-audit/v1"));
     assert!(AUDIT_LIBRARY.contains("def build_audit"));
+    assert!(CAD_FACETS_HELPER.contains("faris-facets/v1"));
+    assert!(CAD_HELPER.contains("faris-conversion/v1"));
+    assert!(SOURCE_SITES_HELPER.contains("faris-source-sites/v1"));
 }
