@@ -79,18 +79,16 @@
   ],
   "files_are_external_not_vendored": true,
   "normalisation": {
-    "status": "inferred",
-    "blocks_scoring": true,
-    "quantity": "leakage spectrum from the sphere surface at r = 19.95 cm",
+    "status": "confirmed",
+    "blocks_scoring": false,
+    "quantity": "leakage current through the whole outer surface of the sphere (MCNP surface 6, r = 19.95 cm), per source neutron; no area factor",
     "units": "neutrons per source neutron per unit lethargy; photons per source neutron per MeV",
     "source_normalisation": "per source neutron (D-T source, MCNP sdef histogram si1/sp1 in the MCNP input)",
-    "location": "spherical surface 6 (r = 19.95 cm) of the MCNP model; the experiment is a time-of-flight detector at about 11 m",
+    "location": "surface 6 of the MCNP model, the whole surface (r = 19.95 cm); the experiment is a time-of-flight detector at about 11 m",
     "reaction_or_particle": "neutrons above 100 keV; photons 0.5 to 11 MeV",
     "energy_integration": "neutron: log-spaced bins of constant lethargy width (about 0.04); photon: 0.1 MeV bins to 5 MeV, then 0.5 MeV bins",
-    "area_cm2": 4778.362426110075,
-    "basis": "Inferred from numbers, not documented upstream. The packaged openmc_fusion_benchmarks experiment.h5 holds per-cm2 surface values; the CSV values equal those times 4*pi*19.5^2 = 4778.36 cm2 divided by the lethargy width (neutrons, constant ratio 1.1946e5 = 4778.36/0.04, scatter 0.05 %) or the bin width in MeV (photons, ratio constant to 1e-11 within each width). The area uses r = 19.5 cm although the tally surface is at 19.95 cm.",
-    "why": "the unit is inferred from a numeric identity with a second packaging, the upstream tally is a flux (MCNP F2) not a current, and the area radius differs from the tally surface",
-    "next_step": "confirm against the CoNDERC record or the original publication, then set status to confirmed"
+    "basis": "Confirmed from three independent pieces of evidence. (1) The original report, Ichihara, Kobayashi, Hayashi, Kimura, Yamamoto, Takahashi, 'Numerical data of leakage neutron spectra from various sphere piles with 14 MeV neutrons', OSTI ETDE 407537 (https://www.osti.gov/etdeweb/biblio/407537), states in its abstract: 'The leakage current spectrum from the outer surface of spherical piles of a variety of materials with 14 MeV neutrons normalized per source neutron was measured for each sample.' (2) The upstream MCNP input tallies f21:n 6 and f41:p 6 are type-1 tallies (the tally type is the last digit of the number): particles crossing surface 6, integrated over the surface, not per cm2. The JADE post-processing (JADE-V-V/JADE commit bf13b63, src/jade/resources/default_cfg/benchmarks_pp/raw/mcnp/Oktavian.yaml) only divides tally 21 by the lethargy width and tally 41 by the energy width, with no area factor. (3) Numerical check on the CSV tables: the neutron spectrum integrated over lethargy is 0.942 neutrons per source neutron above 0.097 MeV, and the photon spectrum integrated over energy is 0.372 photons per source neutron above 0.5 MeV with the CSV energy read as the upper bin edge (first bin dropped), 0.399 read as the lower edge (the photon edge convention is unresolved, see the detectors); both are physical for a 40 cm sphere, while per-cm2 values would be about 5000 times smaller. The per-cm2 values in the openmc_fusion_benchmarks packaging are that packaging's division by 4*pi*19.5^2 cm2 and are not used.",
+    "corrections": "An earlier version of this manifest and of docs/VALIDATION.md recorded the status as inferred, an area factor of 4*pi*19.5^2 cm2, and that the upstream tally 'is a flux (MCNP F2) not a current'. That was wrong: F21 and F41 are type-1 tallies (current through a surface). The git history keeps the old text."
   },
   "uncertainty": {
     "components": [

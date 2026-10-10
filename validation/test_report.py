@@ -63,9 +63,8 @@ class Report(unittest.TestCase):
         calc = [d["reference"]["value"] for d in m["detectors"]]
         suite = R.build_suite([m], {"oktavian-al": run_record(m, calc, u_mc=1e-6)}, IDENT)
         counts = suite["cases"][0]["verdict_counts"]
-        # The normalisation is inferred and blocks scoring, photon and the first neutron bin are blocked: nothing may be PASS.
-        self.assertEqual(counts["PASS"] + counts["FAIL"], 0)
-        self.assertEqual(counts["INCONCLUSIVE"], 133)
+        # The normalisation is confirmed; the photon bins and the first neutron bin stay blocked, so only the other 133 neutron bins may be scored.
+        self.assertEqual(counts["PASS"] + counts["FAIL"] + counts["INCONCLUSIVE"], 133)
         self.assertEqual(counts["NOT_EVALUATED"], 58)
         self.assertEqual(R.lint_report(suite), [])
 

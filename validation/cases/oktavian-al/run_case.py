@@ -11,10 +11,13 @@ Subcommands:
 
 The model uses the geometry of the published OpenMC input with the materials and the
 D-T source histogram of the published MCNP input (the published OpenMC materials are
-pure Cr50 and pure Al27; see the manifest's known_upstream_defects). A thin void shell
-outside surface 6 stands in for the MCNP surface flux tally; the run record converts it
-to the manifest's units (docs/VALIDATION.md). Upstream files are read from --upstream and
-never copied into this repository.
+pure Cr50 and pure Al27; see the manifest's known_upstream_defects). The tally is the
+MCNP one: the current through surface 6 itself (r = 19.95 cm), per source particle, as the
+outward partial current (SurfaceFilter + CellFromFilter on the cells just inside) and as all
+crossings of the surface, to check that nothing returns from the void outside. The run
+record divides by the lethargy width (neutrons) or the MeV width (photons), with no area
+factor (docs/VALIDATION.md). Upstream files are read from --upstream and never copied into
+this repository.
 
 `run` takes hours of CPU time at the default particle count; it refuses to start
 without --i-have-the-cpu.
@@ -39,8 +42,9 @@ OPENMC_VERSION = "0.15.3"
 INPUTS = "jade_open_benchmarks/inputs/Oktavian/Oktavian_Al"
 DEFAULT_CROSS_SECTIONS = Path("~/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5/cross_sections.xml")
 AUDIT = HERE.parents[2] / "references" / "openmc-library-audit.json"
-SHELL_RADIUS_CM = 19.95  # surface 6, the MCNP tally surface
-SHELL_THICKNESS_CM = 0.2
+TALLY_SURFACE_ID = 6  # r = 19.95 cm, the MCNP tally surface
+OUTSIDE_CELL_ID = 5  # void between surface 6 and the vacuum boundary
+AGREEMENT_SIGMAS = 3.0
 DEFAULT_PARTICLES = 20_000_000
 DEFAULT_BATCHES = 100
 DEFAULT_SEED = 1
@@ -126,16 +130,28 @@ def histogram_for_openmc(bounds_mev: list[float], sp: list[float]) -> tuple[list
     return x, [sp[i + 1] / (x[i + 1] - x[i]) for i in range(len(x) - 1)] + [0.0]
 
 
-def shell_dilution(r1: float, t: float) -> float:
-    """Volume-mean over the shell of a radial 1/r^2 flux, relative to its value at r1: 3 r1^2 t / (r2^3 - r1^3)."""
-    r2 = r1 + t
-    return 3.0 * r1 * r1 * t / (r2**3 - r1**3)
+def to_manifest_units(current: float, err: float, width: float) -> tuple[float, float]:
+    """Current through surface 6 per source particle to the manifest value and its absolute error: divide by the bin width."""
+    return current / width, err / width
 
 
-def to_manifest_units(shell_track_cm: float, shell_track_err: float, volume_cm3: float, dilution: float, area_cm2: float, width: float) -> tuple[float, float]:
-    """Track length in the shell (particle-cm per source particle) to the manifest value and its absolute error."""
-    factor = area_cm2 / (volume_cm3 * dilution * width)
-    return shell_track_cm * factor, shell_track_err * factor
+def partial_net_agreement(partial: list[float], partial_err: list[float], net: list[float], net_err: list[float], sigmas: float = AGREEMENT_SIGMAS) -> dict:
+    """Whether the outward partial current and the all-crossings current agree in every bin within `sigmas` combined standard deviations.
+
+    They differ only if particles cross surface 6 from the outside (return through the void), which would make the
+    published tally (all crossings, MCNP type 1) differ from the outward one.
+    """
+    require(len(partial) == len(partial_err) == len(net) == len(net_err), "partial and net tallies must have the same bins")
+    worst, failing = 0.0, []
+    for i, (p, pe, n, ne) in enumerate(zip(partial, partial_err, net, net_err)):
+        sd = math.hypot(pe, ne)
+        z = 0.0 if p == n else (math.inf if sd == 0.0 else abs(p - n) / sd)
+        worst = max(worst, z)
+        if z > sigmas:
+            failing.append(i)
+    return {"agree": not failing, "sigmas": sigmas, "worst_sigma": worst, "bins_exceeding": failing,
+            "note": "partial and net agree in every bin" if not failing else
+                    "partial and net differ beyond the stated sigmas in the listed bins: particles cross surface 6 from the outside"}
 
 
 def cross_sections_entries(xml_path: Path) -> tuple[dict[str, str], dict[str, str]]:
@@ -185,7 +201,7 @@ def plan_document(args, manifest: dict, parsed: dict) -> dict:
                      "photon_transport": True, "energy_cutoff_neutron_ev": 1.0e3, "run_mode": "fixed source"},
         "source": {"point": [0, 0, 0], "bins": len(parsed["source_sp"]) - 1, "range_mev": [parsed["source_bounds_mev"][0], parsed["source_bounds_mev"][-1]]},
         "materials": parsed["materials"], "mass_density_g_cm3": parsed["mass_density_g_cm3"], "nuclides": nuclides, "library": lib,
-        "tallies": {"shell_cell": {"r1_cm": SHELL_RADIUS_CM, "r2_cm": SHELL_RADIUS_CM + SHELL_THICKNESS_CM, "dilution": shell_dilution(SHELL_RADIUS_CM, SHELL_THICKNESS_CM)},
+        "tallies": {"surface": TALLY_SURFACE_ID, "score": "current", "from_cells": "the cells whose region ends at surface 6 from inside", "per_unit": "lethargy (neutrons), MeV (photons); no area factor",
                     "neutron_bins": len(parsed["e21_mev"]), "photon_bins": len(parsed["e41_mev"])},
         "expected_cost": {"basis": "unmeasured estimate, not a timing",
                           "text": "a 20 cm sphere with photon production typically costs about 1e-4 to 5e-4 CPU-seconds per history, so 2e7 histories is roughly 1 to 3 CPU-hours "
@@ -232,11 +248,9 @@ def build_model(openmc, upstream: Path, parsed: dict, args):
     geometry = openmc.Geometry.from_xml(str(upstream / INPUTS / "openmc" / "geometry.xml"), materials=mats)
     surfaces = geometry.get_all_surfaces()
     cells = geometry.get_all_cells()
-    tally_surface, vacuum = surfaces[6], surfaces[7]
-    outer = openmc.Sphere(surface_id=9, r=SHELL_RADIUS_CM + SHELL_THICKNESS_CM)
-    shell = openmc.Cell(cell_id=7, name="flux shell", region=+tally_surface & -outer)
-    cells[5].region = +outer & -vacuum
-    geometry.root_universe.add_cell(shell)
+    tally_surface = surfaces[TALLY_SURFACE_ID]
+    inside = [c for cid, c in sorted(cells.items()) if cid != OUTSIDE_CELL_ID and TALLY_SURFACE_ID in {x.id for x in c.region.get_surfaces().values()}]
+    require(inside, f"no cell borders surface {TALLY_SURFACE_ID} from inside")
 
     bounds, probs = histogram_for_openmc(parsed["source_bounds_mev"], parsed["source_sp"])
     energy = openmc.stats.Tabular(bounds, probs, interpolation="histogram")
@@ -255,13 +269,14 @@ def build_model(openmc, upstream: Path, parsed: dict, args):
     n_edges = [0.0] + [e * 1.0e6 for e in parsed["e21_mev"]]
     p_edges = [e * 1.0e6 for e in parsed["e41_mev"]] + [11.0e6]  # the manifest's photon bins run to 11 MeV
     tallies = openmc.Tallies()
-    shell_filter = openmc.CellFilter([shell])
-    for name, particle, edges in (("neutron_shell_flux", "neutron", n_edges), ("photon_shell_flux", "photon", p_edges)):
-        t = openmc.Tally(name=name)
-        t.filters = [shell_filter, openmc.ParticleFilter([particle]), openmc.EnergyFilter(edges)]
-        t.scores = ["flux"]
-        tallies.append(t)
-    return openmc.model.Model(geometry=geometry, materials=mats, settings=settings, tallies=tallies), shell
+    surface_filter = openmc.SurfaceFilter([tally_surface])
+    for particle, edges in (("neutron", n_edges), ("photon", p_edges)):
+        for kind, extra in (("partial", [openmc.CellFromFilter(inside)]), ("net", [])):
+            t = openmc.Tally(name=f"{particle}_{kind}_current")
+            t.filters = [surface_filter, *extra, openmc.ParticleFilter([particle]), openmc.EnergyFilter(edges)]
+            t.scores = ["current"]
+            tallies.append(t)
+    return openmc.model.Model(geometry=geometry, materials=mats, settings=settings, tallies=tallies), inside
 
 
 def command_build(args) -> int:
@@ -287,33 +302,32 @@ def command_run(args) -> int:
     os.environ["OPENMC_CROSS_SECTIONS"] = str(xml)
     openmc = import_openmc()
     out = fresh_dir(args.work_dir)
-    model, shell = build_model(openmc, args.upstream.expanduser(), parsed, args)
+    model, _ = build_model(openmc, args.upstream.expanduser(), parsed, args)
     model.export_to_model_xml(str(out / "model.xml"))
     statepoint = model.run(cwd=str(out), threads=args.threads, output=True)
     with openmc.StatePoint(statepoint) as sp:
-        neutron = sp.get_tally(name="neutron_shell_flux")
-        photon = sp.get_tally(name="photon_shell_flux")
-        n_mean, n_err = neutron.mean.ravel(), neutron.std_dev.ravel()
-        p_mean, p_err = photon.mean.ravel(), photon.std_dev.ravel()
-    r1, r2 = SHELL_RADIUS_CM, SHELL_RADIUS_CM + SHELL_THICKNESS_CM
-    volume, dil = 4.0 / 3.0 * math.pi * (r2**3 - r1**3), shell_dilution(r1, SHELL_THICKNESS_CM)
-    area = manifest["normalisation"]["area_cm2"]
+        cur = {name: (sp.get_tally(name=name).mean.ravel(), sp.get_tally(name=name).std_dev.ravel())
+               for name in ("neutron_partial_current", "neutron_net_current", "photon_partial_current", "photon_net_current")}
+    agreement = {p: partial_net_agreement(*cur[f"{p}_partial_current"], *cur[f"{p}_net_current"]) for p in ("neutron", "photon")}
     results = []
     for det in manifest["detectors"]:
         bin_ = det["bin"]
         if det["response_class"] == "neutron_leakage_spectrum":
             i = parsed["e21_mev"].index(bin_["hi_mev"]) + 1  # bin 0 is (0, e21[0]]
             width = math.log(bin_["hi_mev"] / bin_["lo_mev"])
-            mean, err = n_mean[i], n_err[i]
+            mean, err = cur["neutron_partial_current"][0][i], cur["neutron_partial_current"][1][i]
         else:
             i = [round(e, 6) for e in parsed["e41_mev"] + [11.0]].index(round(bin_["lo_mev"], 6))
             width = bin_["hi_mev"] - bin_["lo_mev"]
-            mean, err = p_mean[i], p_err[i]
-        value, u = to_manifest_units(mean, err, volume, dil, area, width)
+            mean, err = cur["photon_partial_current"][0][i], cur["photon_partial_current"][1][i]
+        value, u = to_manifest_units(mean, err, width)
         results.append({"detector_id": det["id"], "value": value, "u_mc": u})
     identity = {"library_sha256": sha256(xml), "code_version": f"openmc-{openmc.__version__}", "adapter_sha256": sha256(Path(__file__))}
     context = {"particles": args.particles, "batches": args.batches, "seed": args.seed, "threads": args.threads, "manifest_sha256": manifest_sha256(manifest), "upstream_commit": manifest["source"]["commit"], "model_xml_sha256": sha256(out / "model.xml"),
-               "shell_dilution": dil, "area_cm2": area}
+               "tally": {"surface": TALLY_SURFACE_ID, "score": "current", "partial": "outward, from the cells just inside surface 6", "net": "all crossings of surface 6"},
+               "partial_net_agreement": agreement,
+               "partial_net_current": {p: {"partial": [list(map(float, cur[f"{p}_partial_current"][0])), list(map(float, cur[f"{p}_partial_current"][1]))],
+                                           "net": [list(map(float, cur[f"{p}_net_current"][0])), list(map(float, cur[f"{p}_net_current"][1]))]} for p in ("neutron", "photon")}}
     record = build_run_record(out.name, identity, results, context)
     path = out / "oktavian-al.run.json"
     path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")

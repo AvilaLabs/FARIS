@@ -116,12 +116,20 @@ What the first pass found, all recorded in the manifest:
   for the aluminium; the MCNP input has 13-nuclide stainless steel and aluminium with
   impurities. The OpenMC file also has no settings, source or tallies. The runner uses
   the OpenMC geometry with the MCNP materials and the MCNP source histogram.
-- The CSV unit is undocumented. Compared with the MIT-licensed packaging in
-  `eepeterson/openmc_fusion_benchmarks`, the neutron values equal its per-cm2 surface values
-  times 4 pi 19.5^2 cm2 divided by the lethargy width, and the photon values the same
-  divided by the bin width in MeV (constant to 0.05 % and 1e-11). The area uses 19.5 cm
-  although the tally surface is at 19.95 cm. The status is `inferred` and blocks PASS and
-  FAIL until it is confirmed.
+- The CSV unit is the leakage current through the whole outer surface of the sphere (MCNP
+  surface 6, r = 19.95 cm) per source neutron: neutrons per unit lethargy, photons per MeV,
+  no area factor. Status `confirmed`; the evidence is in `normalisation.basis`: the original
+  report (Ichihara et al., OSTI ETDE 407537) normalises the leakage current per source
+  neutron; the upstream MCNP tallies `f21:n 6` and `f41:p 6` are type-1 tallies (current
+  through a surface, not per cm2) and the JADE post-processing only divides by the lethargy
+  or energy width; the CSV spectra integrate to 0.942 neutrons per source neutron above
+  0.097 MeV and to 0.37 to 0.40 photons per source neutron above 0.5 MeV (depending on the
+  unresolved photon edge convention), physical for a 40 cm sphere where per-cm2 values
+  would be about 5000 times smaller. The per-cm2 values in `eepeterson/openmc_fusion_benchmarks`
+  are that packaging's division by 4 pi 19.5^2 cm2 and are not used.
+  Correction: an earlier version of this page and of the manifest called the unit
+  `inferred` and said the upstream tally "is a flux (MCNP F2) not a current". That was
+  wrong: F21 and F41 are type-1 tallies. The git history keeps the old text.
 - The `Error` column does not say whether it is statistical only; it is below 0.3 % near
   the 15 MeV peak.
 - The photon bin edge convention differs between the two packagings, so the photon
@@ -133,10 +141,14 @@ What the first pass found, all recorded in the manifest:
 
 The runner (`run_case.py`) has three subcommands: `plan` reads files only and prints the
 settings, library coverage and cost estimate; `build` exports the OpenMC XML; `run`
-runs transport and needs `--i-have-the-cpu`. It stands a 0.2 cm void shell outside the
-tally surface in for the MCNP surface flux, and converts with the shell dilution factor
-(0.990) and the manifest units. The shell estimator differs from an F2 surface flux; that
-difference is part of what the run will measure and is not corrected.
+runs transport and needs `--i-have-the-cpu`. The runner tallies the current on the published
+surface 6 itself (`SurfaceFilter` on surface 6 with `CellFromFilter` on the cells just inside,
+energy edges from the MCNP `e21`/`e41` cards, score `current`), which is the outward partial
+current per source particle. It also tallies all crossings of surface 6 and the run record
+states whether the two agree within 3 combined standard deviations in every bin (nothing
+returns through the void outside); if not, the record says so. The conversion divides by the
+lethargy width (neutrons) or the MeV width (photons) and nothing else. There is no extra
+shell and no dilution factor.
 
 Literature context (never scored): the MIT-licensed repository holds OpenMC 0.14.0 and
 MCNP results for the same sphere with several libraries, including FENDL-3.2.
