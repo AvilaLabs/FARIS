@@ -24,11 +24,17 @@ use std::{
     time::Duration,
 };
 
+pub mod binding;
 mod bvh;
 mod exact;
+mod intersections;
 mod mesh;
+mod model;
 mod par;
 mod rays;
+#[cfg(test)]
+mod testutil;
+mod topology;
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.1";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");

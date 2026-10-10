@@ -57,6 +57,12 @@ pub fn to_metres(p: P3) -> [f64; 3] {
 
 impl Mesh {
     pub fn from_facets(facets: &Facets) -> Result<Self, String> {
+        if facets.vertices.len() >= 1 << 31 {
+            return Err(format!(
+                "the model has {} vertices; FARIS's edge tables index vertices with 31 bits",
+                facets.vertices.len()
+            ));
+        }
         let mut pts = Vec::with_capacity(facets.vertices.len());
         for (i, v) in facets.vertices.iter().enumerate() {
             let snapped = [to_grid(v[0]), to_grid(v[1]), to_grid(v[2])];

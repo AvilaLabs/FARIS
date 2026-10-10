@@ -117,6 +117,11 @@ impl Bvh {
         }
     }
 
+    /// The box of triangle `t`.
+    pub fn triangle_box(&self, t: u32) -> (P3, P3) {
+        self.boxes[t as usize]
+    }
+
     pub fn is_empty(&self) -> bool {
         self.order.is_empty()
     }

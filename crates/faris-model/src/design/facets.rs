@@ -335,6 +335,9 @@ pub struct FacetsManifest {
     pub source: ManifestSource,
     pub binary_sha256: String,
     pub helper_version: String,
+    /// The DAGMC group that names the implicit complement, when the file has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub implicit_complement_tag: Option<String>,
     pub volumes: Vec<ManifestVolume>,
     pub surfaces: Vec<ManifestSurface>,
 }
@@ -467,6 +470,7 @@ mod tests {
             },
             binary_sha256: sha256_hex(binary),
             helper_version: "test".into(),
+            implicit_complement_tag: None,
             volumes: (1..=f.n_volumes)
                 .zip(f.triangles_per_volume())
                 .map(|(index, triangles)| ManifestVolume {
