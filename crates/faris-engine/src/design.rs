@@ -27,6 +27,7 @@ use std::{
 pub mod binding;
 mod bvh;
 mod exact;
+mod integrity;
 mod intersections;
 mod mesh;
 mod model;
