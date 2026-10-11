@@ -85,9 +85,14 @@ claims not read at the source are left out of this table.
     (OpenMC republishes ENDF/B in HDF5), but nothing grants it, and nothing addresses charging.
   - OpenMC's data page shows "Content License: CC-BY-4.0"; it reads as the site's content licence and does not clearly
     cover the data files.
-  - FENDL is now 3.2c (the IAEA page, updated 2026-06-05, notes corrected tungsten evaluations as of 2025-05-31). Library
-    v2 uses the FENDL-3.2 HDF5 build OpenMC published; which revision that is has to be checked before v2 becomes a
-    default.
+  - **FENDL revision (checked 2026-10-10).** OpenMC's FENDL-3.2 HDF5 archive (the source of libraries v1 and v2) is dated
+    2022-01-13 by its file entries, which is before FENDL-3.2a (tag 2022-01-31), 3.2b (2022-02-08) and 3.2c (2024-04-02) in
+    IAEA-NDS/FENDL-ENDF. Between 3.2b and 3.2c alone, 49 neutron evaluation files changed (GitHub compare of the two
+    tags), among them H-3, Li-6, B-10, B-11, C-12, N-15, O-16, F-19, Ti, V-51, Mn-55, Co-59, Ni, Zr-90 and the tungsten
+    isotopes (3.2c adopted the ENDF/B-VIII.0 resolved-resonance range for W). The current release is 3.2c, and its ACE
+    files are published by the IAEA (IAEA-NDS/FENDL-Processed, tag FENDL-3.2c, files through git-annex). FARIS's hosted
+    library is built from FENDL-3.2c, converted by us, and the v1/v2 results stay labelled with the 2022 build they used.
+    Whether the git-annex sources download without the IAEA site's browser challenge is still to be tested.
 - **Decision (Connor, 2026-10-10):** where charging is a grey area, the data delivery is free. Avila Labs hosts per-file,
   per-temperature copies free of charge, acknowledges the IAEA (FENDL) and NNDC (ENDF/B) as sources in FARIS and on the
   download page, implies no endorsement, and keeps the download-from-source path working.
