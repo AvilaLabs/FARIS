@@ -2,7 +2,7 @@
 //! here and address-space and CPU limits the worker sets on itself. OpenCASCADE can hang or
 //! crash on a bad file; this is what keeps that out of FARIS.
 
-use crate::worker::{Limits, Operation, Outcome, Request, Response};
+use crate::protocol::{Limits, Operation, Outcome, Pong, Request, Response};
 use std::{
     fs,
     io::Read,
@@ -35,6 +35,8 @@ impl Default for Bounds {
 pub enum WorkerError {
     /// The worker program could not be started.
     Spawn(String),
+    /// Stopped because the caller cancelled.
+    Cancelled,
     /// Killed after the wall-clock limit.
     TimedOut { seconds: f64 },
     /// Ended without writing a response: crash, signal, or exit from a limit.
@@ -49,6 +51,7 @@ impl std::fmt::Display for WorkerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Spawn(m) => write!(f, "could not start the CAD worker: {m}"),
+            Self::Cancelled => write!(f, "the CAD worker was stopped: the check was cancelled"),
             Self::TimedOut { seconds } => {
                 write!(f, "the CAD worker was stopped after {seconds:.0} s")
             }
@@ -84,9 +87,24 @@ impl Worker {
 
     /// `FARIS_OCCT_WORKER`, else `faris-occt-worker` beside the running program.
     pub fn locate() -> Option<Self> {
+        Self::locate_with(std::env::var_os("FARIS_OCCT_WORKER").map(PathBuf::from))
+    }
+
+    /// An explicit path wins; else `FARIS_OCCT_WORKER`; else `faris-occt-worker` beside the
+    /// running program. An explicit path or variable is returned as given, even when no file
+    /// is there, so the caller can say which path it tried.
+    pub fn locate_with(explicit: Option<PathBuf>) -> Option<Self> {
+        if let Some(path) = explicit {
+            return Some(Self::new(path));
+        }
         if let Some(path) = std::env::var_os("FARIS_OCCT_WORKER") {
             return Some(Self::new(path));
         }
+        Self::beside_current_exe()
+    }
+
+    /// `faris-occt-worker` in the directory of the running program, when it is a file.
+    pub fn beside_current_exe() -> Option<Self> {
         let beside = std::env::current_exe()
             .ok()?
             .parent()?
@@ -94,11 +112,39 @@ impl Worker {
         beside.is_file().then(|| Self::new(beside))
     }
 
+    pub fn program(&self) -> &Path {
+        &self.program
+    }
+
+    /// Asks the worker who it is. A worker that answers can be started, reads its request and
+    /// writes a response.
+    pub fn ping(&self) -> Result<Pong, WorkerError> {
+        let value = self.run(
+            Operation::Ping,
+            Bounds {
+                wall_seconds: 60.0,
+                ..Bounds::default()
+            },
+        )?;
+        serde_json::from_value(value).map_err(|e| WorkerError::BadResponse(format!("ping: {e}")))
+    }
+
     /// Runs one operation to completion or to a limit.
     pub fn run(
         &self,
         operation: Operation,
         bounds: Bounds,
+    ) -> Result<serde_json::Value, WorkerError> {
+        self.run_cancellable(operation, bounds, &|| false)
+    }
+
+    /// As [`Worker::run`], and the worker is killed when `cancelled` returns true (polled every
+    /// 10 ms while it runs).
+    pub fn run_cancellable(
+        &self,
+        operation: Operation,
+        bounds: Bounds,
+        cancelled: &dyn Fn() -> bool,
     ) -> Result<serde_json::Value, WorkerError> {
         let scratch = tempfile::tempdir().map_err(|e| WorkerError::Spawn(e.to_string()))?;
         let request_path = scratch.path().join("request.json");
@@ -130,6 +176,11 @@ impl Worker {
                 Ok(Some(status)) => break status,
                 Ok(None) => {}
                 Err(e) => return Err(WorkerError::Spawn(e.to_string())),
+            }
+            if cancelled() {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(WorkerError::Cancelled);
             }
             if started.elapsed().as_secs_f64() > bounds.wall_seconds {
                 let _ = child.kill();

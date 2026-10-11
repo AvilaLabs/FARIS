@@ -39,6 +39,7 @@ mod model;
 mod overlap;
 mod par;
 mod rays;
+mod reader;
 #[cfg(test)]
 mod testutil;
 mod topology;
@@ -51,6 +52,7 @@ pub use geometry::{
     SourceRequest, StageClock, TagEntry, TessellateOutcome, TessellateRequest, ToolResult,
     WaiverUse,
 };
+pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
@@ -121,6 +123,12 @@ pub struct ToolPaths {
     /// A directory holding the `openmc_plasma_source` package, added to the OpenMC
     /// interpreter's `PYTHONPATH` for the source sampler (check 9).
     pub plasma_source_path: Option<PathBuf>,
+    /// Which reader runs the STEP inspect and the per-solid tessellation. `None`: the
+    /// `FARIS_CAD_READER` variable, else `auto`.
+    pub cad_reader: Option<CadReader>,
+    /// The native CAD worker (`faris-occt-worker`). `None`: `FARIS_OCCT_WORKER`, else the file
+    /// of that name beside the running program.
+    pub occt_worker: Option<PathBuf>,
 }
 
 impl ToolPaths {
@@ -136,7 +144,25 @@ impl ToolPaths {
             openmc_python: openmc_python.or_else(|| from_env("FARIS_OPENMC_PYTHON")),
             cross_sections: cross_sections.or_else(|| from_env("FARIS_CROSS_SECTIONS")),
             plasma_source_path: from_env("FARIS_PLASMA_SOURCE_PATH"),
+            cad_reader: None,
+            occt_worker: None,
         }
+    }
+
+    /// An explicit `--cad-reader` wins over `FARIS_CAD_READER`.
+    pub fn with_cad_reader(mut self, reader: Option<CadReader>) -> Self {
+        if reader.is_some() {
+            self.cad_reader = reader;
+        }
+        self
+    }
+
+    /// An explicit `--occt-worker` wins over `FARIS_OCCT_WORKER` and the file beside the program.
+    pub fn with_occt_worker(mut self, path: Option<PathBuf>) -> Self {
+        if path.is_some() {
+            self.occt_worker = path;
+        }
+        self
     }
 
     /// An explicit `--plasma-source-path` wins over `FARIS_PLASMA_SOURCE_PATH`.
@@ -152,7 +178,9 @@ impl ToolPaths {
 #[derive(Clone, Debug)]
 pub struct InspectOutcome {
     pub inspection: StepInspection,
+    /// The Python helper's sha256, or the worker binary's when the native reader ran.
     pub helper_sha256: String,
+    pub reader: ReaderStamp,
     pub elapsed_seconds: f64,
 }
 
@@ -260,6 +288,43 @@ fn not_configured<T>(what: &str) -> ToolResult<T> {
 pub struct ExternalBackends<'a> {
     pub tools: &'a ToolPaths,
     pub cancellation: &'a Cancellation,
+    /// The CAD reader, chosen on first use; the error text when none could be.
+    reader: std::sync::OnceLock<Result<ActiveReader, String>>,
+}
+
+impl<'a> ExternalBackends<'a> {
+    pub fn new(tools: &'a ToolPaths, cancellation: &'a Cancellation) -> Self {
+        Self {
+            tools,
+            cancellation,
+            reader: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// The CAD reader for the STEP inspect and the per-solid tessellation: `--cad-reader`, else
+    /// `FARIS_CAD_READER`, else `auto`. The native worker is started once, with a ping, to
+    /// learn what it is; the answer is kept for the run.
+    pub(super) fn reader(&self) -> Result<&ActiveReader, DesignError> {
+        self.reader
+            .get_or_init(|| {
+                let choice = match self.tools.cad_reader {
+                    Some(choice) => choice,
+                    None => CadReader::from_environment()
+                        .map_err(|e| e.to_string())?
+                        .unwrap_or_default(),
+                };
+                let worker = (choice != CadReader::Python)
+                    .then(|| {
+                        faris_occt_client::client::Worker::locate_with(
+                            self.tools.occt_worker.clone(),
+                        )
+                    })
+                    .flatten();
+                reader::resolve(choice, worker).map_err(|e| e.to_string())
+            })
+            .as_ref()
+            .map_err(|message| DesignError::Tool(message.clone()))
+    }
 }
 
 fn tail(text: &str) -> String {
@@ -397,6 +462,9 @@ impl Backends for ExternalBackends<'_> {
         step: &Path,
         assume: Option<LengthUnit>,
     ) -> Result<InspectOutcome, DesignError> {
+        if let ActiveReader::Native(native) = self.reader()? {
+            return external::inspect_native(self, native, step, assume);
+        }
         let python = self.tools.cad_python.as_deref().ok_or_else(|| {
             DesignError::Tool(
                 "no CAD interpreter: pass --cad-python PATH or set FARIS_CAD_PYTHON to a Python \
@@ -433,6 +501,7 @@ impl Backends for ExternalBackends<'_> {
         Ok(InspectOutcome {
             inspection,
             helper_sha256: sha256_hex(CAD_HELPER.as_bytes()),
+            reader: self.reader()?.stamp().clone(),
             elapsed_seconds,
         })
     }
@@ -583,6 +652,9 @@ pub struct CadToolRecord {
     pub occt: Option<String>,
     pub helper_version: String,
     pub helper_sha256: String,
+    /// Which reader ran the inspect, and its identity.
+    #[serde(default = "ReaderStamp::python")]
+    pub reader: ReaderStamp,
     pub volume_method: String,
     pub elapsed_seconds: f64,
     /// The helper's own phase times (read and transfer, measuring the solids).
@@ -939,6 +1011,7 @@ fn run_stages(
             occt: i.versions.occt.clone(),
             helper_version: i.versions.helper.clone(),
             helper_sha256: ran.helper_sha256.clone(),
+            reader: ran.reader.clone(),
             volume_method: i.volume_method.clone(),
             elapsed_seconds: ran.elapsed_seconds,
             timing_seconds: i.timing_seconds.clone(),
@@ -1118,7 +1191,14 @@ pub fn render_text(report: &ImportReport) -> String {
             }
         ));
     }
-    if let Some(tool) = &report.cad_tool {
+    if let Some(tool) = report.cad_tool.as_ref().filter(|t| t.reader.is_native()) {
+        out.push_str(&format!(
+            "  CAD reader: native worker, OpenCASCADE {}   {:.1} s   ({})\n",
+            tool.reader.occt_tag.as_deref().unwrap_or("?"),
+            tool.elapsed_seconds,
+            tool.interpreter
+        ));
+    } else if let Some(tool) = &report.cad_tool {
         out.push_str(&format!(
             "  CAD helper: cadquery {} / OCP {} / OpenCASCADE {} / Python {}   {:.1} s   ({})\n",
             tool.cadquery.as_deref().unwrap_or("?"),
@@ -1628,10 +1708,7 @@ pub fn design_init_with_tools(
         step,
         out,
         length_unit,
-        &ExternalBackends {
-            tools,
-            cancellation,
-        },
+        &ExternalBackends::new(tools, cancellation),
     )
 }
 
@@ -1643,10 +1720,7 @@ pub fn check_design_with_tools(
 ) -> Result<ImportReport, DesignError> {
     check_design_with(
         design_path,
-        &ExternalBackends {
-            tools,
-            cancellation: &options.cancellation,
-        },
+        &ExternalBackends::new(tools, &options.cancellation),
         options,
     )
 }

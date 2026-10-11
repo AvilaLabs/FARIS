@@ -129,6 +129,7 @@ impl Backends for Recorded {
         Ok(InspectOutcome {
             inspection: self.0.clone(),
             helper_sha256: "0".repeat(64),
+            reader: ReaderStamp::python(),
             elapsed_seconds: 0.0,
         })
     }

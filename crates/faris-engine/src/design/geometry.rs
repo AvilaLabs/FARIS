@@ -152,6 +152,8 @@ pub struct TessellateOutcome {
     pub seconds: f64,
     /// True when a recorded tessellation was reused; `seconds` is then the recorded time.
     pub reused: bool,
+    /// The reader that made the tessellation, or whose identity the recorded one matched.
+    pub reader: super::ReaderStamp,
 }
 
 pub struct BooleanRequest<'a> {
@@ -318,6 +320,9 @@ pub struct PreImprintRecord {
     /// True when a recorded tessellation or boolean result was reused; its time is the recorded one.
     #[serde(default)]
     pub tessellation_reused: bool,
+    /// Which reader made the per-solid tessellation.
+    #[serde(default = "super::ReaderStamp::python")]
+    pub tessellation_reader: super::ReaderStamp,
     pub candidate_pairs: usize,
     pub boolean_seconds: Option<f64>,
     #[serde(default)]
@@ -715,6 +720,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             records.pre_imprint = Some(PreImprintRecord {
                 tessellation_seconds: tess.seconds,
                 tessellation_reused: tess.reused,
+                tessellation_reader: tess.reader.clone(),
                 candidate_pairs: candidates.len(),
                 boolean_seconds,
                 booleans_reused,

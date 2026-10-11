@@ -2,8 +2,8 @@
 
 use clap::{Args, Subcommand};
 use faris_engine::design::{
-    GeometryOptions, ImportReport, ToolPaths, check_design_with_tools, design_init_with_tools,
-    render_text,
+    CadReader, GeometryOptions, ImportReport, ToolPaths, check_design_with_tools,
+    design_init_with_tools, render_text,
 };
 use faris_model::design::LengthUnit;
 use std::{
@@ -27,6 +27,15 @@ pub struct ToolArguments {
     /// [env: FARIS_PLASMA_SOURCE_PATH].
     #[arg(long, value_name = "DIR")]
     pub plasma_source_path: Option<PathBuf>,
+    /// Which reader runs the STEP inspect and the per-solid tessellation: `native` (the
+    /// OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and
+    /// answers and the helper otherwise [default: auto; env: FARIS_CAD_READER].
+    #[arg(long, value_name = "READER", value_parser = ["auto", "native", "python"])]
+    pub cad_reader: Option<String>,
+    /// The native CAD worker, faris-occt-worker [default: the one next to the faris program;
+    /// env: FARIS_OCCT_WORKER].
+    #[arg(long, value_name = "WORKER")]
+    pub occt_worker: Option<PathBuf>,
 }
 
 impl ToolArguments {
@@ -37,6 +46,8 @@ impl ToolArguments {
             self.cross_sections.clone(),
         )
         .with_plasma_source_path(self.plasma_source_path.clone())
+        .with_cad_reader(self.cad_reader.as_deref().and_then(CadReader::from_label))
+        .with_occt_worker(self.occt_worker.clone())
     }
 }
 

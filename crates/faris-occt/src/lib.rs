@@ -11,7 +11,7 @@
 
 mod ffi;
 
-pub mod client;
+pub use faris_occt_client::client;
 pub mod inspect;
 pub mod native;
 pub mod tessellate;

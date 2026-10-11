@@ -1,6 +1,6 @@
 [workspace]
-members = ["crates/faris-model", "crates/faris-engine", "crates/faris-study", "crates/faris-report", "crates/faris-cli", "crates/faris-app", "crates/faris-occt"]
-default-members = ["crates/faris-cli"]
+members = ["crates/faris-model", "crates/faris-engine", "crates/faris-study", "crates/faris-report", "crates/faris-cli", "crates/faris-app", "crates/faris-occt", "crates/faris-occt-client"]
+default-members = ["crates/faris-cli", "crates/faris-occt-client"]
 resolver = "3"
 
 [workspace.package]
@@ -16,6 +16,7 @@ faris-model = { path = "crates/faris-model" }
 faris-engine = { path = "crates/faris-engine" }
 faris-study = { path = "crates/faris-study" }
 faris-report = { path = "crates/faris-report" }
+faris-occt-client = { path = "crates/faris-occt-client" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
 sha2 = "=0.10.9"

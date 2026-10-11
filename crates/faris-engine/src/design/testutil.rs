@@ -67,3 +67,21 @@ pub fn design_for(ids: &[&str], stats: &[VolumeStats]) -> Design {
     value["solids"] = solids.into();
     serde_json::from_value(value).unwrap()
 }
+
+/// A worker that answers a ping the way `faris-occt-worker` does, and fails any other request.
+#[cfg(unix)]
+pub fn stub_worker(
+    dir: &std::path::Path,
+    name: &str,
+    tag: &str,
+    other: &str,
+) -> faris_occt_client::client::Worker {
+    use std::os::unix::fs::PermissionsExt;
+    let path = dir.join(name);
+    let body = format!(
+        "#!/bin/sh\ncase \"$(cat \"$1\")\" in\n*'\"op\":\"ping\"'*)\nprintf '{{\"schema\":\"faris-occt-response/v1\",\"status\":\"ok\",\"result\":{{\"occt\":\"7.9.3\",\"occt_tag\":\"{tag}\",\"helper\":\"faris-occt-1\"}}}}' > \"$2\";;\n*) {other};;\nesac\n"
+    );
+    std::fs::write(&path, body).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    faris_occt_client::client::Worker::new(path)
+}
