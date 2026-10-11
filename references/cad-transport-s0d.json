@@ -1,0 +1,172 @@
+{
+ "box_s": 3600,
+ "date": "2026-10-11",
+ "files_sha256": {
+  "results-s0d.json": "c6e3dfdabd56bfa80d870a26fda0c99986118bc7f2297dfd6c6a0347ad105190",
+  "t0/gen.json": "bb982027025e7a1f900c3663228d01fc76e442adcaeef62e3a1f646b2ee82b58",
+  "t1/gen.json": "b2140c9bfd175cddb3215e1578b1254e929cfc2fac0bf8b710b4dffdb2ed3712",
+  "t1/gen/weight_windows.h5": "9872a2b0fe351df5df9adc2e7c33e97d7f91a5ab8cc23db3cc3a7990a9f4f1b5",
+  "t1/produce.json": "52b653319e633ff67de814de03f70c5cc4bd8b5c9e5f44a71a1dee0e953d7ebf",
+  "t2/gen.json": "5b13405742eab6d33ab2d86dee9d046260169316d5ac4d7aad563e3a5bbacc13",
+  "t2/gen/weight_windows.h5": "36c5fd87a4328d8518f258e4a2265cee67c1a3ca9f474ad1346eb3614cfe9f1e",
+  "t2/produce.json": "8b8c97161f9f74f836c83bff819dd997534da10fba533bcf9010af1ff6456ffc",
+  "t3/gen.json": "28f56d6c229a1de9c692f9ea9fbf3f33a91958ef11e09a9e507635b715317b72",
+  "t3/gen/weight_windows.h5": "c6da3224823fa832c850c1008e92b36559e0468b6bc6e1439df4431a1d11c629",
+  "t3/produce.json": "7fa0d5cd1d3ad0454b6392d522d0c7c090f4e9263290704c5b3429ffbbe97b26"
+ },
+ "job_wall_s": 3338.528699874878,
+ "ledger": [
+  {
+   "item": "T1",
+   "loadavg_end": "6.62 6.60 5.35 2/2206 3098653",
+   "loadavg_start": "2.48 2.90 3.81 5/2153 3093816",
+   "returncode": 0,
+   "step": "generate",
+   "wall_s": 527.4765253067017
+  },
+  {
+   "item": "T1",
+   "loadavg_end": "6.35 5.83 5.36 2/2190 3105041",
+   "loadavg_start": "6.62 6.60 5.35 2/2206 3098653",
+   "returncode": 0,
+   "step": "produce",
+   "wall_s": 687.6058769226074
+  },
+  {
+   "item": "T3",
+   "loadavg_end": "4.49 5.63 5.49 1/2194 3108564",
+   "loadavg_start": "6.35 5.83 5.36 2/2190 3105041",
+   "returncode": 0,
+   "step": "generate",
+   "wall_s": 518.6475417613983
+  },
+  {
+   "item": "T3",
+   "loadavg_end": "5.04 5.88 5.93 1/2240 3118179",
+   "loadavg_start": "4.49 5.63 5.49 1/2194 3108564",
+   "returncode": 0,
+   "step": "produce",
+   "wall_s": 668.0307772159576
+  },
+  {
+   "item": "T2",
+   "loadavg_end": "4.42 5.55 5.82 2/2247 3123038",
+   "loadavg_start": "5.04 5.88 5.93 2/2240 3118179",
+   "returncode": 0,
+   "step": "generate",
+   "wall_s": 268.6277599334717
+  },
+  {
+   "item": "T2",
+   "loadavg_end": "3.68 4.15 4.84 1/2208 3131705",
+   "loadavg_start": "4.42 5.55 5.82 2/2247 3123038",
+   "returncode": 0,
+   "step": "produce",
+   "wall_s": 668.1402187347412
+  }
+ ],
+ "protocol": "docs/notes/CAD_TRANSPORT_S0D.md",
+ "protocol_frozen_commit": "d60e870",
+ "reference": {
+  "D2": "S0b analog, FOM 0.0332 +- 0.0008",
+  "G6": "S0b, gain 8.87 +- 0.62"
+ },
+ "rows": {
+  "T1": {
+   "R_a": 0.056476123425955406,
+   "adjoint_source_regions": 24381.0,
+   "gain": 15.693885834638126,
+   "generation_s": 511.5904953479767,
+   "histories": 3550000,
+   "histories_per_second": 5896.519945164387,
+   "mode": "targeted",
+   "note": null,
+   "peak_rss_mb_children": 1042.27734375,
+   "sigma": 1.2462240214357558,
+   "source_regions": 172317.0,
+   "unbiased": true,
+   "window_range_overall": {
+    "decades": 9.080852248080383,
+    "fraction_positive": 0.2222222222222222,
+    "max": 0.5,
+    "min_positive": 4.150665701046983e-10
+   },
+   "window_range_response_groups": {
+    "decades": 9.080852248080383,
+    "fraction_positive": 1.0,
+    "max": 0.5,
+    "min_positive": 4.150665701046983e-10
+   },
+   "z": 0.41818622664541744
+  },
+  "T2": {
+   "R_a": 0.05054243044328581,
+   "adjoint_source_regions": 27084.0,
+   "gain": 19.651865889957204,
+   "generation_s": 255.52204585075378,
+   "histories": 3350000,
+   "histories_per_second": 5580.434505066922,
+   "mode": "cadis",
+   "note": null,
+   "peak_rss_mb_children": 1030.95703125,
+   "sigma": 1.601835236494894,
+   "source_regions": 172316.0,
+   "unbiased": true,
+   "window_range_overall": {
+    "decades": 7.860822864039694,
+    "fraction_positive": 0.2222222222222222,
+    "max": 0.5,
+    "min_positive": 6.888856533734664e-09
+   },
+   "window_range_response_groups": {
+    "decades": 7.860822864039694,
+    "fraction_positive": 1.0,
+    "max": 0.5,
+    "min_positive": 6.888856533734664e-09
+   },
+   "z": 0.20594648228025456
+  },
+  "T3": {
+   "R_a": 0.06807800984159038,
+   "adjoint_source_regions": 155429.0,
+   "gain": 10.834250803808375,
+   "generation_s": 505.6525433063507,
+   "histories": 3200000,
+   "histories_per_second": 5331.749517651631,
+   "mode": "global",
+   "note": null,
+   "peak_rss_mb_children": 1043.953125,
+   "sigma": 0.9016248448274344,
+   "source_regions": 172344.0,
+   "unbiased": true,
+   "window_range_overall": {
+    "decades": 12.30456222602521,
+    "fraction_positive": 1.0,
+    "max": 0.49999999999999994,
+    "min_positive": 2.479749311262927e-13
+   },
+   "window_range_response_groups": {
+    "decades": 5.901998967493979,
+    "fraction_positive": 1.0,
+    "max": 0.2324375469059548,
+    "min_positive": 2.912777531227397e-07
+   },
+   "z": 0.6839876114568582
+  }
+ },
+ "rule": {
+  "best": "T2",
+  "g_star": 19.651865889957204,
+  "nuc050": "10-100: flag and target kept; G* recorded for change control",
+  "outcome": "H4 confirmed",
+  "risers": [
+   "T2"
+  ],
+  "t3_ran": true,
+  "t3_rises": false
+ },
+ "schema": "faris-cad-transport-s0d/v1",
+ "scratch_root": "~/.cache/avila-night/cad-risk-tests/s0d",
+ "scripts_commit": "8daa454",
+ "t0": "passed: 0.16.0 ran with G6 mgxs.h5; 0.15.3 read the 0.16.0 window file with identical bounds"
+}

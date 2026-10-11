@@ -107,3 +107,54 @@ NOT_EVALUATED if T3 runs; it is then proposed separately.
 ## Results
 
 Appended after runs.
+
+### Results, 2026-10-11
+
+Records: `~/.cache/avila-night/cad-risk-tests/s0d/` (`results-s0d.json`, the run folders); hashes in
+`references/cad-transport-s0d.json`. Job time 3,339 s of the 3,600 s box; every item ran. Rule outcomes are mechanical
+(`risk_tests/s0d_common.py`, 14 tests); judgments are marked.
+
+**Execution notes.**
+
+- T0 passed: 0.16.0 ran two random-ray batches with G6's `mgxs.h5`, and 0.15.3 read the 0.16.0 window file with
+  identical bounds, so no conversion was needed.
+- Load average during the productions was 4.4–6.6 (S0b's G6 ran at 7.7–9.3 and D2 at 5–10). The window-generation
+  agent's work was moved to cores 4–7 for the duration.
+- 0.16.0 raises the ray density on its own when the region miss rate is high (log warning); the rays actually traced
+  are therefore not exactly G6's.
+- The targeted and CADIS windows exist only in the two groups above 0.1 MeV (22 % of window entries positive); below
+  0.1 MeV neutrons carry no window.
+
+| Config | Adjoint-source regions | Generation (s) | Window range, groups > 0.1 MeV | R(a) | Histories | Histories/s | R²N | Gain vs D2 | z vs D2 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| G6 (S0b, 0.15.3, global) | 155,483 of 172,336 | 742 | 3.3e-7 … 0.25 | 0.0532 | 4.70 M | 3,924 | 13,300 | 8.87 ± 0.62 | −0.85 |
+| T3 (0.16.0, global) | 155,429 of 172,344 | 506 | 2.9e-7 … 0.23 | 0.0681 | 3.20 M | 5,332 | 14,800 | 10.83 ± 0.90 | +0.68 |
+| T1 (0.16.0, targeted FW-CADIS) | 24,381 of 172,317 | 512 | 4.2e-10 … 0.5 | 0.0565 | 3.55 M | 5,897 | 11,300 | 15.69 ± 1.25 | +0.42 |
+| T2 (0.16.0, CADIS) | 27,084 of 172,316 | 256 | 6.9e-9 … 0.5 | 0.0505 | 3.35 M | 5,580 | 8,560 | **19.65 ± 1.60** | +0.21 |
+
+R²N is R(a)² × histories, the variance per history; the analog's is 127,700 (D2). Every configuration is unbiased.
+
+**Rule outcomes.** T1 differs from G6 by more than 3σ (4.9σ), so T3 ran. T3 is within 3σ of G6 (1.8σ). T2 exceeds G6 by
+6.7σ and by a factor of 2.2; T1 exceeds it by 4.9σ but by a factor of 1.77, under the 2× bar. **H4 confirmed** (through
+T2). **G\* = 19.65 ± 1.60 (T2)**: NUC-050 band 10–100, so the release-risk flag and the 100× target stay, and G\* goes to
+change control.
+
+Judgment (coordinator):
+
+- **Aiming the windows roughly doubles the gain, and the plain CADIS adjoint source does best.** For one integrated
+  response, CADIS is the textbook choice and FW-CADIS's forward weighting adds nothing; here it also halved the
+  generation time (no forward solve). Part of T1's and T2's gain is speed: they run faster than the analog (5,580–5,897
+  against 4,242 histories/s), because neutrons that cannot reach the coils are rouletted.
+- **The version contributes a little.** T3 against G6 is +1.96 (1.8σ), and T3 also ran at lower load than G6. Neither is
+  separable here; the comparison that matters, T2 against T3 on the same build, is 1.8× (5.0σ).
+- **RM-M still loses an order of magnitude to the slab.** T2 lowers the variance per history 14.9× against the analog;
+  the slab's 25 cm windows did 194×. So the remaining loss is not the objective but what the windows can represent on
+  RM-M: 25 cm Cartesian cells across a toroidal build, and paths the slab does not have (ports, gaps between coils, the
+  outboard legs, which the slab omits). Those are the next levers: a mesh that follows the build (cylindrical in R, Z
+  and φ, or finer cells only in the shield), source biasing from the same adjoint (CADIS's other half, which OpenMC does
+  not yet apply automatically), and a per-region breakdown of (a) to show which coil regions carry the variance.
+- **Generation path.** FARIS's window generation should use a targeted adjoint source: CADIS for single integrated
+  responses, targeted FW-CADIS for several. 0.15.3 cannot do either; 0.16.0 can, and its windows run on 0.15.3
+  unchanged. Until FARIS drives the adjoint itself, generation uses 0.16.0 with an MGXS library made on 0.15.3 (which
+  keeps OPENMC-003 away). This is the design decision the protocol left to the coordinator.
+
