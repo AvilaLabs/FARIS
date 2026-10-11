@@ -151,7 +151,7 @@ hydrogen-bearing and beryllium materials are lower than in 0.15.3 for the same i
 percent (beryllium 0.032 against 0.102, FLiBe 0.057 against 0.099, TiH2 0.069 against 0.121 cm^-1). The negative value is in the
 lowest-density material of the same group.
 
-## Notes on cause (read from source, not proven)
+## Notes on cause (read from source; tested, see Verification below)
 
 With `correction="P0"` the stochastic-slab path asks for the `nu-transport` MGXS (`openmc/model/model.py` v0.16.0 in
 `_auto_generate_mgxs_lib`, the `mgxs_types` list for `correction == 'P0'`) and stores it as the group total
@@ -171,6 +171,28 @@ tallied P1 term can exceed the tallied total. The function is unchanged on devel
 
 Possible remedies, for the maintainers to choose: flag or clip a non-positive transport-corrected total, keep a larger uniform
 share, or fall back to the uncorrected total in a group whose correction is not resolved.
+
+## Verification (2026-10-10, OpenMC 0.16.0, conda-forge `openmc016`, 4 threads each)
+
+Two runs of the same reproducer, scripts `integrations/openmc/risk_tests/d6/verify003a_realistic_materials.py` and
+`verify003b_uniform_source.py`; outputs in `~/.cache/avila-night/defect-verify/` (`A.out` sha256
+`45de74d07d595579d8361299e6c6066e0cd61e78e3fd4ada8d625e9623a2ec4c`, `B.out` sha256
+`7ceb8f599445a934cd19974e567a81ac3fd3244e5857ff6e50ee4667606bf667`).
+
+1. **Real fusion materials (run A).** The void stand-in replaced by helium coolant (He-4, 5.7e-3 g/cm3, about 8 MPa) and air
+   (N-14 0.79, O-16 0.21 by atom, 1.2e-3 g/cm3); FENDL-3.2 neutron data (FARIS library v2). Helium's transport-corrected total
+   is negative in the 6–13.5 MeV group (-0.00076 cm-1; the other seven groups are 0.00056 to 0.00278 cm-1), and the
+   random-ray solve stops with "No zero or negative total macroscopic cross sections allowed in random ray mode. If the
+   intention is to make a void material, use a cell fill of 'None' instead." Air stays positive in every group. The message
+   points the user at voids, but the material is a real coolant that cannot be removed.
+2. **Cause (run B).** The original reproducer, materials and library, with `Model._create_mgxs_sources` replaced by the source
+   before PR #3658 (a discrete source uniform over all group midpoints at full strength). No material has a non-positive
+   total in any group (the stand-in's group totals are 0.0003 to 0.0061 cm-1) and the random-ray solve completes. The
+   source change in #3658 is therefore the cause on this model.
+
+Limits: one seed, one group structure (8 groups, P0), one realistic low-density material that failed. Whether a given
+model fails depends on how many slab particles reach the group, so the defect is intermittent rather than certain for
+helium-cooled models.
 
 ## Issue-search record (2026-10-10, `gh search issues|prs --repo openmc-dev/openmc`)
 

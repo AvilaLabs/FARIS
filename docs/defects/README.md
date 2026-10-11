@@ -9,7 +9,7 @@ or gives a wrong answer silently, and whether a workaround exists).
 | --- | --- | --- | --- |
 | [OPENMC-001](OPENMC-001-stochastic-slab-mgxs-ignores-model-cross-sections.md): stochastic-slab MGXS ignores `Materials.cross_sections` | Yes | Low–moderate | Verified; not reported |
 | [OPENMC-002](OPENMC-002-r2smanager-neutron-step-ignores-model-cross-sections.md): R2S neutron step ignores `Materials.cross_sections` | Yes | Moderate | Verified; not reported |
-| [OPENMC-003](OPENMC-003-stochastic-slab-negative-total-low-density.md): negative transport-corrected total aborts random ray | Reproduces; real-world relevance not yet shown | Pending | Two verification runs outstanding |
+| [OPENMC-003](OPENMC-003-stochastic-slab-negative-total-low-density.md): negative transport-corrected total aborts random ray | Yes | Moderate–high | Verified; not reported |
 
 ## Verification record (2026-10-10)
 
@@ -46,15 +46,22 @@ or gives a wrong answer silently, and whether a workaround exists).
   - Workaround: the same global setting.
   - Fix: one line (`TemporarySession(self.neutron_model, ...)`).
 
-**OPENMC-003.** Reproduced by S0b on 0.16.0, not on 0.15.3; same code on develop. Two questions remain before it can be
-called significant:
+**OPENMC-003.**
 
-1. **Realistic materials.** The material that went negative is a void stand-in (H-1 at 1e-3 g/cm³). Random ray supports
-   explicit voids, and its error message says to use them, so a maintainer could call the stand-in a misuse. Next step: rerun
-   with materials a fusion model really has at low density, helium coolant at about 8 MPa (about 0.006 g/cm³) and air
-   (0.0012 g/cm³), in place of the stand-in.
-2. **Cause.** The draft names PR #3658 (the slab source changed from fully uniform over groups to 1 % uniform) as the likely
-   cause, read from the source, not tested. Next step: the same 0.16.0 run with the pre-#3658 source (uniform over groups
-   at full strength) patched in. If the negative value disappears, the cause is confirmed.
-
-Each run takes about 25 min. Both are scheduled after the current S0c runs.
+- **Reproduced** by S0b on 0.16.0, not on 0.15.3; same code on develop (aa4afc41eb).
+- **Real materials (verified 2026-10-10).** Helium coolant at about 8 MPa (5.7e-3 g/cm3), a standard fusion blanket
+  coolant, goes negative in the 6–13.5 MeV group and stops the random-ray solve. So the stand-in was not a misuse: real
+  helium-cooled models hit it.
+- **Cause (verified 2026-10-10).** With the slab source restored to its form before PR #3658 (uniform over groups at full
+  strength), the same model has no non-positive total and the solve completes. The 1 % uniform share introduced by #3658
+  is the cause on this model.
+- **Significance: moderate–high.**
+  - Who hits it: anyone generating random-ray weight windows (FW-CADIS) on a model with a low-density real material,
+    helium coolant above all, on 0.16.0.
+  - It fails loudly, but the message tells the user to make the material a void, which is wrong for a coolant.
+  - It is intermittent: whether a group goes negative depends on how many slab particles reach it, so a model can pass on
+    one seed and fail on another.
+  - Workaround: stay on 0.15.3, or replace `Model._create_mgxs_sources` with the uniform source, as run B does.
+  - Fix: maintainers' choice among the remedies in the draft (clip or flag a non-positive transport-corrected total, a
+    larger uniform share, or the uncorrected total where the correction is unresolved).
+- Details and output hashes: the draft's Verification section.
