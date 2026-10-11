@@ -35,7 +35,7 @@ Copy-Item "$prefix\bin\openmc.exe", "$prefix\bin\libopenmc.dll" $out
 $bl = "$Logs\$name-bundle.log"
 $searchDirs = @("$Hdf5Root\bin", "$EmbreeRoot\bin")
 if ($Dagmc) { $searchDirs += @("$Inst\dagmc\bin", "$Inst\moab\bin", "$Inst\dd\bin") }
-$osOnly = '^(api-ms-win-|ext-ms-win-|kernel32|user32|advapi32|shell32|ole32|oleaut32|shlwapi|ws2_32|ntdll|ucrtbase|bcrypt|crypt32|gdi32|rpcrt4|sechost|version|msvcrt|combase|setupapi|cfgmgr32|imm32|win32u|gdi32full|msvcp_win)'
+$osOnly = '^(api-ms-win-|ext-ms-win-|kernel32|user32|advapi32|shell32|ole32|oleaut32|shlwapi|ws2_32|ntdll|ucrtbase|bcrypt|crypt32|gdi32|rpcrt4|sechost|version|msvcrt|combase|setupapi|cfgmgr32|imm32|win32u|gdi32full|msvcp_win|psapi)'
 $queue = [System.Collections.Generic.Queue[string]]::new()
 $queue.Enqueue("$out\openmc.exe"); $queue.Enqueue("$out\libopenmc.dll")
 while ($queue.Count -gt 0) {

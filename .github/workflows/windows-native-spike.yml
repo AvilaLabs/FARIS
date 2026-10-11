@@ -7,6 +7,8 @@ name: windows-native-spike
 on:
   push:
     branches: [windows-native-spike]
+    paths-ignore:
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +17,7 @@ permissions:
 env:
   # Bump one of these to rebuild that component and everything after it; patch files are hashed
   # into the keys as well.
-  DEPS_REV: v1
+  DEPS_REV: v2
   MOAB_REV: v1
   DD_REV: v2
   DAGMC_REV: v1
