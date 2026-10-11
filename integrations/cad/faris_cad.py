@@ -25,12 +25,14 @@ geometry, `faris-facets/v1` files, see faris_facets.py):
                      tolerances, versions, time, peak memory, hashes; exports the
                      h5m as facets (check 6)
     export-facets    an existing h5m to facets
-    tessellate       every solid meshed on its own, not imprinted, as facets with
-                     the unimprinted flag (candidate pairs for the overlap test)
+    tessellate       every solid meshed on its own with BRepMesh_IncrementalMesh, not
+                     imprinted, as facets with the unimprinted flag (candidate pairs
+                     for the overlap test); each solid's mesh is checked for closure
     overlap-booleans OCCT BRepAlgoAPI_Common on candidate solid pairs, in worker
                      processes (GEO-021 before imprinting)
-    deviation        triangle centroids and edge midpoints projected onto the
-                     owning solid, in worker processes (GEO-032, "sampled maximum")
+    deviation        triangle centroids and edge midpoints (each edge once) against the owning solid:
+                     closed form on plane, cylinder, cone, sphere and torus faces,
+                     OpenCASCADE projection on the rest (GEO-032, faris_deviation.py)
 """
 from __future__ import annotations
 
@@ -46,10 +48,14 @@ import sys
 import time
 from pathlib import Path
 
+# One thread per process for numpy's BLAS: the heavy commands use worker processes.
+for _variable in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_variable, "1")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 SCHEMA = "faris-step-inspect/v1"
-HELPER_VERSION = "2"
+HELPER_VERSION = "3"
 # Adaptive-integration tolerance for volume and centroid; the reached error
 # estimate is reported per solid.
 VOLUME_EPS = 1.0e-7
@@ -439,9 +445,55 @@ def log_tail(path: Path, lines: int = 12) -> list[str]:
         return []
 
 
-def load_solids(step: Path):
-    """The STEP solids in read order (the order step-inspect numbers them)."""
+def _solids_of(shape) -> list:
+    from OCP.TopAbs import TopAbs_SOLID
+    from OCP.TopExp import TopExp_Explorer
+
+    solids = []
+    explorer = TopExp_Explorer(shape, TopAbs_SOLID)
+    while explorer.More():
+        solids.append(explorer.Current())
+        explorer.Next()
+    return solids
+
+
+def load_solids(step: Path, cache: Path | None = None):
+    """The STEP solids in read order (the order step-inspect numbers them).
+
+    Reading a large STEP file takes about a minute (RM-M: 52 s) and every helper command needs
+    the solids, so with a `cache` directory the solids are kept there as one BREP, keyed by the
+    STEP file's sha256 and the helper version, and read back in about a second.
+    """
+    from OCP.BRep import BRep_Builder
+    from OCP.BRepTools import BRepTools
+    from OCP.TopoDS import TopoDS_Compound, TopoDS_Shape
+
+    key = None
+    if cache is not None:
+        brep, meta = cache / "solids.brep", cache / "solids.json"
+        key = {"step_sha256": sha256_file(step), "helper": HELPER_VERSION}
+        if brep.is_file() and meta.is_file():
+            try:
+                recorded = json.loads(meta.read_text())
+            except ValueError:
+                recorded = {}
+            if all(recorded.get(k) == v for k, v in key.items()) and recorded.get("brep_bytes") == brep.stat().st_size:
+                shape = TopoDS_Shape()
+                if BRepTools.Read_s(shape, str(brep), BRep_Builder()):
+                    solids = _solids_of(shape)
+                    if len(solids) == recorded.get("solids"):
+                        return solids
     _reader, solids, _named = read_step(step)
+    if cache is not None:
+        cache.mkdir(parents=True, exist_ok=True)
+        compound, builder = TopoDS_Compound(), BRep_Builder()
+        builder.MakeCompound(compound)
+        for solid in solids:
+            builder.Add(compound, solid)
+        temporary = brep.with_suffix(".tmp")
+        if BRepTools.Write_s(compound, str(temporary)):
+            temporary.replace(brep)
+            meta.write_text(json.dumps({**key, "solids": len(solids), "brep_bytes": brep.stat().st_size}) + "\n")
     return solids
 
 
@@ -465,7 +517,7 @@ def convert(args) -> int:
         import cadquery as cq
 
         t = time.monotonic()
-        solids = load_solids(args.step)
+        solids = load_solids(args.step, args.shape_cache)
         timing["read_step"] = time.monotonic() - t
         if len(solids) != len(tags):
             print(f"STEP holds {len(solids)} solids but {len(tags)} tags were given", file=sys.stderr)
@@ -527,8 +579,111 @@ def export_facets_command(args) -> int:
     return 0
 
 
+# Welding the per-face nodes of a solid into shared vertices: nodes within this many shape units
+# (nanometres for millimetres) are one vertex. Edge nodes are shared by construction, so this
+# only joins what OpenCASCADE already put at the same place.
+WELD = 1.0e-6
+
+_SHARED: dict = {}
+
+
+def _mesh_solid(job) -> dict:
+    """Mesh one solid with BRepMesh_IncrementalMesh and return it as welded vertices and faces.
+
+    The solid is meshed in this process only; shapes are shared with the parent by fork.
+    """
+    import numpy as np
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+    from OCP.TopExp import TopExp_Explorer
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS
+
+    index, chord, angular = job
+    solid = _SHARED["solids"][index]
+    started = time.monotonic()
+    mesher = BRepMesh_IncrementalMesh(solid, chord, False, angular, False)
+    if not mesher.IsDone():
+        return {"index": index, "error": "OpenCASCADE could not mesh the solid"}
+    mesh_seconds = time.monotonic() - started
+    nodes, faces, missing = [], [], []
+    offset = 0
+    explorer = TopExp_Explorer(solid, TopAbs_FACE)
+    number = 0
+    while explorer.More():
+        number += 1
+        face = TopoDS.Face_s(explorer.Current())
+        explorer.Next()
+        location = TopLoc_Location()
+        triangulation = BRep_Tool.Triangulation_s(face, location)
+        if triangulation is None or triangulation.NbTriangles() == 0:
+            missing.append(number)
+            continue
+        transform = None if location.IsIdentity() else location.Transformation()
+        points = []
+        for i in range(1, triangulation.NbNodes() + 1):
+            p = triangulation.Node(i)
+            if transform is not None:
+                p = p.Transformed(transform)
+            points.append((p.X(), p.Y(), p.Z()))
+        triangles = np.array([triangulation.Triangle(i).Get() for i in range(1, triangulation.NbTriangles() + 1)], dtype=np.int64) - 1
+        if face.Orientation() == TopAbs_REVERSED:
+            triangles = triangles[:, [0, 2, 1]]
+        nodes.append(np.array(points, dtype=np.float64))
+        faces.append((number, triangles + offset))
+        offset += len(points)
+    result = {"index": index, "missing_faces": missing, "mesh_seconds": mesh_seconds, "faces": 0}
+    if not faces:
+        result["error"] = "the solid has no meshed face"
+        return result
+    allnodes = np.concatenate(nodes)
+    keys = np.round(allnodes / WELD).astype(np.int64)
+    _unique, first, inverse = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    inverse = inverse.reshape(-1)
+    result["vertices"] = allnodes[first]
+    welded, dropped = [], 0
+    for number, triangles in faces:
+        t = inverse[triangles]
+        keep = (t[:, 0] != t[:, 1]) & (t[:, 1] != t[:, 2]) & (t[:, 0] != t[:, 2])
+        dropped += int((~keep).sum())
+        welded.append((number, t[keep]))
+    result["faces"] = welded
+    result["collapsed_triangles"] = dropped
+    result["seconds"] = time.monotonic() - started
+    return result
+
+
+def open_edge_report(triangles) -> tuple[int, int, int | None]:
+    """(edges used once in their direction without a partner, edges used more than once, first bad triangle).
+
+    A mesh is closed and consistently oriented when every directed edge is used exactly once and
+    its reverse exactly once.
+    """
+    import numpy as np
+
+    a = triangles[:, [0, 1, 2]].ravel()
+    b = triangles[:, [1, 2, 0]].ravel()
+    width = int(triangles.max()) + 1
+    forward = a * width + b
+    backward = b * width + a
+    codes, counts = np.unique(forward, return_counts=True)
+    repeated = int((counts > 1).sum())
+    partnered = np.isin(backward, codes)
+    unpaired = int((~partnered).sum())
+    first = int(np.nonzero(~partnered | np.isin(forward, codes[counts > 1]))[0][0]) // 3 if (unpaired or repeated) else None
+    return unpaired, repeated, first
+
+
 def tessellate(args) -> int:
-    """Mesh every solid on its own, not imprinted, and export it as unimprinted facets."""
+    """Mesh every solid on its own with BRepMesh_IncrementalMesh and export it as unimprinted facets.
+
+    A solid is meshed alone: the converter's mesher refuses an assembly whose solids overlap, and
+    an overlap is what the candidate-pair search has to find from these meshes. Each solid's mesh
+    must be closed; one that is not is reported as a problem and left as it is.
+    """
+    import multiprocessing
+
     import faris_facets
     import numpy as np
 
@@ -537,75 +692,86 @@ def tessellate(args) -> int:
     log = out_dir / "tessellate.log"
     tags = sorted(json.loads(args.tags.read_text()), key=lambda e: e["step_index"])
     scale_to_cm = args.shape_unit_m * 100.0
+    chord = args.chord_cm / scale_to_cm  # shape units
     started = time.monotonic()
+    timing = {}
     with quiet(log):
-        import cadquery as cq
-        from cad_to_dagmc_mesher.cad import SolidConfig, mesh_assembly
-
-        solids = load_solids(args.step)
+        t = time.monotonic()
+        solids = load_solids(args.step, args.shape_cache)
+        timing["read_step"] = time.monotonic() - t
         if len(solids) != len(tags):
             print(f"STEP holds {len(solids)} solids but {len(tags)} tags were given", file=sys.stderr)
             return 3
-        # Each solid is meshed on its own: the mesher refuses an assembly whose solids overlap,
-        # and an overlap is exactly what the candidate-pair search has to find from these meshes.
-        vertex_blocks = []
-        faces_of_volume: dict[int, dict] = {}
-        offset = 0
-        for entry in tags:
-            part = cq.Shape.cast(solids[entry["step_index"]]).scale(scale_to_cm)
-            name = f"s{entry['step_index']}"
-            assembly = cq.Assembly()
-            assembly.add(part, name=name)
-            config = [SolidConfig(name=name, tolerance=args.chord_cm, angular_tolerance=args.angular)]
-            result = mesh_assembly(assembly, solid_config=config, imprint=False, auto_refine=False, check=False)
-            block = np.asarray(result["vertices"], dtype=np.float64)
-            (only,) = result["triangles_by_solid_by_face"]
-            faces_of_volume[entry["step_index"] + 1] = {
-                face_id: np.asarray(tris, dtype=np.int64).reshape(-1, 3) + offset
-                for face_id, tris in result["triangles_by_solid_by_face"][only].items()
-            }
-            vertex_blocks.append(block)
-            offset += len(block)
-    all_vertices = np.concatenate(vertex_blocks)
-    blocks, surfaces, surface_ids = [], [], []
-    first = 0
-    signed = {}
-    for volume in sorted(faces_of_volume):
-        for face_id in sorted(faces_of_volume[volume]):
-            tris = faces_of_volume[volume][face_id]
-            if len(tris) == 0:
+        _SHARED["solids"] = [solids[e["step_index"]] for e in tags]
+        jobs = [(k, chord, args.angular) for k in range(len(tags))]
+        t = time.monotonic()
+        if args.workers > 1:
+            with multiprocessing.get_context("fork").Pool(args.workers) as pool:
+                meshed = pool.map(_mesh_solid, jobs, chunksize=1)
+        else:
+            meshed = [_mesh_solid(job) for job in jobs]
+        timing["mesh"] = time.monotonic() - t
+    problems = []
+    vertex_blocks, blocks, surfaces, surface_ids = [], [], [], []
+    offset, first = 0, 0
+    collapsed = {}
+    for entry, mesh in zip(tags, meshed):
+        volume = entry["step_index"] + 1
+        label = f"solid {entry['step_index']} ({entry['tag']})"
+        if "error" in mesh:
+            problems.append(f"{label}: {mesh['error']}")
+            continue
+        if mesh["missing_faces"]:
+            problems.append(f"{label}: {len(mesh['missing_faces'])} face(s) have no tessellation (first: face {mesh['missing_faces'][0]})")
+        all_triangles = np.concatenate([t for _n, t in mesh["faces"]])
+        vertices = mesh["vertices"] * args.shape_unit_m
+        unpaired, repeated, bad = open_edge_report(all_triangles)
+        if unpaired or repeated:
+            at = vertices[all_triangles[bad]].mean(axis=0)
+            problems.append(
+                f"{label}: the tessellation is not closed: {unpaired} edge(s) have no partner triangle on the other side and "
+                f"{repeated} edge(s) are used more than once in one direction (first near x={at[0]:.6g} y={at[1]:.6g} z={at[2]:.6g} m)"
+            )
+        if mesh["collapsed_triangles"]:
+            collapsed[label] = mesh["collapsed_triangles"]
+        p = vertices[all_triangles]
+        volume_m3 = float(np.einsum("ij,ij->i", p[:, 0], np.cross(p[:, 1], p[:, 2])).sum() / 6.0)
+        if volume_m3 <= 0.0:
+            problems.append(f"{label} has a faceted volume of {volume_m3:g} (not positive), so its triangles are not oriented outward")
+        vertex_blocks.append(vertices)
+        for number, triangles in mesh["faces"]:
+            if len(triangles) == 0:
                 continue
-            # The triangles come out oriented outward from their solid; the mesher's "reversed"
-            # flag describes the face against its imprinted neighbour and does not apply here.
-            blocks.append(tris)
-            surfaces.append((first, len(tris), volume, 0))
-            surface_ids.append(int(face_id))
-            first += len(tris)
-            p = all_vertices[tris]
-            signed[volume] = signed.get(volume, 0.0) + float(np.einsum("ij,ij->i", p[:, 0], np.cross(p[:, 1], p[:, 2])).sum() / 6.0)
-    problems = [f"solid {v - 1} has a faceted volume of {x:g} (not positive), so its triangles are not oriented outward" for v, x in sorted(signed.items()) if x <= 0.0]
-    order = np.concatenate(blocks)
-    unique = np.unique(order)
-    triangles = np.searchsorted(unique, order).astype(np.uint32)
-    vertices = all_vertices[unique] * 0.01
-    n_volumes = len(tags)
-    per_volume = faris_facets.volumes_from_surfaces(surfaces, n_volumes)
+            blocks.append((triangles + offset).astype(np.uint32))
+            surfaces.append((first, len(triangles), volume, 0))
+            surface_ids.append(number)
+            first += len(triangles)
+        offset += len(vertices)
+    if not blocks:
+        print("faris_cad: no solid could be meshed", file=sys.stderr)
+        return 4
+    vertices = np.concatenate(vertex_blocks)
+    triangles = np.concatenate(blocks)
+    per_volume = faris_facets.volumes_from_surfaces(surfaces, len(tags))
     volumes = [
         {"index": e["step_index"] + 1, "global_id": e["step_index"] + 1, "material_tag": "mat:" + e["tag"], "triangles": per_volume[e["step_index"]]}
         for e in tags
     ]
-    binary = faris_facets.pack_facets(vertices, triangles, surfaces, n_volumes, faris_facets.FLAG_UNIMPRINTED)
+    binary = faris_facets.pack_facets(vertices, triangles, surfaces, len(tags), faris_facets.FLAG_UNIMPRINTED)
     manifest = faris_facets.make_manifest(binary, volumes, surface_ids, "step", sha256_file(args.step), len(vertices), len(triangles), len(surfaces), faris_facets.FLAG_UNIMPRINTED)
     bin_path, json_path = faris_facets.write_pair(out_dir / "solids", binary, manifest)
+    timing["total"] = time.monotonic() - started
     report = {
         "schema": TESSELLATION_SCHEMA,
         "versions": tool_versions(),
+        "method": "BRepMesh_IncrementalMesh on each solid alone, nodes welded by position, closedness checked per solid",
         "tolerances": {"chord_cm": args.chord_cm, "angular_rad": args.angular, "scale_factor_to_cm": scale_to_cm},
-        "timing_seconds": {"total": time.monotonic() - started},
+        "timing_seconds": timing,
         "peak_rss_mb": peak_rss_mb(),
         "facets": {"bin": bin_path.name, "json": json_path.name, "bin_sha256": manifest["binary_sha256"]},
         "counts": manifest["counts"],
         "problems": problems,
+        "collapsed_triangles": collapsed,
         "log_tail": log_tail(log),
     }
     args.report.write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
@@ -657,7 +823,7 @@ def overlap_booleans(args) -> int:
     import multiprocessing
 
     pairs = json.loads(args.pairs.read_text())
-    solids = load_solids(args.step)
+    solids = load_solids(args.step, args.shape_cache)
     context = multiprocessing.get_context("fork")
     started = time.monotonic()
     results: dict[int, dict] = {}
@@ -706,62 +872,17 @@ def overlap_booleans(args) -> int:
     return 0
 
 
-def _distance_to_face(point, face, vertex_maker) -> float:
-    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
-
-    probe = BRepExtrema_DistShapeShape(vertex_maker(point), face)
-    if not probe.IsDone():
-        raise RuntimeError("OpenCASCADE could not measure the distance to a face")
-    return probe.Value()
-
-
-def _deviation_chunk(job) -> dict:
-    """Worst distance of a block of points to one solid's boundary (shape units)."""
-    import numpy as np
-    from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeVertex
-    from OCP.gp import gp_Pnt
-
-    points, boxes_lo, boxes_hi, faces, threshold = job
-
-    def make_vertex(p):
-        return BRepBuilderAPI_MakeVertex(gp_Pnt(float(p[0]), float(p[1]), float(p[2]))).Vertex()
-
-    worst, worst_at, evaluated, skipped = 0.0, None, 0, 0
-    floor = threshold
-    for p in points:
-        lower = np.linalg.norm(np.maximum(0.0, np.maximum(boxes_lo - p, p - boxes_hi)), axis=1)
-        best = math.inf
-        for f in np.argsort(lower):
-            if lower[f] >= best:
-                break
-            best = min(best, _distance_to_face(p, faces[f], make_vertex))
-            evaluated += 1
-            if best <= floor:
-                break
-        if best <= floor:
-            skipped += 1  # cannot raise the maximum above what is already known
-            continue
-        if best > worst:
-            worst, worst_at = best, [float(c) for c in p]
-            floor = max(floor, worst)
-    return {"worst": worst, "at": worst_at, "evaluated": evaluated, "points_below_floor": skipped, "points": len(points)}
-
-
 def deviation(args) -> int:
     """GEO-032: the largest distance from triangle centroids and edge midpoints to the owning solid.
 
-    Each point is measured against the solid's faces in order of their bounding-box distance and
-    stops as soon as it is within the maximum already found, which cannot change the maximum. The
-    result is a sampled maximum: it is exact over the points tested, which are where the faceting
-    deviates most, but it is not a bound over every point of every triangle.
+    Faces on a plane, cylinder, cone, sphere or torus are measured in closed form (faris_deviation),
+    every other face by OpenCASCADE on an even stride of at most `--occt-points` points per solid.
+    The report gives each solid's coverage, so the result reads "maximum over all points" or
+    "sampled maximum".
     """
-    import multiprocessing
-
     import numpy as np
-    from OCP.Bnd import Bnd_Box
-    from OCP.BRepBndLib import BRepBndLib
-    from OCP.TopAbs import TopAbs_FACE
-    from OCP.TopExp import TopExp_Explorer
+
+    import faris_deviation
 
     mapping = json.loads(args.map.read_text())  # [{"volume": 1, "step_index": 0}, ...]
     data = args.facets.read_bytes()
@@ -772,78 +893,64 @@ def deviation(args) -> int:
     triangles = np.frombuffer(data, dtype="<u4", count=3 * int(nt), offset=offset).reshape(-1, 3)
     offset += 12 * int(nt)
     surfaces = np.frombuffer(data, dtype=[("first", "<u8"), ("count", "<u8"), ("fwd", "<u4"), ("rev", "<u4")], count=int(ns), offset=offset)
-    solids = load_solids(args.step)
     started = time.monotonic()
-    context = multiprocessing.get_context("fork")
+    timing = {}
+    solids = load_solids(args.step, args.shape_cache)
+    timing["read_step"] = time.monotonic() - started
     to_shape = 1.0 / args.shape_unit_m
-    per_solid = []
-    jobs, owners = [], []
+    point_sets, faces = [], []
+    t = time.monotonic()
     for entry in mapping:
         volume, index = entry["volume"], entry["step_index"]
-        picks = [np.arange(int(s["first"]), int(s["first"]) + int(s["count"])) for s in surfaces if s["fwd"] == volume or s["rev"] == volume]
-        tri_ids = np.concatenate(picks)
-        p = vertices[triangles[tri_ids]] * to_shape  # (n, 3 corners, 3)
-        mids = (p + np.roll(p, -1, axis=1)) / 2.0
-        points = np.concatenate([p.mean(axis=1), mids.reshape(-1, 3)])
-        available = int(len(points))
-        if 0 < args.max_points_per_solid < available:
-            points = points[np.linspace(0, available - 1, args.max_points_per_solid).astype(np.int64)]
-        explorer = TopExp_Explorer(solids[index], TopAbs_FACE)
-        faces, lows, highs = [], [], []
-        while explorer.More():
-            face = explorer.Current()
-            box = Bnd_Box()
-            BRepBndLib.AddOptimal_s(face, box, False, False)
-            lo, hi = box.CornerMin(), box.CornerMax()
-            faces.append(face)
-            lows.append([lo.X(), lo.Y(), lo.Z()])
-            highs.append([hi.X(), hi.Y(), hi.Z()])
-            explorer.Next()
-        per_solid.append({"volume": volume, "step_index": index, "points": int(len(points)), "points_available": available, "faces": len(faces)})
-        jobs.append((points, np.array(lows), np.array(highs), faces))
-        owners.append(len(per_solid) - 1)
-    # A short exact pass over a stride of each solid's points sets the floor every worker prunes against.
-    floors = []
-    for points, lows, highs, faces in jobs:
-        stride = max(1, len(points) // max(1, args.floor_points))
-        floors.append(_deviation_chunk((points[::stride], lows, highs, faces, 0.0))["worst"])
-    tasks = []
-    for k, (points, lows, highs, faces) in enumerate(jobs):
-        for start in range(0, len(points), args.chunk_points):
-            tasks.append((k, (points[start : start + args.chunk_points], lows, highs, faces, floors[k])))
-    global _DEVIATION_TASKS
-    _DEVIATION_TASKS = tasks
-    with context.Pool(max(1, args.workers)) as pool:
-        answers = pool.map(_deviation_task, range(len(tasks)), chunksize=1)
-    for (k, _), answer in zip(tasks, answers):
-        entry = per_solid[k]
-        entry.setdefault("worst_shape_units", floors[k])
-        entry["evaluated"] = entry.get("evaluated", 0) + answer["evaluated"]
-        if answer["worst"] > entry["worst_shape_units"]:
-            entry["worst_shape_units"] = answer["worst"]
-            entry["at_shape_units"] = answer["at"]
-    for k, entry in enumerate(per_solid):
-        entry["max_distance_m"] = entry.pop("worst_shape_units", floors[k]) * args.shape_unit_m
-        if "at_shape_units" in entry:
-            entry["at_m"] = [c * args.shape_unit_m for c in entry.pop("at_shape_units")]
+        owned = np.nonzero((surfaces["fwd"] == volume) | (surfaces["rev"] == volume))[0]
+        picks = [np.arange(int(surfaces["first"][i]), int(surfaces["first"][i]) + int(surfaces["count"][i])) for i in owned]
+        corners = triangles[np.concatenate(picks)]
+        p = vertices[corners] * to_shape  # (n, 3 corners, 3)
+        # Edge midpoints once per edge: neighbouring triangles share them.
+        edges = np.sort(np.concatenate([corners[:, [0, 1]], corners[:, [1, 2]], corners[:, [2, 0]]]), axis=1)
+        edges = np.unique(edges, axis=0)
+        mids = (vertices[edges[:, 0]] + vertices[edges[:, 1]]) / 2.0 * to_shape
+        point_sets.append(np.concatenate([p.mean(axis=1), mids]))
+        faces.append(faris_deviation.SolidFaces(solids[index]))
+    timing["faces"] = time.monotonic() - t
+    t = time.monotonic()
+    rows, phases = faris_deviation.measure(faces, point_sets, workers=args.workers, occt_points=args.occt_points, block=args.block_points)
+    timing["measure"] = time.monotonic() - t
+    timing.update({f"measure_{k}": v for k, v in phases.items()})
+    per_solid = []
+    for entry, row, solid in zip(mapping, rows, faces):
+        out = {
+            "volume": entry["volume"],
+            "step_index": entry["step_index"],
+            "points": row["points"],
+            "points_available": row["points_available"],
+            "points_closed_form": row["points_closed_form"],
+            "points_occt": row["points_occt"],
+            "points_occt_needed": row["points_occt_needed"],
+            "occt_calls": row["occt_calls"],
+            "faces": len(solid),
+            "faces_closed_form": int(solid.analytic.sum()),
+            "max_distance_m": row["worst"] * args.shape_unit_m,
+        }
+        if row["at"] is not None:
+            out["at_m"] = [c * args.shape_unit_m for c in row["at"]]
+        per_solid.append(out)
+    timing["total"] = time.monotonic() - started
     report = {
         "schema": DEVIATION_SCHEMA,
         "versions": tool_versions(),
-        "method": "BRepExtrema_DistShapeShape from each triangle centroid and edge midpoint to the faces of the owning solid, faces tried in order of bounding-box distance",
+        "method": (
+            "closed-form distance to plane, cylinder, cone, sphere and torus faces (accepted when the foot point is in the face, "
+            "by OpenCASCADE's face classifier); BRepExtrema_DistShapeShape for other faces and for points whose foot point is outside the face"
+        ),
         "solids": per_solid,
-        "timing_seconds": {"total": time.monotonic() - started},
+        "timing_seconds": timing,
         "workers": args.workers,
+        "occt_points": args.occt_points,
         "peak_rss_mb": peak_rss_mb(),
     }
     args.report.write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
     return 0
-
-
-_DEVIATION_TASKS: list = []
-
-
-def _deviation_task(index: int) -> dict:
-    return _deviation_chunk(_DEVIATION_TASKS[index][1])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -859,6 +966,8 @@ def main(argv: list[str] | None = None) -> int:
         sub_parser.add_argument("step", type=Path)
         sub_parser.add_argument("--shape-unit-m", type=float, required=True,
                                 help="metres per unit of the shapes as OpenCASCADE reads them (1e-3 for a file that declares a unit)")
+        sub_parser.add_argument("--shape-cache", type=Path, default=None,
+                                help="a directory that keeps the STEP solids as BREP, keyed by the STEP sha256, so later commands skip reading the STEP file")
         if report:
             sub_parser.add_argument("--report", type=Path, required=True)
 
@@ -868,7 +977,7 @@ def main(argv: list[str] | None = None) -> int:
     conv.add_argument("--out-dir", type=Path, required=True)
     conv.add_argument("--chord-cm", type=float, default=0.1)
     conv.add_argument("--angular", type=float, default=0.1)
-    conv.add_argument("--imprint-threads", type=int, default=1)
+    conv.add_argument("--imprint-threads", type=int, default=4)
     conv.add_argument("--implicit-complement", default="void")
 
     exp = sub.add_parser("export-facets", help="export a DAGMC h5m as faris-facets/v1")
@@ -882,6 +991,7 @@ def main(argv: list[str] | None = None) -> int:
     tess.add_argument("--out-dir", type=Path, required=True)
     tess.add_argument("--chord-cm", type=float, default=0.1)
     tess.add_argument("--angular", type=float, default=0.1)
+    tess.add_argument("--workers", type=int, default=3, help="solids meshed at once, in worker processes")
 
     booleans = sub.add_parser("overlap-booleans", help="OCCT boolean intersection of candidate solid pairs")
     add_step_arguments(booleans)
@@ -894,10 +1004,9 @@ def main(argv: list[str] | None = None) -> int:
     dev.add_argument("--facets", type=Path, required=True, help="the imprinted model's .facets.bin")
     dev.add_argument("--map", type=Path, required=True, help='JSON list of {"volume": n, "step_index": m}')
     dev.add_argument("--workers", type=int, default=3)
-    dev.add_argument("--chunk-points", type=int, default=2000)
-    dev.add_argument("--floor-points", type=int, default=400)
-    dev.add_argument("--max-points-per-solid", type=int, default=0,
-                     help="measure an even stride of this many points per solid (0: every point)")
+    dev.add_argument("--block-points", type=int, default=512, help="points measured together in closed form")
+    dev.add_argument("--occt-points", type=int, default=2000,
+                     help="points per solid measured by OpenCASCADE, on an even stride (0: all of them)")
 
     args = parser.parse_args(argv)
     if args.command == "export-facets":
