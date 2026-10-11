@@ -5,12 +5,12 @@ You do not need this to explore the recorded study. Use it to run new fixed-sour
 ## What you need
 
 - OpenMC 0.15.3 in an environment you provide. The run refuses any other version.
-- The nuclear data the study was audited against. The recorded runs use FENDL-3.2 neutron data and ENDF/B-VII.1 photon data. The photon data come from a local overlay that FARIS does not ship. Its acquisition is described in the repository's [photon library document](https://github.com/AvilaLabs/FARIS/blob/main/docs/PHOTON_LIBRARY_ACQUISITION.md).
+- The nuclear data the study was audited against. The recorded runs use FENDL-3.2 neutron data and ENDF/B-VII.1 photon data. The photon data come from a local overlay that FARIS does not ship. How to obtain and build it is described in [Nuclear data](nuclear-data.md).
 - A library audit of your own installation. The audit file in the repository records one workstation's cache. Run `integrations/openmc/audit_library.py` on yours and supply its output. FARIS does not silently accept differences in library content.
 
 The data stay outside the repository. They are not part of the package.
 
-A second local library, v2, covers the full FENDL-3.2 neutron set, photon data for every element in it and ENDF/B-VIII.1 thermal-scattering tables for fusion materials. It is described in the [nuclear-data library v2 document](https://github.com/AvilaLabs/FARIS/blob/main/docs/NUCLEAR_DATA_LIBRARY_V2.md) and is not the default. FARIS records which library a run used, by the digests of its `cross_sections.xml` and its audit.
+A second local library, v2, covers the full FENDL-3.2 neutron set, photon data for every element in it and ENDF/B-VIII.1 thermal-scattering tables for fusion materials. It is described in [Nuclear data](nuclear-data.md) and is not the default. FARIS records which library a run used, by the digests of its `cross_sections.xml` and its audit.
 
 ## Run a case
 
