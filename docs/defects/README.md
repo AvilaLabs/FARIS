@@ -10,6 +10,7 @@ or gives a wrong answer silently, and whether a workaround exists).
 | [OPENMC-001](OPENMC-001-stochastic-slab-mgxs-ignores-model-cross-sections.md): stochastic-slab MGXS ignores `Materials.cross_sections` | Yes | Low–moderate | Verified; not reported |
 | [OPENMC-002](OPENMC-002-r2smanager-neutron-step-ignores-model-cross-sections.md): R2S neutron step ignores `Materials.cross_sections` | Yes | Moderate | Verified; not reported |
 | [OPENMC-003](OPENMC-003-stochastic-slab-negative-total-low-density.md): negative transport-corrected total aborts random ray | Yes | Moderate–high | Verified; not reported |
+| [DOUBLEDOWN-001](DOUBLEDOWN-001-ray-hit-layout-depends-on-tail-padding.md): ray-hit layouts agree only through tail-padding reuse; MSVC crash | Yes | Low now, latent | Verified; not reported |
 
 ## Verification record (2026-10-10)
 
@@ -65,3 +66,28 @@ or gives a wrong answer silently, and whether a workaround exists).
   - Fix: maintainers' choice among the remedies in the draft (clip or flag a non-positive transport-corrected total, a
     larger uniform share, or the uncorrected total where the correction is unresolved).
 - Details and output hashes: the draft's Verification section.
+
+## Verification record (2026-10-11)
+
+**DOUBLEDOWN-001.**
+
+- **Reproduced** on the Windows runner (crash in batch 1, diagnosed under `cdb`; a DAGMC build without double-down ran
+  the same model correctly, which places the fault in double-down). The patch removes the crash and gives Linux's
+  result in all 21 bins.
+- **The cause is confirmed on Linux** by a layout probe compiled with GCC 15.2 against the conda-forge headers: the four
+  members `MBRay` and `MBRayAccumulate` add sit in `RTCDRay`'s tail padding (bytes 136–159 of 160), so `hit` is at 160 in
+  all three hit structs only by that accident.
+- **Still present** on `develop` at 437ad20 (2026-08-29): the same declarations.
+- **Not contrary to documentation.** double-down does not claim Windows support; its CI runs on Ubuntu only, and none of
+  its 57 issues mentions Windows or MSVC. The defect is undefined behaviour (one object read through two unrelated struct
+  types) that happens to work under the Itanium ABI.
+- **Significance: low now, latent.**
+  - Who hits it today: anyone building double-down with MSVC, which in practice means a native Windows OpenMC with
+    DAGMC. FARIS's Windows plan is such a build.
+  - The failure on MSVC is loud (an access violation in the first batch).
+  - Latent risk on Linux and macOS: a member added to `MBRay` or `MBRayAccumulate` beyond the 24 bytes of padding, or a
+    change that shrinks it, moves `hit` there as well. The write would then land on `rh` or on the ray, which can crash
+    or, if the overwritten values stay plausible, give wrong ray-fire results without an error.
+  - Workaround: FARIS's patch (four members moved into `RTCDRay`).
+  - Fix: that patch, plus a `static_assert` on the `hit` offsets.
+
