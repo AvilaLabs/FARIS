@@ -191,3 +191,38 @@ Judgment (coordinator):
     result by less than its error;
   - a 10 cm mesh R2S is not a reference for this kind of shield;
   - the comparison carries the R2S neutron-step uncertainty (S0b D5c).
+
+#### Q2 rerun alone (2026-10-10, 22:01)
+
+The same job (same script, seed 91060001, 8 threads, a fresh copy of the prepared run directory) with nothing else running:
+load 1.7 at the start. Record `q2-rerun/q2.json` (sha256 `da082adfc3e4a9a692afd0cca39df8b7a966504db5990093d2209c3f1c7cea9e`), process snapshot `q2_rerun.ps` (sha256 `54b6b9e3d0badb10d66020b1ddb44d757700cddf23a5979c396467c987c6ba4a`).
+Deviation: the rerun falls outside the 60 min box; the ledger total is 3537 s of job time plus this rerun's 139 s.
+
+Cold start: `init` 13.7 s, 14.0 s to the first batch.
+
+| Warm preview | Batches (1000 histories) | TBR R | (a) R |
+| --- | --- | --- | --- |
+| 1 | 279 | 0.41 % | 21.3 % |
+| 2 | 277 | 0.44 % | 14.9 % |
+
+**Rule outcome: to change control** (preview 1 misses (a) ≤ 20 % by 1.3 points). This run replaces the contended one for
+judgment.
+
+Judgment (coordinator):
+
+- **TBR is met with a factor of five to spare.** The cold start is 14 s, a third of S0b's 42–44 s through the run script.
+- **(a) is on the edge.** With the same seed the two previews differ by 6 points, because the error estimate of a deep,
+  sparse response is itself noisy. Meeting 20 % reliably needs about 1.2–1.5× more figure of merit on (a), much less than
+  the weight-window gain NUC-050 still has to find (8.9× today against 100×). PERF-025's preview is therefore decided by
+  NUC-050, not by start-up.
+- **Proposal for PERF-025:** keep the numbers; define the preview as running in a loaded session (the in-process engine of
+  the install plan keeps one warm); report the cold start separately as its own measured number; confirm (a) once the
+  NUC-050 follow-up lands.
+
+### Summary for change control
+
+| Item | Rule outcome | Proposal |
+| --- | --- | --- |
+| Q1 (NUC-050) | Δ\* = 25 cm; finer windows go deeper and stall | Keep 100×; release-risk flag stays; next test separates 3D paths from window depth on RM-M |
+| Q2 (PERF-025) | to change control: (a) 21.3 % and 14.9 % at 60 s, TBR 0.4 % | Keep the numbers; preview defined in a loaded session; cold start (14 s) reported separately; (a) follows NUC-050 |
+| Q3 (VAL-043, S3) | H2 confirmed | Keep the 0.85–1.15 band; the rigorous reference is cell-based R2S or mesh R2S converged in voxel size; 10 cm mesh R2S is not a reference |
