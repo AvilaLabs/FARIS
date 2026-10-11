@@ -1,0 +1,592 @@
+{
+ "protocol": "docs/notes/CAD_TRANSPORT_S0C.md",
+ "protocol_sha256": "52025cf3f881a10ca811a2fc9ce58b59fec6eeb65edfce9d94a07b5e6d4f85c2",
+ "record_sha256": {
+  "ledger.json": "f2fc7aa0e00526dfec8176e6d846c30a325f6be2618eb6928abec251dd50561d",
+  "q1/analog.json": "31b2ab4dc7bbf255da193790142e7e12bc6ec73c0424bf00cd5747c894607033",
+  "q1/gen_10.json": "412167daf4ddc13fc890b51f5d227e96a7add024aeddfee0ba30a349ab990a1f",
+  "q1/gen_25.json": "49cfdb51d99fd925f5a484bf743237d4b5ff192d29f9ebf5f54d6af3e82d5247",
+  "q1/gen_5.json": "ec9259342bff498ed5c6ea8674c327ece84b55a5e440e3272fdffbf559a991bf",
+  "q1/mgxs.json": "5bc08bb5835c51053f281b760ac64f003fbd74df81c7336869594726af259cec",
+  "q1/prod_10.json": "cb635e6421254057d2c66a9ffcc36b82e38ca0c0f33c889012bcfa8f3b346db2",
+  "q1/prod_25.json": "6e305c02552fa7e5f883eebd61d8b06606cb5a24d58dd70b479cc5c64e7c027c",
+  "q1/prod_5.json": "f348b9a5907ec146be7cbb317b29274851def408bca8d880c139f2be01a3408d",
+  "q1/prod_supp_floor5.json": "2407bb1a1eead2ed23bce41e8cbf652fa27dcf675274dc600d69ff2a576d07bc",
+  "q1/smoke_analog.json": "1bd4dbb598b87a478388ecc8520f3ed72d28bfbd7fc2bb6a5f3d06caac13eeaf",
+  "q2/q2.json": "759263065ecfc0cd2299f577d28009e23e959293d1123a58f5c4297768f035a1",
+  "q2/run/prepare.json": "5d678ec06800aa3e1c4031f2ccbff52a98157181bd044d3802d2ab6de46b508e",
+  "q3/cell2/photon_transport/tally_ids.json": "3a316d6d3226f84c1e46e4447fa8d5fd800bff4a1bc6498152523cd4a602b69b",
+  "q3/cell2/r2s.json": "c6f7b2fab954c1ed3653dd7fe63db6d617a235b9352879364f126889dbaa20a8",
+  "q3/d1s/d1s.json": "58ae860e243452d776f458c4d53f52e054e40c825b10d35510713c9a09b4d469",
+  "q3/mesh10/photon_transport/tally_ids.json": "3a316d6d3226f84c1e46e4447fa8d5fd800bff4a1bc6498152523cd4a602b69b",
+  "q3/mesh10/r2s.json": "f0e3606113434d8076ce78f13aee15442624703953d22a5ac2448b7f17623a22",
+  "q3/mesh2/photon_transport/tally_ids.json": "3a316d6d3226f84c1e46e4447fa8d5fd800bff4a1bc6498152523cd4a602b69b",
+  "q3/mesh2/r2s.json": "cfb64bf1bb65e594e01f825c6cec07d6c865b7622a395b69fc8c2c366a79f0ec",
+  "q3/mesh20/photon_transport/tally_ids.json": "3a316d6d3226f84c1e46e4447fa8d5fd800bff4a1bc6498152523cd4a602b69b",
+  "q3/mesh20/r2s.json": "c182720a2196cd796398e2b664e426602f465ea4215bf1a7ca6585b621570a4a"
+ },
+ "results": {
+  "ledger": {
+   "cap_hours": 1,
+   "cap_s": 3600,
+   "elapsed_since_start_s": 3527.592077732086,
+   "entries": [
+    {
+     "item": "Q1",
+     "label": "q1_mgxs",
+     "loadavg_end": "3.95 2.63 1.98 1/1820 2833651",
+     "loadavg_start": "4.53 2.66 1.98 6/1815 2833525",
+     "recorded_at": "2026-10-10T19:44:33-0400",
+     "returncode": 1,
+     "wall_s": 13.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_mgxs",
+     "loadavg_end": "5.53 4.01 2.64 3/1810 2834978",
+     "loadavg_start": "4.12 2.71 2.02 1/1800 2833802",
+     "recorded_at": "2026-10-10T19:47:43-0400",
+     "returncode": 0,
+     "wall_s": 178.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_smoke_analog",
+     "loadavg_end": "3.70 3.72 2.60 2/1815 2835254",
+     "loadavg_start": "3.78 3.74 2.59 2/1788 2835160",
+     "recorded_at": "2026-10-10T19:48:30-0400",
+     "returncode": 1,
+     "wall_s": 14.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_analog",
+     "loadavg_end": "4.36 3.70 2.70 12/1817 2835887",
+     "loadavg_start": "3.21 3.61 2.58 2/1807 2835343",
+     "recorded_at": "2026-10-10T19:50:09-0400",
+     "returncode": 1,
+     "wall_s": 90.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_analog",
+     "loadavg_end": "11.12 11.39 7.39 2/1819 2842805",
+     "loadavg_start": "4.54 3.76 2.73 5/1799 2835976",
+     "recorded_at": "2026-10-10T20:00:25-0400",
+     "returncode": 0,
+     "wall_s": 607.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_gen_25",
+     "loadavg_end": "5.89 8.88 7.07 5/1804 2843851",
+     "loadavg_start": "9.80 11.10 7.34 8/1818 2842932",
+     "recorded_at": "2026-10-10T20:03:10-0400",
+     "returncode": 0,
+     "wall_s": 158.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_prepare",
+     "loadavg_end": "5.42 8.40 6.98 11/1796 2844182",
+     "loadavg_start": "5.11 8.39 6.97 15/1816 2844163",
+     "recorded_at": "2026-10-10T20:03:45-0400",
+     "returncode": 1,
+     "wall_s": 5.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_prod_25",
+     "loadavg_end": "6.94 8.09 7.00 5/1805 2844942",
+     "loadavg_start": "5.89 8.88 7.07 6/1795 2843864",
+     "recorded_at": "2026-10-10T20:05:16-0400",
+     "returncode": 0,
+     "wall_s": 125.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_prepare",
+     "loadavg_end": "8.82 8.39 7.16 11/1834 2845416",
+     "loadavg_start": "5.12 8.23 6.94 5/1826 2844307",
+     "recorded_at": "2026-10-10T20:06:09-0400",
+     "returncode": 0,
+     "wall_s": 136.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_smoke",
+     "loadavg_end": "8.36 8.30 7.16 6/1831 2845640",
+     "loadavg_start": "8.13 8.25 7.14 9/1828 2845579",
+     "recorded_at": "2026-10-10T20:06:30-0400",
+     "returncode": 1,
+     "wall_s": 6.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_smoke",
+     "loadavg_end": "8.65 8.36 7.20 7/1809 2845799",
+     "loadavg_start": "8.15 8.26 7.16 10/1833 2845747",
+     "recorded_at": "2026-10-10T20:06:49-0400",
+     "returncode": 1,
+     "wall_s": 8.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_smoke",
+     "loadavg_end": "8.64 8.36 7.23 7/1825 2845956",
+     "loadavg_start": "8.35 8.31 7.19 8/1829 2845864",
+     "recorded_at": "2026-10-10T20:07:07-0400",
+     "returncode": 0,
+     "wall_s": 14.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_gen_10",
+     "loadavg_end": "6.63 7.91 7.18 2/1813 2846587",
+     "loadavg_start": "6.94 8.09 7.00 4/1805 2844934",
+     "recorded_at": "2026-10-10T20:08:41-0400",
+     "returncode": 0,
+     "wall_s": 206.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_prod_10",
+     "loadavg_end": "12.76 9.37 7.77 7/1814 2847414",
+     "loadavg_start": "6.63 7.91 7.18 3/1813 2846592",
+     "recorded_at": "2026-10-10T20:10:46-0400",
+     "returncode": 0,
+     "wall_s": 125.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_gen_5",
+     "loadavg_end": "17.84 15.01 10.76 12/1809 2850526",
+     "loadavg_start": "12.76 9.37 7.77 13/1814 2847419",
+     "recorded_at": "2026-10-10T20:16:19-0400",
+     "returncode": 0,
+     "wall_s": 332.0
+    },
+    {
+     "item": "Q1",
+     "label": "q1_prod_5",
+     "loadavg_end": "13.57 14.70 11.21 7/1826 2851629",
+     "loadavg_start": "17.84 15.01 10.76 15/1809 2850531",
+     "recorded_at": "2026-10-10T20:18:25-0400",
+     "returncode": 1,
+     "wall_s": 126.0
+    },
+    {
+     "item": "Q2",
+     "label": "q2_run",
+     "loadavg_end": "14.06 13.88 11.38 6/1840 2853124",
+     "loadavg_start": "12.97 14.56 11.18 7/1826 2851666",
+     "recorded_at": "2026-10-10T20:20:52-0400",
+     "returncode": 0,
+     "wall_s": 145.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_d1s",
+     "loadavg_end": "8.53 10.48 10.71 16/1823 2856424",
+     "loadavg_start": "11.45 13.32 11.23 4/1824 2853361",
+     "recorded_at": "2026-10-10T20:28:09-0400",
+     "returncode": 124,
+     "wall_s": 420.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_d1s_analyse",
+     "loadavg_end": "6.00 9.43 10.34 5/1809 2856767",
+     "loadavg_start": "6.09 9.50 10.37 4/1808 2856726",
+     "recorded_at": "2026-10-10T20:29:11-0400",
+     "returncode": 1,
+     "wall_s": 5.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_d1s_analyse",
+     "loadavg_end": "5.86 9.23 10.26 5/1826 2856969",
+     "loadavg_start": "5.92 9.35 10.31 4/1793 2856892",
+     "recorded_at": "2026-10-10T20:29:25-0400",
+     "returncode": 0,
+     "wall_s": 9.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_mesh10",
+     "loadavg_end": "6.60 8.13 9.65 10/1801 2858318",
+     "loadavg_start": "5.34 9.00 10.17 7/1816 2857060",
+     "recorded_at": "2026-10-10T20:32:18-0400",
+     "returncode": 0,
+     "wall_s": 166.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_mesh2",
+     "loadavg_end": "5.88 7.15 9.06 3/1823 2859455",
+     "loadavg_start": "5.16 7.67 9.46 4/1796 2858560",
+     "recorded_at": "2026-10-10T20:34:38-0400",
+     "returncode": 0,
+     "wall_s": 114.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_mesh20",
+     "loadavg_end": "8.88 7.57 8.99 6/1828 2860205",
+     "loadavg_start": "5.88 7.15 9.06 2/1816 2859460",
+     "recorded_at": "2026-10-10T20:36:25-0400",
+     "returncode": 0,
+     "wall_s": 107.0
+    },
+    {
+     "item": "Q3",
+     "label": "q3_cell2",
+     "loadavg_end": "11.33 9.32 9.43 6/1820 2862362",
+     "loadavg_start": "8.88 7.57 8.99 8/1828 2860209",
+     "recorded_at": "2026-10-10T20:39:08-0400",
+     "returncode": 0,
+     "wall_s": 163.0
+    },
+    {
+     "item": "Q1-supp",
+     "label": "q1_supp_floor5",
+     "loadavg_end": "11.32 9.69 9.53 12/1828 2864530",
+     "loadavg_start": "11.33 9.32 9.43 8/1819 2862405",
+     "recorded_at": "2026-10-10T20:41:16-0400",
+     "returncode": 0,
+     "wall_s": 126.0
+    }
+   ],
+   "job_wall_total_s": 3398.0,
+   "start_epoch": 1791675749.1401205,
+   "start_iso": "2026-10-10T19:42:29-0400"
+  },
+  "q1": {
+   "analog": {
+    "FOM": 0.08289813042990758,
+    "FOM_sigma": 0.0015152747199890008,
+    "R": 0.14168038484650938,
+    "T_s": 600.9464972019196,
+    "batches": 5987,
+    "histories": 11974000,
+    "mean": 0.0005844708916491994,
+    "reached_R_0.05": false,
+    "std_error": 8.280806086044106e-05,
+    "stopped_by": "budget"
+   },
+   "delta_star": {
+    "best_fom": 7.067949717105979,
+    "best_spacing_cm": 25.0,
+    "delta_star_cm": 25.0,
+    "excluded": [
+     5.0,
+     2.5
+    ],
+    "within_one_sigma_of_best": [
+     25.0
+    ]
+   },
+   "floor": {
+    "against_spacing": 25.0,
+    "cells_raised_expected": false,
+    "floor_value": 5e-09,
+    "note": "no lower bound is below the floor: the floored windows equal the unfloored ones",
+    "production_run": false,
+    "window_min_positive": 9.203591172122916e-07
+   },
+   "rm_m_confirmation_required": false,
+   "rows": [
+    {
+     "FOM": 7.067949717105979,
+     "R": 0.034380653384788296,
+     "T_s": 119.69563055038452,
+     "batches": 524,
+     "floor": false,
+     "floor_result": null,
+     "gain": 85.2606648720758,
+     "gain_sigma": 5.4979609124498054,
+     "gen_rss_mb": 148.0078125,
+     "gen_seconds": 154.1284840106964,
+     "histories": 1048000,
+     "label": "25 cm",
+     "lost": 0,
+     "mean": 0.0007813394175886142,
+     "sigma": 0.4370766488320533,
+     "source_regions": 19.0,
+     "source_regions_expected": 19,
+     "spacing": 25.0,
+     "spacing_fom_sigma": 0.4370766488320533,
+     "std_error": 2.6862959691986505e-05,
+     "unbiased": true,
+     "window_cells": 72,
+     "window_dynamic_range": 543266.1997356724,
+     "window_fraction_positive": 1.0,
+     "window_max": 0.5,
+     "window_min": 9.203591172122916e-07,
+     "z": 2.261394081378887
+    },
+    {
+     "FOM": 0.9863660437770617,
+     "R": 0.09315628434187755,
+     "T_s": 116.82547926902771,
+     "batches": 20,
+     "floor": false,
+     "floor_result": null,
+     "gain": 11.898531832524963,
+     "gain_sigma": 3.866515217679083,
+     "gen_rss_mb": 148.16796875,
+     "gen_seconds": 201.24184274673462,
+     "histories": 40000,
+     "label": "10 cm",
+     "lost": 0,
+     "mean": 0.0008198100277536702,
+     "sigma": 0.3200194027532858,
+     "source_regions": 31.0,
+     "source_regions_expected": 31,
+     "spacing": 10.0,
+     "spacing_fom_sigma": 0.3200194027532858,
+     "std_error": 7.637045605174342e-05,
+     "unbiased": true,
+     "window_cells": 180,
+     "window_dynamic_range": 23284738422.48594,
+     "window_fraction_positive": 1.0,
+     "window_max": 0.5,
+     "window_min": 2.14732925458657e-11,
+     "z": 2.0891509498253473
+    },
+    {
+     "FOM": null,
+     "R": null,
+     "floor": false,
+     "gen_rss_mb": 148.015625,
+     "gen_seconds": 326.9412178993225,
+     "label": "5 cm",
+     "note": "NOT_EVALUATED: no readable statepoint (production 120 s)",
+     "source_regions": 49.0,
+     "source_regions_expected": 49,
+     "spacing": 5.0,
+     "unbiased": null,
+     "window_cells": 360,
+     "window_dynamic_range": 27433148950121.49,
+     "window_fraction_positive": 1.0,
+     "window_max": 0.5,
+     "window_min": 1.8226124930429677e-14
+    },
+    {
+     "FOM": null,
+     "R": null,
+     "estimated_generation_s": 531.15474646103,
+     "floor": false,
+     "label": "2.5 cm",
+     "note": "NOT_EVALUATED: did not fit the time box; generation measured at 154 s (25 cm), 201 s (10 cm), 327 s (5 cm); estimated 531 s generation + 140 s production",
+     "spacing": 2.5,
+     "unbiased": null
+    }
+   ],
+   "supplementary_floor_5cm": {
+    "R": 0.3347257025989929,
+    "batches": 2,
+    "histories": 4000,
+    "histories_per_second": 75.6053472593793,
+    "note": "outside the protocol (the floor rule applies at delta*): the 5 cm windows with the floor, 120 s",
+    "windows": {
+     "file": "/home/connoravila/.cache/avila-night/cad-risk-tests/s0c/q1/gen_5/weight_windows.h5",
+     "floor": true,
+     "floor_result": {
+      "cells": 360,
+      "floor_value": 5e-09,
+      "non_positive": 0,
+      "raised": 61
+     },
+     "max_split_used": 1000,
+     "range_after_floor": {
+      "dynamic_range": 100000000.0,
+      "fraction_positive": 1.0,
+      "max": 0.5,
+      "min_positive": 5e-09
+     },
+     "sha256": "7553f9098b93a89ad611b39fd57cf21509f2b0e82f85554c66bc015c744221b7"
+    }
+   }
+  },
+  "q2": {
+   "process_snapshots": "Sat Oct 10 20:18:27 EDT 2026\n12.97 14.56 11.18 7/1830 2851659\n    PID     ELAPSED %CPU COMMAND\n2851660       00:00  300 ps -eo pid,etime,pcpu,args --sort=-pcpu\n2851499       00:20 88.6 /home/connoravila/micromamba/envs/openmc0153dd/bin/python scripts/build_nuclear_data_v2.py --fendl-dir /home/connoravila/Documents/Avil\n2851307       00:35 83.2 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2851310       00:35 81.7 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2851309       00:35 81.0 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2851308       00:35 80.9 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2851255       00:41 17.0 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n   9125 15-03:27:30 14.2 /snap/ghostty/820/bin/ghostty --gtk-single-instance=true\n2300246    22:46:13  8.2 /home/connoravila/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/\n--- end\nSat Oct 10 20:20:52 EDT 2026\n14.06 13.88 11.38 8/1839 2853127\n    PID     ELAPSED %CPU COMMAND\n2853107       00:00  109 /home/connoravila/micromamba/envs/openmc0153dd/bin/python integrations/openmc/audit_library.py --cross-sections /home/connoravila/Docum\n2852585       00:56 64.1 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2852583       00:56 63.1 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2852582       00:56 62.4 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2852584       00:56 60.2 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n   9125 15-03:29:56 14.2 /snap/ghostty/820/bin/ghostty --gtk-single-instance=true\n2852522       01:04 14.0 /home/connoravila/.cache/avila-night/feasibility-cad/cadvenv/bin/python solid1.py 3 12\n2300246    22:48:39  8.2 /home/connoravila/.npm-global/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/\n   7739 15-03:30:03  7.2 /usr/bin/gnome-shell --mode=ubuntu\n",
+   "record": {
+    "affinity_cpus": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "budget_s": 60.0,
+    "cold": {
+     "first_batch_s": 0.31012001307681203,
+     "init_s": 18.347458296921104,
+     "process_to_first_batch_s": 18.678286934038624,
+     "simulation_init_s": 0.02069384790956974,
+     "tallies_after_first_batch": {
+      "a": {
+       "mean": 0.0,
+       "realizations": 1,
+       "relative_error": null,
+       "std_error": Infinity
+      },
+      "tbr": {
+       "mean": 1.2907716804977958,
+       "realizations": 1,
+       "relative_error": Infinity,
+       "std_error": Infinity
+      }
+     }
+    },
+    "kind": "s0c-q2",
+    "loadavg_end": "13.98 13.86 11.36 24/1846 2853080",
+    "loadavg_start": "12.33 14.40 11.15 5/1838 2851727",
+    "particles_per_batch": 1000,
+    "peak_rss_mb": 1022.66796875,
+    "rule": {
+     "outcome": "to change control",
+     "perf_025_keeps_numbers": false,
+     "runs": [
+      {
+       "a_ok": true,
+       "a_r": 0.19804272377563467,
+       "tbr_ok": true,
+       "tbr_r": 0.004628451084341269
+      },
+      {
+       "a_ok": false,
+       "a_r": 0.3209749871641059,
+       "tbr_ok": true,
+       "tbr_r": 0.005531657888822797
+      }
+     ]
+    },
+    "seed": 91060001,
+    "tally_ids": {
+     "tbr": 1,
+     "tf_fast_a": 2
+    },
+    "threads": 8,
+    "warm": [
+     {
+      "a": {
+       "mean": 0.0009653237425376034,
+       "realizations": 224,
+       "relative_error": 0.19804272377563467,
+       "std_error": 0.00019117534329743646
+      },
+      "a_r": 0.19804272377563467,
+      "batches": 224,
+      "elapsed_s": 60.19454183685593,
+      "first_batch_s": 0.2513371619861573,
+      "histories": 224000,
+      "preview": 1,
+      "simulation_init_s": 0.027503677876666188,
+      "tbr": {
+       "mean": 1.2185537537752393,
+       "realizations": 224,
+       "relative_error": 0.004628451084341269,
+       "std_error": 0.00564001644298913
+      },
+      "tbr_r": 0.004628451084341269
+     },
+     {
+      "a": {
+       "mean": 0.00139299177885511,
+       "realizations": 134,
+       "relative_error": 0.3209749871641059,
+       "std_error": 0.00044711551833772397
+      },
+      "a_r": 0.3209749871641059,
+      "batches": 134,
+      "elapsed_s": 60.20570638892241,
+      "first_batch_s": 0.30040923901833594,
+      "histories": 134000,
+      "preview": 2,
+      "simulation_init_s": 0.021381622878834605,
+      "tbr": {
+       "mean": 1.224898236399723,
+       "realizations": 134,
+       "relative_error": 0.005531657888822797,
+       "std_error": 0.0067757179923856594
+      },
+      "tbr_r": 0.005531657888822797
+     }
+    ]
+   }
+  },
+  "q3": {
+   "d1s": {
+    "batches": 3093,
+    "photons_per_s": 1.7815458555415408e-05,
+    "relative_error": 0.04368686620272863,
+    "relative_error_of_sd": 0.08574929257125441,
+    "std_error": 7.7830155425069e-07,
+    "unit": "photons/s through x = 40 cm at unit source rate, 1 d cooling after 1 FPY",
+    "variance_from_last_batches": 69
+   },
+   "h2": {
+    "cell_within_5pct": true,
+    "excess_10": 0.48642645237144566,
+    "monotone_falling": true,
+    "outcome": "CONFIRMED",
+    "r10": 1.4864264523714457,
+    "r2": 0.9763409943613232,
+    "r20": 3.5501660650490705,
+    "r_cell": 0.9796992142956458,
+    "sigma_10": 0.07962435558693105,
+    "ten_cm_high": true,
+    "ten_cm_within_5pct_of_1": false,
+    "two_cm_within_5pct": true
+   },
+   "rows": [
+    {
+     "R_combined": 0.01216273505240037,
+     "R_neutron_estimate": 0.004299237936607566,
+     "R_photon": 0.011377551455358176,
+     "label": "mesh20",
+     "photons_per_s": 6.324783639672392e-05,
+     "ratio_sigma": 0.1609942341377832,
+     "ratio_to_d1s": 3.5501660650490705,
+     "seconds": 101.41070365905762
+    },
+    {
+     "R_combined": 0.03099918818982092,
+     "R_neutron_estimate": 0.003617607896359587,
+     "R_photon": 0.030787376983694624,
+     "label": "mesh10",
+     "photons_per_s": 2.6481368857896646e-05,
+     "ratio_sigma": 0.07962435558693105,
+     "ratio_to_d1s": 1.4864264523714457,
+     "seconds": 160.74159789085388
+    },
+    {
+     "R_combined": 0.01848966069364135,
+     "R_neutron_estimate": 0.0070485358301618645,
+     "R_photon": 0.01709344012236596,
+     "label": "mesh2",
+     "photons_per_s": 1.7393962520997222e-05,
+     "ratio_sigma": 0.04631613732864159,
+     "ratio_to_d1s": 0.9763409943613232,
+     "seconds": 108.90412664413452
+    },
+    {
+     "R_combined": 0.01317085139328468,
+     "R_neutron_estimate": 0.00589397146195422,
+     "R_photon": 0.011778473026231296,
+     "label": "cell2",
+     "photons_per_s": 1.7453790749057115e-05,
+     "ratio_sigma": 0.04470278094686487,
+     "ratio_to_d1s": 0.9796992142956458,
+     "seconds": 156.9362599849701
+    }
+   ]
+  }
+ },
+ "schema": "faris-cad-transport-s0c/v1"
+}

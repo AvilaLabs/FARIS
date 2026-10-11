@@ -83,6 +83,12 @@ def q1(root: Path) -> dict:
             out["floor"] = {"production_run": False, "floor_value": floor_value, "window_min_positive": low, "cells_raised_expected": bool(low < floor_value),
                             "against_spacing": ds["delta_star_cm"],
                             "note": "no lower bound is below the floor: the floored windows equal the unfloored ones" if low >= floor_value else "floor applies; production not run"}
+    sup = load(root / "q1" / "prod_supp_floor5.json")
+    if sup is not None:
+        resp = sup.get("response") or {}
+        out["supplementary_floor_5cm"] = {"note": "outside the protocol (the floor rule applies at delta*): the 5 cm windows with the floor, 120 s", "windows": sup.get("windows"),
+                                          "batches": resp.get("batches"), "histories": resp.get("histories"), "R": resp.get("relative_error"),
+                                          "histories_per_second": resp.get("histories_per_second")}
     out["rm_m_confirmation_required"] = S.rm_m_confirmation_required(ds.get("delta_star_cm"))
     for r in out["rows"] + ([out["floor"]["row"]] if out["floor"] and "row" in out["floor"] else []):
         r.pop("_fom", None)
