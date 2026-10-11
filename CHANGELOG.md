@@ -11,6 +11,11 @@ basis.
 
 ### Added
 
+- A second local nuclear-data library, built by `scripts/build_nuclear_data_v2.py`: all FENDL-3.2 neutron
+  nuclides, ENDF/B-VII.1 photon data for every element in them, and ENDF/B-VIII.1 thermal-scattering tables for
+  fusion materials, with a provenance record and an audit of the new `fusion-materials-v1` nuclide set
+  (`audit_library.py --nuclide-set`). The first library and the default paths are unchanged. See
+  [Nuclear-data library v2](docs/NUCLEAR_DATA_LIBRARY_V2.md).
 - `faris design check` now runs import checks 6 to 9. Check 6 converts the STEP model to a DAGMC model as a
   bounded job and records the tolerances, versions, time, peak memory and per-volume triangle counts; it also looks
   for solids that overlap in the CAD model before imprinting. Check 7 matches every converted volume to exactly one

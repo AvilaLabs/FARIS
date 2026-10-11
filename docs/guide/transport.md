@@ -10,6 +10,8 @@ You do not need this to explore the recorded study. Use it to run new fixed-sour
 
 The data stay outside the repository. They are not part of the package.
 
+A second local library, v2, covers the full FENDL-3.2 neutron set, photon data for every element in it and ENDF/B-VIII.1 thermal-scattering tables for fusion materials. It is described in the [nuclear-data library v2 document](https://github.com/AvilaLabs/FARIS/blob/main/docs/NUCLEAR_DATA_LIBRARY_V2.md) and is not the default. FARIS records which library a run used, by the digests of its `cross_sections.xml` and its audit.
+
 ## Run a case
 
 ```bash

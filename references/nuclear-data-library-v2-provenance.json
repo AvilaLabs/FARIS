@@ -1,0 +1,2759 @@
+{
+  "build_script": "scripts/build_nuclear_data_v2.py",
+  "cross_sections_xml": {
+    "bytes": 18972,
+    "relative_path": "cross_sections.xml",
+    "sha256": "8ec755cb8bda2bdd802b88f1153ae9dc37be7cd1ed6b69d55b324329f040d959"
+  },
+  "gap_fill": {
+    "gap_filled_entries": [
+      {
+        "bytes": 57415992,
+        "nuclide": "Ta180_m1",
+        "relative_path": "neutron/Ta180_m1.h5",
+        "sha256": "e7916ca0710400486f34d22d5ae3ba2c02a7ba3d67b030f3c2ca781efc2e7a95",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "neutron/Ta180_m1.h5"
+      }
+    ],
+    "remaining_gaps": [],
+    "rule": "A needed neutron nuclide that FENDL-3.2 lacks comes from ENDF/B-VIII.1 and is listed here; nothing is mixed silently."
+  },
+  "library_root_name": "fendl32-endfbvii1-v2",
+  "licence_and_redistribution": {
+    "endfb_vii1": "ENDF/B-VII.1 is published by the NNDC, Brookhaven National Laboratory. The NNDC download page states no explicit licence; redistribution rights remain unresolved, as in docs/PHOTON_LIBRARY_ACQUISITION.md.",
+    "endfb_viii1": "ENDF/B-VIII.1 (OpenMC's official HDF5 build) is published by the NNDC and distributed through OpenMC. No licence text was checked for this build; treated as the existing documentation treats NNDC data: local research use, no redistribution.",
+    "established": "Byte identity of every file (SHA-256), the NNDC MD5 of the two ENDF/B-VII.1 archives, OpenMC readability (audit), the source of every entry.",
+    "fendl32": "FENDL-3.2 is distributed by the IAEA Nuclear Data Section under IAEA NDS terms of use. The terms were not re-read for this build; FARIS keeps the files local and Git-ignored and does not redistribute them.",
+    "not_established": "Redistribution rights for any of the data; authentication of the FENDL-3.2 and ENDF/B-VIII.1 HDF5 acquisition (no publisher checksum was available to compare); suitability of any evaluation for a particular calculation."
+  },
+  "neutron_data": {
+    "count": 193,
+    "files": [
+      {
+        "bytes": 3634736,
+        "nuclide": "Ag107",
+        "relative_path": "neutron/Ag107.h5",
+        "sha256": "383e1edfa382ef0d8479c113ad9a67ceccb930d8cea101217f8897bfc032ccbc",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ag107.h5"
+      },
+      {
+        "bytes": 5735288,
+        "nuclide": "Ag109",
+        "relative_path": "neutron/Ag109.h5",
+        "sha256": "a4699e3d03a1f3b7e5f49617ea82f334dacd0f25e4356f39bfc4ed4805286ab5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ag109.h5"
+      },
+      {
+        "bytes": 3441296,
+        "nuclide": "Al27",
+        "relative_path": "neutron/Al27.h5",
+        "sha256": "e647f861a3b20f3d7b9d181b519cb4e40844df68d134973a6513b67916347ddf",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Al27.h5"
+      },
+      {
+        "bytes": 3099616,
+        "nuclide": "Ar36",
+        "relative_path": "neutron/Ar36.h5",
+        "sha256": "355fb81d6651d4b295c0e95eb7c2372838744b0d794080c223f5e66bd1e08921",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ar36.h5"
+      },
+      {
+        "bytes": 3100440,
+        "nuclide": "Ar38",
+        "relative_path": "neutron/Ar38.h5",
+        "sha256": "86d5bc4d0fde0dd963da9c33535cc7c1119e7cd2856f3363c77c488fb8e18892",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ar38.h5"
+      },
+      {
+        "bytes": 3088368,
+        "nuclide": "Ar40",
+        "relative_path": "neutron/Ar40.h5",
+        "sha256": "f589677db681dfc51dc4a8e18556e0b8fd5c6610a11295cc4627cd09a98741a9",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ar40.h5"
+      },
+      {
+        "bytes": 3957040,
+        "nuclide": "Au197",
+        "relative_path": "neutron/Au197.h5",
+        "sha256": "6317da57e46b3f3f4972be7caf602176f9c14581d68c7288d18d38edb18a44d4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Au197.h5"
+      },
+      {
+        "bytes": 1434504,
+        "nuclide": "B10",
+        "relative_path": "neutron/B10.h5",
+        "sha256": "1e65d909b52955833ce1ccf4e5eafd5a9807fc6b398bd3d40bfd5023981ad839",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/B10.h5"
+      },
+      {
+        "bytes": 2977432,
+        "nuclide": "B11",
+        "relative_path": "neutron/B11.h5",
+        "sha256": "5beb15eaec0c2f30879691954f271b8df77474c66dac5d6371fe303dde06df89",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/B11.h5"
+      },
+      {
+        "bytes": 1571472,
+        "nuclide": "Ba130",
+        "relative_path": "neutron/Ba130.h5",
+        "sha256": "22478b959144dc340e0fdbad9ec125a0dab68edaa9d49c054097fc5928629f00",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba130.h5"
+      },
+      {
+        "bytes": 1121024,
+        "nuclide": "Ba132",
+        "relative_path": "neutron/Ba132.h5",
+        "sha256": "c1f37b9ae428aba8d75b9685ea74507514509f27fa69beca76efb39fb4272528",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba132.h5"
+      },
+      {
+        "bytes": 1955752,
+        "nuclide": "Ba134",
+        "relative_path": "neutron/Ba134.h5",
+        "sha256": "3ac4d855ae3984e4399b680c1eb787d8a3f74b31cf7d9731a03e1e370f56962c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba134.h5"
+      },
+      {
+        "bytes": 1897168,
+        "nuclide": "Ba135",
+        "relative_path": "neutron/Ba135.h5",
+        "sha256": "f58c32dcb8023d382e09d8eb01b8754f85e2836818fadfddb980919754a27e25",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba135.h5"
+      },
+      {
+        "bytes": 1984136,
+        "nuclide": "Ba136",
+        "relative_path": "neutron/Ba136.h5",
+        "sha256": "b4f55a4933f11182926618983ab8c995689eaf3166352dbca1c1257b88d27c4c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba136.h5"
+      },
+      {
+        "bytes": 1630832,
+        "nuclide": "Ba137",
+        "relative_path": "neutron/Ba137.h5",
+        "sha256": "7475c58349433aff8b781015e5e98ddd54e8cbdb3230a1be3d406ecaeaf9036e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba137.h5"
+      },
+      {
+        "bytes": 1160392,
+        "nuclide": "Ba138",
+        "relative_path": "neutron/Ba138.h5",
+        "sha256": "97f8079376c93adaa907ce24dd4344c75ad571a097fb90343ec19e555398dfb7",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ba138.h5"
+      },
+      {
+        "bytes": 2840040,
+        "nuclide": "Be9",
+        "relative_path": "neutron/Be9.h5",
+        "sha256": "9ace52e0be2788fffe42d6aa69a285835377c06e0b1c571687c78aa07a1830b9",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Be9.h5"
+      },
+      {
+        "bytes": 6393920,
+        "nuclide": "Bi209",
+        "relative_path": "neutron/Bi209.h5",
+        "sha256": "3d399f048661077b88279729b8051dd95b2f58c3b2ca57ed46f97e02b5061c42",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Bi209.h5"
+      },
+      {
+        "bytes": 3148760,
+        "nuclide": "Br79",
+        "relative_path": "neutron/Br79.h5",
+        "sha256": "61e887e3cc67cb266b0015ee0edf83cc276be00305a6ecc0dcf63b9524f6a95b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Br79.h5"
+      },
+      {
+        "bytes": 3327848,
+        "nuclide": "Br81",
+        "relative_path": "neutron/Br81.h5",
+        "sha256": "3ea8c42aefbc3ba8ceaaa299307e4071e4f0a017de5936631e8398117ec2b24f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Br81.h5"
+      },
+      {
+        "bytes": 2014088,
+        "nuclide": "C12",
+        "relative_path": "neutron/C12.h5",
+        "sha256": "49765f71edb7aba6b30ec3d41ad142d81090be00839810829922baf11826c299",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/C12.h5"
+      },
+      {
+        "bytes": 4058856,
+        "nuclide": "C13",
+        "relative_path": "neutron/C13.h5",
+        "sha256": "33878dc9955b4b3c290819068a4e8cb77ce0a79b86a1ab8040abe20a5396857b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/C13.h5"
+      },
+      {
+        "bytes": 4319136,
+        "nuclide": "Ca40",
+        "relative_path": "neutron/Ca40.h5",
+        "sha256": "93a75174b48aedeb111e42352f8c2f323ae7f7edbdc12fb975ff1c3c86375563",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca40.h5"
+      },
+      {
+        "bytes": 4521296,
+        "nuclide": "Ca42",
+        "relative_path": "neutron/Ca42.h5",
+        "sha256": "225a4de5ac43f0ca65f768cfdf9a62de6bfe7dea13a5111595d36e793cb9b495",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca42.h5"
+      },
+      {
+        "bytes": 4441128,
+        "nuclide": "Ca43",
+        "relative_path": "neutron/Ca43.h5",
+        "sha256": "3c39d2554172048eee975d762c0479e6d7fca8d2b73925d19b766cc32d1419f4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca43.h5"
+      },
+      {
+        "bytes": 3707872,
+        "nuclide": "Ca44",
+        "relative_path": "neutron/Ca44.h5",
+        "sha256": "2040a96c496ead4b4094627dcb9cf2e6ee0a9fab2b95f5a3880db6d0930a86d9",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca44.h5"
+      },
+      {
+        "bytes": 2781664,
+        "nuclide": "Ca46",
+        "relative_path": "neutron/Ca46.h5",
+        "sha256": "a3b538007c83270bff5e15b173eaa5ec334ccee47ae40aac8100f5c36d2ab5ef",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca46.h5"
+      },
+      {
+        "bytes": 2137504,
+        "nuclide": "Ca48",
+        "relative_path": "neutron/Ca48.h5",
+        "sha256": "ab87bc2f814a1444e697577938ad642d385fe68509b56540cf299eb677f84730",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ca48.h5"
+      },
+      {
+        "bytes": 2024976,
+        "nuclide": "Cd106",
+        "relative_path": "neutron/Cd106.h5",
+        "sha256": "baed75a2d42f285572688bf2c0695ffdf77d6f1ee3615dff85a8b831a1e53411",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd106.h5"
+      },
+      {
+        "bytes": 1391728,
+        "nuclide": "Cd108",
+        "relative_path": "neutron/Cd108.h5",
+        "sha256": "c956ea1fe587de62369d76736680b325f10c905669c7a4f00b4bb74827dea3f5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd108.h5"
+      },
+      {
+        "bytes": 1887520,
+        "nuclide": "Cd110",
+        "relative_path": "neutron/Cd110.h5",
+        "sha256": "7298ab76eda4b858d1e0814650360d5be0e2d094318a916aff8749622fef4fa4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd110.h5"
+      },
+      {
+        "bytes": 2630800,
+        "nuclide": "Cd111",
+        "relative_path": "neutron/Cd111.h5",
+        "sha256": "15d637e582389654fd8cd8973734c9387eaebc6f68eef788fb8ab4c6a3d83ab1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd111.h5"
+      },
+      {
+        "bytes": 2096712,
+        "nuclide": "Cd112",
+        "relative_path": "neutron/Cd112.h5",
+        "sha256": "97f99b4a7025594f8f2d855662f43d38e12852ebd4f6ba8c4a6308f6ccbae5c3",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd112.h5"
+      },
+      {
+        "bytes": 4385352,
+        "nuclide": "Cd113",
+        "relative_path": "neutron/Cd113.h5",
+        "sha256": "ba2988a327c52c526d868d3c5d5a01473c5f97de169a897df6ebee09b5cc9894",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd113.h5"
+      },
+      {
+        "bytes": 1507456,
+        "nuclide": "Cd114",
+        "relative_path": "neutron/Cd114.h5",
+        "sha256": "2c521c2ae4cf205bef9c028c508667a4839d385cd3bdfcdb6de195e5a6e8890f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd114.h5"
+      },
+      {
+        "bytes": 1181224,
+        "nuclide": "Cd116",
+        "relative_path": "neutron/Cd116.h5",
+        "sha256": "28d98aca4a982c3fb16eaf7ad8beb304d44343b8cc0363e1a2da164368e682dc",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cd116.h5"
+      },
+      {
+        "bytes": 2885800,
+        "nuclide": "Ce136",
+        "relative_path": "neutron/Ce136.h5",
+        "sha256": "4c6ed2b919ff6fd22a8f6450c2fbfaca23d5669ccc2aa847c5c863458118ceb0",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ce136.h5"
+      },
+      {
+        "bytes": 3293376,
+        "nuclide": "Ce138",
+        "relative_path": "neutron/Ce138.h5",
+        "sha256": "e26d5285645b700895cff22ad5a7fa85905ea8c7626cbfcdc246e6e866141182",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ce138.h5"
+      },
+      {
+        "bytes": 2600016,
+        "nuclide": "Ce140",
+        "relative_path": "neutron/Ce140.h5",
+        "sha256": "3d197378837890941e1206d597cf8eb77a27541b222c15257eee889e4a32fb8a",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ce140.h5"
+      },
+      {
+        "bytes": 1415496,
+        "nuclide": "Ce142",
+        "relative_path": "neutron/Ce142.h5",
+        "sha256": "0a6b1235bb0fa88c091de29bbffdc9083d0d7d168cce0ad9f8099d0ff5a4c6bc",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ce142.h5"
+      },
+      {
+        "bytes": 9555968,
+        "nuclide": "Cl35",
+        "relative_path": "neutron/Cl35.h5",
+        "sha256": "eba9988cf539b5b46553e6d574bbb944386ca1b99fe76c64ca55bbbb2b0d9549",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cl35.h5"
+      },
+      {
+        "bytes": 3949936,
+        "nuclide": "Cl37",
+        "relative_path": "neutron/Cl37.h5",
+        "sha256": "1b957213cae24392db89fc849f2a709333ae750f26f2f0c2e4b8e71f17ea7541",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cl37.h5"
+      },
+      {
+        "bytes": 4649216,
+        "nuclide": "Co59",
+        "relative_path": "neutron/Co59.h5",
+        "sha256": "8b5935680783151edcb39dcc4e2cedb14f42a64eb0ed8ea84b98ab9a70179798",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Co59.h5"
+      },
+      {
+        "bytes": 15115296,
+        "nuclide": "Cr50",
+        "relative_path": "neutron/Cr50.h5",
+        "sha256": "5b22adbebe5065853841991b2eeaace1ceaa5d08537d22d55ebeae42fee01a1f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cr50.h5"
+      },
+      {
+        "bytes": 13109872,
+        "nuclide": "Cr52",
+        "relative_path": "neutron/Cr52.h5",
+        "sha256": "1cb746d92f99bb65ce153c21c0e59b4b386e828c716c10a3493b358012434f6f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cr52.h5"
+      },
+      {
+        "bytes": 10212248,
+        "nuclide": "Cr53",
+        "relative_path": "neutron/Cr53.h5",
+        "sha256": "ecc399b243ccf1834c2428dfd12592ae03ce08de25ebc5754fcfc7cf623ffce7",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cr53.h5"
+      },
+      {
+        "bytes": 12222248,
+        "nuclide": "Cr54",
+        "relative_path": "neutron/Cr54.h5",
+        "sha256": "c5833fc9a53ec4016b6f1f9e174880f5835e73e92ed2daaf2d40e0bdc82aa4c5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cr54.h5"
+      },
+      {
+        "bytes": 8103800,
+        "nuclide": "Cs133",
+        "relative_path": "neutron/Cs133.h5",
+        "sha256": "adeaa22b3fe3f6efd3f730d7acd9c858d588c93b08aedd72830b8336b25394b8",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cs133.h5"
+      },
+      {
+        "bytes": 5544728,
+        "nuclide": "Cu63",
+        "relative_path": "neutron/Cu63.h5",
+        "sha256": "d820c6aadc32aafd3dd0d6b0152b47488f089e6b3fd020627664c0d9518ca9a6",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cu63.h5"
+      },
+      {
+        "bytes": 5111712,
+        "nuclide": "Cu65",
+        "relative_path": "neutron/Cu65.h5",
+        "sha256": "ab3f675628090f45869f101b3b41f1f7d9f5460931fd96eeea2adcd0f8dee1da",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Cu65.h5"
+      },
+      {
+        "bytes": 2004896,
+        "nuclide": "Er162",
+        "relative_path": "neutron/Er162.h5",
+        "sha256": "d7ebbeab32069c50d385820f8a9216480b6bb53453f060c82c70397ab22fddf8",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er162.h5"
+      },
+      {
+        "bytes": 1823920,
+        "nuclide": "Er164",
+        "relative_path": "neutron/Er164.h5",
+        "sha256": "56def57d5fd796303ed6b38810b9f922a232303295957b7053a8d6c95dcb6bc0",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er164.h5"
+      },
+      {
+        "bytes": 4562568,
+        "nuclide": "Er166",
+        "relative_path": "neutron/Er166.h5",
+        "sha256": "badcb1765eeeb577b88cd704c5b8d9a1a5270b0e58b6c88e68b4fdefb353f28c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er166.h5"
+      },
+      {
+        "bytes": 4379224,
+        "nuclide": "Er167",
+        "relative_path": "neutron/Er167.h5",
+        "sha256": "d30c2a1d989a942697e7213611e0e09f2c708aa1643d06f95fe6ad83c8f12711",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er167.h5"
+      },
+      {
+        "bytes": 5695968,
+        "nuclide": "Er168",
+        "relative_path": "neutron/Er168.h5",
+        "sha256": "e0d4b32879f8affdae6715f3ca0afd2bca2d29a8e89e919a597e2a3b467abbbf",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er168.h5"
+      },
+      {
+        "bytes": 2302912,
+        "nuclide": "Er170",
+        "relative_path": "neutron/Er170.h5",
+        "sha256": "ea968788f54dd5aa0e8f5a4490363c3e486a5420ef7be73073f09f8900b65e7e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Er170.h5"
+      },
+      {
+        "bytes": 4390344,
+        "nuclide": "F19",
+        "relative_path": "neutron/F19.h5",
+        "sha256": "6fa9f0b30487886660b8edc5705d0c426694225c8d0cc992ec7360cd3068f814",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/F19.h5"
+      },
+      {
+        "bytes": 19916768,
+        "nuclide": "Fe54",
+        "relative_path": "neutron/Fe54.h5",
+        "sha256": "abc528ee420a3210600b1479a0903ee2afb8dfcf3e9d57c4789919db3812c13e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Fe54.h5"
+      },
+      {
+        "bytes": 29793576,
+        "nuclide": "Fe56",
+        "relative_path": "neutron/Fe56.h5",
+        "sha256": "2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Fe56.h5"
+      },
+      {
+        "bytes": 15606464,
+        "nuclide": "Fe57",
+        "relative_path": "neutron/Fe57.h5",
+        "sha256": "a53b71466fdc4e54673d46ff09be21222fbdd2e323638ace133b26d0c9ba18f1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Fe57.h5"
+      },
+      {
+        "bytes": 3577616,
+        "nuclide": "Fe58",
+        "relative_path": "neutron/Fe58.h5",
+        "sha256": "b91c20113f8b8d650a15cb6cf965845b4f6811b770f2739fffab0375e6db2750",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Fe58.h5"
+      },
+      {
+        "bytes": 2121480,
+        "nuclide": "Ga69",
+        "relative_path": "neutron/Ga69.h5",
+        "sha256": "baf125320675eefc647cb7d1276299f196ac14ceed91ad3fe7a3b237e0889fc8",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ga69.h5"
+      },
+      {
+        "bytes": 2136592,
+        "nuclide": "Ga71",
+        "relative_path": "neutron/Ga71.h5",
+        "sha256": "ff69974624dfbd7b5bafacaaf147da2a8339db36c11e8266c738488c78d57d58",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ga71.h5"
+      },
+      {
+        "bytes": 6647408,
+        "nuclide": "Gd152",
+        "relative_path": "neutron/Gd152.h5",
+        "sha256": "3e070e4dd6373db5c34bf198955fbbb27e6fe5e0685cae15aff4647b5f747076",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd152.h5"
+      },
+      {
+        "bytes": 5738072,
+        "nuclide": "Gd154",
+        "relative_path": "neutron/Gd154.h5",
+        "sha256": "ab07ada48a5f45dfdeda5da2a3eeefa9403ade5941b672360b34c6a37a98ff2d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd154.h5"
+      },
+      {
+        "bytes": 5487376,
+        "nuclide": "Gd155",
+        "relative_path": "neutron/Gd155.h5",
+        "sha256": "3a8c698dc187f5825790ad0598cbd57a6993875e29c9041a0a62014193d8c56b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd155.h5"
+      },
+      {
+        "bytes": 5064296,
+        "nuclide": "Gd156",
+        "relative_path": "neutron/Gd156.h5",
+        "sha256": "a4912ddeff94bf61b6b364bc45f535fb812202c95f352fea2cbac716e2e0a017",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd156.h5"
+      },
+      {
+        "bytes": 4129152,
+        "nuclide": "Gd157",
+        "relative_path": "neutron/Gd157.h5",
+        "sha256": "e7b4fda36fed5de5ae50dc2c7a9fee68a2e7b6be72d4236d580d5f727428f48d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd157.h5"
+      },
+      {
+        "bytes": 4301424,
+        "nuclide": "Gd158",
+        "relative_path": "neutron/Gd158.h5",
+        "sha256": "854ee0c034062fb62948c476754e2f3dfe7343f9ad5f329233436bde50edb9b4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd158.h5"
+      },
+      {
+        "bytes": 3443280,
+        "nuclide": "Gd160",
+        "relative_path": "neutron/Gd160.h5",
+        "sha256": "3f45bb128721706f4a314f4df5e36019bb390e658ab0d71d9c436b1b19622440",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Gd160.h5"
+      },
+      {
+        "bytes": 3560896,
+        "nuclide": "Ge70",
+        "relative_path": "neutron/Ge70.h5",
+        "sha256": "fbc76c0ec2e8bc9d5a4103469dae854fbc2007542ab61ec0f4deedf7c05b5f0d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ge70.h5"
+      },
+      {
+        "bytes": 2925352,
+        "nuclide": "Ge72",
+        "relative_path": "neutron/Ge72.h5",
+        "sha256": "43c6e976f57784736de1004b9469d59c2a08977deb24d04095e85753e0087f6e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ge72.h5"
+      },
+      {
+        "bytes": 4292024,
+        "nuclide": "Ge73",
+        "relative_path": "neutron/Ge73.h5",
+        "sha256": "68e2c110393685c2abf67c31d90e34152bd0a8da96b045dfd7457a78cc0c9aba",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ge73.h5"
+      },
+      {
+        "bytes": 2445952,
+        "nuclide": "Ge74",
+        "relative_path": "neutron/Ge74.h5",
+        "sha256": "bf30c0a36bf7403136c49c36c2479cc1c8d16e1e0f3584971eddee5024df70da",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ge74.h5"
+      },
+      {
+        "bytes": 2227576,
+        "nuclide": "Ge76",
+        "relative_path": "neutron/Ge76.h5",
+        "sha256": "7b93def416e46271b6308b9333de10c2dfee5ae1aff249160c11726b33c52330",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ge76.h5"
+      },
+      {
+        "bytes": 95456,
+        "nuclide": "H1",
+        "relative_path": "neutron/H1.h5",
+        "sha256": "2bf2db322a188e5c435675cd732dd36b10b995e8cc6e7d6bd55d6aaf712f9b4d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/H1.h5"
+      },
+      {
+        "bytes": 98312,
+        "nuclide": "H2",
+        "relative_path": "neutron/H2.h5",
+        "sha256": "57b09c44bfd8a696e46e864dce689afa380555c3a35841c1da92dbc009ce5890",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/H2.h5"
+      },
+      {
+        "bytes": 184280,
+        "nuclide": "H3",
+        "relative_path": "neutron/H3.h5",
+        "sha256": "6a5ca65fdf0863429032116281f8ff43573f7e35c2c532ad55bccb7cc9ca7df2",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/H3.h5"
+      },
+      {
+        "bytes": 118848,
+        "nuclide": "He3",
+        "relative_path": "neutron/He3.h5",
+        "sha256": "bc89e514d5812f54fe7aeb56b4de73f5fae0a247ebcef5ea30bb6ecf5311bb36",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/He3.h5"
+      },
+      {
+        "bytes": 238864,
+        "nuclide": "He4",
+        "relative_path": "neutron/He4.h5",
+        "sha256": "55d6db4d6ba98da126a8c562aa87422c49c454b41672f4916c2aa2eaf1dc0332",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/He4.h5"
+      },
+      {
+        "bytes": 2088008,
+        "nuclide": "Hf174",
+        "relative_path": "neutron/Hf174.h5",
+        "sha256": "e259e4aa16dcac732335759a150e2454c63e44ad6ee279ba36755293b58f72cf",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf174.h5"
+      },
+      {
+        "bytes": 2394312,
+        "nuclide": "Hf176",
+        "relative_path": "neutron/Hf176.h5",
+        "sha256": "eae21c7af845d0c6e2d087d27c24e890d4bb72d16fb3be7590ed93e23b50452b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf176.h5"
+      },
+      {
+        "bytes": 2065600,
+        "nuclide": "Hf177",
+        "relative_path": "neutron/Hf177.h5",
+        "sha256": "0d20f4d9f34261bae17cd27d308bdd0b2dc6a4a2f3d430122b82efc5c2dd49cb",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf177.h5"
+      },
+      {
+        "bytes": 2437224,
+        "nuclide": "Hf178",
+        "relative_path": "neutron/Hf178.h5",
+        "sha256": "0eda5070a5981c9e0b2372417c120efca81547dd052621aefe54e2c7e06b44ba",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf178.h5"
+      },
+      {
+        "bytes": 2086696,
+        "nuclide": "Hf179",
+        "relative_path": "neutron/Hf179.h5",
+        "sha256": "08505c061efed266eb72bccb8efee71dc5feaa75ccf4e59871bf7932effd066d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf179.h5"
+      },
+      {
+        "bytes": 2367024,
+        "nuclide": "Hf180",
+        "relative_path": "neutron/Hf180.h5",
+        "sha256": "d431e548addc8565816c20971ff61d751136557c1ec8aa8f23717a0ecc329865",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Hf180.h5"
+      },
+      {
+        "bytes": 8480904,
+        "nuclide": "I127",
+        "relative_path": "neutron/I127.h5",
+        "sha256": "3a15e463470c53ba0be1fde79f1f3969fc8ccb19c4db28dfc3bbdbe61dedfa4b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/I127.h5"
+      },
+      {
+        "bytes": 5142624,
+        "nuclide": "K39",
+        "relative_path": "neutron/K39.h5",
+        "sha256": "9f8925f18d81850184d194e920c96ae5efb0660c4f1e4297385caf637ef2a606",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/K39.h5"
+      },
+      {
+        "bytes": 7684104,
+        "nuclide": "K40",
+        "relative_path": "neutron/K40.h5",
+        "sha256": "e3f6d1712086bf8fa34aa26c9af53d04a6feb566d017e3049f7a0b1955076036",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/K40.h5"
+      },
+      {
+        "bytes": 9165936,
+        "nuclide": "K41",
+        "relative_path": "neutron/K41.h5",
+        "sha256": "ba8b025985e110b9fe98a89849f61400f9204188bbb792b84d1572951726dbc2",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/K41.h5"
+      },
+      {
+        "bytes": 8671576,
+        "nuclide": "La138",
+        "relative_path": "neutron/La138.h5",
+        "sha256": "486e34f8d6231b12a962bd8e9ddc7ffe066233c8ccc89584689062d3b8765827",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/La138.h5"
+      },
+      {
+        "bytes": 9715072,
+        "nuclide": "La139",
+        "relative_path": "neutron/La139.h5",
+        "sha256": "130fed29e39b9558c2cda4498219df99bc9b21f8b3841328624e68b496ef3eba",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/La139.h5"
+      },
+      {
+        "bytes": 941944,
+        "nuclide": "Li6",
+        "relative_path": "neutron/Li6.h5",
+        "sha256": "dd7d7da85120448fa874f10e157bc33e8effcc3dab019bb148505ecff0381543",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Li6.h5"
+      },
+      {
+        "bytes": 883896,
+        "nuclide": "Li7",
+        "relative_path": "neutron/Li7.h5",
+        "sha256": "f261968904018a39f45f4fecc2d803ac3eae6f6f73cf3ec90756f52d669dce3f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Li7.h5"
+      },
+      {
+        "bytes": 5526608,
+        "nuclide": "Lu175",
+        "relative_path": "neutron/Lu175.h5",
+        "sha256": "75af58e3e37e4a514d97dd4c9124b04a099ea3fc96996094d206a5686f0dcb90",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Lu175.h5"
+      },
+      {
+        "bytes": 3601760,
+        "nuclide": "Lu176",
+        "relative_path": "neutron/Lu176.h5",
+        "sha256": "41aba9eec8e48431dfa0e3ac297824514845b3ceedb8c899644b935a8ebcc512",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Lu176.h5"
+      },
+      {
+        "bytes": 2724728,
+        "nuclide": "Mg24",
+        "relative_path": "neutron/Mg24.h5",
+        "sha256": "c1e2f8208373d1cac444fab7ee94a9f30491d71db1e6f0dd6831afe4226333aa",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mg24.h5"
+      },
+      {
+        "bytes": 3238704,
+        "nuclide": "Mg25",
+        "relative_path": "neutron/Mg25.h5",
+        "sha256": "4937f389aa00181bdf0958348c13f07ebbaa6d0a4d6419d7dd10b84d472af9ed",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mg25.h5"
+      },
+      {
+        "bytes": 2749688,
+        "nuclide": "Mg26",
+        "relative_path": "neutron/Mg26.h5",
+        "sha256": "5828a82f93b9dba3402c40a1e2fb669fc392cdc977527f9dc0b63a983b914a1f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mg26.h5"
+      },
+      {
+        "bytes": 9617048,
+        "nuclide": "Mn55",
+        "relative_path": "neutron/Mn55.h5",
+        "sha256": "9d3b2a4b99215b2d640d5dc07fed6c1c96a32ec0f4844e15bdd099889a99d19a",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mn55.h5"
+      },
+      {
+        "bytes": 2889592,
+        "nuclide": "Mo92",
+        "relative_path": "neutron/Mo92.h5",
+        "sha256": "2d9ada95466760b7601f7d41347e691348ea3aa2325eb116496302dd39e7a543",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo92.h5"
+      },
+      {
+        "bytes": 2632136,
+        "nuclide": "Mo94",
+        "relative_path": "neutron/Mo94.h5",
+        "sha256": "c3796317fb37c386f093c3d8831f76dc4981290b7574247840236e30eb46fc14",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo94.h5"
+      },
+      {
+        "bytes": 2949224,
+        "nuclide": "Mo95",
+        "relative_path": "neutron/Mo95.h5",
+        "sha256": "b2101f0f9d6048e0d3f44659554204060183989e71def97e2fa715f9413bef27",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo95.h5"
+      },
+      {
+        "bytes": 3098872,
+        "nuclide": "Mo96",
+        "relative_path": "neutron/Mo96.h5",
+        "sha256": "ae2b71fbc4b500c36952cc5ec2086583e4244344100ad9cb21e17c423933a2eb",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo96.h5"
+      },
+      {
+        "bytes": 2689568,
+        "nuclide": "Mo97",
+        "relative_path": "neutron/Mo97.h5",
+        "sha256": "4c6b5b59bd254a549d5c907c5456363a586e500e271f907ab24e1aaf5efbd339",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo97.h5"
+      },
+      {
+        "bytes": 3453520,
+        "nuclide": "Mo98",
+        "relative_path": "neutron/Mo98.h5",
+        "sha256": "71c252e93d1603283c34c9b7070f88f73c651a3718cb578b9e06cfed55eb34d8",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo98.h5"
+      },
+      {
+        "bytes": 3582848,
+        "nuclide": "Mo100",
+        "relative_path": "neutron/Mo100.h5",
+        "sha256": "be24d90528dfed6c05f46d5c0e677f811855aff76bfab07d860f180fc6c5d3e5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Mo100.h5"
+      },
+      {
+        "bytes": 2853112,
+        "nuclide": "N14",
+        "relative_path": "neutron/N14.h5",
+        "sha256": "d5c6891f034b457d8018e70d5f47ce10693d8d98dc329f5d4341fee897a85949",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/N14.h5"
+      },
+      {
+        "bytes": 907880,
+        "nuclide": "N15",
+        "relative_path": "neutron/N15.h5",
+        "sha256": "04a025524f5cba466165714cdc0fb956180f6bef7d012e3488675e4710bd9cfc",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/N15.h5"
+      },
+      {
+        "bytes": 5386160,
+        "nuclide": "Na23",
+        "relative_path": "neutron/Na23.h5",
+        "sha256": "6b4d6a003e4b94cbb5191d6736b3206d54c68f44b6e6d54c9785eea3b5564d5c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Na23.h5"
+      },
+      {
+        "bytes": 3332376,
+        "nuclide": "Nb93",
+        "relative_path": "neutron/Nb93.h5",
+        "sha256": "f67d488c8723ba75f64f1b38cb28b93c1d2b94dc0d2fc3d773b1ba3a06a2218c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Nb93.h5"
+      },
+      {
+        "bytes": 2466144,
+        "nuclide": "Ne20",
+        "relative_path": "neutron/Ne20.h5",
+        "sha256": "5933fc32b6a611945b5b4670cfbf419b4d9647ed5e467054b05232c11fc3b889",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ne20.h5"
+      },
+      {
+        "bytes": 3711512,
+        "nuclide": "Ne21",
+        "relative_path": "neutron/Ne21.h5",
+        "sha256": "e4fadb432ac7bb077ac0a6a52b72bd69d68b4cbedc09ee8b48450ddb44d1be9e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ne21.h5"
+      },
+      {
+        "bytes": 2961008,
+        "nuclide": "Ne22",
+        "relative_path": "neutron/Ne22.h5",
+        "sha256": "2f1698ecbc1e9946a2f7cc8efea3d50d5405f9cf07ffac27cfe49b64eccc68bd",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ne22.h5"
+      },
+      {
+        "bytes": 6634328,
+        "nuclide": "Ni58",
+        "relative_path": "neutron/Ni58.h5",
+        "sha256": "94dd52702fd57cbd2f4279c66eeebeeaa69e47f317a7f3a848673ce84670f108",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ni58.h5"
+      },
+      {
+        "bytes": 5924336,
+        "nuclide": "Ni60",
+        "relative_path": "neutron/Ni60.h5",
+        "sha256": "efb083521d722970ee54cf07be04c764d30ec677c579a34ddd34d0dcc28db8b2",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ni60.h5"
+      },
+      {
+        "bytes": 2484792,
+        "nuclide": "Ni61",
+        "relative_path": "neutron/Ni61.h5",
+        "sha256": "20fa1e41b51b5c960a8d80d9e36cf4368ca7f1b12e8b89306137a2d54282fbde",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ni61.h5"
+      },
+      {
+        "bytes": 2324696,
+        "nuclide": "Ni62",
+        "relative_path": "neutron/Ni62.h5",
+        "sha256": "1287925770a94c2c553ec2d9c193484ba7a636aaf1731ef5322b0bd0f396f0b4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ni62.h5"
+      },
+      {
+        "bytes": 1733248,
+        "nuclide": "Ni64",
+        "relative_path": "neutron/Ni64.h5",
+        "sha256": "b7f7f1fca2a808d5cdd7ffd952e3f9e6a79407e9991d16cc9ec576f0a3acf66e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ni64.h5"
+      },
+      {
+        "bytes": 2966976,
+        "nuclide": "O16",
+        "relative_path": "neutron/O16.h5",
+        "sha256": "e3f0ee8d6221c4f4064764ca43f6a4858f4520ff4c30d4285b2698150599bb7c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/O16.h5"
+      },
+      {
+        "bytes": 1718760,
+        "nuclide": "O17",
+        "relative_path": "neutron/O17.h5",
+        "sha256": "d7a105908369cd471fce70d850ef7150c0caee402a5475ce7e5a1f7c826d7b51",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/O17.h5"
+      },
+      {
+        "bytes": 4536616,
+        "nuclide": "O18",
+        "relative_path": "neutron/O18.h5",
+        "sha256": "45235d450a9f7ed78abca42e93dbee221d96afd3f907b8819387ecf405223e46",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/O18.h5"
+      },
+      {
+        "bytes": 6378664,
+        "nuclide": "P31",
+        "relative_path": "neutron/P31.h5",
+        "sha256": "4d4663c2a94f29df7c463533a4285eef876beda3676401823c31565b5a95eabf",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/P31.h5"
+      },
+      {
+        "bytes": 5798744,
+        "nuclide": "Pb204",
+        "relative_path": "neutron/Pb204.h5",
+        "sha256": "3babfe4d55b092db8c5d9cdb4b7f0a394b81b9f3cd7bcb4c56ec1af2c5084b60",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pb204.h5"
+      },
+      {
+        "bytes": 12131936,
+        "nuclide": "Pb206",
+        "relative_path": "neutron/Pb206.h5",
+        "sha256": "976c9755d44ae656557477de693c6de57dc2e3170933acf44a9bb65bd5bfcc26",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pb206.h5"
+      },
+      {
+        "bytes": 5239720,
+        "nuclide": "Pb207",
+        "relative_path": "neutron/Pb207.h5",
+        "sha256": "aafc268c5d37b4afb469daed9246a92c3e6788ed046d2f2925eefd3c983e5037",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pb207.h5"
+      },
+      {
+        "bytes": 3444072,
+        "nuclide": "Pb208",
+        "relative_path": "neutron/Pb208.h5",
+        "sha256": "77dc0f0d68fcc51fd916f83fb7afe2c3cf9970e3b9e932dba7c8e3a45dbf43c1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pb208.h5"
+      },
+      {
+        "bytes": 3354128,
+        "nuclide": "Pt190",
+        "relative_path": "neutron/Pt190.h5",
+        "sha256": "dcee9cdf1ac769b6b236212f4ee9e1f4bbbc92127e129e9129b5c45d0d6d26f5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt190.h5"
+      },
+      {
+        "bytes": 8213984,
+        "nuclide": "Pt192",
+        "relative_path": "neutron/Pt192.h5",
+        "sha256": "c54413c2506cd436f654ffd4bf99983e9ce043c34dec6744e62b648471cf0c7b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt192.h5"
+      },
+      {
+        "bytes": 2783472,
+        "nuclide": "Pt194",
+        "relative_path": "neutron/Pt194.h5",
+        "sha256": "e6338f733a8c06625ade9cac559ed91352bd37031dce40bdc5304a3290d8cf4a",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt194.h5"
+      },
+      {
+        "bytes": 3502056,
+        "nuclide": "Pt195",
+        "relative_path": "neutron/Pt195.h5",
+        "sha256": "7f256b2aef84e8c53d5c50abe0121d98a292a3ae9cc003fbf4c6df2138968a07",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt195.h5"
+      },
+      {
+        "bytes": 2471480,
+        "nuclide": "Pt196",
+        "relative_path": "neutron/Pt196.h5",
+        "sha256": "d962b3473b67bd4f6dba6847d9e4b7f1aea3c1cc1e72f1a0a337a7558375362b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt196.h5"
+      },
+      {
+        "bytes": 2001880,
+        "nuclide": "Pt198",
+        "relative_path": "neutron/Pt198.h5",
+        "sha256": "37dd85410f720edcd931793613d6a0d5e2e7f1989f85fd8674639b5872e0778e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Pt198.h5"
+      },
+      {
+        "bytes": 6331168,
+        "nuclide": "Re185",
+        "relative_path": "neutron/Re185.h5",
+        "sha256": "9aef626b505b88cf19df5a75ad6210382b3ef49be4caabfe79dc19ca94fec030",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Re185.h5"
+      },
+      {
+        "bytes": 6677728,
+        "nuclide": "Re187",
+        "relative_path": "neutron/Re187.h5",
+        "sha256": "8a7cc6c03d6ecc9336faddc3b0e4209a19346000f75f7fee8f84d51d3478b7be",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Re187.h5"
+      },
+      {
+        "bytes": 7046112,
+        "nuclide": "Rh103",
+        "relative_path": "neutron/Rh103.h5",
+        "sha256": "808de6a57f5ce00bd91dbfe0c99133da0ae57836604bdd5df16d03e3fa81eebb",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Rh103.h5"
+      },
+      {
+        "bytes": 3827688,
+        "nuclide": "S32",
+        "relative_path": "neutron/S32.h5",
+        "sha256": "b783bc492f49a2aa269fa522dbe261414f3167ebc3c3d7daf11460156f6a9ec9",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/S32.h5"
+      },
+      {
+        "bytes": 2990808,
+        "nuclide": "S33",
+        "relative_path": "neutron/S33.h5",
+        "sha256": "3d21b97b4dc81c81df483c622b48658337ead64036c3f8f0b84d72da8c6aadc0",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/S33.h5"
+      },
+      {
+        "bytes": 7272976,
+        "nuclide": "S34",
+        "relative_path": "neutron/S34.h5",
+        "sha256": "4afc7f1835c7b559963078cb01a2a9b0aee8d1d67f92788cb975735be1b74d94",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/S34.h5"
+      },
+      {
+        "bytes": 5978760,
+        "nuclide": "S36",
+        "relative_path": "neutron/S36.h5",
+        "sha256": "70bf7c31a16debd0db2cb208469663c3cfd3af61c5e9acedca17921ce1473d5e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/S36.h5"
+      },
+      {
+        "bytes": 3002552,
+        "nuclide": "Sb121",
+        "relative_path": "neutron/Sb121.h5",
+        "sha256": "9b56ea5248423558f181793becc79d1351831952a80c255812df7b300184b755",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sb121.h5"
+      },
+      {
+        "bytes": 2746088,
+        "nuclide": "Sb123",
+        "relative_path": "neutron/Sb123.h5",
+        "sha256": "6e1721e34f17060d9431ca5af3ccea56d3042e50b87073c8f5dbfb3679c813e9",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sb123.h5"
+      },
+      {
+        "bytes": 4284752,
+        "nuclide": "Sc45",
+        "relative_path": "neutron/Sc45.h5",
+        "sha256": "ee0bf74489a56df1b20bbfb62dbfa2a608790e8ae8b957d9ab027b3e48d75aaa",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sc45.h5"
+      },
+      {
+        "bytes": 3729456,
+        "nuclide": "Si28",
+        "relative_path": "neutron/Si28.h5",
+        "sha256": "6ea360a11f3d7082efa1783e8f90f00f7dfc420d46e9cd7cabe732efef98d67c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Si28.h5"
+      },
+      {
+        "bytes": 3939360,
+        "nuclide": "Si29",
+        "relative_path": "neutron/Si29.h5",
+        "sha256": "0e4ba667fd7d82109e9af1afe1d022de6ee915b2ae68aecd8be1ae389fde7f04",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Si29.h5"
+      },
+      {
+        "bytes": 2336440,
+        "nuclide": "Si30",
+        "relative_path": "neutron/Si30.h5",
+        "sha256": "249182ac76462d10c93f1ac8ceffdf9f26bd9e594428e456d9190ea22891ca8c",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Si30.h5"
+      },
+      {
+        "bytes": 4966880,
+        "nuclide": "Sm144",
+        "relative_path": "neutron/Sm144.h5",
+        "sha256": "192e6c1416ac716665689558d88b9ba2d26e7504037b902dc0624b4795ecd08a",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm144.h5"
+      },
+      {
+        "bytes": 7501416,
+        "nuclide": "Sm147",
+        "relative_path": "neutron/Sm147.h5",
+        "sha256": "7d20fcfeaf8e2490e902a595258127f48775d34f92e4fc9b1ab1c05df52f3691",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm147.h5"
+      },
+      {
+        "bytes": 5247808,
+        "nuclide": "Sm148",
+        "relative_path": "neutron/Sm148.h5",
+        "sha256": "c8db833462eae8fc9fe63c2c0d3b6049af4f11cf571ec15dce4a1a306a764618",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm148.h5"
+      },
+      {
+        "bytes": 5745096,
+        "nuclide": "Sm149",
+        "relative_path": "neutron/Sm149.h5",
+        "sha256": "8cecdc8888eeb4d7b55fb2821f37fe2d072a32bf33412a9914586efc0dd3fba0",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm149.h5"
+      },
+      {
+        "bytes": 6919656,
+        "nuclide": "Sm150",
+        "relative_path": "neutron/Sm150.h5",
+        "sha256": "6b1d7ea00d9081fd3a37b6dec7cc311c46e39c14069b341c2c2b16f2c6aaeeb5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm150.h5"
+      },
+      {
+        "bytes": 7088616,
+        "nuclide": "Sm152",
+        "relative_path": "neutron/Sm152.h5",
+        "sha256": "9484555a312d5b44e6293caebff4418718a12322ebc414bf4eca1ed334e869d5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm152.h5"
+      },
+      {
+        "bytes": 4604232,
+        "nuclide": "Sm154",
+        "relative_path": "neutron/Sm154.h5",
+        "sha256": "49ebd8d6d46eb9ab515bbaa5349c835da7ce7e0bd48760059ba565f5e3b536f7",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sm154.h5"
+      },
+      {
+        "bytes": 3517504,
+        "nuclide": "Sn112",
+        "relative_path": "neutron/Sn112.h5",
+        "sha256": "e548431113f1f82d64eb2a962d03e9fe0dcf8f89f807e90e249b389df590b650",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn112.h5"
+      },
+      {
+        "bytes": 3790904,
+        "nuclide": "Sn114",
+        "relative_path": "neutron/Sn114.h5",
+        "sha256": "559c551f44ef0772fe0092166b701edc713cb4630108ae4c5bf7e1891298c2b5",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn114.h5"
+      },
+      {
+        "bytes": 3797000,
+        "nuclide": "Sn115",
+        "relative_path": "neutron/Sn115.h5",
+        "sha256": "6bfee60d847ffbe5d7c63d6c674626c8d25b8cce128657405b1d8ab56458f796",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn115.h5"
+      },
+      {
+        "bytes": 6181232,
+        "nuclide": "Sn116",
+        "relative_path": "neutron/Sn116.h5",
+        "sha256": "96ae55edb28cce920a71fa2c036665212c6070e6386352a18476dc538d331c69",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn116.h5"
+      },
+      {
+        "bytes": 3563232,
+        "nuclide": "Sn117",
+        "relative_path": "neutron/Sn117.h5",
+        "sha256": "d5ee16d55021e68fc6c0c3f803add919dba9879974d4848b54751464c36a0985",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn117.h5"
+      },
+      {
+        "bytes": 4188488,
+        "nuclide": "Sn118",
+        "relative_path": "neutron/Sn118.h5",
+        "sha256": "ede3468ff09540c17b773c004e25191ec28ff74cdc816eab6dbca5e308fe0855",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn118.h5"
+      },
+      {
+        "bytes": 2946488,
+        "nuclide": "Sn119",
+        "relative_path": "neutron/Sn119.h5",
+        "sha256": "5b10810e532c69324c632a7c5c0fcceeba4455d73babbd52558f783ec19cac40",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn119.h5"
+      },
+      {
+        "bytes": 4858264,
+        "nuclide": "Sn120",
+        "relative_path": "neutron/Sn120.h5",
+        "sha256": "33eb4cea9267642a76dffb806b755d498bad15f1a6497018e988ebdb206300e3",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn120.h5"
+      },
+      {
+        "bytes": 3450808,
+        "nuclide": "Sn122",
+        "relative_path": "neutron/Sn122.h5",
+        "sha256": "50157b6d168af16b13c10322b29af8564767d9ab077c8efa64ff5bb775e67ecb",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn122.h5"
+      },
+      {
+        "bytes": 2974912,
+        "nuclide": "Sn124",
+        "relative_path": "neutron/Sn124.h5",
+        "sha256": "88480cbcb6b0c76e3154c2ee1331f63303ac8784b77e8c87abf9f870f5771f39",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Sn124.h5"
+      },
+      {
+        "bytes": 3617624,
+        "nuclide": "Ta180",
+        "relative_path": "neutron/Ta180.h5",
+        "sha256": "5da9461199d518e8d4403a764a80e79de0e3c9c4ed3c6ea6c059dd67dfe92ffd",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ta180.h5"
+      },
+      {
+        "bytes": 57415992,
+        "nuclide": "Ta180_m1",
+        "relative_path": "neutron/Ta180_m1.h5",
+        "sha256": "e7916ca0710400486f34d22d5ae3ba2c02a7ba3d67b030f3c2ca781efc2e7a95",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "neutron/Ta180_m1.h5"
+      },
+      {
+        "bytes": 4424632,
+        "nuclide": "Ta181",
+        "relative_path": "neutron/Ta181.h5",
+        "sha256": "70b14be7c20019465e44a3288ad6f839b1183e529d79127020b4325ff5373c89",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ta181.h5"
+      },
+      {
+        "bytes": 27626792,
+        "nuclide": "Th232",
+        "relative_path": "neutron/Th232.h5",
+        "sha256": "071bce488ec7e3c50766e42fedb911eff58b1a44e83481a5fd8427b8a4e8a291",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Th232.h5"
+      },
+      {
+        "bytes": 3905192,
+        "nuclide": "Ti46",
+        "relative_path": "neutron/Ti46.h5",
+        "sha256": "15b133f092ef7a4c3fc7f2a3eac9eb84f88d7bb654e297b72e1539eb9f1e3e97",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ti46.h5"
+      },
+      {
+        "bytes": 3820344,
+        "nuclide": "Ti47",
+        "relative_path": "neutron/Ti47.h5",
+        "sha256": "d07521b91122995fdbb15e696ebd60b239b958c952228b029de5e29e0a863c27",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ti47.h5"
+      },
+      {
+        "bytes": 4221848,
+        "nuclide": "Ti48",
+        "relative_path": "neutron/Ti48.h5",
+        "sha256": "b8d9e45186e6c6c68d9a1ede56241da34b44b17f4cc9ce617c4b03bf2d7ad9e1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ti48.h5"
+      },
+      {
+        "bytes": 3625288,
+        "nuclide": "Ti49",
+        "relative_path": "neutron/Ti49.h5",
+        "sha256": "15d8a11a4fb4d23e91edcf9a636dc6a967e06e4525ce84b5c22a840b240cad50",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ti49.h5"
+      },
+      {
+        "bytes": 2959464,
+        "nuclide": "Ti50",
+        "relative_path": "neutron/Ti50.h5",
+        "sha256": "9ce3687eab95d64bfd2aa8eca7a73cbd4cbf61da9534c3d49bce22da47b80e90",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Ti50.h5"
+      },
+      {
+        "bytes": 11654928,
+        "nuclide": "U234",
+        "relative_path": "neutron/U234.h5",
+        "sha256": "260e98844931f79a250dff02f7966f44cc29e9fc47690c8a4cb573bfe0cdcd07",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/U234.h5"
+      },
+      {
+        "bytes": 10346616,
+        "nuclide": "U235",
+        "relative_path": "neutron/U235.h5",
+        "sha256": "ea52d52f608ff3d6b25549a74c34a79ba7069d34ee6b569f66cbb596ce4c8033",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/U235.h5"
+      },
+      {
+        "bytes": 20992176,
+        "nuclide": "U238",
+        "relative_path": "neutron/U238.h5",
+        "sha256": "1e3b0542813ce040ddccbc39626ecec390de4934218d496420e4509217db9fc6",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/U238.h5"
+      },
+      {
+        "bytes": 3461344,
+        "nuclide": "V50",
+        "relative_path": "neutron/V50.h5",
+        "sha256": "bfee6d542f61f2dee4b7e5cc44afd94f9ca23296ae76f6d89a1bbcc00fcdb34e",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/V50.h5"
+      },
+      {
+        "bytes": 5323960,
+        "nuclide": "V51",
+        "relative_path": "neutron/V51.h5",
+        "sha256": "22558cdc2afc595eb1610f6e4e275a89640c97e09675d58dc3b5026bab7af46b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/V51.h5"
+      },
+      {
+        "bytes": 11369552,
+        "nuclide": "W180",
+        "relative_path": "neutron/W180.h5",
+        "sha256": "8c9956abbfd3ee3c73d8e365ade84f15bfb50fc1ff2cf77376664cc0ddf69cc8",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/W180.h5"
+      },
+      {
+        "bytes": 13411208,
+        "nuclide": "W182",
+        "relative_path": "neutron/W182.h5",
+        "sha256": "a9ed604c3d3fb2af18853fc84099b5d0168fe7daefc4fbf5e559ab29f10858c7",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/W182.h5"
+      },
+      {
+        "bytes": 13894472,
+        "nuclide": "W183",
+        "relative_path": "neutron/W183.h5",
+        "sha256": "081faaf8dc723014ac3f554b4ed48c0149d2db959660a32f6b9c349a1b7d7275",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/W183.h5"
+      },
+      {
+        "bytes": 10149064,
+        "nuclide": "W184",
+        "relative_path": "neutron/W184.h5",
+        "sha256": "e46f1e4d8a6da833aa2cfff6776ec96ab95f31b35eb04e94cb9f65578acfbafe",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/W184.h5"
+      },
+      {
+        "bytes": 12898848,
+        "nuclide": "W186",
+        "relative_path": "neutron/W186.h5",
+        "sha256": "9ce5829d0228ac2c5e8a2f6cc8b88ab00fbad029a163db9cf1eb9cf4100c3e3f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/W186.h5"
+      },
+      {
+        "bytes": 6244328,
+        "nuclide": "Y89",
+        "relative_path": "neutron/Y89.h5",
+        "sha256": "4e3f13d3ef1b6f23c5c596d20d03e560782d3de6c89b767bfb8c19d24ecbb116",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Y89.h5"
+      },
+      {
+        "bytes": 7006976,
+        "nuclide": "Zn64",
+        "relative_path": "neutron/Zn64.h5",
+        "sha256": "00f44cd00965097ea9a7b388b311eda6dfc4225c038ce00ffb84f6e1ed5b7ff4",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zn64.h5"
+      },
+      {
+        "bytes": 5120728,
+        "nuclide": "Zn66",
+        "relative_path": "neutron/Zn66.h5",
+        "sha256": "180237717450b4dc14927f566b4e4bea42335216d76cfca39a547a03d63b6f66",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zn66.h5"
+      },
+      {
+        "bytes": 5766856,
+        "nuclide": "Zn67",
+        "relative_path": "neutron/Zn67.h5",
+        "sha256": "07ba8101756c6bd5b839fcb7dcd9daffa08fd5b9c7fc6fb639765e7e56745376",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zn67.h5"
+      },
+      {
+        "bytes": 4211776,
+        "nuclide": "Zn68",
+        "relative_path": "neutron/Zn68.h5",
+        "sha256": "4f4865ecf50408afef897a3a936989edbd457c1765b3192d7913b0a05275ae99",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zn68.h5"
+      },
+      {
+        "bytes": 3291216,
+        "nuclide": "Zn70",
+        "relative_path": "neutron/Zn70.h5",
+        "sha256": "55fead4e5d6d01b21c055a9df889d76658f7795468395c33dda0babca526489f",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zn70.h5"
+      },
+      {
+        "bytes": 3335424,
+        "nuclide": "Zr90",
+        "relative_path": "neutron/Zr90.h5",
+        "sha256": "24b4beef5a94fde008c14ede0d307ce9690d8d3ef84e0a0f3b1a7586c562117b",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zr90.h5"
+      },
+      {
+        "bytes": 3710992,
+        "nuclide": "Zr91",
+        "relative_path": "neutron/Zr91.h5",
+        "sha256": "f4b134630849f83fb5de69c80e74607c086d74c29b79a609a96bfc67c31e859d",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zr91.h5"
+      },
+      {
+        "bytes": 4249368,
+        "nuclide": "Zr92",
+        "relative_path": "neutron/Zr92.h5",
+        "sha256": "294c06e93e7fd413646d096e9e331cb451c41f62286b82a0d6ab7a4771303e50",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zr92.h5"
+      },
+      {
+        "bytes": 3543544,
+        "nuclide": "Zr94",
+        "relative_path": "neutron/Zr94.h5",
+        "sha256": "37511554ce527317736715e4b54f44e6151b7af8c2a2c418b5cb56dd675cfcaa",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zr94.h5"
+      },
+      {
+        "bytes": 2902192,
+        "nuclide": "Zr96",
+        "relative_path": "neutron/Zr96.h5",
+        "sha256": "3678ba7a05d16c11c135dbcc05fa02180c4440970b10d3b748406f9dad579ca1",
+        "source_library": "FENDL-3.2",
+        "source_relative_path": "neutron/Zr96.h5"
+      }
+    ],
+    "method": "byte-for-byte copy (not symlink, not hard link); SHA-256 of source and copy compared at build time",
+    "rule": "all FENDL-3.2 neutron nuclides, plus nuclides of the fusion-materials-v1 set that FENDL-3.2 lacks, from ENDF/B-VIII.1"
+  },
+  "not_for_git": true,
+  "nuclide_set": {
+    "elements": [
+      "Ag",
+      "Al",
+      "Ar",
+      "B",
+      "Ba",
+      "Be",
+      "C",
+      "Ca",
+      "Co",
+      "Cr",
+      "Cu",
+      "F",
+      "Fe",
+      "Gd",
+      "H",
+      "He",
+      "K",
+      "Li",
+      "Mg",
+      "Mn",
+      "Mo",
+      "N",
+      "Na",
+      "Nb",
+      "Ni",
+      "O",
+      "P",
+      "Pb",
+      "S",
+      "Si",
+      "Sn",
+      "Ta",
+      "Ti",
+      "V",
+      "W",
+      "Y",
+      "Zr"
+    ],
+    "name": "fusion-materials-v1",
+    "nuclide_count": 117
+  },
+  "openmc_version": "0.15.3",
+  "photon_data": {
+    "converter": "openmc.data.IncidentPhoton.from_endf(photoatomic, relaxation); export_to_hdf5(path, mode='w'); re-opened with IncidentPhoton.from_hdf5",
+    "count": 61,
+    "elements_rule": "every element that appears in a neutron nuclide of this library",
+    "evaluation": "ENDF/B-VII.1 photoatomic and atomic relaxation sublibraries (NNDC)",
+    "files": [
+      {
+        "atomic_number": 47,
+        "bytes": 406976,
+        "element": "Ag",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Ag.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "eccd1c1d9d4c1ee504fd708844a317507c463e1d88d679b18b2cc57b38c2f092",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-047_Ag_000.endf",
+          "photoatomic": "photoat/photoat-047_Ag_000.endf"
+        }
+      },
+      {
+        "atomic_number": 13,
+        "bytes": 251160,
+        "element": "Al",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/Al.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "b2b9bb7b54199035f9fd5253d1309f011ada378ce5eb86873e24b05b325436fa",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-013_Al_000.endf",
+          "photoatomic": "photoat/photoat-013_Al_000.endf"
+        }
+      },
+      {
+        "atomic_number": 18,
+        "bytes": 214584,
+        "element": "Ar",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/Ar.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "ebd5c4692744ead21adce4b496d89e4e141b3db5cdf8b93ae2b84d718314a99f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-018_Ar_000.endf",
+          "photoatomic": "photoat/photoat-018_Ar_000.endf"
+        }
+      },
+      {
+        "atomic_number": 79,
+        "bytes": 543616,
+        "element": "Au",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Au.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "2c10d3f1bcbef7b757fea68a0469a43b2d1372632852174806624d29aaec0a5c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-079_Au_000.endf",
+          "photoatomic": "photoat/photoat-079_Au_000.endf"
+        }
+      },
+      {
+        "atomic_number": 5,
+        "bytes": 173448,
+        "element": "B",
+        "photoelectric_shells": 4,
+        "relative_path": "photon/B.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 0,
+        "round_trip": "PASS",
+        "sha256": "e9188bc5fac55501dffce5aad9f6ccf7dd3da0dfc7c734156981a588febeace7",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-005_B_000.endf",
+          "photoatomic": "photoat/photoat-005_B_000.endf"
+        }
+      },
+      {
+        "atomic_number": 56,
+        "bytes": 457136,
+        "element": "Ba",
+        "photoelectric_shells": 18,
+        "relative_path": "photon/Ba.h5",
+        "relaxation_binding_shells": 18,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "2b04fe66e59fbdc6ac8021a57f08617fb414b8d9a5e786a3d9b613ff482219b3",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-056_Ba_000.endf",
+          "photoatomic": "photoat/photoat-056_Ba_000.endf"
+        }
+      },
+      {
+        "atomic_number": 4,
+        "bytes": 137968,
+        "element": "Be",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 2,
+        "relative_path": "photon/Be.h5",
+        "relaxation_binding_shells": 2,
+        "relaxation_transition_shells": 0,
+        "round_trip": "PASS",
+        "sha256": "3b409a84f9990af784a4c55501ca3d895f6987c11fbcea8b63b04dd07560ed0c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-004_Be_000.endf",
+          "photoatomic": "photoat/photoat-004_Be_000.endf"
+        }
+      },
+      {
+        "atomic_number": 83,
+        "bytes": 624840,
+        "element": "Bi",
+        "photoelectric_shells": 24,
+        "relative_path": "photon/Bi.h5",
+        "relaxation_binding_shells": 24,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "702664cd05116d0e728877fec37c47905f2a3a9324663c4944064537c25d440c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-083_Bi_000.endf",
+          "photoatomic": "photoat/photoat-083_Bi_000.endf"
+        }
+      },
+      {
+        "atomic_number": 35,
+        "bytes": 328672,
+        "element": "Br",
+        "photoelectric_shells": 12,
+        "relative_path": "photon/Br.h5",
+        "relaxation_binding_shells": 12,
+        "relaxation_transition_shells": 9,
+        "round_trip": "PASS",
+        "sha256": "d5d2b7140fc8e7f7a7b5c1105ee246d2b7962120a083884a4b90d529c6036208",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-035_Br_000.endf",
+          "photoatomic": "photoat/photoat-035_Br_000.endf"
+        }
+      },
+      {
+        "atomic_number": 6,
+        "bytes": 175336,
+        "element": "C",
+        "photoelectric_shells": 4,
+        "relative_path": "photon/C.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 1,
+        "round_trip": "PASS",
+        "sha256": "1d5573aaa4be5df9117c940604481fadc2429504be2ec5cf8d262aeb4365e4fe",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-006_C_000.endf",
+          "photoatomic": "photoat/photoat-006_C_000.endf"
+        }
+      },
+      {
+        "atomic_number": 20,
+        "bytes": 250328,
+        "element": "Ca",
+        "photoelectric_shells": 8,
+        "relative_path": "photon/Ca.h5",
+        "relaxation_binding_shells": 8,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "98b37146349a413a027ce6cbacffb582d27045cc6a4b58ca88a45325d46c8504",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-020_Ca_000.endf",
+          "photoatomic": "photoat/photoat-020_Ca_000.endf"
+        }
+      },
+      {
+        "atomic_number": 48,
+        "bytes": 399752,
+        "element": "Cd",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Cd.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "4fcdab37eb7ccd93b33248a3170fab6eec7fd5d63ad90e002318db8fd66e2907",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-048_Cd_000.endf",
+          "photoatomic": "photoat/photoat-048_Cd_000.endf"
+        }
+      },
+      {
+        "atomic_number": 58,
+        "bytes": 532008,
+        "element": "Ce",
+        "photoelectric_shells": 20,
+        "relative_path": "photon/Ce.h5",
+        "relaxation_binding_shells": 20,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "ad048d4228e4603bb4f2df8c8d6a70987b3331bb7ea8519e6ce6e798c87859c5",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-058_Ce_000.endf",
+          "photoatomic": "photoat/photoat-058_Ce_000.endf"
+        }
+      },
+      {
+        "atomic_number": 17,
+        "bytes": 223864,
+        "element": "Cl",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/Cl.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "dbf2e7cd0ec6bf8ae506d5684759164a22672816cb0943674117c0ebceaf5016",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-017_Cl_000.endf",
+          "photoatomic": "photoat/photoat-017_Cl_000.endf"
+        }
+      },
+      {
+        "atomic_number": 27,
+        "bytes": 290760,
+        "element": "Co",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Co.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "4b7a3dc797afdf8f0fe6f99a05ff478f16b709a41433a04d320d1f8ea2662328",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-027_Co_000.endf",
+          "photoatomic": "photoat/photoat-027_Co_000.endf"
+        }
+      },
+      {
+        "atomic_number": 24,
+        "bytes": 293048,
+        "element": "Cr",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Cr.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "5e37329b911989f5d0496735844537724fc2d8c36f161315b1ae107cdb6a7054",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-024_Cr_000.endf",
+          "photoatomic": "photoat/photoat-024_Cr_000.endf"
+        }
+      },
+      {
+        "atomic_number": 55,
+        "bytes": 459352,
+        "element": "Cs",
+        "photoelectric_shells": 18,
+        "relative_path": "photon/Cs.h5",
+        "relaxation_binding_shells": 18,
+        "relaxation_transition_shells": 14,
+        "round_trip": "PASS",
+        "sha256": "9de192fb20b9332a8e02627d08d75408565f2fd91b088d447b0fb833708ceab9",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-055_Cs_000.endf",
+          "photoatomic": "photoat/photoat-055_Cs_000.endf"
+        }
+      },
+      {
+        "atomic_number": 29,
+        "bytes": 287696,
+        "element": "Cu",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Cu.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "395ab30f4ae0c9355665d67247c6414b902cfc0b4fb5b35ff92cafd20d66658d",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-029_Cu_000.endf",
+          "photoatomic": "photoat/photoat-029_Cu_000.endf"
+        }
+      },
+      {
+        "atomic_number": 68,
+        "bytes": 507336,
+        "element": "Er",
+        "photoelectric_shells": 20,
+        "relative_path": "photon/Er.h5",
+        "relaxation_binding_shells": 20,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "d1fc573ba404ff8b14cdfaa3ae54a57703efe3cafd01b369fb39f5ab7f7eaa50",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-068_Er_000.endf",
+          "photoatomic": "photoat/photoat-068_Er_000.endf"
+        }
+      },
+      {
+        "atomic_number": 9,
+        "bytes": 170928,
+        "element": "F",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 4,
+        "relative_path": "photon/F.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 1,
+        "round_trip": "PASS",
+        "sha256": "88456408959ef502c3a8ebcfffb1e1a1e863c855be8260124d367665fbb196a9",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-009_F_000.endf",
+          "photoatomic": "photoat/photoat-009_F_000.endf"
+        }
+      },
+      {
+        "atomic_number": 26,
+        "bytes": 299536,
+        "element": "Fe",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Fe.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "d002ede63442cbf95160e8116100684cb08889b83f83d4a64ec3ff7bb8d71359",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-026_Fe_000.endf",
+          "photoatomic": "photoat/photoat-026_Fe_000.endf"
+        }
+      },
+      {
+        "atomic_number": 31,
+        "bytes": 352048,
+        "element": "Ga",
+        "photoelectric_shells": 12,
+        "relative_path": "photon/Ga.h5",
+        "relaxation_binding_shells": 12,
+        "relaxation_transition_shells": 8,
+        "round_trip": "PASS",
+        "sha256": "0dcc160edc4b35f37749d76367413750290f75b10a43c3ced1b2714536cb1ef0",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-031_Ga_000.endf",
+          "photoatomic": "photoat/photoat-031_Ga_000.endf"
+        }
+      },
+      {
+        "atomic_number": 64,
+        "bytes": 584624,
+        "element": "Gd",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Gd.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "3dfb9e43043680fcbf8da85d1bf9041241af423e8c0508c290a6f64675e4f84f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-064_Gd_000.endf",
+          "photoatomic": "photoat/photoat-064_Gd_000.endf"
+        }
+      },
+      {
+        "atomic_number": 32,
+        "bytes": 351160,
+        "element": "Ge",
+        "photoelectric_shells": 12,
+        "relative_path": "photon/Ge.h5",
+        "relaxation_binding_shells": 12,
+        "relaxation_transition_shells": 9,
+        "round_trip": "PASS",
+        "sha256": "dc97dcc0fdf4350637843d8d04d9e135609906fa19208392ab73244e6f6fb4b1",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-032_Ge_000.endf",
+          "photoatomic": "photoat/photoat-032_Ge_000.endf"
+        }
+      },
+      {
+        "atomic_number": 1,
+        "bytes": 116648,
+        "element": "H",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 1,
+        "relative_path": "photon/H.h5",
+        "relaxation_binding_shells": 1,
+        "relaxation_transition_shells": 0,
+        "round_trip": "PASS",
+        "sha256": "ef96dc1ea9880195e2df0a72e4185f5db38758c4c8ef3acb3e1671ea0d157d52",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-001_H_000.endf",
+          "photoatomic": "photoat/photoat-001_H_000.endf"
+        }
+      },
+      {
+        "atomic_number": 2,
+        "bytes": 116160,
+        "element": "He",
+        "photoelectric_shells": 1,
+        "relative_path": "photon/He.h5",
+        "relaxation_binding_shells": 1,
+        "relaxation_transition_shells": 0,
+        "round_trip": "PASS",
+        "sha256": "31c002d29e73e532aec138ccdf030b2eb3296178acdf3863aad257371b31125c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-002_He_000.endf",
+          "photoatomic": "photoat/photoat-002_He_000.endf"
+        }
+      },
+      {
+        "atomic_number": 72,
+        "bytes": 577024,
+        "element": "Hf",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Hf.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 17,
+        "round_trip": "PASS",
+        "sha256": "cfa81e1be69b7d308d4b6656c5684ad9ccc63f3ca30ec4f76cbdf6a040181d7f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-072_Hf_000.endf",
+          "photoatomic": "photoat/photoat-072_Hf_000.endf"
+        }
+      },
+      {
+        "atomic_number": 53,
+        "bytes": 449352,
+        "element": "I",
+        "photoelectric_shells": 17,
+        "relative_path": "photon/I.h5",
+        "relaxation_binding_shells": 17,
+        "relaxation_transition_shells": 14,
+        "round_trip": "PASS",
+        "sha256": "f8b45d298c7483b2fb6a59f88701b0abc46b6cf27202b98b79e41c11859bb40f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-053_I_000.endf",
+          "photoatomic": "photoat/photoat-053_I_000.endf"
+        }
+      },
+      {
+        "atomic_number": 19,
+        "bytes": 251840,
+        "element": "K",
+        "photoelectric_shells": 8,
+        "relative_path": "photon/K.h5",
+        "relaxation_binding_shells": 8,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "aa55555018a6080360e62a00929fba841359720b2246ed97b6c57a98e7de980c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-019_K_000.endf",
+          "photoatomic": "photoat/photoat-019_K_000.endf"
+        }
+      },
+      {
+        "atomic_number": 57,
+        "bytes": 512896,
+        "element": "La",
+        "photoelectric_shells": 20,
+        "relative_path": "photon/La.h5",
+        "relaxation_binding_shells": 20,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "220649838dfc8ee8a78c4a45fe201d1eb1964b9a46fe7400afbc17fbbdc59dfd",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-057_La_000.endf",
+          "photoatomic": "photoat/photoat-057_La_000.endf"
+        }
+      },
+      {
+        "atomic_number": 3,
+        "bytes": 139360,
+        "element": "Li",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 2,
+        "relative_path": "photon/Li.h5",
+        "relaxation_binding_shells": 2,
+        "relaxation_transition_shells": 0,
+        "round_trip": "PASS",
+        "sha256": "6b7c68df6c2fd84cd0e58febd6058900c7bcdd7dbbfea79e9197aaec6afd7c04",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-003_Li_000.endf",
+          "photoatomic": "photoat/photoat-003_Li_000.endf"
+        }
+      },
+      {
+        "atomic_number": 71,
+        "bytes": 586256,
+        "element": "Lu",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Lu.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 17,
+        "round_trip": "PASS",
+        "sha256": "a122032f0fabf0338a5ab97d4245a355242b6eabb0317dadbb9bce7f5408b040",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-071_Lu_000.endf",
+          "photoatomic": "photoat/photoat-071_Lu_000.endf"
+        }
+      },
+      {
+        "atomic_number": 12,
+        "bytes": 186160,
+        "element": "Mg",
+        "photoelectric_shells": 5,
+        "relative_path": "photon/Mg.h5",
+        "relaxation_binding_shells": 5,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "a7bf3e35f97061c5ce71545fa708be205406b4ca23b1523dfd6328a3c2f8719f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-012_Mg_000.endf",
+          "photoatomic": "photoat/photoat-012_Mg_000.endf"
+        }
+      },
+      {
+        "atomic_number": 25,
+        "bytes": 297216,
+        "element": "Mn",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Mn.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "af98215adaf15b9d024d34220285b7d0b9ec406f1cc4fde6a9061613c5cbdf8f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-025_Mn_000.endf",
+          "photoatomic": "photoat/photoat-025_Mn_000.endf"
+        }
+      },
+      {
+        "atomic_number": 42,
+        "bytes": 407352,
+        "element": "Mo",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Mo.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "50b9e356d5e2a1cd9ec84939de4588cfa28e29cf1e66ad93b81902f948608166",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-042_Mo_000.endf",
+          "photoatomic": "photoat/photoat-042_Mo_000.endf"
+        }
+      },
+      {
+        "atomic_number": 7,
+        "bytes": 176272,
+        "element": "N",
+        "photoelectric_shells": 4,
+        "relative_path": "photon/N.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 1,
+        "round_trip": "PASS",
+        "sha256": "730480dee15a451715972273545697a7f2cf987983044eec941672fb80c87772",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-007_N_000.endf",
+          "photoatomic": "photoat/photoat-007_N_000.endf"
+        }
+      },
+      {
+        "atomic_number": 11,
+        "bytes": 195280,
+        "element": "Na",
+        "photoelectric_shells": 5,
+        "relative_path": "photon/Na.h5",
+        "relaxation_binding_shells": 5,
+        "relaxation_transition_shells": 2,
+        "round_trip": "PASS",
+        "sha256": "2d8df09e595a0fec437b1e2590431c624f9471ed9b5ed50ec939c6f5b583637f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-011_Na_000.endf",
+          "photoatomic": "photoat/photoat-011_Na_000.endf"
+        }
+      },
+      {
+        "atomic_number": 41,
+        "bytes": 402672,
+        "element": "Nb",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Nb.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "e6ff96d0e3220365299e9947e4d2a997178ad5f23a376b2767a8e61783b94f27",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-041_Nb_000.endf",
+          "photoatomic": "photoat/photoat-041_Nb_000.endf"
+        }
+      },
+      {
+        "atomic_number": 10,
+        "bytes": 162216,
+        "element": "Ne",
+        "photoelectric_shells": 4,
+        "relative_path": "photon/Ne.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 1,
+        "round_trip": "PASS",
+        "sha256": "67ce07b6a5178ab1ecbb4d72f33e4b6f441ff6ad100e82e138693b201def37be",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-010_Ne_000.endf",
+          "photoatomic": "photoat/photoat-010_Ne_000.endf"
+        }
+      },
+      {
+        "atomic_number": 28,
+        "bytes": 296392,
+        "element": "Ni",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Ni.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "2df62e124d898696b53cd7c1f15dc885e5f11ee13d8bc17bad9a376a8f48c442",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-028_Ni_000.endf",
+          "photoatomic": "photoat/photoat-028_Ni_000.endf"
+        }
+      },
+      {
+        "atomic_number": 8,
+        "bytes": 177184,
+        "element": "O",
+        "photoelectric_shells": 4,
+        "relative_path": "photon/O.h5",
+        "relaxation_binding_shells": 4,
+        "relaxation_transition_shells": 1,
+        "round_trip": "PASS",
+        "sha256": "66e62d871675491f8da390a0e4fa54c02109d2133ab0db097a0efc3ce4056d1c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-008_O_000.endf",
+          "photoatomic": "photoat/photoat-008_O_000.endf"
+        }
+      },
+      {
+        "atomic_number": 15,
+        "bytes": 228520,
+        "element": "P",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/P.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "1978395ab01aa66303ac4ec52eeff1d5f90da918b88801a586e1fe8523484abf",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-015_P_000.endf",
+          "photoatomic": "photoat/photoat-015_P_000.endf"
+        }
+      },
+      {
+        "atomic_number": 82,
+        "bytes": 628744,
+        "element": "Pb",
+        "photoelectric_shells": 24,
+        "relative_path": "photon/Pb.h5",
+        "relaxation_binding_shells": 24,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "4b27b36919aee2c5d38dc26d34a734a87d4f8aa072f9f596a8a12019bda79c41",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-082_Pb_000.endf",
+          "photoatomic": "photoat/photoat-082_Pb_000.endf"
+        }
+      },
+      {
+        "atomic_number": 78,
+        "bytes": 534504,
+        "element": "Pt",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Pt.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "91d3980d0d0fccc76562913d9ae166d21c11975617f6fd170c698adf60bce284",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-078_Pt_000.endf",
+          "photoatomic": "photoat/photoat-078_Pt_000.endf"
+        }
+      },
+      {
+        "atomic_number": 75,
+        "bytes": 545952,
+        "element": "Re",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Re.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 17,
+        "round_trip": "PASS",
+        "sha256": "be348c33338aedccff9aca082dc2ac02694a2e3accdd45e5cb36150f3d6d09e9",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-075_Re_000.endf",
+          "photoatomic": "photoat/photoat-075_Re_000.endf"
+        }
+      },
+      {
+        "atomic_number": 45,
+        "bytes": 413640,
+        "element": "Rh",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Rh.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "b7dfe096485f436b79930c98a44ed73a58b0d029636d4fb3931d8a3ff6f831c7",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-045_Rh_000.endf",
+          "photoatomic": "photoat/photoat-045_Rh_000.endf"
+        }
+      },
+      {
+        "atomic_number": 16,
+        "bytes": 223720,
+        "element": "S",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/S.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "db2fbd1f29b2e0b7d3994f9e1f0bbf7e41a85134a9588ed20cb99dc273937599",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-016_S_000.endf",
+          "photoatomic": "photoat/photoat-016_S_000.endf"
+        }
+      },
+      {
+        "atomic_number": 51,
+        "bytes": 464280,
+        "element": "Sb",
+        "photoelectric_shells": 17,
+        "relative_path": "photon/Sb.h5",
+        "relaxation_binding_shells": 17,
+        "relaxation_transition_shells": 14,
+        "round_trip": "PASS",
+        "sha256": "69843c137be68f23955e26b0d62f4284f1c512f9002096819ea19924ce3116c5",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-051_Sb_000.endf",
+          "photoatomic": "photoat/photoat-051_Sb_000.endf"
+        }
+      },
+      {
+        "atomic_number": 21,
+        "bytes": 297816,
+        "element": "Sc",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Sc.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "041eff160d75319460b6460c777f40ceac12ffd493d9a381f246ac60ba518cb8",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-021_Sc_000.endf",
+          "photoatomic": "photoat/photoat-021_Sc_000.endf"
+        }
+      },
+      {
+        "atomic_number": 14,
+        "bytes": 242248,
+        "element": "Si",
+        "photoelectric_shells": 7,
+        "relative_path": "photon/Si.h5",
+        "relaxation_binding_shells": 7,
+        "relaxation_transition_shells": 4,
+        "round_trip": "PASS",
+        "sha256": "d57285d9c7ca4dd8d443bb13ecede82b1c17661a73d4b180ead9c8d873d281ee",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-014_Si_000.endf",
+          "photoatomic": "photoat/photoat-014_Si_000.endf"
+        }
+      },
+      {
+        "atomic_number": 62,
+        "bytes": 523672,
+        "element": "Sm",
+        "photoelectric_shells": 20,
+        "relative_path": "photon/Sm.h5",
+        "relaxation_binding_shells": 20,
+        "relaxation_transition_shells": 15,
+        "round_trip": "PASS",
+        "sha256": "5cc864caf769ff89042e475487f9dfacda93f920275a63b0c639961f25a9146e",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-062_Sm_000.endf",
+          "photoatomic": "photoat/photoat-062_Sm_000.endf"
+        }
+      },
+      {
+        "atomic_number": 50,
+        "bytes": 467392,
+        "element": "Sn",
+        "photoelectric_shells": 17,
+        "relative_path": "photon/Sn.h5",
+        "relaxation_binding_shells": 17,
+        "relaxation_transition_shells": 14,
+        "round_trip": "PASS",
+        "sha256": "ca40bbabad0ec95c0fb423f4dbab54de393b0a21c153e719cf5bdafcff4d7964",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-050_Sn_000.endf",
+          "photoatomic": "photoat/photoat-050_Sn_000.endf"
+        }
+      },
+      {
+        "atomic_number": 73,
+        "bytes": 555840,
+        "element": "Ta",
+        "photoelectric_shells": 22,
+        "relative_path": "photon/Ta.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 17,
+        "round_trip": "PASS",
+        "sha256": "cc63842877eb161931f834bd27426917524e733e3f397cc815b6d64e2d73b33c",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-073_Ta_000.endf",
+          "photoatomic": "photoat/photoat-073_Ta_000.endf"
+        }
+      },
+      {
+        "atomic_number": 90,
+        "bytes": 700560,
+        "element": "Th",
+        "photoelectric_shells": 27,
+        "relative_path": "photon/Th.h5",
+        "relaxation_binding_shells": 27,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "af1c3f19544c7c6a7556d986c4c8b27787c9d4905ee054c5a9f33af572f44924",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-090_Th_000.endf",
+          "photoatomic": "photoat/photoat-090_Th_000.endf"
+        }
+      },
+      {
+        "atomic_number": 22,
+        "bytes": 302264,
+        "element": "Ti",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Ti.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "89b80f3711ab00e91ebbfbb8c86ec09983e5831943b26767ed9b6deca81038ac",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-022_Ti_000.endf",
+          "photoatomic": "photoat/photoat-022_Ti_000.endf"
+        }
+      },
+      {
+        "atomic_number": 92,
+        "bytes": 784232,
+        "element": "U",
+        "photoelectric_shells": 29,
+        "relative_path": "photon/U.h5",
+        "relaxation_binding_shells": 29,
+        "relaxation_transition_shells": 19,
+        "round_trip": "PASS",
+        "sha256": "9371e851488422de17efa125d66b422f1d65b30c19f24504ea30dfd5d4e8ba27",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-092_U_000.endf",
+          "photoatomic": "photoat/photoat-092_U_000.endf"
+        }
+      },
+      {
+        "atomic_number": 23,
+        "bytes": 299520,
+        "element": "V",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/V.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "683fdd1bd901b9a87674246bc02a144e0051dcccc4f9ce13ca482b98b96fc245",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-023_V_000.endf",
+          "photoatomic": "photoat/photoat-023_V_000.endf"
+        }
+      },
+      {
+        "atomic_number": 74,
+        "bytes": 546208,
+        "element": "W",
+        "matches_first_library_sha256": true,
+        "photoelectric_shells": 22,
+        "relative_path": "photon/W.h5",
+        "relaxation_binding_shells": 22,
+        "relaxation_transition_shells": 17,
+        "round_trip": "PASS",
+        "sha256": "76364fb3da0de1defe9fafe4d6f95949624fb3950c7bc694419b42d99ca3bc5a",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-074_W_000.endf",
+          "photoatomic": "photoat/photoat-074_W_000.endf"
+        }
+      },
+      {
+        "atomic_number": 39,
+        "bytes": 401400,
+        "element": "Y",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Y.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "fb32a4ec81d578b77fc327771f8fe78ee32feea7357d6ecf6cf3a09f97ca9a01",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-039_Y_000.endf",
+          "photoatomic": "photoat/photoat-039_Y_000.endf"
+        }
+      },
+      {
+        "atomic_number": 30,
+        "bytes": 283016,
+        "element": "Zn",
+        "photoelectric_shells": 10,
+        "relative_path": "photon/Zn.h5",
+        "relaxation_binding_shells": 10,
+        "relaxation_transition_shells": 7,
+        "round_trip": "PASS",
+        "sha256": "453d59e0f7d69c9f0a790cca5a10ed4b0afdef375ec2fdc8e651dbc32d2582c0",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-030_Zn_000.endf",
+          "photoatomic": "photoat/photoat-030_Zn_000.endf"
+        }
+      },
+      {
+        "atomic_number": 40,
+        "bytes": 401664,
+        "element": "Zr",
+        "photoelectric_shells": 15,
+        "relative_path": "photon/Zr.h5",
+        "relaxation_binding_shells": 15,
+        "relaxation_transition_shells": 12,
+        "round_trip": "PASS",
+        "sha256": "44f99632789c3decfad05baa9c8d8f7231b5bf26b71c317aef464f70b701dc8f",
+        "source_members": {
+          "atomic_relaxation": "atomic_relax/atom-040_Zr_000.endf",
+          "photoatomic": "photoat/photoat-040_Zr_000.endf"
+        }
+      }
+    ]
+  },
+  "schema": "faris-nuclear-data-library-v2-provenance/v1",
+  "sources": {
+    "endfb_vii1_photon": {
+      "atomic_relaxation_zip": {
+        "md5": "fddb6035e7f2b6931e51a58fc754bd10",
+        "official_md5": "fddb6035e7f2b6931e51a58fc754bd10",
+        "path": "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/endfb-vii1-photon-source/ENDF-B-VII.1-atomic_relax.zip",
+        "sha256": "c5786a958338252293c57064c2ba58119d876f7a06dc878641542ff0d872792d"
+      },
+      "photoatomic_zip": {
+        "md5": "5192f94e61f0b385cf536f448ffab4a4",
+        "official_md5": "5192f94e61f0b385cf536f448ffab4a4",
+        "path": "/home/connoravila/Documents/Avila-Labs/project-faris/data/raw/endfb-vii1-photon-source/ENDF-B-VII.1-photoat.zip",
+        "sha256": "562419767eca909d32669650dee8b3ab99f88e8b8da9ce2afc0c06e974113a9f"
+      }
+    },
+    "endfb_viii1_hdf5": {
+      "cross_sections_xml_sha256": "b8ffb6104a946bf951dc0f3b9a1f57a60f7f57c4b308cd66df4fd3dd4bc557ce",
+      "directory": "/home/connoravila/nuclear-data/endfb-viii.1-hdf5",
+      "neutron_entries": 557,
+      "thermal_entries": 111
+    },
+    "fendl32_hdf5": {
+      "cross_sections_xml_sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674",
+      "directory": "/home/connoravila/Documents/Avila-Labs/fusion-energy-ledger/.tools/fendl-3.2-hdf5/fendl-3.2-hdf5",
+      "neutron_entries": 192,
+      "photon_entries_not_used": 61
+    }
+  },
+  "thermal_scattering_data": {
+    "absent_for_fusion_materials": {
+      "H2O oxygen": "ENDF/B-VIII.1 has no O-in-liquid-H2O table; oxygen in light water is free-gas",
+      "PbLi, B4C, Li4SiO4, Li2TiO3, Be12Ti": "no table in the ENDF/B-VIII.1 set; free-gas treatment",
+      "TiH2": "no Ti-in-TiH2 or H-in-TiH2 table in ENDF/B-VIII.1",
+      "natural Li hydride/deuteride": "tables exist for 7LiH and 7LiD only (Li-7 enriched); no natural-lithium table"
+    },
+    "assumption": "Combining a thermal-scattering library with a neutron evaluation from a different library is standard practice, but it is a stated assumption: the S(alpha,beta) tables were evaluated with ENDF/B-VIII.1 neutron data. Apply a table only when a material declares it.",
+    "count": 20,
+    "evaluation": "ENDF/B-VIII.1 thermal scattering (OpenMC HDF5 build), used with FENDL-3.2 neutron data",
+    "files": [
+      {
+        "bytes": 326664872,
+        "relative_path": "thermal/c_Be.h5",
+        "sha256": "df9fb8b52efe56b7fe9158165abb510577c7e5a1481b183fab19646b28f4902b",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Be.h5",
+        "table": "c_Be"
+      },
+      {
+        "bytes": 313967536,
+        "relative_path": "thermal/c_Be_in_BeO.h5",
+        "sha256": "444866518422b305431bb9bc5efc4b49c5fe9987f71b3c8824da758dce8be2ec",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Be_in_BeO.h5",
+        "table": "c_Be_in_BeO"
+      },
+      {
+        "bytes": 350273616,
+        "relative_path": "thermal/c_Be_in_FLiBe.h5",
+        "sha256": "3df4b75ddf47b020e6fd0cfb5bc5c83f70f830ab7e876c869865799a0872df47",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Be_in_FLiBe.h5",
+        "table": "c_Be_in_FLiBe"
+      },
+      {
+        "bytes": 221347512,
+        "relative_path": "thermal/c_Ca_in_CaH2.h5",
+        "sha256": "27bf80411e83bbaca716c315a7ac393eb3f363dea0b850a0f129a50ea5a468fe",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Ca_in_CaH2.h5",
+        "table": "c_Ca_in_CaH2"
+      },
+      {
+        "bytes": 259202008,
+        "relative_path": "thermal/c_D_in_7LiD.h5",
+        "sha256": "d60b2fedbdc03d93fcd937ca93801746201f7c69bb7e1db9e7a7e3397795baf8",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_D_in_7LiD.h5",
+        "table": "c_D_in_7LiD"
+      },
+      {
+        "bytes": 488937712,
+        "relative_path": "thermal/c_D_in_D2O.h5",
+        "sha256": "128568403c67c3263cb1a9f5ece8b2d77dd51512662317b98f46b838275577e0",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_D_in_D2O.h5",
+        "table": "c_D_in_D2O"
+      },
+      {
+        "bytes": 355213216,
+        "relative_path": "thermal/c_F_in_FLiBe.h5",
+        "sha256": "a28d600d1a529ffe18be27d9faca165a48e34628bb52058684076be7b7a7259f",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_F_in_FLiBe.h5",
+        "table": "c_F_in_FLiBe"
+      },
+      {
+        "bytes": 358827648,
+        "relative_path": "thermal/c_Graphite.h5",
+        "sha256": "618bd67bc14bf31416c59286f893ff4e803b0d30c6dcaac55b8daae3edc4676b",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Graphite.h5",
+        "table": "c_Graphite"
+      },
+      {
+        "bytes": 515798312,
+        "relative_path": "thermal/c_H1_in_CaH2.h5",
+        "sha256": "ec3614d3be2dacbc0888f02ff6c1ea0739de5c06f217239dadc42d62d50c9b3b",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H1_in_CaH2.h5",
+        "table": "c_H1_in_CaH2"
+      },
+      {
+        "bytes": 465769704,
+        "relative_path": "thermal/c_H2_in_CaH2.h5",
+        "sha256": "8075dd14492dce28ab4984d0d1c0ceff57ff4ac8060cecbe974444d3b37cffe7",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H2_in_CaH2.h5",
+        "table": "c_H2_in_CaH2"
+      },
+      {
+        "bytes": 280898936,
+        "relative_path": "thermal/c_H_in_7LiH.h5",
+        "sha256": "5f7d0f78a33de6319b7e65e8f824536c89f187ffff5b494c3c900df5b79dbe71",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H_in_7LiH.h5",
+        "table": "c_H_in_7LiH"
+      },
+      {
+        "bytes": 304864808,
+        "relative_path": "thermal/c_H_in_CH2.h5",
+        "sha256": "8d3492b68b6bed414812688bdb68000075c679d501b87a006e54ba32d081148b",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H_in_CH2.h5",
+        "table": "c_H_in_CH2"
+      },
+      {
+        "bytes": 2634154032,
+        "relative_path": "thermal/c_H_in_H2O.h5",
+        "sha256": "52d106ff05b03257eb184a61b6ab01d7aac550017a8ef98a83d3a7ea30f98253",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H_in_H2O.h5",
+        "table": "c_H_in_H2O"
+      },
+      {
+        "bytes": 495917720,
+        "relative_path": "thermal/c_H_in_ZrH2.h5",
+        "sha256": "f1e9a09397da848b7800a2254aa4de33e152feaac17c5948a9d6a61a047eaabd",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_H_in_ZrH2.h5",
+        "table": "c_H_in_ZrH2"
+      },
+      {
+        "bytes": 155108744,
+        "relative_path": "thermal/c_Li_in_7LiD.h5",
+        "sha256": "7a59dbc44c563921c2bea0b571992fe2b32cda6fc49ffaa8d3667508f6e86262",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Li_in_7LiD.h5",
+        "table": "c_Li_in_7LiD"
+      },
+      {
+        "bytes": 158558832,
+        "relative_path": "thermal/c_Li_in_7LiH.h5",
+        "sha256": "b0baed44e5b1532deec19ee4822103b94dc723ab141ee4bf8916e7b80e088318",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Li_in_7LiH.h5",
+        "table": "c_Li_in_7LiH"
+      },
+      {
+        "bytes": 358372024,
+        "relative_path": "thermal/c_Li_in_FLiBe.h5",
+        "sha256": "6c0b3703f58bbe26d7c1cdf9d35a650f69ece845e0acbbb11e90af28c5297325",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Li_in_FLiBe.h5",
+        "table": "c_Li_in_FLiBe"
+      },
+      {
+        "bytes": 257917352,
+        "relative_path": "thermal/c_O_in_BeO.h5",
+        "sha256": "8db76432bc6fae94d9f24f4f5fcbf3f95e4254c40c6081af093498f89af4d312",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_O_in_BeO.h5",
+        "table": "c_O_in_BeO"
+      },
+      {
+        "bytes": 507383416,
+        "relative_path": "thermal/c_O_in_D2O.h5",
+        "sha256": "24361eb44064687efa599ad7679de2f12ff2d209b634d83da6fe6b7c020547a3",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_O_in_D2O.h5",
+        "table": "c_O_in_D2O"
+      },
+      {
+        "bytes": 250346336,
+        "relative_path": "thermal/c_Zr_in_ZrH2.h5",
+        "sha256": "56129dc617eff76ea050da6761982e6f41e4b00060289677701c9377c3d3b12a",
+        "source_library": "ENDF/B-VIII.1",
+        "source_relative_path": "thermal/c_Zr_in_ZrH2.h5",
+        "table": "c_Zr_in_ZrH2"
+      }
+    ]
+  }
+}
