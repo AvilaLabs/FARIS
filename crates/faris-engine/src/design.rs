@@ -45,15 +45,17 @@ mod topology;
 
 pub use geometry::{
     BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
-    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DeviationOutcome, DeviationRecord,
-    DeviationRequest, DeviationRow, GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn,
-    SourceOutcome, SourceRecord, SourceRequest, StageClock, TagEntry, TessellateOutcome,
-    TessellateRequest, ToolResult, WaiverUse,
+    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DEFAULT_DEVIATION_POINTS,
+    DEFAULT_IMPRINT_THREADS, DeviationOutcome, DeviationRecord, DeviationRequest, DeviationRow,
+    GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome, SourceRecord,
+    SourceRequest, StageClock, TagEntry, TessellateOutcome, TessellateRequest, ToolResult,
+    WaiverUse,
 };
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
 const CAD_FACETS_HELPER: &str = include_str!("../../../integrations/cad/faris_facets.py");
+const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris_deviation.py");
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
 const MATERIAL_AUDIT: &str = include_str!("../../../integrations/openmc/material_audit.py");
 const AUDIT_LIBRARY: &str = include_str!("../../../integrations/openmc/audit_library.py");
@@ -1222,8 +1224,13 @@ fn render_geometry(g: &GeometryRecords) -> String {
         let touching = p.pairs.iter().filter(|x| x.verdict == "touching").count();
         let undecided = p.pairs.iter().filter(|x| x.verdict == "undecided").count();
         out.push_str(&format!(
-            "\nOverlap before imprinting: {} candidate pair(s): {overlapping} overlap, {touching} touching, {undecided} undecided\n",
-            p.candidate_pairs
+            "\nOverlap before imprinting: {} candidate pair(s): {overlapping} overlap, {touching} touching, {undecided} undecided\n  \
+             tessellation {:.1} s{}, booleans {}{}\n",
+            p.candidate_pairs,
+            p.tessellation_seconds,
+            if p.tessellation_reused { " (REUSED, recorded time)" } else { "" },
+            p.boolean_seconds.map_or("none needed".into(), |t| format!("{t:.1} s")),
+            if p.booleans_reused { " (REUSED, recorded time)" } else { "" },
         ));
     }
     if let Some(i) = &g.integrity {
@@ -1268,7 +1275,8 @@ fn render_geometry(g: &GeometryRecords) -> String {
             .iter()
             .max_by(|a, b| a.max_distance_m.total_cmp(&b.max_distance_m));
         out.push_str(&format!(
-            "\nFaceting deviation (GEO-032, {}): {} solid(s); {}",
+            "\nFaceting deviation (GEO-032, {:.1} s): {}\n  {} solid(s); {}\n",
+            d.seconds,
             d.statement,
             d.solids.len(),
             worst.map_or(String::new(), |w| format!(
@@ -1276,7 +1284,33 @@ fn render_geometry(g: &GeometryRecords) -> String {
                 w.max_distance_m, w.solid_id, d.chord_tolerance_m
             ))
         ));
-        out.push('\n');
+        for s in &d.solids {
+            out.push_str(&format!(
+                "  {:<28} {:.3e} m  {}: {}\n",
+                s.solid_id,
+                s.max_distance_m,
+                if s.complete {
+                    "maximum over all points"
+                } else {
+                    "sampled maximum"
+                },
+                if s.complete {
+                    format!(
+                        "all {} points ({} closed form, {} OpenCASCADE)",
+                        s.points_available, s.points_closed_form, s.points_occt
+                    )
+                } else {
+                    format!(
+                        "{} of {} points ({} closed form, {} of {} OpenCASCADE)",
+                        s.points,
+                        s.points_available,
+                        s.points_closed_form,
+                        s.points_occt,
+                        s.points_occt_needed
+                    )
+                }
+            ));
+        }
     }
     if let Some(s) = &g.sources {
         out.push_str(&format!(

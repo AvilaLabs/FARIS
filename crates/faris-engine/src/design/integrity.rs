@@ -6,8 +6,8 @@
 //! progress and honouring cancellation:
 //!
 //! 1. edges per volume: watertight and consistently oriented (GEO-020);
-//! 2. signed volume per volume: inverted normals, zero-volume cells, slivers,
-//!    and triangles with no area on the grid;
+//! 2. signed volume per volume: inverted normals, zero-volume cells, slivers
+//!    thinner than the faceting, and triangles with no area on the grid;
 //! 3. triangle pairs that meet where they should not: self-intersection,
 //!    faceted overlap, contact without shared vertices, duplicate surfaces
 //!    (GEO-021), plus containment of one volume in another;
@@ -38,7 +38,9 @@ const CHECK: u8 = 8;
 const LIST_CAP: usize = 100;
 /// Tries to find an interior point of a volume or cavity.
 const INTERIOR_TRIES: u32 = 20_000;
-const SLIVER_FACTOR: f64 = 10.0;
+/// A solid whose faceting deviates by more than this fraction of its mean thickness 2V/A has a
+/// thickness the facets misrepresent.
+const MISREPRESENTED_FRACTION: f64 = 0.10;
 const ZERO_VOLUME_FRACTION: f64 = 1.0e-12;
 
 #[derive(Clone, Debug)]
@@ -506,7 +508,7 @@ impl Run<'_> {
                     } else if area > 0.0 {
                         let thickness = 2.0 * volume / area;
                         row.mean_thickness_m = Some(thickness);
-                        if thickness < SLIVER_FACTOR * self.config.chord_m {
+                        if thickness < self.config.chord_m {
                             slivers.push((label.clone(), thickness, place));
                         }
                     }
@@ -517,14 +519,14 @@ impl Run<'_> {
         for (label, thickness, place) in slivers {
             let mut f = Finding::new(
                 CHECK,
-                format!("{label}: sliver"),
+                format!("{label}: sliver (thinner than the faceting)"),
                 format!(
-                    "the mean thickness 2V/A is {:.3e} m, below ten faceting tolerances ({:.3e} m): \
-                     the solid is thinner than the mesh resolves, and its volume and boundaries are unreliable",
-                    thickness,
-                    SLIVER_FACTOR * self.config.chord_m
+                    "the mean thickness 2V/A is {:.3e} m, below the faceting tolerance of {:.3e} m: \
+                     the faceting cannot represent the solid, so its volume and boundaries are unreliable",
+                    thickness, self.config.chord_m
                 ),
-                "Thicken the solid in the CAD tool, merge it into its neighbour, or accept it with a waiver.",
+                "Set cad.faceting_tolerance_m below the solid's thickness and convert again, thicken \
+                 the solid in the CAD tool, merge it into its neighbour, or accept it with a waiver.",
             )
             .requirement("SLIVER")
             .cells(vec![label])
@@ -1330,6 +1332,64 @@ impl Run<'_> {
     }
 }
 
+/// What GEO-032 measured for one solid, as the sliver rule needs it.
+pub struct SolidDeviation<'a> {
+    pub solid_id: &'a str,
+    pub max_distance_m: f64,
+    pub at_m: Option<[f64; 3]>,
+    /// True when every sample point was measured ("maximum over all points").
+    pub complete: bool,
+}
+
+/// The second sliver rule: a solid whose largest faceting deviation (GEO-032) is more than 10 % of
+/// its mean thickness 2V/A. Its faceted layer may be thicker or thinner than the CAD by more than
+/// 10 %. Always reports 2V/A; says "sampled" when GEO-032 did not measure every point.
+pub fn thickness_misrepresented(
+    volumes: &[VolumeRecord],
+    deviations: &[SolidDeviation],
+) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for d in deviations {
+        let Some(thickness) = volumes
+            .iter()
+            .find(|v| v.solid_id == d.solid_id)
+            .and_then(|v| v.mean_thickness_m)
+        else {
+            continue;
+        };
+        if d.max_distance_m <= MISREPRESENTED_FRACTION * thickness {
+            continue;
+        }
+        let wording = if d.complete {
+            "maximum over all points"
+        } else {
+            "sampled maximum"
+        };
+        let mut f = Finding::new(
+            CHECK,
+            format!("{}: sliver (thickness misrepresented)", d.solid_id),
+            format!(
+                "the facets deviate from the CAD surface by {:.3e} m ({wording}), {:.0} % of the mean \
+                 thickness 2V/A of {thickness:.3e} m, above {:.0} %: the faceted layer's thickness may \
+                 be off by more than that",
+                d.max_distance_m,
+                100.0 * d.max_distance_m / thickness,
+                100.0 * MISREPRESENTED_FRACTION
+            ),
+            "Set cad.faceting_tolerance_m smaller for this model so the facets follow the layer's \
+             surfaces, then convert again, or accept it with a waiver.",
+        )
+        .requirement("SLIVER")
+        .cells(vec![d.solid_id.to_string()])
+        .waivable();
+        if let Some(p) = d.at_m {
+            f = f.at(p);
+        }
+        findings.push(f);
+    }
+    findings
+}
+
 #[derive(Default)]
 struct ChordChunk {
     crossings: u64,
@@ -1462,9 +1522,9 @@ mod tests {
     }
 
     #[test]
-    fn a_sliver_blocks_unless_waived_and_reports_its_thickness() {
+    fn a_solid_thinner_than_the_faceting_is_a_sliver_and_reports_its_thickness() {
         let r = run(
-            &separate_boxes(&[([0.0; 3], [1.0; 3]), ([2.0, 0.0, 0.0], [3.0, 1.0, 0.004])]),
+            &separate_boxes(&[([0.0; 3], [1.0; 3]), ([2.0, 0.0, 0.0], [3.0, 1.0, 0.0004])]),
             CHORD,
         );
         let sliver = r
@@ -1473,9 +1533,87 @@ mod tests {
             .find(|f| f.requirement.as_deref() == Some("SLIVER"))
             .unwrap();
         assert!(sliver.waivable && sliver.cells == vec!["s2"]);
+        assert!(sliver.item.contains("thinner than the faceting"));
+        assert!(sliver.why.contains("2V/A"), "{}", sliver.why);
         let t = r.record.volumes[1].mean_thickness_m.unwrap();
-        assert!((t - 0.004).abs() < 2e-4, "{t}");
+        assert!((t - 0.0004).abs() < 2e-5, "{t}");
         assert!(r.record.volumes[0].mean_thickness_m.unwrap() > 0.3);
+    }
+
+    #[test]
+    fn a_thin_but_accurately_faceted_layer_is_not_a_sliver() {
+        // A 4 mm layer against a 1 mm faceting tolerance, the case the old ten-chord rule flagged.
+        let r = run(
+            &separate_boxes(&[([0.0; 3], [1.0; 3]), ([2.0, 0.0, 0.0], [3.0, 1.0, 0.004])]),
+            CHORD,
+        );
+        assert!(!has(&r, "SLIVER"), "{:?}", ids(&r));
+        assert!(r.record.volumes[1].mean_thickness_m.unwrap() > CHORD);
+    }
+
+    fn record_with_thickness(id: &str, thickness: f64) -> Vec<VolumeRecord> {
+        vec![VolumeRecord {
+            volume: 1,
+            solid_id: id.into(),
+            mean_thickness_m: Some(thickness),
+            ..VolumeRecord::default()
+        }]
+    }
+
+    #[test]
+    fn a_deviation_above_a_tenth_of_the_thickness_is_a_misrepresented_sliver() {
+        let volumes = record_with_thickness("armour", 3.0e-3);
+        let over = SolidDeviation {
+            solid_id: "armour",
+            max_distance_m: 4.0e-4,
+            at_m: Some([1.0, 2.0, 3.0]),
+            complete: true,
+        };
+        let found = thickness_misrepresented(&volumes, &[over]);
+        assert_eq!(found.len(), 1);
+        let f = &found[0];
+        assert_eq!(f.requirement.as_deref(), Some("SLIVER"));
+        assert!(f.waivable && f.cells == vec!["armour"]);
+        assert!(f.item.contains("thickness misrepresented"));
+        assert!(f.why.contains("2V/A of 3.000e-3"), "{}", f.why);
+        assert!(f.why.contains("maximum over all points"), "{}", f.why);
+        assert!(!f.why.contains("sampled"), "{}", f.why);
+        assert_eq!(f.location_m, Some([1.0, 2.0, 3.0]));
+    }
+
+    #[test]
+    fn a_misrepresented_sliver_from_a_partial_deviation_says_sampled() {
+        let volumes = record_with_thickness("armour", 3.0e-3);
+        let sampled = SolidDeviation {
+            solid_id: "armour",
+            max_distance_m: 4.0e-4,
+            at_m: None,
+            complete: false,
+        };
+        let found = thickness_misrepresented(&volumes, &[sampled]);
+        assert!(found[0].why.contains("sampled maximum"), "{}", found[0].why);
+    }
+
+    #[test]
+    fn a_deviation_within_a_tenth_of_the_thickness_is_not_a_sliver() {
+        let volumes = record_with_thickness("armour", 3.0e-3);
+        let within = SolidDeviation {
+            solid_id: "armour",
+            max_distance_m: 3.0e-4,
+            at_m: None,
+            complete: true,
+        };
+        assert!(thickness_misrepresented(&volumes, &[within]).is_empty());
+        let unknown = SolidDeviation {
+            solid_id: "elsewhere",
+            max_distance_m: 1.0,
+            at_m: None,
+            complete: true,
+        };
+        assert!(
+            thickness_misrepresented(&volumes, &[unknown]).is_empty(),
+            "a solid with no thickness on record is not judged"
+        );
     }
 
     // Verifies: GEO-021

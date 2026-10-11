@@ -28,6 +28,10 @@ use std::{
 /// Faceting tolerances when the design file gives none: 0.1 cm and 0.1 rad.
 pub const DEFAULT_CHORD_M: f64 = 1.0e-3;
 pub const DEFAULT_ANGULAR_RAD: f64 = 0.1;
+/// OpenCASCADE projections per solid in the faceting deviation (GEO-032).
+pub const DEFAULT_DEVIATION_POINTS: usize = 2000;
+/// Threads the converter imprints with.
+pub const DEFAULT_IMPRINT_THREADS: u32 = 4;
 
 // ---------------------------------------------------------------------------
 // What the backends take and give.
@@ -66,6 +70,8 @@ pub struct ConvertRequest<'a> {
     pub directory: &'a Path,
     /// Reuse a recorded conversion whose hashes and tolerances match.
     pub reuse: bool,
+    /// Where the STEP solids are kept as BREP between helper commands; `None` reads the STEP file.
+    pub shape_cache: Option<&'a Path>,
 }
 
 /// The CAD helper's `faris-conversion/v1` report.
@@ -126,33 +132,47 @@ pub struct ConvertOutcome {
 
 pub struct TessellateRequest<'a> {
     pub step: &'a Path,
+    pub step_sha256: &'a str,
     pub shape_unit_m: f64,
     pub tags: &'a [TagEntry],
     pub chord_cm: f64,
     pub angular_rad: f64,
     pub directory: &'a Path,
+    pub workers: usize,
+    /// Reuse a tessellation recorded under the same STEP hash, tolerances and helper version.
+    pub reuse: bool,
+    pub shape_cache: Option<&'a Path>,
 }
 
 pub struct TessellateOutcome {
     pub facets: Facets,
     pub manifest: FacetsManifest,
-    /// Solids whose triangles are not oriented outward, and similar.
+    /// Solids whose mesh is not closed or not oriented outward, and similar.
     pub problems: Vec<String>,
     pub seconds: f64,
+    /// True when a recorded tessellation was reused; `seconds` is then the recorded time.
+    pub reused: bool,
 }
 
 pub struct BooleanRequest<'a> {
     pub step: &'a Path,
+    pub step_sha256: &'a str,
     pub shape_unit_m: f64,
     /// Pairs of STEP solid indices.
     pub pairs: &'a [(usize, usize)],
+    /// The tolerances the pairs were found with; they are part of the cache key.
+    pub chord_cm: f64,
+    pub angular_rad: f64,
     pub directory: &'a Path,
     pub workers: usize,
+    pub reuse: bool,
+    pub shape_cache: Option<&'a Path>,
 }
 
 pub struct BooleanOutcome {
     pub results: Vec<BooleanResult>,
     pub seconds: f64,
+    pub reused: bool,
 }
 
 pub struct DeviationRequest<'a> {
@@ -163,8 +183,9 @@ pub struct DeviationRequest<'a> {
     pub map: &'a [(u32, usize)],
     pub directory: &'a Path,
     pub workers: usize,
-    /// Points per solid, 0 for all.
-    pub max_points: usize,
+    /// Points per solid measured by OpenCASCADE projection, on an even stride; 0 for all.
+    pub occt_points: usize,
+    pub shape_cache: Option<&'a Path>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -176,6 +197,15 @@ pub struct DeviationRow {
     /// Points the solid's triangles give; more than `points` when the run took a stride.
     #[serde(default)]
     pub points_available: u64,
+    /// Points measured in closed form on plane, cylinder, cone, sphere and torus faces.
+    #[serde(default)]
+    pub points_closed_form: u64,
+    /// Points measured by OpenCASCADE projection.
+    #[serde(default)]
+    pub points_occt: u64,
+    /// Points that needed OpenCASCADE (non-analytic faces, or a foot point outside the face).
+    #[serde(default)]
+    pub points_occt_needed: u64,
     pub faces: u64,
     pub max_distance_m: f64,
     #[serde(default)]
@@ -220,8 +250,9 @@ pub struct GeometryOptions {
     pub samples: usize,
     pub chords: usize,
     pub source_sites: usize,
-    /// Points per solid the faceting deviation measures; 0 measures every triangle centroid and
-    /// edge midpoint. A positive number takes an even stride of them, which is recorded.
+    /// Points per solid the faceting deviation lets OpenCASCADE project (those not on a plane,
+    /// cylinder, cone, sphere or torus face, or whose foot point falls outside the face); 0 projects
+    /// all of them. A positive number takes an even stride of them, which is recorded.
     pub deviation_points: usize,
     pub imprint_threads: u32,
     pub cancellation: Cancellation,
@@ -238,8 +269,8 @@ impl Default for GeometryOptions {
             samples: 1_000_000,
             chords: 100_000,
             source_sites: 100_000,
-            deviation_points: 0,
-            imprint_threads: 1,
+            deviation_points: DEFAULT_DEVIATION_POINTS,
+            imprint_threads: DEFAULT_IMPRINT_THREADS,
             cancellation: Cancellation::default(),
             progress: None,
         }
@@ -284,8 +315,13 @@ pub struct ConversionRecord {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct PreImprintRecord {
     pub tessellation_seconds: f64,
+    /// True when a recorded tessellation or boolean result was reused; its time is the recorded one.
+    #[serde(default)]
+    pub tessellation_reused: bool,
     pub candidate_pairs: usize,
     pub boolean_seconds: Option<f64>,
+    #[serde(default)]
+    pub booleans_reused: bool,
     pub pairs: Vec<PairRecord>,
 }
 
@@ -297,6 +333,15 @@ pub struct DeviationSolid {
     pub points: u64,
     #[serde(default)]
     pub points_available: u64,
+    #[serde(default)]
+    pub points_closed_form: u64,
+    #[serde(default)]
+    pub points_occt: u64,
+    #[serde(default)]
+    pub points_occt_needed: u64,
+    /// Every sample point was measured: the maximum is over all points, not a sampled maximum.
+    #[serde(default)]
+    pub complete: bool,
     pub above_tolerance: bool,
 }
 
@@ -305,7 +350,7 @@ pub struct DeviationRecord {
     pub method: String,
     pub chord_tolerance_m: f64,
     pub seconds: f64,
-    /// The result is a sampled maximum, not a bound over every point of every triangle.
+    /// What the maximum covers: all sample points, or a sample of them, per solid.
     pub statement: String,
     pub solids: Vec<DeviationSolid>,
 }
@@ -574,6 +619,11 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
 
     // ---- Check 6: overlaps before imprinting, then conversion.
     let started = Instant::now();
+    // The STEP solids are kept as BREP beside the products, so only the first helper reads the
+    // STEP file; reading RM-M's takes 52 s and a BREP 1 s. Not used when reuse is off.
+    let reuse = options.reuse && options.work_dir.is_some();
+    let shape_dir = work.join("shapes");
+    let shape_cache: Option<&Path> = reuse.then_some(shape_dir.as_path());
     let mut findings6: Vec<Finding> = Vec::new();
     let mut subs6 = vec![
         sub("overlap before imprinting (GEO-021)", &["GEO-021"]),
@@ -583,11 +633,15 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     let tess_dir = work.join("tessellate");
     let tess_request = TessellateRequest {
         step,
+        step_sha256: &design.cad.step_sha256,
         shape_unit_m,
         tags: &tags,
         chord_cm: chord_m * 100.0,
         angular_rad: DEFAULT_ANGULAR_RAD,
         directory: &tess_dir,
+        workers: options.threads.clamp(1, 4),
+        reuse,
+        shape_cache,
     };
     let mut pre_unavailable: Option<(String, String)> = None;
     match backends.tessellate(&tess_request)? {
@@ -608,18 +662,25 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 overlap::candidate_pairs(&model, chord_m, options.seed, &ctl).map_err(cancelled)?;
             let mut pairs: Vec<PairRecord> = Vec::new();
             let mut boolean_seconds = None;
+            let mut booleans_reused = false;
             if !candidates.is_empty() {
                 let pair_ids: Vec<(usize, usize)> = candidates.iter().map(|c| (c.a, c.b)).collect();
                 let boolean_dir = work.join("booleans");
                 match backends.overlap_booleans(&BooleanRequest {
                     step,
+                    step_sha256: &design.cad.step_sha256,
                     shape_unit_m,
                     pairs: &pair_ids,
+                    chord_cm: chord_m * 100.0,
+                    angular_rad: DEFAULT_ANGULAR_RAD,
                     directory: &boolean_dir,
                     workers: options.threads.clamp(1, 4),
+                    reuse,
+                    shape_cache,
                 })? {
                     ToolResult::Done(out) => {
                         boolean_seconds = Some(out.seconds);
+                        booleans_reused = out.reused;
                         let n = design
                             .solids
                             .iter()
@@ -653,8 +714,10 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             }
             records.pre_imprint = Some(PreImprintRecord {
                 tessellation_seconds: tess.seconds,
+                tessellation_reused: tess.reused,
                 candidate_pairs: candidates.len(),
                 boolean_seconds,
+                booleans_reused,
                 pairs,
             });
         }
@@ -672,6 +735,8 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     if let Some((why, next)) = pre_unavailable {
         subs6[0].not_evaluated = Some((why, next));
     }
+    clock(&mut records, "check 6 pre-imprint", started);
+    let conversion_started = Instant::now();
     // Waivers decide whether a pre-imprint finding stops the conversion.
     waivers.apply(&mut findings6);
     if findings6.iter().any(Finding::blocks) {
@@ -695,7 +760,8 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             angular_rad: DEFAULT_ANGULAR_RAD,
             imprint_threads: options.imprint_threads,
             directory: &convert_dir,
-            reuse: options.reuse && options.work_dir.is_some(),
+            reuse,
+            shape_cache,
         };
         match backends.convert(&request)? {
             ToolResult::Done(out) => converted = Some(out),
@@ -742,6 +808,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 .collect(),
         });
     }
+    clock(&mut records, "check 6 conversion", conversion_started);
     clock(&mut records, "check 6", started);
     let six = finish(6, findings6, subs6, &mut waivers);
     let six_status = six.status;
@@ -825,6 +892,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         .map(|(v, &s)| (v as u32 + 1, design.solids[s].step_index))
         .collect();
     let deviation_dir = work.join("deviation");
+    let mut sliver_note: Option<String> = None;
     match backends.deviation(&DeviationRequest {
         step,
         shape_unit_m,
@@ -832,7 +900,8 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         map: &map,
         directory: &deviation_dir,
         workers: options.threads.clamp(1, 4),
-        max_points: options.deviation_points,
+        occt_points: options.deviation_points,
+        shape_cache,
     })? {
         ToolResult::Done(out) => {
             let mut solids = Vec::new();
@@ -843,14 +912,20 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     .unwrap_or("?")
                     .to_string();
                 let above = row.max_distance_m > chord_m;
+                let complete = row.points >= row.points_available;
                 if above {
                     let mut f = Finding::new(
                         8,
                         format!("{label}: faceting deviation"),
                         format!(
-                            "the facets deviate from the CAD surface by {:.3e} m (sampled maximum), \
+                            "the facets deviate from the CAD surface by {:.3e} m ({}), \
                              above the declared faceting tolerance of {chord_m:.3e} m",
-                            row.max_distance_m
+                            row.max_distance_m,
+                            if complete {
+                                "maximum over all points"
+                            } else {
+                                "sampled maximum"
+                            }
                         ),
                         "Set cad.faceting_tolerance_m smaller so the facets follow the surfaces \
                          more closely, then convert again.",
@@ -869,30 +944,65 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     at_m: row.at_m,
                     points: row.points,
                     points_available: row.points_available,
+                    points_closed_form: row.points_closed_form,
+                    points_occt: row.points_occt,
+                    points_occt_needed: row.points_occt_needed,
+                    complete,
                     above_tolerance: above,
                 });
             }
-            let capped = solids.iter().any(|s| s.points_available > s.points);
+            let sampled = solids.iter().filter(|s| !s.complete).count();
+            // The sliver rule that compares the deviation with the thickness needs it per solid.
+            let deviations: Vec<integrity::SolidDeviation> = solids
+                .iter()
+                .map(|s| integrity::SolidDeviation {
+                    solid_id: &s.solid_id,
+                    max_distance_m: s.max_distance_m,
+                    at_m: s.at_m,
+                    complete: s.complete,
+                })
+                .collect();
+            findings8.extend(integrity::thickness_misrepresented(
+                &integrity_record.volumes,
+                &deviations,
+            ));
             records.deviation = Some(DeviationRecord {
                 method: out.method,
                 chord_tolerance_m: chord_m,
                 seconds: out.seconds,
-                statement: if capped {
-                    "sampled maximum: exact over the points tested, an even stride of the triangle \
-                     centroids and edge midpoints (--deviation-points), not a bound over every \
-                     point of every triangle"
+                statement: if sampled == 0 {
+                    "maximum over all points: every triangle centroid and edge midpoint of every \
+                     solid was measured, in closed form on plane, cylinder, cone, sphere and torus \
+                     faces and by OpenCASCADE projection elsewhere; it is not a bound over points \
+                     between them"
+                        .to_string()
                 } else {
-                    "sampled maximum: exact over the triangle centroids and edge midpoints \
-                     tested, not a bound over every point of every triangle"
-                }
-                .into(),
+                    format!(
+                        "sampled maximum for {sampled} of {} solid(s): their points that need \
+                         OpenCASCADE projection (--deviation-points) are an even stride of at \
+                         most {} per solid, the others are measured in closed form; the maximum \
+                         is exact over the points measured, not a bound over every point",
+                        solids.len(),
+                        options.deviation_points
+                    )
+                },
                 solids,
             });
         }
         ToolResult::Unavailable { why, next_step } => {
+            sliver_note = Some(
+                "only the rule that compares a solid's thickness with the faceting tolerance was \
+                 evaluated; the thickness-misrepresented rule needs GEO-032, which did not run"
+                    .to_string(),
+            );
             deviation_sub.not_evaluated = Some((why, next_step));
         }
         ToolResult::Failed { why, next_step } => {
+            sliver_note = Some(
+                "only the rule that compares a solid's thickness with the faceting tolerance was \
+                 evaluated; the thickness-misrepresented rule needs GEO-032, which failed"
+                    .to_string(),
+            );
             findings8.push(tool_finding(
                 8,
                 "faceting deviation",
@@ -925,7 +1035,11 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             "inverted normals, zero-volume cells, degenerate triangles",
             &["INVERTED-NORMALS", "ZERO-VOLUME", "DEGENERATE-TRIANGLE"],
         ),
-        sub("slivers", &["SLIVER"]),
+        {
+            let mut slivers = sub("slivers", &["SLIVER"]);
+            slivers.note = sliver_note;
+            slivers
+        },
         sub("self-intersection", &["SELF-INTERSECTION"]),
         sub("overlap and containment (GEO-021)", &["GEO-021"]),
         sub("duplicate surfaces", &["DUPLICATE-SURFACE"]),

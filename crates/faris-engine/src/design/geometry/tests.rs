@@ -56,6 +56,7 @@ impl Backends for Geo {
             manifest,
             problems: Vec::new(),
             seconds: 0.5,
+            reused: false,
         }))
     }
     fn overlap_booleans(
@@ -85,6 +86,7 @@ impl Backends for Geo {
         Ok(ToolResult::Done(BooleanOutcome {
             results,
             seconds: 0.25,
+            reused: false,
         }))
     }
     fn convert(&self, r: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
@@ -183,6 +185,9 @@ fn geo() -> Geo {
                 step_index: 0,
                 points: 100,
                 points_available: 100,
+                points_closed_form: 100,
+                points_occt: 0,
+                points_occt_needed: 0,
                 faces: 12,
                 max_distance_m: 1.0e-5,
                 at_m: Some([1.0, 0.0, 0.0]),
@@ -192,6 +197,9 @@ fn geo() -> Geo {
                 step_index: 1,
                 points: 100,
                 points_available: 100,
+                points_closed_form: 100,
+                points_occt: 0,
+                points_occt_needed: 0,
                 faces: 6,
                 max_distance_m: 2.0e-5,
                 at_m: Some([0.0, 0.0, 2.0]),
@@ -418,6 +426,7 @@ fn an_integrity_failure_stops_before_the_source_sites() {
 fn deviation_above_the_tolerance_blocks_and_can_be_waived() {
     let mut b = geo();
     b.deviation.as_mut().unwrap()[1].max_distance_m = 5.0e-3;
+    b.deviation.as_mut().unwrap()[1].points = 40;
     let report = run_with(&design(Vec::new()), &b);
     assert_eq!(report.checks[2].status, Fail);
     let f = report.checks[2]
@@ -441,16 +450,99 @@ fn a_capped_deviation_says_it_measured_a_stride() {
     let report = run_with(&design(Vec::new()), &b);
     let record = report.geometry.deviation.as_ref().unwrap();
     assert!(record.statement.contains("--deviation-points"));
+    assert!(record.statement.contains("sampled maximum"));
     assert_eq!(record.solids[0].points_available, 100);
+    assert!(!record.solids[0].complete && record.solids[1].complete);
     let plain = run_with(&design(Vec::new()), &geo());
+    let statement = &plain.geometry.deviation.as_ref().unwrap().statement;
     assert!(
-        !plain
-            .geometry
-            .deviation
-            .as_ref()
+        statement.starts_with("maximum over all points"),
+        "{statement}"
+    );
+    assert!(!statement.contains("--deviation-points"));
+}
+
+// Verifies: GEO-032
+#[test]
+fn the_finding_above_the_tolerance_says_sampled_only_when_it_was() {
+    let mut b = geo();
+    b.deviation.as_mut().unwrap()[1].max_distance_m = 5.0e-3;
+    let all = run_with(&design(Vec::new()), &b);
+    let why = |r: &ImportReport| {
+        r.checks[2]
+            .findings
+            .iter()
+            .find(|f| f.requirement.as_deref() == Some("GEO-032"))
             .unwrap()
-            .statement
-            .contains("--deviation-points")
+            .why
+            .clone()
+    };
+    assert!(
+        why(&all).contains("maximum over all points"),
+        "{}",
+        why(&all)
+    );
+    b.deviation.as_mut().unwrap()[1].points = 10;
+    let some = run_with(&design(Vec::new()), &b);
+    assert!(why(&some).contains("sampled maximum"), "{}", why(&some));
+}
+
+// Verifies: GEO-032
+#[test]
+fn a_deviation_over_a_tenth_of_the_thickness_is_a_waivable_misrepresented_sliver() {
+    // core is a cube of side 4 m: 2V/A = 1.333 m, so 0.2 m is 15 %
+    let mut b = geo();
+    b.deviation.as_mut().unwrap()[1].max_distance_m = 0.2;
+    let slivers = |r: &ImportReport| {
+        r.checks[2]
+            .findings
+            .iter()
+            .filter(|f| f.requirement.as_deref() == Some("SLIVER"))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let report = run_with(&design(Vec::new()), &b);
+    let found = slivers(&report);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].item.contains("thickness misrepresented"));
+    assert!(found[0].why.contains("2V/A of 1.333"), "{}", found[0].why);
+    assert!(found[0].why.contains("maximum over all points"));
+    assert!(found[0].blocks() && found[0].waivable);
+    assert_eq!(report.checks[2].status, Fail);
+    let waived = run_with(
+        &design(vec![
+            waiver("SLIVER", &["core"]),
+            waiver("GEO-032", &["core"]),
+        ]),
+        &b,
+    );
+    assert_eq!(waived.checks[2].status, Pass);
+    assert!(slivers(&waived).iter().all(|f| f.waived.is_some()));
+    // a partial deviation says so in the sliver finding too
+    b.deviation.as_mut().unwrap()[1].points = 10;
+    let sampled = run_with(&design(Vec::new()), &b);
+    assert!(slivers(&sampled)[0].why.contains("sampled maximum"));
+    // a deviation of exactly the rule's size or less passes
+    b.deviation.as_mut().unwrap()[1].max_distance_m = 0.13;
+    b.deviation.as_mut().unwrap()[1].points = 100;
+    let quiet = run_with(&design(vec![waiver("GEO-032", &["core"])]), &b);
+    assert!(slivers(&quiet).is_empty());
+}
+
+// Verifies: GEO-032
+#[test]
+fn without_geo_032_the_misrepresented_rule_cannot_run_and_the_sliver_check_says_so() {
+    let mut b = geo();
+    b.deviation = None;
+    let report = run_with(&design(Vec::new()), &b);
+    let sub = report.checks[2]
+        .sub_checks
+        .iter()
+        .find(|s| s.name == "slivers")
+        .unwrap();
+    assert!(
+        sub.why.as_deref().is_some_and(|w| w.contains("GEO-032")),
+        "{sub:?}"
     );
 }
 

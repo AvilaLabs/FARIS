@@ -10,14 +10,14 @@ use super::geometry::{
 };
 use super::overlap::BooleanResult;
 use super::{
-    BOOLEAN_TIMEOUT, CAD_ADDRESS_SPACE, CAD_FACETS_HELPER, CAD_HELPER, CONVERT_TIMEOUT,
-    DEVIATION_TIMEOUT, DesignError, ExternalBackends, Launched, SOURCE_SITES_HELPER,
-    SOURCE_TIMEOUT, TESSELLATE_TIMEOUT, io_error, launch_python, read_json_bounded, sha256_file,
-    sha256_hex, tail,
+    BOOLEAN_TIMEOUT, CAD_ADDRESS_SPACE, CAD_DEVIATION_HELPER, CAD_FACETS_HELPER, CAD_HELPER,
+    CONVERT_TIMEOUT, DEVIATION_TIMEOUT, DesignError, ExternalBackends, Launched,
+    SOURCE_SITES_HELPER, SOURCE_TIMEOUT, TESSELLATE_TIMEOUT, io_error, launch_python,
+    read_json_bounded, sha256_file, sha256_hex, tail,
 };
 use crate::jobs::ResourceLimits;
 use faris_model::design::load_facets;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
@@ -52,6 +52,7 @@ fn write_cad_helpers(dir: &Path) -> Result<PathBuf, DesignError> {
     let helpers = dir.join("helpers");
     std::fs::create_dir_all(&helpers).map_err(|e| io_error(&helpers, e))?;
     write_text(&helpers.join("faris_facets.py"), CAD_FACETS_HELPER)?;
+    write_text(&helpers.join("faris_deviation.py"), CAD_DEVIATION_HELPER)?;
     let script = helpers.join("faris_cad.py");
     write_text(&script, CAD_HELPER)?;
     Ok(script)
@@ -107,6 +108,66 @@ fn load_pair(
 
 fn close(a: f64, b: f64) -> bool {
     (a - b).abs() <= 1e-12 * a.abs().max(b.abs()).max(1e-300)
+}
+
+/// The helper's version, read from the embedded script so there is one place that says it.
+pub(super) fn helper_version() -> String {
+    CAD_HELPER
+        .lines()
+        .find_map(|l| l.strip_prefix("HELPER_VERSION = \""))
+        .and_then(|rest| rest.split('"').next())
+        .unwrap_or("?")
+        .to_string()
+}
+
+/// What decides a tessellation or a set of boolean verdicts: the STEP hash, the tolerances, the
+/// helper's version, and (for booleans) the pairs. A recorded result is reused only when the key
+/// matches what the run would use.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct CacheKey {
+    command: String,
+    step_sha256: String,
+    chord_cm: f64,
+    angular_rad: f64,
+    shape_unit_m: f64,
+    helper: String,
+    #[serde(default)]
+    tags: Vec<super::geometry::TagEntry>,
+    #[serde(default)]
+    pairs: Vec<[usize; 2]>,
+}
+
+impl CacheKey {
+    fn same(&self, other: &Self) -> bool {
+        self.command == other.command
+            && self.step_sha256.eq_ignore_ascii_case(&other.step_sha256)
+            && close(self.chord_cm, other.chord_cm)
+            && close(self.angular_rad, other.angular_rad)
+            && close(self.shape_unit_m, other.shape_unit_m)
+            && self.helper == other.helper
+            && self.tags == other.tags
+            && self.pairs == other.pairs
+    }
+
+    fn path(dir: &Path) -> PathBuf {
+        dir.join("cache-key.json")
+    }
+
+    fn recorded(dir: &Path) -> Option<Self> {
+        serde_json::from_slice(&std::fs::read(Self::path(dir)).ok()?).ok()
+    }
+
+    fn record(&self, dir: &Path) -> Result<(), DesignError> {
+        let body =
+            serde_json::to_string_pretty(self).map_err(|e| DesignError::Tool(e.to_string()))?;
+        write_text(&Self::path(dir), &body)
+    }
+}
+
+fn shape_cache_arguments(cache: Option<&Path>) -> Vec<OsString> {
+    cache.map_or_else(Vec::new, |dir| {
+        vec!["--shape-cache".into(), dir.as_os_str().to_owned()]
+    })
 }
 
 /// A recorded conversion is reused only when everything that decides its result
@@ -181,7 +242,7 @@ pub(super) fn convert(
     let _ = std::fs::remove_file(&report_path);
     let script = write_cad_helpers(dir)?;
     let tags = tags_json(dir, request.tags)?;
-    let arguments: Vec<OsString> = vec![
+    let mut arguments: Vec<OsString> = vec![
         script.into_os_string(),
         "convert".into(),
         request.step.as_os_str().to_owned(),
@@ -200,6 +261,7 @@ pub(super) fn convert(
         "--report".into(),
         report_path.clone().into_os_string(),
     ];
+    arguments.extend(shape_cache_arguments(request.shape_cache));
     match launch_python(
         python,
         arguments,
@@ -242,6 +304,45 @@ struct TessellationReport {
     facets: super::geometry::ConversionFacets,
 }
 
+fn tessellation_key(request: &TessellateRequest) -> CacheKey {
+    let mut tags = request.tags.to_vec();
+    tags.sort_by_key(|e| e.step_index);
+    CacheKey {
+        command: "tessellate".into(),
+        step_sha256: request.step_sha256.into(),
+        chord_cm: request.chord_cm,
+        angular_rad: request.angular_rad,
+        shape_unit_m: request.shape_unit_m,
+        helper: helper_version(),
+        tags,
+        pairs: Vec::new(),
+    }
+}
+
+fn load_tessellation(dir: &Path, reused: bool) -> Result<Option<TessellateOutcome>, DesignError> {
+    let report_path = dir.join("tessellation.json");
+    let Ok(report) = read_json::<TessellationReport>(&report_path, "the tessellation report")
+    else {
+        return Ok(None);
+    };
+    let Ok((facets, manifest)) = load_pair(dir, &report.facets.bin, &report.facets.json) else {
+        return Ok(None);
+    };
+    if !manifest
+        .binary_sha256
+        .eq_ignore_ascii_case(&report.facets.bin_sha256)
+    {
+        return Ok(None);
+    }
+    Ok(Some(TessellateOutcome {
+        facets,
+        manifest,
+        problems: report.problems,
+        seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
+        reused,
+    }))
+}
+
 pub(super) fn tessellate(
     ext: &ExternalBackends,
     request: &TessellateRequest,
@@ -251,10 +352,20 @@ pub(super) fn tessellate(
     };
     let dir = request.directory;
     std::fs::create_dir_all(dir).map_err(|e| io_error(dir, e))?;
+    let key = tessellation_key(request);
+    if request.reuse
+        && CacheKey::recorded(dir).is_some_and(|k| k.same(&key))
+        && let Some(outcome) = load_tessellation(dir, true)?
+    {
+        return Ok(ToolResult::Done(outcome));
+    }
+    // A stale key must never describe a run that fails half way.
+    let _ = std::fs::remove_file(CacheKey::path(dir));
     let script = write_cad_helpers(dir)?;
     let tags = tags_json(dir, request.tags)?;
     let report_path = dir.join("tessellation.json");
-    let arguments: Vec<OsString> = vec![
+    let _ = std::fs::remove_file(&report_path);
+    let mut arguments: Vec<OsString> = vec![
         script.into_os_string(),
         "tessellate".into(),
         request.step.as_os_str().to_owned(),
@@ -268,9 +379,12 @@ pub(super) fn tessellate(
         format!("{:e}", request.chord_cm).into(),
         "--angular".into(),
         format!("{:e}", request.angular_rad).into(),
+        "--workers".into(),
+        request.workers.max(1).to_string().into(),
         "--report".into(),
         report_path.clone().into_os_string(),
     ];
+    arguments.extend(shape_cache_arguments(request.shape_cache));
     match launch_python(
         python,
         arguments,
@@ -291,20 +405,45 @@ pub(super) fn tessellate(
             });
         }
     }
-    let report: TessellationReport = read_json(&report_path, "the tessellation report")?;
-    let (facets, manifest) = load_pair(dir, &report.facets.bin, &report.facets.json)?;
-    Ok(ToolResult::Done(TessellateOutcome {
-        facets,
-        manifest,
-        problems: report.problems,
-        seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
-    }))
+    let Some(outcome) = load_tessellation(dir, false)? else {
+        return Err(DesignError::Tool(format!(
+            "the tessellation report in {} does not match its facets",
+            dir.display()
+        )));
+    };
+    key.record(dir)?;
+    Ok(ToolResult::Done(outcome))
 }
 
 #[derive(Deserialize)]
 struct BooleanReport {
     pairs: Vec<BooleanResult>,
     timing_seconds: std::collections::BTreeMap<String, f64>,
+}
+
+fn boolean_key(request: &BooleanRequest) -> CacheKey {
+    CacheKey {
+        command: "overlap-booleans".into(),
+        step_sha256: request.step_sha256.into(),
+        chord_cm: request.chord_cm,
+        angular_rad: request.angular_rad,
+        shape_unit_m: request.shape_unit_m,
+        helper: helper_version(),
+        tags: Vec::new(),
+        pairs: request.pairs.iter().map(|&(a, b)| [a, b]).collect(),
+    }
+}
+
+fn load_booleans(dir: &Path, reused: bool) -> Result<Option<BooleanOutcome>, DesignError> {
+    let Ok(report) = read_json::<BooleanReport>(&dir.join("booleans.json"), "the boolean report")
+    else {
+        return Ok(None);
+    };
+    Ok(Some(BooleanOutcome {
+        results: report.pairs,
+        seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
+        reused,
+    }))
 }
 
 pub(super) fn overlap_booleans(
@@ -316,15 +455,23 @@ pub(super) fn overlap_booleans(
     };
     let dir = request.directory;
     std::fs::create_dir_all(dir).map_err(|e| io_error(dir, e))?;
+    let key = boolean_key(request);
+    if request.reuse
+        && CacheKey::recorded(dir).is_some_and(|k| k.same(&key))
+        && let Some(outcome) = load_booleans(dir, true)?
+    {
+        return Ok(ToolResult::Done(outcome));
+    }
+    let _ = std::fs::remove_file(CacheKey::path(dir));
     let script = write_cad_helpers(dir)?;
     let pairs_path = dir.join("pairs.json");
-    let pairs: Vec<[usize; 2]> = request.pairs.iter().map(|&(a, b)| [a, b]).collect();
     write_text(
         &pairs_path,
-        &serde_json::to_string(&pairs).map_err(|e| DesignError::Tool(e.to_string()))?,
+        &serde_json::to_string(&key.pairs).map_err(|e| DesignError::Tool(e.to_string()))?,
     )?;
     let report_path = dir.join("booleans.json");
-    let arguments: Vec<OsString> = vec![
+    let _ = std::fs::remove_file(&report_path);
+    let mut arguments: Vec<OsString> = vec![
         script.into_os_string(),
         "overlap-booleans".into(),
         request.step.as_os_str().to_owned(),
@@ -337,6 +484,7 @@ pub(super) fn overlap_booleans(
         "--report".into(),
         report_path.clone().into_os_string(),
     ];
+    arguments.extend(shape_cache_arguments(request.shape_cache));
     match launch_python(
         python,
         arguments,
@@ -357,11 +505,17 @@ pub(super) fn overlap_booleans(
             });
         }
     }
-    let report: BooleanReport = read_json(&report_path, "the boolean report")?;
-    Ok(ToolResult::Done(BooleanOutcome {
-        results: report.pairs,
-        seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
-    }))
+    let Some(outcome) = load_booleans(dir, false)? else {
+        return Err(DesignError::Tool(format!(
+            "the boolean report in {} could not be read",
+            dir.display()
+        )));
+    };
+    // A failed or timed-out boolean may succeed on another run, so only decided results are kept.
+    if outcome.results.iter().all(|r| r.status == "decided") {
+        key.record(dir)?;
+    }
+    Ok(ToolResult::Done(outcome))
 }
 
 #[derive(Deserialize)]
@@ -394,7 +548,7 @@ pub(super) fn deviation(
         &serde_json::to_string(&map).map_err(|e| DesignError::Tool(e.to_string()))?,
     )?;
     let report_path = dir.join("deviation.json");
-    let arguments: Vec<OsString> = vec![
+    let mut arguments: Vec<OsString> = vec![
         script.into_os_string(),
         "deviation".into(),
         request.step.as_os_str().to_owned(),
@@ -406,11 +560,12 @@ pub(super) fn deviation(
         map_path.into_os_string(),
         "--workers".into(),
         request.workers.to_string().into(),
-        "--max-points-per-solid".into(),
-        request.max_points.to_string().into(),
+        "--occt-points".into(),
+        request.occt_points.to_string().into(),
         "--report".into(),
         report_path.clone().into_os_string(),
     ];
+    arguments.extend(shape_cache_arguments(request.shape_cache));
     match launch_python(
         python,
         arguments,
@@ -623,6 +778,7 @@ mod tests {
                 imprint_threads: 1,
                 directory: self.dir.path(),
                 reuse: true,
+                shape_cache: None,
             }
         }
     }
@@ -686,6 +842,192 @@ mod tests {
             reuse(&r.request(0.1, STEP_SHA)).unwrap().is_none(),
             "no record"
         );
+    }
+
+    fn fake_tools() -> super::super::ToolPaths {
+        // An interpreter that does not exist: a request that is not served from the record fails.
+        super::super::ToolPaths {
+            cad_python: Some(PathBuf::from("/nonexistent/faris-test-python")),
+            ..Default::default()
+        }
+    }
+
+    fn tessellation_request<'a>(
+        dir: &'a Path,
+        tags: &'a [TagEntry],
+        chord_cm: f64,
+        sha: &'a str,
+        reuse: bool,
+    ) -> TessellateRequest<'a> {
+        TessellateRequest {
+            step: Path::new("m.step"),
+            step_sha256: sha,
+            shape_unit_m: 1.0e-3,
+            tags,
+            chord_cm,
+            angular_rad: 0.1,
+            directory: dir,
+            workers: 2,
+            reuse,
+            shape_cache: None,
+        }
+    }
+
+    /// A tessellation as the helper leaves it, with the key `tessellate` writes after a run.
+    fn recorded_tessellation(r: &Recorded, helper: &str) {
+        let dir = r.dir.path();
+        let bytes = std::fs::read(dir.join("model.facets.bin")).unwrap();
+        let manifest = std::fs::read(dir.join("model.facets.json")).unwrap();
+        std::fs::write(dir.join("solids.facets.bin"), bytes).unwrap();
+        std::fs::write(dir.join("solids.facets.json"), &manifest).unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&manifest).unwrap();
+        std::fs::write(
+            dir.join("tessellation.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "problems": ["solid 1 (core): the tessellation is not closed: 3 edge(s)"],
+                "timing_seconds": {"total": 12.5},
+                "facets": {
+                    "bin": "solids.facets.bin",
+                    "json": "solids.facets.json",
+                    "bin_sha256": parsed["binary_sha256"],
+                },
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let key = CacheKey {
+            command: "tessellate".into(),
+            step_sha256: STEP_SHA.into(),
+            chord_cm: 0.1,
+            angular_rad: 0.1,
+            shape_unit_m: 1.0e-3,
+            helper: helper.into(),
+            tags: r.tags.clone(),
+            pairs: Vec::new(),
+        };
+        key.record(dir).unwrap();
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn a_recorded_tessellation_is_reused_only_under_the_same_key() {
+        let tools = fake_tools();
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends {
+            tools: &tools,
+            cancellation: &cancel,
+        };
+        let r = Recorded::new();
+        recorded_tessellation(&r, &helper_version());
+        let dir = r.dir.path();
+        let ToolResult::Done(out) = tessellate(
+            &ext,
+            &tessellation_request(dir, &r.tags, 0.1, STEP_SHA, true),
+        )
+        .unwrap() else {
+            panic!("expected the recorded tessellation");
+        };
+        assert!(out.reused);
+        assert_eq!(out.seconds, 12.5, "the recorded time is reported");
+        assert_eq!(
+            out.problems.len(),
+            1,
+            "a recorded problem is reported again"
+        );
+        // anything else in the key, or no reuse, runs the helper: here that fails for want of Python
+        let served = |request: TessellateRequest| {
+            matches!(tessellate(&ext, &request), Ok(ToolResult::Done(_)))
+        };
+        assert!(
+            !served(tessellation_request(dir, &r.tags, 0.05, STEP_SHA, true)),
+            "other chord"
+        );
+        assert!(
+            !served(tessellation_request(dir, &r.tags, 0.1, "cd", true)),
+            "other STEP file"
+        );
+        assert!(
+            !served(tessellation_request(dir, &r.tags, 0.1, STEP_SHA, false)),
+            "reuse off"
+        );
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn a_tessellation_of_another_helper_version_is_not_reused() {
+        let tools = fake_tools();
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends {
+            tools: &tools,
+            cancellation: &cancel,
+        };
+        let r = Recorded::new();
+        recorded_tessellation(&r, "0");
+        let request = tessellation_request(r.dir.path(), &r.tags, 0.1, STEP_SHA, true);
+        assert!(!matches!(
+            tessellate(&ext, &request),
+            Ok(ToolResult::Done(_))
+        ));
+    }
+
+    #[test]
+    fn the_helper_version_is_read_from_the_helper() {
+        let v = helper_version();
+        assert!(v.parse::<u32>().is_ok(), "{v}");
+    }
+
+    // Verifies: GEO-013
+    #[test]
+    fn recorded_boolean_verdicts_are_reused_only_for_the_same_pairs_and_key() {
+        let tools = fake_tools();
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends {
+            tools: &tools,
+            cancellation: &cancel,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("booleans.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "pairs": [{"a": 0, "b": 1, "status": "decided", "common_volume_m3": 0.0}],
+                "timing_seconds": {"total": 7.0},
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let pairs = [(0usize, 1usize)];
+        let request = |pairs: &'static [(usize, usize)], chord_cm: f64, reuse: bool| {
+            let dir_path: &'static Path = Box::leak(dir.path().to_path_buf().into_boxed_path());
+            BooleanRequest {
+                step: Path::new("m.step"),
+                step_sha256: STEP_SHA,
+                shape_unit_m: 1.0e-3,
+                pairs,
+                chord_cm,
+                angular_rad: 0.1,
+                directory: dir_path,
+                workers: 2,
+                reuse,
+                shape_cache: None,
+            }
+        };
+        let pairs: &'static [(usize, usize)] = Box::leak(Box::new(pairs));
+        boolean_key(&request(pairs, 0.1, true))
+            .record(dir.path())
+            .unwrap();
+        let ToolResult::Done(out) = overlap_booleans(&ext, &request(pairs, 0.1, true)).unwrap()
+        else {
+            panic!("expected the recorded verdicts");
+        };
+        assert!(out.reused);
+        assert_eq!(out.seconds, 7.0);
+        assert_eq!(out.results.len(), 1);
+        let served =
+            |r: BooleanRequest| matches!(overlap_booleans(&ext, &r), Ok(ToolResult::Done(_)));
+        let other_pairs: &'static [(usize, usize)] = Box::leak(Box::new([(0usize, 2usize)]));
+        assert!(!served(request(other_pairs, 0.1, true)), "other pairs");
+        assert!(!served(request(pairs, 0.2, true)), "other tolerance");
+        assert!(!served(request(pairs, 0.1, false)), "reuse off");
     }
 
     #[test]

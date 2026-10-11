@@ -62,12 +62,12 @@ pub enum DesignCommand {
         /// Also write the report as JSON to this new file.
         #[arg(long)]
         report: Option<PathBuf>,
-        /// Keep the conversion and the other products here, and reuse a conversion found
-        /// here when its recorded hashes and tolerances match [default: a temporary
-        /// directory, removed afterwards].
+        /// Keep the conversion, the per-solid tessellation, the boolean verdicts and the other
+        /// products here, and reuse what is found here when its recorded STEP hash, tolerances
+        /// and helper version match [default: a temporary directory, removed afterwards].
         #[arg(long, value_name = "DIR")]
         work_dir: Option<PathBuf>,
-        /// Convert again even when the work directory holds a matching conversion.
+        /// Do everything again even when the work directory holds matching products.
         #[arg(long)]
         no_reuse: bool,
         /// Worker threads for the integrity checks [default: the available cores, at most 16].
@@ -85,13 +85,14 @@ pub enum DesignCommand {
         /// Source sites sampled from the plasma block (check 9).
         #[arg(long, default_value_t = 100_000)]
         source_sites: usize,
-        /// Points per solid for the faceting deviation (GEO-032) [default: 0, every triangle
-        /// centroid and edge midpoint]. A positive number takes an even stride, and the report
-        /// says so.
-        #[arg(long, default_value_t = 0)]
+        /// Points per solid the faceting deviation (GEO-032) lets OpenCASCADE project. Faces on a
+        /// plane, cylinder, cone, sphere or torus are measured in closed form at every point;
+        /// the points on other surfaces take an even stride of at most this many [0: all of
+        /// them]. The report says which solids were sampled.
+        #[arg(long, default_value_t = 2000)]
         deviation_points: usize,
         /// Threads the converter may use to imprint.
-        #[arg(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 4)]
         imprint_threads: u32,
         #[command(flatten)]
         tools: ToolArguments,
