@@ -1,0 +1,67 @@
+double-down 1.1.0 on Windows (MSVC), patch 2 of 2: make RTCDRayHit and MBRayHit layouts agree.
+Written for this spike (found on the runner, nothing sent upstream). Symptom: OpenMC with a DAGMC
+model crashed in batch 1 with an access violation in GeomQueryTool::RayHistory::in_history, called
+from dd's backface_cull, with the ray's history pointer cut to its low 32 bits.
+Cause: MBDblTriIntersectFunc (MOABRay.cpp) reads args->rayhit as MBRayHit, then calls
+DblTriIntersectFunc (primitives.cpp), which reads the same memory as RTCDRayHit and writes the
+hit at sizeof(RTCDRay). MBRay adds 'orientation' and 'rh' after RTCDRay, so on MSVC (no tail-padding
+reuse) MBRayHit::hit is 16 bytes behind RTCDRayHit::hit and the hit overwrites 'rh'. Itanium-ABI
+compilers put the two fields into RTCDRay's tail padding, which hides the bug on Linux/macOS.
+Fix: the four extra members move into RTCDRay, so MBRay, MBRayAccumulate and RTCDRay have one size.
+
+diff --git a/include/double_down/MOABRay.h b/include/double_down/MOABRay.h
+index 77dd3e6..3414d85 100644
+--- a/include/double_down/MOABRay.h
++++ b/include/double_down/MOABRay.h
+@@ -35,9 +35,7 @@ struct MBRay : RTCDRay {
+     rh = NULL;
+   }
+ 
+-  // Member variables
+-  int orientation; //!< Ray direction vs. triangle normal orientation to count as a hit (1 for forward, -1 for reverse)
+-  const moab::GeomQueryTool::RayHistory* rh; //!< RayHistory containing triangles to ignore
++  // orientation and rh are members of RTCDRay (ray.h); see the comment there.
+ };
+ 
+ /*! Struct combining the MBRay and MBHit into a struct that can be passed to Embree's rtcIntersect */
+@@ -62,8 +60,7 @@ struct MBRayAccumulate : MBRay {
+     num_hit = 0;
+   }
+ 
+-  int sum; //!< Current sum of the entering/exiting intersection results (+1 for entering, -1 for exiting)
+-  int num_hit; //!< Number of triangles intersected
++  // sum and num_hit are members of RTCDRay (ray.h); see the comment there.
+ };
+ 
+ /*! Struct combining MBRayAccumulate and MBHit that can be passed to Embree's rtcIntersect */
+diff --git a/include/double_down/ray.h b/include/double_down/ray.h
+index 7ab58d2..2d1e6e9 100644
+--- a/include/double_down/ray.h
++++ b/include/double_down/ray.h
+@@ -7,6 +7,8 @@
+ 
+ #include "double_down/embree_interface.hpp"
+ 
++#include "moab/GeomQueryTool.hpp"
++
+ namespace double_down {
+ 
+ enum RayFireType { RF, PIV, ACCUM, FV };
+@@ -64,6 +66,17 @@ struct RTCDRay: RTCRay {
+   RayFireType rf_type; //!< Enum indicating the type of query this ray is used for
+   Vec3da dorg, ddir; //!< double precision versions of the origin and ray direction
+   double dtfar; //!< double precision version of the ray length
++
++  // These four members used to be declared in MBRay and MBRayAccumulate (MOABRay.h). The
++  // intersection callback reads args->rayhit both as RTCDRayHit (primitives.cpp) and as MBRayHit
++  // (MOABRay.cpp), which is only correct when 'hit' sits at the same offset in both. GCC and Clang
++  // place MBRay::orientation and MBRay::rh in the tail padding of RTCDRay (non-POD base), so the
++  // offsets agree by accident; MSVC does not reuse tail padding, 'hit' is then 16 bytes further
++  // in MBRayHit, and the hit written through RTCDRayHit overwrites 'rh'.
++  int orientation = 0; //!< Ray direction vs. triangle normal orientation to count as a hit (1 forward, -1 reverse)
++  const moab::GeomQueryTool::RayHistory* rh = nullptr; //!< RayHistory containing triangles to ignore
++  int sum = 0; //!< Current sum of the entering/exiting intersection results (accumulate rays)
++  int num_hit = 0; //!< Number of triangles intersected (accumulate rays)
+ };
+ 
+ /*! Structure extending Embree's RayHit to include a double precision version of the primitive normal */
