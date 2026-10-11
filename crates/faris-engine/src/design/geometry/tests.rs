@@ -57,6 +57,7 @@ impl Backends for Geo {
             problems: Vec::new(),
             seconds: 0.5,
             reused: false,
+            reader: ReaderStamp::python(),
         }))
     }
     fn overlap_booleans(

@@ -15,6 +15,7 @@ path = "src/bin/faris-occt-worker.rs"
 
 [dependencies]
 faris-model.workspace = true
+faris-occt-client.workspace = true
 cxx = "=1.0.205"
 serde.workspace = true
 serde_json.workspace = true
@@ -22,6 +23,10 @@ sha2.workspace = true
 regex = { version = "1", default-features = false, features = ["std", "perf"] }
 nix = { workspace = true, features = ["resource"] }
 tempfile.workspace = true
+
+[dev-dependencies]
+# The reader parity test runs the engine's two CAD readers on the same files.
+faris-engine.workspace = true
 
 [build-dependencies]
 cxx-build = "=1.0.205"

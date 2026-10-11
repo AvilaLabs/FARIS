@@ -18,7 +18,9 @@ returns them. State codes of the classifier: 0 in, 1 on, 2 out, 3 unknown.
 
 ## Process model
 
-FARIS never calls OpenCASCADE in its own process. `client::Worker` starts
+FARIS never calls OpenCASCADE in its own process. `client::Worker` (in the light crate
+`faris-occt-client`, which holds the request and response types and the client and builds no
+OpenCASCADE; this crate re-exports it) starts
 `faris-occt-worker REQUEST.json RESPONSE.json`, enforces a wall-clock limit by killing the
 process, and reports a timeout, a crash (signal or exit without a response), a failure the worker
 reported, or a malformed response. The worker sets `RLIMIT_AS` and `RLIMIT_CPU` on itself from
@@ -28,7 +30,11 @@ files named in the request. The request and response formats are in `src/worker.
 `faris-occt-worker inspect STEP [--assume-unit mm]` prints the inspect report for use by hand.
 
 The crate is a workspace member but not a default member, so building `faris-cli` does not build
-OpenCASCADE. It is not wired into `faris design check`.
+OpenCASCADE. `faris design check` and `design init` use the worker for the STEP inspect and the
+per-solid tessellation through `faris-occt-client` (`--cad-reader auto|native|python`,
+`--occt-worker PATH`, `FARIS_OCCT_WORKER`, `FARIS_CAD_READER`; with `auto` the worker is used when it
+is found, which is `--occt-worker`, then `FARIS_OCCT_WORKER`, then `faris-occt-worker` next to the
+`faris` program, and it answers a ping).
 
 ## Building
 
@@ -70,6 +76,10 @@ directory outside the cargo target directory and reuse it.
 * `classify_parity.py STEP --worker PATH --total-points N --scratch DIR` classifies random (u, v)
   points once per point in Python and once per face in the worker, and reports both times and the
   number of differing states.
+
+`tests/reader_parity.rs` runs the engine's two readers (`--cad-reader native` and `python`) on the
+corpus and compares the inspect fields and the facets. It needs `FARIS_CAD_PYTHON`; the RM-M case
+runs with `-- --ignored` and `FARIS_RM_M_STEP`.
 
 ## Licence
 

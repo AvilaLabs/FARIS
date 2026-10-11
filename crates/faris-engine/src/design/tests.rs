@@ -52,6 +52,7 @@ impl Backends for Fake {
         Ok(InspectOutcome {
             inspection: self.inspection.clone(),
             helper_sha256: "h".repeat(64),
+            reader: ReaderStamp::python(),
             elapsed_seconds: 1.5,
         })
     }
@@ -690,17 +691,130 @@ fn the_cad_helper_runs_as_a_bounded_job_and_its_report_is_read() {
     );
     let tools = ToolPaths {
         cad_python: Some(python),
+        cad_reader: Some(CadReader::Python),
         ..ToolPaths::default()
     };
     let cancel = Cancellation::default();
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
-    };
+    let backends = ExternalBackends::new(&tools, &cancel);
     let ran = backends.inspect_step(&step, Some(LengthUnit::Mm)).unwrap();
     assert_eq!(ran.inspection.solids.len(), 4);
     assert_eq!(ran.helper_sha256, sha256_hex(CAD_HELPER.as_bytes()));
     assert!(ran.elapsed_seconds >= 0.0);
+}
+
+#[cfg(unix)]
+fn native_inspect_worker(dir: &Path) -> faris_occt_client::client::Worker {
+    let canned = dir.join("canned.json");
+    std::fs::write(&canned, INSPECT).unwrap();
+    testutil::stub_worker(
+        dir,
+        "faris-occt-worker",
+        "V7_9_3",
+        &format!(
+            "grep -q '\"assume_unit\":\"mm\"' \"$1\" || exit 4; \
+             printf '{{\"schema\":\"faris-occt-response/v1\",\"status\":\"ok\",\"result\":' > \"$2\"; \
+             cat {} >> \"$2\"; printf '}}' >> \"$2\"",
+            canned.display()
+        ),
+    )
+}
+
+#[cfg(unix)]
+#[test]
+fn the_native_worker_reads_the_step_file_without_any_python() {
+    let dir = tempfile::tempdir().unwrap();
+    let step = dir.path().join("fixture.step");
+    std::fs::write(&step, STEP_BYTES).unwrap();
+    let worker = native_inspect_worker(dir.path());
+    let sha = sha256_file(worker.program()).unwrap();
+    let cancel = Cancellation::default();
+    for choice in [CadReader::Native, CadReader::Auto] {
+        let tools = ToolPaths {
+            cad_reader: Some(choice),
+            occt_worker: Some(worker.program().to_path_buf()),
+            ..ToolPaths::default()
+        };
+        let backends = ExternalBackends::new(&tools, &cancel);
+        let ran = backends.inspect_step(&step, Some(LengthUnit::Mm)).unwrap();
+        assert_eq!(ran.inspection.solids.len(), 4);
+        assert_eq!(ran.reader.reader, "native");
+        assert_eq!(ran.reader.worker_sha256.as_deref(), Some(sha.as_str()));
+        assert_eq!(ran.reader.occt_tag.as_deref(), Some("V7_9_3"));
+        assert_eq!(ran.helper_sha256, sha);
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn the_python_reader_ignores_a_worker_that_is_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let step = dir.path().join("fixture.step");
+    std::fs::write(&step, STEP_BYTES).unwrap();
+    let worker = native_inspect_worker(dir.path());
+    let report_path = dir.path().join("canned.json");
+    let python = fake_python(
+        dir.path(),
+        &format!("{FIND_OUT} cp {} \"$out\"", report_path.display()),
+    );
+    let tools = ToolPaths {
+        cad_python: Some(python),
+        cad_reader: Some(CadReader::Python),
+        occt_worker: Some(worker.program().to_path_buf()),
+        ..ToolPaths::default()
+    };
+    let cancel = Cancellation::default();
+    let ran = ExternalBackends::new(&tools, &cancel)
+        .inspect_step(&step, Some(LengthUnit::Mm))
+        .unwrap();
+    assert_eq!(ran.reader, ReaderStamp::python());
+    assert_eq!(ran.helper_sha256, sha256_hex(CAD_HELPER.as_bytes()));
+}
+
+#[cfg(unix)]
+#[test]
+fn auto_falls_back_to_python_when_the_worker_does_not_answer() {
+    let dir = tempfile::tempdir().unwrap();
+    let step = dir.path().join("fixture.step");
+    std::fs::write(&step, STEP_BYTES).unwrap();
+    let report_path = dir.path().join("canned.json");
+    std::fs::write(&report_path, INSPECT).unwrap();
+    let python = fake_python(
+        dir.path(),
+        &format!("{FIND_OUT} cp {} \"$out\"", report_path.display()),
+    );
+    let tools = ToolPaths {
+        cad_python: Some(python),
+        cad_reader: Some(CadReader::Auto),
+        occt_worker: Some(dir.path().join("no-such-worker")),
+        ..ToolPaths::default()
+    };
+    let cancel = Cancellation::default();
+    let backends = ExternalBackends::new(&tools, &cancel);
+    let ran = backends.inspect_step(&step, None).unwrap();
+    assert_eq!(ran.reader.reader, "python");
+    assert!(
+        ran.reader
+            .native_unavailable
+            .as_deref()
+            .is_some_and(|why| why.contains("no-such-worker")),
+        "{:?}",
+        ran.reader
+    );
+    // and --cad-reader native with the same worker is an error that says what to do
+    let tools = ToolPaths {
+        cad_reader: Some(CadReader::Native),
+        ..tools
+    };
+    let backends = ExternalBackends::new(&tools, &cancel);
+    let error = backends
+        .inspect_step(&step, None)
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(
+        error.contains("no-such-worker") && error.contains("--cad-reader python"),
+        "{error}"
+    );
 }
 
 #[cfg(unix)]
@@ -715,13 +829,11 @@ fn a_failing_helper_is_a_tool_error_with_its_message() {
     );
     let tools = ToolPaths {
         cad_python: Some(python),
+        cad_reader: Some(CadReader::Python),
         ..ToolPaths::default()
     };
     let cancel = Cancellation::default();
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
-    };
+    let backends = ExternalBackends::new(&tools, &cancel);
     let error = backends.inspect_step(&step, None).err().unwrap();
     assert!(matches!(error, DesignError::Tool(_)));
     assert!(
@@ -732,12 +844,10 @@ fn a_failing_helper_is_a_tool_error_with_its_message() {
     let python = fake_python(dir.path(), &format!("{FIND_OUT} echo '{{}}' > \"$out\""));
     let tools = ToolPaths {
         cad_python: Some(python),
+        cad_reader: Some(CadReader::Python),
         ..ToolPaths::default()
     };
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
-    };
+    let backends = ExternalBackends::new(&tools, &cancel);
     assert!(
         backends
             .inspect_step(&step, None)
@@ -753,12 +863,12 @@ fn a_missing_cad_interpreter_says_how_to_configure_one() {
     let dir = tempfile::tempdir().unwrap();
     let step = dir.path().join("fixture.step");
     std::fs::write(&step, STEP_BYTES).unwrap();
-    let tools = ToolPaths::default();
-    let cancel = Cancellation::default();
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
+    let tools = ToolPaths {
+        cad_reader: Some(CadReader::Python),
+        ..ToolPaths::default()
     };
+    let cancel = Cancellation::default();
+    let backends = ExternalBackends::new(&tools, &cancel);
     let error = backends
         .inspect_step(&step, None)
         .err()
@@ -767,12 +877,10 @@ fn a_missing_cad_interpreter_says_how_to_configure_one() {
     assert!(error.contains("--cad-python") && error.contains("FARIS_CAD_PYTHON"));
     let tools = ToolPaths {
         cad_python: Some(dir.path().join("nope")),
+        cad_reader: Some(CadReader::Python),
         ..ToolPaths::default()
     };
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
-    };
+    let backends = ExternalBackends::new(&tools, &cancel);
     assert!(
         backends
             .inspect_step(&step, None)
@@ -797,10 +905,7 @@ fn without_openmc_the_audit_is_not_evaluated_with_the_reason() {
             ..ToolPaths::default()
         },
     ] {
-        let backends = ExternalBackends {
-            tools: &tools,
-            cancellation: &cancel,
-        };
+        let backends = ExternalBackends::new(&tools, &cancel);
         match backends.audit_materials(&[]).unwrap() {
             AuditOutcome::NotEvaluated { why, next_step } => {
                 assert!(
@@ -829,10 +934,7 @@ fn an_audit_job_that_fails_is_not_evaluated_not_pass() {
         ..ToolPaths::default()
     };
     let cancel = Cancellation::default();
-    let backends = ExternalBackends {
-        tools: &tools,
-        cancellation: &cancel,
-    };
+    let backends = ExternalBackends::new(&tools, &cancel);
     match backends.audit_materials(&[]).unwrap() {
         AuditOutcome::NotEvaluated { why, .. } => {
             assert!(why.contains("needs the OpenMC environment"), "{why}")

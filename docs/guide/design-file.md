@@ -201,6 +201,7 @@ Every void solid is listed in the report, because a void region hides streaming 
 | `--deviation-points N` | Points per solid that OpenCASCADE projects onto surfaces that are not planes, cylinders, cones, spheres or tori, for the faceting deviation of check 7. Default 2000, on an even stride; 0 projects them all, which can take hours on a model with many spline surfaces. Points on the five closed-form surface types are always all measured. The report says for each solid whether the result is a maximum over all points or a sampled maximum. |
 | `--imprint-threads N` | Threads the converter may use. Default 4. |
 | `--cad-python`, `--openmc-python`, `--plasma-source-path DIR` | The interpreters and the folder holding `openmc_plasma_source`. |
+| `--cad-reader auto\|native\|python`, `--occt-worker PATH` | Which reader runs the STEP inspect and the per-solid tessellation. `native` is the OpenCASCADE worker `faris-occt-worker` (found from `--occt-worker`, then `FARIS_OCCT_WORKER`, then next to `faris`); it needs no Python for those two stages. `python` is the cadquery helper. `auto`, the default, uses the worker when there is one and it answers, and the helper otherwise. `FARIS_CAD_READER` sets the default. The conversion, the overlap booleans and the faceting deviation still use the Python helper. The report says which reader ran each stage; a result recorded in `--work-dir` by one reader is not reused for the other. |
 
 Progress goes to the terminal. Ctrl-C cancels cleanly; a cancelled run reports nothing partial.
 

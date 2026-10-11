@@ -16,11 +16,7 @@ pub const TESSELLATION_SCHEMA: &str = "faris-tessellation/v1";
 /// Nodes closer than this (shape units) are one vertex.
 pub const WELD: f64 = 1.0e-6;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Tag {
-    pub step_index: usize,
-    pub tag: String,
-}
+pub use faris_occt_client::protocol::Tag;
 
 #[derive(Clone, Debug)]
 pub struct Options {

@@ -957,6 +957,7 @@ name = "faris-engine"
 version = "0.2.0"
 dependencies = [
  "faris-model",
+ "faris-occt-client",
  "nix",
  "num-bigint",
  "serde",
@@ -984,12 +985,23 @@ version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-build",
+ "faris-engine",
  "faris-model",
+ "faris-occt-client",
  "nix",
  "regex",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "faris-occt-client"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 

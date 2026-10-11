@@ -9,6 +9,7 @@ use super::geometry::{
     TessellateOutcome, TessellateRequest, ToolResult,
 };
 use super::overlap::BooleanResult;
+use super::reader::{ActiveReader, NativeReader, ReaderStamp};
 use super::{
     BOOLEAN_TIMEOUT, CAD_ADDRESS_SPACE, CAD_DEVIATION_HELPER, CAD_FACETS_HELPER, CAD_HELPER,
     CONVERT_TIMEOUT, DEVIATION_TIMEOUT, DesignError, ExternalBackends, Launched,
@@ -16,12 +17,16 @@ use super::{
     read_json_bounded, sha256_file, sha256_hex, tail,
 };
 use crate::jobs::ResourceLimits;
-use faris_model::design::load_facets;
+use faris_model::design::{LengthUnit, load_facets};
+use faris_occt_client::{
+    client::{Bounds, WorkerError},
+    protocol::{Limits, Operation, Tag},
+};
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 fn missing_python<T>(what: &str, kind: &str) -> ToolResult<T> {
@@ -41,6 +46,68 @@ fn missing_python<T>(what: &str, kind: &str) -> ToolResult<T> {
 
 fn cad_limits() -> ResourceLimits {
     ResourceLimits::with_address_space(CAD_ADDRESS_SPACE)
+}
+
+/// The bounds a native stage runs under: the stage's wall-clock timeout, and the address space
+/// of the Python stage's job limits. The worker is one thread, so its CPU seconds cannot pass
+/// the wall-clock seconds; the CPU limit is set to them.
+fn native_bounds(timeout: Duration, limits: ResourceLimits) -> Bounds {
+    Bounds {
+        wall_seconds: timeout.as_secs_f64(),
+        limits: Limits {
+            address_space_mb: Some(limits.address_space_bytes >> 20),
+            cpu_seconds: Some(timeout.as_secs()),
+        },
+    }
+}
+
+/// STEP inspect in the native worker: the same `faris-step-inspect/v1` report as the helper's.
+pub(super) fn inspect_native(
+    ext: &ExternalBackends,
+    native: &NativeReader,
+    step: &Path,
+    assume: Option<LengthUnit>,
+) -> Result<super::InspectOutcome, DesignError> {
+    let step = step.canonicalize().map_err(|e| io_error(step, e))?;
+    let started = Instant::now();
+    let value = native
+        .worker
+        .run_cancellable(
+            Operation::Inspect {
+                step,
+                assume_unit: assume.map(|u| u.label().to_string()),
+            },
+            native_bounds(super::CAD_TIMEOUT, ResourceLimits::default()),
+            &|| ext.cancellation.is_cancelled(),
+        )
+        .map_err(|e| DesignError::Tool(format!("the native CAD reader: {e}")))?;
+    let elapsed_seconds = started.elapsed().as_secs_f64();
+    let bytes = serde_json::to_vec(&value).map_err(|e| DesignError::Tool(e.to_string()))?;
+    let inspection =
+        faris_model::design::StepInspection::from_bytes(&bytes).map_err(DesignError::Tool)?;
+    Ok(super::InspectOutcome {
+        inspection,
+        helper_sha256: native.stamp.helper_sha256.clone(),
+        reader: native.stamp.clone(),
+        elapsed_seconds,
+    })
+}
+
+/// A worker that failed to run a stage: a timeout, a crash or a failure it reported is a failed
+/// stage with a next step; a worker that could not be started or answered unreadably, or a
+/// cancel, ends the check.
+fn worker_failure<T>(error: WorkerError, next_step: &str) -> Result<ToolResult<T>, DesignError> {
+    match error {
+        WorkerError::Cancelled | WorkerError::Spawn(_) | WorkerError::BadResponse(_) => {
+            Err(DesignError::Tool(format!("the native CAD reader: {error}")))
+        }
+        WorkerError::TimedOut { .. } | WorkerError::Crashed { .. } | WorkerError::Failed(_) => {
+            Ok(ToolResult::Failed {
+                why: format!("the native CAD reader: {error}"),
+                next_step: next_step.into(),
+            })
+        }
+    }
 }
 
 fn write_text(path: &Path, text: &str) -> Result<(), DesignError> {
@@ -304,7 +371,7 @@ struct TessellationReport {
     facets: super::geometry::ConversionFacets,
 }
 
-fn tessellation_key(request: &TessellateRequest) -> CacheKey {
+fn tessellation_key(request: &TessellateRequest, reader: &ReaderStamp) -> CacheKey {
     let mut tags = request.tags.to_vec();
     tags.sort_by_key(|e| e.step_index);
     CacheKey {
@@ -313,13 +380,17 @@ fn tessellation_key(request: &TessellateRequest) -> CacheKey {
         chord_cm: request.chord_cm,
         angular_rad: request.angular_rad,
         shape_unit_m: request.shape_unit_m,
-        helper: helper_version(),
+        helper: reader.identity(),
         tags,
         pairs: Vec::new(),
     }
 }
 
-fn load_tessellation(dir: &Path, reused: bool) -> Result<Option<TessellateOutcome>, DesignError> {
+fn load_tessellation(
+    dir: &Path,
+    reused: bool,
+    reader: &ReaderStamp,
+) -> Result<Option<TessellateOutcome>, DesignError> {
     let report_path = dir.join("tessellation.json");
     let Ok(report) = read_json::<TessellationReport>(&report_path, "the tessellation report")
     else {
@@ -340,6 +411,7 @@ fn load_tessellation(dir: &Path, reused: bool) -> Result<Option<TessellateOutcom
         problems: report.problems,
         seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
         reused,
+        reader: reader.clone(),
     }))
 }
 
@@ -347,65 +419,116 @@ pub(super) fn tessellate(
     ext: &ExternalBackends,
     request: &TessellateRequest,
 ) -> Result<ToolResult<TessellateOutcome>, DesignError> {
-    let Some(python) = ext.tools.cad_python.as_deref() else {
-        return Ok(missing_python("the per-solid tessellation", "CAD"));
+    let reader = ext.reader()?;
+    let python = match reader {
+        ActiveReader::Python(_) => {
+            let Some(python) = ext.tools.cad_python.as_deref() else {
+                return Ok(missing_python("the per-solid tessellation", "CAD"));
+            };
+            Some(python)
+        }
+        ActiveReader::Native(_) => None,
     };
+    let stamp = reader.stamp();
     let dir = request.directory;
     std::fs::create_dir_all(dir).map_err(|e| io_error(dir, e))?;
-    let key = tessellation_key(request);
+    let key = tessellation_key(request, stamp);
     if request.reuse
         && CacheKey::recorded(dir).is_some_and(|k| k.same(&key))
-        && let Some(outcome) = load_tessellation(dir, true)?
+        && let Some(outcome) = load_tessellation(dir, true, stamp)?
     {
         return Ok(ToolResult::Done(outcome));
     }
     // A stale key must never describe a run that fails half way.
     let _ = std::fs::remove_file(CacheKey::path(dir));
-    let script = write_cad_helpers(dir)?;
-    let tags = tags_json(dir, request.tags)?;
     let report_path = dir.join("tessellation.json");
     let _ = std::fs::remove_file(&report_path);
-    let mut arguments: Vec<OsString> = vec![
-        script.into_os_string(),
-        "tessellate".into(),
-        request.step.as_os_str().to_owned(),
-        "--shape-unit-m".into(),
-        format!("{:e}", request.shape_unit_m).into(),
-        "--tags".into(),
-        tags.into_os_string(),
-        "--out-dir".into(),
-        dir.as_os_str().to_owned(),
-        "--chord-cm".into(),
-        format!("{:e}", request.chord_cm).into(),
-        "--angular".into(),
-        format!("{:e}", request.angular_rad).into(),
-        "--workers".into(),
-        request.workers.max(1).to_string().into(),
-        "--report".into(),
-        report_path.clone().into_os_string(),
-    ];
-    arguments.extend(shape_cache_arguments(request.shape_cache));
-    match launch_python(
-        python,
-        arguments,
-        dir,
-        TESSELLATE_TIMEOUT,
-        "the per-solid tessellation",
-        ext.cancellation,
-        job_environment(dir)?,
-        cad_limits(),
-    )? {
-        Launched::Succeeded(_) => {}
-        Launched::Failed(text) => {
-            return Ok(ToolResult::Failed {
-                why: format!("{text}{}", log_tail(&dir.join("tessellate.log"))),
-                next_step: "A solid could not be meshed on its own; repair it in the CAD tool \
-                            and check again."
-                    .into(),
-            });
+    match (reader, python) {
+        (ActiveReader::Native(native), _) => {
+            let mut tags: Vec<Tag> = request
+                .tags
+                .iter()
+                .map(|e| Tag {
+                    step_index: e.step_index,
+                    tag: e.tag.clone(),
+                })
+                .collect();
+            tags.sort_by_key(|t| t.step_index);
+            let operation = Operation::Tessellate {
+                step: request.step.to_path_buf(),
+                out_base: dir.join("solids"),
+                chord_cm: request.chord_cm,
+                angular: request.angular_rad,
+                shape_unit_m: request.shape_unit_m,
+                tags: Some(tags),
+            };
+            let value = match native.worker.run_cancellable(
+                operation,
+                native_bounds(TESSELLATE_TIMEOUT, cad_limits()),
+                &|| ext.cancellation.is_cancelled(),
+            ) {
+                Ok(value) => value,
+                Err(error) => {
+                    return worker_failure(
+                        error,
+                        "A solid could not be meshed on its own; repair it in the CAD tool \
+                         and check again, or check with --cad-reader python.",
+                    );
+                }
+            };
+            let body =
+                serde_json::to_vec_pretty(&value).map_err(|e| DesignError::Tool(e.to_string()))?;
+            std::fs::write(&report_path, body).map_err(|e| io_error(&report_path, e))?;
+        }
+        (ActiveReader::Python(_), Some(python)) => {
+            let script = write_cad_helpers(dir)?;
+            let tags = tags_json(dir, request.tags)?;
+            let mut arguments: Vec<OsString> = vec![
+                script.into_os_string(),
+                "tessellate".into(),
+                request.step.as_os_str().to_owned(),
+                "--shape-unit-m".into(),
+                format!("{:e}", request.shape_unit_m).into(),
+                "--tags".into(),
+                tags.into_os_string(),
+                "--out-dir".into(),
+                dir.as_os_str().to_owned(),
+                "--chord-cm".into(),
+                format!("{:e}", request.chord_cm).into(),
+                "--angular".into(),
+                format!("{:e}", request.angular_rad).into(),
+                "--workers".into(),
+                request.workers.max(1).to_string().into(),
+                "--report".into(),
+                report_path.clone().into_os_string(),
+            ];
+            arguments.extend(shape_cache_arguments(request.shape_cache));
+            match launch_python(
+                python,
+                arguments,
+                dir,
+                TESSELLATE_TIMEOUT,
+                "the per-solid tessellation",
+                ext.cancellation,
+                job_environment(dir)?,
+                cad_limits(),
+            )? {
+                Launched::Succeeded(_) => {}
+                Launched::Failed(text) => {
+                    return Ok(ToolResult::Failed {
+                        why: format!("{text}{}", log_tail(&dir.join("tessellate.log"))),
+                        next_step: "A solid could not be meshed on its own; repair it in the \
+                                    CAD tool and check again."
+                            .into(),
+                    });
+                }
+            }
+        }
+        (ActiveReader::Python(_), None) => {
+            return Ok(missing_python("the per-solid tessellation", "CAD"));
         }
     }
-    let Some(outcome) = load_tessellation(dir, false)? else {
+    let Some(outcome) = load_tessellation(dir, false, stamp)? else {
         return Err(DesignError::Tool(format!(
             "the tessellation report in {} does not match its facets",
             dir.display()
@@ -692,6 +815,7 @@ pub(super) fn source_sites(
 
 #[cfg(test)]
 mod tests {
+    use super::super::CadReader;
     use super::super::geometry::{
         ConversionFacets, ConversionFile, ConversionStep, ConversionTolerances, TagEntry,
     };
@@ -848,6 +972,7 @@ mod tests {
         // An interpreter that does not exist: a request that is not served from the record fails.
         super::super::ToolPaths {
             cad_python: Some(PathBuf::from("/nonexistent/faris-test-python")),
+            cad_reader: Some(CadReader::Python),
             ..Default::default()
         }
     }
@@ -913,10 +1038,7 @@ mod tests {
     fn a_recorded_tessellation_is_reused_only_under_the_same_key() {
         let tools = fake_tools();
         let cancel = crate::jobs::Cancellation::default();
-        let ext = ExternalBackends {
-            tools: &tools,
-            cancellation: &cancel,
-        };
+        let ext = ExternalBackends::new(&tools, &cancel);
         let r = Recorded::new();
         recorded_tessellation(&r, &helper_version());
         let dir = r.dir.path();
@@ -957,10 +1079,7 @@ mod tests {
     fn a_tessellation_of_another_helper_version_is_not_reused() {
         let tools = fake_tools();
         let cancel = crate::jobs::Cancellation::default();
-        let ext = ExternalBackends {
-            tools: &tools,
-            cancellation: &cancel,
-        };
+        let ext = ExternalBackends::new(&tools, &cancel);
         let r = Recorded::new();
         recorded_tessellation(&r, "0");
         let request = tessellation_request(r.dir.path(), &r.tags, 0.1, STEP_SHA, true);
@@ -968,6 +1087,147 @@ mod tests {
             tessellate(&ext, &request),
             Ok(ToolResult::Done(_))
         ));
+    }
+
+    #[cfg(unix)]
+    fn native_tools(worker: &faris_occt_client::client::Worker) -> super::super::ToolPaths {
+        super::super::ToolPaths {
+            cad_reader: Some(CadReader::Native),
+            occt_worker: Some(worker.program().to_path_buf()),
+            ..Default::default()
+        }
+    }
+
+    #[cfg(unix)]
+    fn native_identity(worker: &faris_occt_client::client::Worker) -> String {
+        format!("native:{}:V7_9_3", sha256_file(worker.program()).unwrap())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_native_tessellation_is_never_reused_for_python_or_for_another_worker() {
+        use super::super::testutil::stub_worker;
+        let cancel = crate::jobs::Cancellation::default();
+        let bins = tempfile::tempdir().unwrap();
+        // Workers that answer a ping and fail every other request, so a request that is not
+        // served from the record fails.
+        let worker_a = stub_worker(bins.path(), "a", "V7_9_3", "exit 5");
+        let worker_b = stub_worker(bins.path(), "b", "V7_9_3", "exit 6");
+        let worker_a_other_occt = stub_worker(bins.path(), "a2", "V7_9_4", "exit 5");
+        let python = fake_tools();
+        let (tools_a, tools_b, tools_a2) = (
+            native_tools(&worker_a),
+            native_tools(&worker_b),
+            native_tools(&worker_a_other_occt),
+        );
+        let served = |tools: &super::super::ToolPaths, r: &Recorded| {
+            let ext = ExternalBackends::new(tools, &cancel);
+            let request = tessellation_request(r.dir.path(), &r.tags, 0.1, STEP_SHA, true);
+            match tessellate(&ext, &request) {
+                Ok(ToolResult::Done(out)) => Some(out),
+                _ => None,
+            }
+        };
+
+        let recorded_by_a = || {
+            let r = Recorded::new();
+            recorded_tessellation(&r, &native_identity(&worker_a));
+            r
+        };
+        let out = served(&tools_a, &recorded_by_a()).expect("the same worker reuses its result");
+        assert!(out.reused && out.reader.is_native());
+        assert_eq!(out.reader.occt_tag.as_deref(), Some("V7_9_3"));
+        // a run that does not match clears the record, so each question gets its own
+        assert!(
+            served(&python, &recorded_by_a()).is_none(),
+            "python after native"
+        );
+        assert!(
+            served(&tools_b, &recorded_by_a()).is_none(),
+            "another worker binary"
+        );
+        assert!(
+            served(&tools_a2, &recorded_by_a()).is_none(),
+            "another OpenCASCADE tag"
+        );
+
+        let helper = Recorded::new();
+        recorded_tessellation(&helper, &helper_version());
+        let out = served(&python, &helper).expect("python reuses its own result");
+        assert!(out.reused && !out.reader.is_native());
+        let helper = Recorded::new();
+        recorded_tessellation(&helper, &helper_version());
+        assert!(served(&tools_a, &helper).is_none(), "native after python");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_native_worker_tessellates_and_the_result_is_recorded_under_its_identity() {
+        use super::super::testutil::stub_worker;
+        let source = Recorded::new();
+        recorded_tessellation(&source, "unused");
+        let src = source.dir.path().display();
+        let bins = tempfile::tempdir().unwrap();
+        let worker = stub_worker(
+            bins.path(),
+            "w",
+            "V7_9_3",
+            &format!(
+                "grep -q '\"tag\":\"core\"' \"$1\" || exit 4; \
+                 out=$(sed 's/.*\"out_base\":\"\\([^\"]*\\)\".*/\\1/' \"$1\"); \
+                 cp {src}/solids.facets.bin \"$out.facets.bin\"; \
+                 cp {src}/solids.facets.json \"$out.facets.json\"; \
+                 printf '{{\"schema\":\"faris-occt-response/v1\",\"status\":\"ok\",\"result\":' > \"$2\"; \
+                 cat {src}/tessellation.json >> \"$2\"; printf '}}' >> \"$2\""
+            ),
+        );
+        let tools = native_tools(&worker);
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends::new(&tools, &cancel);
+        let run = tempfile::tempdir().unwrap();
+        let request = |reuse| tessellation_request(run.path(), &source.tags, 0.1, STEP_SHA, reuse);
+        let ToolResult::Done(first) = tessellate(&ext, &request(false)).unwrap() else {
+            panic!("the worker's tessellation was not accepted");
+        };
+        assert!(!first.reused && first.reader.is_native());
+        assert_eq!(
+            first.problems.len(),
+            1,
+            "the worker's problems are reported"
+        );
+        assert_eq!(
+            CacheKey::recorded(run.path()).unwrap().helper,
+            native_identity(&worker)
+        );
+        let ToolResult::Done(again) = tessellate(&ext, &request(true)).unwrap() else {
+            panic!("the recorded tessellation was not reused");
+        };
+        assert!(again.reused && again.reader == first.reader);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_native_worker_that_fails_a_tessellation_leaves_a_failed_stage_and_no_key() {
+        use super::super::testutil::stub_worker;
+        let bins = tempfile::tempdir().unwrap();
+        let worker = stub_worker(
+            bins.path(),
+            "w",
+            "V7_9_3",
+            "printf '{\"schema\":\"faris-occt-response/v1\",\"status\":\"error\",\"message\":\"solid 1: no faces\"}' > \"$2\"; exit 1",
+        );
+        let tools = native_tools(&worker);
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends::new(&tools, &cancel);
+        let r = Recorded::new();
+        recorded_tessellation(&r, &native_identity(&worker));
+        let request = tessellation_request(r.dir.path(), &r.tags, 0.1, STEP_SHA, false);
+        let ToolResult::Failed { why, next_step } = tessellate(&ext, &request).unwrap() else {
+            panic!("expected a failed stage");
+        };
+        assert!(why.contains("solid 1: no faces"), "{why}");
+        assert!(next_step.contains("--cad-reader python"), "{next_step}");
+        assert!(CacheKey::recorded(r.dir.path()).is_none());
     }
 
     #[test]
@@ -981,10 +1241,7 @@ mod tests {
     fn recorded_boolean_verdicts_are_reused_only_for_the_same_pairs_and_key() {
         let tools = fake_tools();
         let cancel = crate::jobs::Cancellation::default();
-        let ext = ExternalBackends {
-            tools: &tools,
-            cancellation: &cancel,
-        };
+        let ext = ExternalBackends::new(&tools, &cancel);
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("booleans.json"),
@@ -1032,12 +1289,12 @@ mod tests {
 
     #[test]
     fn a_tool_that_is_not_configured_says_what_to_pass() {
-        let tools = super::super::ToolPaths::default();
-        let cancel = crate::jobs::Cancellation::default();
-        let ext = ExternalBackends {
-            tools: &tools,
-            cancellation: &cancel,
+        let tools = super::super::ToolPaths {
+            cad_reader: Some(CadReader::Python),
+            ..Default::default()
         };
+        let cancel = crate::jobs::Cancellation::default();
+        let ext = ExternalBackends::new(&tools, &cancel);
         let r = Recorded::new();
         let ToolResult::Unavailable { why, next_step } =
             convert(&ext, &r.request(0.1, STEP_SHA)).unwrap()
