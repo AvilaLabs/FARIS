@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/faris-model", "crates/faris-engine", "crates/faris-study", "crates/faris-report", "crates/faris-cli", "crates/faris-app"]
+members = ["crates/faris-model", "crates/faris-engine", "crates/faris-study", "crates/faris-report", "crates/faris-cli", "crates/faris-app", "crates/faris-occt"]
 default-members = ["crates/faris-cli"]
 resolver = "3"
 
