@@ -11,6 +11,7 @@ or gives a wrong answer silently, and whether a workaround exists).
 | [OPENMC-002](OPENMC-002-r2smanager-neutron-step-ignores-model-cross-sections.md): R2S neutron step ignores `Materials.cross_sections` | Yes | Moderate | Verified; not reported |
 | [OPENMC-003](OPENMC-003-stochastic-slab-negative-total-low-density.md): negative transport-corrected total aborts random ray | Yes | Moderate–high | Verified; not reported |
 | [DOUBLEDOWN-001](DOUBLEDOWN-001-ray-hit-layout-depends-on-tail-padding.md): ray-hit layouts agree only through tail-padding reuse; MSVC crash | Yes | Low now, latent | Verified; not reported |
+| [OPENMC-004](OPENMC-004-first-check-in-invalid-window-splits-without-limit.md): a first window check in an invalid bin scales windows as if born at 1.0; the history splits without limit | Yes | Moderate–high | Verified; not reported |
 
 ## Verification record (2026-10-10)
 
@@ -91,3 +92,23 @@ or gives a wrong answer silently, and whether a workaround exists).
   - Workaround: FARIS's patch (four members moved into `RTCDRay`).
   - Fix: that patch, plus a `static_assert` on the `hit` offsets.
 
+**OPENMC-004.**
+
+- **Reproduced independently** by the coordinator with a 100 cm iron cube and a 14.1 MeV point source on stock
+  conda-forge 0.15.3 and 0.16.0. With every window bin valid, 200 histories take 1.2 s. With only the source bin set to
+  −1, they do not finish in 120 s. On RM-M, filling E2′'s 16 invalid bins turned a stall into 30,000 histories in 8.8 s.
+- **Contrary to the documentation and not intended.**
+  - The code's own comment says windows are normalized "based on … the value of the weight window the particle was born
+    in". A particle born in a rejected bin gets 1.0 instead, which is not a window of the file at all.
+  - The generator that writes the −1 bins is OpenMC's own (`WeightWindowGenerator`, `update_weights`), so stock
+    generator output can stall stock transport.
+  - Still present on develop (aa4afc41e, `src/weight_windows.cpp` lines 966–967 and 982–988).
+- **Significance: moderate–high.**
+  - Who hits it: anyone applying FW-CADIS or MAGIC windows whose rejected bins lie where particles first meet a window.
+    Most likely with fine meshes, few random-ray rays, or a source region with low flux statistics.
+  - The failure is silent: no error or warning, and a batch that never ends. A run with a wall-clock limit records
+    nothing, and the stall reads as a slow run or a hung job.
+  - Workaround: fill rejected bins from their neighbours before transport (FARIS: `s0f_common.fill_file`), or lower
+    `max_history_splits`.
+  - Fix: set `wgt_ww_born` at the first valid window (a few lines), or have the generator never write −1 inside its
+    energy range.

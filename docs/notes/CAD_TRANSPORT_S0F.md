@@ -1,0 +1,121 @@
+# Why RM-M's magnet response resists weight windows (stage S0f)
+
+Status: diagnostics and pilots recorded 2026-10-11, before any S0f protocol. Nothing here is a rule outcome: every run
+below was a single short pilot on a shared, loaded machine, and its figure of merit carries the heavy-tail uncertainty
+S0e found. The protocol, when written, is appended below and frozen before its runs. Parent:
+[CAD_TRANSPORT_S0E.md](CAD_TRANSPORT_S0E.md).
+
+S0e left three questions: why E2′'s aligned windows stalled, why identical windows gave per-history variances 3.2×
+apart, and where (a)'s variance comes from. These diagnostics answer the first fully and the others in part.
+
+## Facts established
+
+### 1. The E2′ stall is an OpenMC defect, not window depth
+
+- **Mechanism (verified).** OpenMC scales each particle's windows by the window it first meets
+  (`wgt_born / wgt_ww_born`). When that first check falls in a bin the generator wrote as −1 (rejected flux estimate),
+  `wgt_ww_born` is set to 1.0. FW-CADIS windows on RM-M sit near 1e-7, so the particle is split by `max_split` at every
+  event, up to `max_history_splits` (1e7). Drafted as [OPENMC-004](../defects/OPENMC-004-first-check-in-invalid-window-splits-without-limit.md).
+- **On RM-M.** E2′'s windows had 2 invalid bins in the 0.82–20 MeV group, one in the plasma core
+  (R 368–393 cm, φ 355–360°, Z 0–25 cm). Of 200,000 sampled source sites, 3.45e-4 fall in an invalid bin. T2's
+  windows have none, which is why T2 never stalled.
+- **Reproduced.** A 30,000-history run with E2′'s windows and the cut-off stopped in batch 11 of 30. With the 16
+  invalid bins filled from their face neighbours (geometric mean), the same run finished in 8.8 s. A 100 cm iron cube
+  reproduces it on 0.15.3 and 0.16.0 (200 histories: 1.2 s valid, no finish in 120 s with the source bin invalid); the
+  code is unchanged on develop aa4afc41e.
+- **Depth was not the cause.** After the per-particle scaling, what matters is a window's ratio to the birth window.
+  In the 0.82–20 MeV group that ratio spans 4.8 decades for T2 and 5.4 for E2′.
+- **Fix in FARIS:** `s0f_common.fill_invalid` and `fill_file` (pure Python, tested in `test_s0f.py`; identical to a
+  numpy implementation within 2e-15 on E2′'s file).
+
+### 2. Source-position biasing would not help
+
+At the 200,000 sampled source sites, the importance at birth (1/lower bound, source group) has relative variance
+E[I²]/E[I]² − 1 = 0.05 for T2's windows and 0.40 for E2′'s. A source biased in position by this importance could remove
+at most that much relative variance per history, against the 3,700–21,000 measured below.
+
+### 3. The variance sits on one strip of the two port coils
+
+- **Per coil** (T2 windows with the cut-off, 1.5 M histories): every coil reaches a relative error of 0.08–0.13. The
+  two coils beside the port carry 57 % of (a) and 92 % of its variance (summing coil variances, without covariance).
+- **Within the port coil** (a 5 cm map over tf_coil_00's region, 2.9 M histories): 84 % of the coil's (a) and 99 % of
+  its variance lie in the strip φ < 4°. That is the coil's side face, looking into the void between the coils
+  (R 581–645 cm, y ≈ 20–25 cm).
+  - 81 % of the variance lies in that strip at |Z| < 20 cm, level with the duct.
+  - The largest-variance bins are all at y = 22 cm, R 588–643 cm. One of them holds 14 % of the variance and 0.4 % of
+    the mean: a single large event.
+- **Not straight-through streaming.**
+  - Neutrons flying from the plasma through the duct without a collision and entering a port coil's side face give
+    2.8e-6 cm per source neutron. That is a lower bound, with everything but plasma, SOL and duct opaque;
+    `uncollided.py` uses 8 M importance-sampled rays.
+  - The port coils' (a) is about 6e-4 cm per source neutron, so straight-through flight is about 0.5 % of it.
+- **What the collision-count tally can and cannot say.**
+  - In an analog run, 1.3 % of the port coils' (a) comes from neutrons with no collision.
+  - The count includes collisions inside the coil, so it does not separate paths outside it.
+  - Under windows the count is not usable at all: OpenMC restarts it at 0 for every split copy (`from_source`).
+
+### 4. No change of scalar windows moved the variance floor
+
+Pilots, each a single run with the 0.1 MeV cut-off, checkpoints at collisions and surfaces, and `max_split` 1000.
+"Variance per history" is R² × N for (a); the gain is FOM / 0.0332 (S0b D2), as before.
+
+| Pilot | Windows | Histories/s | Variance per history | Gain vs D2 | Load start–end |
+| --- | --- | --- | --- | --- | --- |
+| coll-t2 | T2 (25 cm Cartesian, 2 groups above 0.1 MeV) | 4,004 | 4,650 | 25.9 | 1.9–7.0 |
+| p1-e2p | E2′ aligned cylindrical, filled | 4,052 | 7,654 | 15.9 | 3.3–6.3 |
+| p1-fr | 25 cm Cartesian, 10 groups above 0.1 MeV, filled | 9,068 | 7,571 | 36.1 | 3.4–5.7 |
+| p1-frp | cylindrical refined at the port (1°, 10 cm), 10 groups, filled | 5,059 | 7,528 | 20.2 | 3.8–6.1 |
+| map-fr | as p1-fr, with the port map tally | 6,869 | 21,569 | 9.6 | 3.8–6.0 |
+| p1-b10 | p1-frp with windows ÷10 in the port region | 3,845 | 5,436 | 21.3 | 3.9–5.0 |
+| p1-b100 | p1-frp with windows ÷100 in the port region | 506 | 3,678 | 4.1 | 2.3–2.5 |
+| analog-coll | none (analog with the cut-off) | 6,286 | 91,236 | 2.1 | 2.7–7.6 |
+
+- **Machine conditions.**
+  - coll-t2 and p1-e2p ran unpinned. `AllowedCPUs` is not enforced in user scopes on this machine; later runs used
+    `taskset -c 0-3`.
+  - Pilots with the collision tally (18 coils × 400 collision bins) or the map tally pay its cost in histories/s.
+  - Seeds 77000001–77000051 (77000051 was reused for p1-b10, and p1-b100 got 770000510); outside every protocol's
+    range.
+- **Energy groups.** With 10 groups above 0.1 MeV (edges 0.1, 0.5, 0.821, 1.353, 2.231, 3.679, 6.0655, 10, 13, 15,
+  20 MeV), the windows tell a 15–20 MeV neutron from a 1 MeV one. Their largest bound falls from 2.7e-4 (0.1–0.5 MeV)
+  to 2.5e-9 (15–20 MeV). Histories ran about twice as fast (9,068/s), but the variance per history did not fall.
+  - Generation took 288 s, against T2's 256 s.
+  - The multigroup library is stochastic slab on 0.15.3 with S0b G6's settings and seed 77000031
+    (`mgxs.h5` 944f1b6a…).
+- **Port refinement and importance boosts.** Refining the windows at the port (1° in φ, 10 cm in Z and in the outboard
+  FLiBe; 190,608 bins, 364 s) lowered the relative error of the coils away from the port: 0.07 for the two read (tf_coil_01 and tf_coil_07),
+  against 0.08–0.13 with T2. It left the port coils' errors where they were (0.14 and 0.12). Lowering the windows around the duct 10× or 100× bought more splitting and no fall in
+  variance.
+
+### 5. What the floor is (inference, not yet tested directly)
+
+- **The mechanism.**
+  - OpenMC applies a window after a collision has chosen the new direction, so every split copy leaves in the same
+    direction.
+  - A copy that is going to fly down the duct and out to the coil's side face takes its siblings with it. They arrive
+    together, and the event is as rare as the single direction choice that made it.
+  - Splitting at surface crossings in void does the same.
+  - The direction choices that feed the strip happen at collisions in material that faces the duct mouth across void,
+    which includes the plasma-facing wall anywhere in line of sight of it.
+  - A window that is the same for every direction cannot make those choices more frequent without flooding the whole
+    wall with copies. Fact 4's boosts are consistent with this: copies made near the duct mostly share their parent's
+    direction.
+- **Size of the floor.** If one class of event carries a share s of (a) at an independent rate λ per history, it adds
+  about s²/λ to the variance per history. With s ≈ 0.5 and a floor near 4,000–8,000, λ ≈ 3–6e-5: roughly one
+  independent duct event per 20,000–30,000 histories, whatever the windows.
+- **Tools that act on direction.** DXTRAN, point or next-event estimators, and angle-dependent (CADIS-Ω) windows do.
+  None is in OpenMC 0.15.3, 0.16.0 or develop aa4afc41e (searched 2026-10-11).
+
+## Records
+
+`~/.cache/avila-night/s0f-diag/`:
+
+- Each pilot has its folder with `record.json` and its last statepoint.
+- Window files (sha256 prefix):
+  - `e2p_filled.h5` 4cd6c771
+  - `fr_filled.h5` 27d817f7
+  - `frp_filled.h5` 764effb5
+  - `frp_b10.h5` 337c50dd
+  - `frp_b100.h5` 10e53e55
+- Scripts: `lookup.py` (birth windows), `ww_outliers.py`, `uncollided.py`, `readmap.py`, `boost.py`, and the
+  `repro/` reproducer.
