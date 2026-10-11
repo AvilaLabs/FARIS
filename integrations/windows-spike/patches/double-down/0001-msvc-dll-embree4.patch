@@ -6,12 +6,14 @@ Written for this spike (no upstream Windows support; nothing sent upstream).
   macros); M_PI needs _USE_MATH_DEFINES. install() gets RUNTIME/ARCHIVE destinations because
   a DLL is a runtime artifact. docs/tools/test subdirectories are skipped under MSVC.
 - MOAB_LIBRARIES from MOABConfig.cmake is the string "-L<dir> -lMOAB ..." in a non-pip build;
-  under MSVC the imported target MOAB is linked instead.
+  under MSVC dd links MOAB.lib by full path. (Linking the imported target "MOAB" failed later:
+  ddTargets.cmake then names MOAB, which OpenMC's configure does not define, and the link of
+  libopenmc.dll stopped with "cannot open input file MOAB.lib". Measured on the runner.)
 - sys.h, Vec3da.h: MSVC has a native __forceinline keyword and __declspec(align); the headers
   redefined __forceinline with GCC attributes.
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a5a1619..e10aca9 100644
+index a5a1619..c81029e 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -22,8 +22,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -30,14 +32,17 @@ index a5a1619..e10aca9 100644
  
  # MOAB
  find_package(MOAB REQUIRED HINTS ${MOAB_DIR})
-@@ -77,12 +84,19 @@ else()
+@@ -77,12 +84,22 @@ else()
  endif()
  
  target_include_directories( dd INTERFACE "${CMAKE_INSTALL_PREFIX}/include" ${EMBREE_INCLUDE_DIRS})
 -target_link_libraries( dd ${MOAB_LIBRARIES} ${EMBREE_LIBRARY} )
 +if(MSVC)
-+  # MOAB_LIBRARIES from MOABConfig.cmake is a "-L<dir> -lMOAB ..." string; link the imported target.
-+  target_link_libraries( dd MOAB ${EMBREE_LIBRARY} )
++  # MOAB_LIBRARIES from MOABConfig.cmake is a "-L<dir> -lMOAB ..." string. Link the import library
++  # by full path: the imported target name MOAB would be written into ddTargets.cmake and is not
++  # defined in a consumer (OpenMC) that does not load MOAB itself, which ends as "cannot open MOAB.lib".
++  find_library(DD_MOAB_IMPLIB NAMES MOAB HINTS ${MOAB_LIBRARY_DIRS} NO_DEFAULT_PATH REQUIRED)
++  target_link_libraries( dd ${DD_MOAB_IMPLIB} ${EMBREE_LIBRARY} )
 +else()
 +  target_link_libraries( dd ${MOAB_LIBRARIES} ${EMBREE_LIBRARY} )
 +endif()
@@ -52,7 +57,7 @@ index a5a1619..e10aca9 100644
  
  install(EXPORT ddTargets DESTINATION "${DD_CMAKE_CONFIG_LOCATION}")
  export( TARGETS dd FILE "ddTargets.cmake" )
-@@ -127,7 +141,9 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ddConfigVersion.cmake" DESTINAT
+@@ -127,7 +144,9 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ddConfigVersion.cmake" DESTINAT
  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h")
  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h" DESTINATION "${DD_INCLUDE_INSTALL_LOCATION}")
  
