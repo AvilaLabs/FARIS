@@ -139,6 +139,30 @@ The radial edge list above has 52 edges, so 51 radial bins, not 52: the cylindri
 bins, not 119,808. The edge list is what the scripts build and is unchanged; only the stated counts were wrong
 (found when the scripts were checked against the text). No rule depends on the count.
 
+## Amendment 2 (2026-10-11, after E-smoke failed, before E0's result)
+
+**What happened.** E-smoke's generation ran (61 s) and its window file passed the check: 0.15.3 reads it as a
+`CylindricalMesh` with exactly the edges above (sha256 c84ae3c4…). The one-batch load run then hit its 900 s limit. The
+smoke windows come from two random-ray batches, one of them inactive, so they are unconverged: the lowest positive bound
+is 1.9e-46 and only 5.7e-6 of the windows lie within 1e-9 of the largest. Ten thousand histories through such windows
+split without end. The protocol's "runs one batch" therefore tested the smoke windows' convergence, not whether 0.15.3
+can transport with a cylindrical window mesh. S0d's smoke (T0) only read the file. Under the rule as written, E2 and E3
+are NOT_EVALUATED in S0e, and that outcome stands.
+
+**Follow-up items E2′ and E3′, frozen here.** They run after the UX-079 baseline, under the same quiet-machine rule, within
+a separate cap of 45 minutes of job time:
+
+- **E2′:** E2 exactly as defined above (full generation, seed 90130002; production seed 90140002), with no smoke step.
+  The file check has already passed, and the production's own 600 s budget (timeout 1,200 s) bounds a stall. The
+  generation record's window depth (lowest positive bound, fraction within 1e-9 of the largest) is reported. A
+  production that writes no statepoint is NOT_EVALUATED, and its window depth is recorded.
+- **H6′:** the H6 rule unchanged, with E2′ in place of E2 and S0e's E0 as the reference.
+- **E3′:** E2′'s windows with the cut-off (production seed 90140003); runs only if H5 (from S0e) and H6′ are both
+  confirmed.
+- **G\*′:** the largest gain among unbiased E0, E1, E2′ and E3′, with the NUC-050 band.
+
+Results: `~/.cache/avila-night/cad-risk-tests/s0e/results-s0e-followup.json`, driver `s0e_followup.py`.
+
 ## Results
 
 Appended after runs.

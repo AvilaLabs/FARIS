@@ -50,6 +50,18 @@ def wait_quiet(max_wait_s: float = MAX_WAIT_S, poll_s: float = POLL_S) -> dict:
         time.sleep(poll_s)
 
 
+def scope_name(log: Path) -> str:
+    """A unique scope name for one job, so a timed-out job can be stopped as a whole."""
+    stem = "".join(c if c.isalnum() else "-" for c in f"{log.parent.name}-{log.stem}")
+    return f"faris-s0e-{stem}-{os.getpid()}-{time.time_ns()}"
+
+
+def scoped(cap: list[str], unit: str) -> list[str]:
+    """The memory-capped systemd-run prefix with a named scope."""
+    i = cap.index("--scope")
+    return cap[: i + 1] + [f"--unit={unit}"] + cap[i + 1 :]
+
+
 def job(argv: list[str], log: Path, timeout_s: float, wait: bool = False, pylib: bool = True) -> dict:
     """One capped job. With wait=True the job starts only on a quiet machine (wait time recorded, not counted).
 
@@ -64,10 +76,14 @@ def job(argv: list[str], log: Path, timeout_s: float, wait: bool = False, pylib:
         env["PYTHONPATH"] = str(D.PYLIB)
     t0 = time.time()
     load0 = C.read_loadavg()
+    unit = scope_name(log)
     with open(log, "w", encoding="utf-8") as out:
         try:
-            rc = subprocess.run(D.CAP + argv, stdout=out, stderr=subprocess.STDOUT, env=env, timeout=timeout_s).returncode
+            rc = subprocess.run(scoped(D.CAP, unit) + argv, stdout=out, stderr=subprocess.STDOUT, env=env,
+                                timeout=timeout_s).returncode
         except subprocess.TimeoutExpired:
+            # killing systemd-run's client leaves the scope (and OpenMC in it) running: stop the whole scope
+            subprocess.run(["systemctl", "--user", "stop", f"{unit}.scope"], check=False, capture_output=True)
             rc = "timeout"
     end = C.read_loadavg()
     return {"returncode": rc, "wall_s": time.time() - t0, "wait": quiet, "loadavg_start": load0, "loadavg_end": end,
