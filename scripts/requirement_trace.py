@@ -57,7 +57,8 @@ def read_requirements() -> dict[str, dict]:
             now = cells[6].split(":")[0].strip()
             if now not in STATUSES:
                 raise SystemExit(f"{path.name}: {rid} Now column starts with {now!r}, expected one of {STATUSES}")
-            found[rid] = {"file": path.name, "phase": phase.group(0) if phase else "", "now": now}
+            found[rid] = {"file": path.name, "phase": phase.group(0) if phase else "", "now": now,
+                          "target": cells[2], "basis": cells[4]}
     return found
 
 
