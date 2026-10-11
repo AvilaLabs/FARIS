@@ -402,17 +402,20 @@ settled a detail.
   ray parity with seeded redraws; a ray through an edge or vertex is never nudged, it is redrawn, and after 64
   redraws the point is undecided and blocks.
 - **Zero volume.** A volume of at most 1e-12 of the model's bounding-box volume.
-- **Sliver.** Mean thickness 2V/A below ten chord tolerances.
+- **Sliver.** Two waivable rules (Amendment 1 of CAD_INTEGRITY_CHECKS.md), both reporting 2V/A: 2V/A below the chord
+  tolerance (thinner than the faceting), and a GEO-032 maximum deviation above 10 % of 2V/A (thickness
+  misrepresented). The second runs after GEO-032 and says "sampled maximum" when that was not over every point.
 - **Findings per class.** The report lists at most 100 findings per class, then one blocking summary of the rest.
 - **Check 9.** 100,000 sites sampled by `openmc-plasma-source` through OpenMC, then FARIS's own exact
   point-in-volume test against the faceted volume of the chamber solid matched in check 7.
-- **RM-M measured (2026-10-10, a laptop shared with other jobs, 1 conversion thread).** Conversion 2500 s, peak
-  4.3 GB; with the pre-imprint tessellation (about 14 min) and booleans (about 3 min) check 6 took about 58 min,
-  against GEO-013's 10 min. Check 7: 2.5 s. Check 8: 37 to 55 s. Check 9: 81 s. Without GEO-032 that is 2 minutes,
-  inside GEO-029's 5 minutes. GEO-032 over every point (4.3 million) did not finish in 7200 s (OpenCASCADE projects a
-  point onto a spline face in about 25 ms and onto a revolved face in about 1.2 ms); with `--deviation-points 200` it
-  took 153 s and with 2000 it took 716 s. RM-M's three 1 cm layers measure 2V/A just under ten chords (0.9998 cm
-  against 1.0 cm) and are reported as slivers, which block until waived.
+- **RM-M measured (2026-10-10, after Amendment 1; a laptop shared with other jobs, 4 cores pinned, so times vary
+  by about a third between runs).** Fresh run, no cache: conversion 869 s with 4 imprint threads (it was 2500 s with
+  one), peak 4.3 GB, against GEO-013's 10 min; pre-imprint tessellation 105 s and booleans 40 s (both were 14 min and
+  3 min); check 7 2.3 s; check 8 34 s; GEO-032 126 s, maximum over all points (4.79 million points on 30 solids, 4314
+  of them by OpenCASCADE), largest deviation 6.13e-4 m; check 9 84 s. Checks 7, 8, GEO-032 and 9: 250 s, inside
+  GEO-029's 5 minutes. A second run (cached conversion, tessellation and booleans recomputed) on a busier machine
+  took 2.1 + 46 + 200 + 114 = 363 s for the same four. RM-M has no sliver findings: its 1 cm layers are no longer
+  flagged, and no solid's deviation is above a tenth of its thickness. Peak memory of the helpers: 0.9 GB.
 - **Verdict.** The import is complete only when all nine checks ran and none failed.
 
 ## Appendix: `faris-facets/v1`

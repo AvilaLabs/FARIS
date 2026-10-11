@@ -173,11 +173,14 @@ the interpreter that ran them, and every void solid.
    and centroid (within 1e-3 of the model's bounding-box diagonal). The next-best solid must be at least ten times
    farther away, and the material tag on the volume must be the matched solid's id. Each solid and each volume
    is matched exactly once. FARIS also reports the largest distance between the faceted surface and the CAD
-   surface (GEO-032, a sampled maximum); a deviation larger than the faceting tolerance stops the import.
+   surface (GEO-032); a deviation larger than the faceting tolerance stops the import. Planes, cylinders, cones,
+   spheres and tori are measured at every sample point in closed form; other surfaces (splines and the like) at an
+   even stride of at most 2000 points per solid. The report says, for each solid, which it was: "maximum over all
+   points" or "sampled maximum".
 8. **The faceted model is sound.** FARIS reads the converted model itself and checks it with its own code, using
    exact arithmetic for every yes-or-no decision. It stops on an edge used once or three times (a hole or a fold),
    neighbouring triangles that disagree about the inside, a volume with negative or zero volume, a solid thinner
-   than ten faceting tolerances (a sliver), a solid that intersects itself, two surfaces that coincide but were
+   than the faceting can represent, or whose faceted thickness is off by more than a tenth (a sliver, see below), a solid that intersects itself, two surfaces that coincide but were
    not merged, overlapping solids, an enclosed region that belongs to no solid (a gap), sampled points that are
    in two solids or in a gap, random chords that cross a surface that does not lead out of the region they are in
    (a particle there would be lost), and a sum of volumes that disagrees with the sampled volume of the whole.
@@ -192,14 +195,32 @@ Every void solid is listed in the report, because a void region hides streaming 
 
 | Option | Meaning |
 | --- | --- |
-| `--work-dir DIR` | Keep the conversion and its products here. A conversion found here is reused only when the STEP hash, the tags and the tolerances all match; `--no-reuse` converts again. Without it, a temporary directory is used and removed. |
+| `--work-dir DIR` | Keep the conversion and its products here. A conversion, a pre-imprint tessellation and the overlap boolean results found here are reused only when the STEP hash, the tags, the tolerances and the helper version all match; `--no-reuse` redoes all of them. Without it, a temporary directory is used and removed. |
 | `--threads N` | Worker threads for check 8. Default: the available cores, at most 16. |
 | `--seed N`, `--samples N`, `--chords N`, `--source-sites N` | The sampling seed and sizes. The same seed gives the same report. Defaults 1, 1,000,000, 100,000, 100,000. |
-| `--deviation-points N` | Points per solid for the faceting deviation of check 7. Default 0 measures every triangle centroid and edge midpoint, which takes hours on a model with many spline surfaces (a 30-solid fusion model with 1.1 million triangles did not finish in two hours). A positive number takes an even stride of the points, and the report says so. |
-| `--imprint-threads N` | Threads the converter may use. Default 1. |
+| `--deviation-points N` | Points per solid that OpenCASCADE projects onto surfaces that are not planes, cylinders, cones, spheres or tori, for the faceting deviation of check 7. Default 2000, on an even stride; 0 projects them all, which can take hours on a model with many spline surfaces. Points on the five closed-form surface types are always all measured. The report says for each solid whether the result is a maximum over all points or a sampled maximum. |
+| `--imprint-threads N` | Threads the converter may use. Default 4. |
 | `--cad-python`, `--openmc-python`, `--plasma-source-path DIR` | The interpreters and the folder holding `openmc_plasma_source`. |
 
 Progress goes to the terminal. Ctrl-C cancels cleanly; a cancelled run reports nothing partial.
+
+## Sliver findings
+
+A sliver finding comes in two kinds. Both report the solid's mean thickness 2V/A (twice its faceted volume over its
+surface area), both block, and both can be waived with the check id `SLIVER`; one waiver for a solid covers both.
+
+- **"sliver (thinner than the faceting)".** 2V/A is below the faceting tolerance (`cad.faceting_tolerance_m`). The
+  facets cannot represent a body that thin, so its volume and its boundaries are unreliable. Either set the
+  tolerance below the solid's thickness and convert again, thicken the solid or merge it into its neighbour in the
+  CAD tool, or accept it with a waiver if it does not matter to your result.
+- **"sliver (thickness misrepresented)".** The faceting deviation of check 7 for this solid is more than 10 % of 2V/A.
+  The solid is thick enough to be faceted, but the facets sit far enough from the CAD surface that the faceted layer's
+  thickness may be off by more than a tenth. Set the faceting tolerance smaller and convert again; a thin curved layer
+  needs a tighter tolerance than a thick one. The finding says "maximum over all points" or "sampled maximum" for the
+  deviation. This rule needs check 7's deviation, so when that measurement is unavailable the report says the rule
+  could not run.
+
+A thin layer that is faceted accurately (a 2 mm tungsten armour layer faceted to 0.1 mm) is not a sliver.
 
 ## Waivers
 
