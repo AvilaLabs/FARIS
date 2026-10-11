@@ -56,4 +56,6 @@ while ($queue.Count -gt 0) {
         $queue.Enqueue("$out\$d")
     }
 }
+# debug symbols next to the binaries, for crash analysis
+Get-ChildItem $Bld -Recurse -Filter *.pdb -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "\\(openmc|DAGMC|double-down)[^\\]*\\" } | ForEach-Object { Copy-Item $_.FullName $out -Force -ErrorAction SilentlyContinue }
 Get-ChildItem $out | Format-Table Name, Length | Out-String | Tee-Object -FilePath $bl -Append

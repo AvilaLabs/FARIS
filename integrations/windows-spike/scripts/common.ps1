@@ -67,9 +67,9 @@ function Set-CommonFlags {
     $env:CXXFLAGS = '/DH5_BUILT_AS_DYNAMIC_LIB /D_USE_MATH_DEFINES /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS /bigobj /FIiso646.h'
 }
 
-function Get-CmakeCommon([string]$Prefix) {
+function Get-CmakeCommon([string]$Prefix, [string]$BuildType = 'RelWithDebInfo') {
     return @(
-        '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
+        '-G', 'Ninja', "-DCMAKE_BUILD_TYPE=$BuildType",
         # CMake 4 rejects cmake_minimum_required below 3.5, which double-down still declares
         '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
         '-DCMAKE_C_COMPILER=cl', '-DCMAKE_CXX_COMPILER=cl',

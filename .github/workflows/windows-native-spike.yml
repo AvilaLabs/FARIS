@@ -17,7 +17,7 @@ env:
   # into the keys as well.
   DEPS_REV: v1
   MOAB_REV: v1
-  DD_REV: v1
+  DD_REV: v2
   DAGMC_REV: v1
   SPIKE: integrations/windows-spike
 
@@ -57,7 +57,7 @@ jobs:
           Get-ChildItem C:\spike\runs -Directory -ErrorAction SilentlyContinue | ForEach-Object {
             $d = "C:\spike\results\$($_.Name)"
             New-Item -ItemType Directory -Force $d | Out-Null
-            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out" $d -ErrorAction SilentlyContinue
+            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out", "$($_.FullName)\summary-capi.json", "$($_.FullName)\capi-vs-statepoint.md" $d -ErrorAction SilentlyContinue
           }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -172,6 +172,11 @@ jobs:
         run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model csg -Tag win-csg
       - name: "Stage 6b: smoke test, DAGMC model"
         run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
+      - name: Diagnose a failed DAGMC run
+        if: failure()
+        run: ./integrations/windows-spike/scripts/08-diagnose.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
+      - name: "Stage 6c: DAGMC model through the C API from Rust"
+        run: ./integrations/windows-spike/scripts/07-capi-probe.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
 
       - name: Collect results
         if: always()
@@ -180,7 +185,7 @@ jobs:
           Get-ChildItem C:\spike\runs -Directory -ErrorAction SilentlyContinue | ForEach-Object {
             $d = "C:\spike\results\$($_.Name)"
             New-Item -ItemType Directory -Force $d | Out-Null
-            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out" $d -ErrorAction SilentlyContinue
+            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out", "$($_.FullName)\summary-capi.json", "$($_.FullName)\capi-vs-statepoint.md" $d -ErrorAction SilentlyContinue
           }
       - uses: actions/upload-artifact@v4
         if: always()

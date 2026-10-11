@@ -3,7 +3,7 @@
 Get-Source moab 'https://bitbucket.org/fathomteam/moab.git' '5.6.0'
 Set-Patches moab 'moab'
 Set-CommonFlags
-$cm = (Get-CmakeCommon "$Inst\moab") + @(
+$cm = (Get-CmakeCommon "$Inst\moab" 'Release') + @(
     '-DBUILD_SHARED_LIBS=ON', '-DENABLE_HDF5=ON', '-DENABLE_MPI=OFF', '-DENABLE_FORTRAN=OFF',
     '-DENABLE_BLASLAPACK=OFF', '-DENABLE_TESTING=OFF', '-DENABLE_PYMOAB=OFF', '-DENABLE_NETCDF=OFF',
     '-DENABLE_IMESH=OFF'
