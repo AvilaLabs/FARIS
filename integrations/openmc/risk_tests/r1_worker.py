@@ -11,11 +11,12 @@
 Every tally is per source neutron (source strength 1): "cm per source neutron". The OpenMC
 "flux" score is a track length and is not divided by volume.
 
-The adjoint source. OpenMC 0.15.3 builds the FW-CADIS adjoint source from the tallies in the
-model: it is the inverse of the forward random-ray estimate in the tallied regions and energy
-bins. Objective (a) is one tally over the TF coil cells. Objective (a)+(b) adds a second tally,
-the (b) cylindrical mesh restricted to the TF material, so each response is weighted by the inverse
-of its own forward estimate. The weights are not user settable in 0.15.3.
+The adjoint source. Corrected 2026-10-10 (S0d): OpenMC 0.15.3 sets the FW-CADIS adjoint source
+to the inverse of the forward random-ray flux in every source region and every group
+(FlatSourceDomain::set_adjoint_sources); the tallies in the model do not restrict it. So
+objectives (a) and (a)+(b) below give the same global windows, up to noise. This docstring
+previously said the tallies set the adjoint source; that was wrong. Targeting needs 0.16.0
+(WeightWindowGenerator targets, or settings.random_ray['adjoint_source']); see s0d_generate.py.
 """
 from __future__ import annotations
 
