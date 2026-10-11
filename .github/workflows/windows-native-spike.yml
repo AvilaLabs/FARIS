@@ -189,6 +189,12 @@ jobs:
           Copy-Item C:\spike\dist\openmc-dagmc C:\spike\dist\openmc-dagmc-nodd -Recurse -Force
           Copy-Item C:\spike\inst\dagmc-nodd\bin\dagmc.dll C:\spike\dist\openmc-dagmc-nodd -Force
           ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc-nodd -Model dagmc -Tag win-dagmc-nodd
+      - name: "Stage 6d: DAGMC model from a directory with spaces and a non-ASCII name"
+        if: steps.smoke-dagmc.outcome == 'success'
+        continue-on-error: true
+        run: |
+          # the run directory name is the tag; summarise from the same place
+          ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model dagmc -Tag 'win dagmc pfad ü'
       - name: "Stage 6c: DAGMC model through the C API from Rust (double-down bundle)"
         if: steps.smoke-dagmc.outcome == 'success'
         continue-on-error: true
