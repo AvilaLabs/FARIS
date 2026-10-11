@@ -70,7 +70,24 @@ claims not read at the source are left out of this table.
   source and the subset identity.
 - **Open point:** OpenMC's libraries are served as single archives (ENDF/B-VIII.1 unpacks to 43 GB, 38 GB of it thermal
   tables), so per-nuclide download needs us to host per-file copies. That depends on IAEA (FENDL-3.2) and NNDC (ENDF/B)
-  terms. First step: read the published terms. Any contact with IAEA or NNDC is Connor's.
+  terms. Any contact with IAEA or NNDC is Connor's.
+- **Terms read 2026-10-10:**
+  - FENDL (IAEA). The FENDL GitHub repositories (IAEA-NDS/FENDL-Processed, FENDL-ENDF) carry no licence; their
+    TERMS_OF_USE.md applies the IAEA website terms. Those terms (https://www.iaea.org/about/terms-of-use, read through the
+    Internet Archive copy of 2026-09-26 because the live site blocks automated readers) say two things that pull apart:
+    IAEA content "may be adapted, translated, copied, printed and downloaded for private study, research and teaching
+    purposes, and for use in commercial and non-commercial products or services, provided that appropriate
+    acknowledgement of the IAEA as the source is given and that the IAEA's endorsement of users' views, products or
+    services is not stated or implied"; and "The data in the IAEA digital repositories and databases is provided free of
+    charge for educational and informational use." Hosting FENDL files free of charge, with acknowledgement, fits both.
+    Charging for access to them is not clearly allowed and needs the IAEA's written confirmation first.
+  - ENDF/B (NNDC). The NNDC library pages state no licence, terms or conditions. Redistribution is common practice
+    (OpenMC republishes ENDF/B in HDF5), but nothing grants it, and nothing addresses charging.
+  - OpenMC's data page shows "Content License: CC-BY-4.0"; it reads as the site's content licence and does not clearly
+    cover the data files.
+  - FENDL is now 3.2c (the IAEA page, updated 2026-06-05, notes corrected tungsten evaluations as of 2025-05-31). Library
+    v2 uses the FENDL-3.2 HDF5 build OpenMC published; which revision that is has to be checked before v2 becomes a
+    default.
 
 ### 3. Import in the app
 
