@@ -99,3 +99,95 @@ Neutron and photon steps sized so each result has R ≤ 1 %; total for Q3 ≤ 20
 ## Results
 
 Appended after runs.
+
+### Results, 2026-10-10
+
+Records: `~/.cache/avila-night/cad-risk-tests/s0c/` (`results-s0c.json`, `ledger.json`); hashes in
+`references/cad-transport-s0c.json`. Job time 56.6 min (58.8 min wall from the first job) of the 60 min box, including 2.4 min of failed attempts and smoke
+tests. Rule outcomes are mechanical (`risk_tests/s0c_common.py`, 43 tests); judgments are marked.
+
+**Deviations and choices the protocol left open.**
+
+- Q3's source is mono-directional along +x, sampled uniformly over the x = 0 face; the protocol named the face, not the
+  direction.
+- Q2 did not run alone: the S1b-fix and library-v2 builders' jobs were running (six processes near full CPU), load 13–14.
+  A rerun alone is appended when the machine is free.
+- Q3's D1S run stopped at its 420 s timeout without reaching R ≤ 1 %. Its R ≈ 4.4 % comes from the spread of its last 69
+  batches, an estimate whose own relative error is about 9 %. The R2S neutron-step R is a first-order estimate that
+  treats voxels as independent (`s0c_p3.py`).
+
+#### Q1: window resolution on the P1 slab
+
+The analog ran to its 600 s budget: R(a′) = 0.142 (1.2e7 histories), FOM 0.0829. Gains below are against an analog with R
+above 0.1 and carry that caveat.
+
+| Spacing | Source regions | Generation (s) | Window lower bounds | R(a′) | FOM ± σ | Gain vs analog | z |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 25 cm | 19 | 154 | 9.2e-7 … 0.5 | 0.034 | 7.07 ± 0.44 | 85 ± 6 | +2.26 |
+| 10 cm | 31 | 201 | 2.1e-11 … 0.5 | 0.093 | 0.99 ± 0.32 | 12 ± 4 | +2.09 |
+| 5 cm | 49 | 327 | 1.8e-14 … 0.5 | NOT_EVALUATED: no statepoint written in the 120 s production | | | |
+| 2.5 cm | 89 | NOT_EVALUATED: did not fit the box (estimate about 11 min) | | | | | |
+
+**Rule outcomes.** Δ\* = 25 cm, among the spacings evaluated. The floor raises no cell at 25 cm, so it is not adopted. The
+RM-M confirmation is not triggered.
+
+Supplementary, outside the protocol: the 5 cm windows with the floor applied (61 of 360 cells raised, range still 1e8)
+finished 2 batches (4000 histories) in 120 s, R 0.33.
+
+Judgment (coordinator):
+
+- **Hypothesis wrong.** Finer windows got worse, not better. Each refinement made the windows reach deeper, from 1e-6 at
+  25 cm to 1e-14 at 5 cm. Particles then split far beyond what the physical attenuation calls for, and the production
+  stalls. The window mesh resolution is not the lever S0b's results pointed to.
+- **The physics allows the target.** With S0b G6's settings and 25 cm windows, the same layer stack gives 85× on the slab,
+  against 8.9× on RM-M. So 100× is within reach for this build, and RM-M loses an order of magnitude to something the 1D
+  slab does not contain: 3D paths (ports, gaps, the toroidal geometry), or windows whose depth runs away as here (RM-M's G6
+  windows reach 2.7e-13).
+- **NUC-050 stays at 100×.** The release-risk flag stays until the RM-M loss is located. The next test needs to separate
+  those two causes on RM-M: the G6 windows clipped to the slab's depth against unclipped, and a 2D stand-in with a port
+  against the slab.
+
+#### Q2: preview start-up and the warm preview (RM-M, G6 windows, 8 threads)
+
+Cold start in one `openmc.lib` process: `init` 18.4 s, `simulation_init` 0.02 s, first batch 0.31 s, 18.7 s to the first
+batch. S0b's D4 measured 42–44 s to the first batch through its run script, which builds and writes the model before
+OpenMC starts.
+
+| Warm preview | Batches (1000 histories) | TBR R | (a) R |
+| --- | --- | --- | --- |
+| 1 | 224 | 0.46 % | 19.8 % |
+| 2 | 134 | 0.55 % | 32.1 % |
+
+**Rule outcome: to change control** (preview 2 misses (a) ≤ 20 %). Both previews ran under load 13–14, and preview 2 got 40 %
+fewer batches. Judgment: the rule cannot be judged on a contended run. The rerun alone decides it, and is appended below.
+
+#### Q3: mesh R2S against D1S on the P3 iron slab (tests H2)
+
+Photon current through the far face at 1 d after 1 FPY, unit source rate.
+
+| Method | Result (photons/s) | R | Ratio to D1S |
+| --- | --- | --- | --- |
+| D1S | 1.782e-5 | 4.4 % | 1 |
+| Mesh R2S, 20 cm voxels | 6.325e-5 | 1.2 % | 3.55 ± 0.16 |
+| Mesh R2S, 10 cm voxels | 2.648e-5 | 3.1 % | 1.49 ± 0.08 |
+| Mesh R2S, 2 cm voxels | 1.739e-5 | 1.9 % | 0.98 ± 0.05 |
+| Cell R2S, 2 cm cells | 1.745e-5 | 1.3 % | 0.98 ± 0.05 |
+
+**Rule outcome: H2 confirmed.**
+
+- At 10 cm the ratio exceeds 1 by 0.49, more than 3σ and more than 5 %.
+- The ratio falls monotonically with voxel size.
+- The 2 cm mesh and cell-based R2S both agree with D1S within 5 %.
+- Mn-54 dominates (1.47e-5 of 1.78e-5).
+
+Judgment (coordinator):
+
+- **R3 is explained.** S0's R3 compared D1S with mesh R2S on 10 cm voxels and found D1S/R2S = 0.64, which is R2S/D1S = 1.56.
+  Here, 10 cm voxels give 1.49 on a plain iron slab. S0's discrepancy was the R2S reference reading high from voxel-uniform
+  sources, not a D1S error. With S0b D5a (D1S right nuclide by nuclide), FARIS's fast shutdown-dose method stands.
+- **Caveat on precision:** the D1S precision here is 4.4 %, not the 1 % the protocol asked for.
+- **Consequences for VAL-043 and the S3 dose design:**
+  - the rigorous reference must be cell-based R2S or mesh R2S with voxels fine enough that refining them changes the
+    result by less than its error;
+  - a 10 cm mesh R2S is not a reference for this kind of shield;
+  - the comparison carries the R2S neutron-step uncertainty (S0b D5c).
