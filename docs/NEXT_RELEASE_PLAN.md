@@ -155,6 +155,13 @@ that depends on it starts.
      a mesh that follows the build and an energy cut-off, with a per-region
      breakdown; source biasing waits on OpenMC
      ([CAD_TRANSPORT_S0E.md](notes/CAD_TRANSPORT_S0E.md)).
+   - S0e (2026-10-11): two coils beside the unplugged port carry 64 % of the magnet
+     response, and the outboard midplane holds nearly all its variance, so the
+     response is a streaming problem. Repeat runs with identical windows differ 3×
+     in variance per history, so the quoted gains (S0d's and S0e's 40.8×) carry
+     uncertainties several times too small. Finer windows go deeper and stall. Next:
+     replicate seeds with variance-of-variance checks, window depth control, and
+     cells along the port, before any further gain claim.
 2. **Laptop run time.** CAD is about 8× slower. PERF-025 asks for a preview
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.

@@ -1,0 +1,371 @@
+{
+ "amendments": {
+  "1": "fce8b83",
+  "2": "fe22a09"
+ },
+ "breakdown": {
+  "coil_sum_vs_response_a": 0.9999999999999984,
+  "coils": {
+   "coils": [
+    {
+     "centre_deg": 10.0,
+     "mean": 0.0004205459907381832,
+     "name": "tf_coil_00",
+     "relative_error": 0.14410400100447082,
+     "share": 0.3457368821900477,
+     "std_error": 6.0602359871761324e-05,
+     "variance_share": 0.6933163358279711
+    },
+    {
+     "centre_deg": 30.0,
+     "mean": 2.784959020430748e-05,
+     "name": "tf_coil_01",
+     "relative_error": 0.0776861547836728,
+     "share": 0.022895546978361755,
+     "std_error": 2.1635275752736885e-06,
+     "variance_share": 0.0008836437922111451
+    },
+    {
+     "centre_deg": 50.0,
+     "mean": 2.5264168466704583e-05,
+     "name": "tf_coil_02",
+     "relative_error": 0.0899768080735912,
+     "share": 0.020770034738579888,
+     "std_error": 2.273189237267553e-06,
+     "variance_share": 0.0009754916209267164
+    },
+    {
+     "centre_deg": 70.0,
+     "mean": 2.682779488828266e-05,
+     "name": "tf_coil_03",
+     "relative_error": 0.097257939931531,
+     "share": 0.02205551441455413,
+     "std_error": 2.6092160637400297e-06,
+     "variance_share": 0.0012852051236386954
+    },
+    {
+     "centre_deg": 90.0,
+     "mean": 2.3654920891642826e-05,
+     "name": "tf_coil_04",
+     "relative_error": 0.0744527332706435,
+     "share": 0.01944704925892488,
+     "std_error": 1.7611735156836559e-06,
+     "variance_share": 0.0005855401140449223
+    },
+    {
+     "centre_deg": 110.0,
+     "mean": 2.5446287747664742e-05,
+     "name": "tf_coil_05",
+     "relative_error": 0.08055411972536766,
+     "share": 0.020919757607832157,
+     "std_error": 2.049803309791542e-06,
+     "variance_share": 0.0007931891066213032
+    },
+    {
+     "centre_deg": 130.0,
+     "mean": 3.2080424652642875e-05,
+     "name": "tf_coil_06",
+     "relative_error": 0.10889451172953057,
+     "share": 0.026373776573803052,
+     "std_error": 3.4933821786255413e-06,
+     "variance_share": 0.0023037988746150806
+    },
+    {
+     "centre_deg": 150.0,
+     "mean": 3.0467882168588736e-05,
+     "name": "tf_coil_07",
+     "relative_error": 0.09143027146177361,
+     "share": 0.025048082302274587,
+     "std_error": 2.7856867375394e-06,
+     "variance_share": 0.0014649301390219564
+    },
+    {
+     "centre_deg": 170.0,
+     "mean": 3.02264952613572e-05,
+     "name": "tf_coil_08",
+     "relative_error": 0.09240882178220157,
+     "share": 0.02484963466861331,
+     "std_error": 2.7931948137073177e-06,
+     "variance_share": 0.0014728374382114698
+    },
+    {
+     "centre_deg": 190.0,
+     "mean": 2.7098039068158438e-05,
+     "name": "tf_coil_09",
+     "relative_error": 0.07135945018839371,
+     "share": 0.02227768602536001,
+     "std_error": 1.9337011690873987e-06,
+     "variance_share": 0.0007058803309380816
+    },
+    {
+     "centre_deg": 210.0,
+     "mean": 2.7220769993849108e-05,
+     "name": "tf_coil_10",
+     "relative_error": 0.07779337341457032,
+     "share": 0.0223785848771648,
+     "std_error": 2.1175955247636346e-06,
+     "variance_share": 0.0008465222585558654
+    },
+    {
+     "centre_deg": 230.0,
+     "mean": 2.7521542149555324e-05,
+     "name": "tf_coil_11",
+     "relative_error": 0.08099292029810778,
+     "share": 0.022625853974133046,
+     "std_error": 2.2290500697999485e-06,
+     "variance_share": 0.0009379766103034475
+    },
+    {
+     "centre_deg": 250.0,
+     "mean": 2.8122735885290217e-05,
+     "name": "tf_coil_12",
+     "relative_error": 0.12705347453906918,
+     "share": 0.023120103954783967,
+     "std_error": 3.573091307770688e-06,
+     "variance_share": 0.002410130673004061
+    },
+    {
+     "centre_deg": 270.0,
+     "mean": 2.2660512428588148e-05,
+     "name": "tf_coil_13",
+     "relative_error": 0.12206556233109934,
+     "share": 0.01862953181918792,
+     "std_error": 2.766068192306478e-06,
+     "variance_share": 0.001444368892124855
+    },
+    {
+     "centre_deg": 290.0,
+     "mean": 2.6707207670356945e-05,
+     "name": "tf_coil_14",
+     "relative_error": 0.08155010446787098,
+     "share": 0.021956377935605825,
+     "std_error": 2.1779755755627337e-06,
+     "variance_share": 0.0008954851150900356
+    },
+    {
+     "centre_deg": 310.0,
+     "mean": 2.6433376116616983e-05,
+     "name": "tf_coil_15",
+     "relative_error": 0.08054914625990583,
+     "share": 0.021731257093366596,
+     "std_error": 2.129185878960483e-06,
+     "variance_share": 0.0008558142537397546
+    },
+    {
+     "centre_deg": 330.0,
+     "mean": 2.904476491134905e-05,
+     "name": "tf_coil_16",
+     "relative_error": 0.09340217222732487,
+     "share": 0.023878117222723472,
+     "std_error": 2.712844134551986e-06,
+     "variance_share": 0.0013893192254485832
+    },
+    {
+     "centre_deg": 350.0,
+     "mean": 0.00035920333746631097,
+     "name": "tf_coil_17",
+     "relative_error": 0.10863059818531685,
+     "share": 0.29530620836468285,
+     "std_error": 3.90204734191276e-05,
+     "variance_share": 0.28743353060353277
+    }
+   ],
+   "mean_share_other": 0.022434806840329335,
+   "mean_share_port_adjacent": 0.3205215452773653,
+   "mean_variance_share_other": 0.0012031333480309982,
+   "mean_variance_share_port_adjacent": 0.490374933215752,
+   "port_adjacent": [
+    "tf_coil_00",
+    "tf_coil_17"
+   ],
+   "ratio_port_adjacent_to_other": 14.28679763363009,
+   "total": 0.0012163758407094495
+  },
+  "regions": {
+   "bottom": {
+    "bins": 127,
+    "mean": 0.00010287709511036546,
+    "share": 0.08457673333133822,
+    "variance": 4.672492385421936e-12,
+    "variance_share": 0.0052709681848327646
+   },
+   "inboard": {
+    "bins": 112,
+    "mean": 0.00027285039310223923,
+    "share": 0.22431421602643764,
+    "variance": 1.5380260742593606e-11,
+    "variance_share": 0.017350240163381787
+   },
+   "outboard": {
+    "bins": 60,
+    "mean": 0.0007241908225633714,
+    "share": 0.5953676473391546,
+    "variance": 8.591924266532132e-10,
+    "variance_share": 0.9692420173156445
+   },
+   "top": {
+    "bins": 127,
+    "mean": 0.00011645752993347383,
+    "share": 0.09574140330306964,
+    "variance": 7.212909430361581e-12,
+    "variance_share": 0.008136774336141142
+   }
+  }
+ },
+ "date": "2026-10-11",
+ "e0_vs_t2": {
+  "t2_gain": 19.651865889957204,
+  "t2_sigma": 1.601835236494894,
+  "z": -6.534660650570687
+ },
+ "files_sha256": {
+  "breakdown-s0e.json": "14b4a57b859f9f6d19572d6f344ad70ddadcb7d5c4b52dbb26b1636f6a68e658",
+  "e0/produce.json": "2b91ee4348e61a98a74a4981d976a06a6b45a8e69af9ec5b47b111a327c7f0a0",
+  "e1/produce.json": "4df743fdcfdc7fe4ee53a50ab430d9767fc7afb5ebdb289b12f29082572199c5",
+  "e2p/gen.json": "768f859a5675f14b8641b87ca682920b44c4fbccb9be96470bc6a9db2d322c76",
+  "e2p/gen/weight_windows.h5": "d24bc6c6c4c8d725e2a99b500aeabe007da047deb41aeef650b940bed3bb25d2",
+  "e2p/produce.json": "50f1bd1600625db676707d340085bba091d9a05cc6ce7c4214d9e087c3c44193",
+  "results-s0e-followup.json": "a59b01547652cd93b7bf661ef64a586248276b5031e0fa8989b975f6a0c2a504",
+  "results-s0e.json": "a3e1ceabd85ac5aaa2f1a5ac226b354eb449dca8dff8cbe89c032f82942d1257",
+  "smoke/check.json": "472c5dcd603a7d3adbfa75dce802f5c675eca6730383af70a10244a3fe206eb9",
+  "smoke/gen.json": "71ee5f942d7531411152ef79a0a7842dc502b7ce6ba7ff010add8a5e0fdc44ea"
+ },
+ "job_wall_s": {
+  "followup": 1001.3914911746979,
+  "s0e": 2407.58616399765
+ },
+ "protocol": "docs/notes/CAD_TRANSPORT_S0E.md",
+ "protocol_frozen_commit": "c288e95",
+ "rows": {
+  "E0": {
+   "R_a": 0.08074932048796181,
+   "contended": true,
+   "cutoff_ev": null,
+   "fom": {
+    "batches": 185,
+    "fom": 0.2598339152380715,
+    "relative_sigma": 0.10425720702853739,
+    "sigma": 0.02708955829401105
+   },
+   "gain": 7.830485053923685,
+   "histories": 1850000,
+   "histories_per_second": 3134.334323695951,
+   "note": null,
+   "sigma": 0.8406571118649209,
+   "unbiased": true,
+   "window_depth": null,
+   "z": 1.2120401583922422
+  },
+  "E1": {
+   "R_a": 0.03503571610434671,
+   "contended": false,
+   "cutoff_ev": 100000.0,
+   "fom": {
+    "batches": 305,
+    "fom": 1.353991134074251,
+    "relative_sigma": 0.08111071056538127,
+    "sigma": 0.10982318298398892
+   },
+   "gain": 40.80455520519407,
+   "histories": 3050000,
+   "histories_per_second": 5069.179350783704,
+   "note": null,
+   "sigma": 3.4707626777956238,
+   "unbiased": true,
+   "window_depth": null,
+   "z": -1.2396171132121077
+  },
+  "E2": {
+   "R_a": null,
+   "contended": null,
+   "cutoff_ev": null,
+   "fom": null,
+   "gain": null,
+   "histories": null,
+   "histories_per_second": null,
+   "note": "NOT_EVALUATED: E-smoke did not pass (2408 s of 4500 s used)",
+   "sigma": null,
+   "unbiased": null,
+   "window_depth": null,
+   "z": null
+  },
+  "E2′": {
+   "R_a": null,
+   "contended": false,
+   "cutoff_ev": null,
+   "fom": null,
+   "gain": null,
+   "histories": null,
+   "histories_per_second": null,
+   "note": "NOT_EVALUATED: no FOM",
+   "sigma": null,
+   "unbiased": null,
+   "window_depth": {
+    "fraction_above_1e-9_of_max": 0.08348935639070443,
+    "fraction_positive": 0.22220709271362865,
+    "lower_max": 0.49999999999999994,
+    "lower_min_positive": 6.994191954360801e-12
+   },
+   "z": null
+  },
+  "E3": {
+   "R_a": null,
+   "contended": null,
+   "cutoff_ev": null,
+   "fom": null,
+   "gain": null,
+   "histories": null,
+   "histories_per_second": null,
+   "note": "not run: H5 and H6 are not both confirmed (rule)",
+   "sigma": null,
+   "unbiased": null,
+   "window_depth": null,
+   "z": null
+  },
+  "E3′": {
+   "R_a": null,
+   "contended": null,
+   "cutoff_ev": null,
+   "fom": null,
+   "gain": null,
+   "histories": null,
+   "histories_per_second": null,
+   "note": "not run: H5 and H6′ are not both confirmed (rule)",
+   "sigma": null,
+   "unbiased": null,
+   "window_depth": null,
+   "z": null
+  }
+ },
+ "rule": {
+  "E3_required": false,
+  "H5": {
+   "outcome": "H5 confirmed"
+  },
+  "H6": {
+   "outcome": "NOT_EVALUATED"
+  },
+  "best": "E1",
+  "g_star": 40.80455520519407,
+  "nuc050": "10-100: flag and target kept; G* recorded for change control"
+ },
+ "rule_followup": {
+  "E3′_required": false,
+  "H5_from_S0e": {
+   "outcome": "H5 confirmed"
+  },
+  "H6′": {
+   "outcome": "NOT_EVALUATED"
+  },
+  "best": "E1",
+  "g_star": 40.80455520519407,
+  "nuc050": "10-100: flag and target kept; G* recorded for change control"
+ },
+ "schema": "faris-risk-test-reference/v1",
+ "scratch_root": "~/.cache/avila-night/cad-risk-tests/s0e",
+ "scripts_commit": "fe22a09",
+ "smoke": {
+  "file_check_passed": true,
+  "passed": false
+ }
+}

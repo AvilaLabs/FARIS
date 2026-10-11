@@ -166,3 +166,87 @@ Results: `~/.cache/avila-night/cad-risk-tests/s0e/results-s0e-followup.json`, dr
 ## Results
 
 Appended after runs.
+
+### Results, 2026-10-11
+
+Records: `~/.cache/avila-night/cad-risk-tests/s0e/` (`results-s0e.json`, `results-s0e-followup.json`,
+`breakdown-s0e.json`, the run folders); hashes in `references/cad-transport-s0e.json`. Job time: S0e 2,408 s of its
+4,500 s cap (980 s of it E-smoke, including the 900 s stall), follow-up 1,001 s of 2,700 s. Rule outcomes are mechanical
+(`s0e_common.py`, `s0e_followup.py`, 44 tests); judgments are marked.
+
+**Execution notes.**
+
+- E-smoke failed as recorded in Amendment 2. Its stalled OpenMC outlived the job's timeout for 15 minutes; it was
+  stopped by hand, and the job runner now stops a timed-out job's whole scope.
+- E0's production ran with the machine at load 4.4 at the start and 8.5 at the end, so it carries the "contended"
+  note. E1 ran at 4.2–5.1.
+- The breakdown closes: the 18 coil tallies sum to (a) within 2e-15.
+
+| Run | Windows | Cut-off | R(a) | Histories | Histories/s | R²N | Gain vs D2 | z vs D2 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| T2 (S0d, no breakdown tallies) | T2 | none | 0.0505 | 3.35 M | 5,580 | 8,560 | 19.65 ± 1.60 | +0.21 |
+| E0 | T2 | none | 0.0807 | 1.85 M | 3,134 | 12,060 | 7.83 ± 0.84 | +1.21 |
+| E1 | T2 | 0.1 MeV | 0.0350 | 3.05 M | 5,069 | 3,744 | **40.80 ± 3.47** | −1.24 |
+| E2 | not run | | | | | | NOT_EVALUATED (E-smoke) | |
+| E2′ | cylindrical, generated in 293 s | none | | 0 | | | NOT_EVALUATED: no batch of 10,000 in 600 s | |
+
+E2′'s windows reach a lowest positive bound of 7.0e-12 (T2: 6.9e-9), with 8.3 % of the window entries within 1e-9 of
+the largest.
+
+**Rule outcomes.**
+
+- **H5 confirmed:** E1 exceeds E0 by 9.2σ and by a factor of 5.2, unbiased.
+- **H6 NOT_EVALUATED** (E-smoke), and **H6′ NOT_EVALUATED** (E2′ wrote no statepoint).
+- E3 and E3′ were not run.
+- **G\* = 40.80 ± 3.47 (E1):** NUC-050 band 10–100, so the flag and the 100× target stay, and G\* goes to change control.
+- E0 against T2: z = −6.53.
+
+**Breakdown of (a) (E0, descriptive).**
+
+- **By coil.** The two coils beside the port carry 64 % of (a): tf_coil_00 34.6 % (R 14.4 %) and tf_coil_17 29.5 %
+  (R 10.9 %). Each of the other 16 carries 1.9–2.6 % (mean 2.2 %), so the port-adjacent coils carry 14.3 times as much
+  as each of the others.
+- **By region.**
+
+  | Region | Share of (a) | Approximate share of variance |
+  | --- | --- | --- |
+  | Outboard leg | 59.5 % | 96.9 % |
+  | Inboard leg | 22.4 % | 1.7 % |
+  | Top | 9.6 % | 0.8 % |
+  | Bottom | 8.5 % | 0.5 % |
+
+- **Where the variance sits.** The largest-variance bins all lie at the outboard midplane, R 580–640 cm, |Z| < 40 cm:
+  the legs of the two coils behind the port duct.
+
+Judgment (coordinator):
+
+- **The figure-of-merit uncertainties are too small, by a large factor, for this response.**
+  - E0, E1 and T2 use the same windows. A cut-off at 0.1 MeV removes only neutrons that can never score in (a) (fact 3),
+    so it cannot change the distribution of (a)'s score per history.
+  - Even so, the variance per history came out at 12,060 (E0), 8,560 (T2) and 3,744 (E1), a spread of 3.2×, and E0
+    against T2 differs by 6.5σ.
+  - The σ attached to each gain comes from the batch count alone. That treats the run's variance estimate as nearly
+    exact, which it is not when a few histories carry most of the score. Here they do: most of (a) arrives through the
+    port, from rare histories that stream down the duct.
+- **H5's confirmation is mechanical; its size is not trusted.**
+  - The cut-off's real effect can only be speed: less time on neutrons that cannot score.
+  - E1 ran at 5,069 histories/s, and E0 at 3,134 under contention. T2, without the breakdown tallies and without the
+    cut-off, ran at 5,580. So the speed gain is not separable here and may be small.
+  - G\* = 40.8 is therefore not a credible measure of what FARIS's windows achieve, and should not go to change control
+    as one.
+  - The same caution reaches back to S0d. T2's per-history variance against G6's (8,560 against 13,300) lies inside the
+    spread measured here for identical windows. The robust part of S0d's 2.2× is the speed (5,580 against 3,924
+    histories/s, 1.4×). The H4 rule outcome stands as recorded, but its size is uncertain.
+- **(a) on RM-M is a streaming problem.** The unplugged 30 × 30 cm port sends most of the response to two coils. The 25 cm
+  Cartesian window cells cannot follow a 30 cm duct, and a whole-machine total hides this.
+  - For the product: FARIS should report the magnet response per coil and say when one path carries the total.
+  - For the model: the port is authored without a plug (model card), which a real design would not leave.
+- **Finer windows go deeper and stall, aimed or not.** E2′'s aligned cylindrical mesh made the aimed windows 1,000 times
+  deeper than T2's, and transport stalled, as S0c found for global windows on the slab. The obstacle is window depth and
+  normalization against the source, not the shape of the mesh.
+- **Next (not run; a protocol S0f to be written and estimated):**
+  - Statistics first: at least 4 seeds per configuration, the gain's uncertainty from the spread of per-run figures of
+    merit, and OpenMC's variance of the variance (`higher_moments`) with a stated reliability threshold.
+  - Depth control: windows normalized so that source particles are born inside the source-region windows (CADIS
+    consistency), and a lower-bound floor or `max_lower_bound_ratio`, before any finer mesh.
+  - The port: finer cells along the duct, and (a) split into the two port-adjacent coils and the other 16.
