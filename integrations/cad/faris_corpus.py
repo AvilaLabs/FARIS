@@ -50,7 +50,7 @@ CORPUS_VERSION = "1"
 SCALES = [1.0, 1.15, 1.3, 1.5, 1.7, 2.0, 2.4, 3.0]
 BASES = ["boxes", "tori", "port"]
 MESH_CLASSES = ["open-edge", "non-manifold-edge", "inverted-normals", "self-intersection", "zero-volume"]
-CAD_CLASSES = ["overlap", "gap", "sliver", "duplicate-surface", "wrong-units", "missing-material"]
+CAD_CLASSES = ["overlap", "gap", "sliver", "misrepresented-sliver", "duplicate-surface", "wrong-units", "missing-material"]
 # The requirement ids FARIS's check 8 reports for each geometric class.
 EXPECTED = {
     "open-edge": ["GEO-020"],
@@ -60,10 +60,11 @@ EXPECTED = {
     "overlap": ["GEO-021"],
     "gap": ["GEO-022"],
     "sliver": ["SLIVER"],
+    "misrepresented-sliver": ["SLIVER"],
     "zero-volume": ["ZERO-VOLUME", "DEGENERATE-TRIANGLE", "GEO-012"],
     "duplicate-surface": ["DUPLICATE-SURFACE"],
 }
-# (class, base, scale index) for the seeded models: two of each of the eleven classes.
+# (class, base, scale index) for the seeded models: two of each of the eleven classes and one of the twelfth (only a curved layer can be misrepresented).
 SEEDED = (
     [("open-edge", "boxes", 0, 11), ("open-edge", "tori", 0, 12)]
     + [("non-manifold-edge", "boxes", 0, 21), ("non-manifold-edge", "port", 0, 22)]
@@ -72,6 +73,7 @@ SEEDED = (
     + [("overlap", "boxes", 0, 51), ("overlap", "port", 0, 52)]
     + [("gap", "boxes", 0, 61), ("gap", "tori", 0, 62)]
     + [("sliver", "boxes", 0, 71), ("sliver", "tori", 0, 72)]
+    + [("misrepresented-sliver", "tori", 0, 73)]
     + [("zero-volume", "boxes", 0, 81), ("zero-volume", "port", 0, 82)]
     + [("duplicate-surface", "boxes", 0, 91), ("duplicate-surface", "port", 0, 92)]
     + [("wrong-units", "boxes", 0, 101), ("wrong-units", "tori", 0, 102)]
@@ -220,6 +222,12 @@ MUTATORS = {
 # ---------------------------------------------------------------------------
 # CAD-level models (CadQuery). Lengths in millimetres.
 
+# A sliver is thinner than one faceting chord (1 mm in `chord_cm`); a thin layer that is not a
+# sliver is several chords thick, but faceted coarsely enough that the facets misstate its thickness.
+SLIVER_MM = 0.5
+THIN_LAYER_MM = 6.0
+
+
 def _box(x, y=None, z=None):
     import cadquery as cq
     return cq.Workplane("XY").box(x, y or x, z or x)
@@ -246,7 +254,7 @@ def build_parts(base: str, s: float, defect: str | None = None) -> list[tuple[st
             core_edge = 1.2 * a
         shell1_outer = 2 * a
         if defect == "sliver":
-            shell1_outer = a + 3.0
+            shell1_outer = a + SLIVER_MM
         core = _box(core_edge)
         shell1 = _box(shell1_outer).cut(_box(a))
         shell2 = _box(3 * a).cut(_box(shell1_outer))
@@ -262,7 +270,9 @@ def build_parts(base: str, s: float, defect: str | None = None) -> list[tuple[st
             r_core = 1.2 * r1
         r2_eff = r2
         if defect == "sliver":
-            r2_eff = r1 + 3.0
+            r2_eff = r1 + SLIVER_MM
+        if defect == "misrepresented-sliver":
+            r2_eff = r1 + THIN_LAYER_MM
         parts = [
             ("core", _torus(R, r_core)),
             ("shell1", _torus(R, r2_eff).cut(_torus(R, r1))),
@@ -277,7 +287,7 @@ def build_parts(base: str, s: float, defect: str | None = None) -> list[tuple[st
             plug_radius = 0.9 * radius
         if defect == "overlap":
             plug_radius = 1.1 * radius
-        thickness = 3.0 if defect == "sliver" else t
+        thickness = SLIVER_MM if defect == "sliver" else t
         shell = _box(w, w, thickness).cut(_cyl(radius, thickness * 2))
         plug = _cyl(plug_radius, thickness)
         frame = _box(w + 200.0 * s, w + 200.0 * s, thickness).cut(_box(w, w, thickness * 2))
@@ -293,6 +303,8 @@ def chord_cm(base: str, s: float, defect: str | None) -> float:
     """A faceting tolerance a tenth of the thinnest layer (so no clean layer is a sliver)."""
     if defect == "sliver":
         return 0.1
+    if defect == "misrepresented-sliver":
+        return 0.2  # a third of the 6 mm layer: not a sliver, but the facets of a 0.5 rad torus deviate by it
     if base == "boxes":
         return min(0.1 * s, 0.1)
     if base == "port":
@@ -323,7 +335,7 @@ def run_conversion(step: Path, parts, out_dir: Path, chord: float, imprint: bool
     tag_file.write_text(json.dumps(tags))
     args = argparse.Namespace(
         step=step, shape_unit_m=1.0e-3, tags=tag_file, out_dir=out_dir, chord_cm=chord, angular=angular,
-        imprint_threads=1, implicit_complement="void", report=out_dir / ("conversion.json" if imprint else "tessellation.json"),
+        imprint_threads=1, shape_cache=None, workers=1, implicit_complement="void", report=out_dir / ("conversion.json" if imprint else "tessellation.json"),
     )
     result = {"command": "convert" if imprint else "tessellate", "chord_cm": chord, "angular_rad": angular}
     try:
@@ -339,13 +351,34 @@ def run_conversion(step: Path, parts, out_dir: Path, chord: float, imprint: bool
     return result
 
 
+def run_deviation(step: Path, facets: Path, parts, out_dir: Path) -> dict:
+    """GEO-032 on an imprinted model: each solid's largest deviation and whether every point was measured."""
+    import faris_cad
+    mapping = out_dir / "deviation-map.json"
+    mapping.write_text(json.dumps([{"step_index": i, "volume": i + 1} for i in range(len(parts))]))
+    report = out_dir / "deviation.json"
+    args = argparse.Namespace(
+        step=step, shape_unit_m=1.0e-3, shape_cache=None, facets=facets, map=mapping, workers=1,
+        block_points=512, occt_points=2000, report=report,
+    )
+    try:
+        faris_cad.deviation(args)
+        rows = json.loads(report.read_text())["solids"]
+        return {"solids": [
+            {"solid_id": parts[r["step_index"]][0], "max_distance_m": r["max_distance_m"], "complete": r["points"] >= r["points_available"]}
+            for r in rows
+        ]}
+    except BaseException as error:
+        return {"error": f"{type(error).__name__}: {error}"}
+
+
 def run_booleans(step: Path, n: int, out_dir: Path) -> dict:
     import faris_cad
     pairs = [[i, j] for i in range(n) for j in range(i + 1, n)]
     pair_file = out_dir / "pairs.json"
     pair_file.write_text(json.dumps(pairs))
     report = out_dir / "booleans.json"
-    args = argparse.Namespace(step=step, shape_unit_m=1.0e-3, pairs=pair_file, workers=2, pair_timeout=120.0, report=report)
+    args = argparse.Namespace(step=step, shape_unit_m=1.0e-3, shape_cache=None, pairs=pair_file, workers=2, pair_timeout=120.0, report=report)
     try:
         faris_cad.overlap_booleans(args)
         found = json.loads(report.read_text())["pairs"]
@@ -440,7 +473,8 @@ def generate(out: Path, work: Path) -> None:
             clean_bases[(base, si)] = out / model_id
             names = [f"{model_id}.facets.bin", f"{model_id}.facets.json"]
             models.append(entry(model_id, "clean", None, base, s, None, "clean", [], "imprinted", hashed(out, names), chord,
-                                {"conversion": {k: result.get(k) for k in ("chord_cm", "timing_seconds")}}))
+                                {"conversion": {k: result.get(k) for k in ("chord_cm", "timing_seconds")},
+                                 "deviation": run_deviation(step, d / "model.facets.bin", parts, d)}))
 
     # Seeded models.
     for cls, base, si, seed in SEEDED:
@@ -513,7 +547,10 @@ def generate(out: Path, work: Path) -> None:
             for ext in ("bin", "json"):
                 (out / f"{model_id}.facets.{ext}").write_bytes(Path(f"{source}.facets.{ext}").read_bytes())
             names = [f"{model_id}.facets.bin", f"{model_id}.facets.json"]
-        models.append(entry(model_id, "cad", cls, base, s, seed, "seeded", EXPECTED[cls], subject, hashed(out, names), chord, {"local_run": record}))
+        extra = {"local_run": record}
+        if cls in ("sliver", "misrepresented-sliver") and subject == "imprinted":
+            extra["deviation"] = run_deviation(step, conv_dir / "model.facets.bin", parts, d)
+        models.append(entry(model_id, "cad", cls, base, s, seed, "seeded", EXPECTED[cls], subject, hashed(out, names), chord, extra))
 
     index = {"corpus_version": CORPUS_VERSION, "generator": "integrations/cad/faris_corpus.py", "models": models}
     (out / "corpus.json").write_text(json.dumps(index, indent=1) + "\n")

@@ -6,11 +6,11 @@
   "cadquery": "2.8.0",
   "ocp": "7.9.3.1",
   "occt": "7.9",
-  "helper": "2"
+  "helper": "3"
  },
  "step": {
   "file_name": "seeded-missing-material-boxes.step",
-  "sha256": "e2257d7e501cae81e20c509690e20a9f07f34cc2512d84caff57341eb37aae38",
+  "sha256": "e21ef8ce187814d038c8adb2711065516d26fd2e22b5dc6b1bb3c67293fd0385",
   "size_bytes": 78082
  },
  "unit": {
@@ -98,9 +98,9 @@
  "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
  "problems": [],
  "timing_seconds": {
-  "unit_text_parse": 0.0033005911391228437,
-  "read_and_transfer": 0.07929819892160594,
-  "measure_solids": 0.036084105959162116
+  "unit_text_parse": 0.0048027317970991135,
+  "read_and_transfer": 0.0895903769414872,
+  "measure_solids": 0.05374077195301652
  },
  "model_bbox_min_m": [
   -0.15,

@@ -5,7 +5,7 @@
  "description": "Four solids for the design-file tests.",
  "cad": {
   "step_file": "seeded-wrong-units-boxes.step",
-  "step_sha256": "ff9277f8812bc0bc78af507ec16a7b0a1c6c9feb076ba2638423fcab804fa88f",
+  "step_sha256": "ef7e84c549fb778391bfb0b59bffee7ba5a7c6eb57ac4e857a0a7a8d240abe8d",
   "length_unit": "m",
   "extent": {
    "kind": "full"

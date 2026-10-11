@@ -5,7 +5,7 @@
  "description": "Four solids for the design-file tests.",
  "cad": {
   "step_file": "seeded-missing-material-boxes.step",
-  "step_sha256": "e2257d7e501cae81e20c509690e20a9f07f34cc2512d84caff57341eb37aae38",
+  "step_sha256": "e21ef8ce187814d038c8adb2711065516d26fd2e22b5dc6b1bb3c67293fd0385",
   "length_unit": "mm",
   "extent": {
    "kind": "full"

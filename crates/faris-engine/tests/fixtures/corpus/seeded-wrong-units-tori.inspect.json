@@ -6,11 +6,11 @@
   "cadquery": "2.8.0",
   "ocp": "7.9.3.1",
   "occt": "7.9",
-  "helper": "2"
+  "helper": "3"
  },
  "step": {
   "file_name": "seeded-wrong-units-tori.step",
-  "sha256": "bb3afb4d04fc54e1699e64e895ff83706f8f46d1218d0a6dab66bbc87ef2c1cc",
+  "sha256": "a2eca695012a4b366b920278865a254261be8950e100b9b977229050e783e021",
   "size_bytes": 19176
  },
  "unit": {
@@ -98,9 +98,9 @@
  "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
  "problems": [],
  "timing_seconds": {
-  "unit_text_parse": 0.003755912184715271,
-  "read_and_transfer": 0.018729842035099864,
-  "measure_solids": 0.26135733304545283
+  "unit_text_parse": 0.006627935916185379,
+  "read_and_transfer": 0.030252922093495727,
+  "measure_solids": 0.3259641700424254
  },
  "model_bbox_min_m": [
   -0.9000000001,

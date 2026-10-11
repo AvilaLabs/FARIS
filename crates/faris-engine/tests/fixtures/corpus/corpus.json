@@ -15,16 +15,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-0.facets.bin": "fdce0b84ca7900e7a596122fa32b2734a301ff0486387f2ab454d38f42444d35",
-    "clean-boxes-0.facets.json": "a8ec07594b476e91f837777e95c6186e375c5649a280b2f017fc1043ca75a28a"
+    "clean-boxes-0.facets.json": "69b0cd7e806f19f919c1049349619db512ee53daa9c3f5e804523cdec1c0975d"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.07211970794014633,
-     "convert": 0.3190648090094328,
-     "export_facets": 0.031568690901622176,
-     "total": 0.4662655130960047
+     "read_step": 0.09925049007870257,
+     "convert": 0.3986010840162635,
+     "export_facets": 0.033023165073245764,
+     "total": 0.6449843100272119
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -40,16 +59,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-1.facets.bin": "0298491aad70b39773eb8d513f7f26a74c51e764315343cdeacb2c3816c63f8c",
-    "clean-boxes-1.facets.json": "fe2d6af2114f0f3025d0ddb1fa1b8077b2d95039725ae1f50ac904be67dd9436"
+    "clean-boxes-1.facets.json": "ef15c59defa7d59c48d641e57d2fdce579f811e39ffae1b64ac2d34b818c49b2"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.06953148706816137,
-     "convert": 0.20068973186425865,
-     "export_facets": 0.012500704964622855,
-     "total": 0.29288301314227283
+     "read_step": 0.08421433693729341,
+     "convert": 0.25827642111107707,
+     "export_facets": 0.014704626984894276,
+     "total": 0.37288941512815654
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 2.842170943040401e-17,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -65,16 +103,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-2.facets.bin": "87fc1799632b586e86f5bf9bbdb13883cf8915fcefd82134b1e96e7a208cfafb",
-    "clean-boxes-2.facets.json": "4817b8829d6670b477ffd59787a44aed95313486609f3dee13fa171c0984956b"
+    "clean-boxes-2.facets.json": "29fe7504d26cdd1de5b0eddd427db26711cb6fbc1fb2eba469e14997ea80ad4b"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.07097854604944587,
-     "convert": 0.17270035482943058,
-     "export_facets": 0.012056316947564483,
-     "total": 0.2667567520402372
+     "read_step": 0.07779588201083243,
+     "convert": 0.20029685297049582,
+     "export_facets": 0.01653649192303419,
+     "total": 0.3084215340204537
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -90,16 +147,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-3.facets.bin": "ded758d1fe62e40def78342f40c723c7f4053d3031cdce1ae1083792c39b2267",
-    "clean-boxes-3.facets.json": "bf738f990e13e67ac44ffd307b69cd188247bf249a6c495d344a1f18cb228f4c"
+    "clean-boxes-3.facets.json": "2febf54362c98af4801127ec04842926381a0cd24d3886e6aae695c699e2f727"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.08523410791531205,
-     "convert": 0.2340084749739617,
-     "export_facets": 0.012712674913927913,
-     "total": 0.34740581386722624
+     "read_step": 0.07888883701525629,
+     "convert": 0.22054155892692506,
+     "export_facets": 0.01818277803249657,
+     "total": 0.3314323159866035
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -115,16 +191,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-4.facets.bin": "0b1acf6ab7c9236910c217c6b01ee48f4c42751bdb54e8ad764aea3498796a13",
-    "clean-boxes-4.facets.json": "6a853d419bb2278e79789152b60210cc44aa4268ca917698926012767f71c3b7"
+    "clean-boxes-4.facets.json": "47d36d86cc6ce73261dcb504978cad072a51f063ad15280e1c372656d3e84f44"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.07019025087356567,
-     "convert": 0.20353203802369535,
-     "export_facets": 0.01237755292095244,
-     "total": 0.29596124798990786
+     "read_step": 0.07416252908296883,
+     "convert": 0.2181030719075352,
+     "export_facets": 0.017660331912338734,
+     "total": 0.3215275499969721
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -140,16 +235,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-5.facets.bin": "88e78fc0c3c05747c57460efbc4fbfa327fd38c36a6fd90b42e97f8cf7093483",
-    "clean-boxes-5.facets.json": "ab320fb68a07e1a8240701a27cd38f053d118d9d45501de8d6ef3c9270a75256"
+    "clean-boxes-5.facets.json": "558f599512ab54cfcb05cd915c2693810b9e1d3ce752194c9d06a5653c5a0ba8"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.07053444301709533,
-     "convert": 0.17343951016664505,
-     "export_facets": 0.011408728081732988,
-     "total": 0.2651078251656145
+     "read_step": 0.09371851198375225,
+     "convert": 0.22989256493747234,
+     "export_facets": 0.02060184278525412,
+     "total": 0.3577977139502764
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -165,16 +279,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-6.facets.bin": "d24a7079cc53e04f8dbc1f4052dd158a807aeba2cd8eaa72ade3373d2b098577",
-    "clean-boxes-6.facets.json": "5c96ff5f80b193a436c1e3ab5a2c8f527481775bfa93e801d7a49367c3de6114"
+    "clean-boxes-6.facets.json": "9c7cf1df6fae3505de754d0f28e8fb96f4aed18489bd1121dec1966a340d8f88"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.0801285938359797,
-     "convert": 0.17639143904671073,
-     "export_facets": 0.011960063828155398,
-     "total": 0.27880498208105564
+     "read_step": 0.10077631496824324,
+     "convert": 0.26502343616448343,
+     "export_facets": 0.013203080976381898,
+     "total": 0.397277464158833
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -190,16 +323,35 @@
    "chord_m": 0.001,
    "files": {
     "clean-boxes-7.facets.bin": "edd27223d003cb93ea43746b8532ff01150ba574cf90f0635933b7df94c2980e",
-    "clean-boxes-7.facets.json": "ac4cd0ec5c51be2cebf4cbe4a1331d64213c82534b9685432f17d228226784f0"
+    "clean-boxes-7.facets.json": "0c15e29c186c76ef7508efb8d3d617aa59a4dfe0dc47770a456cae8ae16e5b23"
    },
    "conversion": {
     "chord_cm": 0.1,
     "timing_seconds": {
-     "read_step": 0.06960341217927635,
-     "convert": 0.20702437218278646,
-     "export_facets": 0.011464528040960431,
-     "total": 0.29837286402471364
+     "read_step": 0.082915801089257,
+     "convert": 0.19397023296914995,
+     "export_facets": 0.012701696949079633,
+     "total": 0.29927310603670776
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -215,16 +367,35 @@
    "chord_m": 0.008,
    "files": {
     "clean-tori-0.facets.bin": "b6991250c2497a31fd2b3c46f869d207e3734aabb56868db54dc35240d6d682f",
-    "clean-tori-0.facets.json": "07020135c544c121ccd9936566fee69f2618e2d58a488da81e5b5c5efec4fb16"
+    "clean-tori-0.facets.json": "36117f29dd162f7eab94b659aeedf7bf5943f95e6d49e4fbe6953a45ee608947"
    },
    "conversion": {
     "chord_cm": 0.8,
     "timing_seconds": {
-     "read_step": 0.019891110947355628,
-     "convert": 1.6171703969594091,
-     "export_facets": 0.020076054148375988,
-     "total": 1.6670667158905417
+     "read_step": 0.02617517299950123,
+     "convert": 1.9308259489480406,
+     "export_facets": 0.01935084001161158,
+     "total": 1.989219177979976
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.00452679487389959,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.005267866214647768,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.005979678049411405,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -240,16 +411,35 @@
    "chord_m": 0.0092,
    "files": {
     "clean-tori-1.facets.bin": "7e1f63ed8d3c681ca36820b6e3c581f91ddac05c8d1903f5db8ab0b407cacc4c",
-    "clean-tori-1.facets.json": "6673e5439770a7cef828f5ef3fb5bbcae72a2338f6b0c49506d56cb388a61bf8"
+    "clean-tori-1.facets.json": "cdfead4c3b7e114c7d7dd579c12a09876b4d91b677f48e53355f7f305765aa40"
    },
    "conversion": {
     "chord_cm": 0.92,
     "timing_seconds": {
-     "read_step": 0.02223441400565207,
-     "convert": 1.606829877011478,
-     "export_facets": 0.017837311839684844,
-     "total": 1.657538607949391
+     "read_step": 0.02049352298490703,
+     "convert": 1.9759956109337509,
+     "export_facets": 0.020557334879413247,
+     "total": 2.030141734983772
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.005205814104984512,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.006277491516330599,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.006876629756823036,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -265,16 +455,35 @@
    "chord_m": 0.0104,
    "files": {
     "clean-tori-2.facets.bin": "6e994db15e97f518c9d63e7040aca50182bf9f9e4da05a90401d96043c1e7c83",
-    "clean-tori-2.facets.json": "a84713385405b6f3bfc3a4b66c0730488a52482ca8fd75dd3466fca7b6931858"
+    "clean-tori-2.facets.json": "80dedb961653208d40fa86c6f8deb44f037e4f29d3555f4d4f509b6b61697cae"
    },
    "conversion": {
     "chord_cm": 1.04,
     "timing_seconds": {
-     "read_step": 0.02735685696825385,
-     "convert": 1.5650112719740719,
-     "export_facets": 0.018281711963936687,
-     "total": 1.6217725628521293
+     "read_step": 0.026654671179130673,
+     "convert": 1.8486020599957556,
+     "export_facets": 0.016003107884898782,
+     "total": 1.9029285421129316
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.005884833336069434,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.006848226079042178,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0077735814642347235,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -290,16 +499,35 @@
    "chord_m": 0.012,
    "files": {
     "clean-tori-3.facets.bin": "6f09781b0065ca70d3c602ef2fa2dc55b7ca49e73d7cd376ac8272ae45dfcd1d",
-    "clean-tori-3.facets.json": "7082724d73d0bbf2077217f61720008ff51bdf7e305a7e6410049f3d840b232a"
+    "clean-tori-3.facets.json": "84b1dfd0810cfe1c7b37f520ac2cb5111673aa4ef705b2caf3f347e87ec1fdd2"
    },
    "conversion": {
     "chord_cm": 1.2,
     "timing_seconds": {
-     "read_step": 0.018636257154867053,
-     "convert": 1.5696253841742873,
-     "export_facets": 0.018078411929309368,
-     "total": 1.6164553181733936
+     "read_step": 0.01918638008646667,
+     "convert": 1.6835953060071915,
+     "export_facets": 0.026376886991783977,
+     "total": 1.7368575038854033
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.006790192310849392,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.007901799321971851,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.008969517074117164,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -315,16 +543,35 @@
    "chord_m": 0.013600000000000001,
    "files": {
     "clean-tori-4.facets.bin": "cd7d40f4b3228dc5d88dd9ae1b7d7a481749ed8f6a0e419de9b56ab1b32f26e0",
-    "clean-tori-4.facets.json": "9d56eca4d8c4911880cef33a39ac0a9f6ce72bfee32bd9b123aaadbdc7361cad"
+    "clean-tori-4.facets.json": "e01d45b2c62c2edeb7d24b8c39e607864d2b325f02e0a2103c9f2fcaa3aa5170"
    },
    "conversion": {
     "chord_cm": 1.36,
     "timing_seconds": {
-     "read_step": 0.01953306794166565,
-     "convert": 1.7159677939489484,
-     "export_facets": 0.02058271295391023,
-     "total": 1.7666091190185398
+     "read_step": 0.026999549008905888,
+     "convert": 2.0083026830106974,
+     "export_facets": 0.024174025049433112,
+     "total": 2.0745425070635974
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0076955512856291645,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.009279770067619098,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.010165452683999206,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -340,16 +587,35 @@
    "chord_m": 0.016,
    "files": {
     "clean-tori-5.facets.bin": "730af869e6e74ed1475e0f4b3730c902b6668eab9bf360ff68f876796e173ee5",
-    "clean-tori-5.facets.json": "fcaf63666a03dced6132e67867af2025e184a96cea32594566035a9180f580fd"
+    "clean-tori-5.facets.json": "0329f5e6fd51ecfd3d69ffe80b52282d658cb11f119c2ca52ad9cb20f9dde88d"
    },
    "conversion": {
     "chord_cm": 1.6,
     "timing_seconds": {
-     "read_step": 0.021949108922854066,
-     "convert": 1.6195361481513828,
-     "export_facets": 0.01839785184711218,
-     "total": 1.6697498909197748
+     "read_step": 0.023523103911429644,
+     "convert": 1.8649622430093586,
+     "export_facets": 0.025698723969981074,
+     "total": 1.9275575040373951
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.00905358974779918,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.010535732429295536,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.01195935609882281,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -365,16 +631,35 @@
    "chord_m": 0.0192,
    "files": {
     "clean-tori-6.facets.bin": "51aad58c3cd05deed16fc7382281e16b6bf306c5c18cf50ad55b85c94427269c",
-    "clean-tori-6.facets.json": "59740b7d0127e4f3cdaf36f0f3b677d41861972b8f999f9e78daf86e24f410a2"
+    "clean-tori-6.facets.json": "38200697933f848696f0c4876ad915e39591d894e8642f3ee29d56aa0ae7aa62"
    },
    "conversion": {
     "chord_cm": 1.92,
     "timing_seconds": {
-     "read_step": 0.018244229955598712,
-     "convert": 1.6461815601214767,
-     "export_facets": 0.017818402033299208,
-     "total": 1.692065355135128
+     "read_step": 0.02568019088357687,
+     "convert": 2.0304385470226407,
+     "export_facets": 0.0263736171182245,
+     "total": 2.0982981778215617
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.010864307697358726,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.012642878915154483,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.014351227318587234,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -390,16 +675,35 @@
    "chord_m": 0.024,
    "files": {
     "clean-tori-7.facets.bin": "8338ca00bd6cce46f478c59289026c2c34dfc9debcdf19de52d4bd6ef186f151",
-    "clean-tori-7.facets.json": "732550eb74ce4b37e4dd5b7a1598e775931313c484ce5f68edc214fd26f38aea"
+    "clean-tori-7.facets.json": "7d4d399d034b79b543bce4980088ebd9550748f546716e505738f6419b711356"
    },
    "conversion": {
     "chord_cm": 2.4,
     "timing_seconds": {
-     "read_step": 0.019709934014827013,
-     "convert": 1.6619089460000396,
-     "export_facets": 0.018348596058785915,
-     "total": 1.7096433700062335
+     "read_step": 0.02465734793804586,
+     "convert": 2.088355296989903,
+     "export_facets": 0.02800998999737203,
+     "total": 2.157018077094108
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.013580384621698784,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.015803598643943702,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.017939034148234327,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -415,16 +719,35 @@
    "chord_m": 0.003,
    "files": {
     "clean-port-0.facets.bin": "83a34eb9cccef5143b75904552a6e3593a83898650ad5f7ac6e220b717c7c518",
-    "clean-port-0.facets.json": "6af90935321bf7728d013aff120011c1122573765f4976362716b9b4bd73cdb5"
+    "clean-port-0.facets.json": "1fd667685bc30645fea113e7714343003b5a36f7ec8bc5086a39d1f4170a529b"
    },
    "conversion": {
     "chord_cm": 0.3,
     "timing_seconds": {
-     "read_step": 0.058127574156969786,
-     "convert": 0.3436219119466841,
-     "export_facets": 0.013602303108200431,
-     "total": 0.42632457497529685
+     "read_step": 0.07518980000168085,
+     "convert": 0.41528480988927186,
+     "export_facets": 0.016730315051972866,
+     "total": 0.5178123619407415
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 1.8649079951032378e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 1.8649079951032378e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -440,16 +763,35 @@
    "chord_m": 0.00345,
    "files": {
     "clean-port-1.facets.bin": "4ccb29fff336f6a20f2437c00b81679c8e1e43323962a68943fe94327555d7ce",
-    "clean-port-1.facets.json": "012a9e477a82ce16727845b9cfeb922524faa05b91f0d63c5236055e0b6cf49f"
+    "clean-port-1.facets.json": "84edc159c27d8c33e4fc4aef1877e9cce64732dc5f11d932e0f2d8917f1e9e65"
    },
    "conversion": {
     "chord_cm": 0.345,
     "timing_seconds": {
-     "read_step": 0.05531706311739981,
-     "convert": 0.3356786898802966,
-     "export_facets": 0.013611166039481759,
-     "total": 0.41468055406585336
+     "read_step": 0.07688240893185139,
+     "convert": 0.45942267193458974,
+     "export_facets": 0.02202840312384069,
+     "total": 0.5696655770298094
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 2.144644194369505e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 2.144644194369505e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 5.684341886080802e-17,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -465,16 +807,35 @@
    "chord_m": 0.0039000000000000003,
    "files": {
     "clean-port-2.facets.bin": "efc96ddbead59e3a9a90b10e25274227a7a126b0e6eb9857403637ec19e2a772",
-    "clean-port-2.facets.json": "a64b9346ef4aefcd602ec5ed3887c927193cca487ed3257e7f419622e619cea0"
+    "clean-port-2.facets.json": "391f930d8b0901c2424fb0c820a79da27937591e1bef4b0fc72e5bc4cffc0e59"
    },
    "conversion": {
     "chord_cm": 0.39,
     "timing_seconds": {
-     "read_step": 0.055944420862942934,
-     "convert": 0.33944536792114377,
-     "export_facets": 0.012854392873123288,
-     "total": 0.41913216188549995
+     "read_step": 0.09629696514457464,
+     "convert": 0.5161027309950441,
+     "export_facets": 0.020186047069728374,
+     "total": 0.6501100910827518
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 2.42438039363293e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 2.42438039363293e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -490,16 +851,35 @@
    "chord_m": 0.0045000000000000005,
    "files": {
     "clean-port-3.facets.bin": "581ee2fd747f61d145c9b58cc5e15ca674abc823ea7c6369c4ad24a0e835161e",
-    "clean-port-3.facets.json": "ba9606e0464aa7572ffa76f9689fc03eb63e824a5c941d894d1d8de1ae2983df"
+    "clean-port-3.facets.json": "f97e592261f6b28cd13bb62a6ecc17201d8c9b1278158bc9e44ee71e0c6de4af"
    },
    "conversion": {
     "chord_cm": 0.45,
     "timing_seconds": {
-     "read_step": 0.05842787190340459,
-     "convert": 0.3352347428444773,
-     "export_facets": 0.01825987221673131,
-     "total": 0.421627642121166
+     "read_step": 0.07963554002344608,
+     "convert": 0.4209265389945358,
+     "export_facets": 0.019499888876453042,
+     "total": 0.5306802070699632
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 2.797361992655567e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 2.797361992655567e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -515,16 +895,35 @@
    "chord_m": 0.0051,
    "files": {
     "clean-port-4.facets.bin": "555065b704ff2fb393aea54cf45357b080b1f38fa087dcfad1704e6d968b1db7",
-    "clean-port-4.facets.json": "b4c6a357a6d31750e9dae1496dc76ade53a1d24d67b319ddc063c77b24ec9b04"
+    "clean-port-4.facets.json": "71e3d415bd11216a8c678e5088ea12a670e0ca800bc1ddbed745a7bfd9473da2"
    },
    "conversion": {
     "chord_cm": 0.51,
     "timing_seconds": {
-     "read_step": 0.05672691413201392,
-     "convert": 0.3716318930964917,
-     "export_facets": 0.014143303968012333,
-     "total": 0.45212042494677007
+     "read_step": 0.07476577395573258,
+     "convert": 0.5037448320072144,
+     "export_facets": 0.01782878185622394,
+     "total": 0.6115424858871847
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 3.170343591673941e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 3.170343591673941e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -540,16 +939,35 @@
    "chord_m": 0.006,
    "files": {
     "clean-port-5.facets.bin": "8b563188c29fe8ef4e667851120442a58485dc6d59bb61d2ae385e59d1770b75",
-    "clean-port-5.facets.json": "bdaac34e2973de916e34dc51d597905e9a0212b6ffbf8b7d458b6470cdbecbe4"
+    "clean-port-5.facets.json": "5f94ef25c57f36a2e33fe5252641efdf5c25b03edf76d0dfd23545f4dc9b6933"
    },
    "conversion": {
     "chord_cm": 0.6,
     "timing_seconds": {
-     "read_step": 0.05608337093144655,
-     "convert": 0.3251047090161592,
-     "export_facets": 0.012734572868794203,
-     "total": 0.40381798311136663
+     "read_step": 0.07698096707463264,
+     "convert": 0.4227458219975233,
+     "export_facets": 0.017848036950454116,
+     "total": 0.5315014650113881
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 3.7298159902064755e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 3.7298159902064755e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -565,16 +983,35 @@
    "chord_m": 0.0072,
    "files": {
     "clean-port-6.facets.bin": "bda38896b1ddb834ecbe3ce71263a0b9269997d3d6e614e0917559cc2d0c430a",
-    "clean-port-6.facets.json": "ff8a653586b82cfc4fddb191262541371d9a8be91eef6c411eddfe629621623a"
+    "clean-port-6.facets.json": "b1cd9ba7d9dc7512989c3f2ee735e0d659e802316ae66fee1599da7f42f9b357"
    },
    "conversion": {
     "chord_cm": 0.72,
     "timing_seconds": {
-     "read_step": 0.05519064795225859,
-     "convert": 0.3224505609832704,
-     "export_facets": 0.012764948885887861,
-     "total": 0.400503943907097
+     "read_step": 0.09528164193034172,
+     "convert": 0.4427189619746059,
+     "export_facets": 0.01960465800948441,
+     "total": 0.5744411339983344
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 4.475779188248907e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 4.475779188248907e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -590,16 +1027,35 @@
    "chord_m": 0.009000000000000001,
    "files": {
     "clean-port-7.facets.bin": "01cab99e4b28c740eba61c93d8de7487f827cc9cc48447234aeb9f55718b824f",
-    "clean-port-7.facets.json": "36b135dd6e08bc97e53c15a29dc0c7a1c61b6b481910ada44eea323ad16f5267"
+    "clean-port-7.facets.json": "32a1c870e5a91c88df1a98065188dc2fd46d85dd76962bbc3a14bac65111a069"
    },
    "conversion": {
     "chord_cm": 0.9,
     "timing_seconds": {
-     "read_step": 0.056075595086440444,
-     "convert": 0.30438975896686316,
-     "export_facets": 0.012514828005805612,
-     "total": 0.38320661103352904
+     "read_step": 0.07537013501860201,
+     "convert": 0.46929502789862454,
+     "export_facets": 0.017987048951908946,
+     "total": 0.5771741960197687
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "plug",
+      "max_distance_m": 5.594723985311134e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "shell",
+      "max_distance_m": 5.594723985311134e-05,
+      "complete": true
+     },
+     {
+      "solid_id": "frame",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -617,7 +1073,7 @@
    "chord_m": 0.001,
    "files": {
     "seeded-open-edge-boxes.facets.bin": "480d7a724e125762dc3aef324558c156168b12386863543ebe9a40239bd1133d",
-    "seeded-open-edge-boxes.facets.json": "6b01af5ad1b928bec73f4b1d9a0c869ee8fa41da16c8997cb773d4e1f028ac92"
+    "seeded-open-edge-boxes.facets.json": "98830a63fd73eb8e5bffac745bf96863e3284826ff0f46d9ac3e2ed8b1c14a01"
    },
    "mutated_from": "clean-boxes-0"
   },
@@ -636,7 +1092,7 @@
    "chord_m": 0.008,
    "files": {
     "seeded-open-edge-tori.facets.bin": "575f82f6b0d8be5228127cf1f8b705c4d99c92b151d09541fa5e03cd648aa988",
-    "seeded-open-edge-tori.facets.json": "685bc281756c762460148526d83d80d3887c3c5b913a0114ca18914cebd67248"
+    "seeded-open-edge-tori.facets.json": "8b1a025b90d672b2ebc8241e5b8d12760d9b44a39d09777af3fa5570953e2724"
    },
    "mutated_from": "clean-tori-0"
   },
@@ -655,7 +1111,7 @@
    "chord_m": 0.001,
    "files": {
     "seeded-non-manifold-edge-boxes.facets.bin": "002101c406917745d5ccd0ce79d60e2ad4dd144bd3902ed103f0c6d3fb7117c5",
-    "seeded-non-manifold-edge-boxes.facets.json": "cb86971092ca39611d8b2a658a227c1d7f5169a2cce7610ca4eaff11c5c606f6"
+    "seeded-non-manifold-edge-boxes.facets.json": "b9d33820a819492acde2a62d307866db39e15f40b38e5b1fcad5d6baa3c50422"
    },
    "mutated_from": "clean-boxes-0"
   },
@@ -674,7 +1130,7 @@
    "chord_m": 0.003,
    "files": {
     "seeded-non-manifold-edge-port.facets.bin": "098c02f9dda048278ff77c04488ccda6eb5437be43b50e63cc1252e8ee39e34b",
-    "seeded-non-manifold-edge-port.facets.json": "e5d7d0e4ac76212385ddc072962d7b7f7218c7aa2783427e38c8a0f432417dce"
+    "seeded-non-manifold-edge-port.facets.json": "03bfa85ac4a575b9871d089dbfabdfe871f07d8147143877e9e8e0e160575f85"
    },
    "mutated_from": "clean-port-0"
   },
@@ -693,7 +1149,7 @@
    "chord_m": 0.008,
    "files": {
     "seeded-inverted-normals-tori.facets.bin": "aba48ba69490a5a118845071d3459a6fa642aa87e8cd72315e4c86fd4664bab1",
-    "seeded-inverted-normals-tori.facets.json": "4f5a161e188ccd4355d7dc8b1d379657e90d85ae50f0a085e6ecae8ef3a3288a"
+    "seeded-inverted-normals-tori.facets.json": "803587803d2df93486024a40674e70524f4ffde97598a6a853474dd947662574"
    },
    "mutated_from": "clean-tori-0"
   },
@@ -712,7 +1168,7 @@
    "chord_m": 0.003,
    "files": {
     "seeded-inverted-normals-port.facets.bin": "7b2dca32a156dfbd93edd5ec15ebaf100d6affaf489babc78384de63e6fd9ca2",
-    "seeded-inverted-normals-port.facets.json": "33205fd2a4ac55b17fa3f0b7ed99464f6c6e786c96b829df53d9d4b2cdfc6674"
+    "seeded-inverted-normals-port.facets.json": "e92639d36dc873b931c5282448ae28c8e7df9eb4ab925a86408df79fcdab6be1"
    },
    "mutated_from": "clean-port-0"
   },
@@ -731,7 +1187,7 @@
    "chord_m": 0.001,
    "files": {
     "seeded-self-intersection-boxes.facets.bin": "094ba5c6d25ce88da417b980ee785724cf3bc000b3c78fafd2e45e5770f80bc2",
-    "seeded-self-intersection-boxes.facets.json": "0c5a619af343c10b0a53592fd97a6a9285929cb4ed1bd9aec6253136496fd4b8"
+    "seeded-self-intersection-boxes.facets.json": "8e9f652ad1fbcad7998ae6e7c27cd12ab6d86f539835be4c67456def3b52702a"
    },
    "mutated_from": "clean-boxes-0"
   },
@@ -750,7 +1206,7 @@
    "chord_m": 0.008,
    "files": {
     "seeded-self-intersection-tori.facets.bin": "272f146962dcf31a31289ade5cdf04040274773e932b6d15ad678c9d72187c11",
-    "seeded-self-intersection-tori.facets.json": "c03fc8af25dd7eb3bd71803c4ba88020924c8aec593d669f2a6716538cfc3b17"
+    "seeded-self-intersection-tori.facets.json": "2959ed43c5430d4487d6670f327e7996d8c48f49e04a08573c1ca8720b5b41fd"
    },
    "mutated_from": "clean-tori-0"
   },
@@ -768,8 +1224,8 @@
    "subject": "unimprinted",
    "chord_m": 0.001,
    "files": {
-    "seeded-overlap-boxes.facets.bin": "cecb7223bd6f2ab4978bebdec731e5eb8bd02c75e85c31546d8b9eaf53ed3808",
-    "seeded-overlap-boxes.facets.json": "1fd707f45ae3e82492f6b5acabc2c30a81a68480ab243d7b09870503512ff5b4"
+    "seeded-overlap-boxes.facets.bin": "899ab6a4afc671c4d711d8ebe1840c99ae008d011659ab80e080a33d481eb210",
+    "seeded-overlap-boxes.facets.json": "fece86acdd058d29beeaade8df246f12d0e7ea8c081b7ea99c2ad2ca322872dc"
    },
    "local_run": {
     "booleans": {
@@ -816,7 +1272,9 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "total": 0.16423670295625925
+      "read_step": 0.09832152095623314,
+      "mesh": 0.026592409005388618,
+      "total": 0.12968528899364173
      }
     }
    }
@@ -835,8 +1293,8 @@
    "subject": "unimprinted",
    "chord_m": 0.003,
    "files": {
-    "seeded-overlap-port.facets.bin": "06b0f47ec0816bdb9061ce8318bd87d58c7b1efb9b7e6e6a9644470f8f5fd8f3",
-    "seeded-overlap-port.facets.json": "e897bd3f276e69798dfea530939991b1b09bc2707a8f9a6cec7ab5c9e0ab672e"
+    "seeded-overlap-port.facets.bin": "ffa59163767f2b84ebba64a095d93574ca850e48bf006e8373e500e53e0d9212",
+    "seeded-overlap-port.facets.json": "6afbc2005b7fa24a459095e6fdd274bd3a8d120b538b074511dc56b8f8e92763"
    },
    "local_run": {
     "booleans": {
@@ -883,7 +1341,9 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "total": 0.24666669708676636
+      "read_step": 0.08631931780837476,
+      "mesh": 0.09378649084828794,
+      "total": 0.19152034888975322
      }
     }
    }
@@ -903,7 +1363,7 @@
    "chord_m": 0.001,
    "files": {
     "seeded-gap-boxes.facets.bin": "d0f7c6dbc440460115c4916c1621396b6db6601f427419ade2555fea1d535011",
-    "seeded-gap-boxes.facets.json": "6e311f72be58fc032c767f7a750204feaba4a2bdb4238e8388328c24849020c0"
+    "seeded-gap-boxes.facets.json": "2c31d88a350e3b2507b61a89463b4faf18c86b1033bbed7143e9feecebb03ad1"
    },
    "local_run": {
     "booleans": {
@@ -938,10 +1398,10 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.07516945712268353,
-      "convert": 0.18895446509122849,
-      "export_facets": 0.012903228867799044,
-      "total": 0.2882899178657681
+      "read_step": 0.1016132622025907,
+      "convert": 0.2731827460229397,
+      "export_facets": 0.02175119100138545,
+      "total": 0.4125327249057591
      }
     }
    }
@@ -961,7 +1421,7 @@
    "chord_m": 0.008,
    "files": {
     "seeded-gap-tori.facets.bin": "74b608fdb2c7a2e82e67dd381d43138490eae4f894a239d246d11cca99671bef",
-    "seeded-gap-tori.facets.json": "af33f1be65a290312862fc11778b91433d49c2e7eef4372333adab0c5adb9128"
+    "seeded-gap-tori.facets.json": "95eda01057ed5e87b1e53dea8b7a258f430616cd902ec4463938e12b7597d5d6"
    },
    "local_run": {
     "booleans": {
@@ -996,10 +1456,10 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.020067834993824363,
-      "convert": 2.41140413004905,
-      "export_facets": 0.020373823819682002,
-      "total": 2.4628608550410718
+      "read_step": 0.02981617604382336,
+      "convert": 3.268023831071332,
+      "export_facets": 0.028016974916681647,
+      "total": 3.3415412530303
      }
     }
    }
@@ -1018,8 +1478,8 @@
    "subject": "imprinted",
    "chord_m": 0.001,
    "files": {
-    "seeded-sliver-boxes.facets.bin": "30682ee5407df8d6949f27e4e68d51e23166074181f06bee862d414db69b76ea",
-    "seeded-sliver-boxes.facets.json": "1add0c15d994367858e3689a6b2cc4797a2e749910b6a31090a2f0624788dc86"
+    "seeded-sliver-boxes.facets.bin": "2a2f04fea456d80440310c18d1022f0947e36248e31d2771db4e092e257ee87a",
+    "seeded-sliver-boxes.facets.json": "0a6d52991725f092f8a7cb02e25a8f8154291245340c561a5d6c20ccbda5c452"
    },
    "local_run": {
     "booleans": {
@@ -1054,12 +1514,31 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.07612800411880016,
-      "convert": 0.18783314805477858,
-      "export_facets": 0.01286697806790471,
-      "total": 0.2875816721934825
+      "read_step": 0.10831441194750369,
+      "convert": 0.23304549511522055,
+      "export_facets": 0.015963276149705052,
+      "total": 0.3731698268093169
      }
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -1076,8 +1555,8 @@
    "subject": "imprinted",
    "chord_m": 0.001,
    "files": {
-    "seeded-sliver-tori.facets.bin": "1c35b79c8d0d0fe3e60589f46189872fbfe23fad1cf7c32525e16586c5883f9a",
-    "seeded-sliver-tori.facets.json": "81c6f429377f338181a7d2ee8d20e59a79f9955af72a72e06782da194885c6c1"
+    "seeded-sliver-tori.facets.bin": "d89be9493a67017b2671819dc284bbc1dd0fd4d3709e65413633082c81097e94",
+    "seeded-sliver-tori.facets.json": "75284b04679f95750daedefef65158a8507df22b227cb5c440b2f3e1663ac12d"
    },
    "local_run": {
     "booleans": {
@@ -1112,12 +1591,108 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.02200542320497334,
-      "convert": 4.496146069839597,
-      "export_facets": 0.05421455390751362,
-      "total": 4.583989244187251
+      "read_step": 0.030755528947338462,
+      "convert": 6.572589406976476,
+      "export_facets": 0.06779994792304933,
+      "total": 6.689049619017169
      }
     }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0009679957593757962,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0009679957593757962,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.000979999105483728,
+      "complete": true
+     }
+    ]
+   }
+  },
+  {
+   "id": "seeded-misrepresented-sliver-tori",
+   "family": "cad",
+   "class": "misrepresented-sliver",
+   "base": "tori",
+   "scale": 1.0,
+   "seed": 73,
+   "kind": "seeded",
+   "expected_requirements": [
+    "SLIVER"
+   ],
+   "subject": "imprinted",
+   "chord_m": 0.002,
+   "files": {
+    "seeded-misrepresented-sliver-tori.facets.bin": "e16828c146ee99affa815f45b5cff4ad091f5112bab6ac8d2e2e24c86c95e72a",
+    "seeded-misrepresented-sliver-tori.facets.json": "d7856e4359efc2a624355a29c4bd27a47c48f7335663e7a186bd2c984b1de690"
+   },
+   "local_run": {
+    "booleans": {
+     "pairs": [
+      {
+       "a": 0,
+       "b": 1,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 0,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 1,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      }
+     ]
+    },
+    "convert": {
+     "command": "convert",
+     "chord_cm": 0.2,
+     "angular_rad": 0.5,
+     "exit_code": 0,
+     "problems": [],
+     "timing_seconds": {
+      "read_step": 0.021933621959760785,
+      "convert": 5.4571606600657105,
+      "export_facets": 0.03432228392921388,
+      "total": 5.526683802017942
+     }
+    }
+   },
+   "deviation": {
+    "solids": [
+     {
+      "solid_id": "core",
+      "max_distance_m": 0.0021112651346919336,
+      "complete": true
+     },
+     {
+      "solid_id": "shell1",
+      "max_distance_m": 0.0021112651346919336,
+      "complete": true
+     },
+     {
+      "solid_id": "shell2",
+      "max_distance_m": 0.0019566543190850326,
+      "complete": true
+     }
+    ]
    }
   },
   {
@@ -1137,7 +1712,7 @@
    "chord_m": 0.001,
    "files": {
     "seeded-zero-volume-boxes.facets.bin": "eb6bbb9ec2d25566ef4cc1d18df2ef86bf3df2d7a4ca6ad5b485a371eb5d84e5",
-    "seeded-zero-volume-boxes.facets.json": "25b36433b97c4ce182f3159cf48b9e4d3f6afe9abef6e6dbd1dc0cca58ef716a"
+    "seeded-zero-volume-boxes.facets.json": "678168c17a45bf0d0782cd0ba1744cd9cd540b4ad89628f3a305a351e5e6e2b3"
    },
    "mutated_from": "clean-boxes-0",
    "local_run": {
@@ -1148,7 +1723,7 @@
      "exit_code": null,
      "error": "ValueError: surface set 73 holds no triangles",
      "trace_tail": [
-      "  File \"/home/connoravila/.cache/avila-night/faris-wt/s1b/integrations/cad/faris_facets.py\", line 236, in read_h5m",
+      "  File \"/home/connoravila/.cache/avila-night/faris-wt/s1b-fix/integrations/cad/faris_facets.py\", line 236, in read_h5m",
       "    raise ValueError(f\"surface set {handle} holds no triangles\")",
       "ValueError: surface set 73 holds no triangles"
      ]
@@ -1172,7 +1747,7 @@
    "chord_m": 0.003,
    "files": {
     "seeded-zero-volume-port.facets.bin": "698ca1e47c191fb52b16ab68be0237f2e44ae6356ce75ecc99eef2c155ea9296",
-    "seeded-zero-volume-port.facets.json": "8dcc8d4df71a0d971b4c874172835f509799fc528f920cfc15a8fdbd5cdfac3a"
+    "seeded-zero-volume-port.facets.json": "c54dc13c5ce6e84c5fd1ac0923752bfe6538da187578a8645cb1c9dcbeae8ff9"
    },
    "mutated_from": "clean-port-0",
    "local_run": {
@@ -1183,7 +1758,7 @@
      "exit_code": null,
      "error": "ValueError: surface set 1191 holds no triangles",
      "trace_tail": [
-      "  File \"/home/connoravila/.cache/avila-night/faris-wt/s1b/integrations/cad/faris_facets.py\", line 236, in read_h5m",
+      "  File \"/home/connoravila/.cache/avila-night/faris-wt/s1b-fix/integrations/cad/faris_facets.py\", line 236, in read_h5m",
       "    raise ValueError(f\"surface set {handle} holds no triangles\")",
       "ValueError: surface set 1191 holds no triangles"
      ]
@@ -1204,8 +1779,8 @@
    "subject": "unimprinted",
    "chord_m": 0.001,
    "files": {
-    "seeded-duplicate-surface-boxes.facets.bin": "17503ccd9c6b88c90049a0a6bd75a62f6a66e066cf778f9a7d83ec9cc74a86d6",
-    "seeded-duplicate-surface-boxes.facets.json": "d38aaecb51c2b0a6565e287ce236211b2450e617185ecd0e80a9de76828404e4"
+    "seeded-duplicate-surface-boxes.facets.bin": "28c88e1e1bded6155c12541ae6ad1721065bab3fd8475fe62b65b905f643f72d",
+    "seeded-duplicate-surface-boxes.facets.json": "6bc3d5f3a641fde070dbf563e85243b5cad9169fd758d04070522e0f189c09da"
    },
    "local_run": {
     "booleans": {
@@ -1240,10 +1815,10 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.0761278870049864,
-      "convert": 0.18317199405282736,
-      "export_facets": 0.012484431965276599,
-      "total": 0.282665102975443
+      "read_step": 0.09330158121883869,
+      "convert": 0.25930616399273276,
+      "export_facets": 0.01759636402130127,
+      "total": 0.3843046259135008
      }
     },
     "tessellate": {
@@ -1253,7 +1828,9 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "total": 0.16361443395726383
+      "read_step": 0.09074416919611394,
+      "mesh": 0.03240231703966856,
+      "total": 0.12912755995057523
      }
     }
    }
@@ -1272,8 +1849,8 @@
    "subject": "unimprinted",
    "chord_m": 0.003,
    "files": {
-    "seeded-duplicate-surface-port.facets.bin": "d99ac76d7a93db6d7ff4d94244d14759ee2a0a6df7cc471fd5b0608f96359cc1",
-    "seeded-duplicate-surface-port.facets.json": "1d9a417c6fad2afe431bb7ab6491a9c84d280c67baf6bc1e58dd1aa47469132c"
+    "seeded-duplicate-surface-port.facets.bin": "02afd7a6857387129521b12c6d6052721eec00bdb85a9616c1a45a83726bbfcc",
+    "seeded-duplicate-surface-port.facets.json": "01019b680643c89b978b573ae574029324fbc2bbed5f98f2db82e6e6a6bad115"
    },
    "local_run": {
     "booleans": {
@@ -1308,10 +1885,10 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "read_step": 0.0567599949426949,
-      "convert": 0.34727110783569515,
-      "export_facets": 0.013576216995716095,
-      "total": 0.42831624299287796
+      "read_step": 0.08447008393704891,
+      "convert": 0.4733898499980569,
+      "export_facets": 0.017410679953172803,
+      "total": 0.5901915691792965
      }
     },
     "tessellate": {
@@ -1321,7 +1898,9 @@
      "exit_code": 0,
      "problems": [],
      "timing_seconds": {
-      "total": 0.24239830998703837
+      "read_step": 0.07964591193012893,
+      "mesh": 0.08795773587189615,
+      "total": 0.1786295019555837
      }
     }
    }
@@ -1340,9 +1919,9 @@
    "subject": "design",
    "chord_m": 0.001,
    "files": {
-    "seeded-wrong-units-boxes.step": "ff9277f8812bc0bc78af507ec16a7b0a1c6c9feb076ba2638423fcab804fa88f",
-    "seeded-wrong-units-boxes.inspect.json": "ce7109fa54d19c96ba85bb39327cace4265bc273aab8356bab8c478bfcec304d",
-    "seeded-wrong-units-boxes.design.json": "364fa69232592cf0f5ef32fd36399ece42411f9ac1a06710541cf5bae94e2c89"
+    "seeded-wrong-units-boxes.step": "ef7e84c549fb778391bfb0b59bffee7ba5a7c6eb57ac4e857a0a7a8d240abe8d",
+    "seeded-wrong-units-boxes.inspect.json": "fb6b1a57c1d80e75d1d94770bc6a12bf544260acac7b28dcab274af64b6a1a87",
+    "seeded-wrong-units-boxes.design.json": "a2cd7d50c79177d346ced70ad83e96f85c9caf290b6f695ef23033482fc0d589"
    },
    "design_check": {
     "fails_at": 2
@@ -1362,9 +1941,9 @@
    "subject": "design",
    "chord_m": 0.008,
    "files": {
-    "seeded-wrong-units-tori.step": "bb3afb4d04fc54e1699e64e895ff83706f8f46d1218d0a6dab66bbc87ef2c1cc",
-    "seeded-wrong-units-tori.inspect.json": "3445e4586417b29580793a271aad26660387090ef21c1cb09d489ce0364f2922",
-    "seeded-wrong-units-tori.design.json": "b26f5a9d3dcd9c0fb7fbe8a550aae41cc9a7a75ebe880e04d85ad8c3aea84763"
+    "seeded-wrong-units-tori.step": "a2eca695012a4b366b920278865a254261be8950e100b9b977229050e783e021",
+    "seeded-wrong-units-tori.inspect.json": "e9fbeba32adc7c9447b558f666c0a0d09e161bfaabfcfe692892d96caee7f5a5",
+    "seeded-wrong-units-tori.design.json": "5fd296b44eed53043a9de2fa70c9845bda01da14633f5c81b6572e38e1de8035"
    },
    "design_check": {
     "fails_at": 2
@@ -1384,9 +1963,9 @@
    "subject": "design",
    "chord_m": 0.001,
    "files": {
-    "seeded-missing-material-boxes.step": "e2257d7e501cae81e20c509690e20a9f07f34cc2512d84caff57341eb37aae38",
-    "seeded-missing-material-boxes.inspect.json": "9ee0dded8555cc560f6d348302f38ec3ca6f5e562afa2c32741180d3a8b82f16",
-    "seeded-missing-material-boxes.design.json": "40729fbd53f06827fa0422fc6a266887d75972c8256b8cf1d6a6464bad7506be"
+    "seeded-missing-material-boxes.step": "e21ef8ce187814d038c8adb2711065516d26fd2e22b5dc6b1bb3c67293fd0385",
+    "seeded-missing-material-boxes.inspect.json": "4f292090bcd2269ed06af11e2d090872684beeb17d56ad6765c8e312f229504c",
+    "seeded-missing-material-boxes.design.json": "65ba1d3a3718e3c1c543f76bd1ca4825265c6e17b6734e0a30d13896cfdb7130"
    },
    "design_check": {
     "fails_at": 1
@@ -1406,9 +1985,9 @@
    "subject": "design",
    "chord_m": 0.003,
    "files": {
-    "seeded-missing-material-port.step": "47776ad2067a05d2660b643c97066b314a986498202e8fe45045866404f1194a",
-    "seeded-missing-material-port.inspect.json": "72baf76498f0c2e02cfe70aa81805e50845a566396f806201aab9e7c9f905518",
-    "seeded-missing-material-port.design.json": "4f088bda36041b053608285fb98119dce8f23211ce9d884b2ae3b33ad8995b66"
+    "seeded-missing-material-port.step": "2cf7c11c4319f23d74838e713c3bcbdb192ddbf2b0a3c5017819d7338a9f8dba",
+    "seeded-missing-material-port.inspect.json": "2901d7b8e20e1ee5773ced1c522da5a1fbc8980398926ad77ca2ca0ce4e317cf",
+    "seeded-missing-material-port.design.json": "a0f5a7a55a38fb59a5af970706da97982bea2fc3ce0dbc9a249069748d1e433f"
    },
    "design_check": {
     "fails_at": 4

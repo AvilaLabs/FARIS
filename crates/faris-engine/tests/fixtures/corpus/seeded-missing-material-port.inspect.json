@@ -6,11 +6,11 @@
   "cadquery": "2.8.0",
   "ocp": "7.9.3.1",
   "occt": "7.9",
-  "helper": "2"
+  "helper": "3"
  },
  "step": {
   "file_name": "seeded-missing-material-port.step",
-  "sha256": "47776ad2067a05d2660b643c97066b314a986498202e8fe45045866404f1194a",
+  "sha256": "2cf7c11c4319f23d74838e713c3bcbdb192ddbf2b0a3c5017819d7338a9f8dba",
   "size_bytes": 58626
  },
  "unit": {
@@ -98,9 +98,9 @@
  "volume_method": "BRepGProp.VolumeProperties adaptive, eps=1e-07",
  "problems": [],
  "timing_seconds": {
-  "unit_text_parse": 0.004514060914516449,
-  "read_and_transfer": 0.05418961984105408,
-  "measure_solids": 0.026079284958541393
+  "unit_text_parse": 0.007128184894099832,
+  "read_and_transfer": 0.0804794211871922,
+  "measure_solids": 0.026855231961235404
  },
  "model_bbox_min_m": [
   -0.3,

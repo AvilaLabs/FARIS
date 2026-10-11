@@ -34,6 +34,21 @@ struct Entry {
     design_check: Option<DesignCheck>,
     #[serde(default)]
     local_run: Option<serde_json::Value>,
+    /// GEO-032 as the CAD kernel measured it when the corpus was generated.
+    #[serde(default)]
+    deviation: Option<RecordedDeviation>,
+}
+
+#[derive(Deserialize)]
+struct RecordedDeviation {
+    solids: Vec<RecordedSolid>,
+}
+
+#[derive(Deserialize)]
+struct RecordedSolid {
+    solid_id: String,
+    max_distance_m: f64,
+    complete: bool,
 }
 
 #[derive(Deserialize)]
@@ -71,7 +86,21 @@ fn verdict(entry: &Entry) -> (BTreeSet<String>, usize) {
     let mut config = Config::new(entry.chord_m, 7);
     config.samples = 20_000;
     config.chords = 2_000;
-    let result = integrity::check_integrity(&model, &labels, &config, &ctl).unwrap();
+    let mut result = integrity::check_integrity(&model, &labels, &config, &ctl).unwrap();
+    if let Some(recorded) = &entry.deviation {
+        let deviations: Vec<integrity::SolidDeviation> = recorded
+            .solids
+            .iter()
+            .map(|s| integrity::SolidDeviation {
+                solid_id: &s.solid_id,
+                max_distance_m: s.max_distance_m,
+                at_m: None,
+                complete: s.complete,
+            })
+            .collect();
+        let extra = integrity::thickness_misrepresented(&result.record.volumes, &deviations);
+        result.findings.extend(extra);
+    }
     if std::env::var("FARIS_CORPUS_DEBUG").is_ok() {
         for f in result.findings.iter().filter(|f| f.blocks()) {
             println!("{}: {:?} {} | {}", entry.id, f.requirement, f.item, f.why);
@@ -150,7 +179,7 @@ fn the_corpus_has_the_required_size_and_classes() {
     let classes: BTreeSet<&str> = seeded.iter().filter_map(|m| m.class.as_deref()).collect();
     assert!(seeded.len() >= 20, "{} seeded models", seeded.len());
     assert!(clean >= 20, "{clean} clean models");
-    assert_eq!(classes.len(), 11, "{classes:?}");
+    assert_eq!(classes.len(), 12, "{classes:?}");
 }
 
 // Verifies: GEO-023, GEO-020, GEO-021, GEO-022

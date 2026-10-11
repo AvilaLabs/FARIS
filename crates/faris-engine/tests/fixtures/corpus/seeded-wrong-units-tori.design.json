@@ -5,7 +5,7 @@
  "description": "Four solids for the design-file tests.",
  "cad": {
   "step_file": "seeded-wrong-units-tori.step",
-  "step_sha256": "bb3afb4d04fc54e1699e64e895ff83706f8f46d1218d0a6dab66bbc87ef2c1cc",
+  "step_sha256": "a2eca695012a4b366b920278865a254261be8950e100b9b977229050e783e021",
   "length_unit": "m",
   "extent": {
    "kind": "full"
