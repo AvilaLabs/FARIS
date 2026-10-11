@@ -1,6 +1,6 @@
 # Install, import and repair: plan to be the easiest tool in its class
 
-Status: proposal, 2026-10-10, awaiting Connor's approval of scope. Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
+Status: scope approved by Connor 2026-10-10. Open: data hosting (see section 2). Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
 section 1 ("Bring your own design") and section 6 (product quality).
 
 The standard is best in class on every metric, ease of use included. This plan sets the bar from a survey of the tools
