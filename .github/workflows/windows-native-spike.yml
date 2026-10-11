@@ -195,6 +195,19 @@ jobs:
         run: |
           # the run directory name is the tag; summarise from the same place
           ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model dagmc -Tag 'win dagmc pfad ü'
+      - name: "Stage 6d2: same, with a UTF-8 active code page manifest on openmc.exe"
+        if: steps.smoke-dagmc.outcome == 'success'
+        continue-on-error: true
+        run: |
+          Copy-Item C:\spike\dist\openmc-dagmc C:\spike\dist\openmc-dagmc-utf8 -Recurse -Force
+          $exe = 'C:\spike\dist\openmc-dagmc-utf8\openmc.exe'
+          mt.exe -nologo -inputresource:"$exe;#1" -manifest "$PWD\integrations\windows-spike\data\utf8.manifest" -outputresource:"$exe;#1"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'no manifest to merge with; replacing'
+            mt.exe -nologo -manifest "$PWD\integrations\windows-spike\data\utf8.manifest" -outputresource:"$exe;#1"
+            if ($LASTEXITCODE -ne 0) { throw 'mt.exe failed' }
+          }
+          ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc-utf8 -Model dagmc -Tag 'win dagmc pfad ü utf8'
       - name: "Stage 6c: DAGMC model through the C API from Rust (double-down bundle)"
         if: steps.smoke-dagmc.outcome == 'success'
         continue-on-error: true
