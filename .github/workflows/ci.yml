@@ -22,8 +22,9 @@ jobs:
       - name: Native desktop dependencies
         run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev poppler-utils
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
+      # faris-occt builds OpenCASCADE from source (about 90 minutes); it has its own gate, see crates/faris-occt/README.md.
+      - run: cargo clippy --workspace --exclude faris-occt --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --exclude faris-occt --locked
       - name: Independent analytic control checks (no OpenMC installation)
         run: python3 -m unittest discover -s controls -p 'test_*.py'
       - name: Validation harness tests (no OpenMC installation)
