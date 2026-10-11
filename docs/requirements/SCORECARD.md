@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1416 | 46 | 418 | 914 | 38 | 125 | 9 % | 415 | 215 | 432 | 116 | 431 | 97 |
+| All requirements | 1416 | 46 | 418 | 914 | 38 | 125 | 9 % | 415 | 214 | 432 | 116 | 431 | 97 |
 
 ## By category
 
@@ -29,7 +29,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 16 | 58 | 0 | 4 | 5 % | 35 | 8 | 25 | 1 | 20 | 4 |
 | [Interoperability](14-interoperability.md) | 59 | 1 | 19 | 36 | 3 | 6 | 10 % | 24 | 11 | 14 | 1 | 24 | 3 |
 | [Design workflows](15-design-workflows.md) | 75 | 2 | 21 | 52 | 0 | 4 | 5 % | 19 | 9 | 19 | 0 | 40 | 4 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 5 | 19 | 16 | 2 | 13 | 31 % | 11 | 5 | 7 | 0 | 25 | 4 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 5 | 19 | 16 | 2 | 13 | 31 % | 11 | 4 | 7 | 0 | 25 | 4 |
 | [Collaboration](17-collaboration.md) | 40 | 2 | 6 | 32 | 0 | 3 | 8 % | 6 | 1 | 10 | 1 | 25 | 1 |
 | [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 7 | 4 | 8 | 1 | 27 | 3 |
 | [Security](19-security.md) | 55 | 8 | 20 | 26 | 1 | 6 | 11 % | 14 | 3 | 7 | 0 | 36 | 10 |
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 39 | 225 | 162 | 19 | 80 | 18 % | 123 | 38 | 106 | 53 | 186 | 24 |
-| F2 | 495 | 2 | 130 | 346 | 17 | 26 | 5 % | 129 | 89 | 169 | 51 | 122 | 36 |
+| F2 | 495 | 2 | 130 | 346 | 17 | 26 | 5 % | 129 | 88 | 169 | 51 | 122 | 36 |
 | F3 | 66 | 1 | 6 | 59 | 0 | 2 | 3 % | 22 | 20 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 3 | 29 | 139 | 2 | 5 | 3 % | 55 | 24 | 61 | 8 | 41 | 10 |
 | F5 | 33 | 1 | 6 | 26 | 0 | 2 | 6 % | 13 | 10 | 10 | 1 | 5 | 2 |
