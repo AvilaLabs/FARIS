@@ -49,6 +49,9 @@ def wait_quiet(max_wait_s: float = MAX_WAIT_S, poll_s: float = POLL_S) -> dict:
             return {"waited_s": time.time() - t0, "quiet": False, "loadavg": text}
         time.sleep(poll_s)
 
+# Hold off idle suspend while a job runs: OpenMC's figure of merit and the conversion times are wall-clock measurements.
+NO_SLEEP = ["systemd-inhibit", "--what=sleep:idle", "--who=FARIS", "--why=FARIS risk-test job"]
+
 
 def scope_name(log: Path) -> str:
     """A unique scope name for one job, so a timed-out job can be stopped as a whole."""
@@ -74,19 +77,19 @@ def job(argv: list[str], log: Path, timeout_s: float, wait: bool = False, pylib:
     env.pop("PYTHONPATH", None)
     if pylib:
         env["PYTHONPATH"] = str(D.PYLIB)
-    t0 = time.time()
+    t0 = time.monotonic()  # a suspended laptop does not count as job time (B1 of the UX-079 baseline lost 730 s to it)
     load0 = C.read_loadavg()
     unit = scope_name(log)
     with open(log, "w", encoding="utf-8") as out:
         try:
-            rc = subprocess.run(scoped(D.CAP, unit) + argv, stdout=out, stderr=subprocess.STDOUT, env=env,
+            rc = subprocess.run(scoped(D.CAP, unit) + NO_SLEEP + argv, stdout=out, stderr=subprocess.STDOUT, env=env,
                                 timeout=timeout_s).returncode
         except subprocess.TimeoutExpired:
             # killing systemd-run's client leaves the scope (and OpenMC in it) running: stop the whole scope
             subprocess.run(["systemctl", "--user", "stop", f"{unit}.scope"], check=False, capture_output=True)
             rc = "timeout"
     end = C.read_loadavg()
-    return {"returncode": rc, "wall_s": time.time() - t0, "wait": quiet, "loadavg_start": load0, "loadavg_end": end,
+    return {"returncode": rc, "wall_s": time.monotonic() - t0, "wait": quiet, "loadavg_start": load0, "loadavg_end": end,
             "contended": S.contended(end)}
 
 

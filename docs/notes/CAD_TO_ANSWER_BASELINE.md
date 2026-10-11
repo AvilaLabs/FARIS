@@ -119,3 +119,39 @@ results.
 ## Results
 
 Appended after runs.
+
+### Results, 2026-10-11
+
+Records: `~/.cache/avila-night/cad-to-answer-baseline/` (`results.json`, `b1/`, `b2/`). Both conversions ran on cores 0–3
+under the 6 GB cap, B2 first, each after a quiet-machine wait (80 s and 320 s). Job time 2,784 s by the driver's clock,
+of which 730 s was the laptop suspended (below), inside the 70 min cap either way.
+
+| Route | Conversion machine time | Tool's own timer | Peak memory | Triangles in the h5m | h5m sha256 | Valid |
+| --- | --- | --- | --- | --- | --- | --- |
+| B2, FARIS helper (4 imprint threads, overlap scan off) | 877 s | read 50 s, convert 815 s, facets export 3 s | 4.19 GB | 1,916,482 | `53d24c88…a171a107` | yes |
+| B1, cad_to_dagmc 0.14.3 as documented (default imprint, overlap scan on) | 938 s | read 54 s, total 928 s | 4.28 GB | 1,916,482 | `7bc44851…02cab19` | yes |
+
+Valid means: the h5m loads in OpenMC 0.15.3 with DAGMC, its 30 volume ids match the roles file with faceted volumes
+within 0.1 %, and 10,000 analog histories of the RM-M source lose no particle. Load average was 1.8 at both starts and
+4.0–4.2 at both ends.
+
+**The suspend.** The laptop went into idle suspend from 09:52:04 to 10:04:14 (730 s, system journal), while B1 was
+converting. The driver timed jobs with the wall clock, so it recorded 1,666 s for B1. The machine time above is the
+monotonic clock (systemd's accounting for the job's scope gives 15 min 37.6 s; B1's own monotonic timer gives 928 s
+from reading the STEP to writing the h5m). B2 ran without a suspend: the wall clock and systemd agree (877 s). The
+job runner now measures with the monotonic clock and holds an idle-suspend inhibitor for every job.
+
+**Rule outcome.** Baseline machine time, tuned route (B2 plus the recorded stages): 877 + 203 + 256 + 613 = **1,949 s
+(32.5 min)**. Documented-defaults route (B1 instead of B2): 938 + 203 + 256 + 613 = **2,010 s (33.5 min)**. Manual
+steps: the 11 listed above, unchanged by these runs.
+
+Judgment (coordinator):
+
+- **The old single-thread figure does not reproduce.** The earlier note of about 2,500 s with one imprint thread came
+  from an unrecorded run. Here the documented defaults (one imprint thread, overlap scan on) took 938 s, 7 % more than
+  FARIS's tuned settings. The conversion cost is in cad_to_dagmc's conversion step itself (815 of B2's 877 s), not in
+  its settings, so the native pipeline (local imprint, native meshing, h5m writer) remains the way to GEO-013.
+- **A skilled user's machine time is already close to UX-079's 30 min.** The open pipeline takes about 33 min of
+  machine time once the windows are known to work. FARIS's difference today is the steps (11 by hand against UX-079's
+  ≤ 5 logged decisions), not the machine time. The machine-time gap opens only with the native conversion and with
+  better windows.
