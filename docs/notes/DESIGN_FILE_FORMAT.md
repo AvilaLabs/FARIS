@@ -435,6 +435,21 @@ settled a detail.
     15 s) on a fresh conversion with the machine at load 10–13 from other jobs. **GEO-029 is met** in both. The fresh
     conversion took 961 s against 869 s before, under that load, so it does not show the scan's saving (at most 60 s);
     GEO-013 stays missed until the native import pipeline replaces the conversion.
+- **CAD reader (native worker, 2026-10-11).** The STEP inspect (check 2) and the per-solid tessellation (check 6)
+  run in the native OpenCASCADE worker `faris-occt-worker` or in the Python helper, as `--cad-reader
+  auto|native|python` and `--occt-worker PATH` choose (default `auto`: the worker when it is found and answers a
+  ping; found from `--occt-worker`, `FARIS_OCCT_WORKER`, then beside `faris`). The conversion, the overlap
+  booleans, the faceting deviation and the source sampler still run in Python. No output schema changed. The report
+  adds a reader stamp, on `cad_tool.reader` and on `geometry.pre_imprint.tessellation_reader`: `reader` (`native` or
+  `python`), `helper_version`, `helper_sha256`, and for the worker `worker_sha256` (the binary that ran) and
+  `occt_tag` (from its ping, for example `V7_9_3`); `native_unavailable` says why `auto` fell back to Python when a
+  worker was configured or found but did not answer. For a native stage `cad_tool.helper_version` is the worker's
+  (`faris-occt-1`) and `helper_sha256` is the worker binary's; the text report prints `CAD reader: native worker`
+  instead of the cadquery line. Reports written before this carry no stamp and read as Python. A tessellation in
+  `--work-dir` is reused only by the reader that made it: its key holds the helper version for Python (unchanged) and
+  `native:<worker sha256>:<OpenCASCADE tag>` for the worker, so a different worker binary is a different reader. The
+  facets of the two readers are byte-identical on the corpus and RM-M. Measurements are in
+  [OCCT_LAYER.md](OCCT_LAYER.md).
 - **Verdict.** The import is complete only when all nine checks ran and none failed.
 
 ## Appendix: `faris-facets/v1`

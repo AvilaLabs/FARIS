@@ -95,7 +95,11 @@ fn parity(step: &Path, work: &Path, python: &Path) {
         fields.remove("timing_seconds");
         value
     };
-    same(&strip(&ran_native.inspection), &strip(&ran_python.inspection), "inspect");
+    same(
+        &strip(&ran_native.inspection),
+        &strip(&ran_python.inspection),
+        "inspect",
+    );
 
     let inspection = &ran_native.inspection;
     let tags: Vec<TagEntry> = inspection
@@ -139,11 +143,23 @@ fn parity(step: &Path, work: &Path, python: &Path) {
         bytes(&native_dir) == bytes(&python_dir),
         "the facets are not byte-identical"
     );
-    assert_eq!(by_native.manifest.binary_sha256, by_python.manifest.binary_sha256);
+    assert_eq!(
+        by_native.manifest.binary_sha256,
+        by_python.manifest.binary_sha256
+    );
+    // The manifest names the program that wrote it (`helper_version`); nothing else may differ.
     let manifest = |dir: &Path| -> Value {
-        serde_json::from_slice(&std::fs::read(dir.join("solids.facets.json")).unwrap()).unwrap()
+        let mut value: Value =
+            serde_json::from_slice(&std::fs::read(dir.join("solids.facets.json")).unwrap())
+                .unwrap();
+        value.as_object_mut().unwrap().remove("helper_version");
+        value
     };
-    assert_eq!(manifest(&native_dir), manifest(&python_dir), "facets manifest");
+    assert_eq!(
+        manifest(&native_dir),
+        manifest(&python_dir),
+        "facets manifest"
+    );
     eprintln!(
         "{}: {} solids, {} triangles; inspect {:.1} s native against {:.1} s python; \
          tessellation {:.1} s against {:.1} s",
