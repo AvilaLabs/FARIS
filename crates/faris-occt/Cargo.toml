@@ -1,0 +1,33 @@
+[package]
+name = "faris-occt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "OpenCASCADE behind a thin C++ shim: STEP reading, tessellation and face classification, run in a worker process"
+build = "build.rs"
+
+[[bin]]
+name = "faris-occt-worker"
+path = "src/bin/faris-occt-worker.rs"
+
+[dependencies]
+faris-model.workspace = true
+cxx = "=1.0.205"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+nix = { workspace = true, features = ["resource"] }
+tempfile.workspace = true
+
+[build-dependencies]
+cxx-build = "=1.0.205"
+sha2.workspace = true
+
+# The workspace forbids unsafe code. The cxx bridge expands to unsafe blocks, so this
+# crate denies it everywhere except the one bridge module that allows it.
+[lints.rust]
+unsafe_code = "deny"
