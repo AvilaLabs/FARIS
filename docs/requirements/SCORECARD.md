@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1416 | 46 | 418 | 914 | 38 | 125 | 9 % | 173 | 411 | 351 | 115 | 431 | 97 |
+| All requirements | 1416 | 46 | 418 | 914 | 38 | 125 | 9 % | 415 | 215 | 432 | 116 | 431 | 97 |
 
 ## By category
 
@@ -17,38 +17,38 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Geometry and model](01-geometry-and-model.md) | 73 | 0 | 26 | 46 | 1 | 23 | 32 % | 15 | 16 | 43 | 4 | 6 | 12 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | 105 | 1 | 43 | 59 | 2 | 9 | 9 % | 19 | 21 | 41 | 18 | 7 | 11 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 1 | 9 | 87 | 0 | 2 | 2 % | 21 | 26 | 33 | 9 | 12 | 5 |
-| [Plant systems](04-plant-systems.md) | 99 | 4 | 16 | 79 | 0 | 5 | 5 % | 15 | 42 | 27 | 5 | 19 | 6 |
+| [Plant systems](04-plant-systems.md) | 99 | 4 | 16 | 79 | 0 | 5 | 5 % | 45 | 18 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 2 | 8 | 35 | 0 | 1 | 2 % | 6 | 14 | 16 | 5 | 6 | 3 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 1 | 27 | 44 | 0 | 16 | 22 % | 4 | 16 | 12 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 1 | 10 | 14 | 8 | 29 | 2 |
-| [Performance](08-performance.md) | 37 | 1 | 12 | 18 | 6 | 3 | 8 % | 11 | 11 | 7 | 3 | 7 | 0 |
-| [Usability](09-usability.md) | 72 | 0 | 21 | 48 | 3 | 2 | 3 % | 11 | 31 | 22 | 10 | 5 | 5 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 12 | 32 | 13 | 1 | 2 % | 25 | 18 | 13 | 4 | 1 | 1 |
-| [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 8 | 16 % | 8 | 16 | 13 | 8 | 8 | 0 |
-| [Configurability](12-configurability.md) | 63 | 1 | 17 | 44 | 1 | 4 | 6 % | 0 | 27 | 19 | 2 | 15 | 0 |
-| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 16 | 58 | 0 | 4 | 5 % | 5 | 33 | 17 | 1 | 20 | 4 |
-| [Interoperability](14-interoperability.md) | 59 | 1 | 19 | 36 | 3 | 6 | 10 % | 4 | 24 | 7 | 1 | 24 | 3 |
-| [Design workflows](15-design-workflows.md) | 75 | 2 | 21 | 52 | 0 | 4 | 5 % | 2 | 23 | 11 | 0 | 40 | 4 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 5 | 19 | 16 | 2 | 13 | 31 % | 5 | 10 | 3 | 0 | 25 | 4 |
-| [Collaboration](17-collaboration.md) | 40 | 2 | 6 | 32 | 0 | 3 | 8 % | 0 | 8 | 7 | 0 | 25 | 1 |
-| [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 2 | 8 | 2 | 1 | 27 | 3 |
-| [Security](19-security.md) | 55 | 8 | 20 | 26 | 1 | 6 | 11 % | 5 | 11 | 4 | 0 | 36 | 10 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 18 | 23 | 0 | 0 | 0 % | 4 | 2 | 5 | 1 | 34 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 21 | 52 | 1 | 0 | 0 % | 1 | 23 | 14 | 7 | 34 | 7 |
-| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 0 | 0 % | 6 | 9 | 20 | 11 | 4 | 2 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 5 | 17 | 12 | 2 | 5 | 14 % | 3 | 12 | 1 | 0 | 20 | 2 |
+| [Performance](08-performance.md) | 37 | 1 | 12 | 18 | 6 | 3 | 8 % | 15 | 7 | 15 | 3 | 7 | 0 |
+| [Usability](09-usability.md) | 72 | 0 | 21 | 48 | 3 | 2 | 3 % | 36 | 12 | 28 | 10 | 5 | 5 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 12 | 32 | 13 | 1 | 2 % | 42 | 5 | 13 | 4 | 1 | 1 |
+| [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 8 | 16 % | 21 | 7 | 22 | 7 | 8 | 0 |
+| [Configurability](12-configurability.md) | 63 | 1 | 17 | 44 | 1 | 4 | 6 % | 27 | 3 | 26 | 2 | 15 | 0 |
+| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 16 | 58 | 0 | 4 | 5 % | 35 | 8 | 25 | 1 | 20 | 4 |
+| [Interoperability](14-interoperability.md) | 59 | 1 | 19 | 36 | 3 | 6 | 10 % | 24 | 11 | 14 | 1 | 24 | 3 |
+| [Design workflows](15-design-workflows.md) | 75 | 2 | 21 | 52 | 0 | 4 | 5 % | 19 | 9 | 19 | 0 | 40 | 4 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 5 | 19 | 16 | 2 | 13 | 31 % | 11 | 5 | 7 | 0 | 25 | 4 |
+| [Collaboration](17-collaboration.md) | 40 | 2 | 6 | 32 | 0 | 3 | 8 % | 6 | 1 | 10 | 1 | 25 | 1 |
+| [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 7 | 4 | 8 | 1 | 27 | 3 |
+| [Security](19-security.md) | 55 | 8 | 20 | 26 | 1 | 6 | 11 % | 14 | 3 | 7 | 0 | 36 | 10 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 18 | 23 | 0 | 0 | 0 % | 5 | 2 | 6 | 1 | 33 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 21 | 52 | 1 | 0 | 0 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 0 | 0 % | 13 | 1 | 22 | 11 | 4 | 2 |
+| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 5 | 17 | 12 | 2 | 5 | 14 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
 ## By phase
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 39 | 225 | 162 | 19 | 80 | 18 % | 42 | 107 | 78 | 52 | 186 | 24 |
-| F2 | 495 | 2 | 130 | 346 | 17 | 26 | 5 % | 72 | 132 | 141 | 51 | 122 | 36 |
-| F3 | 66 | 1 | 6 | 59 | 0 | 2 | 3 % | 12 | 28 | 21 | 3 | 9 | 4 |
-| F4 | 173 | 3 | 29 | 139 | 2 | 5 | 3 % | 25 | 52 | 56 | 8 | 41 | 10 |
-| F5 | 33 | 1 | 6 | 26 | 0 | 2 | 6 % | 5 | 13 | 10 | 1 | 5 | 2 |
-| F6 | 174 | 0 | 20 | 154 | 0 | 2 | 1 % | 13 | 65 | 36 | 0 | 64 | 17 |
-| F7 | 30 | 0 | 2 | 28 | 0 | 8 | 27 % | 4 | 14 | 9 | 0 | 4 | 4 |
+| F1 | 445 | 39 | 225 | 162 | 19 | 80 | 18 % | 123 | 38 | 106 | 53 | 186 | 24 |
+| F2 | 495 | 2 | 130 | 346 | 17 | 26 | 5 % | 129 | 89 | 169 | 51 | 122 | 36 |
+| F3 | 66 | 1 | 6 | 59 | 0 | 2 | 3 % | 22 | 20 | 20 | 3 | 9 | 4 |
+| F4 | 173 | 3 | 29 | 139 | 2 | 5 | 3 % | 55 | 24 | 61 | 8 | 41 | 10 |
+| F5 | 33 | 1 | 6 | 26 | 0 | 2 | 6 % | 13 | 10 | 10 | 1 | 5 | 2 |
+| F6 | 174 | 0 | 20 | 154 | 0 | 2 | 1 % | 62 | 25 | 51 | 0 | 64 | 17 |
+| F7 | 30 | 0 | 2 | 28 | 0 | 8 | 27 % | 11 | 9 | 15 | 0 | 4 | 4 |
 
 ## Peer bars
 
@@ -57,26 +57,26 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Geometry and model](01-geometry-and-model.md): ITER; DAGMC; MCNP; OpenMC
 - [Radiation transport and neutron source](02-radiation-transport.md): OpenMC; DAGMC; Serpent; ITER; MCNP
 - [Activation, waste and materials](03-activation-and-materials.md): ACTINV; FISPACT; OpenMC; ITER
-- [Plant systems](04-plant-systems.md): ITER; OpenMC; ARIES; Sawan; arXiv 1501.07154; Design of the ITER Magnets; OSTI; NREL ATB; Schwartz 2023; Entler 2018; PROCESS part 2; ANS
+- [Plant systems](04-plant-systems.md): ITER; OpenMC; ARIES; FISPACT; ACTINV; Sawan; arXiv 1501.07154; Design of the ITER Magnets; OSTI; NREL ATB; Schwartz 2023; Entler 2018; PROCESS part 2; ANS
 - [Operation and life](05-operation-and-life.md): ITER; ARIES; arXiv 1412.4008; Federici
 - [Accuracy and validation](06-accuracy-and-validation.md): OpenMC; ACTINV; MCNP; Serpent; FISPACT; GMAT; SINBAD; Nucl. Fusion 52 083014; Nucl. Fusion 2024; Eur. Phys. J. Plus 139:432; NRC RAI response; NASA report; Fusion Sci. Technol. 2025; Song et al.; OSTI; CMS5 NRC RAI response
 - [Uncertainty](07-uncertainty.md): OpenMC; MCNP; SCALE; FISPACT; WCAG; EPJ Web Conf. ND2016 09025; Fischer 2018
 - [Performance](08-performance.md): Blender; Zed; OpenMC
-- [Usability](09-usability.md): Blender; WCAG; MeasuringU; NN/g; Onshape; Blender manual; W3C
-- [Accessibility and localisation](10-accessibility-and-localisation.md): WCAG; Blender; W3C; Nunez 2018; egui accessibility; AccessKit; ITI; Access Board; EC; CLDR
-- [Visualization](11-visualization.md): WCAG; Blender; NN/g; ParaView docs; BIDS; Nunez 2018; Nature Comms; Crameri; Belia 2005; Hullman 2015; Kale 2019; W3C
+- [Usability](09-usability.md): Blender; WCAG; MeasuringU; Hertzum 2021; NN/g; Blender source; Onshape; Blender manual; VS Code; Figma; ParaView; W3C; Orfanou et al. 2015
+- [Accessibility and localisation](10-accessibility-and-localisation.md): WCAG; Blender; W3C; VS Code; Nunez 2018; egui accessibility; AccessKit; Access Board; #7975; #2529; #1016; #8576; #8577
+- [Visualization](11-visualization.md): WCAG; Blender; NN/g; ParaView docs; BIDS; Nunez 2018; Belia 2005; Hullman 2015; Kale 2019; Elsevier; W3C; VS Code
 - [Configurability](12-configurability.md): Blender; WCAG
-- [Automation and extensibility](13-automation-and-extensibility.md): Blender; OpenMC; Slurm job arrays; OpenMC parallelization; OpenMC settings; PEP 387
-- [Interoperability](14-interoperability.md): OpenMC; DAGMC; MCNP; ACTINV; FISPACT; RO-Crate specification; VTKHDF format; IMAS DD releases; PROCESS
-- [Design workflows](15-design-workflows.md): SALib basics; SALib Morris; PROCESS
+- [Automation and extensibility](13-automation-and-extensibility.md): Blender; OpenMC; Slurm job arrays; OpenMC parallelization; PEP 387
+- [Interoperability](14-interoperability.md): OpenMC; DAGMC; MCNP; ACTINV; FISPACT; RO-Crate specification; VTKHDF format; IMAS DD releases
+- [Design workflows](15-design-workflows.md): SALib basics; SALib Morris; PROCESS; V citation
 - [Evidence and provenance](16-evidence-and-provenance.md): OpenMC
 - [Collaboration](17-collaboration.md): none named
 - [Reliability](18-reliability.md): Blender; OpenMC
 - [Security](19-security.md): none named
 - [Platforms and distribution](20-platforms-and-distribution.md): OpenMC; DAGMC
 - [Quality assurance](21-quality-assurance.md): GMAT; OpenMC; MCNP; Serpent; FISPACT; ACTINV; NASA report; ISO/IEC 25010:2023; Bazel test encyclopedia; OpenSSF gold criteria; SQLite; ASME NQA-1
-- [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG; Diataxis; SCALE 6.3 manual; NN/g; W3C
-- [Compliance and privacy](23-compliance-and-privacy.md): OpenMC
+- [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG; Diataxis; SCALE 6.3 manual; W3C
+- [Compliance and privacy](23-compliance-and-privacy.md): OpenMC; EUR-Lex
 
 ## Met without a checker (24)
 
