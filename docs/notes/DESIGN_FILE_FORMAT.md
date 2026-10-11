@@ -412,10 +412,17 @@ settled a detail.
   by about a third between runs).** Fresh run, no cache: conversion 869 s with 4 imprint threads (it was 2500 s with
   one), peak 4.3 GB, against GEO-013's 10 min; pre-imprint tessellation 105 s and booleans 40 s (both were 14 min and
   3 min); check 7 2.3 s; check 8 34 s; GEO-032 126 s, maximum over all points (4.79 million points on 30 solids, 4314
-  of them by OpenCASCADE), largest deviation 6.13e-4 m; check 9 84 s. Checks 7, 8, GEO-032 and 9: 250 s, inside
-  GEO-029's 5 minutes. A second run (cached conversion, tessellation and booleans recomputed) on a busier machine
+  of them by OpenCASCADE), largest deviation 6.13e-4 m; check 9 84 s. Checks 7, 8, GEO-032 and 9: 250 s (see the
+  quiet-machine run below for GEO-029). A second run (cached conversion, tessellation and booleans recomputed) on a busier machine
   took 2.1 + 46 + 200 + 114 = 363 s for the same four. RM-M has no sliver findings: its 1 cm layers are no longer
   flagged, and no solid's deviation is above a tenth of its thickness. Peak memory of the helpers: 0.9 GB.
+- **RM-M on a quiet machine (2026-10-10, 22:05, load 3.9 at the start from a job that had just ended; cached
+  conversion, cached tessellation and booleans).** Check 6 29 s (the caches work: 183–216 s uncached); check 7 1.6 s;
+  check 8 34 s; GEO-032 166 s; check 9 116 s, of which 97 s is sampling the plasma source through OpenMC. Checks 7, 8,
+  GEO-032 and 9: 317 s. Across the three runs the same four checks took 250, 317 and 363 s, so **GEO-029's 5 minutes is
+  not reliably met**; GEO-032 (126–200 s) and check 9's source sampling are the two largest parts. GEO-013's 10 min
+  conversion is missed (869 s). Both stages are replaced by the native import pipeline of
+  [EASE_OF_USE_PLAN.md](EASE_OF_USE_PLAN.md), which is re-measured against these targets.
 - **Verdict.** The import is complete only when all nine checks ran and none failed.
 
 ## Appendix: `faris-facets/v1`
