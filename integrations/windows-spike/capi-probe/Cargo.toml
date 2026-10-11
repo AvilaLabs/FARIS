@@ -1,0 +1,9 @@
+[package]
+name = "capi-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Windows spike: drives libopenmc through its C API from Rust, the way the FARIS bundle will."
+
+# Keeps this crate out of the FARIS workspace.
+[workspace]

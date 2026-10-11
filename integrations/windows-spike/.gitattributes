@@ -1,0 +1,3 @@
+# Patches, models and scripts are applied to or read by tools that do not want CRLF; the
+# Windows runner checks out with autocrlf on, so keep these byte-exact.
+* -text

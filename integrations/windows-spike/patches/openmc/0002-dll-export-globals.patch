@@ -1,0 +1,287 @@
+OpenMC 0.15.3 on Windows, patch 2 of 4: dllexport/dllimport for global variables.
+Taken from PR 2919. WINDOWS_EXPORT_ALL_SYMBOLS does not export data symbols, and openmc.exe
+(src/main.cpp) reads settings::run_mode, settings::solver_type, mpi::master and openmc_err_msg
+from libopenmc.dll. The *_ENABLED flags are exported because the C API users (FARIS, openmc.lib)
+read them. mesh.h/mesh.cpp also carry the 'and' -> '&&' and M_PI -> PI fixes of patch 3 because
+the same files take the export macro.
+
+diff --git a/include/openmc/capi.h b/include/openmc/capi.h
+index d8041ef..0914753 100644
+--- a/include/openmc/capi.h
++++ b/include/openmc/capi.h
+@@ -288,8 +288,17 @@ extern int OPENMC_E_DATA;
+ extern int OPENMC_E_PHYSICS;
+ extern int OPENMC_E_WARNING;
+ 
++// Macro to ensure global variables are exported in Windows DLLs
++#if defined(_WIN32) && defined(OPENMC_DLL_EXPORTS)
++#define OPENMC_API __declspec(dllexport)
++#elif defined(_WIN32)
++#define OPENMC_API __declspec(dllimport)
++#else
++#define OPENMC_API
++#endif
++
+ // Global variables
+-extern char openmc_err_msg[256];
++extern char OPENMC_API openmc_err_msg[256];
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/include/openmc/constants.h b/include/openmc/constants.h
+index bba260c..041d1fb 100644
+--- a/include/openmc/constants.h
++++ b/include/openmc/constants.h
+@@ -376,6 +376,19 @@ enum class GeometryType { CSG, DAG };
+ // representations. This value represents no surface.
+ constexpr int32_t SURFACE_NONE {0};
+ 
++//==============================================================================
++// Shared Libraries on Windows need the functions/classes/variables to be
++// exposed to be declared with this special keyword "__declspec(dllexport)".
++// We use a macro for this, so that it is only exported on Windows.
++
++#if defined(_WIN32) && defined(OPENMC_DLL_EXPORTS)
++#define OPENMC_API __declspec(dllexport)
++#elif defined(_WIN32)
++#define OPENMC_API __declspec(dllimport)
++#else
++#define OPENMC_API
++#endif
++
+ } // namespace openmc
+ 
+ #endif // OPENMC_CONSTANTS_H
+diff --git a/include/openmc/dagmc.h b/include/openmc/dagmc.h
+index 0e27402..fd4e90e 100644
+--- a/include/openmc/dagmc.h
++++ b/include/openmc/dagmc.h
+@@ -1,9 +1,11 @@
+ #ifndef OPENMC_DAGMC_H
+ #define OPENMC_DAGMC_H
+ 
++#include "openmc/constants.h" // Needed for OPENMC_API
++
+ namespace openmc {
+-extern "C" const bool DAGMC_ENABLED;
+-extern "C" const bool UWUW_ENABLED;
++extern "C" const bool OPENMC_API DAGMC_ENABLED;
++extern "C" const bool OPENMC_API UWUW_ENABLED;
+ } // namespace openmc
+ 
+ // always include the XML interface header
+diff --git a/include/openmc/mcpl_interface.h b/include/openmc/mcpl_interface.h
+index a9cce3e..c899cb6 100644
+--- a/include/openmc/mcpl_interface.h
++++ b/include/openmc/mcpl_interface.h
+@@ -1,6 +1,7 @@
+ #ifndef OPENMC_MCPL_INTERFACE_H
+ #define OPENMC_MCPL_INTERFACE_H
+ 
++#include "openmc/constants.h"
+ #include "openmc/particle_data.h"
+ #include "openmc/span.h"
+ #include "openmc/vector.h"
+diff --git a/include/openmc/mesh.h b/include/openmc/mesh.h
+index 5c9272e..c85a702 100644
+--- a/include/openmc/mesh.h
++++ b/include/openmc/mesh.h
+@@ -11,6 +11,7 @@
+ #include "xtensor/xtensor.hpp"
+ 
+ #include "openmc/bounding_box.h"
++#include "openmc/constants.h" // for OPENMC_API
+ #include "openmc/error.h"
+ #include "openmc/memory.h" // for unique_ptr
+ #include "openmc/particle.h"
+@@ -50,7 +51,7 @@ enum class ElementType { UNSUPPORTED = -1, LINEAR_TET, LINEAR_HEX };
+ // Global variables
+ //==============================================================================
+ 
+-extern "C" const bool LIBMESH_ENABLED;
++extern "C" const bool OPENMC_API LIBMESH_ENABLED;
+ 
+ class Mesh;
+ 
+@@ -591,7 +592,7 @@ private:
+ 
+   inline int sanitize_angular_index(int idx, bool full, int N) const
+   {
+-    if ((idx > 0) and (idx <= N)) {
++    if ((idx > 0) && (idx <= N)) {
+       return idx;
+     } else if (full) {
+       return (idx + N - 1) % N + 1;
+@@ -654,7 +655,7 @@ private:
+ 
+   inline int sanitize_angular_index(int idx, bool full, int N) const
+   {
+-    if ((idx > 0) and (idx <= N)) {
++    if ((idx > 0) && (idx <= N)) {
+       return idx;
+     } else if (full) {
+       return (idx + N - 1) % N + 1;
+diff --git a/include/openmc/message_passing.h b/include/openmc/message_passing.h
+index ce99377..2c56c2d 100644
+--- a/include/openmc/message_passing.h
++++ b/include/openmc/message_passing.h
+@@ -7,6 +7,7 @@
+ #include <mpi.h>
+ #endif
+ 
++#include "openmc/constants.h"
+ #include "openmc/vector.h"
+ 
+ namespace openmc {
+@@ -14,7 +15,7 @@ namespace mpi {
+ 
+ extern int rank;
+ extern int n_procs;
+-extern bool master;
++extern bool OPENMC_API master;
+ 
+ #ifdef OPENMC_MPI
+ extern MPI_Datatype source_site;
+diff --git a/include/openmc/settings.h b/include/openmc/settings.h
+index b369c99..3a19f48 100644
+--- a/include/openmc/settings.h
++++ b/include/openmc/settings.h
+@@ -155,9 +155,10 @@ extern ResScatMethod res_scat_method; //!< resonance upscattering method
+ extern double res_scat_energy_min; //!< Min energy in [eV] for res. upscattering
+ extern double res_scat_energy_max; //!< Max energy in [eV] for res. upscattering
+ extern vector<std::string>
+-  res_scat_nuclides;           //!< Nuclides using res. upscattering treatment
+-extern RunMode run_mode;       //!< Run mode (eigenvalue, fixed src, etc.)
+-extern SolverType solver_type; //!< Solver Type (Monte Carlo or Random Ray)
++  res_scat_nuclides; //!< Nuclides using res. upscattering treatment
++extern RunMode OPENMC_API run_mode; //!< Run mode (eigenvalue, fixed src, etc.)
++extern SolverType OPENMC_API
++  solver_type; //!< Solver Type (Monte Carlo or Random Ray)
+ extern std::unordered_set<int>
+   sourcepoint_batch; //!< Batches when source should be written
+ extern std::unordered_set<int>
+diff --git a/include/openmc/tallies/filter.h b/include/openmc/tallies/filter.h
+index 6509859..db7c87f 100644
+--- a/include/openmc/tallies/filter.h
++++ b/include/openmc/tallies/filter.h
+@@ -151,7 +151,7 @@ private:
+ 
+ namespace model {
+ extern "C" int32_t n_filters;
+-extern std::unordered_map<int, int> filter_map;
++extern std::unordered_map<int, int> OPENMC_API filter_map;
+ extern vector<unique_ptr<Filter>> tally_filters;
+ } // namespace model
+ 
+diff --git a/src/dagmc.cpp b/src/dagmc.cpp
+index b2ebe89..7aecdf9 100644
+--- a/src/dagmc.cpp
++++ b/src/dagmc.cpp
+@@ -27,15 +27,15 @@
+ namespace openmc {
+ 
+ #ifdef OPENMC_DAGMC_ENABLED
+-const bool DAGMC_ENABLED = true;
++const bool OPENMC_API DAGMC_ENABLED = true;
+ #else
+-const bool DAGMC_ENABLED = false;
++const bool OPENMC_API DAGMC_ENABLED = false;
+ #endif
+ 
+ #ifdef OPENMC_UWUW_ENABLED
+-const bool UWUW_ENABLED = true;
++const bool OPENMC_API UWUW_ENABLED = true;
+ #else
+-const bool UWUW_ENABLED = false;
++const bool OPENMC_API UWUW_ENABLED = false;
+ #endif
+ 
+ } // namespace openmc
+diff --git a/src/error.cpp b/src/error.cpp
+index f99f593..086b9e1 100644
+--- a/src/error.cpp
++++ b/src/error.cpp
+@@ -30,7 +30,7 @@ int OPENMC_E_PHYSICS {-10};
+ int OPENMC_E_WARNING {1};
+ 
+ // Error message
+-char openmc_err_msg[256];
++char OPENMC_API openmc_err_msg[256];
+ 
+ //==============================================================================
+ // Functions
+diff --git a/src/mesh.cpp b/src/mesh.cpp
+index 610d057..6398f07 100644
+--- a/src/mesh.cpp
++++ b/src/mesh.cpp
+@@ -64,9 +64,9 @@ namespace openmc {
+ //==============================================================================
+ 
+ #ifdef OPENMC_LIBMESH_ENABLED
+-const bool LIBMESH_ENABLED = true;
++const bool OPENMC_API LIBMESH_ENABLED = true;
+ #else
+-const bool LIBMESH_ENABLED = false;
++const bool OPENMC_API LIBMESH_ENABLED = false;
+ #endif
+ 
+ // Value used to indicate an empty slot in the hash table. We use -2 because
+@@ -1675,7 +1675,7 @@ StructuredMesh::MeshIndex CylindricalMesh::get_indices(
+   } else {
+     mapped_r[1] = std::atan2(r.y, r.x);
+     if (mapped_r[1] < 0)
+-      mapped_r[1] += 2 * M_PI;
++      mapped_r[1] += 2 * PI;
+   }
+ 
+   MeshIndex idx = StructuredMesh::get_indices(mapped_r, in_mesh);
+@@ -1968,7 +1968,7 @@ StructuredMesh::MeshIndex SphericalMesh::get_indices(
+     mapped_r[1] = std::acos(r.z / mapped_r.x);
+     mapped_r[2] = std::atan2(r.y, r.x);
+     if (mapped_r[2] < 0)
+-      mapped_r[2] += 2 * M_PI;
++      mapped_r[2] += 2 * PI;
+   }
+ 
+   MeshIndex idx = StructuredMesh::get_indices(mapped_r, in_mesh);
+diff --git a/src/message_passing.cpp b/src/message_passing.cpp
+index a160f6d..9329574 100644
+--- a/src/message_passing.cpp
++++ b/src/message_passing.cpp
+@@ -5,7 +5,7 @@ namespace mpi {
+ 
+ int rank {0};
+ int n_procs {1};
+-bool master {true};
++bool OPENMC_API master {true};
+ 
+ #ifdef OPENMC_MPI
+ MPI_Comm intracomm {MPI_COMM_NULL};
+diff --git a/src/settings.cpp b/src/settings.cpp
+index 9dcf7c8..4a84930 100644
+--- a/src/settings.cpp
++++ b/src/settings.cpp
+@@ -124,8 +124,8 @@ ResScatMethod res_scat_method {ResScatMethod::rvs};
+ double res_scat_energy_min {0.01};
+ double res_scat_energy_max {1000.0};
+ vector<std::string> res_scat_nuclides;
+-RunMode run_mode {RunMode::UNSET};
+-SolverType solver_type {SolverType::MONTE_CARLO};
++RunMode OPENMC_API run_mode {RunMode::UNSET};
++SolverType OPENMC_API solver_type {SolverType::MONTE_CARLO};
+ std::unordered_set<int> sourcepoint_batch;
+ std::unordered_set<int> statepoint_batch;
+ double source_rejection_fraction {0.05};
+diff --git a/src/tallies/filter.cpp b/src/tallies/filter.cpp
+index 7981798..d18f1b7 100644
+--- a/src/tallies/filter.cpp
++++ b/src/tallies/filter.cpp
+@@ -51,7 +51,7 @@ namespace openmc {
+ //==============================================================================
+ 
+ namespace model {
+-std::unordered_map<int, int> filter_map;
++std::unordered_map<int, int> OPENMC_API filter_map;
+ vector<unique_ptr<Filter>> tally_filters;
+ } // namespace model
+ 

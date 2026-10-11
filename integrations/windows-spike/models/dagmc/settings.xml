@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<settings>
+  <run_mode>fixed source</run_mode>
+  <particles>20000</particles>
+  <batches>20</batches>
+  <source type="independent" strength="1.0" particle="neutron">
+    <space type="point">
+      <parameters>0.0 0.0 0.0</parameters>
+    </space>
+    <energy type="discrete">
+      <parameters>14100000.0 1.0</parameters>
+    </energy>
+  </source>
+  <photon_transport>false</photon_transport>
+  <seed>20261010</seed>
+</settings>

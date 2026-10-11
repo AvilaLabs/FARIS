@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<tallies>
+  <filter id="1" type="cell">
+    <bins>1 2 3</bins>
+  </filter>
+  <filter id="2" type="energy">
+    <bins>0.0 100000.0 1000000.0 10000000.0 15000000.0</bins>
+  </filter>
+  <tally id="1" name="flux_by_cell">
+    <filters>1</filters>
+    <scores>flux absorption</scores>
+  </tally>
+  <tally id="2" name="flux_by_cell_energy">
+    <filters>1 2</filters>
+    <scores>flux</scores>
+  </tally>
+  <tally id="3" name="elastic_by_cell">
+    <filters>1</filters>
+    <scores>elastic (n,2n)</scores>
+  </tally>
+</tallies>

@@ -1,0 +1,216 @@
+OpenMC 0.15.3 on Windows, patch 3 of 4: MSVC language and OpenMP fixes.
+Taken from PR 2919, minus the files already in patch 2.
+- shared_array.h: MSVC's OpenMP does not accept seq_cst on 'omp atomic' (per PR 2919).
+- random_ray: PR 2919 reduces into a local instead of a class member ("must use temporary
+  accumulator variable for OpenMP on Windows").
+- event.h needs <tuple>. (PR 2919 also turns the forward declaration of BoundaryInfo in geometry.h
+  into 'struct', but in 0.15.3 BoundaryInfo is a class; MSVC mangles class and struct
+  differently, so that change leaves cross_lattice unresolved at link time and is not applied.)
+- 'and' alternative token in source.cpp (MSVC without /permissive-).
+- M_PI is not defined by MSVC without _USE_MATH_DEFINES: use openmc PI (quartic_solver, plot.cpp).
+- cell.cpp: the loop kept using an iterator after std::vector::erase invalidated it (undefined
+  behaviour on every compiler; PR 2919 assigns the iterator returned by erase).
+- secondary_correlated.cpp: initialise c_k1 (used-uninitialised diagnostic).
+
+diff --git a/include/openmc/event.h b/include/openmc/event.h
+index 2d215a1..6004d0f 100644
+--- a/include/openmc/event.h
++++ b/include/openmc/event.h
+@@ -7,6 +7,8 @@
+ #include "openmc/particle.h"
+ #include "openmc/shared_array.h"
+ 
++#include <tuple>
++
+ namespace openmc {
+ 
+ //==============================================================================
+diff --git a/include/openmc/shared_array.h b/include/openmc/shared_array.h
+index 7e9ef28..fc9a975 100644
+--- a/include/openmc/shared_array.h
++++ b/include/openmc/shared_array.h
+@@ -72,13 +72,23 @@ public:
+   {
+     // Atomically capture the index we want to write to
+     int64_t idx;
++#if _WIN32 && !__INTEL_COMPILER
++#pragma omp atomic capture
++    idx = size_++;
++#else
+ #pragma omp atomic capture seq_cst
+     idx = size_++;
++#endif
+ 
+     // Check that we haven't written off the end of the array
+     if (idx >= capacity_) {
++#if _WIN32 && !__INTEL_COMPILER
++#pragma omp atomic write
++      size_ = capacity_;
++#else
+ #pragma omp atomic write seq_cst
+       size_ = capacity_;
++#endif
+       return -1;
+     }
+ 
+diff --git a/src/cell.cpp b/src/cell.cpp
+index e247999..5beb09b 100644
+--- a/src/cell.cpp
++++ b/src/cell.cpp
+@@ -615,7 +615,9 @@ Region::Region(std::string region_spec, int32_t cell_id)
+     auto it = std::find(expression_.begin(), expression_.end(), OP_COMPLEMENT);
+     while (it != expression_.end()) {
+       // Erase complement
+-      expression_.erase(it);
++      it = expression_.erase(it);
++      if (it == expression_.end())
++        break; // Shouldn't happen, but to be safe
+ 
+       // Define stop given left parenthesis or not
+       auto stop = it;
+@@ -669,7 +671,7 @@ Region::Region(std::string region_spec, int32_t cell_id)
+     if (simple_) {
+       for (auto it = expression_.begin(); it != expression_.end(); it++) {
+         if (*it == OP_INTERSECTION || *it > OP_COMPLEMENT) {
+-          expression_.erase(it);
++          it = expression_.erase(it);
+           it--;
+         }
+       }
+diff --git a/src/external/quartic_solver.cpp b/src/external/quartic_solver.cpp
+index 915020f..3477246 100644
+--- a/src/external/quartic_solver.cpp
++++ b/src/external/quartic_solver.cpp
+@@ -7,6 +7,9 @@
+ 
+ namespace oqs {
+ 
++// TODO: replace with <numbers> when we go for C++20
++constexpr double PI {3.141592653589793238462643383279502884L};
++
+ // pow(DBL_MAX,1.0/3.0)/1.618034;
+ constexpr double CUBIC_RESCAL_FACT = 3.488062113727083e+102;
+ // pow(DBL_MAX,1.0/4.0)/1.618034;
+@@ -36,10 +39,10 @@ double solve_cubic_analytic_depressed_handle_inf(double b, double c)
+   if (KK < 0.0) {
+     double sqrtQ = std::sqrt(Q);
+     double theta = std::acos((R / std::abs(Q)) / sqrtQ);
+-    if (2.0 * theta < M_PI)
++    if (2.0 * theta < PI)
+       return -2.0 * sqrtQ * std::cos(theta / 3.0);
+     else
+-      return -2.0 * sqrtQ * std::cos((theta + 2.0 * M_PI) / 3.0);
++      return -2.0 * sqrtQ * std::cos((theta + 2.0 * PI) / 3.0);
+   } else {
+     double A;
+     if (std::abs(Q) < std::abs(R))
+@@ -68,10 +71,10 @@ double solve_cubic_analytic_depressed(double b, double c)
+   if (R2 < Q3) {
+     double theta = std::acos(R / std::sqrt(Q3));
+     double sqrtQ = -2.0 * std::sqrt(Q);
+-    if (2.0 * theta < M_PI)
++    if (2.0 * theta < PI)
+       return sqrtQ * std::cos(theta / 3.0);
+     else
+-      return sqrtQ * std::cos((theta + 2.0 * M_PI) / 3.0);
++      return sqrtQ * std::cos((theta + 2.0 * PI) / 3.0);
+   } else {
+     double A = -std::copysign(1.0, R) *
+                std::pow(std::abs(R) + std::sqrt(R2 - Q3), 1.0 / 3.0);
+diff --git a/src/plot.cpp b/src/plot.cpp
+index 2cadc48..c7098a6 100644
+--- a/src/plot.cpp
++++ b/src/plot.cpp
+@@ -1,7 +1,6 @@
+ #include "openmc/plot.h"
+ 
+ #include <algorithm>
+-#define _USE_MATH_DEFINES // to make M_PI declared in Intel and MSVC compilers
+ #include <cmath>
+ #include <cstdio>
+ #include <fstream>
+@@ -1180,7 +1179,7 @@ std::pair<Position, Direction> RayTracePlot::get_pixel_ray(
+   int horiz, int vert) const
+ {
+   // Compute field of view in radians
+-  constexpr double DEGREE_TO_RADIAN = M_PI / 180.0;
++  constexpr double DEGREE_TO_RADIAN = PI / 180.0;
+   double horiz_fov_radians = horizontal_field_of_view_ * DEGREE_TO_RADIAN;
+   double p0 = static_cast<double>(pixels_[0]);
+   double p1 = static_cast<double>(pixels_[1]);
+@@ -1535,9 +1534,12 @@ void SolidRayTracePlot::create_output() const
+   size_t height = pixels_[1];
+   ImageData data({width, height}, not_found_);
+ 
++  const auto pixels_0 = pixels_[0];
++  const auto pixels_1 = pixels_[1];
++
+ #pragma omp parallel for schedule(dynamic) collapse(2)
+-  for (int horiz = 0; horiz < pixels_[0]; ++horiz) {
+-    for (int vert = 0; vert < pixels_[1]; ++vert) {
++  for (int horiz = 0; horiz < pixels_0; ++horiz) {
++    for (int vert = 0; vert < pixels_1; ++vert) {
+       // RayTracePlot implements camera ray generation
+       std::pair<Position, Direction> ru = get_pixel_ray(horiz, vert);
+       PhongRay ray(ru.first, ru.second, *this);
+diff --git a/src/random_ray/flat_source_domain.cpp b/src/random_ray/flat_source_domain.cpp
+index 1bf27e1..b1f52ba 100644
+--- a/src/random_ray/flat_source_domain.cpp
++++ b/src/random_ray/flat_source_domain.cpp
+@@ -1002,13 +1002,15 @@ void FlatSourceDomain::apply_external_source_to_cell_and_children(
+ 
+ void FlatSourceDomain::count_external_source_regions()
+ {
+-  n_external_source_regions_ = 0;
+-#pragma omp parallel for reduction(+ : n_external_source_regions_)
++  // Must use temporary accumulator variable for OpenMP on Windows
++  int64_t tmp_n_external_source_regions {0};
++#pragma omp parallel for reduction(+ : tmp_n_external_source_regions)
+   for (int64_t sr = 0; sr < n_source_regions(); sr++) {
+     if (source_regions_.external_source_present(sr)) {
+-      n_external_source_regions_++;
++      tmp_n_external_source_regions++;
+     }
+   }
++  n_external_source_regions_ = tmp_n_external_source_regions;
+ }
+ 
+ void FlatSourceDomain::convert_external_sources()
+diff --git a/src/random_ray/random_ray_simulation.cpp b/src/random_ray/random_ray_simulation.cpp
+index d475b25..90c75c5 100644
+--- a/src/random_ray/random_ray_simulation.cpp
++++ b/src/random_ray/random_ray_simulation.cpp
+@@ -435,14 +435,17 @@ void RandomRaySimulation::simulate()
+       // Start timer for transport
+       simulation::time_transport.start();
+ 
+-// Transport sweep over all random rays for the iteration
++      // Transport sweep over all random rays for the iteration
++      // Must use temporary accumulator variable for OpenMP on Windows
++      uint64_t tmp_total_geometric_intersections {0};
+ #pragma omp parallel for schedule(dynamic)                                     \
+-  reduction(+ : total_geometric_intersections_)
++  reduction(+ : tmp_total_geometric_intersections)
+       for (int i = 0; i < settings::n_particles; i++) {
+         RandomRay ray(i, domain_.get());
+-        total_geometric_intersections_ +=
++        tmp_total_geometric_intersections +=
+           ray.transport_history_based_single_ray();
+       }
++      total_geometric_intersections_ = tmp_total_geometric_intersections;
+ 
+       simulation::time_transport.stop();
+ 
+diff --git a/src/secondary_correlated.cpp b/src/secondary_correlated.cpp
+index 0e4891d..0674c89 100644
+--- a/src/secondary_correlated.cpp
++++ b/src/secondary_correlated.cpp
+@@ -208,7 +208,7 @@ void CorrelatedAngleEnergy::sample(
+   }
+ 
+   // Continuous portion
+-  double c_k1;
++  double c_k1 = 0.;
+   for (int j = n_discrete; j < end; ++j) {
+     k = j;
+     c_k1 = distribution_[l].c[k + 1];

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Makes the ANSI code page of the process UTF-8 (Windows 10 1903 and later). HDF5 on Windows
+     takes UTF-8 file names; OpenMC passes the strings it gets from argv, getenv and
+     std::filesystem::path::string(), which are in the ANSI code page unless this is set. -->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+    </windowsSettings>
+  </application>
+</assembly>
