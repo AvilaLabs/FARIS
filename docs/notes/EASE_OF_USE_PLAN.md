@@ -1,6 +1,6 @@
 # Install, import and repair: plan to be the easiest tool in its class
 
-Status: scope approved by Connor 2026-10-10. Open: data hosting (see section 2). Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
+Status: scope approved by Connor 2026-10-10. Data hosting decided 2026-10-10: free, with acknowledgement (section 2). Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
 section 1 ("Bring your own design") and section 6 (product quality).
 
 The standard is best in class on every metric, ease of use included. This plan sets the bar from a survey of the tools
@@ -88,6 +88,9 @@ claims not read at the source are left out of this table.
   - FENDL is now 3.2c (the IAEA page, updated 2026-06-05, notes corrected tungsten evaluations as of 2025-05-31). Library
     v2 uses the FENDL-3.2 HDF5 build OpenMC published; which revision that is has to be checked before v2 becomes a
     default.
+- **Decision (Connor, 2026-10-10):** where charging is a grey area, the data delivery is free. Avila Labs hosts per-file,
+  per-temperature copies free of charge, acknowledges the IAEA (FENDL) and NNDC (ENDF/B) as sources in FARIS and on the
+  download page, implies no endorsement, and keeps the download-from-source path working.
 
 ### 3. Import in the app
 
