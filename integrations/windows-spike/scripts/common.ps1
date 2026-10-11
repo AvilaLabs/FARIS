@@ -70,6 +70,8 @@ function Set-CommonFlags {
 function Get-CmakeCommon([string]$Prefix) {
     return @(
         '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
+        # CMake 4 rejects cmake_minimum_required below 3.5, which double-down still declares
+        '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
         '-DCMAKE_C_COMPILER=cl', '-DCMAKE_CXX_COMPILER=cl',
         "-DCMAKE_INSTALL_PREFIX=$(Fwd $Prefix)",
         # the official HDF5 package only ships RelWithDebInfo import targets
