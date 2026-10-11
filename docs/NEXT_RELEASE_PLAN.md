@@ -168,6 +168,22 @@ that depends on it starts.
    (NEA/RSICC licence, terms not yet read) or possibly CoNDERC (not yet
    confirmed). VAL-020 currently says the suite is "drawn from SINBAD"; open
    sources come first instead.
+   - Terms read 2026-10-10 (SINBAD v1 NEA licence, archived copy; the v2 text is
+     only shown to licensees). Access is by request: NEA Data Bank member
+     organisations sign a licence for GitLab access, and others go through
+     RSICC. Use is royalty-free and allows commercial purposes, but only for the
+     declared intended use. Publications must cite SINBAD (Art. 2).
+     Redistribution to third parties is forbidden (Art. 1), so no SINBAD values
+     go into a public repository: the suite would hold only a loader and
+     checksums, with the user's own copy. Art. 4 forbids creating "any output or
+     derivative work generated from the use of the Dataset". Read literally,
+     that covers published C/E comparisons, so written clarification from the
+     NEA is needed before any is published. Asking is Connor's call.
+   - In the v1 list, FNG-ITER bulk shield and FNG-SS sit in Volume 2 (RSICC
+     licence), and the other FNG entries in Volume 1. CoNDERC's FNG page only
+     points to SINBAD; no FNG measured values were found there.
+   - IAEA-NDS/open-benchmarks (CC-BY-4.0) holds FNS, OKTAVIAN and TIARA data but
+     no FNG.
 6. **OpenMC version.** 0.15.3 and 0.16.0 are both installed with DAGMC. Pick one
    before transport work, since the workarounds above are version-specific.
 7. **Memory for conversion of large models.** Conversion runs under the bounded

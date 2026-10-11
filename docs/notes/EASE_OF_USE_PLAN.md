@@ -92,14 +92,20 @@ claims not read at the source are left out of this table.
     isotopes (3.2c adopted the ENDF/B-VIII.0 resolved-resonance range for W). The current release is 3.2c, and its ACE
     files are published by the IAEA (IAEA-NDS/FENDL-Processed, tag FENDL-3.2c, files through git-annex). FARIS's hosted
     library is built from FENDL-3.2c, converted by us, and the v1/v2 results stay labelled with the 2022 build they used.
-    Whether the git-annex sources download without the IAEA site's browser challenge is still to be tested.
+    The git-annex sources do not download from a script: the annex points at
+    `https://nds.iaea.org/fendl_library/data/hashstore/sha256-<hash>`, which returns HTTP 403 with a Cloudflare challenge
+    (checked 2026-10-10 on the Fe photo-atomic file). We download the release once in a browser and check each file
+    against the SHA-256 in its annex key. Users never meet the challenge, because FARIS fetches from Avila Labs' copy.
 - **Decision (Connor, 2026-10-10):** where charging is a grey area, data delivery is free; no paid data tier.
 - **What may be hosted (corrected 2026-10-10 against LEG-010, LEG-011 and PLAT-053, which hold redistribution of any
   library without an explicit right):**
   - FENDL (IAEA): the IAEA terms allow copying and use in products with acknowledgement, and its databases are provided
     free of charge; Avila Labs may host FENDL-3.2c files free of charge, acknowledging the IAEA and implying no
-    endorsement. FENDL-3.2c also has a photo-atomic sublibrary, which could replace the ENDF/B photon data; why library
-    v1 chose ENDF/B-VII.1 photon data instead is to be checked first.
+    endorsement. FENDL-3.2c's photo-atomic sublibrary (61 ENDF files) has no atomic-relaxation files, and the FENDL-3.2 photon
+    files library v1 tried had empty relaxation shell maps and crashed OpenMC 0.15.3 with cascades on (recorded in
+    `docs/COLD_REFERENCE.md`). That is why v1 uses ENDF/B-VII.1 photon and relaxation data, and it still holds:
+    relaxation data has to come from ENDF/B (fetched from source) or EADL. Which evaluation FENDL's photo-atomic files
+    derive from is not stated in the FENDL pages read.
   - ENDF/B (NNDC): no stated terms, so not redistributed. Thermal-scattering tables (only needed when a design declares
     water, hydrides, graphite, beryllium or FLiBe) are fetched by FARIS from the original source when needed. Hosting
     them needs NNDC's written permission; asking is Connor's call.
