@@ -1,0 +1,96 @@
+OpenMC 0.15.3 on Windows, patch 1 of 4: CMakeLists.txt.
+Taken from openmc-dev/openmc PR 2919 (Initial Windows Support), re-applied to the v0.15.3 tree.
+Why: 0.15.3 builds libopenmc as a STATIC library under MSVC, but FARIS drives OpenMC through its
+C API from a shared library, so libopenmc must be a DLL. WINDOWS_EXPORT_ALL_SYMBOLS exports
+functions and class members; global variables need explicit OPENMC_API (patch 2).
+/openmp:llvm is needed because MSVC's default OpenMP 2.0 runtime lacks the atomic/reduction forms
+the code uses. Differs from PR 2919: the PR forces HDF5_USE_STATIC_LIBRARIES on MSVC for the Python
+loader; the spike links the shared hdf5.dll that MOAB and DAGMC also use (one HDF5 state per
+process), so that block is dropped and H5_BUILT_AS_DYNAMIC_LIB is always defined.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 87b8789..8a2ace6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -95,6 +95,11 @@ endif()
+ 
+ if(OPENMC_USE_OPENMP)
+   find_package(OpenMP REQUIRED)
++
++  if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
++    # Special flag to get OpenMP to work on Windows with MSVC
++    list(APPEND cxxflags /openmp:llvm)
++  endif()
+ endif()
+ 
+ #===============================================================================
+@@ -195,24 +200,22 @@ endif()
+ 
+ # Skip for Visual Studio which has its own configurations through GUI
+ if(NOT MSVC)
++  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+ 
+-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+-
+-if(OPENMC_ENABLE_PROFILE)
+-  list(APPEND cxxflags -g -fno-omit-frame-pointer)
+-endif()
++  if(OPENMC_ENABLE_PROFILE)
++    list(APPEND cxxflags -g -fno-omit-frame-pointer)
++  endif()
+ 
+-if(OPENMC_ENABLE_COVERAGE)
+-  list(APPEND cxxflags --coverage)
+-  list(APPEND ldflags --coverage)
++  if(OPENMC_ENABLE_COVERAGE)
++    list(APPEND cxxflags --coverage)
++    list(APPEND ldflags --coverage)
++  endif()
+ endif()
+ 
+ # Show flags being used
+ message(STATUS "OpenMC C++ flags: ${cxxflags}")
+ message(STATUS "OpenMC Linker flags: ${ldflags}")
+ 
+-endif()
+-
+ #===============================================================================
+ # Update git submodules as needed
+ #===============================================================================
+@@ -452,20 +455,29 @@ list(APPEND libopenmc_SOURCES
+   src/external/quartic_solver.cpp
+   src/external/Faddeeva.cc)
+ 
+-# For Visual Studio compilers
++#===============================================================================
++# openmc library
++#===============================================================================
++add_library(libopenmc SHARED ${libopenmc_SOURCES})
++add_library(OpenMC::libopenmc ALIAS libopenmc)
++
++# For compilers on Windows
+ if(MSVC)
+-  # Use static library (otherwise explicit symbol portings are needed)
+-  add_library(libopenmc STATIC ${libopenmc_SOURCES})
++  # This ensures that all function/class method symbols are exported, without
++  # needing to add the export macros in the source.
++  set_target_properties(libopenmc PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
++
++  # This compile definition is needed to make sure that the correct macros
++  # are used for exporting symbols in the dll. While the
++  # WINDOWS_EXPORT_ALL_SYMBOLS exports all function/class symbols, it
++  # unfortunately does not work on global variables, which still need the macro.
++  target_compile_definitions(libopenmc PRIVATE -DOPENMC_DLL_EXPORTS)
+ 
+   # To use the shared HDF5 libraries on Windows, the H5_BUILT_AS_DYNAMIC_LIB
+   # compile definition must be specified.
+   target_compile_definitions(libopenmc PRIVATE -DH5_BUILT_AS_DYNAMIC_LIB)
+-else()
+-  add_library(libopenmc SHARED ${libopenmc_SOURCES})
+ endif()
+ 
+-add_library(OpenMC::libopenmc ALIAS libopenmc)
+-
+ # Avoid vs error lnk1149 :output filename matches input filename
+ if(NOT MSVC)
+   set_target_properties(libopenmc PROPERTIES OUTPUT_NAME openmc)

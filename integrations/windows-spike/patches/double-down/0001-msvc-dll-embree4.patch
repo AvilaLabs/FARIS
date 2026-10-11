@@ -1,0 +1,105 @@
+double-down 1.1.0 on Windows (MSVC): build as a DLL against Embree 4 and MOAB.
+Written for this spike (no upstream Windows support; nothing sent upstream).
+- CMakeLists.txt: the GCC flags -fPIC -march=native -mavx2 are skipped under MSVC. Without
+  AVX2 the Vec3da union has no __m256 member, which keeps one layout for dd and DAGMC.
+  Symbols are exported with CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS (the sources carry no export
+  macros); M_PI needs _USE_MATH_DEFINES. install() gets RUNTIME/ARCHIVE destinations because
+  a DLL is a runtime artifact. docs/tools/test subdirectories are skipped under MSVC.
+- MOAB_LIBRARIES from MOABConfig.cmake is the string "-L<dir> -lMOAB ..." in a non-pip build;
+  under MSVC the imported target MOAB is linked instead.
+- sys.h, Vec3da.h: MSVC has a native __forceinline keyword and __declspec(align); the headers
+  redefined __forceinline with GCC attributes.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a5a1619..e10aca9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -22,8 +22,15 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+ endif()
+ 
++if(MSVC)
++  # cl.exe takes none of the GCC flags below. M_PI needs _USE_MATH_DEFINES, and
++  # the DLL needs its symbols exported (the sources carry no export macros).
++  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
++  add_definitions(-D_USE_MATH_DEFINES -DNOMINMAX)
++else()
+ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -march=native -mavx2")
+ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -march=native -mavx2")
++endif()
+ 
+ # MOAB
+ find_package(MOAB REQUIRED HINTS ${MOAB_DIR})
+@@ -77,12 +84,19 @@ else()
+ endif()
+ 
+ target_include_directories( dd INTERFACE "${CMAKE_INSTALL_PREFIX}/include" ${EMBREE_INCLUDE_DIRS})
+-target_link_libraries( dd ${MOAB_LIBRARIES} ${EMBREE_LIBRARY} )
++if(MSVC)
++  # MOAB_LIBRARIES from MOABConfig.cmake is a "-L<dir> -lMOAB ..." string; link the imported target.
++  target_link_libraries( dd MOAB ${EMBREE_LIBRARY} )
++else()
++  target_link_libraries( dd ${MOAB_LIBRARIES} ${EMBREE_LIBRARY} )
++endif()
+ set_target_properties(dd PROPERTIES INSTALL_RPATH "${MOAB_LIBRARY_DIRS};${EMBREE_LIBRARY_DIR}")
+ 
+ install( TARGETS dd
+          EXPORT ddTargets
+-         DESTINATION "${DD_LIBRARY_INSTALL_LOCATION}" )
++         RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
++         LIBRARY DESTINATION "${DD_LIBRARY_INSTALL_LOCATION}"
++         ARCHIVE DESTINATION "${DD_LIBRARY_INSTALL_LOCATION}" )
+ 
+ install(EXPORT ddTargets DESTINATION "${DD_CMAKE_CONFIG_LOCATION}")
+ export( TARGETS dd FILE "ddTargets.cmake" )
+@@ -127,7 +141,9 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ddConfigVersion.cmake" DESTINAT
+ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h")
+ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/double_down/version.h" DESTINATION "${DD_INCLUDE_INSTALL_LOCATION}")
+ 
++if(NOT MSVC)
+ add_subdirectory(docs)
+ add_subdirectory(tools)
+ add_subdirectory(test)
+ add_subdirectory(test_files)
++endif()
+diff --git a/include/double_down/Vec3da.h b/include/double_down/Vec3da.h
+index e264d74..c2b6366 100644
+--- a/include/double_down/Vec3da.h
++++ b/include/double_down/Vec3da.h
+@@ -9,11 +9,13 @@
+ #include <xmmintrin.h>
+ #include <limits>
+ 
++#if !defined(_MSC_VER)
+ #ifndef NDEBUG
+ #define __forceinline inline
+ #else
+ #define __forceinline inline __attribute__((always_inline))
+ #endif
++#endif
+ 
+ #include "constants.h"
+ 
+diff --git a/include/double_down/sys.h b/include/double_down/sys.h
+index 813260d..e84b2c3 100644
+--- a/include/double_down/sys.h
++++ b/include/double_down/sys.h
+@@ -6,6 +6,10 @@
+ 
+ namespace double_down {
+ 
++#if defined(_MSC_VER)
++// MSVC has a native __forceinline keyword and __declspec(align)
++#define __aligned(...) __declspec(align(__VA_ARGS__))
++#else
+ #ifndef NDEBUG
+ #define __forceinline
+ #else
+@@ -13,6 +17,7 @@ namespace double_down {
+ #endif
+ 
+ #define __aligned(...) __attribute__((aligned(__VA_ARGS__)))
++#endif
+ 
+ inline void prefetchL1 (const void* ptr) { _mm_prefetch((const char*)ptr, _MM_HINT_T0); }
+ inline void prefetchL2 (const void* ptr) { _mm_prefetch((const char*)ptr, _MM_HINT_T1); }

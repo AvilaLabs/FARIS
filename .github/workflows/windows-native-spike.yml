@@ -1,0 +1,277 @@
+name: windows-native-spike
+
+# Feasibility test: can OpenMC 0.15.3 + DAGMC 3.2.4 (double-down/Embree 4) + MOAB 5.6.0 + HDF5 be
+# built and run natively on Windows x64 (MSVC)? Nothing here is part of the FARIS release.
+# Runs only on the spike branch or by hand. See docs/notes/WINDOWS_NATIVE_SPIKE.md.
+
+on:
+  push:
+    branches: [windows-native-spike]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Bump one of these to rebuild that component and everything after it; patch files are hashed
+  # into the keys as well.
+  DEPS_REV: v1
+  MOAB_REV: v1
+  DD_REV: v1
+  DAGMC_REV: v1
+  SPIKE: integrations/windows-spike
+
+jobs:
+  # Independent of MOAB/DAGMC: OpenMC without CAD, so stage 5 and smoke test (a) report even when
+  # the CAD chain fails.
+  windows-csg:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python packages for the result summary
+        run: python -m pip install h5py numpy
+      - name: MSVC environment
+        run: ./integrations/windows-spike/scripts/msvc-env.ps1
+      - name: Toolchain versions
+        run: |
+          cl 2>&1 | Select-Object -First 1
+          cmake --version | Select-Object -First 1
+          ninja --version
+          git --version
+      - name: "Stage 1: dependencies (HDF5, Embree)"
+        run: ./integrations/windows-spike/scripts/01-deps.ps1
+      - name: "Stage 5: OpenMC 0.15.3, DAGMC off"
+        run: ./integrations/windows-spike/scripts/05-openmc.ps1
+      - name: "Stage 6a: smoke test, CSG model"
+        run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-csg -Model csg -Tag win-csg-nodagmc-build
+      - name: Collect results
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Force C:\spike\results | Out-Null
+          Get-ChildItem C:\spike\runs -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = "C:\spike\results\$($_.Name)"
+            New-Item -ItemType Directory -Force $d | Out-Null
+            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out" $d -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-csg-logs
+          path: C:\spike\logs
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-csg-results
+          path: C:\spike\results
+          if-no-files-found: warn
+
+  windows-cad:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python packages for the result summary
+        run: python -m pip install h5py numpy
+      - name: MSVC environment
+        run: ./integrations/windows-spike/scripts/msvc-env.ps1
+      - name: Toolchain versions
+        run: |
+          cl 2>&1 | Select-Object -First 1
+          cmake --version | Select-Object -First 1
+          ninja --version
+          git --version
+
+      # Stage 1
+      - name: Restore cache, dependencies
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            C:\spike\inst\hdf5
+            C:\spike\inst\embree
+          key: win-deps-${{ env.DEPS_REV }}
+      - name: "Stage 1: dependencies (HDF5, Embree)"
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: ./integrations/windows-spike/scripts/01-deps.ps1
+      - name: Save cache, dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            C:\spike\inst\hdf5
+            C:\spike\inst\embree
+          key: win-deps-${{ env.DEPS_REV }}
+
+      # Stage 2
+      - name: Restore cache, MOAB
+        id: moab-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\spike\inst\moab
+          key: win-moab-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/cmake/**') }}
+      - name: "Stage 2: MOAB 5.6.0"
+        if: steps.moab-cache.outputs.cache-hit != 'true'
+        run: ./integrations/windows-spike/scripts/02-moab.ps1
+      - name: Save cache, MOAB
+        if: steps.moab-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\spike\inst\moab
+          key: win-moab-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/cmake/**') }}
+
+      # Stage 3
+      - name: Restore cache, double-down
+        id: dd-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\spike\inst\dd
+          key: win-dd-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ env.DD_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/patches/double-down/**', 'integrations/windows-spike/cmake/**') }}
+      - name: "Stage 3: double-down 1.1.0"
+        if: steps.dd-cache.outputs.cache-hit != 'true'
+        run: ./integrations/windows-spike/scripts/03-double-down.ps1
+      - name: Save cache, double-down
+        if: steps.dd-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\spike\inst\dd
+          key: win-dd-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ env.DD_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/patches/double-down/**', 'integrations/windows-spike/cmake/**') }}
+
+      # Stage 4
+      - name: Restore cache, DAGMC
+        id: dagmc-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\spike\inst\dagmc
+          key: win-dagmc-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ env.DD_REV }}-${{ env.DAGMC_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/patches/double-down/**', 'integrations/windows-spike/patches/dagmc/**', 'integrations/windows-spike/cmake/**') }}
+      - name: "Stage 4: DAGMC 3.2.4"
+        if: steps.dagmc-cache.outputs.cache-hit != 'true'
+        run: ./integrations/windows-spike/scripts/04-dagmc.ps1
+      - name: Save cache, DAGMC
+        if: steps.dagmc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\spike\inst\dagmc
+          key: win-dagmc-${{ env.DEPS_REV }}-${{ env.MOAB_REV }}-${{ env.DD_REV }}-${{ env.DAGMC_REV }}-${{ hashFiles('integrations/windows-spike/patches/moab/**', 'integrations/windows-spike/patches/double-down/**', 'integrations/windows-spike/patches/dagmc/**', 'integrations/windows-spike/cmake/**') }}
+
+      # Stage 5 and 6
+      - name: "Stage 5: OpenMC 0.15.3 with DAGMC"
+        run: ./integrations/windows-spike/scripts/05-openmc.ps1 -Dagmc
+      - name: "Stage 6a: smoke test, CSG model"
+        run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model csg -Tag win-csg
+      - name: "Stage 6b: smoke test, DAGMC model"
+        run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
+
+      - name: Collect results
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Force C:\spike\results | Out-Null
+          Get-ChildItem C:\spike\runs -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = "C:\spike\results\$($_.Name)"
+            New-Item -ItemType Directory -Force $d | Out-Null
+            Copy-Item "$($_.FullName)\summary.json", "$($_.FullName)\statepoint.*.h5", "$($_.FullName)\tallies.out" $d -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-cad-logs
+          path: C:\spike\logs
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-cad-results
+          path: C:\spike\results
+          if-no-files-found: warn
+
+  # Same two models, same seed and particle count, with the conda-forge OpenMC 0.15.3 DAGMC build.
+  linux-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: ref
+          cache-environment: true
+          create-args: >-
+            openmc=0.15.3=dagmc_nompi*
+            h5py
+            numpy
+          condarc: |
+            channels:
+              - conda-forge
+      - name: Environment record
+        shell: bash -el {0}
+        run: |
+          mkdir -p out
+          micromamba list > out/conda-list.txt
+          openmc --version | tee out/openmc-version.txt
+          python -c "import openmc.lib; print('dagmc enabled', openmc.lib._dagmc_enabled())" | tee -a out/openmc-version.txt
+          grep -E "^ *(openmc|dagmc|moab|double-down|embree|hdf5) " out/conda-list.txt || true
+      - name: Run the models
+        shell: bash -el {0}
+        run: |
+          for model in csg dagmc; do
+            run=out/linux-$model
+            mkdir -p $run
+            cp $SPIKE/models/$model/*.xml $run/
+            cp $SPIKE/data/cross_sections.xml $SPIKE/data/H1.h5 $run/
+            if [ $model = dagmc ]; then cp integrations/cad/fixtures/three-boxes.h5m $run/; fi
+            (cd $run && OPENMC_CROSS_SECTIONS=$PWD/cross_sections.xml OMP_NUM_THREADS=4 \
+              /usr/bin/time -v openmc > run.log 2> time.log; tail -n 15 run.log)
+            python $SPIKE/scripts/summarize_statepoint.py $run/statepoint.*.h5 $run/summary.json
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-results
+          path: |
+            out/**/summary.json
+            out/**/run.log
+            out/**/time.log
+            out/**/tallies.out
+            out/conda-list.txt
+            out/openmc-version.txt
+
+  compare:
+    needs: [windows-csg, windows-cad, linux-reference]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+        continue-on-error: true
+      - name: Compare tallies
+        run: |
+          find art -name summary.json | sort
+          cmp_() { # label-a file-a label-b file-b out
+            if [ -f "$2" ] && [ -f "$4" ]; then
+              python3 $SPIKE/scripts/compare_results.py "$2" "$4" --label-a "$1" --label-b "$3" --out "$5"
+              { echo "### $1 vs $3"; head -n 2 "$5"; } >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "skipped $1 vs $3: missing input"; echo "- skipped $1 vs $3 (missing input)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          mkdir -p cmp
+          cmp_ windows-csg   art/windows-cad-results/win-csg/summary.json     linux-csg   art/linux-results/linux-csg/summary.json   cmp/csg-windows-vs-linux.md
+          cmp_ windows-dagmc art/windows-cad-results/win-dagmc/summary.json   linux-dagmc art/linux-results/linux-dagmc/summary.json cmp/dagmc-windows-vs-linux.md
+          cmp_ windows-dagmc art/windows-cad-results/win-dagmc/summary.json   windows-csg art/windows-cad-results/win-csg/summary.json cmp/windows-dagmc-vs-csg.md
+          cmp_ linux-dagmc   art/linux-results/linux-dagmc/summary.json        linux-csg   art/linux-results/linux-csg/summary.json   cmp/linux-dagmc-vs-csg.md
+          cmp_ windows-csg-nodagmc-build art/windows-csg-results/win-csg-nodagmc-build/summary.json linux-csg art/linux-results/linux-csg/summary.json cmp/csg-nodagmc-windows-vs-linux.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comparison
+          path: cmp
+          if-no-files-found: warn

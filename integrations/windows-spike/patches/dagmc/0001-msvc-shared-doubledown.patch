@@ -1,0 +1,58 @@
+DAGMC 3.2.4 on Windows (MSVC): build the shared library with double-down.
+Written for this spike (the upstream Windows workflow builds static libraries without double-down);
+nothing sent upstream.
+- FindMOAB.cmake forced BUILD_STATIC_LIBS=TRUE / BUILD_SHARED_LIBS=OFF under MSVC, but OpenMC
+  links dagmc-shared and double-down is applied to the shared library only. The force is removed.
+  The ':'-joined PATH edit and the ".dll" CMAKE_FIND_LIBRARY_SUFFIXES override are POSIX-only
+  (the import library MOAB.lib is what links on Windows), so they are skipped on WIN32.
+- DAGMC_macros.cmake: install(TARGETS dagmc-shared) named only LIBRARY, so a DLL had no
+  destination; RUNTIME (bin) and ARCHIVE (lib) are added.
+
+diff --git a/cmake/DAGMC_macros.cmake b/cmake/DAGMC_macros.cmake
+index d5b2cd0..cfb5c59 100644
+--- a/cmake/DAGMC_macros.cmake
++++ b/cmake/DAGMC_macros.cmake
+@@ -251,6 +251,8 @@ macro (dagmc_install_library lib_name)
+                                                             ${MOAB_INCLUDE_DIRS})
+     install(TARGETS ${lib_name}-shared
+             EXPORT DAGMCTargets
++            RUNTIME DESTINATION ${INSTALL_BIN_DIR}
++            ARCHIVE DESTINATION ${INSTALL_LIB_DIR}
+             LIBRARY DESTINATION ${INSTALL_LIB_DIR}
+             PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDE_DIR})
+   endif ()
+diff --git a/cmake/FindMOAB.cmake b/cmake/FindMOAB.cmake
+index 92602c8..01f608d 100644
+--- a/cmake/FindMOAB.cmake
++++ b/cmake/FindMOAB.cmake
+@@ -19,8 +19,10 @@ endif ()
+ 
+ # Find HDF5
+ include(${MOAB_CMAKE_CONFIG})
+-set(ENV{PATH} "${HDF5_DIR}:$ENV{PATH}")
+-set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
++if(NOT WIN32)
++  set(ENV{PATH} "${HDF5_DIR}:$ENV{PATH}")
++  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
++endif()
+ find_package(HDF5 REQUIRED)
+ # Remove HDF5 transitive dependencies that are system libraries
+ list(FILTER HDF5_LIBRARIES EXCLUDE REGEX ".*lib(pthread|dl|m).*")
+@@ -40,13 +42,11 @@ message(STATUS "HDF5_LIBRARIES_SHARED: ${HDF5_LIBRARIES_SHARED}")
+ message(STATUS "HDF5_LIBRARIES_STATIC: ${HDF5_LIBRARIES_STATIC}")
+ 
+ include_directories(${HDF5_INCLUDE_DIRS})
+-if(MSVC)
+-    set(BUILD_STATIC_LIBS TRUE)
+-    set(BUILD_SHARED_LIBS OFF)
+-endif()
+-# Find MOAB library (shared)
++# Find MOAB library (shared); on Windows the import library (.lib) is what links
+ if (BUILD_SHARED_LIBS)
+-  set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
++  if(NOT WIN32)
++    set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_SHARED_LIBRARY_SUFFIX})
++  endif()
+   find_library(MOAB_LIBRARIES_SHARED
+     NAMES MOAB
+     HINTS ${MOAB_LIBRARY_DIRS}

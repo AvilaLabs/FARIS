@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<cross_sections>
+  <!-- One neutron library: ENDF/B-VII.1 H1 at 294 K from the OpenMC HDF5 conversion (public domain data). -->
+  <library materials="H1" path="H1.h5" type="neutron"/>
+</cross_sections>
