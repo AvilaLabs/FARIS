@@ -133,6 +133,12 @@ for a quiet machine. Cores 0–3, at most 6 GB per job (S0d productions peaked a
 `~/.cache/avila-night/cad-risk-tests/s0e/` (`results-s0e.json`, run folders); hashes in `references/cad-transport-s0e.json`
 with the results.
 
+## Amendment 1 (2026-10-11, before any S0e run)
+
+The radial edge list above has 52 edges, so 51 radial bins, not 52: the cylindrical mesh has 51 × 32 × 72 = 117,504
+bins, not 119,808. The edge list is what the scripts build and is unchanged; only the stated counts were wrong
+(found when the scripts were checked against the text). No rule depends on the count.
+
 ## Results
 
 Appended after runs.
