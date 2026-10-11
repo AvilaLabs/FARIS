@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 125 of 1416 requirements.
+Traced: 125 of 1417 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -18,7 +18,7 @@ Traced: 125 of 1416 requirements.
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 16 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
 | [08-performance.md](08-performance.md) | 37 | 3 |
-| [09-usability.md](09-usability.md) | 72 | 2 |
+| [09-usability.md](09-usability.md) | 73 | 2 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 1 |
 | [11-visualization.md](11-visualization.md) | 49 | 8 |
 | [12-configurability.md](12-configurability.md) | 63 | 4 |

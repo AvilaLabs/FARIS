@@ -149,6 +149,12 @@ that depends on it starts.
    - If 100× is not reachable on CAD at laptop scale, the requirement's
      provisional number is revisited with measured evidence through change
      control, not quietly missed.
+   - Status 2026-10-11: 8.87× after S0b's tuning, 19.65 ± 1.60× with windows aimed
+     at the magnet response (S0d, CADIS from OpenMC 0.16.0). The same settings give
+     85× on a slab of the inboard stack. The flag and the 100× target stay; S0e tests
+     a mesh that follows the build and an energy cut-off, with a per-region
+     breakdown; source biasing waits on OpenMC
+     ([CAD_TRANSPORT_S0E.md](notes/CAD_TRANSPORT_S0E.md)).
 2. **Laptop run time.** CAD is about 8× slower. PERF-025 asks for a preview
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.

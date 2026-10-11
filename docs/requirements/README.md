@@ -75,7 +75,7 @@ file is what it takes to get there.
 | Accuracy | Every calculated quantity has a benchmark row with bias and uncertainty, or is shown as "not validated"; a blank row blocks release. Pass/fail against experiment uses a predeclared compatibility rule, and unknown covariance gives INCONCLUSIVE. The 1 s history is within 1 % (TBR) and 2 % (net electricity) of a full transport rerun over 200 random points. | [VAL-051](06-accuracy-and-validation.md), [VAL-027](06-accuracy-and-validation.md), [VAL-061](06-accuracy-and-validation.md) |
 | Uncertainty | No number is shown without an uncertainty or a stated reason it has none. Nominal 95 % intervals cover the truth 93–97 % of the time over ≥ 100 seeded repeats. | [UNC-080](07-uncertainty.md), [UNC-002](07-uncertainty.md) |
 | Performance | Plant-life what-if recalculation P95 ≤ 100 ms (history) and ≤ 1 s (full coupled plant) on the laptop. Viewport P99 ≤ 16.7 ms. Preview-tier transport result with stated error ≤ 60 s. | [PERF-020](08-performance.md), [PERF-011](08-performance.md), [PERF-025](08-performance.md) |
-| Usability | SUS ≥ 80.3 with new domain users by F6. Every core task ≥ 90 % unaided success. Every state-changing action undoable. | [UX-001](09-usability.md), [UX-011](09-usability.md), [UX-020](09-usability.md) |
+| Usability | SUS ≥ 80.3 with new domain users by F6. Every core task ≥ 90 % unaided success. Every state-changing action undoable. An engineering STEP model reaches a checked magnet answer in ≤ 30 min with no steps outside FARIS. | [UX-001](09-usability.md), [UX-011](09-usability.md), [UX-020](09-usability.md), [UX-079](09-usability.md) |
 | Accessibility | 100 % of functions keyboard-operable. Screen-reader access on Linux by F2 and on all platforms by F7. | [A11Y-001](10-accessibility-and-localisation.md), [A11Y-040](10-accessibility-and-localisation.md) |
 | Visualisation | Every plotted Monte Carlo value shows its error; high-error cells are hatched, never hidden. | [VIS-030](11-visualization.md), [VIS-032](11-visualization.md) |
 | Configurability | Every dimensional input carries a unit and is dimension-checked; ≥ 500 injected wrong-dimension values are all rejected. | [CFG-041](12-configurability.md) |
@@ -120,7 +120,7 @@ Its main gaps against these targets:
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 1 | 27 | 0 | 44 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 12 | 0 | 47 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 12 | 6 | 18 |
-| [Usability](09-usability.md) | UX | 72 | 0 | 21 | 3 | 48 |
+| [Usability](09-usability.md) | UX | 73 | 0 | 21 | 3 | 49 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 0 | 12 | 13 | 32 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
 | [Configurability](12-configurability.md) | CFG | 63 | 1 | 17 | 1 | 44 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 21 | 1 | 52 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 16 | 1 | 28 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 5 | 17 | 2 | 12 |
-| **Total** | | **1416** | **46** | **418** | **38** | **914** |
+| **Total** | | **1417** | **46** | **418** | **38** | **915** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 46 of 1416 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 46 of 1417 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

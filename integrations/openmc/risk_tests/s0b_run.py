@@ -3,6 +3,7 @@
 
     s0b_run.py run --model-dir D --run-dir R --out record.json --label L --seed S [--histories N | --budget SECONDS]
                    [--stop-r 0.05] [--windows W.h5] [--max-split 1000] [--checkpoints] [--particles 10000] [--threads 4]
+                   [--cutoff-ev X] [--breakdown]
 
 One fixed-source neutron run with the tokamak source at strength 1 (tallies are "per source neutron"). Response (a) is the
 TF fast flux (E > 0.1 MeV) over the TF coil material in cm per source neutron; the TBR is the H3 production summed over every
@@ -13,6 +14,10 @@ the modification time of the statepoint used, as in S0, so start-up and window l
 The record carries the inputs, the build (executable, tracer line from the log), seed, threads, CPU affinity, load average at
 start and end, wall time, peak RSS of the children, lost particles, timing lines from the log, and the raw tallies with sigma.
 Statepoints are thinned while the run goes: the newest are kept, and one at least every `--keep-spacing` seconds.
+
+S0e options (docs/notes/CAD_TRANSPORT_S0E.md), both off by default and leaving the default run unchanged: `--cutoff-ev X`
+sets the neutron energy cut-off (settings.cutoff['energy_neutron']) and marks the TBR as biased and not reported;
+`--breakdown` adds the per-coil and (R, Z) map flux tallies and writes them to the record.
 """
 from __future__ import annotations
 
@@ -31,6 +36,7 @@ import r1_worker  # noqa: E402
 import rm_m_checks as checks  # noqa: E402
 import rm_m_openmc as RM  # noqa: E402
 import s0b_common as C  # noqa: E402
+import s0e_common as E  # noqa: E402
 
 
 def sp_number(path: Path) -> int:
@@ -163,6 +169,10 @@ def build_production(openmc, args, run_dir: Path):
         spec_tally.filters = [openmc.MaterialFilter([r1_worker.tf_material(model)]), openmc.EnergyFilter(edges)]
         spec_tally.scores = ["flux"]
         tallies.append(spec_tally)
+    if args.cutoff_ev:
+        s.cutoff = {"energy_neutron": args.cutoff_ev}
+    if args.breakdown:
+        tallies += E.breakdown_tallies(openmc, roles, r1_worker.tf_material(model), r1_worker.cfg.FAST_CUT_EV)
     model.tallies = openmc.Tallies(tallies)
     model.export_to_model_xml(str(run_dir))
     return applied, unscaled, [m.name for m in li_mats]
@@ -184,6 +194,10 @@ def run(args) -> int:
               "stop_r": args.stop_r, "source_strength": 1.0, "windows": applied, "checkpoints_surface_and_collision": bool(args.checkpoints),
               "max_split_override": args.max_split, "lithium_materials": li, "library": RM.library_identity(),
               "loadavg_start": C.read_loadavg()}
+    if args.cutoff_ev:
+        record["cutoff_energy_neutron_ev"] = args.cutoff_ev
+    if args.breakdown:
+        record["breakdown_tallies"] = True
     run_info = run_monitored(openmc, run_dir, args.threads, args.budget, args.stop_r, args.poll, args.keep_spacing)
     record["loadavg_end"] = C.read_loadavg()
     record["run"] = run_info
@@ -215,8 +229,17 @@ def run(args) -> int:
                 bins = list(t.filters[1].bins)
                 resp["spectrum"] = {"edges_ev": [bins[0][0]] + [b[1] for b in bins], "mean": t.mean.ravel().tolist(),
                                     "std_error": t.std_dev.ravel().tolist(), "unit": checks.UNIT_PER_SOURCE}
+        if args.cutoff_ev:
+            # the cut-off removes the neutrons below it from the H3 production too
+            resp["tbr"].update(biased_by_cutoff=True, reported=False)
+        if args.breakdown:
+            with openmc.StatePoint(str(last)) as sp:
+                record["breakdown"] = E.read_breakdown(sp, RM.load_roles(args.model_dir))
         record["response"] = resp
-        record["fom_a"] = C.fom_with_sigma(resp["a"]["relative_error"], resp["seconds_to_statepoint"], resp["batches"])
+        if resp["batches"] >= 2:
+            record["fom_a"] = C.fom_with_sigma(resp["a"]["relative_error"], resp["seconds_to_statepoint"], resp["batches"])
+        else:  # a one-batch load check (S0e smoke) has no batch variance
+            record["fom_a"] = {"fom": None, "sigma": None, "relative_sigma": None, "batches": resp["batches"]}
         for p in files:
             if p != last:
                 p.unlink()
@@ -248,6 +271,9 @@ def main() -> int:
     p.add_argument("--max-split", type=int)
     p.add_argument("--spectrum-bins", type=int, default=0, help="add a log-spaced TF flux spectrum tally (0.1 to 20 MeV)")
     p.add_argument("--checkpoints", action="store_true", help="weight-window checkpoints at surface crossings and collisions")
+    p.add_argument("--cutoff-ev", type=float, default=None,
+                   help="neutron energy cut-off in eV (S0e E1/E3); the TBR is then biased and not reported")
+    p.add_argument("--breakdown", action="store_true", help="add the S0e per-coil and (R, Z) map flux tallies (E > 0.1 MeV)")
     args = ap.parse_args()
     if args.histories:
         args.budget = max(args.budget, 1.0e9)
