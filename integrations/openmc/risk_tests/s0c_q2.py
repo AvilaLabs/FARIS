@@ -75,16 +75,25 @@ def prepare(args) -> int:
     return 0
 
 
-def read_tallies(lib) -> dict:
+def tally_ids(model_xml: Path) -> dict:
+    """Tally ids by name from the model XML (openmc.lib tallies carry no name in 0.15.3)."""
+    import re
+
+    text = model_xml.read_text(encoding="utf-8")
+    return {name: int(i) for i, name in re.findall(r'<tally id="(\d+)" name="(\w+)"', text)}
+
+
+def read_tallies(lib, ids: dict) -> dict:
     """TBR (summed over lithium materials) and (a) from the live tallies: mean, std_error, relative_error, realizations."""
     out = {}
-    for t in lib.tallies.values():
-        if t.name not in ("tbr", "tf_fast_a"):
+    for key, name in (("tbr", "tbr"), ("a", "tf_fast_a")):
+        if name not in ids:
             continue
+        t = lib.tallies[ids[name]]
         mean, sd = t.mean.ravel(), t.std_dev.ravel()
         m = float(mean.sum())
         e = float((sd ** 2).sum() ** 0.5)
-        out["tbr" if t.name == "tbr" else "a"] = {"mean": m, "std_error": e, "relative_error": e / m if m > 0 else None, "realizations": int(t.n_realizations)}
+        out[key] = {"mean": m, "std_error": e, "relative_error": e / m if m > 0 else None, "realizations": int(t.num_realizations)}
     return out
 
 
@@ -95,10 +104,11 @@ def run(args) -> int:
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
     rec = {"kind": "s0c-q2", "threads": args.threads, "affinity_cpus": sorted(os.sched_getaffinity(0)), "seed": S.SEEDS["q2"],
            "particles_per_batch": BATCH, "budget_s": args.budget, "loadavg_start": C.read_loadavg(), "warm": []}
+    ids = tally_ids(args.run_dir / "model.xml")
+    rec["tally_ids"] = ids
     p0 = time.perf_counter()
     lib.init(["--threads", str(args.threads)])
     t_init = time.perf_counter() - p0
-    t_began = time.perf_counter()          # the clock of every warm preview in this process starts here, as defined
     t0 = time.perf_counter()
     lib.simulation_init()
     t_siminit = time.perf_counter() - t0
@@ -107,7 +117,7 @@ def run(args) -> int:
     t_first = time.perf_counter() - t0
     rec["cold"] = {"init_s": t_init, "simulation_init_s": t_siminit, "first_batch_s": t_first,
                    "process_to_first_batch_s": time.perf_counter() - p0}
-    rec["cold"].update({"tallies_after_first_batch": read_tallies(lib)})
+    rec["cold"].update({"tallies_after_first_batch": read_tallies(lib, ids)})
     lib.simulation_finalize()
     for k in range(args.previews):
         lib.reset()
@@ -124,7 +134,7 @@ def run(args) -> int:
             if time.perf_counter() - began >= args.budget:
                 break
         elapsed = time.perf_counter() - began
-        tallies = read_tallies(lib)
+        tallies = read_tallies(lib, ids)
         lib.simulation_finalize()
         rec["warm"].append({"preview": k + 1, "simulation_init_s": t_si, "first_batch_s": first, "elapsed_s": elapsed, "batches": batches,
                             "histories": batches * BATCH, "tbr": tallies.get("tbr"), "a": tallies.get("a"),

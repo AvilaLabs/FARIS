@@ -6,6 +6,7 @@ ITEM=$1; NAME=$2; T=$3; CORES=$4; shift 4
 B=/home/connoravila/.cache/avila-night/cad-risk-tests/s0c
 RT=/home/connoravila/.cache/avila-night/faris-wt/s0c/integrations/openmc/risk_tests
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+export PYTHONPATH=/home/connoravila/.cache/avila-night/cad-risk-tests/pylib${PYTHONPATH:+:$PYTHONPATH}   # openmc_plasma_source
 PIN=()
 [ "$CORES" != "-" ] && PIN=(taskset -c "$CORES")
 T0=$(date +%s); L0=$(cat /proc/loadavg)
