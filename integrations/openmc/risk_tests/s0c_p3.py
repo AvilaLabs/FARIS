@@ -122,11 +122,12 @@ def cmd_d1s(args) -> int:
         old.unlink()
     model, plane, cells = build(openmc, 1)
     s = model.settings
-    common_settings(s, args.batches, args.particles, S.SEEDS["q3_d1s"], TEMPERATURE)
+    max_batches = args.batches        # the configured maximum; the run is stopped at --budget and the batches written are used
+    common_settings(s, max_batches, args.particles, S.SEEDS["q3_d1s"], TEMPERATURE)
     s.source = [neutron_source(openmc)]
     s.photon_transport = True
     s.use_decay_photons = True
-    s.statepoint = {"batches": list(range(1, args.batches + 1))}
+    s.statepoint = {"batches": list(range(1, max_batches + 1))}
     leak = openmc.Tally(name="photon_leak")
     leak.filters = [openmc.SurfaceFilter([plane]), openmc.ParticleFilter(["photon"])]
     leak.scores = ["current"]
@@ -134,43 +135,63 @@ def cmd_d1s(args) -> int:
     nuclides = d1s.prepare_tallies(model, chain_file=str(CHAIN))
     model.export_to_model_xml(str(run_dir))
     rec = {"kind": "s0c-q3-d1s", "seed": s.seed, "threads": args.threads, "affinity_cpus": sorted(os.sched_getaffinity(0)), "loadavg_start": C.read_loadavg(),
-           "batches": args.batches, "particles_per_batch": args.particles, "histories": args.batches * args.particles, "radionuclides": nuclides,
+           "max_batches": max_batches, "particles_per_batch": args.particles, "radionuclides": nuclides,
            "timesteps": S.P3_TIMESTEPS, "source_rates": S.P3_SOURCE_RATES, "cooling_index": S.P3_COOLING_INDEX, "chain": str(CHAIN),
            "openmc_version": openmc.__version__, "library": RM.library_identity()}
-    t0 = time.time()
-    rec["run"] = RM.run_openmc_cli(run_dir, args.threads)
-    rec["run"]["wall_seconds"] = time.time() - t0
+    import r1_worker
+
+    rec["budget_s"] = args.budget
+    rec["run"] = r1_worker.run_budgeted(run_dir, args.threads, args.budget)    # stopped by process group at the budget
     rec["loadavg_end"] = C.read_loadavg()
-    if rec["run"]["returncode"] != 0:
-        rec["error"] = "openmc failed"
+    done = sorted(int(p.stem.split(".")[1]) for p in run_dir.glob("statepoint.*.h5"))
+    if not done:
+        rec["error"] = f"no statepoint inside the budget (rc {rec['run']['returncode']})"
         write(rec, out / "d1s.json")
         return 1
-    tcf = d1s.time_correction_factors(nuclides, S.P3_TIMESTEPS, S.P3_SOURCE_RATES)
-    h = np.array([float(tcf[n][S.P3_COOLING_INDEX]) for n in nuclides])
-    width = len(str(args.batches))
-    cum = []
-    for b in range(1, args.batches + 1):
+    analyse_d1s(rec, run_dir, max_batches, out, nuclides)
+    return 0
+
+
+def analyse_d1s(rec: dict, run_dir: Path, max_batches: int, out: Path, nuclides: list[str] | None = None) -> None:
+    """D1S result from the statepoints. The mean comes from the last intact statepoint (cumulative sums over all batches); the
+    batch-to-batch spread comes from the last K = 100 batches only (reading every statepoint costs more than the run), so
+    R = sd(K batches) / sqrt(N) / mean. Older statepoints are deleted unread."""
+    import numpy as np
+    import openmc
+    from openmc.deplete import d1s
+
+    done = sorted(int(p.stem.split(".")[1]) for p in run_dir.glob("statepoint.*.h5"))
+    n_used = done[-1] - 1 if rec["run"].get("ran_to_budget") and len(done) > 1 else done[-1]
+    width = len(str(max_batches))
+    first = max(n_used - 100, done[0])      # the last 100 batches, or those that survive
+    k = n_used - first
+    cum = {}
+    for b in range(first, n_used + 1):
         with openmc.StatePoint(str(run_dir / f"statepoint.{b:0{width}d}.h5")) as sp:
             t = sp.get_tally(name="photon_leak")
             parent = next(f for f in t.filters if isinstance(f, openmc.ParentNuclideFilter))
             order = [str(x) for x in parent.bins]
-            cum.append(t.sum.reshape(-1).copy())
-        if b < args.batches:
-            (run_dir / f"statepoint.{b:0{width}d}.h5").unlink()
-    if order != list(nuclides):
-        h = np.array([float(tcf[n][S.P3_COOLING_INDEX]) for n in order])
-    arr = np.array(cum)
-    per = np.diff(np.vstack([np.zeros_like(arr[:1]), arr]), axis=0)      # per-batch sums, (batches, nuclides)
-    totals = (per * h).sum(axis=1) / args.particles                        # photons/s per batch, source strength 1
-    st = batch_stats(totals.tolist())
-    by_nuc = (per.sum(axis=0) / args.batches / args.particles) * h
-    rec["result"] = {"photons_per_s": st["mean"], "std_error": st["std_error"], "relative_error": st["relative_error"], "batches": st["batches"],
+            cum[b] = t.sum.reshape(-1).copy()
+            if b == n_used:
+                sd_nuc = t.std_dev.reshape(-1).copy()
+    tcf = d1s.time_correction_factors(order, S.P3_TIMESTEPS, S.P3_SOURCE_RATES)
+    h = np.array([float(tcf[n][S.P3_COOLING_INDEX]) for n in order])
+    per = np.array([cum[b] - cum[b - 1] for b in range(first + 1, n_used + 1)])   # per-batch sums, per source particle
+    sub = (per * h).sum(axis=1).tolist()
+    mean = float((cum[n_used] * h).sum() / n_used)
+    se = S.subset_standard_error(sub, n_used)
+    rec.update({"radionuclides": order, "batches_used": n_used, "histories": n_used * rec.get("particles_per_batch", 0)})
+    rec["result"] = {"photons_per_s": mean, "std_error": se["std_error"], "relative_error": se["std_error"] / mean if mean > 0 else None, "batches": n_used,
+                     "variance_from_last_batches": k, "relative_error_of_sd": se["relative_error_of_sd"],
                      "unit": "photons/s through x = 40 cm at unit source rate, 1 d cooling after 1 FPY"}
-    rec["by_nuclide_photons_per_s"] = {n: float(v) for n, v in zip(order, by_nuc) if v > 0.0}
+    rec["by_nuclide_photons_per_s"] = {n: float(v) for n, v in zip(order, cum[n_used] / n_used * h) if v > 0.0}
+    rec["by_nuclide_relative_error_uncorrelated"] = {n: float(sd_nuc[i] / (cum[n_used][i] / n_used)) for i, n in enumerate(order) if cum[n_used][i] > 0.0}
+    for p in list(run_dir.glob("statepoint.*.h5")):
+        if int(p.stem.split(".")[1]) < first:
+            p.unlink()
     rec["peak_rss_mb"] = rss_mb()
     write(rec, out / "d1s.json")
     print(json.dumps({k: rec[k] for k in ("run", "result")}, indent=1, default=str))
-    return 0
 
 
 def flux_errors(openmc, statepoint: Path) -> list[float | None]:
@@ -203,6 +224,15 @@ def neutron_step_r(leak_by_voxel: list[float], r_flux: list[float | None]) -> fl
                 return None
             num += (l * r) ** 2
     return math.sqrt(num) / total
+
+
+def cmd_d1s_analyse(args) -> int:
+    """Re-run only the analysis of a D1S run whose statepoints are in --out-dir/run (used after a run whose analysis was cut off)."""
+    rec = {"kind": "s0c-q3-d1s", "recovered_analysis": True, "particles_per_batch": args.particles, "max_batches": args.batches,
+           "run": {"ran_to_budget": True, "budget_s": args.budget, "note": "run record lost with the cut-off analysis; stopped at the budget"},
+           "seed": S.SEEDS["q3_d1s"], "threads": args.threads, "chain": str(CHAIN)}
+    analyse_d1s(rec, args.out_dir / "run", args.batches, args.out_dir)
+    return 0
 
 
 def cmd_r2s(args) -> int:
@@ -295,8 +325,15 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("d1s")
     p.add_argument("--out-dir", required=True, type=Path)
-    p.add_argument("--batches", type=int, default=100)
-    p.add_argument("--particles", type=int, default=2000)
+    p.add_argument("--batches", type=int, default=5000, help="configured maximum; the run stops at --budget")
+    p.add_argument("--particles", type=int, default=500)
+    p.add_argument("--budget", type=float, default=240.0)
+    p.add_argument("--threads", type=int, default=4)
+    p = sub.add_parser("d1s-analyse")
+    p.add_argument("--out-dir", required=True, type=Path)
+    p.add_argument("--batches", type=int, default=5000)
+    p.add_argument("--particles", type=int, default=500)
+    p.add_argument("--budget", type=float, default=220.0)
     p.add_argument("--threads", type=int, default=4)
     p = sub.add_parser("r2s")
     p.add_argument("--mode", choices=["mesh", "cell"], required=True)
@@ -308,7 +345,7 @@ def main() -> int:
     p.add_argument("--photon-particles", type=int, default=100000)
     p.add_argument("--threads", type=int, default=4)
     args = ap.parse_args()
-    return {"d1s": cmd_d1s, "r2s": cmd_r2s}[args.cmd](args)
+    return {"d1s": cmd_d1s, "d1s-analyse": cmd_d1s_analyse, "r2s": cmd_r2s}[args.cmd](args)
 
 
 if __name__ == "__main__":

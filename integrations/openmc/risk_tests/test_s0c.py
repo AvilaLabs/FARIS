@@ -219,6 +219,33 @@ class H2Rule(unittest.TestCase):
         self.assertEqual(r["outcome"], "NOT_EVALUATED")
 
 
+class CostExtrapolation(unittest.TestCase):
+    def test_power_law_through_last_two_points(self):
+        # t = 10 n^1: 10 cm -> 20 cells, 5 cm -> 40 cells; 2.5 cm -> 80 cells
+        self.assertAlmostEqual(S.extrapolate_cost([10.0, 5.0], [200.0, 400.0], 2.5), 800.0)
+
+    def test_uses_the_last_two_of_several(self):
+        self.assertAlmostEqual(S.extrapolate_cost([25.0, 10.0, 5.0], [1.0, 200.0, 400.0], 2.5), 800.0)
+
+    def test_needs_two_points(self):
+        with self.assertRaises(ValueError):
+            S.extrapolate_cost([5.0], [1.0], 2.5)
+
+
+class SubsetError(unittest.TestCase):
+    def test_se_uses_total_batches(self):
+        r = S.subset_standard_error([1.0, 3.0, 1.0, 3.0], 400)
+        self.assertAlmostEqual(r["sd"], math.sqrt(4.0 / 3.0))
+        self.assertAlmostEqual(r["std_error"], r["sd"] / 20.0)
+        self.assertAlmostEqual(r["relative_error_of_sd"], 1.0 / math.sqrt(6.0))
+
+    def test_needs_two_values_and_enough_batches(self):
+        with self.assertRaises(ValueError):
+            S.subset_standard_error([1.0], 10)
+        with self.assertRaises(ValueError):
+            S.subset_standard_error([1.0, 2.0, 3.0], 2)
+
+
 class Ledger(unittest.TestCase):
     def test_init_add_and_budget(self):
         with tempfile.TemporaryDirectory() as d:

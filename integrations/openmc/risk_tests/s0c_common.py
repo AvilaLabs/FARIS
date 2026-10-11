@@ -142,6 +142,15 @@ def window_range(lower: list[float]) -> dict:
 # ---------------------------------------------------------------------------
 # Q1 rules
 
+def extrapolate_cost(spacings_cm: list[float], seconds: list[float], target_cm: float) -> float:
+    """Cost at a finer spacing from a power law in the number of mesh cells, fitted through the last two measured points."""
+    if len(spacings_cm) < 2 or len(spacings_cm) != len(seconds):
+        raise ValueError("need two measured points")
+    (s0, s1), (t0, t1) = spacings_cm[-2:], seconds[-2:]
+    p = math.log(t1 / t0) / math.log(s0 / s1)
+    return t1 * (s1 / target_cm) ** p
+
+
 def row_unbiased(a_mean: float, a_se: float, ref_mean: float, ref_se: float) -> dict:
     z = C.z_score(a_mean, a_se, ref_mean, ref_se)
     return {"z": z, "unbiased": C.unbiased(z)}
@@ -223,6 +232,19 @@ def h2_rule(mesh: dict[float, dict], cell: dict) -> dict:
     if near or not monotone:
         return {"outcome": "REJECTED", **detail}
     return {"outcome": "NEITHER", **detail}
+
+
+def subset_standard_error(subset_values: list[float], n_total: int) -> dict:
+    """Standard error of the mean of n_total independent batches estimated from the spread of a subset of them.
+
+    se = sd(subset) / sqrt(n_total); the relative error of the sd estimate is about 1 / sqrt(2 (k - 1)) for k values.
+    """
+    k = len(subset_values)
+    if k < 2 or n_total < k:
+        raise ValueError("need at least two subset values and n_total >= k")
+    m = math.fsum(subset_values) / k
+    sd = math.sqrt(math.fsum((v - m) ** 2 for v in subset_values) / (k - 1))
+    return {"sd": sd, "std_error": sd / math.sqrt(n_total), "subset": k, "n_total": n_total, "relative_error_of_sd": 1.0 / math.sqrt(2.0 * (k - 1))}
 
 
 # ---------------------------------------------------------------------------

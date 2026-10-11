@@ -52,12 +52,20 @@ def q1(root: Path) -> dict:
                       "z": u["z"], "unbiased": u["unbiased"], "_fom": f, "floor_result": (prod.get("windows") or {}).get("floor_result"),
                       "lost": (prod.get("lost") or {}).get("restart_files")})
         else:
-            r.update({"R": None, "FOM": None, "unbiased": None, "note": "NOT_EVALUATED: no production record"})
+            why = (prod or {}).get("error") or "no production record"
+            r.update({"R": None, "FOM": None, "unbiased": None, "note": f"NOT_EVALUATED: {why} (production {S.PRODUCTION_S:.0f} s)"})
         return r
 
     for d in S.SPACINGS_CM:
         tag = f"{d:g}"
         out["rows"].append(row(f"{tag} cm", d, load(root / "q1" / f"gen_{tag}.json"), load(root / "q1" / f"prod_{tag}.json")))
+    measured = [(r["spacing"], r["gen_seconds"]) for r in out["rows"] if r.get("gen_seconds")]
+    for r in out["rows"]:
+        if r.get("gen_seconds") is None and len(measured) >= 2:
+            est = S.extrapolate_cost([m[0] for m in measured], [m[1] for m in measured], r["spacing"])
+            r["note"] = (f"NOT_EVALUATED: did not fit the time box; generation measured at " + ", ".join(f"{m[1]:.0f} s ({m[0]:g} cm)" for m in measured)
+                         + f"; estimated {est:.0f} s generation + {S.PRODUCTION_S + 20:.0f} s production")
+            r["estimated_generation_s"] = est
     ds = S.delta_star([{"spacing": r["spacing"], "fom": r.get("FOM"), "sigma": r.get("sigma"), "unbiased": r.get("unbiased")} for r in out["rows"]])
     out["delta_star"] = ds
     fl_prod = load(root / "q1" / "prod_floor.json")
@@ -67,15 +75,24 @@ def q1(root: Path) -> dict:
         fr = row(f"floor at {d:g} cm", d, None, fl_prod, floor=True)
         out["floor"] = {"row": fr, "rule": S.floor_rule(base["_fom"], fr["_fom"], fr["unbiased"]) if "_fom" in fr and "_fom" in base else None,
                         "against_spacing": d}
+    if out["floor"] is None and ds.get("delta_star_cm") is not None:
+        gen = next((r for r in out["rows"] if r["spacing"] == ds["delta_star_cm"]), {})
+        top, low = gen.get("window_max"), gen.get("window_min")
+        if top is not None and low is not None:
+            floor_value = S.FLOOR_REL * top
+            out["floor"] = {"production_run": False, "floor_value": floor_value, "window_min_positive": low, "cells_raised_expected": bool(low < floor_value),
+                            "against_spacing": ds["delta_star_cm"],
+                            "note": "no lower bound is below the floor: the floored windows equal the unfloored ones" if low >= floor_value else "floor applies; production not run"}
     out["rm_m_confirmation_required"] = S.rm_m_confirmation_required(ds.get("delta_star_cm"))
-    for r in out["rows"] + ([out["floor"]["row"]] if out["floor"] else []):
+    for r in out["rows"] + ([out["floor"]["row"]] if out["floor"] and "row" in out["floor"] else []):
         r.pop("_fom", None)
     return out
 
 
 def q2(root: Path) -> dict:
     rec = load(root / "q2" / "q2.json")
-    return {"record": rec} if rec else {"status": "NOT_EVALUATED: no record"}
+    ps = root / "q2.ps"
+    return {"record": rec, "process_snapshots": ps.read_text(encoding="utf-8") if ps.is_file() else None} if rec else {"status": "NOT_EVALUATED: no record"}
 
 
 def q3(root: Path) -> dict:
@@ -114,14 +131,27 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--root", type=Path, default=Path.home() / ".cache/avila-night/cad-risk-tests/s0c")
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--references", type=Path, help="also write the committed record: results, run-record hashes and the protocol hash")
     args = ap.parse_args()
     res = {"q1": q1(args.root), "q2": q2(args.root), "q3": q3(args.root), "ledger": load(args.root / "ledger.json")}
+    if args.references:
+        import hashlib
+
+        def digest(path: Path) -> str:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+
+        records = {str(p.relative_to(args.root)): digest(p) for p in sorted(args.root.rglob("*.json")) if "smoke" not in p.parts and p.name != "results-s0c.json"
+                   and p.stat().st_size < 5_000_000}
+        protocol = Path(__file__).resolve().parents[3] / "docs" / "notes" / "CAD_TRANSPORT_S0C.md"
+        ref = {"schema": "faris-cad-transport-s0c/v1", "protocol": "docs/notes/CAD_TRANSPORT_S0C.md", "protocol_sha256": digest(protocol),
+               "record_sha256": records, "results": res}
+        args.references.write_text(json.dumps(ref, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
     out = args.out or args.root / "results-s0c.json"
     out.write_text(json.dumps(res, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
     a = res["q1"].get("analog")
     if a:
         print(f"analog: R {a['R']:.4f}  T {a['T_s']:.0f} s  FOM {a['FOM']:.4g} +- {a['FOM_sigma']:.2g}  stopped by {a['stopped_by']}")
-    for r in res["q1"]["rows"] + ([res["q1"]["floor"]["row"]] if res["q1"].get("floor") else []):
+    for r in res["q1"]["rows"] + ([res["q1"]["floor"]["row"]] if (res["q1"].get("floor") or {}).get("row") else []):
         def f(k, fmt="{:.4g}"):
             return fmt.format(r[k]) if r.get(k) is not None else "-"
         print(f"{r['label']:<16} SR {f('source_regions','{:.0f}')} gen {f('gen_seconds','{:.0f}')} s {f('gen_rss_mb','{:.0f}')} MB  win {f('window_min')}..{f('window_max')}  "
