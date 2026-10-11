@@ -15,6 +15,8 @@ archive URLs, official NNDC MD5 checks, observed SHA-256 values, per-HDF hashes
 and sizes, conversion details, file coverage, and the combined XML digest. The
 HDF, ENDF, and ZIP files are not part of the source repository.
 
+A second, wider library (all FENDL-3.2 neutron nuclides, photon data for every element in them, ENDF/B-VIII.1 thermal tables) is described in [NUCLEAR_DATA_LIBRARY_V2.md](NUCLEAR_DATA_LIBRARY_V2.md). This document covers the first library only.
+
 Primary references:
 
 - [OpenMC official data libraries](https://openmc.org/data/)
