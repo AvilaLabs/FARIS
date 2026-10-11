@@ -170,13 +170,31 @@ jobs:
         run: ./integrations/windows-spike/scripts/05-openmc.ps1 -Dagmc
       - name: "Stage 6a: smoke test, CSG model"
         run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model csg -Tag win-csg
-      - name: "Stage 6b: smoke test, DAGMC model"
+      - name: "Stage 4b: DAGMC without double-down (A/B, own prefix)"
+        run: ./integrations/windows-spike/scripts/04-dagmc.ps1 -NoDoubleDown
+      - name: "Stage 6b: smoke test, DAGMC model (double-down / Embree)"
+        id: smoke-dagmc
+        continue-on-error: true
         run: ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
-      - name: Diagnose a failed DAGMC run
-        if: failure()
+      - name: Diagnose a failed double-down run
+        if: steps.smoke-dagmc.outcome == 'failure'
+        continue-on-error: true
         run: ./integrations/windows-spike/scripts/08-diagnose.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
-      - name: "Stage 6c: DAGMC model through the C API from Rust"
+      - name: "Stage 6b2: smoke test, DAGMC model (stock MOAB ray tracer, dagmc.dll swapped)"
+        id: smoke-nodd
+        continue-on-error: true
+        run: |
+          Copy-Item C:\spike\dist\openmc-dagmc C:\spike\dist\openmc-dagmc-nodd -Recurse -Force
+          Copy-Item C:\spike\inst\dagmc-nodd\bin\dagmc.dll C:\spike\dist\openmc-dagmc-nodd -Force
+          ./integrations/windows-spike/scripts/06-smoke.ps1 -Bundle openmc-dagmc-nodd -Model dagmc -Tag win-dagmc-nodd
+      - name: "Stage 6c: DAGMC model through the C API from Rust (double-down bundle)"
+        if: steps.smoke-dagmc.outcome == 'success'
+        continue-on-error: true
         run: ./integrations/windows-spike/scripts/07-capi-probe.ps1 -Bundle openmc-dagmc -Model dagmc -Tag win-dagmc
+      - name: "Stage 6c2: DAGMC model through the C API from Rust (stock ray tracer bundle)"
+        if: steps.smoke-nodd.outcome == 'success'
+        continue-on-error: true
+        run: ./integrations/windows-spike/scripts/07-capi-probe.ps1 -Bundle openmc-dagmc-nodd -LibBundle openmc-dagmc -Model dagmc -Tag win-dagmc-nodd
 
       - name: Collect results
         if: always()
@@ -199,6 +217,12 @@ jobs:
           name: windows-cad-results
           path: C:\spike\results
           if-no-files-found: warn
+
+      - name: Job verdict
+        if: always() && (steps.smoke-dagmc.outcome != 'success')
+        run: |
+          Write-Host "DAGMC smoke test with double-down: ${{ steps.smoke-dagmc.outcome }}; stock ray tracer: ${{ steps.smoke-nodd.outcome }}"
+          exit 1
 
   # Same two models, same seed and particle count, with the conda-forge OpenMC 0.15.3 DAGMC build.
   linux-reference:
@@ -273,6 +297,7 @@ jobs:
           mkdir -p cmp
           cmp_ windows-csg   art/windows-cad-results/win-csg/summary.json     linux-csg   art/linux-results/linux-csg/summary.json   cmp/csg-windows-vs-linux.md
           cmp_ windows-dagmc art/windows-cad-results/win-dagmc/summary.json   linux-dagmc art/linux-results/linux-dagmc/summary.json cmp/dagmc-windows-vs-linux.md
+          cmp_ windows-dagmc-stock art/windows-cad-results/win-dagmc-nodd/summary.json linux-dagmc art/linux-results/linux-dagmc/summary.json cmp/dagmc-stock-windows-vs-linux.md
           cmp_ windows-dagmc art/windows-cad-results/win-dagmc/summary.json   windows-csg art/windows-cad-results/win-csg/summary.json cmp/windows-dagmc-vs-csg.md
           cmp_ linux-dagmc   art/linux-results/linux-dagmc/summary.json        linux-csg   art/linux-results/linux-csg/summary.json   cmp/linux-dagmc-vs-csg.md
           cmp_ windows-csg-nodagmc-build art/windows-csg-results/win-csg-nodagmc-build/summary.json linux-csg art/linux-results/linux-csg/summary.json cmp/csg-nodagmc-windows-vs-linux.md

@@ -83,13 +83,14 @@ function Get-CmakeCommon([string]$Prefix, [string]$BuildType = 'RelWithDebInfo')
 
 # configure, build, install with logs; reports the elapsed time.
 function Build-Cmake {
-    param([string]$Name, [string[]]$ConfigureArgs, [string]$SourceSubdir = '')
+    param([string]$Name, [string[]]$ConfigureArgs, [string]$SourceSubdir = '', [string]$Tag = '')
+    if (-not $Tag) { $Tag = $Name }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $b = "$Bld\$Name"
+    $b = "$Bld\$Tag"
     if (Test-Path $b) { Remove-Item -Recurse -Force $b }
     $s = "$Src\$Name$SourceSubdir"
-    Invoke-Logged "$Logs\$Name-configure.log" cmake (@('-S', (Fwd $s), '-B', (Fwd $b)) + $ConfigureArgs)
-    Invoke-Logged "$Logs\$Name-build.log" cmake @('--build', (Fwd $b))
-    Invoke-Logged "$Logs\$Name-install.log" cmake @('--install', (Fwd $b))
-    Add-Timing $Name $sw.Elapsed.TotalSeconds
+    Invoke-Logged "$Logs\$Tag-configure.log" cmake (@('-S', (Fwd $s), '-B', (Fwd $b)) + $ConfigureArgs)
+    Invoke-Logged "$Logs\$Tag-build.log" cmake @('--build', (Fwd $b))
+    Invoke-Logged "$Logs\$Tag-install.log" cmake @('--install', (Fwd $b))
+    Add-Timing $Tag $sw.Elapsed.TotalSeconds
 }

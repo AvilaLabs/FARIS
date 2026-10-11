@@ -1,13 +1,14 @@
 # Stage 6c: build the Rust probe against libopenmc.lib and run a model through the C API, with the
 # same restricted PATH as the smoke tests.
-param([string]$Bundle, [string]$Model, [string]$Tag)
+param([string]$Bundle, [string]$Model, [string]$Tag, [string]$LibBundle = '')
 . "$PSScriptRoot\common.ps1"
 $bundleDir = "$Dist\$Bundle"
 $log = "$Logs\capi-$Tag.log"
 $probe = "$SpikeDir\capi-probe"
 
 $env:RUSTUP_TOOLCHAIN = 'stable'   # the repository's rust-toolchain.toml is not wanted here
-$env:OPENMC_LIB_DIR = "$Inst\$Bundle\lib"
+if (-not $LibBundle) { $LibBundle = $Bundle }
+$env:OPENMC_LIB_DIR = "$Inst\$LibBundle\lib"
 $env:CARGO_TARGET_DIR = "$Bld\capi-probe"
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
 Invoke-Logged $log cargo @('--version')
