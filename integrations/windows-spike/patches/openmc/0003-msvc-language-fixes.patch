@@ -3,7 +3,9 @@ Taken from PR 2919, minus the files already in patch 2.
 - shared_array.h: MSVC's OpenMP does not accept seq_cst on 'omp atomic' (per PR 2919).
 - random_ray: PR 2919 reduces into a local instead of a class member ("must use temporary
   accumulator variable for OpenMP on Windows").
-- event.h needs <tuple>; geometry.h forward-declares BoundaryInfo as class but it is a struct.
+- event.h needs <tuple>. (PR 2919 also turns the forward declaration of BoundaryInfo in geometry.h
+  into 'struct', but in 0.15.3 BoundaryInfo is a class; MSVC mangles class and struct
+  differently, so that change leaves cross_lattice unresolved at link time and is not applied.)
 - 'and' alternative token in source.cpp (MSVC without /permissive-).
 - M_PI is not defined by MSVC without _USE_MATH_DEFINES: use openmc PI (quartic_solver, plot.cpp).
 - cell.cpp: the loop kept using an iterator after std::vector::erase invalidated it (undefined
@@ -21,19 +23,6 @@ index 2d215a1..6004d0f 100644
 +#include <tuple>
 +
  namespace openmc {
- 
- //==============================================================================
-diff --git a/include/openmc/geometry.h b/include/openmc/geometry.h
-index 107cc7d..2e31f7c 100644
---- a/include/openmc/geometry.h
-+++ b/include/openmc/geometry.h
-@@ -10,7 +10,7 @@
- 
- namespace openmc {
- 
--class BoundaryInfo;
-+struct BoundaryInfo;
- class GeometryState;
  
  //==============================================================================
 diff --git a/include/openmc/shared_array.h b/include/openmc/shared_array.h

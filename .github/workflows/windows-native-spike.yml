@@ -206,6 +206,7 @@ jobs:
           cache-environment: true
           create-args: >-
             openmc=0.15.3=dagmc_nompi*
+            dagmc=3.2.4=nompi_doubledown*
             h5py
             numpy
           condarc: |
