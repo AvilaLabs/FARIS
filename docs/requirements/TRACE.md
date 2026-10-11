@@ -6,19 +6,19 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 125 of 1408 requirements.
+Traced: 125 of 1416 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
-| [01-geometry-and-model.md](01-geometry-and-model.md) | 69 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 104 | 9 |
+| [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 105 | 9 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 1 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 16 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
 | [08-performance.md](08-performance.md) | 37 | 3 |
-| [09-usability.md](09-usability.md) | 71 | 2 |
+| [09-usability.md](09-usability.md) | 72 | 2 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 1 |
 | [11-visualization.md](11-visualization.md) | 49 | 8 |
 | [12-configurability.md](12-configurability.md) | 63 | 4 |
@@ -29,7 +29,7 @@ Traced: 125 of 1408 requirements.
 | [17-collaboration.md](17-collaboration.md) | 40 | 3 |
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
 | [19-security.md](19-security.md) | 55 | 6 |
-| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 43 | 0 |
+| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 0 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 0 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 0 |
 | [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 5 |
@@ -51,7 +51,7 @@ Traced: 125 of 1408 requirements.
 | GEO-024 | F1 | `controls/test_region_volumes.py::test_membership_samples_reproduce_analytic_fractions`<br>`crates/faris-engine/src/design/integrity.rs::a_hollow_inside_a_shell_is_a_cavity_with_a_verified_interior_point`<br>`crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/integrity.rs::sampled_volumes_agree_with_exact_volumes`<br>`crates/faris-engine/src/design/rays.rs::a_ray_that_hits_an_edge_is_redrawn_not_nudged`<br>`crates/faris-engine/src/design/rays.rs::parity_classifies_inside_outside_and_shells` |
 | GEO-025 | F2 | `crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/rays.rs::a_chord_lists_its_crossings_in_order_with_their_direction` |
 | GEO-026 | F1 | `crates/faris-engine/src/design/geometry/tests.rs::a_waived_overlap_is_reported_and_no_longer_blocks`<br>`crates/faris-model/src/design/tests.rs::a_design_without_waivers_stays_valid_and_is_written_without_the_key`<br>`crates/faris-model/src/design/tests.rs::a_well_formed_waiver_parses_and_resolves`<br>`crates/faris-model/src/design/tests.rs::waiver_schema_rules_name_the_item_and_the_next_step`<br>`crates/faris-model/src/design/waivers.rs::a_waiver_covers_exactly_the_finding_it_names` |
-| GEO-027 | F7 | `crates/faris-engine/src/design/tests.rs::a_draft_with_nulls_stops_at_check_1_and_a_filled_draft_passes`<br>`crates/faris-model/src/design/tests.rs::unfilled_nulls_are_all_listed_by_path` |
+| GEO-027 | F2 | `crates/faris-engine/src/design/tests.rs::a_draft_with_nulls_stops_at_check_1_and_a_filled_draft_passes`<br>`crates/faris-model/src/design/tests.rs::unfilled_nulls_are_all_listed_by_path` |
 | GEO-029 | F7 | `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured` |
 | GEO-030 | F1 | `controls/test_region_volumes.py::test_formulas_match_numerical_quadrature`<br>`controls/test_region_volumes.py::test_wrong_region_volume_or_flux_sum_is_rejected`<br>`crates/faris-engine/src/design/binding.rs::a_faceted_volume_off_by_more_than_half_a_percent_is_geo_030`<br>`crates/faris-engine/src/design/binding.rs::exact_volumes_and_centroids_of_boxes`<br>`crates/faris-engine/src/design/mesh.rs::exact_signed_volume_of_boxes_and_shells`<br>`crates/faris-engine/src/geometry.rs::midpoint_estimates_match_independent_scipy_adaptive_controls`<br>`crates/faris-engine/src/geometry.rs::region_volumes_sum_to_the_full_torus_and_match_quadrature`<br>`crates/faris-engine/src/lib.rs::volume_matches_area_times_centroid_path_length` |
 | GEO-031 | F1 | `controls/test_region_volumes.py::test_regions_sum_to_the_full_torus`<br>`controls/test_region_volumes.py::test_unperforated_regions_partition_and_add`<br>`crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/geometry.rs::prism_intersection_estimate_is_bounded_and_partition_conserving`<br>`crates/faris-engine/src/geometry.rs::region_volumes_close_for_a_thick_low_aspect_shell`<br>`crates/faris-engine/src/geometry.rs::region_volumes_sum_to_the_full_torus_and_match_quadrature` |
