@@ -423,6 +423,18 @@ settled a detail.
   not reliably met**; GEO-032 (126–200 s) and check 9's source sampling are the two largest parts. GEO-013's 10 min
   conversion is missed (869 s). Both stages are replaced by the native import pipeline of
   [EASE_OF_USE_PLAN.md](EASE_OF_USE_PLAN.md), which is re-measured against these targets.
+- **Two speed fixes (2026-10-10, landed in ecf7a7f with the plan edit by mistake; this note records them).**
+  - **Check 9 samples positions only.** `openmc-plasma-source` built a NeSST energy spectrum for each of its voxels,
+    95.6 s of check 9's 116 s, but check 9 tests only where sites fall. The helper (version 2) now gives every voxel a
+    14.1 MeV line while it samples, and says so in the report. Source build 95.6 s → 1.3 s. The new sites match the old
+    in R, Z and φ (two-sample Kolmogorov–Smirnov p = 0.54, 0.29, 0.74). Transport still uses the full spectrum.
+  - **cad_to_dagmc's own overlap scan is off.** It spent its 60 s budget on 30 solids and left about 300 pairs unchecked;
+    check 6's booleans (GEO-021) already cover every candidate pair. The report's tolerances say so. cad_to_dagmc still
+    logs "ran out of its 0s budget"; that line is expected.
+  - **Measured.** Checks 7, 8, GEO-032 and 9 took 157 s (check 9 10 s) with cached conversion, and 223 s (check 9
+    15 s) on a fresh conversion with the machine at load 10–13 from other jobs. **GEO-029 is met** in both. The fresh
+    conversion took 961 s against 869 s before, under that load, so it does not show the scan's saving (at most 60 s);
+    GEO-013 stays missed until the native import pipeline replaces the conversion.
 - **Verdict.** The import is complete only when all nine checks ran and none failed.
 
 ## Appendix: `faris-facets/v1`
