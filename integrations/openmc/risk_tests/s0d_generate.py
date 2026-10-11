@@ -5,6 +5,7 @@
     s0d_generate.py --mode global   ...   (T3: as T1 without targets)
     s0d_generate.py --mode cadis    ...   (T2: user adjoint source over the TF material, no forward weighting)
     s0d_generate.py --mode targeted ... --smoke   (T0: two batches, one inactive)
+    s0d_generate.py ... --mesh cylindrical        (S0e: build-aligned cylindrical mesh; see s0e_generate.py)
 
 Protocol: docs/notes/CAD_TRANSPORT_S0D.md. Everything but the adjoint source is G6's: the same mgxs.h5 (not
 regenerated, so the multigroup data is identical and 0.16.0's stochastic-slab defect is not reached), group structure,
@@ -88,12 +89,18 @@ def generate(args) -> int:
         return W.finish(record, args.out)
     model, dag, target = state["model"], state["dag"], state["target"]
 
-    ww_mesh = openmc.RegularMesh(name="ww-mesh")
     lower, upper = W.RAY_BOX_CM
-    cell = params["ww_cell_cm"]
-    ww_mesh.lower_left, ww_mesh.upper_right = lower, upper
-    ww_mesh.dimension = tuple(int(round((u - l) / cell)) for l, u in zip(lower, upper))
-    record["ww_mesh"] = {"lower_left": lower, "upper_right": upper, "dimension": list(ww_mesh.dimension), "cell_cm": cell}
+    if getattr(args, "mesh", "cartesian") == "cylindrical":
+        # S0e H6: one cylindrical mesh for the source regions and the windows (docs/notes/CAD_TRANSPORT_S0E.md)
+        import s0e_common as E
+
+        ww_mesh, record["ww_mesh"] = E.build_cylindrical_mesh(openmc)
+    else:
+        ww_mesh = openmc.RegularMesh(name="ww-mesh")
+        cell = params["ww_cell_cm"]
+        ww_mesh.lower_left, ww_mesh.upper_right = lower, upper
+        ww_mesh.dimension = tuple(int(round((u - l) / cell)) for l, u in zip(lower, upper))
+        record["ww_mesh"] = {"lower_left": lower, "upper_right": upper, "dimension": list(ww_mesh.dimension), "cell_cm": cell}
 
     def configure_and_run():
         s = model.settings
@@ -151,6 +158,8 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", required=True, type=int)
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--smoke", action="store_true", help="T0: two batches, one inactive")
+    ap.add_argument("--mesh", choices=("cartesian", "cylindrical"), default="cartesian",
+                    help="window and source-region mesh: S0d's 25 cm Cartesian cells, or S0e's build-aligned cylindrical mesh")
     return generate(ap.parse_args(argv))
 
 
