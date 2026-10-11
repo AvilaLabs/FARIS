@@ -1,6 +1,6 @@
 # Install, import and repair: plan to be the easiest tool in its class
 
-Status: scope approved by Connor 2026-10-10. Data hosting decided 2026-10-10: free, with acknowledgement (section 2). Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
+Status: scope approved by Connor 2026-10-10. Data delivery is free; what may be hosted is in section 2. Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),
 section 1 ("Bring your own design") and section 6 (product quality).
 
 The standard is best in class on every metric, ease of use included. This plan sets the bar from a survey of the tools
@@ -93,9 +93,17 @@ claims not read at the source are left out of this table.
     files are published by the IAEA (IAEA-NDS/FENDL-Processed, tag FENDL-3.2c, files through git-annex). FARIS's hosted
     library is built from FENDL-3.2c, converted by us, and the v1/v2 results stay labelled with the 2022 build they used.
     Whether the git-annex sources download without the IAEA site's browser challenge is still to be tested.
-- **Decision (Connor, 2026-10-10):** where charging is a grey area, the data delivery is free. Avila Labs hosts per-file,
-  per-temperature copies free of charge, acknowledges the IAEA (FENDL) and NNDC (ENDF/B) as sources in FARIS and on the
-  download page, implies no endorsement, and keeps the download-from-source path working.
+- **Decision (Connor, 2026-10-10):** where charging is a grey area, data delivery is free; no paid data tier.
+- **What may be hosted (corrected 2026-10-10 against LEG-010, LEG-011 and PLAT-053, which hold redistribution of any
+  library without an explicit right):**
+  - FENDL (IAEA): the IAEA terms allow copying and use in products with acknowledgement, and its databases are provided
+    free of charge; Avila Labs may host FENDL-3.2c files free of charge, acknowledging the IAEA and implying no
+    endorsement. FENDL-3.2c also has a photo-atomic sublibrary, which could replace the ENDF/B photon data; why library
+    v1 chose ENDF/B-VII.1 photon data instead is to be checked first.
+  - ENDF/B (NNDC): no stated terms, so not redistributed. Thermal-scattering tables (only needed when a design declares
+    water, hydrides, graphite, beryllium or FLiBe) are fetched by FARIS from the original source when needed. Hosting
+    them needs NNDC's written permission; asking is Connor's call.
+  - Earlier text in this section said all files would be hosted; that overstated the decision.
 
 ### 3. Import in the app
 

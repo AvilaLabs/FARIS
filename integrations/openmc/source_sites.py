@@ -9,7 +9,10 @@ runner:
 The request carries the plasma block in SI units (the design file's fields) and the
 number of sites and the seed. Sites are drawn with `openmc-plasma-source`'s
 `tokamak_source` through OpenMC's own source machinery (`sample_external_source`),
-so the sites are the ones a transport run would start from. The geometry OpenMC is
+so the sites follow the spatial distribution a transport run starts from. Check 9 tests
+positions only, so each voxel's neutron energy spectrum (a NeSST calculation per voxel, about
+95 s on RM-M) is replaced by a 14.1 MeV line while the source is built; the voxel strengths and
+therefore the position distribution are unchanged. The geometry OpenMC is
 initialised with is a single empty sphere: FARIS tests the sites against the model
 itself, with its own exact point-in-volume, and OpenMC never sees the model.
 
@@ -29,7 +32,7 @@ import time
 from pathlib import Path
 
 SCHEMA = "faris-source-sites/v1"
-HELPER_VERSION = "1"
+HELPER_VERSION = "2"
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -67,8 +70,17 @@ def sample(request: dict, timing: dict):
     import openmc.lib
     from openmc_plasma_source import tokamak_source
 
+    # The package exports a function under the submodule's name, so take the module itself.
+    tokamak_module = sys.modules["openmc_plasma_source.tokamak_source"]
+
     started = time.monotonic()
-    source = tokamak_source(**tokamak_arguments(request["plasma"]))
+    # Positions only: a 14.1 MeV line in place of each voxel's spectrum (see the module note).
+    spectrum = tokamak_module.get_neutron_energy_distribution
+    tokamak_module.get_neutron_energy_distribution = lambda **_: openmc.stats.Discrete([14.1e6], [1.0])
+    try:
+        source = tokamak_source(**tokamak_arguments(request["plasma"]))
+    finally:
+        tokamak_module.get_neutron_energy_distribution = spectrum
     timing["build_source"] = time.monotonic() - started
     sphere = openmc.Sphere(r=1.0e7, boundary_type="vacuum")
     model = openmc.Model()
@@ -124,6 +136,7 @@ def main(argv=None) -> int:
         "versions": versions,
         "count": int(len(points)),
         "seed": int(request["seed"]),
+        "energy": "14.1 MeV line in place of each voxel spectrum; check 9 tests positions only",
         "unit": "m",
         "timing_seconds": timing,
         "bin_sha256": sha256_bytes(data),

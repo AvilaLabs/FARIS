@@ -512,6 +512,10 @@ def convert(args) -> int:
     timing = {}
     started = time.monotonic()
     scale_to_cm = args.shape_unit_m * 100.0
+    # cad_to_dagmc's own pre-imprint overlap scan duplicates GEO-021 (check 6's pre-imprint booleans, which
+    # cover every candidate pair) and stops after 60 s; on RM-M it spent its budget and checked part of the
+    # pairs. FARIS relies on GEO-021, so the duplicate scan is given no time.
+    os.environ["YAMM_OVERLAP_BUDGET_S"] = "0"
     with quiet(log):
         import cad_to_dagmc
         import cadquery as cq
@@ -551,6 +555,7 @@ def convert(args) -> int:
             "angular_rad": args.angular,
             "scale_factor_to_cm": scale_to_cm,
             "imprint_threads": args.imprint_threads,
+            "cad_to_dagmc_overlap_scan": "off; GEO-021 covers it",
             "implicit_complement_tag": args.implicit_complement,
         },
         "tags": tags,
