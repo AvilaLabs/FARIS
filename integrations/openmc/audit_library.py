@@ -13,6 +13,7 @@ presence; it does not qualify nuclear data or establish a transport result.
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import json
 import sys
@@ -56,6 +57,78 @@ DEFAULT_NUCLIDES = [
 
 DEFAULT_PHOTON_ELEMENTS = ["Be", "Cr", "Cu", "Fe", "F", "H", "Li", "Ni", "Ti", "W"]
 REACTION_MTS = (301, 901, 444)
+
+# Named audit sets. "fusion-materials-v1" covers the natural isotopes of every
+# element in the fusion materials below. Only the element lists are used (an
+# element is in a material or it is not); no mass fractions enter the audit, so
+# the sources name the specification that defines the element list, and the
+# list is a presence list, not a certified composition.
+NUCLIDE_SET_FUSION_MATERIALS_V1 = "fusion-materials-v1"
+FUSION_MATERIALS_V1: dict[str, dict[str, Any]] = {
+    "SS316L": {"group": "structure", "elements": "Fe Cr Ni Mo Mn Si C N P S".split(), "source": "ASTM A240/A240M UNS S31603 chemical-composition table (Fe, Cr, Ni, Mo balance and alloying; Mn, Si, C, N, P, S specified limits)"},
+    "Inconel 718": {"group": "structure", "elements": "Ni Cr Fe Nb Mo Ti Al Co Mn Si Cu C".split(), "source": "ASTM B637 / AMS 5662 UNS N07718 composition table (B, P, S, Ta trace limits omitted)"},
+    "EUROFER97": {"group": "structure", "elements": "Fe Cr W Mn V Ta C N Si P S Ni Cu Mo Nb Ti Co Al B".split(), "source": "Lindau et al., Fusion Eng. Des. 75-79 (2005) 989, EUROFER97 specification: nominal alloying plus specified impurity elements"},
+    "CuCrZr": {"group": "structure", "elements": "Cu Cr Zr".split(), "source": "ITER Materials Properties Handbook, CuCrZr-IG (Cu-0.8Cr-0.08Zr class); trace elements omitted"},
+    "Tungsten": {"group": "structure", "elements": ["W"], "source": "elemental tungsten"},
+    "WC": {"group": "structure", "elements": "W C".split(), "source": "tungsten carbide stoichiometry"},
+    "V-4Cr-4Ti": {"group": "structure", "elements": "V Cr Ti".split(), "source": "alloy name; interstitial O, N, C impurities not listed"},
+    "TZM": {"group": "structure", "elements": "Mo Ti Zr C".split(), "source": "ASTM B386 UNS R03600 (Mo-0.5Ti-0.08Zr-0.02C)"},
+    "Ordinary Portland concrete": {"group": "concrete", "elements": "H O Si Ca Al Fe Na K Mg C S".split(), "source": "H, O, Si, Ca, Al, Fe, Na, K, Mg as in the ordinary-concrete composition of PNNL-15870 Rev. 1 (Compendium of Material Composition Data for Radiation Transport Modeling); trace C and S added as the task specifies"},
+    "Helium": {"group": "coolant_gas", "elements": ["He"], "source": "elemental helium"},
+    "Air": {"group": "coolant_gas", "elements": "C N O Ar".split(), "source": "dry air composition of PNNL-15870 Rev. 1 (N, O, Ar, trace C)"},
+    "Light water": {"group": "coolant_gas", "elements": "H O".split(), "source": "H2O"},
+    "Heavy water": {"group": "coolant_gas", "elements": "H O".split(), "source": "D2O; deuterium is the H2 nuclide of element H"},
+    "FLiBe": {"group": "coolant_gas", "elements": "F Li Be".split(), "source": "Li2BeF4 stoichiometry"},
+    "PbLi": {"group": "coolant_gas", "elements": "Pb Li".split(), "source": "Pb-15.7Li eutectic (element list only)"},
+    "B4C": {"group": "shielding_breeding", "elements": "B C".split(), "source": "boron carbide stoichiometry"},
+    "TiH2": {"group": "shielding_breeding", "elements": "Ti H".split(), "source": "titanium hydride stoichiometry"},
+    "ZrH2": {"group": "shielding_breeding", "elements": "Zr H".split(), "source": "zirconium hydride stoichiometry"},
+    "Li4SiO4": {"group": "shielding_breeding", "elements": "Li Si O".split(), "source": "lithium orthosilicate stoichiometry"},
+    "Li2TiO3": {"group": "shielding_breeding", "elements": "Li Ti O".split(), "source": "lithium metatitanate stoichiometry"},
+    "Beryllium": {"group": "shielding_breeding", "elements": ["Be"], "source": "elemental beryllium"},
+    "Be12Ti": {"group": "shielding_breeding", "elements": "Be Ti".split(), "source": "beryllide stoichiometry"},
+    "REBCO tape": {"group": "magnet", "elements": "Y Ba Gd Cu O Ag Ni Mo Cr Fe W Co Mn".split(), "source": "coordinator task list: (Y,Gd)Ba2Cu3O7 with Ag and Cu layers on Hastelloy C-276 substrate (Ni, Mo, Cr, Fe, W, Co, Mn per ASTM B575 UNS N10276 major elements)"},
+    "Nb3Sn": {"group": "magnet", "elements": "Nb Sn".split(), "source": "niobium-tin stoichiometry"},
+    "NbTi": {"group": "magnet", "elements": "Nb Ti".split(), "source": "niobium-titanium alloy name"},
+    "Copper": {"group": "magnet", "elements": ["Cu"], "source": "elemental copper"},
+    "Glass-fibre/epoxy insulation": {"group": "magnet", "elements": "Si O Ca Al Mg B C H N".split(), "source": "coordinator task list: E-glass (Si, O, Ca, Al, Mg, B) with epoxy (C, H, N, O)"},
+}
+
+
+def natural_isotopes(element: str, abundance: dict[str, float]) -> list[str]:
+    """Natural isotopes of an element, in OpenMC naming, sorted by mass number."""
+    found = []
+    for name in abundance:
+        # Metastable names such as Ta180_m1 keep their suffix; the symbol is
+        # the leading letters only.
+        symbol = name.split("_")[0].rstrip("0123456789")
+        if symbol == element:
+            found.append(name)
+    return sorted(found, key=_mass_sort_key)
+
+
+def _mass_sort_key(name: str) -> tuple[int, str]:
+    digits = "".join(ch for ch in name.split("_")[0] if ch.isdigit())
+    return (int(digits or 0), name)
+
+
+def fusion_materials_v1_selection(abundance: dict[str, float]) -> dict[str, Any]:
+    """Elements, natural isotopes and per-material element lists of the set."""
+    elements = sorted({el for entry in FUSION_MATERIALS_V1.values() for el in entry["elements"]})
+    nuclides: list[str] = []
+    missing_abundance = []
+    for element in elements:
+        isotopes = natural_isotopes(element, abundance)
+        if not isotopes:
+            missing_abundance.append(element)
+        nuclides.extend(isotopes)
+    return {
+        "name": NUCLIDE_SET_FUSION_MATERIALS_V1,
+        "elements": elements,
+        "nuclides": nuclides,
+        "elements_without_natural_isotopes": missing_abundance,
+        "materials": FUSION_MATERIALS_V1,
+    }
 
 
 def sha256_file(path: Path) -> str:
@@ -170,6 +243,9 @@ def audit_neutron(path: Path, h5py: Any, openmc: Any) -> dict[str, Any]:
         }
     except Exception as error:  # preserve failed inspection as data, not a false pass
         item["error"] = f"{type(error).__name__}: {error}"
+    # Release the parsed library before the next file; a long audit otherwise
+    # grows to several GB.
+    gc.collect()
     return item
 
 
@@ -232,7 +308,61 @@ def audit_photon(path: Path, h5py: Any, openmc: Any) -> dict[str, Any]:
     return result
 
 
-def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list[str]) -> dict[str, Any]:
+THERMAL_FULL_LOAD_MAX_BYTES = 1024 * 1024 * 1024
+
+
+def audit_thermal(path: Path, h5py: Any, openmc: Any, full_load_max_bytes: int = THERMAL_FULL_LOAD_MAX_BYTES) -> dict[str, Any]:
+    """Identity, structure and OpenMC readability of one S(alpha,beta) file.
+
+    ENDF/B-VIII.1 tables carry up to ~100 temperatures (c_H_in_H2O is 2.6 GB), and
+    the OpenMC Python API loads all of them into memory. Files above the bound are
+    read through the same OpenMC reader for a single temperature (294 K when
+    present); the record says which scope was used.
+    """
+    result: dict[str, Any] = {
+        "relative_path": None,
+        "sha256": None,
+        "size_bytes": None,
+        "readable_by_h5py": False,
+        "readable_by_openmc_data_api": False,
+        "openmc_data_api_scope": None,
+        "temperatures": [],
+        "error": None,
+    }
+    try:
+        result["sha256"] = sha256_file(path)
+        result["size_bytes"] = path.stat().st_size
+        with h5py.File(path, "r") as library:
+            group = next(iter(library.values()))
+            result["readable_by_h5py"] = True
+            result["temperatures"] = sorted(group["kTs"].keys())
+            result["nuclides"] = sorted(item.decode() for item in group.attrs["nuclides"])
+            if result["size_bytes"] <= full_load_max_bytes:
+                openmc.data.ThermalScattering.from_hdf5(str(path))
+                result["openmc_data_api_scope"] = "all temperatures (ThermalScattering.from_hdf5)"
+            else:
+                temperature = "294K" if "294K" in group["kTs"] else result["temperatures"][0]
+                reaction_names = [name for name in ("elastic", "inelastic") if name in group[temperature]]
+                for name in reaction_names:
+                    openmc.data.ThermalScatteringReaction.from_hdf5(group, name, [temperature])
+                result["openmc_data_api_scope"] = (
+                    f"single temperature {temperature} ({'+'.join(reaction_names)}) via "
+                    "ThermalScatteringReaction.from_hdf5; file above the full-load bound "
+                    f"of {full_load_max_bytes} bytes"
+                )
+        result["readable_by_openmc_data_api"] = True
+    except Exception as error:
+        result["error"] = f"{type(error).__name__}: {error}"
+    gc.collect()
+    return result
+
+
+def build_audit(
+    cross_sections: Path,
+    nuclides: list[str],
+    photon_elements: list[str],
+    nuclide_set: str | None = None,
+) -> dict[str, Any]:
     try:
         import h5py
         import openmc
@@ -279,6 +409,21 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
         details["relative_path"] = relpath
         photon_inventory[element] = details
 
+    selection = None
+    thermal_inventory: dict[str, Any] = {}
+    if nuclide_set is not None:
+        selection = fusion_materials_v1_selection(openmc.data.NATURAL_ABUNDANCE)
+        for table in sorted(thermal_files):
+            relpath = thermal_files[table]
+            path = data_root / relpath
+            details = audit_thermal(path, h5py, openmc) if path.is_file() else {
+                "readable_by_h5py": False,
+                "error": "referenced file missing",
+            }
+            details["library_entry_present"] = True
+            details["relative_path"] = relpath
+            thermal_inventory[table] = details
+
     target_temps = sorted(
         {
             temp
@@ -286,7 +431,7 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
             for temp in info.get("temperatures", [])
         }
     )
-    return {
+    result = {
         "schema": "faris.openmc-library-audit/1.0.0",
         "purpose": "Read-only targeted identity, HDF5/API readability, temperature, reaction-score, secondary-photon, and populated atomic-relaxation inventory. Not a transport result, benchmark, or nuclear-data qualification.",
         "openmc": {"version": openmc.__version__},
@@ -320,16 +465,59 @@ def build_audit(cross_sections: Path, nuclides: list[str], photon_elements: list
         },
         "audit_runtime": {"python": sys.version.split()[0], "h5py": h5py.__version__},
     }
+    if selection is not None:
+        result["nuclide_set"] = _set_summary(selection, inventory, photon_inventory)
+        result["thermal_scattering_library"] = thermal_inventory
+        result["summary"]["all_listed_thermal_tables_readable"] = all(
+            v.get("readable_by_h5py", False) and v.get("readable_by_openmc_data_api", False)
+            for v in thermal_inventory.values()
+        )
+        result["summary"]["nuclide_set"] = selection["name"]
+        result["summary"]["nuclide_set_gaps"] = result["nuclide_set"]["gaps"]
+    return result
+
+
+def _set_summary(selection: dict[str, Any], inventory: dict[str, Any], photon_inventory: dict[str, Any]) -> dict[str, Any]:
+    gaps = []
+    for nuclide in selection["nuclides"]:
+        if not inventory.get(nuclide, {}).get("library_entry_present", False):
+            gaps.append({"kind": "neutron_nuclide", "name": nuclide, "reason": "no neutron entry in the audited cross_sections.xml"})
+    for element in selection["elements"]:
+        if not photon_inventory.get(element, {}).get("library_entry_present", False):
+            gaps.append({"kind": "photon_element", "name": element, "reason": "no photon entry in the audited cross_sections.xml"})
+    for element in selection["elements_without_natural_isotopes"]:
+        gaps.append({"kind": "element", "name": element, "reason": "OpenMC lists no natural isotopes for this element"})
+    return {
+        "name": selection["name"],
+        "purpose": "Natural isotopes of every element in the listed fusion materials. Compositions are element presence lists with the named sources; no mass fractions are used and none are certified.",
+        "materials": selection["materials"],
+        "elements": selection["elements"],
+        "natural_isotope_source": "openmc.data.NATURAL_ABUNDANCE of the audit environment (OpenMC naming, metastable states such as Ta180_m1 included)",
+        "nuclides": selection["nuclides"],
+        "gaps": gaps,
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cross-sections", type=Path, required=True, help="OpenMC cross_sections.xml")
-    parser.add_argument("--nuclides", nargs="+", default=DEFAULT_NUCLIDES, help="Neutron nuclides to inspect (default: M1 candidate inventory)")
-    parser.add_argument("--photon-elements", nargs="+", default=DEFAULT_PHOTON_ELEMENTS, help="Photon atomic-data elements to inspect")
+    parser.add_argument("--nuclides", nargs="+", default=None, help="Neutron nuclides to inspect (default: M1 candidate inventory)")
+    parser.add_argument("--photon-elements", nargs="+", default=None, help="Photon atomic-data elements to inspect")
+    parser.add_argument("--nuclide-set", choices=[NUCLIDE_SET_FUSION_MATERIALS_V1], help="Audit a named set; its nuclides and elements are added to any given explicitly")
     parser.add_argument("--output", type=Path, help="Write JSON to this path; stdout if omitted")
     args = parser.parse_args()
-    result = build_audit(args.cross_sections, args.nuclides, args.photon_elements)
+    nuclides = list(args.nuclides) if args.nuclides is not None else []
+    photon_elements = list(args.photon_elements) if args.photon_elements is not None else []
+    if args.nuclide_set is not None:
+        import openmc
+
+        selection = fusion_materials_v1_selection(openmc.data.NATURAL_ABUNDANCE)
+        nuclides += selection["nuclides"]
+        photon_elements += selection["elements"]
+    if args.nuclide_set is None:
+        nuclides = nuclides if args.nuclides is not None else list(DEFAULT_NUCLIDES)
+        photon_elements = photon_elements if args.photon_elements is not None else list(DEFAULT_PHOTON_ELEMENTS)
+    result = build_audit(args.cross_sections, nuclides, photon_elements, args.nuclide_set)
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(encoded, encoding="utf-8")
