@@ -286,6 +286,26 @@ This is batch 2318's class (fact 7), at 1,000 times the weight. Two levers act o
   the scattering density. OpenMC 0.16.0 can evaluate that density (#3550, "angular PDF evaluation for angle-energy
   distributions"); 0.15.3 cannot. A larger piece of work.
 
+### 9. A gentler roulette moves the spike rather than removing it (diagnostic)
+
+`OPENMC_WW_ROULETTE_FACTOR=10` caps a roulette survivor at 10× its weight before roulette; splitting stays at 1,000.
+The patched build was rebuilt with it, and with the variable unset it behaves as before. Seed 77100003, 3,000 × 1,000
+histories:
+
+| Scan | Variance per history | Top batch's share | VOV | Gain vs D2 |
+| --- | --- | --- | --- | --- |
+| F0 (production) | 67,720 | 95 % (1714) | 0.90 | 4.8 |
+| F1 (production) | 53,529 | 65 % (1714) | 0.48 | 5.5 |
+| F0 + roulette ×10 | 28,755 | 90 % (1792) | 0.81 | 10.6 |
+| F1 + roulette ×10 | 26,971 | 79 % (1792) | 0.65 | 11.0 |
+
+Batch 1714's event is gone, but another history (batch 1792) now holds most of the variance. The cap's T includes an
+estimated 15 s for library loading, which `batches.py` does not time.
+
+Wall neutrons still reach high weight, only in steps. What fixes the class is making neutrons that scatter off
+chamber-facing walls reach the duct more often, at low weight: aiming at collisions with the scattering density
+(fact 8). The roulette factor is not a fix on its own.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
