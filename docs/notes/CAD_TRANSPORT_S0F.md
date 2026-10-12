@@ -482,6 +482,33 @@ output `~/.cache/avila-night/cad-risk-tests/s0f3/`.
 - **Not decided here:** finding apertures automatically from the CAD, refusing aiming without windows, and whether
   FARIS ships the patched OpenMC.
 
+## Protocol 3 results (2026-10-12; protocol a2264c9; `references/cad-transport-s0f3.json`)
+
+All 8 runs completed (job time 2,732 s of 4,500). None was contended (end loads 4.1–5.3).
+
+| Run | Gain vs D2 | Mean of (a) | Variance per history | VOV | T (s) | Top batch's share |
+| --- | --- | --- | --- | --- | --- | --- |
+| F0 seed 1 | 26.1 | 1.065e-3 | 10,044 | 0.09 | 345 | 16 % |
+| F0 seed 2 | 0.8 | 1.707e-3 | 375,959 | 0.96 | 315 | 98 % (1394) |
+| F0 seed 3 | 32.6 | 1.073e-3 | 10,185 | 0.23 | 272 | 45 % |
+| F0 seed 4 | 23.8 | 0.998e-3 | 14,086 | 0.29 | 270 | 50 % |
+| F6 seed 1 | 90.0 | 1.149e-3 | 2,648 | 0.16 | 379 | 37 % (423) |
+| F6 seed 2 | 99.1 | 1.074e-3 | 2,451 | 0.19 | 372 | 41 % (1093) |
+| F6 seed 3 | 172.5 | 1.040e-3 | 1,431 | 0.02 | 366 | 8 % |
+| F6 seed 4 | 208.5 | 1.031e-3 | 1,104 | 0.02 | 393 | 13 % |
+
+- **F0, pooled.** G = 1.6, L = 0.8 (bootstrap; the seed bound is 4.5). Mean 1.211e-3, z = +0.83. Pooled VOV 0.90.
+  - Seed 2's batch 1394 holds 98 % of the variance and scores about 600 times the mean. Its variance per history
+    (375,959) is above the analog's.
+- **F6, pooled.** G = 121.9, L = 74.9 (seed bound; the bootstrap gives 90.9). Mean 1.073e-3, z = +0.04, so unbiased.
+  Pooled VOV 0.043: the tail is resolved.
+- **H9: confirmed.** The paired per-seed FOM ratios F6/F0 are 3.4, 130, 5.3 and 8.8, and the pooled ratio is 78.
+- **NUC-050: ≥ 100 at the point estimate only.** More replicates are needed before any claim.
+- **Cost.** F6 takes 1.26× F0's time per history (1,511 s against 1,202 s), down from F4's 1.5×. Its variance per
+  history is 1,964, 98× below F0's pooled value on these seeds and 4.1× below F0's protocol 2 value.
+- **Across protocols** (F0 on 12 seeds): F0 pooled 13.3, 37.3 and 1.6. Each time, one or two rare events set its
+  gain. F6's per-seed gains run from 90 to 209, and its worst batch holds 41 %.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
