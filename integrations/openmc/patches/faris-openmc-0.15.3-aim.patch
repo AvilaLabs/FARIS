@@ -1,0 +1,655 @@
+diff --git a/include/openmc/distribution.h b/include/openmc/distribution.h
+index 854cf7d77..d45cb278b 100644
+--- a/include/openmc/distribution.h
++++ b/include/openmc/distribution.h
+@@ -230,6 +230,9 @@ public:
+ 
+   // properties
+   vector<double>& x() { return x_; }
++  //! Probability density at x (backport of OpenMC #3550)
++  double evaluate(double x) const;
++
+   const vector<double>& x() const { return x_; }
+   const vector<double>& p() const { return p_; }
+   Interpolation interp() const { return interp_; }
+diff --git a/include/openmc/distribution_angle.h b/include/openmc/distribution_angle.h
+index efd4e5842..b4c15a267 100644
+--- a/include/openmc/distribution_angle.h
++++ b/include/openmc/distribution_angle.h
+@@ -26,6 +26,10 @@ public:
+   //! \return Cosine of the angle in the range [-1,1]
+   double sample(double E, uint64_t* seed) const;
+ 
++  //! Probability density of the cosine mu at energy E, consistent with sample()
++  //! (backport of OpenMC #3550)
++  double evaluate(double E, double mu) const;
++
+   //! Determine whether angle distribution is empty
+   //! \return Whether distribution is empty
+   bool empty() const { return energy_.empty(); }
+diff --git a/include/openmc/physics.h b/include/openmc/physics.h
+index 2472d9799..28599ca65 100644
+--- a/include/openmc/physics.h
++++ b/include/openmc/physics.h
+@@ -17,6 +17,10 @@ namespace openmc {
+ //! Sample a nuclide and reaction and then calls the appropriate routine
+ void collision(Particle& p);
+ 
++//! Sample a collision's reaction, apply post-collision windows and the energy
++//! cut-off
++void collision_outcome(Particle& p);
++
+ //! Samples an incident neutron reaction
+ void sample_neutron_reaction(Particle& p);
+ 
+diff --git a/include/openmc/weight_windows.h b/include/openmc/weight_windows.h
+index 763815522..a06da4411 100644
+--- a/include/openmc/weight_windows.h
++++ b/include/openmc/weight_windows.h
+@@ -11,6 +11,7 @@
+ #include "openmc/memory.h"
+ #include "openmc/mesh.h"
+ #include "openmc/particle.h"
++#include "openmc/position.h"
+ #include "openmc/span.h"
+ #include "openmc/tallies/tally.h"
+ #include "openmc/vector.h"
+@@ -33,6 +34,34 @@ constexpr double DEFAULT_WEIGHT_CUTOFF {1.0e-38}; // default low weight cutoff
+ //! \param[in] p  Particle to apply weight windows to
+ void apply_weight_windows(Particle& p);
+ 
++//! Whether windows are applied before a collision's reaction is sampled
++//! (environment variable OPENMC_SPLIT_BEFORE_COLLISION=1). Read once.
++bool split_before_collision();
++
++//! Whether windows are skipped at birth and in void (OPENMC_WW_SKIP_VOID=1).
++bool ww_skip_void();
++
++//! Cap on a roulette survivor's weight over its weight before roulette
++//! (OPENMC_WW_ROULETTE_FACTOR; 0 means max_split, as stock).
++double ww_roulette_factor();
++
++//! Aperture (OPENMC_APERTURE_BIAS) and collision aiming (OPENMC_COLLISION_AIM),
++//! FARIS patch.
++bool aperture_on();
++double aperture_beta();
++//! Solid-angle density at r, direction w, of aiming at a uniform point of the
++//! aperture (0 when the ray misses it)
++double aperture_pdf(Position r, Direction w);
++Direction aperture_sample_direction(Position r, uint64_t* seed);
++bool collision_aim_on();
++//! Aiming fraction for an elastic collision in this material (0: none)
++double collision_aim_beta(int material_index);
++
++//! Number of copies a particle arriving at a collision should become, from the
++//! window at its incoming energy (1 when it is not above the window). Adds the
++//! count to the particle's split counter when it is above 1.
++int weight_window_split_count(Particle& p);
++
+ //! Free memory associated with weight windows
+ void free_memory_weight_windows();
+ 
+diff --git a/src/distribution.cpp b/src/distribution.cpp
+index ca00cbde4..d4b1e5895 100644
+--- a/src/distribution.cpp
++++ b/src/distribution.cpp
+@@ -314,6 +314,22 @@ void Tabular::init(
+   }
+ }
+ 
++double Tabular::evaluate(double x) const
++{
++  int i;
++  if (interp_ == Interpolation::histogram) {
++    i = std::upper_bound(x_.begin(), x_.end(), x) - x_.begin() - 1;
++    if (i < 0 || i >= static_cast<int>(p_.size()))
++      return 0.0;
++    return p_[i];
++  }
++  i = std::lower_bound(x_.begin(), x_.end(), x) - x_.begin() - 1;
++  if (i < 0 || i >= static_cast<int>(p_.size()) - 1)
++    return 0.0;
++  double t = (x - x_[i]) / (x_[i + 1] - x_[i]);
++  return (1 - t) * p_[i] + t * p_[i + 1];
++}
++
+ double Tabular::sample(uint64_t* seed) const
+ {
+   // Sample value of CDF
+diff --git a/src/distribution_angle.cpp b/src/distribution_angle.cpp
+index 5e92b794a..cc1fcc432 100644
+--- a/src/distribution_angle.cpp
++++ b/src/distribution_angle.cpp
+@@ -95,4 +95,27 @@ double AngleDistribution::sample(double E, uint64_t* seed) const
+   return mu;
+ }
+ 
++double AngleDistribution::evaluate(double E, double mu) const
++{
++  auto n = energy_.size();
++  int i;
++  double r;
++  if (E < energy_[0]) {
++    i = 0;
++    r = 0.0;
++  } else if (E > energy_[n - 1]) {
++    i = n - 2;
++    r = 1.0;
++  } else {
++    i = lower_bound_index(energy_.begin(), energy_.end(), E);
++    r = (E - energy_[i]) / (energy_[i + 1] - energy_[i]);
++  }
++  double pdf = 0.0;
++  if (r < 1.0)
++    pdf += (1.0 - r) * distribution_[i]->evaluate(mu);
++  if (r > 0.0)
++    pdf += r * distribution_[i + 1]->evaluate(mu);
++  return pdf;
++}
++
+ } // namespace openmc
+diff --git a/src/physics.cpp b/src/physics.cpp
+index 41509af97..addf21808 100644
+--- a/src/physics.cpp
++++ b/src/physics.cpp
+@@ -45,6 +45,66 @@ void collision(Particle& p)
+   // Add to collision counter for particle
+   ++(p.n_collision());
+ 
++  // Optionally split a neutron that arrives above its window before the
++  // reaction is sampled, so that every copy samples its own outgoing energy
++  // and direction. Copies split after the reaction all leave in the same
++  // direction, which does nothing for responses reached through one rare
++  // direction (a duct). Each extra copy runs the full collision below and is
++  // banked; the particle itself continues with its share of the weight.
++  if (p.type() == ParticleType::neutron &&
++      settings::weight_window_checkpoint_collision &&
++      split_before_collision()) {
++    if (!model::active_collision_tallies.empty() ||
++        !model::active_analog_tallies.empty() ||
++        !model::active_pulse_height_tallies.empty()) {
++      fatal_error("Splitting before the collision supports track-length and "
++                  "surface tallies only.");
++    }
++    int n = weight_window_split_count(p);
++    if (n > 1) {
++      const double wgt = p.wgt() / n;
++      const Direction u = p.u();
++      const double E = p.E();
++      for (int i = 1; i < n; ++i) {
++        p.u() = u;
++        p.E() = E;
++        p.wgt() = wgt;
++        p.fission() = false;
++        collision_outcome(p);
++        if (p.alive())
++          p.split(p.wgt());
++      }
++      p.u() = u;
++      p.E() = E;
++      p.wgt() = wgt;
++      p.fission() = false;
++    }
++  }
++
++  collision_outcome(p);
++
++  // Display information about collision
++  if (settings::verbosity >= 10 || p.trace()) {
++    std::string msg;
++    if (p.event() == TallyEvent::KILL) {
++      msg = fmt::format("    Killed. Energy = {} eV.", p.E());
++    } else if (p.type() == ParticleType::neutron) {
++      msg = fmt::format("    {} with {}. Energy = {} eV.",
++        reaction_name(p.event_mt()), data::nuclides[p.event_nuclide()]->name_,
++        p.E());
++    } else if (p.type() == ParticleType::photon) {
++      msg = fmt::format("    {} with {}. Energy = {} eV.",
++        reaction_name(p.event_mt()),
++        to_element(data::nuclides[p.event_nuclide()]->name_), p.E());
++    } else {
++      msg = fmt::format("    Disappeared. Energy = {} eV.", p.E());
++    }
++    write_message(msg, 1);
++  }
++}
++
++void collision_outcome(Particle& p)
++{
+   // Sample reaction for the material the particle is in
+   switch (p.type()) {
+   case ParticleType::neutron:
+@@ -61,7 +121,10 @@ void collision(Particle& p)
+     break;
+   }
+ 
+-  if (settings::weight_window_checkpoint_collision)
++  // With collision aiming on, a particle leaving toward the aperture skips this
++  // window check: scalar windows cannot see that its direction is important.
++  if (settings::weight_window_checkpoint_collision &&
++      !(collision_aim_on() && aperture_pdf(p.r(), p.u()) > 0.0))
+     apply_weight_windows(p);
+ 
+   // Kill particle if energy falls below cutoff
+@@ -69,25 +132,6 @@ void collision(Particle& p)
+   if (p.E() < settings::energy_cutoff[type]) {
+     p.wgt() = 0.0;
+   }
+-
+-  // Display information about collision
+-  if (settings::verbosity >= 10 || p.trace()) {
+-    std::string msg;
+-    if (p.event() == TallyEvent::KILL) {
+-      msg = fmt::format("    Killed. Energy = {} eV.", p.E());
+-    } else if (p.type() == ParticleType::neutron) {
+-      msg = fmt::format("    {} with {}. Energy = {} eV.",
+-        reaction_name(p.event_mt()), data::nuclides[p.event_nuclide()]->name_,
+-        p.E());
+-    } else if (p.type() == ParticleType::photon) {
+-      msg = fmt::format("    {} with {}. Energy = {} eV.",
+-        reaction_name(p.event_mt()),
+-        to_element(data::nuclides[p.event_nuclide()]->name_), p.E());
+-    } else {
+-      msg = fmt::format("    Disappeared. Energy = {} eV.", p.E());
+-    }
+-    write_message(msg, 1);
+-  }
+ }
+ 
+ void sample_neutron_reaction(Particle& p)
+@@ -769,6 +813,49 @@ void elastic_scatter(int i_nuclide, const Reaction& rx, double kT, Particle& p)
+       p.neutron_xs(i_nuclide).elastic, kT, p.current_seed());
+   }
+ 
++  // Collision aiming (FARIS patch, OPENMC_COLLISION_AIM): for a target at
++  // rest, aim a fraction beta of outgoing directions at the aperture. The
++  // weight is the physical lab-frame density over the mixture density at the
++  // final direction; the lab density is the CM density times the Jacobian
++  // d(mu_cm)/d(mu_lab) = s^3 / (A^2 (A + mu_cm)), s^2 = A^2 + 2 A mu_cm + 1.
++  if (awr > 1.0 && v_t.x == 0.0 && v_t.y == 0.0 && v_t.z == 0.0) {
++    double beta = collision_aim_beta(p.material());
++    if (beta > 0.0) {
++      auto& d0 = rx.products_[0].distribution_[0];
++      auto d0_ = dynamic_cast<UncorrelatedAngleEnergy*>(d0.get());
++      const double A = awr;
++      const double E_in = p.E();
++      const Direction u_in = p.u();
++      double mu_c, mu_l;
++      Direction u_out;
++      if (prn(p.current_seed()) < beta) {
++        u_out = aperture_sample_direction(p.r(), p.current_seed());
++        mu_l = std::max(-1.0, std::min(1.0, u_in.dot(u_out)));
++        mu_c = -(1.0 - mu_l * mu_l) / A +
++               mu_l * std::sqrt(1.0 - (1.0 - mu_l * mu_l) / (A * A));
++        mu_c = std::max(-1.0, std::min(1.0, mu_c));
++      } else {
++        mu_c = d0_->angle().empty()
++                 ? uniform_distribution(-1., 1., p.current_seed())
++                 : d0_->angle().sample(E_in, p.current_seed());
++        double s0 = std::sqrt(A * A + 2.0 * A * mu_c + 1.0);
++        mu_l = std::max(-1.0, std::min(1.0, (1.0 + A * mu_c) / s0));
++        u_out = rotate_angle(u_in, mu_l, nullptr, p.current_seed());
++      }
++      double s = std::sqrt(A * A + 2.0 * A * mu_c + 1.0);
++      double f_cm =
++        d0_->angle().empty() ? 0.5 : d0_->angle().evaluate(E_in, mu_c);
++      double p_phys = f_cm * s * s * s / (A * A * (A + mu_c)) / (2.0 * PI);
++      double mix =
++        (1.0 - beta) * p_phys + beta * aperture_pdf(p.r(), u_out);
++      p.wgt() *= mix > 0.0 ? p_phys / mix : 0.0;
++      p.E() = E_in * s * s / ((A + 1.0) * (A + 1.0));
++      p.mu() = mu_l;
++      p.u() = u_out;
++      return;
++    }
++  }
++
+   // Velocity of center-of-mass
+   Direction v_cm = (v_n + awr * v_t) / (awr + 1.0);
+ 
+diff --git a/src/simulation.cpp b/src/simulation.cpp
+index b536ae588..9f2555891 100644
+--- a/src/simulation.cpp
++++ b/src/simulation.cpp
+@@ -40,6 +40,8 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstdio>
++#include <cstdlib>
+ #include <string>
+ 
+ //==============================================================================
+@@ -570,8 +572,34 @@ void finalize_generation()
+   }
+ }
+ 
++//==============================================================================
++// Aperture biasing of an isotropic fixed source (FARIS patch)
++//==============================================================================
++
++namespace {
++
++//! Mixture sampling for an isotropic site: with probability beta aim at a
++//! uniform point of the aperture, otherwise keep the isotropic direction. The
++//! weight is the isotropic density over the mixture density at the final
++//! direction, so every tally stays unbiased.
++void apply_aperture_bias(SourceSite& site, uint64_t* seed)
++{
++  double beta = aperture_beta();
++  if (prn(seed) < beta)
++    site.u = aperture_sample_direction(site.r, seed);
++  double mix = (1.0 - beta) + beta * 4.0 * PI * aperture_pdf(site.r, site.u);
++  site.wgt /= mix;
++}
++
++} // namespace
++
+ void initialize_history(Particle& p, int64_t index_source)
+ {
++  // Weight that sets the windows' birth scaling. Aperture-biased sites keep
++  // their unbiased weight here, so a biased particle meets windows as a
++  // low-weight particle and is not split back up.
++  double wgt_nominal = -1.0;
++
+   // set defaults
+   if (settings::run_mode == RunMode::EIGENVALUE) {
+     // set defaults for eigenvalue simulations from primary bank
+@@ -584,6 +612,10 @@ void initialize_history(Particle& p, int64_t index_source)
+     uint64_t seed = init_seed(id, STREAM_SOURCE);
+     // sample from external source distribution or custom library then set
+     auto site = sample_external_source(&seed);
++    if (site.particle == ParticleType::neutron && aperture_on()) {
++      wgt_nominal = site.wgt;
++      apply_aperture_bias(site, &seed);
++    }
+     p.from_source(&site);
+   }
+   p.current_work() = index_source;
+@@ -604,7 +636,7 @@ void initialize_history(Particle& p, int64_t index_source)
+   p.ww_factor() = 0.0;
+ 
+   // set particle history start weight
+-  p.wgt_born() = p.wgt();
++  p.wgt_born() = wgt_nominal > 0.0 ? wgt_nominal : p.wgt();
+ 
+   // Reset pulse_height_storage
+   std::fill(p.pht_storage().begin(), p.pht_storage().end(), 0);
+@@ -636,7 +668,7 @@ void initialize_history(Particle& p, int64_t index_source)
+ 
+ // Add particle's starting weight to count for normalizing tallies later
+ #pragma omp atomic
+-  simulation::total_weight += p.wgt();
++  simulation::total_weight += p.wgt_born();
+ 
+   // Force calculation of cross-sections by setting last energy to zero
+   if (settings::run_CE) {
+diff --git a/src/weight_windows.cpp b/src/weight_windows.cpp
+index 9333800bc..5f8816812 100644
+--- a/src/weight_windows.cpp
++++ b/src/weight_windows.cpp
+@@ -1,4 +1,9 @@
+ #include "openmc/weight_windows.h"
++#include "openmc/material.h"
++
++#include <cstdlib>
++#include <cstdio>
++#include <sstream>
+ 
+ #include <algorithm>
+ #include <cassert>
+@@ -90,6 +95,21 @@ void apply_weight_windows(Particle& p)
+   if (!weight_window.is_valid())
+     return;
+ 
++  // With collision aiming on (FARIS patch), a particle headed at the aperture
++  // plays no window game until it passes the aperture: scalar windows cannot
++  // see that its direction is important, and a roulette on the way would undo
++  // the aiming.
++  if (collision_aim_on() && aperture_pdf(p.r(), p.u()) > 0.0)
++    return;
++
++  // With OPENMC_WW_SKIP_VOID=1 (FARIS patch), no splitting or roulette at birth
++  // (before the cell is known) or in void: copies made in void fly together
++  // until their next collision, and roulette there discards particles that a
++  // biased source aimed on purpose.
++  if (ww_skip_void() &&
++      (p.material() == MATERIAL_VOID || p.material() == C_NONE))
++    return;
++
+   // Normalize weight windows based on particle's starting weight
+   // and the value of the weight window the particle was born in.
+   weight_window.scale(p.wgt_born() / p.wgt_ww_born());
+@@ -139,12 +159,231 @@ void apply_weight_windows(Particle& p)
+ 
+   } else if (weight <= weight_window.lower_weight) {
+     // if the particle weight is below the window, play Russian roulette
++    // OPENMC_WW_ROULETTE_FACTOR (FARIS patch) caps how much heavier a survivor
++    // may be than the particle it replaces; default max_split, as stock.
++    double factor = ww_roulette_factor() > 0.0 ? ww_roulette_factor()
++                                               : weight_window.max_split;
+     double weight_survive =
+-      std::min(weight * weight_window.max_split, weight_window.survival_weight);
++      std::min(weight * factor, weight_window.survival_weight);
+     russian_roulette(p, weight_survive);
+   } // else particle is in the window, continue as normal
+ }
+ 
++
++//==============================================================================
++// Aperture and collision aiming (FARIS patch)
++//==============================================================================
++
++namespace {
++
++//! A rectangle c + s*u + t*v (s, t in [-1, 1]). OPENMC_APERTURE_BIAS="beta cx
++//! cy cz ux uy uz vx vy vz" aims a fraction beta of source directions at it.
++struct Aperture {
++  bool on {false};
++  double beta {0.0};
++  Position c, u, v, n;
++  double area {0.0};
++};
++
++const Aperture& aperture()
++{
++  static const Aperture ab = [] {
++    Aperture a;
++    const char* env = std::getenv("OPENMC_APERTURE_BIAS");
++    if (!env)
++      return a;
++    double x[10];
++    if (std::sscanf(env, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf", &x[0],
++          &x[1], &x[2], &x[3], &x[4], &x[5], &x[6], &x[7], &x[8], &x[9]) != 10)
++      fatal_error("OPENMC_APERTURE_BIAS needs 10 numbers: beta c u v");
++    a.beta = x[0];
++    a.c = {x[1], x[2], x[3]};
++    a.u = {x[4], x[5], x[6]};
++    a.v = {x[7], x[8], x[9]};
++    Position cross = a.u.cross(a.v);
++    a.area = 4.0 * cross.norm();
++    if (a.beta < 0.0 || a.beta >= 1.0 || a.area <= 0.0)
++      fatal_error("OPENMC_APERTURE_BIAS: need 0 <= beta < 1 and a "
++                  "non-degenerate rectangle");
++    a.n = cross / cross.norm();
++    a.on = true;
++    write_message(fmt::format("Directions biased toward an aperture (source "
++                              "beta {}, area {} cm2).",
++                    a.beta, a.area),
++      5);
++    return a;
++  }();
++  return ab;
++}
++
++//! OPENMC_COLLISION_AIM="beta id [id ...]": elastic collisions in materials
++//! with these ids aim a fraction beta of outgoing directions at the aperture.
++struct CollisionAim {
++  double beta {0.0};
++  bool all {false}; //!< "*": every material
++  vector<int32_t> material_ids;
++};
++
++const CollisionAim& collision_aim()
++{
++  static const CollisionAim ca = [] {
++    CollisionAim c;
++    const char* env = std::getenv("OPENMC_COLLISION_AIM");
++    if (!env)
++      return c;
++    std::istringstream in(env);
++    in >> c.beta;
++    std::string tok;
++    while (in >> tok) {
++      if (tok == "*")
++        c.all = true;
++      else
++        c.material_ids.push_back(std::stoi(tok));
++    }
++    if (c.beta <= 0.0 || c.beta >= 1.0 || (c.material_ids.empty() && !c.all))
++      fatal_error("OPENMC_COLLISION_AIM needs 0 < beta < 1 and material ids");
++    if (!aperture().on)
++      fatal_error("OPENMC_COLLISION_AIM needs OPENMC_APERTURE_BIAS");
++    write_message(fmt::format("Elastic collisions aimed at the aperture (beta "
++                              "{}, {} materials).",
++                    c.beta, c.material_ids.size()),
++      5);
++    return c;
++  }();
++  return ca;
++}
++
++} // namespace
++
++bool aperture_on()
++{
++  return aperture().on;
++}
++
++double aperture_beta()
++{
++  return aperture().beta;
++}
++
++double aperture_pdf(Position r, Direction w)
++{
++  const auto& a = aperture();
++  if (!a.on)
++    return 0.0;
++  double denom = w.dot(a.n);
++  if (std::abs(denom) < 1e-12)
++    return 0.0;
++  double lam = (a.c - r).dot(a.n) / denom;
++  if (lam <= 0.0)
++    return 0.0;
++  Position q = r + w * lam - a.c;
++  double s = q.dot(a.u) / a.u.dot(a.u);
++  double t = q.dot(a.v) / a.v.dot(a.v);
++  if (std::abs(s) > 1.0 || std::abs(t) > 1.0)
++    return 0.0;
++  return lam * lam / (a.area * std::abs(denom));
++}
++
++Direction aperture_sample_direction(Position r, uint64_t* seed)
++{
++  const auto& a = aperture();
++  double s = 2.0 * prn(seed) - 1.0;
++  double t = 2.0 * prn(seed) - 1.0;
++  Position d = a.c + a.u * s + a.v * t - r;
++  return d / d.norm();
++}
++
++bool collision_aim_on()
++{
++  return collision_aim().beta > 0.0;
++}
++
++double collision_aim_beta(int material_index)
++{
++  const auto& c = collision_aim();
++  if (c.beta <= 0.0 || material_index < 0)
++    return 0.0;
++  if (c.all)
++    return c.beta;
++  int32_t id = model::materials[material_index]->id_;
++  for (auto m : c.material_ids)
++    if (m == id)
++      return c.beta;
++  return 0.0;
++}
++
++double ww_roulette_factor()
++{
++  static const double f = [] {
++    const char* v = std::getenv("OPENMC_WW_ROULETTE_FACTOR");
++    return v ? std::atof(v) : 0.0;
++  }();
++  return f;
++}
++
++bool ww_skip_void()
++{
++  static const bool on = [] {
++    const char* v = std::getenv("OPENMC_WW_SKIP_VOID");
++    return v && std::string(v) == "1";
++  }();
++  return on;
++}
++
++bool split_before_collision()
++{
++  static const bool on = [] {
++    const char* v = std::getenv("OPENMC_SPLIT_BEFORE_COLLISION");
++    bool enabled = v && std::string(v) == "1";
++    if (enabled)
++      write_message("Weight windows split before the collision reaction.", 5);
++    return enabled;
++  }();
++  return on;
++}
++
++int weight_window_split_count(Particle& p)
++{
++  if (!settings::weight_windows_on || p.type() != ParticleType::neutron)
++    return 1;
++  if (p.E() <= 0 || !p.alive())
++    return 1;
++
++  // Same window, birth scaling and far-above factor as apply_weight_windows
++  WeightWindow weight_window;
++  for (const auto& ww : variance_reduction::weight_windows) {
++    weight_window = ww->get_weight_window(p);
++    if (weight_window.is_valid())
++      break;
++  }
++  if (p.wgt_ww_born() == -1.0) {
++    if (weight_window.is_valid()) {
++      p.wgt_ww_born() =
++        (weight_window.lower_weight + weight_window.upper_weight) / 2;
++    } else {
++      p.wgt_ww_born() = 1.0;
++    }
++  }
++  if (!weight_window.is_valid())
++    return 1;
++  weight_window.scale(p.wgt_born() / p.wgt_ww_born());
++  if (p.ww_factor() == 0.0 && weight_window.max_lb_ratio > 1.0 &&
++      p.wgt() > weight_window.lower_weight * weight_window.max_lb_ratio) {
++    p.ww_factor() =
++      p.wgt() / (weight_window.lower_weight * weight_window.max_lb_ratio);
++  }
++  if (p.ww_factor() > 1.0)
++    weight_window.scale(p.ww_factor());
++
++  if (p.wgt() <= weight_window.upper_weight ||
++      p.n_split() >= settings::max_history_splits)
++    return 1;
++  double n_split = std::min(std::ceil(p.wgt() / weight_window.upper_weight),
++    static_cast<double>(weight_window.max_split));
++  p.n_split() += n_split;
++  return static_cast<int>(std::round(n_split));
++}
++
+ void free_memory_weight_windows()
+ {
+   variance_reduction::ww_map.clear();

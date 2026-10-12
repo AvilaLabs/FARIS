@@ -89,6 +89,21 @@ class Production(unittest.TestCase):
         self.assertEqual(F.h7_outcome([1.5, 0.9, 1.1, 3.0], 1.8), "H7 rejected")
         self.assertEqual(F.h7_outcome([1.5, 2.0, 1.1, 3.0], 1.1), "H7 rejected")
 
+    def test_protocol2_rules(self):
+        self.assertTrue(F.nuc050_outcome2(50, 30, True).startswith("10-100: target kept; trace"))
+        self.assertTrue(F.nuc050_outcome2(150, 110, False).startswith("biased: collision aiming"))
+        self.assertEqual(F.h8_outcome([1.5, 2.0, 1.1, 3.0], 1.8), "H8 confirmed")
+        self.assertEqual(F.h8_outcome([1.5, 0.9, 1.1, 3.0], 1.8), "H8 rejected")
+
+    def test_env_matches(self):
+        self.assertTrue(F.env_matches("F0", {}))
+        self.assertFalse(F.env_matches("F0", {"OPENMC_WW_SKIP_VOID": "1"}))
+        f4 = dict(F.CONFIG_ENV["F4"])
+        self.assertTrue(F.env_matches("F4", f4))
+        f4["OPENMC_WW_ROULETTE_FACTOR"] = "10"
+        self.assertFalse(F.env_matches("F4", f4))
+        self.assertFalse(F.env_matches("F1", F.CONFIG_ENV["F4"]))
+
     def test_d2_z(self):
         self.assertAlmostEqual(F.z_against_d2(F.D2_MEAN, 1e-5), 0.0)
 

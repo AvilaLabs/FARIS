@@ -59,16 +59,14 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--base-model", required=True, type=Path)
     p.add_argument("--run-dir", required=True, type=Path)
-    p.add_argument("--config", required=True, choices=["F0", "F1"])
+    p.add_argument("--config", required=True, choices=sorted(F.CONFIG_ENV))
     p.add_argument("--seed", required=True, type=int)
     p.add_argument("--threads", type=int, default=4)
     p.add_argument("--batches", type=int, default=F.BATCHES, help="smoke tests only; production uses the protocol's 3,000")
     args = p.parse_args()
-    env = {k: os.environ.get(k) for k in ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION")}
-    if args.config == "F0" and any(env.values()):
-        raise SystemExit("F0 must run with no FARIS patch variables set")
-    if args.config == "F1" and (env["OPENMC_WW_SKIP_VOID"] != "1" or env["OPENMC_APERTURE_BIAS"] != F.APERTURE):
-        raise SystemExit("F1 needs OPENMC_WW_SKIP_VOID=1 and OPENMC_APERTURE_BIAS=" + F.APERTURE)
+    env = {k: os.environ.get(k) for k in F.PATCH_VARIABLES}
+    if not F.env_matches(args.config, env):
+        raise SystemExit(f"{args.config} needs exactly these FARIS variables: {F.CONFIG_ENV[args.config]}")
     model = write_model(args.base_model, args.run_dir, args.seed, args.batches)
     load_start = Path("/proc/loadavg").read_text().strip()
     t0 = time.monotonic()
@@ -78,8 +76,8 @@ def main() -> int:
     lib_path = Path(L._dll._name).resolve()
     if args.config == "F0" and "openmc-presplit" in str(lib_path):
         raise SystemExit("F0 must run on the stock library")
-    if args.config == "F1" and "openmc-presplit" not in str(lib_path):
-        raise SystemExit("F1 must run on the patched library")
+    if args.config != "F0" and "openmc-presplit" not in str(lib_path):
+        raise SystemExit(f"{args.config} must run on the patched library")
     L.init(["-s", str(args.threads)])
     L.simulation_init()
     a_tally = L.tallies[2]

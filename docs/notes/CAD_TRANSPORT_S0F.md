@@ -306,6 +306,72 @@ Wall neutrons still reach high weight, only in steps. What fixes the class is ma
 chamber-facing walls reach the duct more often, at low weight: aiming at collisions with the scattering density
 (fact 8). The roulette factor is not a fix on its own.
 
+### 10. Aiming elastic collisions at the aperture removes the seed-3 class (diagnostic, after the results)
+
+Fact 8's second lever, built on 0.15.3 instead of migrating to 0.16.0. The patch backports the angular density
+evaluation that elastic aiming needs (`AngleDistribution::evaluate`, `Tabular::evaluate`). It is
+`integrations/openmc/patches/faris-openmc-0.15.3-aim.patch` (sha256 1c3d82df…), and the build's `libopenmc.so` is
+c109f962…. With none of its variables set, it runs as stock 0.15.3.
+
+- **The method.** `OPENMC_COLLISION_AIM="beta materials"` (`*` = all materials) aims a fraction β of elastic
+  scatters at a uniform point of the aperture.
+  - It applies only to targets heavier than the neutron at rest (awr > 1), so hydrogen is not aimed.
+  - The weight is multiplied by p_phys / ((1 − β)·p_phys + β·p_aperture). p_phys is the lab-frame density of the
+    direction, from the centre-of-mass angular density by the exact two-body Jacobian; the outgoing energy follows
+    from the aimed angle.
+  - Inelastic reactions are not aimed. That keeps the game unbiased, because the reaction is chosen before, and
+    independently of, the direction.
+- **A second window rule.** In F3, aiming worked but a surface-crossing roulette killed the aimed particles; a survivor
+  then carried the spike (batch 767). So while aiming is on, a particle headed at the aperture skips window games until
+  its direction changes.
+- **Unbiased on the duct problem** (iron wall at z −35 to −30 cm, 8 seeds each, mean ± standard error):
+  - detector flux: analog 0.015074 ± 0.000192, analog with aiming 0.015247 ± 0.000291;
+  - duct band (mesh in the duct, z 50–100 cm, 12.5–13.8 MeV): analog 8.558e-4 ± 2.41e-5, analog with aiming
+    8.703e-4 ± 1.64e-5;
+  - with windows: stock 9.159e-4 ± 4.56e-5; windows with aiming in every material 8.882e-4 ± 3.81e-5. That is 0.7σ
+    from analog. Its mean variance per history is 2.1× lower and its mean FOM 3.2× higher.
+- **RM-M, seed 77100003** (protocol 1's worst seed), 3,000 × 1,000 histories, single scans:
+
+  | Scan | Change from F1 | Mean of (a) | Variance per history | Top batch's share | Gain vs D2 |
+  | --- | --- | --- | --- | --- | --- |
+  | F1 (production) | — | 1.395e-3 | 53,529 | 65 % (1714) | 5.5 |
+  | F2 | aim β 0.2 in material 7 only | 1.163e-3 | 12,211 | 70 % (2447) | 23.5 |
+  | F3 | aim β 0.2 in all materials | 1.141e-3 | 9,135 | 85 % (767) | 25.1 |
+  | F4 | F3 + aperture-headed particles skip windows | 1.083e-3 | 2,325 | 25 % (1459) | 99.7 |
+
+  - F4's VOV is 0.090, the only run so far below 0.1. T was 390 s against F1's 309 s.
+  - F2's spike (2447) was a FLiBe scatter behind the armour, outside material 7. F3's was the roulette described above.
+- **Caveat.** This is one seed, already looked at, and heavy tails moved protocol 1's per-seed gains by 40×. The
+  99.7 is not a result. Protocol 2 measures it on new seeds.
+
+## Protocol 2 (frozen 2026-10-12, before any protocol 2 run; within the approved time box, about 50 min)
+
+**Question.** Does F4 (fact 10) reach NUC-050's 100× on RM-M against S0b's D2, measured over new replicate seeds that
+no diagnostic has seen? Does it beat the current windows?
+
+**Configurations.** Same base model as protocol 1 (sha256 c0c107f1f79c06d6…), copied to
+`~/.cache/avila-night/cad-risk-tests/s0f2/base-model.xml`.
+- **F0:** as in protocol 1 (stock 0.15.3, `libopenmc.so` ba09ae9d…, no FARIS variables).
+- **F4:** the patched 0.15.3 (`libopenmc.so` c109f962…, patch 1c3d82df…) through the shadow package, with
+  `OPENMC_WW_SKIP_VOID=1`, `OPENMC_APERTURE_BIAS="0.1 578 0 0 0 22 0 0 0 22"` and `OPENMC_COLLISION_AIM="0.2 *"`.
+  No other patch variable may be set (`s0f_common.CONFIG_ENV`, checked by `s0f_scan.py`).
+
+**Runs.** As protocol 1, with seeds 77200001–77200004, run F0 then F4 for each seed. 3,000 batches of 1,000 histories,
+4 threads on cores 0–3, 6 GB cap, the same load wait and contention flag, and a 75 min job-time box. Driver
+`s0f_scripts/run2.sh`; output `~/.cache/avila-night/cad-risk-tests/s0f2/`.
+
+**Analysis.** `s0f_analyse.py --pair F0 F4 --seed-set 2`. Pooled gain G, lower bound L, bias z against D2 and VOV, all
+as in protocol 1.
+- **H8 (F4 beats F0):** H7's rule. All four paired per-seed FOM ratios F4/F0 exceed 1, and the pooled ratio is at
+  least 1.2.
+- **NUC-050 band for F4** (`nuc050_outcome2`):
+  - biased (|z| > 3): collision aiming is not adopted; find the bias first;
+  - L ≥ 100: NUC-050 met on RM-M with a hand-placed aperture;
+  - G ≥ 100 > L: met at the point estimate only; more replicates before any claim;
+  - 10 ≤ G < 100: target kept; trace F4's top batches for the class that remains;
+  - G < 10: the diagnostic gain does not carry over.
+- **Not decided here:** automatic aperture placement from the CAD, and whether FARIS ships the patched OpenMC.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

@@ -174,3 +174,41 @@ def h7_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
     if pooled_ratio is None or len(paired_ratios) != 4:
         return "NOT_EVALUATED"
     return "H7 confirmed" if all(r > 1.0 for r in paired_ratios) and pooled_ratio >= H7_MIN_FACTOR else "H7 rejected"
+
+
+# Protocol 2 (CAD_TRANSPORT_S0F.md, "Protocol 2"): F4 adds collision aiming to F1; new seeds.
+COLLISION_AIM = "0.2 *"               # beta for elastic collisions in every material
+SEEDS2 = [77200001, 77200002, 77200003, 77200004]
+CONFIG_ENV = {
+    "F0": {},
+    "F1": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE},
+    "F4": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE, "OPENMC_COLLISION_AIM": COLLISION_AIM},
+}
+PATCH_VARIABLES = ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION",
+                   "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR")
+
+
+def env_matches(config: str, env: dict) -> bool:
+    """The FARIS patch variables set are exactly the configuration's."""
+    want = CONFIG_ENV[config]
+    return all(env.get(k) == want.get(k) for k in PATCH_VARIABLES)
+
+
+def nuc050_outcome2(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
+    """Protocol 2: F4's NUC-050 band from its pooled gain G and conservative lower bound L."""
+    if gain is None or lower is None or unbiased is None:
+        return "NOT_EVALUATED"
+    if unbiased is not True:
+        return "biased: collision aiming not adopted; find the bias before any further use"
+    if lower >= NUC050_TARGET:
+        return ">= 100 at the 95 % lower bound: NUC-050 met on RM-M with a hand-placed aperture"
+    if gain >= NUC050_TARGET:
+        return ">= 100 at the point estimate only: more replicates before any claim"
+    if gain >= 10.0:
+        return "10-100: target kept; trace the top batches of F4 for the class that remains"
+    return "< 10: collision aiming does not carry the gain seen in the diagnostic scan"
+
+
+def h8_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H8: F4 beats F0, by the same rule as H7."""
+    return h7_outcome(paired_ratios, pooled_ratio).replace("H7", "H8")

@@ -55,37 +55,44 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--runs", required=True, type=Path)
     p.add_argument("--out", required=True, type=Path)
+    p.add_argument("--pair", nargs=2, default=["F0", "F1"], help="reference and candidate configurations")
+    p.add_argument("--seed-set", type=int, choices=[1, 2], default=1, help="1: protocol 1's seeds; 2: protocol 2's")
     args = p.parse_args()
+    seeds = F.SEEDS if args.seed_set == 1 else F.SEEDS2
+    ref_cfg, cand_cfg = args.pair
     res = {"kind": "s0f-results", "d2": {"fom": F.D2_FOM, "fom_sigma": F.D2_FOM_SIGMA, "mean": F.D2_MEAN,
                                          "std_error": F.D2_STD_ERROR}}
     rows, vals = {}, {}
-    for cfg in ("F0", "F1"):
+    for cfg in (ref_cfg, cand_cfg):
         rows[cfg], vals[cfg] = [], []
-        for seed in F.SEEDS:
+        for seed in seeds:
             d = args.runs / f"{cfg}-{seed}"
             if not (d / "record.json").exists():
                 continue
             rows[cfg].append(json.loads((d / "record.json").read_text()))
             vals[cfg].append(json.loads((d / "batches.json").read_text())["a"])
-        res[cfg] = pooled(rows[cfg], vals[cfg]) if len(rows[cfg]) == len(F.SEEDS) else {"runs": len(rows[cfg]),
+        res[cfg] = pooled(rows[cfg], vals[cfg]) if len(rows[cfg]) == len(seeds) else {"runs": len(rows[cfg]),
                                                                                             "outcome": "NOT_EVALUATED"}
-    complete = all(len(rows[c]) == len(F.SEEDS) for c in ("F0", "F1"))
+    res["pair"] = [ref_cfg, cand_cfg]
+    res["seeds"] = seeds
+    complete = all(len(rows[c]) == len(seeds) for c in (ref_cfg, cand_cfg))
     if complete:
-        paired = [b["fom"] / a["fom"] for a, b in zip(rows["F0"], rows["F1"])]
-        ratio = res["F1"]["fom"] / res["F0"]["fom"]
-        res["h7"] = {"paired_fom_ratios": paired, "pooled_ratio": ratio, "outcome": F.h7_outcome(paired, ratio)}
-        res["nuc050"] = F.nuc050_outcome(res["F1"]["gain"], res["F1"]["lower95"], res["F1"]["unbiased"])
+        paired = [b["fom"] / a["fom"] for a, b in zip(rows[ref_cfg], rows[cand_cfg])]
+        ratio = res[cand_cfg]["fom"] / res[ref_cfg]["fom"]
+        h_rule, band = (F.h7_outcome, F.nuc050_outcome) if args.seed_set == 1 else (F.h8_outcome, F.nuc050_outcome2)
+        res["h7"] = {"paired_fom_ratios": paired, "pooled_ratio": ratio, "outcome": h_rule(paired, ratio)}
+        res["nuc050"] = band(res[cand_cfg]["gain"], res[cand_cfg]["lower95"], res[cand_cfg]["unbiased"])
     else:
         res["h7"] = {"outcome": "NOT_EVALUATED"}
         res["nuc050"] = "NOT_EVALUATED"
     args.out.write_text(json.dumps(res, indent=1))
-    for cfg in ("F0", "F1"):
+    for cfg in (ref_cfg, cand_cfg):
         r = res[cfg]
         if "gain" in r:
             print(f"{cfg}: mean {r['a']['mean']:.4e} z {r['z_vs_d2']:+.2f} var/hist {r['a']['var_per_history']:.0f} "
                   f"gain {r['gain']:.1f} (seed L {r['seed_bound']['lower95']:.1f}, boot L {r['bootstrap_lower95']:.1f}) "
                   f"VOV {r['vov_pooled']:.3f}")
-    print("H7:", res["h7"]["outcome"]); print("NUC-050:", res["nuc050"])
+    print("H7:" if args.seed_set == 1 else "H8:", res["h7"]["outcome"]); print("NUC-050:", res["nuc050"])
     return 0
 
 
