@@ -239,6 +239,53 @@ inline, the 0.1 MeV cut-off, `max_split` 1000, checkpoints at collisions and sur
 - **Not decided here:** automatic aperture placement, which any FARIS claim needs, and whether FARIS ships the patched
   OpenMC.
 
+## Results (2026-10-12; protocol 203938f; `references/cad-transport-s0f.json`)
+
+All 8 runs completed (job time 2,320 s of 4,500). None was contended (end loads 3.2–4.9). Other sessions were building
+during the job.
+
+| Run | Gain vs D2 | Mean of (a) | Variance per history | VOV | T (s) |
+| --- | --- | --- | --- | --- | --- |
+| F0 seed 1 | 40.4 | 1.026e-3 | 7,910 | 0.19 | 283 |
+| F0 seed 2 | 25.3 | 1.283e-3 | 12,629 | 0.11 | 283 |
+| F0 seed 3 | 4.8 | 1.103e-3 | 67,720 | 0.90 | 276 |
+| F0 seed 4 | 40.9 | 1.011e-3 | 8,156 | 0.12 | 271 |
+| F1 seed 1 | 42.8 | 1.093e-3 | 6,629 | 0.34 | 318 |
+| F1 seed 2 | 74.1 | 1.075e-3 | 4,325 | 0.27 | 282 |
+| F1 seed 3 | 5.5 | 1.395e-3 | 53,529 | 0.48 | 309 |
+| F1 seed 4 | 196.0 | 0.975e-3 | 1,653 | 0.02 | 279 |
+
+- **F0, pooled.** G = 13.3, lower bound L = 6.7 (bootstrap; the seed bound is 7.9). Mean 1.106e-3, z = +0.41 against D2,
+  so unbiased. Pooled VOV 0.43: the tail is not resolved.
+- **F1, pooled.** G = 13.2, L = −17.5 (seed bound; the bootstrap gives 7.1). Mean 1.135e-3, z = +0.75, so unbiased.
+  Pooled VOV 0.37: the tail is not resolved.
+- **H7: rejected.** The paired per-seed FOM ratios F1/F0 are 1.06, 2.93, 1.13 and 4.79, all above 1. The pooled ratio
+  is 0.995, below 1.2.
+- **NUC-050: 10–100.** The target is kept, and the next lever is the far-wall scatter class.
+- **What decided it.** In seed 3, one batch (1714) holds 95 % of F0's variance and scores 440× the mean. F1 shares the
+  history, so it holds 65 % of F1's.
+- **Fact 7's 139× scan does not carry over.** Its 3 M histories happened not to contain an event of this size.
+
+### 8. The seed-3 event: a roulette survivor from the inboard wall (diagnostic, after the results)
+
+The batch was replayed with tracks on the stock build (`replay/s3-b1714`). History 180 produced 1.6 M track states.
+
+1. A 13.9 MeV source neutron hits the inboard tungsten at R 214 cm and scatters to 0.41 MeV.
+2. Its window there is far above its weight (inboard wall, low importance), so roulette keeps it with probability
+   1/1000. The survival weight is capped at weight × `max_split`, so it survives at weight 1,000.
+3. It scatters back into the chamber, crosses the void at 0.40 MeV and enters the duct.
+4. It is split at the duct entrance and again in the FLiBe beside the exit.
+5. Copies fly onto tf_coil_00's side face (R 618, z −15), with 777,617 states in the box.
+
+This is batch 2318's class (fact 7), at 1,000 times the weight. Two levers act on it:
+
+- **Gentler roulette.** A separate, lower cap on the roulette survival factor, keeping splitting at 1,000. A wall
+  neutron that escapes toward the duct early then carries a weight of about 10, not 1,000. The variance from these
+  paths scales roughly with the weight of escaping particles. Cheap to test.
+- **Aiming at collisions.** Bias directions at collisions on chamber-facing walls toward the duct, with the weight from
+  the scattering density. OpenMC 0.16.0 can evaluate that density (#3550, "angular PDF evaluation for angle-energy
+  distributions"); 0.15.3 cannot. A larger piece of work.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
