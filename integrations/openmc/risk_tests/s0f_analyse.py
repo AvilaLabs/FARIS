@@ -56,11 +56,12 @@ def main() -> int:
     p.add_argument("--runs", required=True, type=Path)
     p.add_argument("--out", required=True, type=Path)
     p.add_argument("--pair", nargs=2, default=["F0", "F1"], help="reference and candidate configurations")
-    p.add_argument("--seed-set", type=int, choices=[1, 2, 3], default=1, help="protocol whose seeds and rules apply")
+    p.add_argument("--seed-set", type=int, choices=[1, 2, 3, 4], default=1, help="protocol whose seeds and rules apply")
     args = p.parse_args()
     seeds, h_rule, band, h_name = {1: (F.SEEDS, F.h7_outcome, F.nuc050_outcome, "H7"),
                                    2: (F.SEEDS2, F.h8_outcome, F.nuc050_outcome2, "H8"),
-                                   3: (F.SEEDS3, F.h9_outcome, F.nuc050_outcome3, "H9")}[args.seed_set]
+                                   3: (F.SEEDS3, F.h9_outcome, F.nuc050_outcome3, "H9"),
+                                   4: (F.SEEDS4, F.h10_outcome, F.nuc050_outcome4, "H10")}[args.seed_set]
     ref_cfg, cand_cfg = args.pair
     res = {"kind": "s0f-results", "d2": {"fom": F.D2_FOM, "fom_sigma": F.D2_FOM_SIGMA, "mean": F.D2_MEAN,
                                          "std_error": F.D2_STD_ERROR}}

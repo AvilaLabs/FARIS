@@ -1,26 +1,27 @@
-"""S0f fact 12: lower the weight windows where a voxel sees an aperture, to its line-of-sight importance.
+"""S0f facts 12-13: cap the weight windows at their line-of-sight importance to the response and the apertures.
 
-The deterministic adjoint under-rates chamber-facing walls for responses behind a port: a wall neutron reaches the
-duct across void, which the coarse adjoint barely represents. Roulette then inflates wall neutrons to weights of
-hundreds, and an aimed or streaming survivor lands on the coil as a spike (facts 8, 11).
+The deterministic adjoint under-rates regions that reach the response across void. Roulette then inflates neutrons
+there to weights of hundreds, and an aimed or streaming survivor lands on the coil as a spike (facts 8, 11, 12).
+Nested DXTRAN needs the windows to deliver particles near the outermost target "with appropriate weight"
+(CAD_TRANSPORT_STREAMING_LITERATURE.md); this makes them do so.
 
-For each voxel v on the visible side of an aperture rectangle and each energy group g, the uncollided route alone gives
-an importance of at least
+A particle of group g in voxel v, emitted isotropically, crosses a target rectangle uncollided with probability
+P(v, g). Its importance is then at least P(v, g) / w_t(g), where w_t is the target's own lower bound, so the voxel's
+lower bound is capped at w_t(g) / P(v, g); it is never raised, and upper bounds keep their ratio. Windows only steer
+effort, so this cannot bias a tally.
 
-    I_los(v, g) = (omega(v) / 4 pi) * exp(-sigma * L(v)) * I_ap(g),
+P comes from reciprocity: an analog run with a cosine-law surface source on the target, emitting backward, gives an
+uncollided flux phi(v, g) per source neutron, and P = phi * A / 4 (A the target's area). That uses the real geometry
+and cross-sections. Targets are processed from the response outward, each taking w_t from the bounds as already
+capped, so the chain response -> exit -> inlet -> walls is consistent.
 
-where omega is the rectangle's solid angle from the voxel centre, exp(-sigma * L) the uncollided transmission averaged
-over rays to a 3 x 3 grid of points on the rectangle (L the material path along each, sigma a nominal total
-cross-section), and I_ap(g) = 1 / w_ap(g) the importance of a particle
-crossing the rectangle (the lowest lower bound just beyond it). The lower bound becomes min(w, 1 / I_los), and the
-upper bound keeps its ratio to the lower. Windows only steer effort, so this cannot bias a tally.
+    python s0f_los_windows.py BASE_MODEL_XML OUT_MODEL_XML --work DIR [--particles 2000000]
 
-    python s0f_los_windows.py BASE_MODEL_XML OUT_MODEL_XML [--sigma 0.15]
+(Fact 12's first version ray-marched with openmc.lib.find_material; solid_angle() remains as a check of P in void.)
 """
 import argparse
 import math
 import re
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -76,11 +77,11 @@ def voxel_centres(lower_left, width, dims) -> np.ndarray:
     return np.asarray(lower_left) + (c + 0.5) * np.asarray(width)
 
 
-def aperture_bound(lower: np.ndarray, rect, lower_left, width, dims, n_e: int) -> np.ndarray:
+def aperture_bound(lower: np.ndarray, rect, lower_left, width, dims, n_e: int, normal=None) -> np.ndarray:
     """Per group, the lowest positive lower bound over voxels just beyond the rectangle (within one voxel of its plane,
     over its footprint)."""
     c, u, v = rect
-    n = np.cross(u, v)
+    n = np.cross(u, v) if normal is None else np.asarray(normal, dtype=float)
     n = n / np.linalg.norm(n)
     pts = []
     for s in np.linspace(-1, 1, 9):
@@ -102,98 +103,133 @@ def aperture_bound(lower: np.ndarray, rect, lower_left, width, dims, n_e: int) -
     return out
 
 
-def material_path(points: np.ndarray, target: np.ndarray, find_material, step: float = 5.0,
-                  stop_after: float = 40.0) -> np.ndarray:
-    """Material path length (cm) from each point toward target, marching in steps; stops once past stop_after."""
-    out = np.zeros(len(points))
-    for k, p in enumerate(points):
-        d = target - p
-        L = float(np.linalg.norm(d))
-        if L <= 0:
-            continue
-        e = d / L
-        acc, t = 0.0, 0.5 * step
-        while t < L and acc <= stop_after:
-            q = p + e * t
-            try:
-                mat = find_material(tuple(q))
-            except Exception:
-                mat = None
-            if mat is not None:
-                acc += step
-            t += step
-        out[k] = acc
-    return out
+# Targets, from the response outward: (name, centre, half-extent u, half-extent v, unit normal toward the response).
+# All are axis-aligned. The coil faces lie at phi = +-2 degrees (y = +-20.3 to +-22.5 cm over R 581-645); the planes
+# y = +-20 sit just inside the gap between the port coils.
+TARGETS = [
+    ("coil_face_00", (613.0, 20.0, 0.0), (32.0, 0.0, 0.0), (0.0, 0.0, 30.0), (0.0, 1.0, 0.0)),
+    ("coil_face_17", (613.0, -20.0, 0.0), (32.0, 0.0, 0.0), (0.0, 0.0, 30.0), (0.0, -1.0, 0.0)),
+    ("duct_exit", (577.5, 0.0, 0.0), (0.0, 22.0, 0.0), (0.0, 0.0, 22.0), (1.0, 0.0, 0.0)),
+    ("duct_inlet", (445.5, 0.0, 0.0), (0.0, 15.0, 0.0), (0.0, 0.0, 15.0), (1.0, 0.0, 0.0)),
+]
+E_MIN = 1.0e5  # the model's neutron cut-off; groups below it are never tracked
+
+
+def target_area(u, v) -> float:
+    return 4.0 * float(np.linalg.norm(np.cross(u, v)))
+
+
+def reach_probability(flux: np.ndarray, area: float, group_fraction: float, volume: float) -> np.ndarray:
+    """P = phi A / 4 from a tally of uncollided track length per source neutron; each group got group_fraction of
+    the source."""
+    return flux / volume / group_fraction * area / 4.0
+
+
+def cap_bounds(lower: np.ndarray, w_t: np.ndarray, prob: np.ndarray, rel_err: np.ndarray,
+               max_rel_err: float = 0.5) -> np.ndarray:
+    """Lower bounds (groups x voxels) capped at w_t[g] / prob where prob is resolved; never raised, -1 kept."""
+    ok = (prob > 0) & (rel_err <= max_rel_err) & (lower > 0) & np.isfinite(w_t)[:, None]
+    cap = np.where(ok, w_t[:, None] / np.where(prob > 0, prob, 1.0), np.inf)
+    return np.where(ok & (cap < lower), cap, lower)
+
+
+def visibility_run(base: Path, work: Path, target, groups: np.ndarray, mesh_xml: str, particles: int,
+                   threads: int = 4):
+    """Uncollided flux on the window mesh from a cosine-law source on the target; returns (mean, rel_err) arrays of
+    shape (n_groups_above_cutoff, n_voxels)."""
+    import subprocess
+    import openmc
+    name, c, u, v, n = target
+    c, u, v, n = map(np.asarray, (c, u, v, n))
+    work.mkdir(parents=True, exist_ok=True)
+    lo, hi = c - np.abs(u) - np.abs(v), c + np.abs(u) + np.abs(v)
+    ax = lambda k: (openmc.stats.Discrete([c[k]], [1.0]) if lo[k] == hi[k] else openmc.stats.Uniform(lo[k], hi[k]))
+    mids = np.sqrt(groups[:-1] * groups[1:])
+    src = openmc.IndependentSource(
+        space=openmc.stats.CartesianIndependent(ax(0), ax(1), ax(2)),
+        angle=openmc.stats.PolarAzimuthal(mu=openmc.stats.PowerLaw(0.0, 1.0, 1.0),
+                                          phi=openmc.stats.Uniform(0.0, 2 * math.pi), reference_uvw=tuple(-n),
+                                          reference_vwu=tuple(u / np.linalg.norm(u))),
+        energy=openmc.stats.Discrete(mids, np.full(len(mids), 1.0 / len(mids))))
+    st = openmc.Settings()
+    st.run_mode = "fixed source"
+    st.batches = 10
+    st.particles = particles // 10
+    st.source = src
+    st.cutoff = {"energy_neutron": E_MIN}
+    st.max_lost_particles = 10000
+    st.rel_max_lost_particles = 0.5
+    st.output = {"tallies": False}
+    st.export_to_xml(work / "settings.xml")
+    settings = (work / "settings.xml").read_text()
+    settings = settings[settings.index("<settings>"):settings.index("</settings>") + len("</settings>")]
+    (work / "settings.xml").unlink()
+    edges = " ".join(repr(float(e)) for e in groups)
+    tallies = f"""<tallies>
+    {mesh_xml}
+    <filter id="9001" type="mesh"><bins>9000</bins></filter>
+    <filter id="9002" type="energy"><bins>{edges}</bins></filter>
+    <filter id="9003" type="collision"><bins>0</bins></filter>
+    <tally id="9001" name="uncollided"><filters>9003 9002 9001</filters><scores>flux</scores></tally>
+  </tallies>"""
+    x = base.read_text()
+    x = x[:x.index("<settings>")] + settings + x[x.index("</settings>") + len("</settings>"):]
+    # the settings' <output> block has its own <tallies> element, so take the last one
+    x = x[:x.rindex("<tallies>")] + tallies + x[x.rindex("</tallies>") + len("</tallies>"):]
+    (work / "model.xml").write_text(x)
+    import sys
+    exe = str(Path(sys.executable).parent / "openmc")
+    subprocess.run([exe, "-s", str(threads), "model.xml"], cwd=work, check=True, capture_output=True)
+    with openmc.StatePoint(work / "statepoint.10.h5") as sp:
+        t = sp.get_tally(name="uncollided")
+        mean = t.get_values(value="mean").reshape(len(groups) - 1, -1)
+        sd = t.get_values(value="std_dev").reshape(len(groups) - 1, -1)
+    return mean, np.where(mean > 0, sd / np.where(mean > 0, mean, 1.0), np.inf)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("base", type=Path)
     ap.add_argument("out", type=Path)
-    ap.add_argument("--sigma", type=float, default=0.15, help="nominal total cross-section, 1/cm")
+    ap.add_argument("--work", type=Path, required=True)
+    ap.add_argument("--particles", type=int, default=2_000_000)
     args = ap.parse_args()
     x = args.base.read_text()
     j = x.index('<mesh id="9000"')
-    mesh = x[j:x.index("</mesh>", j)]
+    mesh_xml = x[j:x.index("</mesh>", j) + len("</mesh>")]
     get = lambda tag, s: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S).group(1).split()]
-    dims = [int(v) for v in get("dimension", mesh)]
-    lower_left, width = get("lower_left", mesh), get("width", mesh)
+    dims = [int(v) for v in get("dimension", mesh_xml)]
+    lower_left, width = get("lower_left", mesh_xml), get("width", mesh_xml)
     i = x.index('<weight_windows id="1">')
     k = x.index("</weight_windows>", i)
     ww = x[i:k]
-    n_e = len(get("energy_bounds", ww)) - 1
-    lower = np.array(get("lower_ww_bounds", ww))
-    upper = np.array(get("upper_ww_bounds", ww))
-    n_vox = int(np.prod(dims))
-    assert lower.size == n_vox * n_e, (lower.size, n_vox, n_e)
-
-    rects = parse_rects(F.APERTURE.split(None, 1)[1] + "; " + F.DUCT_INLET)
-    centres = voxel_centres(lower_left, width, dims)
-    lo2 = lower.reshape(n_e, n_vox)
-    has = (lo2 > 0).any(axis=0)
-
-    # Geometry for the material path: load the model through openmc.lib without transport.
-    import openmc.lib as L
-    with tempfile.TemporaryDirectory(dir=Path.home() / ".cache/avila-night") as tmp:
-        (Path(tmp) / "model.xml").write_text(x)
-        import os
-        cwd = os.getcwd()
-        os.chdir(tmp)
-        try:
-            L.init(["-s", "1"])
-            best = np.full((n_e, n_vox), np.inf)   # capped lower bound per group and voxel
-            for rect in rects:
-                w_ap = aperture_bound(lower, rect, lower_left, width, dims, n_e)
-                om = solid_angle(centres, *rect)
-                # Only voxels that full transmission could lower: omega / 4 pi > w_ap / (largest lower bound).
-                w_min = np.min(w_ap[np.isfinite(w_ap)])
-                lo_max = np.where(lo2 > 0, lo2, 0.0).max(axis=0)
-                cand = np.where(has & (om > 0) & (om / (4 * math.pi) * lo_max > w_min))[0]
-                c, u, v = rect
-                trans = np.zeros(len(cand))
-                grid = [(s_, t_) for s_ in (-0.8, 0.0, 0.8) for t_ in (-0.8, 0.0, 0.8)]
-                for s_, t_ in grid:
-                    path = material_path(centres[cand], c + s_ * u + t_ * v, L.find_material)
-                    trans += np.exp(-args.sigma * path) / len(grid)
-                p_los = om[cand] / (4 * math.pi) * trans
-                cap = w_ap[:, None] / np.maximum(p_los[None, :], 1e-300)
-                best[:, cand] = np.minimum(best[:, cand], cap)
-                print(f"rectangle at {rect[0]}: {len(cand)} voxels, w_ap range "
-                      f"{np.nanmin(w_ap[np.isfinite(w_ap)]):.3g}-{np.nanmax(w_ap[np.isfinite(w_ap)]):.3g}")
-            L.finalize()
-        finally:
-            os.chdir(cwd)
-
-    new_lo = lo2.copy()
-    m = (lo2 > 0) & (best < lo2)
-    ratio = np.where(lo2 > 0, upper.reshape(n_e, n_vox) / np.where(lo2 > 0, lo2, 1.0), 0.0)
-    new_lo[m] = best[m]
-    new_up = upper.reshape(n_e, n_vox).copy()
-    new_up[m] = new_lo[m] * ratio[m]
-    print(f"lowered {int(m.sum())} of {int((lo2 > 0).sum())} positive bounds; median factor "
-          f"{float(np.median(lo2[m] / new_lo[m])) if m.any() else 1.0:.3g}")
+    bounds = np.array(get("energy_bounds", ww))
+    n_e, n_vox = len(bounds) - 1, int(np.prod(dims))
+    lower = np.array(get("lower_ww_bounds", ww)).reshape(n_e, n_vox)
+    upper = np.array(get("upper_ww_bounds", ww)).reshape(n_e, n_vox)
+    ratio = np.where(lower > 0, upper / np.where(lower > 0, lower, 1.0), 0.0)
+    g0 = int(np.searchsorted(bounds, E_MIN))          # first group above the cut-off
+    groups = bounds[g0:]
+    volume = float(np.prod(width))
+    new = lower.copy()
+    for target in TARGETS:
+        name, c, u, v, n = target
+        mean, rel = visibility_run(args.base, args.work / name, target, groups, mesh_xml, args.particles)
+        prob = reach_probability(mean, target_area(u, v), 1.0 / (len(groups) - 1), volume)
+        w_t = aperture_bound(new.ravel(), (np.asarray(c), np.asarray(u), np.asarray(v)), lower_left, width, dims,
+                             n_e, normal=np.asarray(n))[g0:]
+        before = new[g0:].copy()
+        new[g0:] = cap_bounds(before, w_t, prob, rel)
+        m = new[g0:] < before
+        print(f"{name}: w_t {np.nanmin(w_t[np.isfinite(w_t)]):.3g}-{np.nanmax(w_t[np.isfinite(w_t)]):.3g}, lowered "
+              f"{int(m.sum())} bounds, median factor "
+              f"{float(np.median(before[m] / new[g0:][m])) if m.any() else 1.0:.3g}", flush=True)
+    m = new < lower
+    new_up = np.where(m, new * ratio, upper)
+    print(f"total: lowered {int(m.sum())} of {int((lower > 0).sum())} positive bounds; factor median "
+          f"{float(np.median(lower[m] / new[m])):.3g}, 99th percentile {float(np.percentile(lower[m] / new[m], 99)):.3g}")
     fmt = lambda a: " ".join(repr(float(v)) for v in a.ravel())
-    ww2 = re.sub(r"<lower_ww_bounds>.*?</lower_ww_bounds>", f"<lower_ww_bounds>{fmt(new_lo)}</lower_ww_bounds>", ww,
+    ww2 = re.sub(r"<lower_ww_bounds>.*?</lower_ww_bounds>", f"<lower_ww_bounds>{fmt(new)}</lower_ww_bounds>", ww,
                  flags=re.S)
     ww2 = re.sub(r"<upper_ww_bounds>.*?</upper_ww_bounds>", f"<upper_ww_bounds>{fmt(new_up)}</upper_ww_bounds>", ww2,
                  flags=re.S)

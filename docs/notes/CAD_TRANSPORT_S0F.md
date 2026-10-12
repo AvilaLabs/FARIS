@@ -545,6 +545,54 @@ All 8 runs completed (job time 2,732 s of 4,500). None was contended (end loads 
   - Not adopted. The duct-wall class needs the response itself (the coil face) as a line-of-sight target, not only
     the apertures.
 
+### 13. Windows capped by reciprocity from the response outward (F8; diagnostic)
+
+Basis: `CAD_TRANSPORT_STREAMING_LITERATURE.md` and its amendment. The aiming needs windows that deliver particles to
+the targets at an appropriate weight; fact 12 measured them about 1,000 times too heavy on the inboard wall.
+
+- **Method** (`risk_tests/s0f_los_windows.py`, rewritten). For each target rectangle, an analog OpenMC run with a
+  cosine-law surface source on the target, emitting backward, tallies the uncollided flux φ on the window mesh
+  (collision filter 0, the 10 groups above the 0.1 MeV cut-off). By reciprocity, a neutron of that group emitted
+  isotropically in the voxel crosses the target uncollided with probability P = φ·A/4.
+  - Each lower bound is capped at w_t(g)/P, where w_t is the lowest lower bound just beyond the target. It is never
+    raised; bins with a relative error above 0.5 are left alone; upper bounds keep their ratio.
+  - Targets run from the response outward, each reading w_t from the bounds as already capped: the two port-coil
+    faces (planes y = ±20 cm, x 581–645, |z| < 30), the duct exit, the duct inlet.
+  - **Check.** In void voxels facing the inlet, P is 55e-4 and 22.5e-4 against exact Ω/4π of 54.8e-4 and 22.2e-4.
+  - **Cost.** 4 runs of 2 M histories: 4.4 min in all on 4 threads. Fact 12's ray march took 23 min.
+  - **Result.** 23,092 of 838,240 positive bounds lowered, median factor 6.8, 99th percentile 155. At the traced
+    spike origins: batch 423's voxel ×114, batch 802's ×7.6, batch 1093's duct-wall voxel ×3.7; batch 942's
+    unchanged. Model sha256 ad135bd4….
+- **F8 = F6's variables on these windows.** Protocol 3 seeds, already looked at, 3,000 × 1,000 histories:
+
+  | Seed | F6 gain (protocol 3) | F7 gain | F8 gain | F8 variance per history | F8 top batch | F8 VOV | F8 T (s), end load |
+  | --- | --- | --- | --- | --- | --- | --- | --- |
+  | 77300001 | 90.0 | 126.4 | 222.3 | 1,668 | 21 % | 0.057 | 244, 3.7 |
+  | 77300002 | 99.1 | 83.9 | 250.1 | 1,510 | 17 % | 0.039 | 239, 3.7 |
+
+  - F8 ran at about 12,400 histories/s, against F6's 7,900–8,100 in protocol 3 (end loads 4.3–4.5 there).
+  - Two seeds, already looked at: not a result.
+- The targets are still placed by hand.
+
+## Protocol 4 (frozen 2026-10-12, before any protocol 4 run; about 40 min, within my one-hour latitude)
+
+**Question.** Does F8 reach NUC-050's 100× on RM-M against S0b's D2, on new seeds? Does it beat the current windows?
+
+**Configurations.**
+- **F0:** as before, on `base-model.xml` (sha256 c0c107f1f79c06d6…).
+- **F8:** the patched 0.15.3 (`libopenmc.so` 2d25e1cd…, patch 20237c38…) with F6's variables (protocol 3), on
+  `base-model-f8.xml` (sha256 ad135bd4…): the same model with fact 13's capped windows.
+- Both files are in `~/.cache/avila-night/cad-risk-tests/s0f4/`.
+
+**Runs.** As protocol 3, with seeds 77400001–77400004 and F0 then F8 for each seed. Driver `s0f_scripts/run4.sh`.
+T excludes window generation for both configurations; F8's extra 4.4 min is reported beside the result.
+
+**Analysis.** `s0f_analyse.py --pair F0 F8 --seed-set 4`, with protocol 2's statistics.
+- **H10 (F8 beats F0):** H7's rule.
+- **NUC-050 band for F8:** protocol 2's bands (`nuc050_outcome4`).
+- **Not decided here:** NUC-050's basis (literature note, section 1), finding targets from the CAD, and whether
+  FARIS ships the patched OpenMC.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

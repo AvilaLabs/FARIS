@@ -183,6 +183,8 @@ SEEDS2 = [77200001, 77200002, 77200003, 77200004]
 DUCT_INLET = "446 0 0 0 15 0 0 0 15"
 # Protocol 3: F6 makes both rectangles one-sided (aimed at only from the plasma side); new seeds.
 SEEDS3 = [77300001, 77300002, 77300003, 77300004]
+# Protocol 4: F8 = F6 on reciprocity-capped windows; new seeds.
+SEEDS4 = [77400001, 77400002, 77400003, 77400004]
 CONFIG_ENV = {
     "F0": {},
     "F1": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE},
@@ -194,6 +196,8 @@ CONFIG_ENV = {
 }
 # F7 = F6's variables on the line-of-sight-corrected windows (s0f_los_windows.py); same environment as F6.
 CONFIG_ENV["F7"] = dict(CONFIG_ENV["F6"])
+# F8 = F6's variables on windows capped by reciprocity runs from the response outward (fact 13).
+CONFIG_ENV["F8"] = dict(CONFIG_ENV["F6"])
 PATCH_VARIABLES = ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION",
                    "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR", "OPENMC_APERTURE_ONE_SIDED")
 
@@ -232,3 +236,14 @@ def h9_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
 def nuc050_outcome3(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
     """Protocol 3: F6's NUC-050 band, by protocol 2's rule."""
     return nuc050_outcome2(gain, lower, unbiased).replace("of F4", "of F6")
+
+
+def h10_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H10: F8 beats F0, by the same rule as H7."""
+    return h7_outcome(paired_ratios, pooled_ratio).replace("H7", "H10")
+
+
+def nuc050_outcome4(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
+    """Protocol 4: F8's NUC-050 band, by protocol 2's rule."""
+    return nuc050_outcome2(gain, lower, unbiased).replace("of F4", "of F8").replace(
+        "collision aiming not adopted", "capped windows with aiming not adopted")

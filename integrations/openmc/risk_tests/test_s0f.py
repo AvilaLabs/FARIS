@@ -128,6 +128,22 @@ class LosWindows(unittest.TestCase):
         near = W.solid_angle(np.array([[-1e-6, 0, 0]]), c, u, v)[0]
         self.assertAlmostEqual(near, 2 * math.pi, places=3)  # half sphere when touching the centre
 
+    def test_reach_probability_matches_solid_angle(self):
+        import numpy as np
+        import s0f_los_windows as W
+        # A point 100 cm in front of a 2 x 2 cm rectangle: phi = (1/A) cos/pi / d^2 per source neutron, so P = omega/4pi.
+        area, d = 4.0, 100.0
+        phi = (1.0 / area) * (1.0 / math.pi) / d ** 2 * area
+        p = W.reach_probability(np.array([phi * 8.0]), area, 1.0, 8.0)[0]
+        self.assertAlmostEqual(p, (area / d ** 2) / (4 * math.pi), delta=1e-9)
+
+    def test_cap_bounds_never_raises_and_skips_unresolved(self):
+        import numpy as np
+        import s0f_los_windows as W
+        lower = np.array([[10.0, 10.0, -1.0, 10.0]])
+        out = W.cap_bounds(lower, np.array([1.0]), np.array([[0.5, 0.01, 0.5, 0.5]]), np.array([[0.1, 0.1, 0.1, 0.9]]))
+        self.assertEqual(out.tolist(), [[2.0, 10.0, -1.0, 10.0]])
+
     def test_flat_index_matches_fortran_order(self):
         import numpy as np
         import s0f_los_windows as W
