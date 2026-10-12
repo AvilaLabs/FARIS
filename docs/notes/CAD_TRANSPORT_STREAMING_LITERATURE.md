@@ -67,3 +67,16 @@ method. Each item says how it was checked: **read** (the source text was opened 
 
 Build the aiming as nested DXTRAN (S0f fact 13 onward): a contribution at every collision with attenuation, and
 the response as the innermost target. Do not pursue window corrections further.
+
+### Amendment (2026-10-12, same day; reason: the decision above mis-read which half of the rule S0f was missing)
+
+- S0f's β mixture already has DXTRAN's defining property: every direction through a target carries a reduced weight,
+  aimed or not. A contribution at every collision would remove a 1-in-5 choice, a secondary gain.
+- What S0f lacks is the other half of Martz's rule: windows that deliver particles near the outermost target "with
+  appropriate weight". Measured (fact 12): inboard-wall windows at 0.5 MeV sit about 10⁶ above the coil face's, and
+  the uncollided chance of reaching the coil is about 10⁻³, so an aimed wall neutron arrives about 1,000 times too
+  heavy (weights 131 and 789 in the traced spikes).
+- So the decision is: make the windows consistent with the aiming, with the response as the innermost target and
+  the targets chained outward. Fact 12's F7 was an incomplete version of this (no response target, no chaining, a
+  slow ray march). "Do not pursue window corrections further" is withdrawn.
+- The every-collision contribution with attenuation stays as a possible later step.
