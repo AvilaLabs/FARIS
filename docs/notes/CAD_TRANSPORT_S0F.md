@@ -372,6 +372,39 @@ as in protocol 1.
   - G < 10: the diagnostic gain does not carry over.
 - **Not decided here:** automatic aperture placement from the CAD, and whether FARIS ships the patched OpenMC.
 
+## Protocol 2 results (2026-10-12; protocol 4dd53a6; `references/cad-transport-s0f2.json`)
+
+All 8 runs completed (job time 3,059 s of 4,500). One run was contended: F4 seed 1, with an end load of 6.81. Other
+sessions were building, and loads ran higher than in protocol 1 (end loads 3.3–6.8).
+
+| Run | Gain vs D2 | Mean of (a) | Variance per history | VOV | T (s) | Top batch's share |
+| --- | --- | --- | --- | --- | --- | --- |
+| F0 seed 1 | 55.6 | 0.985e-3 | 5,952 | 0.08 | 273 | 22 % |
+| F0 seed 2 | 40.3 | 1.064e-3 | 6,208 | 0.05 | 361 | 14 % |
+| F0 seed 3 | 26.1 | 1.086e-3 | 11,342 | 0.11 | 306 | 22 % |
+| F0 seed 4 | 41.5 | 1.046e-3 | 8,049 | 0.09 | 271 | 17 % |
+| F4 seed 1 (contended) | 39.1 | 1.091e-3 | 4,813 | 0.37 | 481 | 60 % (802) |
+| F4 seed 2 | 128.8 | 1.052e-3 | 1,674 | 0.02 | 419 | 11 % |
+| F4 seed 3 | 106.7 | 1.107e-3 | 1,961 | 0.07 | 432 | 24 % |
+| F4 seed 4 | 133.6 | 1.005e-3 | 1,369 | 0.01 | 494 | 7 % |
+
+- **F0, pooled.** G = 37.3, L = 26.7 (seed bound; the bootstrap gives 31.5). Mean 1.045e-3, z = −0.34 against D2, so
+  unbiased. Pooled VOV 0.026.
+- **F4, pooled.** G = 78.8, L = 50.8 (seed bound; the bootstrap gives 51.2). Mean 1.064e-3, z = −0.10, so unbiased.
+  Pooled VOV 0.097, below 0.1: the tail is resolved.
+- **H8: rejected.** The paired per-seed FOM ratios F4/F0 are 0.70, 3.20, 4.09 and 3.22. The pooled ratio is 2.11, above
+  1.2, but seed 1 is below 1.
+- **NUC-050: 10–100.** The target is kept; trace F4's top batches for the class that remains.
+- **Where F4's gain goes.**
+  - Pooled variance per history is 3.2× lower than F0's (2,512 against 8,005).
+  - F4 is 1.5× slower per history (1,827 s against 1,211 s over the four runs), which costs a third of that. The
+    slowdown is partly load (F4's runs ended at loads of 5.3–6.8, F0's at 3.3–5.9). The rest is aiming work and
+    the window games skipped on aimed particles.
+  - In seed 1, one batch (802) holds 60 % of F4's variance. Without it that run would sit with the other three.
+- **F0 differs between protocols.** The same configuration pooled to 13.3 on protocol 1's seeds and 37.3 here. Seed 3
+  of protocol 1 carried a weight-1,000 event, and nothing that large occurred in these 12 M histories. Gains on RM-M
+  are only as good as the seed count behind them.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
