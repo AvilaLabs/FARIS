@@ -56,9 +56,11 @@ def main() -> int:
     p.add_argument("--runs", required=True, type=Path)
     p.add_argument("--out", required=True, type=Path)
     p.add_argument("--pair", nargs=2, default=["F0", "F1"], help="reference and candidate configurations")
-    p.add_argument("--seed-set", type=int, choices=[1, 2], default=1, help="1: protocol 1's seeds; 2: protocol 2's")
+    p.add_argument("--seed-set", type=int, choices=[1, 2, 3], default=1, help="protocol whose seeds and rules apply")
     args = p.parse_args()
-    seeds = F.SEEDS if args.seed_set == 1 else F.SEEDS2
+    seeds, h_rule, band, h_name = {1: (F.SEEDS, F.h7_outcome, F.nuc050_outcome, "H7"),
+                                   2: (F.SEEDS2, F.h8_outcome, F.nuc050_outcome2, "H8"),
+                                   3: (F.SEEDS3, F.h9_outcome, F.nuc050_outcome3, "H9")}[args.seed_set]
     ref_cfg, cand_cfg = args.pair
     res = {"kind": "s0f-results", "d2": {"fom": F.D2_FOM, "fom_sigma": F.D2_FOM_SIGMA, "mean": F.D2_MEAN,
                                          "std_error": F.D2_STD_ERROR}}
@@ -79,7 +81,6 @@ def main() -> int:
     if complete:
         paired = [b["fom"] / a["fom"] for a, b in zip(rows[ref_cfg], rows[cand_cfg])]
         ratio = res[cand_cfg]["fom"] / res[ref_cfg]["fom"]
-        h_rule, band = (F.h7_outcome, F.nuc050_outcome) if args.seed_set == 1 else (F.h8_outcome, F.nuc050_outcome2)
         res["h7"] = {"paired_fom_ratios": paired, "pooled_ratio": ratio, "outcome": h_rule(paired, ratio)}
         res["nuc050"] = band(res[cand_cfg]["gain"], res[cand_cfg]["lower95"], res[cand_cfg]["unbiased"])
     else:
@@ -92,7 +93,7 @@ def main() -> int:
             print(f"{cfg}: mean {r['a']['mean']:.4e} z {r['z_vs_d2']:+.2f} var/hist {r['a']['var_per_history']:.0f} "
                   f"gain {r['gain']:.1f} (seed L {r['seed_bound']['lower95']:.1f}, boot L {r['bootstrap_lower95']:.1f}) "
                   f"VOV {r['vov_pooled']:.3f}")
-    print("H7:" if args.seed_set == 1 else "H8:", res["h7"]["outcome"]); print("NUC-050:", res["nuc050"])
+    print(f"{h_name}:", res["h7"]["outcome"]); print("NUC-050:", res["nuc050"])
     return 0
 
 

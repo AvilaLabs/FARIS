@@ -405,6 +405,83 @@ sessions were building, and loads ran higher than in protocol 1 (end loads 3.3�
   of protocol 1 carried a weight-1,000 event, and nothing that large occurred in these 12 M histories. Gains on RM-M
   are only as good as the seed count behind them.
 
+### 11. The remaining spikes enter the duct inlet off the exit aperture; a second, one-sided rectangle (diagnostic, after protocol 2)
+
+- **Traces** (patched build, tracks; scripts `replay/raw_top.py`). Read with h5py because the large histories lack
+  `offsets` (fact 7).
+  - F4 seed 1, batch 802: history 398 holds all of the batch's box score (538,739 track states).
+    1. Its source neutron hits the outboard tungsten (φ 37°).
+    2. Wall collisions roulette it up in steps to a weight of 789 (1.1 → 317 → 3,972 → … → 789).
+    3. It leaves the inboard tungsten (R 218) at 0.40 MeV and enters the duct inlet (x 446, y −4.6).
+    4. Its direction passes the exit plane at y ≈ 49 cm, outside the exit rectangle, so it is neither aimed nor
+       weighted down. It hits the duct's side wall (FLiBe, x 496, y 15), is split 1,000 times, and the copies reach
+       tf_coil_00's side face.
+  - F4 seed 3, batch 942: history 167 holds 99 %. The same path at weight 25: from the inboard wall (R 213), across
+    the inlet (y −15) to the far duct wall (x 529, y 15).
+- **The patch now takes several rectangles.** `OPENMC_APERTURE_BIAS` accepts further rectangles after `;`. The mixture
+  picks one with equal probability, and its density is the mean of the rectangles' densities. With one rectangle the
+  random-number stream is unchanged: F4 seed 1 reproduces to 1.7e-18 per batch, thread-order rounding.
+  - **F5** adds the duct inlet: x 446 cm, with the duct's 15 cm half-widths.
+- **One-sided rectangles.** `OPENMC_APERTURE_ONE_SIDED=1` aims at a rectangle only from points on the side opposite its
+  normal u × v, which points toward the response. Where no rectangle is visible, β is 0.
+  - Without it, collisions past the aperture (in the coil, insulation and lip) aim back through it. That is wasted
+    work: a paired 300-batch timing on RM-M gave F0 35 and 26 s, F1 31 and 30 s, F5 50 and 44 s, and F5 aiming only
+    in materials 1, 2, 3 and 7 33 and 38 s.
+  - **F6** is F5 with one-sided rectangles. With the variable unset the build reproduces F5 (2.6e-18 per batch).
+- **Unbiased on the duct toy** (duct2; 8 seeds each, mean ± standard error; analog references from facts 7 and 10):
+
+  | Tally | Configuration (all with windows, skip-void, aiming β 0.2 in every material) | Mean | z | Mean FOM |
+  | --- | --- | --- | --- | --- |
+  | detector | no aiming (stock windows) | 1.5140e-2 ± 6.2e-5 | +0.32 | 220 |
+  | detector | exit rectangle | 1.5101e-2 ± 1.10e-4 | +0.12 | 157 |
+  | detector | exit + inlet | 1.5327e-2 ± 5.6e-5 | +1.26 | 140 |
+  | detector | exit + inlet, one-sided | 1.5111e-2 ± 7.1e-5 | +0.18 | 150 |
+  | duct band | exit + inlet | 9.018e-4 ± 3.41e-5 | +1.10 | 7.8 |
+  | duct band | exit + inlet, one-sided | 8.130e-4 ± 2.14e-5 | −1.33 | 15.0 |
+
+  - The analog references are detector 1.5074e-2 ± 1.92e-4 and duct band 8.558e-4 ± 2.41e-5. Single-rectangle
+    aiming gave a duct-band FOM of 6.6 (fact 10).
+  - Aiming spends effort on the aimed response: the detector, which is not behind an aperture, loses about a third of
+    its FOM.
+- **Hazard: aiming without windows.** Analog transport with aiming in every material gave a detector flux of
+  9.79e-3 ± 1.58e-3, z −3.3, with per-seed relative errors up to 0.47. Every un-aimed collision multiplies the weight
+  by up to 1/(1 − β), so after many collisions in iron the weight distribution is heavy-tailed and its mean is
+  under-sampled. Fact 10's analog check aimed in one material only. No configuration here runs without windows. The
+  patch should refuse collision aiming without windows (open).
+- **RM-M, seed 77200001** (protocol 2's spike seed, already looked at), 3,000 × 1,000 histories:
+
+  | Scan | Gain vs D2 | Variance per history | Top batch's share | VOV | T (s) | End load |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | F0 (protocol 2) | 55.6 | 5,952 | 22 % | 0.08 | 273 | 3.3 |
+  | F4 (protocol 2) | 39.1 | 4,813 | 60 % (802) | 0.37 | 481 | 6.8 |
+  | F5 | 78.2 | 2,088 | 27 % (22) | 0.09 | 554 | 5.3 |
+  | F6 | 100.0 | 1,889 | 24 % (22) | 0.09 | 479 | 5.7 |
+
+  Batch 802's event is gone in F5 and F6. One seed, already looked at: not a result.
+- **The patch** in `integrations/openmc/patches/faris-openmc-0.15.3-aim.patch` is now sha256 3f1fcd7e…, and its
+  `libopenmc.so` is 5caefac2…. Protocol 2's version (1c3d82df…) is at commit 4dd53a6.
+
+## Protocol 3 (frozen 2026-10-12, before any protocol 3 run; about 55 min, within my one-hour latitude)
+
+**Question.** Does F6 (fact 11) reach NUC-050's 100× on RM-M against S0b's D2, on new seeds? Does it beat the current
+windows?
+
+**Configurations.** Same base model (sha256 c0c107f1f79c06d6…), copied to `~/.cache/avila-night/cad-risk-tests/s0f3/`.
+- **F0:** as before.
+- **F6:** the patched 0.15.3 (`libopenmc.so` 5caefac2…, patch 3f1fcd7e…) through the shadow package. It sets
+  `OPENMC_WW_SKIP_VOID=1`, `OPENMC_APERTURE_BIAS="0.1 578 0 0 0 22 0 0 0 22; 446 0 0 0 15 0 0 0 15"`,
+  `OPENMC_APERTURE_ONE_SIDED=1` and `OPENMC_COLLISION_AIM="0.2 *"`, and no other patch variable
+  (`s0f_common.CONFIG_ENV`).
+
+**Runs.** As protocol 2, with seeds 77300001–77300004 and F0 then F6 for each seed. Driver `s0f_scripts/run3.sh`;
+output `~/.cache/avila-night/cad-risk-tests/s0f3/`.
+
+**Analysis.** `s0f_analyse.py --pair F0 F6 --seed-set 3`, with protocol 2's statistics.
+- **H9 (F6 beats F0):** H7's rule.
+- **NUC-050 band for F6:** protocol 2's bands (`nuc050_outcome3`).
+- **Not decided here:** finding apertures automatically from the CAD, refusing aiming without windows, and whether
+  FARIS ships the patched OpenMC.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

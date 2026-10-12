@@ -179,13 +179,21 @@ def h7_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
 # Protocol 2 (CAD_TRANSPORT_S0F.md, "Protocol 2"): F4 adds collision aiming to F1; new seeds.
 COLLISION_AIM = "0.2 *"               # beta for elastic collisions in every material
 SEEDS2 = [77200001, 77200002, 77200003, 77200004]
+# Protocol 3: F5 adds the duct inlet (x 446 cm, the duct's 15 cm half-widths) as a second aperture rectangle.
+DUCT_INLET = "446 0 0 0 15 0 0 0 15"
+# Protocol 3: F6 makes both rectangles one-sided (aimed at only from the plasma side); new seeds.
+SEEDS3 = [77300001, 77300002, 77300003, 77300004]
 CONFIG_ENV = {
     "F0": {},
     "F1": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE},
     "F4": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE, "OPENMC_COLLISION_AIM": COLLISION_AIM},
+    "F5": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE + "; " + DUCT_INLET,
+           "OPENMC_COLLISION_AIM": COLLISION_AIM},
+    "F6": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE + "; " + DUCT_INLET,
+           "OPENMC_APERTURE_ONE_SIDED": "1", "OPENMC_COLLISION_AIM": COLLISION_AIM},
 }
 PATCH_VARIABLES = ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION",
-                   "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR")
+                   "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR", "OPENMC_APERTURE_ONE_SIDED")
 
 
 def env_matches(config: str, env: dict) -> bool:
@@ -212,3 +220,13 @@ def nuc050_outcome2(gain: float | None, lower: float | None, unbiased: bool | No
 def h8_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
     """H8: F4 beats F0, by the same rule as H7."""
     return h7_outcome(paired_ratios, pooled_ratio).replace("H7", "H8")
+
+
+def h9_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H9: F6 beats F0, by the same rule as H7."""
+    return h7_outcome(paired_ratios, pooled_ratio).replace("H7", "H9")
+
+
+def nuc050_outcome3(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
+    """Protocol 3: F6's NUC-050 band, by protocol 2's rule."""
+    return nuc050_outcome2(gain, lower, unbiased).replace("of F4", "of F6")

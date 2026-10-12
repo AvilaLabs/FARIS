@@ -43,7 +43,7 @@ index 2472d9799..28599ca65 100644
  void sample_neutron_reaction(Particle& p);
  
 diff --git a/include/openmc/weight_windows.h b/include/openmc/weight_windows.h
-index 763815522..a06da4411 100644
+index 763815522..f38d994f6 100644
 --- a/include/openmc/weight_windows.h
 +++ b/include/openmc/weight_windows.h
 @@ -11,6 +11,7 @@
@@ -54,7 +54,7 @@ index 763815522..a06da4411 100644
  #include "openmc/span.h"
  #include "openmc/tallies/tally.h"
  #include "openmc/vector.h"
-@@ -33,6 +34,34 @@ constexpr double DEFAULT_WEIGHT_CUTOFF {1.0e-38}; // default low weight cutoff
+@@ -33,6 +34,36 @@ constexpr double DEFAULT_WEIGHT_CUTOFF {1.0e-38}; // default low weight cutoff
  //! \param[in] p  Particle to apply weight windows to
  void apply_weight_windows(Particle& p);
  
@@ -76,6 +76,8 @@ index 763815522..a06da4411 100644
 +//! Solid-angle density at r, direction w, of aiming at a uniform point of the
 +//! aperture (0 when the ray misses it)
 +double aperture_pdf(Position r, Direction w);
++//! Whether any aperture rectangle can be aimed at from r
++bool aperture_visible(Position r);
 +Direction aperture_sample_direction(Position r, uint64_t* seed);
 +bool collision_aim_on();
 +//! Aiming fraction for an elastic collision in this material (0: none)
@@ -149,7 +151,7 @@ index 5e92b794a..cc1fcc432 100644
 +
  } // namespace openmc
 diff --git a/src/physics.cpp b/src/physics.cpp
-index 41509af97..addf21808 100644
+index 41509af97..5ffd49caf 100644
 --- a/src/physics.cpp
 +++ b/src/physics.cpp
 @@ -45,6 +45,66 @@ void collision(Particle& p)
@@ -257,7 +259,7 @@ index 41509af97..addf21808 100644
  }
  
  void sample_neutron_reaction(Particle& p)
-@@ -769,6 +813,49 @@ void elastic_scatter(int i_nuclide, const Reaction& rx, double kT, Particle& p)
+@@ -769,6 +813,50 @@ void elastic_scatter(int i_nuclide, const Reaction& rx, double kT, Particle& p)
        p.neutron_xs(i_nuclide).elastic, kT, p.current_seed());
    }
  
@@ -267,7 +269,8 @@ index 41509af97..addf21808 100644
 +  // final direction; the lab density is the CM density times the Jacobian
 +  // d(mu_cm)/d(mu_lab) = s^3 / (A^2 (A + mu_cm)), s^2 = A^2 + 2 A mu_cm + 1.
 +  if (awr > 1.0 && v_t.x == 0.0 && v_t.y == 0.0 && v_t.z == 0.0) {
-+    double beta = collision_aim_beta(p.material());
++    double beta =
++      aperture_visible(p.r()) ? collision_aim_beta(p.material()) : 0.0;
 +    if (beta > 0.0) {
 +      auto& d0 = rx.products_[0].distribution_[0];
 +      auto d0_ = dynamic_cast<UncorrelatedAngleEnergy*>(d0.get());
@@ -308,7 +311,7 @@ index 41509af97..addf21808 100644
    Direction v_cm = (v_n + awr * v_t) / (awr + 1.0);
  
 diff --git a/src/simulation.cpp b/src/simulation.cpp
-index b536ae588..9f2555891 100644
+index b536ae588..60c600f7b 100644
 --- a/src/simulation.cpp
 +++ b/src/simulation.cpp
 @@ -40,6 +40,8 @@
@@ -336,7 +339,7 @@ index b536ae588..9f2555891 100644
 +//! direction, so every tally stays unbiased.
 +void apply_aperture_bias(SourceSite& site, uint64_t* seed)
 +{
-+  double beta = aperture_beta();
++  double beta = aperture_visible(site.r) ? aperture_beta() : 0.0;
 +  if (prn(seed) < beta)
 +    site.u = aperture_sample_direction(site.r, seed);
 +  double mix = (1.0 - beta) + beta * 4.0 * PI * aperture_pdf(site.r, site.u);
@@ -385,7 +388,7 @@ index b536ae588..9f2555891 100644
    // Force calculation of cross-sections by setting last energy to zero
    if (settings::run_CE) {
 diff --git a/src/weight_windows.cpp b/src/weight_windows.cpp
-index 9333800bc..5f8816812 100644
+index 9333800bc..3dd8b709a 100644
 --- a/src/weight_windows.cpp
 +++ b/src/weight_windows.cpp
 @@ -1,4 +1,9 @@
@@ -420,7 +423,7 @@ index 9333800bc..5f8816812 100644
    // Normalize weight windows based on particle's starting weight
    // and the value of the weight window the particle was born in.
    weight_window.scale(p.wgt_born() / p.wgt_ww_born());
-@@ -139,12 +159,231 @@ void apply_weight_windows(Particle& p)
+@@ -139,12 +159,324 @@ void apply_weight_windows(Particle& p)
  
    } else if (weight <= weight_window.lower_weight) {
      // if the particle weight is below the window, play Russian roulette
@@ -442,14 +445,39 @@ index 9333800bc..5f8816812 100644
 +
 +namespace {
 +
-+//! A rectangle c + s*u + t*v (s, t in [-1, 1]). OPENMC_APERTURE_BIAS="beta cx
-+//! cy cz ux uy uz vx vy vz" aims a fraction beta of source directions at it.
-+struct Aperture {
-+  bool on {false};
-+  double beta {0.0};
++//! A rectangle c + s*u + t*v (s, t in [-1, 1]).
++struct Rect {
 +  Position c, u, v, n;
 +  double area {0.0};
 +};
++
++//! OPENMC_APERTURE_BIAS="beta cx cy cz ux uy uz vx vy vz [; cx ... vz ...]"
++//! aims a fraction beta of source directions at the aperture: one or more
++//! rectangles, each picked with equal probability.
++struct Aperture {
++  bool on {false};
++  double beta {0.0};
++  vector<Rect> rects;
++  //! OPENMC_APERTURE_ONE_SIDED=1: a rectangle is aimed at only from points on
++  //! the side opposite its normal u x v, so the normal points toward the
++  //! response and particles past the aperture are not aimed back through it.
++  bool one_sided {false};
++};
++
++Rect parse_rect(const double* x)
++{
++  Rect r;
++  r.c = {x[0], x[1], x[2]};
++  r.u = {x[3], x[4], x[5]};
++  r.v = {x[6], x[7], x[8]};
++  Position cross = r.u.cross(r.v);
++  r.area = 4.0 * cross.norm();
++  if (r.area <= 0.0 || std::abs(r.u.dot(r.v)) > 1e-9 * r.u.norm() * r.v.norm())
++    fatal_error("OPENMC_APERTURE_BIAS: each rectangle needs orthogonal, "
++                "non-zero u and v");
++  r.n = cross / cross.norm();
++  return r;
++}
 +
 +const Aperture& aperture()
 +{
@@ -458,24 +486,45 @@ index 9333800bc..5f8816812 100644
 +    const char* env = std::getenv("OPENMC_APERTURE_BIAS");
 +    if (!env)
 +      return a;
-+    double x[10];
-+    if (std::sscanf(env, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf", &x[0],
-+          &x[1], &x[2], &x[3], &x[4], &x[5], &x[6], &x[7], &x[8], &x[9]) != 10)
-+      fatal_error("OPENMC_APERTURE_BIAS needs 10 numbers: beta c u v");
-+    a.beta = x[0];
-+    a.c = {x[1], x[2], x[3]};
-+    a.u = {x[4], x[5], x[6]};
-+    a.v = {x[7], x[8], x[9]};
-+    Position cross = a.u.cross(a.v);
-+    a.area = 4.0 * cross.norm();
-+    if (a.beta < 0.0 || a.beta >= 1.0 || a.area <= 0.0)
-+      fatal_error("OPENMC_APERTURE_BIAS: need 0 <= beta < 1 and a "
-+                  "non-degenerate rectangle");
-+    a.n = cross / cross.norm();
++    std::string all(env);
++    std::size_t start = 0;
++    bool first = true;
++    while (start <= all.size()) {
++      std::size_t end = all.find(';', start);
++      if (end == std::string::npos)
++        end = all.size();
++      std::istringstream in(all.substr(start, end - start));
++      vector<double> x;
++      double v;
++      while (in >> v)
++        x.push_back(v);
++      if (first) {
++        if (x.size() != 10)
++          fatal_error("OPENMC_APERTURE_BIAS needs beta and 9 numbers per "
++                      "rectangle (c u v), rectangles separated by ';'");
++        a.beta = x[0];
++        a.rects.push_back(parse_rect(&x[1]));
++        first = false;
++      } else {
++        if (x.size() != 9)
++          fatal_error("OPENMC_APERTURE_BIAS: each further rectangle needs 9 "
++                      "numbers (c u v)");
++        a.rects.push_back(parse_rect(&x[0]));
++      }
++      start = end + 1;
++    }
++    if (a.beta < 0.0 || a.beta >= 1.0)
++      fatal_error("OPENMC_APERTURE_BIAS: need 0 <= beta < 1");
++    const char* os = std::getenv("OPENMC_APERTURE_ONE_SIDED");
++    a.one_sided = os && std::string(os) == "1";
 +    a.on = true;
++    double area = 0.0;
++    for (const auto& r : a.rects)
++      area += r.area;
 +    write_message(fmt::format("Directions biased toward an aperture (source "
-+                              "beta {}, area {} cm2).",
-+                    a.beta, a.area),
++                              "beta {}, {} rectangles, area {} cm2{}).",
++                    a.beta, a.rects.size(), area,
++                    a.one_sided ? ", one-sided" : ""),
 +      5);
 +    return a;
 +  }();
@@ -531,11 +580,8 @@ index 9333800bc..5f8816812 100644
 +  return aperture().beta;
 +}
 +
-+double aperture_pdf(Position r, Direction w)
++double rect_pdf(const Rect& a, Position r, Direction w)
 +{
-+  const auto& a = aperture();
-+  if (!a.on)
-+    return 0.0;
 +  double denom = w.dot(a.n);
 +  if (std::abs(denom) < 1e-12)
 +    return 0.0;
@@ -550,12 +596,62 @@ index 9333800bc..5f8816812 100644
 +  return lam * lam / (a.area * std::abs(denom));
 +}
 +
++//! Whether rectangle a can be aimed at from r
++bool rect_visible(const Aperture& ap, const Rect& a, Position r)
++{
++  return !ap.one_sided || (a.c - r).dot(a.n) > 0.0;
++}
++
++int n_visible(const Aperture& a, Position r)
++{
++  int n = 0;
++  for (const auto& rect : a.rects)
++    n += rect_visible(a, rect, r);
++  return n;
++}
++
++bool aperture_visible(Position r)
++{
++  const auto& a = aperture();
++  return a.on && n_visible(a, r) > 0;
++}
++
++double aperture_pdf(Position r, Direction w)
++{
++  const auto& a = aperture();
++  if (!a.on)
++    return 0.0;
++  int n = n_visible(a, r);
++  if (n == 0)
++    return 0.0;
++  double sum = 0.0;
++  for (const auto& rect : a.rects)
++    if (rect_visible(a, rect, r))
++      sum += rect_pdf(rect, r, w);
++  return sum / n;
++}
++
++//! Uniform point of a visible rectangle, each visible rectangle equally
++//! likely. Callers check aperture_visible(r) first.
 +Direction aperture_sample_direction(Position r, uint64_t* seed)
 +{
 +  const auto& a = aperture();
++  int n = n_visible(a, r);
++  int k = 0;
++  if (n > 1)
++    k = std::min(static_cast<int>(prn(seed) * n), n - 1);
++  const Rect* pick = nullptr;
++  for (const auto& rect : a.rects) {
++    if (!rect_visible(a, rect, r))
++      continue;
++    if (k-- == 0) {
++      pick = &rect;
++      break;
++    }
++  }
 +  double s = 2.0 * prn(seed) - 1.0;
 +  double t = 2.0 * prn(seed) - 1.0;
-+  Position d = a.c + a.u * s + a.v * t - r;
++  Position d = pick->c + pick->u * s + pick->v * t - r;
 +  return d / d.norm();
 +}
 +
