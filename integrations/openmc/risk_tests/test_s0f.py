@@ -56,5 +56,42 @@ class Fill(unittest.TestCase):
             F.fill_invalid([1.0], (2, 1, 1))
 
 
+class Production(unittest.TestCase):
+    def test_batch_stats_constant_offsets(self):
+        st = F.batch_stats([1.0, 3.0, 1.0, 3.0], per_batch=10)
+        self.assertAlmostEqual(st["mean"], 2.0)
+        var = 4.0 / 3.0  # sample variance of the four values
+        self.assertAlmostEqual(st["var_per_history"], var * 10 / 4.0)
+        self.assertAlmostEqual(st["relative_error"], math.sqrt(var / 4) / 2.0)
+        self.assertAlmostEqual(st["vov"], 4 * 1.0 / 16.0 - 0.25)
+
+    def test_vov_flags_a_single_spike(self):
+        st = F.batch_stats([1.0] * 99 + [1000.0], per_batch=1)
+        self.assertGreater(st["vov"], F.VOV_LIMIT)
+
+    def test_seed_lower_bound(self):
+        b = F.seed_lower_bound([100.0, 120.0, 140.0, 160.0])
+        self.assertAlmostEqual(b["mean"], 130.0)
+        self.assertAlmostEqual(b["lower95"], 130.0 - 2.353 * b["sd"] / 2.0)
+        with self.assertRaises(ValueError):
+            F.seed_lower_bound([1.0, 2.0])
+
+    def test_nuc050_bands(self):
+        self.assertTrue(F.nuc050_outcome(150, 110, True).startswith(">= 100 at the 95"))
+        self.assertTrue(F.nuc050_outcome(150, 80, True).startswith(">= 100 at the point"))
+        self.assertTrue(F.nuc050_outcome(50, 30, True).startswith("10-100"))
+        self.assertTrue(F.nuc050_outcome(5, 3, True).startswith("< 10"))
+        self.assertTrue(F.nuc050_outcome(150, 110, False).startswith("biased"))
+        self.assertEqual(F.nuc050_outcome(None, None, True), "NOT_EVALUATED")
+
+    def test_h7(self):
+        self.assertEqual(F.h7_outcome([1.5, 2.0, 1.1, 3.0], 1.8), "H7 confirmed")
+        self.assertEqual(F.h7_outcome([1.5, 0.9, 1.1, 3.0], 1.8), "H7 rejected")
+        self.assertEqual(F.h7_outcome([1.5, 2.0, 1.1, 3.0], 1.1), "H7 rejected")
+
+    def test_d2_z(self):
+        self.assertAlmostEqual(F.z_against_d2(F.D2_MEAN, 1e-5), 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

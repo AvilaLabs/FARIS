@@ -94,3 +94,83 @@ def fill_file(src: Path, dst: Path) -> dict:
         group["upper_ww_bounds"][...] = upper
     return {"source": str(src), "filled": str(dst), "dims": list(dims), "periodic_axis": periodic, "ratio": ratio,
             "bins_filled_per_group": per_group}
+
+
+# ---------------------------------------------------------------------------
+# S0f production: aperture-biased source against the current windows (protocol in CAD_TRANSPORT_S0F.md, "Protocol").
+
+D2_FOM = 0.03318235249141742          # S0b D2 analog: FOM of (a) and its sigma (results-s0b.json)
+D2_FOM_SIGMA = 0.0008498523078389429
+D2_MEAN = 0.0010706697372987956       # S0b D2 analog (a), cm per source neutron, and its standard error
+D2_STD_ERROR = 6.931317870952788e-05
+Z_UNBIASED = 3.0
+NUC050_TARGET = 100.0
+H7_MIN_FACTOR = 1.2
+VOV_LIMIT = 0.1
+T_ONE_SIDED_95_DF3 = 2.353            # Student t, one-sided 95 %, 3 degrees of freedom (4 seeds)
+APERTURE = "0.1 578 0 0 0 22 0 0 0 22"  # beta, centre, half-edge u, half-edge v (cm)
+SEEDS = [77100001, 77100002, 77100003, 77100004]
+PER_BATCH = 1000
+BATCHES = 3000
+
+
+def batch_stats(values: list[float], per_batch: int) -> dict:
+    """Mean, relative error, variance per history (batch variance x per_batch / mean^2) and VOV of batch means.
+
+    VOV = sum((x-m)^4) / (sum((x-m)^2))^2 - 1/n, as MCNP's, on batch means.
+    """
+    n = len(values)
+    if n < 2:
+        raise ValueError("at least two batches are needed")
+    m = sum(values) / n
+    d2 = [(x - m) ** 2 for x in values]
+    s2 = sum(d2)
+    var = s2 / (n - 1)
+    if m <= 0.0 or s2 <= 0.0:
+        return {"batches": n, "mean": m, "relative_error": None, "var_per_history": None, "vov": None}
+    r = math.sqrt(var / n) / m
+    vov = sum(x * x for x in d2) / (s2 * s2) - 1.0 / n
+    return {"batches": n, "mean": m, "std_error": r * m, "relative_error": r, "var_per_history": var * per_batch / (m * m),
+            "vov": vov}
+
+
+def fom(relative_error: float | None, seconds: float) -> float | None:
+    if relative_error is None or relative_error <= 0.0 or seconds <= 0.0:
+        return None
+    return 1.0 / (relative_error ** 2 * seconds)
+
+
+def z_against_d2(mean: float, std_error: float) -> float:
+    return (mean - D2_MEAN) / math.hypot(std_error, D2_STD_ERROR)
+
+
+def seed_lower_bound(gains: list[float]) -> dict:
+    """Mean of per-seed gains and its one-sided 95 % lower bound (Student t, 4 seeds)."""
+    n = len(gains)
+    if n != 4:
+        raise ValueError("the protocol's bound is for 4 seeds")
+    m = sum(gains) / n
+    sd = math.sqrt(sum((g - m) ** 2 for g in gains) / (n - 1))
+    return {"mean": m, "sd": sd, "lower95": m - T_ONE_SIDED_95_DF3 * sd / math.sqrt(n)}
+
+
+def nuc050_outcome(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
+    """F1's NUC-050 band from its pooled gain G and conservative lower bound L."""
+    if gain is None or lower is None or unbiased is None:
+        return "NOT_EVALUATED"
+    if unbiased is not True:
+        return "biased: aperture biasing not adopted; investigate before any further use"
+    if lower >= NUC050_TARGET:
+        return ">= 100 at the 95 % lower bound: NUC-050 met on RM-M with a hand-placed aperture"
+    if gain >= NUC050_TARGET:
+        return ">= 100 at the point estimate only: more replicates before any claim"
+    if gain >= 10.0:
+        return "10-100: target kept; next lever is the far-wall scatter class"
+    return "< 10: aperture biasing does not carry the gain seen in the diagnostic scan"
+
+
+def h7_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H7: F1 beats F0 when every paired per-seed FOM ratio exceeds 1 and the pooled ratio is at least 1.2."""
+    if pooled_ratio is None or len(paired_ratios) != 4:
+        return "NOT_EVALUATED"
+    return "H7 confirmed" if all(r > 1.0 for r in paired_ratios) and pooled_ratio >= H7_MIN_FACTOR else "H7 rejected"

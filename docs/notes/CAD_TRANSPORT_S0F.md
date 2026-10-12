@@ -193,6 +193,52 @@ Diagnostics only, single scans on a shared machine (other sessions were building
     probably HDF5's 64 KB compact-attribute limit), so `openmc.Tracks` cannot read them. Not yet verified as a
     defect.
 
+## Protocol (frozen 2026-10-12, before any production run; approved by Connor for about 70 min)
+
+**Question.** Does fact 7's aperture-biased source reach NUC-050's 100× on RM-M, against S0b's D2, once it is measured
+over replicate seeds? Does it beat the current windows?
+
+**Configurations.** Both run the same base model: p1-fr's `model.xml`, copied to
+`~/.cache/avila-night/cad-risk-tests/s0f/base-model.xml` (sha256 c0c107f1f79c06d6…). It has `fr_filled.h5`'s windows
+inline, the 0.1 MeV cut-off, `max_split` 1000, checkpoints at collisions and surfaces, and no photons.
+
+- **F0 (current windows):** stock OpenMC 0.15.3 from `openmc0153dd` (`libopenmc.so` ba09ae9d19c4c789…), with no FARIS
+  variables set.
+- **F1 (aperture-biased source):** the patched 0.15.3 (`libopenmc.so` efa4ae74da9be455…, patch c8cce2da…), run through
+  the shadow package. It sets `OPENMC_WW_SKIP_VOID=1` and `OPENMC_APERTURE_BIAS="0.1 578 0 0 0 22 0 0 0 22"`: β 0.1,
+  a rectangle at x = 578 cm with |y|, |z| < 22 cm.
+- Each configuration checks its library and variables at start and refuses to run otherwise (`s0f_scan.py`).
+
+**Runs.**
+- Seeds 77100001–77100004 serve both configurations, run in the order F0, F1 for each seed. A shared seed gives the
+  same source sites, and 90 % of F1's histories keep their direction.
+- Each run is 3,000 batches of 1,000 histories, read batch by batch through `openmc.lib`. Threads 4, cores 0–3
+  (`taskset`), memory cap 6 GB.
+- T is the time from process start (before the library loads) to the last batch.
+- Before each run, the driver waits up to 10 min for a 1-minute load below 3.0. Waiting is not job time. A run whose
+  end load is above 6.0 is reported as contended.
+- The time box is 75 min of job time. A run that would cross it is NOT_RUN.
+- Driver: `s0f_scripts/run.sh`. Output: `~/.cache/avila-night/cad-risk-tests/s0f/`.
+
+**Analysis** (`s0f_analyse.py`; rules in `s0f_common.py`, tested in `test_s0f.py`).
+- **Pooled per configuration.** All 12,000 batches give the mean of (a), R, the variance per history and the VOV. T is
+  the sum of the four runs. FOM = 1/(R²T), and the gain G is FOM / 0.03318 (D2).
+- **Lower bound L.** The smaller of:
+  - the one-sided 95 % Student-t bound on the four per-run gains;
+  - the 5th percentile of a 2,000-resample bootstrap over batches (numpy seed 20261012).
+- **Bias.** z of the pooled mean against D2 (1.0707e-3 ± 6.93e-5); unbiased when |z| ≤ 3.
+- **VOV** is reported per run and pooled; above 0.1, the tail is reported as not resolved. No rule depends on it.
+- **H7 (F1 beats F0).** Confirmed when all four paired per-seed FOM ratios F1/F0 exceed 1 and the pooled ratio is at
+  least 1.2; otherwise rejected.
+- **NUC-050 band for F1:**
+  - biased: aperture biasing is not adopted; investigate;
+  - L ≥ 100: NUC-050 met on RM-M with a hand-placed aperture;
+  - G ≥ 100 > L: met at the point estimate only; more replicates before any claim;
+  - 10 ≤ G < 100: target kept; the next lever is the far-wall scatter class;
+  - G < 10: the scan's gain does not carry over.
+- **Not decided here:** automatic aperture placement, which any FARIS claim needs, and whether FARIS ships the patched
+  OpenMC.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
