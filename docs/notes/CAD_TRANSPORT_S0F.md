@@ -509,6 +509,42 @@ All 8 runs completed (job time 2,732 s of 4,500). None was contended (end loads 
 - **Across protocols** (F0 on 12 seeds): F0 pooled 13.3, 37.3 and 1.6. Each time, one or two rare events set its
   gain. F6's per-seed gains run from 90 to 209, and its worst batch holds 41 %.
 
+### 12. After protocol 3: a windows guard, and line-of-sight windows (diagnostic)
+
+- **Guard.** The patch now refuses `OPENMC_COLLISION_AIM` without weight windows ("OPENMC_COLLISION_AIM needs weight
+  windows"; fact 11's hazard). `libopenmc.so` 2d25e1cd…. Configured runs behave as before.
+- **F6's two largest remaining spikes** (protocol 3 seeds 1 and 2, replayed with tracks):
+  - Seed 1, batch 423 (37 %). Wall roulette lifts a source neutron to weight 131 on the inboard tungsten (R 214).
+    Aiming works: the neutron goes through the exit rectangle at weight 1.23. But the coil face's window is about
+    1/1,000 of that, so it is split 1,000 times on arrival. The windows rate the wall about 10⁶ times less important
+    than the coil face. The line of sight through the duct alone makes it about 10³.
+  - Seed 2, batch 1093 (41 %). An aperture-biased source neutron (weight 0.021) enters the duct inlet, collides in the
+    duct-wall FLiBe at 13.8 MeV, and is rouletted up to 0.18, then 1.3. The survivor's copies reach the coil face.
+- **Line-of-sight windows (F7; `risk_tests/s0f_los_windows.py`).** Each voxel's lower bound is capped at
+  w_ap(g) · 4π / (Ω · T), never raised.
+  - Ω is the exact solid angle of each one-sided rectangle from the voxel centre.
+  - T is the uncollided transmission (σ = 0.15/cm), averaged over rays to a 3 × 3 grid on the rectangle and
+    ray-marched through the model with `openmc.lib.find_material` in 5 cm steps.
+  - w_ap is the lowest lower bound just beyond the rectangle.
+  - Upper bounds keep their ratio to the lower.
+  - A first version marched only to the rectangle's centre. From oblique wall points that ray misses the inlet and
+    crosses the port wall, so it lowered almost nothing at the spike origins.
+  - Result: 37,704 of 838,240 positive bounds lowered, median factor 7.1 (99th percentile 78). Generation took 23 min,
+    single-threaded. Output model sha256 cf6b14a5af59ab4e….
+  - At the spike origins: batch 423's voxel ×27, batch 802's ×4.6. Batch 942's and the duct-wall FLiBe are
+    unchanged. The inlet's own window is high, so its cap does not bite: the adjoint under-rates the duct too.
+- **F7 on protocol 3 seeds** (diagnostics; the seeds have been looked at):
+
+  | Seed | F6 gain (protocol 3) | F7 gain | F6 → F7 variance per history | F7 top batch | F7 T (s), end load |
+  | --- | --- | --- | --- | --- | --- |
+  | 77300001 | 90.0 | 126.4 | 2,648 → 1,592 | 22 % (2865) | 449, 5.1 |
+  | 77300002 | 99.1 | 83.9 | 2,451 → 2,417 | 39 % (1093) | 446, 6.3 |
+
+  - Batch 423's class is gone. Batch 1093's is untouched.
+  - F7 ran about 15 % slower, partly from the higher load.
+  - Not adopted. The duct-wall class needs the response itself (the coil face) as a line-of-sight target, not only
+    the apertures.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

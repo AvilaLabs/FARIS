@@ -111,5 +111,33 @@ class Production(unittest.TestCase):
         self.assertAlmostEqual(F.z_against_d2(F.D2_MEAN, 1e-5), 0.0)
 
 
+class LosWindows(unittest.TestCase):
+    def setUp(self):
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy not available")
+
+    def test_solid_angle_far_and_sides(self):
+        import numpy as np
+        import s0f_los_windows as W
+        c, u, v = np.array([0.0, 0, 0]), np.array([0.0, 1, 0]), np.array([0.0, 0, 1])  # normal +x, area 4
+        far = W.solid_angle(np.array([[-100.0, 0, 0]]), c, u, v)[0]
+        self.assertAlmostEqual(far, 4 / 100.0 ** 2, delta=1e-6)
+        self.assertEqual(W.solid_angle(np.array([[100.0, 0, 0]]), c, u, v)[0], 0.0)  # front side
+        near = W.solid_angle(np.array([[-1e-6, 0, 0]]), c, u, v)[0]
+        self.assertAlmostEqual(near, 2 * math.pi, places=3)  # half sphere when touching the centre
+
+    def test_flat_index_matches_fortran_order(self):
+        import numpy as np
+        import s0f_los_windows as W
+        dims, n_e = (3, 4, 5), 2
+        a = np.arange(3 * 4 * 5 * n_e).reshape(3, 4, 5, n_e)
+        flat = a.ravel("F")
+        self.assertEqual(flat[W.flat_index(2, 1, 3, 1, dims)], a[2, 1, 3, 1])
+        cen = W.voxel_centres([0, 0, 0], [1, 1, 1], dims)
+        self.assertTrue(np.allclose(cen[W.flat_index(2, 1, 3, 0, dims)], [2.5, 1.5, 3.5]))
+
+
 if __name__ == "__main__":
     unittest.main()

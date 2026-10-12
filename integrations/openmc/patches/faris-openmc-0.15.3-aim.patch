@@ -388,7 +388,7 @@ index b536ae588..60c600f7b 100644
    // Force calculation of cross-sections by setting last energy to zero
    if (settings::run_CE) {
 diff --git a/src/weight_windows.cpp b/src/weight_windows.cpp
-index 9333800bc..3dd8b709a 100644
+index 9333800bc..9631f8796 100644
 --- a/src/weight_windows.cpp
 +++ b/src/weight_windows.cpp
 @@ -1,4 +1,9 @@
@@ -423,7 +423,7 @@ index 9333800bc..3dd8b709a 100644
    // Normalize weight windows based on particle's starting weight
    // and the value of the weight window the particle was born in.
    weight_window.scale(p.wgt_born() / p.wgt_ww_born());
-@@ -139,12 +159,324 @@ void apply_weight_windows(Particle& p)
+@@ -139,12 +159,328 @@ void apply_weight_windows(Particle& p)
  
    } else if (weight <= weight_window.lower_weight) {
      // if the particle weight is below the window, play Russian roulette
@@ -559,6 +559,10 @@ index 9333800bc..3dd8b709a 100644
 +      fatal_error("OPENMC_COLLISION_AIM needs 0 < beta < 1 and material ids");
 +    if (!aperture().on)
 +      fatal_error("OPENMC_COLLISION_AIM needs OPENMC_APERTURE_BIAS");
++    // Each un-aimed collision multiplies the weight by up to 1/(1 - beta);
++    // without windows the weights grow heavy-tailed (S0f fact 11).
++    if (!settings::weight_windows_on)
++      fatal_error("OPENMC_COLLISION_AIM needs weight windows");
 +    write_message(fmt::format("Elastic collisions aimed at the aperture (beta "
 +                              "{}, {} materials).",
 +                    c.beta, c.material_ids.size()),
