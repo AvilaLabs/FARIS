@@ -131,6 +131,68 @@ Pilots, each a single run with the 0.1 MeV cut-off, checkpoints at collisions an
   cannot be the whole floor: windows that split a particle before it reaches the duct's walls already give its copies
   independent scattering directions there. What makes the side-face strip's events rare is not settled.
 
+### 7. The spikes are straight flights through void onto the coil face; aiming the source at the duct removes most (2026-10-12)
+
+Diagnostics only, single scans on a shared machine (other sessions were building Rust). Not a rule outcome.
+
+- **Method.** The p1-fr model was run in batches of 1,000 histories (3,000 batches, seed 77000041, so the same histories
+  as p1-fr), recording each batch's (a) and a side-face box score. The box is x 575–655, |y| < 50, |z| < 30, in coil
+  material, above 0.1 MeV. Batches with spikes were replayed with OpenMC's particle tracks. Scripts are in
+  `replay/`.
+- **The spikes.** Five of 3,000 batches hold 45 % of (a)'s variance; the top one holds 15 %. Each spike is one history.
+  - Batches 324, 542 and 1399: a source neutron flies uncollided from the plasma straight through the void duct onto a
+    port coil's side face, leaving the duct at its edge (|y| or |z| ≈ 15 cm). In 1399 it clips the TiH2 lip at the
+    exit (R 574–578) once.
+  - Batch 2318: a neutron scatters off the inboard first wall (R 214). It flies at weight 4.4, having been rouletted up
+    in a low-importance region, then crosses the chamber and the duct straight onto the coil face.
+  - Batch 264: the first coil entry follows a scatter in FLiBe beside the duct exit; not traced further.
+  - The windows split each arrival up to 1,000 times at the duct exit and again at the coil (3,946 to 21,319 tracks
+    per history). Every copy is on the same line, so the event's size is set by one direction choice made at birth or
+    on a far wall, where windows do not split.
+- **Correction to fact 3.** Fact 3 said the strip is "not straight-through streaming", because uncollided flight is
+  about 0.5 % of the mean. That was wrong. A rare class small in the mean can carry most of the variance, and this one
+  does.
+- **Fact 5 restored, with a correction.** The mechanism is a direction choice across void, as fact 5 said. The choice
+  is made at birth or at far-wall collisions, where scalar windows roulette rather than split. That is why splitting
+  before the collision (fact 6) had nothing to act on.
+- **Aperture biasing (patched 0.15.3).** `OPENMC_APERTURE_BIAS="beta c u v"` sends a fraction β of isotropic source
+  directions at a uniform point of the rectangle c + s·u + t·v.
+  - Every site's weight is the isotropic density over the mixture density (1 − β)/4π + β·p_aperture(Ω).
+  - The windows keep the unbiased birth weight, so biased particles are not split back up.
+  - Tallies are normalized by the unbiased weight.
+  - `OPENMC_WW_SKIP_VOID=1` skips split and roulette at birth and in void, so aimed particles are not rouletted before
+    they reach material.
+  - The patch with fact 6's is `~/.cache/avila-night/openmc-presplit/faris-openmc-0.15.3.patch` (c8cce2da…).
+- **Unbiased on the duct problem.** Detector flux, mean ± standard error over seeds:
+  - analog: 0.01178 ± 0.00009 (8 × 2 M);
+  - analog with aperture biasing (β 0.2, aimed at the duct inlet): 0.01169 ± 0.00014 (8 × 2 M);
+  - windows with skip-void and aperture: 0.01175 ± 0.00007 (8 × 200,000);
+  - stock windows (fact 6): 0.01198 ± 0.00007.
+- **RM-M scans.** All scans are 3 M histories with p1-fr's windows. Variance per history is the batch variance
+  × 1,000 / mean²:
+
+  | Scan | Change | Mean of (a) | Variance per history | Without top 20 batches | Histories/s |
+  | --- | --- | --- | --- | --- | --- |
+  | scan | none (stock) | 1.128e-3 | 7,978 | 2,761 | 8,324 |
+  | sv-scan | skip-void | 1.135e-3 | 9,060 | 2,782 | 7,374 |
+  | ap-scan | skip-void, β 0.1 at the duct exit (x 580, \|y\|, \|z\| < 15) | 1.127e-3 | 6,235 | 2,526 | 7,611 |
+  | ap2-scan | skip-void, β 0.1 at x 578, \|y\|, \|z\| < 22 (exit and lip) | 1.041e-3 | 2,388 | 1,121 | 11,028 |
+
+  - Skip-void alone does nothing: sv-fr's single 300 s pilot (4,753, 61× against D2) was scatter.
+  - The narrow aperture removed spike 324 but not 542 or 1399, whose paths leave at the duct's edge.
+  - The wide aperture removed all three birth-streaming spikes. Inboard-wall spike 2318 remains as the top batch.
+  - ap2-scan's mean agrees with S0b's analog D2 (1.071e-3, R 0.065) within 0.4σ.
+  - ap2-scan's FOM is 1/(R²T) = 1/(0.0282² × 272 s) ≈ 4.6, about 139× against D2. The stock scan's is about 31×
+    under the same load. One scan per configuration; heavy tails make each variance uncertain by a factor of order 2
+    (S0e saw 3.2× between identical runs).
+- **Open.**
+  - The far-wall scatter class (2318) needs the same aiming at collisions, which needs the scattering angle density.
+  - The aperture was placed by hand from the traced spikes. For FARIS it must be found from the CAD: shield
+    penetrations with a line of sight from the plasma to the response.
+  - The tracks of the two largest histories were written without their `offsets` attribute (19,234 and 21,319 tracks;
+    probably HDF5's 64 KB compact-attribute limit), so `openmc.Tracks` cannot read them. Not yet verified as a
+    defect.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
