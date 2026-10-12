@@ -499,7 +499,7 @@ All 8 runs completed (job time 2,732 s of 4,500). None was contended (end loads 
 
 - **F0, pooled.** G = 1.6, L = 0.8 (bootstrap; the seed bound is 4.5). Mean 1.211e-3, z = +0.83. Pooled VOV 0.90.
   - Seed 2's batch 1394 holds 98 % of the variance and scores about 600 times the mean. Its variance per history
-    (375,959) is above the analog's.
+    (375,959) leaves the run below the analog D2 (gain 0.8).
 - **F6, pooled.** G = 121.9, L = 74.9 (seed bound; the bootstrap gives 90.9). Mean 1.073e-3, z = +0.04, so unbiased.
   Pooled VOV 0.043: the tail is resolved.
 - **H9: confirmed.** The paired per-seed FOM ratios F6/F0 are 3.4, 130, 5.3 and 8.8, and the pooled ratio is 78.
