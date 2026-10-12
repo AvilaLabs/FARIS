@@ -106,6 +106,31 @@ Pilots, each a single run with the 0.1 MeV cut-off, checkpoints at collisions an
 - **Tools that act on direction.** DXTRAN, point or next-event estimators, and angle-dependent (CADIS-Ω) windows do.
   None is in OpenMC 0.15.3, 0.16.0 or develop aa4afc41e (searched 2026-10-11).
 
+### 6. Splitting before the collision does not move the floor (2026-10-12; weakens fact 5)
+
+- **What was tried.** A patched OpenMC 0.15.3 that, when a neutron arrives at a collision above its window, splits it
+  before the reaction is sampled, so each copy samples its own outgoing energy and direction. It is switched on with
+  `OPENMC_SPLIT_BEFORE_COLLISION=1`; with the switch off it is stock 0.15.3. The patch is
+  `~/.cache/avila-night/openmc-presplit/split-before-collision.patch` (sha256 2658db06…). It refuses to run with
+  collision, analog or pulse-height tallies.
+- **Unbiased on a duct problem.** The problem is an iron block with a straight void duct and an iron detector beside
+  the duct mouth (`presplit/duct.py`, a36d6b06…). Detector flux, mean ± standard error over replicate seeds:
+  - stock windows: 0.01198 ± 0.00007 (8 seeds × 200,000 histories);
+  - split before collision: 0.01197 ± 0.00014 (8 seeds × 200,000);
+  - analog: 0.01159 ± 0.00029 (4 seeds × 2 M).
+- **No gain on RM-M.** Same settings as fact 4 (cut-off, both checkpoints, `max_split` 1000, cores 0–3, 300 s):
+
+  | Pilot | Windows | Histories/s | Variance per history | Gain vs D2 | Load start–end |
+  | --- | --- | --- | --- | --- | --- |
+  | ps-fr | as p1-fr, split before collision | 8,815 | 7,437 | 35.7 | 1.6–4.1 |
+  | ps-b10 | as p1-b10, split before collision | 6,052 | 9,096 | 20.0 | 1.9–3.3 |
+
+  Against p1-fr (7,571) and p1-b10 (5,436), there is no gain beyond single-run scatter. Seeds were 77000061 and 77000062.
+- **Why, on reflection.** Copies made by a split separate at their next collision, because each samples its own flight
+  distance. Sharing a direction only correlates the one flight that follows the split. Fact 5's mechanism therefore
+  cannot be the whole floor: windows that split a particle before it reaches the duct's walls already give its copies
+  independent scattering directions there. What makes the side-face strip's events rare is not settled.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
