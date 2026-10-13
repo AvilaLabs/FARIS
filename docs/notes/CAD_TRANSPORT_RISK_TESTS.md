@@ -573,3 +573,33 @@ run's response (a) is ≤ 20 % (1σ) at 60 s. Otherwise FAIL, and the errors go 
   - One-time costs stay outside the 60 s: CAD conversion, cross sections, the random-ray solve, and about 5 min
     for targets and capped windows.
 
+## R3′: D1S repeated on the faster build (protocol frozen 2026-10-13, before any R3′ run)
+
+**Why.** R3's D1S run did 70,000 histories in 7,000 s, about 12 per second, and its errors were 14–50 %. A timing
+check (2026-10-13, `~/.cache/avila-night/s0h-d1s/`, 1,000 histories each on 4 threads) ran R3's own D1S model
+file (sha256 12630130…) on the DAGMC build in `openmc0153dd`, also OpenMC 0.15.3:
+
+| Variant | Histories per second |
+| --- | --- |
+| Neutrons only | 16,900 |
+| With prompt photons | 3,400 |
+| D1S (decay photons), as R3 | 1,075 |
+
+So the same model runs about 90× faster on this build than R3's run did in `w003env`. Why that build is slow is
+not traced. R3's D1S failure may be mostly an unconverged run.
+
+**Run.** `r3_d1s.py` unchanged, with the `openmc0153dd` interpreter and executable, model directory
+`~/.cache/avila-night/cad-risk-tests/models/rm-m`, seed 20261302, 4 threads on cores 0 to 3 under a 6 GB cap,
+budget 1,500 s. Output `~/.cache/avila-night/cad-risk-tests/r3p/d1s`.
+
+**Comparison.** `r3_compare.py` against R3's R2S results, unchanged (`.../r3/r2s`). R2S is not rerun: its errors
+were 0.1 %.
+
+**Rule (R3's, unchanged).** PASS if D1S/R2S of the total dose over the mesh is within 0.85–1.15 at 1 d, 7 d and
+30 d. A cooling time whose D1S relative error is above 10 % is INCONCLUSIVE, not a pass or a fail. Otherwise
+FAIL, with the dominant nuclides reported.
+
+**Expected, written before the run.** About 1.5 M histories, giving D1S errors near 3 % at 1 d and 11 % at 7 d and
+30 d if R3's errors scale. The two builds are assumed to give the same physics; the 1 d value against R3's
+8.32e16 ± 14 % is the check.
+
