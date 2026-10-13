@@ -34,6 +34,7 @@ mod external;
 mod geometry;
 mod integrity;
 mod intersections;
+mod life;
 mod mesh;
 mod model;
 mod overlap;
@@ -52,6 +53,9 @@ pub use geometry::{
     GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome, SourceRecord,
     SourceRequest, StageClock, TagEntry, TessellateOutcome, TessellateRequest, ToolResult,
     WaiverUse,
+};
+pub use life::{
+    FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 pub use transport::{
