@@ -748,3 +748,12 @@ that the script works, whose numbers are not used.
 - D1S more than that above manual: D1S over-emits; the size is compared with RM-M's 14 %.
 - R2S more than that below manual: R2S under-emits or under-transports; likewise.
 
+**Amendment, 2026-10-13, after the smoke run.** The smoke showed the case as first written is unusable for R2S:
+R3's source rate through a 4 cm² beam transmutes every Fe-54 atom in the cube within hours (per-atom rate
+1.6e-5 /s). R2S's depletion follows that burn-up and D1S, which is linear in rate, cannot, so R2S came out 770
+times lower. The source rate is changed to 1e12 n/s for all three values. Nothing else changes.
+
+A 30 M run was then started by mistake on the unamended script: my edit had failed and I did not check it. Its
+D1S and manual values are valid, since both are linear in rate (D1S/manual 0.9970 ± 0.0025), and its R2S value is
+the burnt-out case again. The run below, on the amended script, is the one the reading rule applies to.
+

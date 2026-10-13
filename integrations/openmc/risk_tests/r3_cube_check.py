@@ -4,8 +4,7 @@
     r3_cube_check.py OUT_DIR [--histories 30000000]
 
 A 2 cm cube of iron at 1 g/cm3 in vacuum, a 14.1 MeV beam on one face. Dose is track length times the ICRP-116 AP
-coefficient in a 6 cm box (3 x 3 x 3 voxels of 2 cm, the cube in the middle), 30 d after one full-power year at
-R3's source rate. The cube is thin for neutrons and photons, so voxel averaging cannot matter.
+coefficient in a 6 cm box (3 x 3 x 3 voxels of 2 cm, the cube in the middle), 30 d after one year at 1e12 n/s. The cube is thin for neutrons and photons, so voxel averaging cannot matter.
   D1S     openmc.deplete.d1s, photons born in the box, parent Mn54.
   R2S     openmc.deplete.R2SManager on the same mesh.
   manual  Fe54 (n,p) rate from a direct tally, the Bateman factor, the chain's Mn54 photons per decay, and the dose
@@ -26,6 +25,9 @@ import rm_m_openmc as RM  # noqa: E402
 
 CHAIN = Path.home() / "nuclear-data/p32-work/chain/depletion/chain.xml"
 HALF, VOX, IDX = 1.0, 2.0, 4          # cube half-edge (cm), voxel (cm), time index of 30 d
+# R3's 1.86e20 n/s through this 4 cm2 beam would transmute every Fe54 atom within hours, which R2S's depletion
+# follows and D1S (linear in rate) cannot. A rate with negligible burn-up keeps the comparison to emission.
+RATES = [1.0e12, 0.0, 0.0, 0.0]
 
 
 def base_model(openmc):
@@ -94,7 +96,7 @@ def main() -> int:
     openmc.config["cross_sections"] = str(RM.FARIS_XS)
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
-    per_batch, rate = args.histories // 100, sc.SOURCE_RATES[0]
+    per_batch, rate = args.histories // 100, RATES[0]
     chain = openmc.deplete.Chain.from_xml(str(CHAIN))
     mn = chain["Mn54"]
     lam = math.log(2) / mn.half_life
@@ -135,7 +137,7 @@ def main() -> int:
     dt.filters.append(openmc.MeshBornFilter(box_mesh(openmc, 1)))
     m.tallies = openmc.Tallies([dt])
     nuclides = d1s.prepare_tallies(m, chain_file=str(CHAIN))
-    tcf = d1s.time_correction_factors(nuclides, sc.TIMESTEPS, sc.SOURCE_RATES)
+    tcf = d1s.time_correction_factors(nuclides, sc.TIMESTEPS, RATES)
     with openmc.StatePoint(m.run(cwd=out / "d1s", output=False)) as sp:
         tt = sp.get_tally(name="photon_dose")
         mean = tt.mean.reshape(27, len(nuclides))
@@ -159,7 +161,7 @@ def main() -> int:
     mgr.step1_neutron_transport(out / "r2s_neutron", mat_vol_kwargs={"n_samples": 1_000_000},
                                 micro_kwargs={"nuclides": ["Fe54", "Fe56", "Fe57", "Fe58"], "energies": sc.ACTIVATION_GROUPS,
                                               "chain_file": str(CHAIN), "run_kwargs": {"output": False}})
-    mgr.step2_activation(sc.TIMESTEPS, sc.SOURCE_RATES, output_dir=out / "r2s_activation", operator_kwargs={"chain_file": str(CHAIN)})
+    mgr.step2_activation(sc.TIMESTEPS, RATES, output_dir=out / "r2s_activation", operator_kwargs={"chain_file": str(CHAIN)})
     sources = mgr.get_decay_photon_source_mesh(IDX)
     strength = sum(float(s.strength) for ms in sources for s in ms.sources.ravel())
     atoms = sum(mgr.results["depletion_results"][IDX].get_material(str(mat.id)).get_nuclide_atoms().get("Mn54", 0.0)
