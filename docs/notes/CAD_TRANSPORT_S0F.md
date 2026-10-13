@@ -593,6 +593,41 @@ T excludes window generation for both configurations; F8's extra 4.4 min is repo
 - **Not decided here:** NUC-050's basis (literature note, section 1), finding targets from the CAD, and whether
   FARIS ships the patched OpenMC.
 
+## Protocol 4 results (2026-10-12; protocol 75add3d; `references/cad-transport-s0f4.json`)
+
+All 8 runs completed (job time about 1,060 s of 4,500). None was contended (end loads 2.7–3.5).
+
+| Run | Gain vs D2 | Mean of (a) | Variance per history | VOV | T (s) | Top batch's share |
+| --- | --- | --- | --- | --- | --- | --- |
+| F0 seed 1 | 59.9 | 1.153e-3 | 8,531 | 0.06 | 177 | 14 % |
+| F0 seed 2 | 101.4 | 1.021e-3 | 8,266 | 0.20 | 108 | 41 % |
+| F0 seed 3 | 63.4 | 1.122e-3 | 13,626 | 0.21 | 105 | 41 % |
+| F0 seed 4 | 122.0 | 1.081e-3 | 7,143 | 0.06 | 104 | 17 % |
+| F8 seed 1 | 434.4 | 1.090e-3 | 1,483 | 0.05 | 140 | 22 % |
+| F8 seed 2 | 284.1 | 1.066e-3 | 2,195 | 0.08 | 145 | 19 % |
+| F8 seed 3 | 235.4 | 1.097e-3 | 2,740 | 0.15 | 140 | 34 % (44) |
+| F8 seed 4 | 573.2 | 1.057e-3 | 1,143 | 0.01 | 138 | 4 % |
+
+- **F0, pooled.** G = 77.3, L = 51.2 (seed bound; the bootstrap gives 60.5). Mean 1.094e-3, z = +0.31. VOV 0.042.
+- **F8, pooled.** G = 337.6, L = 201.6 (seed bound; the bootstrap gives 262.8). Mean 1.078e-3, z = +0.10, so
+  unbiased. Pooled VOV 0.029.
+- **H10: confirmed.** Paired per-seed FOM ratios F8/F0: 7.2, 2.8, 3.7 and 4.7; pooled 4.4.
+- **NUC-050: ≥ 100 at the 95 % lower bound**, by the frozen rule: met on RM-M with hand-placed targets.
+- **The machine was faster in this protocol, and that inflates every gain against D2.**
+  - F0 took 104–177 s per run here, against 270–361 s in protocols 2 and 3. The other sessions' builds had ended.
+  - D2's FOM was timed once, in S0b. A gain against it mixes the method with the machine's state on the day. F0's
+    pooled gain was 13.3, 37.3, 1.6 and 77.3 in the four protocols; the last value owes about a factor of 2.4 to
+    speed.
+  - The quantities that do not depend on the machine:
+    - Variance per history: F8 1,901, F0 9,491 here (5.0× lower). F6 had 1,964 in protocol 3, the same within
+      noise.
+    - Time per history relative to F0 in the same protocol: F8 1.14×, F6 1.26×, F4 1.5×.
+  - So F8's step over F6 is in time per history, not in variance. The 222× and 250× of fact 13 against F6's 90× and
+    99× were mostly the faster machine.
+  - At protocol 3's machine speed, F8's pooled gain would be about 337.6 / 2.4 ≈ 140. That is an estimate, not a
+    measurement.
+- **Cost not in T.** F8's windows need 4.4 min of reciprocity runs on top of the adjoint that F0 also needs.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
