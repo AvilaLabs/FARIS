@@ -156,11 +156,25 @@ class LosWindows(unittest.TestCase):
 
 
 
+class Protocol5RulesTest(unittest.TestCase):
+    def test_protocol_5_rules(self):
+        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.92), "H12 confirmed")
+        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.79), "H12 rejected")
+        self.assertEqual(F.h12_outcome([1.0], 1.0), "NOT_EVALUATED")
+        self.assertEqual(F.h11_outcome([2.0, 3.0, 2.5, 4.0], 2.8), F.h7_outcome([2.0, 3.0, 2.5, 4.0], 2.8).replace("H7", "H11"))
+        self.assertIn("F9", F.nuc050_outcome5(150.0, 120.0, True) + F.nuc050_outcome5(50.0, 20.0, True))
+        self.assertTrue(F.env_matches("B9", F.CONFIG_ENV["B9"]))
+
+
 class FindTargetsTest(unittest.TestCase):
     """s0f_find_targets.py on synthetic maps (fact 14)."""
 
     def setUp(self):
-        import numpy as np
+        try:
+            import numpy as np
+            import scipy.ndimage  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy and scipy not available")
         import s0f_find_targets as T
         self.np, self.T = np, T
         self.ll, self.width = np.zeros(3), np.full(3, 10.0)
@@ -214,14 +228,6 @@ class FindTargetsTest(unittest.TestCase):
                 np.array([0.0, 1.0, 0.0]), 1.0)
         for _, c, u, v, n in self.T.channel_rectangles(prod, np.ones_like(prod), self.ll, self.width, face):
             self.assertGreater(float(np.dot(np.cross(u, v), n)), 0.0)
-
-    def test_protocol_5_rules(self):
-        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.92), "H12 confirmed")
-        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.79), "H12 rejected")
-        self.assertEqual(F.h12_outcome([1.0], 1.0), "NOT_EVALUATED")
-        self.assertEqual(F.h11_outcome([2.0, 3.0, 2.5, 4.0], 2.8), F.h7_outcome([2.0, 3.0, 2.5, 4.0], 2.8).replace("H7", "H11"))
-        self.assertIn("F9", F.nuc050_outcome5(150.0, 120.0, True) + F.nuc050_outcome5(50.0, 20.0, True))
-        self.assertTrue(F.env_matches("B9", F.CONFIG_ENV["B9"]))
 
     def test_response_faces_split_by_side(self):
         np, T = self.np, self.T
