@@ -195,7 +195,10 @@ that depends on it starts.
      reaches 4–6 % in 25 min and the ratios are 1.20 ± 0.04, 1.13 ± 0.06 and
      1.14 ± 0.06 at 1, 7 and 30 d ([R3′](notes/CAD_TRANSPORT_RISK_TESTS.md)): in
      the band at 7 and 30 d, just outside at 1 d, and in line with the
-     published 4–15 %. The steady offset is not yet explained.
+     published 4–15 %. Decay bookkeeping, neutron statistics, material volumes,
+     group structure and voxel size are ruled out or bounded, and on a thin iron
+     cube both methods match a hand calculation within 0.3 %. The offset is a
+     geometry effect on RM-M and is reported as measured.
 4. **Real CAD quality.** Real machine STEP files often contain overlaps.
    - GEO-010 asks for a 50-file real STEP corpus, and an open corpus of that size
      is not known to exist.

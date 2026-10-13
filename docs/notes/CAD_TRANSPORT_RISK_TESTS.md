@@ -757,3 +757,26 @@ A 30 M run was then started by mistake on the unamended script: my edit had fail
 D1S and manual values are valid, since both are linear in rate (D1S/manual 0.9970 ± 0.0025), and its R2S value is
 the burnt-out case again. The run below, on the amended script, is the one the reading rule applies to.
 
+### R3 cube check result (2026-10-13; amended protocol a931574; `references/cad-transport-r3-cube.json`)
+
+| Value of the Mn-54 dose at 30 d | Ratio to manual | Statistical error |
+| --- | --- | --- |
+| D1S | 0.9970 | 0.25 % |
+| Mesh R2S | 1.0023 | 0.04 % |
+
+- **Both methods are right on a simple case.** D1S and R2S agree with the hand calculation and with each other
+  (D1S/R2S 0.995) well inside 3 %. D1S's photon emission per reaction is correct, and so is R2S's chain from
+  reaction rate to photon source.
+- **By the frozen rule, the offset on RM-M is an effect of its geometry and is reported as measured:** D1S/R2S
+  1.20 ± 0.04 at 1 d, 1.13 ± 0.06 at 7 d and 1.14 ± 0.06 at 30 d.
+- **What "geometry" can still mean, none of it tested:**
+  - activation gradients across 1–3 cm layers, which 5 cm voxels do not resolve, with R2S starting photons
+    evenly through a layer and D1S at the reaction sites facing the duct;
+  - secondary photons made inside the box by decay photons born outside it, which D1S's born-in-box filter
+    counts and R2S's source does not contain.
+- **A limit of D1S found on the way.** At R3's source rate the cube's Fe-54 burns out within hours; R2S follows
+  that and D1S cannot. On RM-M the burn-up is small (0.2 % for Fe-54, 1.2 % for W-186 over the year), so it is
+  not this offset, but a strongly irradiated thin part would need a check.
+- **This closes the diagnosis for now.** Of the two methods, D1S is the one that uses the real geometry and
+  continuous energy; nothing found here says its value is the wrong one.
+
