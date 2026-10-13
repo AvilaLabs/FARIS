@@ -181,6 +181,10 @@ that depends on it starts.
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.
    - Fallbacks: a coarser preview mesh, or a stated longer preview target.
+   - Status 2026-10-13: the first test failed (magnet error 56 % at 60 s). With
+     aimed windows, and TBR in its own run without the energy cut-off, both
+     limits are met at 60 s on 4 threads: TBR 0.16 %, magnet 3–4 %
+     ([R2″](notes/CAD_TRANSPORT_RISK_TESTS.md)). Research scripts, not the app.
 3. **Shutdown dose values.** These are the first thing this release's maintenance
    rule depends on.
    - Test: score photon dose with flux-to-dose coefficients; check D1S against

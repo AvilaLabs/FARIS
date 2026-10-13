@@ -550,3 +550,26 @@ run's response (a) is ≤ 20 % (1σ) at 60 s. Otherwise FAIL, and the errors go 
 
 **Reported, not judged.** The TBR value against R2's 1.23, as a check that this tally is the TBR.
 
+### R2″ results (2026-10-13; protocol dc9bb84): PASS
+
+| | Repetition 1 | Repetition 2 |
+| --- | --- | --- |
+| TBR run: histories at the last statepoint | 460,000 | 440,000 |
+| TBR run: TBR | 1.227, R 0.16 % | 1.228, R 0.15 % |
+| Magnet run: histories at the last statepoint | 780,000 | 760,000 |
+| Magnet run: response (a), cm per source neutron | 1.074e-3, R 3.8 % | 1.029e-3, R 3.1 % |
+| Last statepoints | 59.2 s and 59.4 s | 58.5 s and 58.7 s |
+| 1-minute load at start | 1.65 | 2.64 |
+
+- **Verdict: PASS.** Both repetitions meet both limits: TBR ≤ 2 % and response (a) ≤ 20 % at 60 s.
+- The TBR of 1.227–1.228 agrees with R2's 1.23, so this tally is the TBR.
+- `s0g_preview.py` prints its own single-run verdict, which reads FAIL for each process because each run answers
+  for one response only. The verdict above applies R2″'s rule: TBR from the TBR run, (a) from the magnet run.
+- Response (a) agrees with D2's 1.071e-3 ± 0.069e-3 in both repetitions.
+- **Limits.**
+  - Research scripts on RM-M; the app does not do this yet, and RM-S is not tested here.
+  - The magnet run needs the patched OpenMC. On stock OpenMC R2′'s single fall-back run gave 7.4 % at 60 s with
+    4 threads, also inside 20 %, but its single runs can hide spikes (protocol 5: VOV 0.21 pooled).
+  - One-time costs stay outside the 60 s: CAD conversion, cross sections, the random-ray solve, and about 5 min
+    for targets and capped windows.
+
