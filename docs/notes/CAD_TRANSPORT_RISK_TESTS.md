@@ -609,3 +609,35 @@ was run. R3′ therefore uses `r3p_d1s_rerun.py`, which takes R3's D1S model fil
 of radionuclides as they are, changes only the seed, and applies the same time correction as `r3_d1s.py`.
 Everything else in the protocol stands.
 
+### R3′ results (2026-10-13; protocol 9f5b229 with amendment 7fb0d43; `references/cad-transport-r3p.json`): FAIL, narrowly, at 1 d
+
+The run did 1,530,000 histories in its 1,500 s (1,020 per second), against R3's 70,000 in 7,000 s.
+
+| Cooling | D1S (this run) | R2S (from R3) | D1S/R2S | In 0.85–1.15 | R3's ratio |
+| --- | --- | --- | --- | --- | --- |
+| 1 d | 1.562e17 (R 0.037) | 1.306e17 (R 0.0011) | 1.196 ± 0.044 | no | 0.637 ± 0.088 |
+| 7 d | 8.53e16 (R 0.055) | 7.53e16 (R 0.0012) | 1.132 ± 0.062 | yes | 0.258 ± 0.122 |
+| 30 d | 7.92e16 (R 0.056) | 6.96e16 (R 0.0012) | 1.138 ± 0.063 | yes | 0.248 ± 0.125 |
+
+- **Verdict: FAIL as the rule is written.** The 1 d ratio is outside the band and its D1S error is below 10 %.
+  It is 1.0σ above the band's upper edge, so the data do not separate 1.20 from 1.15.
+- **R3's ratios were wrong, not just imprecise.** They were 0.64, 0.26 and 0.25; they are 1.20, 1.13 and 1.14.
+  - R3's 1 d dose (8.32e16, quoted R 0.14) is 6σ of its own quoted error below this run's. Its error estimates
+    were far too small: 70,000 histories did not sample the photons that carry the dose.
+  - The check written before this run, that the 1 d value would agree with R3's, failed for that reason.
+- **What remains is a steady offset.** D1S is 13–20 % above R2S at all three cooling times.
+  - The two methods now agree on the leading nuclides at 1 d: Mn-54 and W-187 (D1S 52 % and 41 % of dose; R2S
+    42 % and 32 % of photon power, with W-181's low-energy photons at 20 %).
+  - At 30 d W-187 has decayed and Mn-54 dominates, and the offset is still 14 %. So it is not specific to
+    tungsten capture.
+  - **Hypothesis, not tested:** the offset sits on the R2S side. Mesh R2S activates with a 42-group flux averaged
+    over 10 cm voxels that mix steel, tungsten, FLiBe and void. Mn-54 comes from a threshold reaction on iron,
+    which is sensitive to both. D1S uses continuous energy in the real geometry.
+- **Voxel check: NOT_EVALUATED.** No useful voxel reached D1S R ≤ 10 %. `r3_compare.py` counted one voxel at 7 d
+  with a ratio of 1.8e-290: a voxel with a denormal D1S value passes the error test. That is a fault in the
+  comparison's voxel filter and does not touch the totals.
+- **Cost.** 25 min on 4 threads for 3.7 % at 1 d and 5.5 % at 7 d and 30 d, with no variance reduction.
+- **Not traced.** Why the `w003env` build runs this model about 90× slower.
+- **Next.** Test the hypothesis: R2S on the same mesh with a finer group structure and with 5 cm voxels, on the
+  faster build. R3's R2S took about 3 h on the slow build; its cost on the faster one is not yet measured.
+

@@ -190,6 +190,12 @@ that depends on it starts.
    - Test: score photon dose with flux-to-dose coefficients; check D1S against
      R2S on RM-M (VAL-043 band 0.85–1.15); check against the FNG shutdown-dose
      values once data access is settled.
+   - Status 2026-10-13: the first comparison (D1S/R2S 0.64 at 1 d, 0.25 at 30 d)
+     was an unconverged D1S run on a slow OpenMC build. On the faster build D1S
+     reaches 4–6 % in 25 min and the ratios are 1.20 ± 0.04, 1.13 ± 0.06 and
+     1.14 ± 0.06 at 1, 7 and 30 d ([R3′](notes/CAD_TRANSPORT_RISK_TESTS.md)): in
+     the band at 7 and 30 d, just outside at 1 d, and in line with the
+     published 4–15 %. The steady offset is not yet explained.
 4. **Real CAD quality.** Real machine STEP files often contain overlaps.
    - GEO-010 asks for a 50-file real STEP corpus, and an open corpus of that size
      is not known to exist.

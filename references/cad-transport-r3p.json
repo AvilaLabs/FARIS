@@ -1,0 +1,389 @@
+{
+ "conservation_pass_as_built": false,
+ "conservation_pass_unclipped": true,
+ "cooling_times": {
+  "1 d": {
+   "d1s": {
+    "mean_dose_rate_uSv_per_h": 478260553.0059805,
+    "relative_error": 0.036705450528556026,
+    "std_error": 5734557895586149.0,
+    "sum_pSv_cm_per_s": 1.562317806486203e+17,
+    "voxels_nonzero": 1056
+   },
+   "in_band": false,
+   "r2s": {
+    "mean_dose_rate_uSv_per_h": 399924274.5381697,
+    "relative_error": 0.0011305166993978968,
+    "std_error": 147692883147596.72,
+    "sum_pSv_cm_per_s": 1.3064192968246877e+17,
+    "voxels_nonzero": 1175
+   },
+   "r2s_conservation": {
+    "inventory_photons_per_s": 2.5809653615437176e+16,
+    "limit": 1e-06,
+    "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+    "pass": false,
+    "relative_difference": 5.063151331664492e-05,
+    "source_photons_per_s": 2.580834683361645e+16,
+    "unclipped_source_check": {
+     "inventory_photons_per_s": 2.5809653615437176e+16,
+     "limit": 1e-06,
+     "pass": true,
+     "relative_difference": 2.882642328663417e-14,
+     "source_photons_per_s": 2.580965361543792e+16
+    }
+   },
+   "ratio_d1s_over_r2s": 1.1958777785076264,
+   "ratio_std_error": 0.043916047677052095,
+   "top5_nuclides": {
+    "d1s_dose_by_parent_pSv_cm_per_s": [
+     {
+      "fraction": 0.5214302840953429,
+      "nuclide": "Mn54",
+      "value": 8.146398176833141e+16
+     },
+     {
+      "fraction": 0.4107608447670794,
+      "nuclide": "W187",
+      "value": 6.4173898198692344e+16
+     },
+     {
+      "fraction": 0.03364212614293022,
+      "nuclide": "Sc48",
+      "value": 5255969272115490.0
+     },
+     {
+      "fraction": 0.016476818678555428,
+      "nuclide": "W181",
+      "value": 2574202721575162.5
+     },
+     {
+      "fraction": 0.009599210664772501,
+      "nuclide": "Mn56",
+      "value": 1499701774978634.5
+     }
+    ],
+    "r2s_photon_power_MeV_per_s": [
+     {
+      "fraction": 0.4247949334397935,
+      "nuclide": "Mn54",
+      "value": 1609148299551253.8
+     },
+     {
+      "fraction": 0.32232933296800104,
+      "nuclide": "W187",
+      "value": 1221002552551538.2
+     },
+     {
+      "fraction": 0.19846229344968247,
+      "nuclide": "W181",
+      "value": 751786890308711.5
+     },
+     {
+      "fraction": 0.012270768239288124,
+      "nuclide": "Sc48",
+      "value": 46482394897105.234
+     },
+     {
+      "fraction": 0.009624079055459535,
+      "nuclide": "Ta182",
+      "value": 36456579934785.09
+     }
+    ]
+   },
+   "voxel_ratio": {
+    "limit_r": 0.1,
+    "median": null,
+    "p05": null,
+    "p95": null,
+    "voxels_d1s_r_le_10": 0,
+    "voxels_r2s_r_le_10": 810,
+    "voxels_total": 1176,
+    "voxels_used": 0
+   }
+  },
+  "30 d": {
+   "d1s": {
+    "mean_dose_rate_uSv_per_h": 242365036.16352206,
+    "relative_error": 0.05572638233884208,
+    "std_error": 4412001379133134.0,
+    "sum_pSv_cm_per_s": 7.917257848008387e+16,
+    "voxels_nonzero": 1045
+   },
+   "in_band": true,
+   "r2s": {
+    "mean_dose_rate_uSv_per_h": 213051231.67207354,
+    "relative_error": 0.0012450886128678863,
+    "std_error": 86654103087376.39,
+    "sum_pSv_cm_per_s": 6.959673567954402e+16,
+    "voxels_nonzero": 1176
+   },
+   "r2s_conservation": {
+    "inventory_photons_per_s": 1.9544061773745932e+16,
+    "limit": 1e-06,
+    "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+    "pass": false,
+    "relative_difference": 4.994539513824449e-05,
+    "source_photons_per_s": 1.9543085637858036e+16,
+    "unclipped_source_check": {
+     "inventory_photons_per_s": 1.9544061773745932e+16,
+     "limit": 1e-06,
+     "pass": true,
+     "relative_difference": 1.2075279065942434e-14,
+     "source_photons_per_s": 1.954406177374617e+16
+    }
+   },
+   "ratio_d1s_over_r2s": 1.1375904014324971,
+   "ratio_std_error": 0.06340961892752042,
+   "voxel_ratio": {
+    "limit_r": 0.1,
+    "median": null,
+    "p05": null,
+    "p95": null,
+    "voxels_d1s_r_le_10": 0,
+    "voxels_r2s_r_le_10": 660,
+    "voxels_total": 1176,
+    "voxels_used": 0
+   }
+  },
+  "7 d": {
+   "d1s": {
+    "mean_dose_rate_uSv_per_h": 261045935.9342608,
+    "relative_error": 0.05452890431342509,
+    "std_error": 4649952628242815.0,
+    "sum_pSv_cm_per_s": 8.527500573852518e+16,
+    "voxels_nonzero": 1047
+   },
+   "in_band": true,
+   "r2s": {
+    "mean_dose_rate_uSv_per_h": 230531445.75436565,
+    "relative_error": 0.0012442748679917784,
+    "std_error": 93702531516429.27,
+    "sum_pSv_cm_per_s": 7.530693894642611e+16,
+    "voxels_nonzero": 1175
+   },
+   "r2s_conservation": {
+    "inventory_photons_per_s": 2.188006217573385e+16,
+    "limit": 1e-06,
+    "note": "source = the manager's own MeshSource strengths (Material.get_decay_photon_energy, default clip_tolerance 1e-6); unclipped_source_check uses clip_tolerance 0",
+    "pass": false,
+    "relative_difference": 5.489682923534535e-05,
+    "source_photons_per_s": 2.187886102969693e+16,
+    "unclipped_source_check": {
+     "inventory_photons_per_s": 2.188006217573385e+16,
+     "limit": 1e-06,
+     "pass": true,
+     "relative_difference": 4.2047412507827736e-15,
+     "source_photons_per_s": 2.188006217573394e+16
+    }
+   },
+   "ratio_d1s_over_r2s": 1.1323658474445553,
+   "ratio_std_error": 0.06176274228311383,
+   "voxel_ratio": {
+    "limit_r": 0.1,
+    "median": 1.7682373902185557e-290,
+    "p05": 1.7682373902185557e-290,
+    "p95": 1.7682373902185557e-290,
+    "voxels_d1s_r_le_10": 2,
+    "voxels_r2s_r_le_10": 687,
+    "voxels_total": 1176,
+    "voxels_used": 1
+   }
+  }
+ },
+ "mesh": {
+  "dimension": [
+   24,
+   7,
+   7
+  ],
+  "lower_left_cm": [
+   346.0,
+   -35.0,
+   -35.0
+  ],
+  "upper_right_cm": [
+   586.0,
+   35.0,
+   35.0
+  ]
+ },
+ "openmc": "0.15.3",
+ "protocol": "docs/notes/CAD_TRANSPORT_RISK_TESTS.md#r3",
+ "ratio_band": [
+  0.85,
+  1.15
+ ],
+ "runs": {
+  "d1s": {
+   "batches": 306,
+   "histories": 1530000,
+   "n_radionuclides": 52,
+   "particles_per_batch": 5000,
+   "peak_rss_mb": null,
+   "run": {
+    "executable": "/home/connoravila/micromamba/envs/openmc0153dd/bin/openmc",
+    "peak_rss_mb": 856.50390625,
+    "ran_to_budget": true,
+    "returncode": -15,
+    "t_start": 1791898705.42519,
+    "wall_seconds": 1500.0648078918457
+   },
+   "seconds_to_statepoint": 1499.975445508957,
+   "seed": 20261302,
+   "settings": {
+    "born_filter": "MeshBornFilter over the scored box (1 bin)",
+    "photon_transport": true,
+    "source_rates": [
+     1.8618137864158527e+20,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "timesteps": [
+     [
+      1.0,
+      "a"
+     ],
+     [
+      1.0,
+      "d"
+     ],
+     [
+      6.0,
+      "d"
+     ],
+     [
+      23.0,
+      "d"
+     ]
+    ],
+    "use_decay_photons": true
+   },
+   "warnings": null,
+   "workarounds": null
+  },
+  "r2s": {
+   "photon": {
+    "1 d": {
+     "batches": 180,
+     "histories": 3600000,
+     "run": {
+      "executable": "/home/connoravila/.venvs/w003env/bin/openmc",
+      "peak_rss_mb": 1453.1875,
+      "ran_to_budget": true,
+      "returncode": -15,
+      "t_start": 1791584091.3209388,
+      "wall_seconds": 3000.064665555954
+     },
+     "seconds": 3021.619038105011,
+     "seconds_to_statepoint": 2989.8899369239807,
+     "source_strength_photons_per_s": 2.580834683361645e+16,
+     "sum_pSv_cm_per_s": 1.3064192968246877e+17,
+     "time_index": 2,
+     "unit": "pSv.cm/s per voxel (track length x dose coefficient x photons/s)"
+    },
+    "30 d": {
+     "batches": 205,
+     "histories": 4100000,
+     "run": {
+      "executable": "/home/connoravila/.venvs/w003env/bin/openmc",
+      "peak_rss_mb": 1453.1875,
+      "ran_to_budget": true,
+      "returncode": -15,
+      "t_start": 1791590134.27993,
+      "wall_seconds": 3000.069155931473
+     },
+     "seconds": 3021.487076282501,
+     "seconds_to_statepoint": 2953.047433614731,
+     "source_strength_photons_per_s": 1.9543085637858036e+16,
+     "sum_pSv_cm_per_s": 6.959673567954402e+16,
+     "time_index": 4,
+     "unit": "pSv.cm/s per voxel (track length x dose coefficient x photons/s)"
+    },
+    "7 d": {
+     "batches": 215,
+     "histories": 4300000,
+     "run": {
+      "executable": "/home/connoravila/.venvs/w003env/bin/openmc",
+      "peak_rss_mb": 1453.1875,
+      "ran_to_budget": true,
+      "returncode": -15,
+      "t_start": 1791587112.7952986,
+      "wall_seconds": 3000.068053007126
+     },
+     "seconds": 3021.479787349701,
+     "seconds_to_statepoint": 2993.1322009563446,
+     "source_strength_photons_per_s": 2.187886102969693e+16,
+     "sum_pSv_cm_per_s": 7.530693894642611e+16,
+     "time_index": 3,
+     "unit": "pSv.cm/s per voxel (track length x dose coefficient x photons/s)"
+    }
+   },
+   "settings": {
+    "activation_groups": "VITAMIN-J-42",
+    "mat_vol_samples": 50000,
+    "neutron_batches": 40,
+    "neutron_particles_per_batch": 20000,
+    "photon_budget_s": 3000.0,
+    "photon_max_batches": 5000,
+    "photon_particles_per_batch": 20000,
+    "seeds": [
+     20261201,
+     20261202
+    ],
+    "source_rate_n_s": 1.8618137864158527e+20,
+    "timesteps": [
+     [
+      1.0,
+      "a"
+     ],
+     [
+      1.0,
+      "d"
+     ],
+     [
+      6.0,
+      "d"
+     ],
+     [
+      23.0,
+      "d"
+     ]
+    ]
+   },
+   "steps": {
+    "activation": {
+     "error": null,
+     "ok": true,
+     "peak_rss_mb": 1453.1875,
+     "seconds": 186.94743180274963
+    },
+    "neutron_transport": {
+     "error": null,
+     "ok": true,
+     "peak_rss_mb": 1453.1875,
+     "seconds": 1594.1059792041779
+    },
+    "photon_transport": {
+     "error": null,
+     "ok": true,
+     "peak_rss_mb": 1453.1875,
+     "seconds": 9064.587705373764
+    }
+   },
+   "workarounds": [
+    "output_dir passed as pathlib.Path",
+    "micro_kwargs nuclides = model nuclides",
+    "photon source_rejection_fraction = 1e-4",
+    "openmc.config['cross_sections'] set to the audited library (manager sub-models do not inherit it)"
+   ]
+  }
+ },
+ "schema": "faris-r3/v1",
+ "unit": "pSv.cm/s summed over voxels (track length x ICRP-116 AP coefficient x source rate)",
+ "verdict": {
+  "conservation": "FAIL",
+  "ratio_band": "FAIL"
+ }
+}
