@@ -198,6 +198,10 @@ CONFIG_ENV = {
 CONFIG_ENV["F7"] = dict(CONFIG_ENV["F6"])
 # F8 = F6's variables on windows capped by reciprocity runs from the response outward (fact 13).
 CONFIG_ENV["F8"] = dict(CONFIG_ENV["F6"])
+# F9 = F8 with every target found by s0f_find_targets.py instead of placed by hand (fact 14): the two rectangles
+# below are its output on RM-M, and its windows are capped from the faces it found.
+AUTO_APERTURE = "0.1 590 0 0 0 20 0 0 0 20; 435 5 0 0 25 0 0 0 20"
+CONFIG_ENV["F9"] = dict(CONFIG_ENV["F6"], OPENMC_APERTURE_BIAS=AUTO_APERTURE)
 PATCH_VARIABLES = ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION",
                    "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR", "OPENMC_APERTURE_ONE_SIDED")
 

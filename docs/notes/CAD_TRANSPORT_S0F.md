@@ -628,6 +628,48 @@ All 8 runs completed (job time about 1,060 s of 4,500). None was contended (end 
     measurement.
 - **Cost not in T.** F8's windows need 4.4 min of reciprocity runs on top of the adjoint that F0 also needs.
 
+### 14. FARIS finds the targets itself (F9; diagnostic, used seeds)
+
+F8's four targets were placed by hand from the drawing. `s0f_find_targets.py` now finds them from the model alone.
+
+- **Method.**
+  - One analog run of the model's own source, 10 M histories, tallying uncollided flux above 10 MeV on a 10 cm
+    mesh, for all materials and for the response material. About 1.7 min.
+  - Response faces: the lit voxels of the response material, clustered; the thin axis and the lit side give each
+    face's plane and normal.
+  - For each face, a reciprocity run from the face (2 M histories). The channel is where forward flux times reverse
+    reach probability is within 2 % of its slice maximum.
+  - Walking from the face toward the source, slices below 1 % of the largest slice sum are dropped as noise. The
+    duct is the longest run whose channel area stays within 1.4× the smallest. Its ends are the exit and the inlet.
+  - Faces that share a duct give the same exit and inlet twice; these are merged.
+- **What it found on RM-M, against the hand-placed targets.**
+
+| Target | Found | Hand-placed |
+| --- | --- | --- |
+| Coil face, −y | centre (615, −20, −5), 35 × 25 half-edges | (613, −20, 0), 32 × 30 |
+| Coil face, +y | centre (625, 20, 0), 25 × 30 | (613, 20, 0), 32 × 30 |
+| Duct exit | x = 590, centre (0, 0), ±20 × ±20 | x = 577.5, ±22 × ±22 |
+| Duct inlet | x = 435, centre (5, 0), ±25 × ±20 | x = 445.5, ±15 × ±15 |
+
+- **Result on two used seeds (protocol 3's seeds 1 and 2; not a protocol).**
+
+| Run | Mean of (a) | Variance per history | VOV | T (s) | FOM |
+| --- | --- | --- | --- | --- | --- |
+| F9 seed 1 | 1.097e-3 | 1,663 | 0.06 | 153 | 11.8 |
+| F9 seed 2 | 1.075e-3 | 1,455 | 0.04 | 158 | 13.0 |
+| F8 seed 1, rerun in the same hour | 1.100e-3 | 1,668 | 0.06 | 168 | 10.7 |
+
+  - F8 had 1,668 and 1,510 on these seeds in fact 13. So the automatic targets give the same variance per history
+    as the hand-placed ones, and no visible bias.
+  - Gains against D2 are not quoted: they depend on the machine's speed on the day (protocol 4 results).
+- **Cost.** About 2 min to find the targets and 2.8 min for the capped windows, on top of the adjoint.
+- **Limits.**
+  - Rectangles are axis-aligned on a 10 cm mesh. A duct at an angle would get a loose bounding rectangle.
+  - Only 17 response voxels were lit at 10 M histories. A dimmer face would need more histories.
+  - One duct, one geometry. Whether it carries to a second geometry is the next test.
+- **Records.** `~/.cache/avila-night/s0f-diag/auto/`: `targets.json`, `model-f9.xml` (sha256 62464ca5), runs
+  `F9-77300001`, `F9-77300002`, `F8-77300001`.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

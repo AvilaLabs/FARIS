@@ -155,5 +155,69 @@ class LosWindows(unittest.TestCase):
         self.assertTrue(np.allclose(cen[W.flat_index(2, 1, 3, 0, dims)], [2.5, 1.5, 3.5]))
 
 
+
+class FindTargetsTest(unittest.TestCase):
+    """s0f_find_targets.py on synthetic maps (fact 14)."""
+
+    def setUp(self):
+        import numpy as np
+        import s0f_find_targets as T
+        self.np, self.T = np, T
+        self.ll, self.width = np.zeros(3), np.full(3, 10.0)
+        prod = np.zeros((40, 10, 10))
+        prod[20:36, 4:6, 4:6] = 1.0          # the duct: 2 x 2 voxels over x 200-360
+        prod[5:20, 2:8, 2:8] = 1.0           # the chamber: 6 x 6
+        prod[0:5, 0, 0] = 1.0e-6             # noise beyond the source
+        self.prod = prod
+        self.face = (np.array([385.0, 50.0, 50.0]), np.array([0.0, 10.0, 0.0]), np.array([0.0, 0.0, 10.0]),
+                     np.array([1.0, 0.0, 0.0]), 1.0)
+
+    def test_duct_ends_are_found(self):
+        np = self.np
+        got = self.T.channel_rectangles(self.prod, np.ones_like(self.prod), self.ll, self.width, self.face)
+        self.assertEqual([g[0] for g in got], ["exit", "inlet"])
+        (_, c_exit, u, v, n), (_, c_inlet, _, _, _) = got
+        self.assertAlmostEqual(float(c_exit[0]), 355.0)
+        self.assertAlmostEqual(float(c_inlet[0]), 205.0)
+        self.assertEqual((float(c_exit[1]), float(c_exit[2])), (50.0, 50.0))
+        self.assertEqual(float(np.abs(u).sum()), 10.0)
+        self.assertEqual(float(np.abs(v).sum()), 10.0)
+        self.assertEqual(list(map(float, np.cross(u, v) / 100.0)), list(map(float, n)))
+
+    def test_noise_far_from_the_face_is_not_a_duct(self):
+        np = self.np
+        prod = self.prod.copy()
+        prod[0:5] = 0.0
+        prod[0:5, 0, 0] = 1.0e-6             # a one-voxel streak: the smallest area, but no signal
+        got = self.T.channel_rectangles(prod, np.ones_like(prod), self.ll, self.width, self.face)
+        self.assertAlmostEqual(float(got[1][1][0]), 205.0)
+
+    def test_shared_duct_is_merged_and_ordered(self):
+        np, T = self.np, self.T
+        z, n = np.zeros(3), np.array([1.0, 0.0, 0.0])
+        rect = lambda name, x, y, hy: (name, np.array([x, y, 0.0]), np.array([0.0, hy, 0.0]),
+                                       np.array([0.0, 0.0, 20.0]), n)
+        face = lambda name: (name, z, z, z, np.array([0.0, 1.0, 0.0]))
+        got = T.order_outward(T.merge_rectangles(
+            [face("face_0"), rect("exit_0", 595.0, 0.0, 20.0), rect("inlet_0", 435.0, 10.0, 20.0),
+             face("face_1"), rect("exit_1", 585.0, 0.0, 20.0), rect("inlet_1", 435.0, -5.0, 15.0)], tol=15.0))
+        self.assertEqual([g[0] for g in got], ["face_0", "face_1", "exit_0", "inlet_0"])
+        self.assertEqual(T.aperture_spec(got), "0.1 590 0 0 0 20 0 0 0 20; 435 5 0 0 25 0 0 0 20")
+        self.assertEqual(T.aperture_spec(got), F.AUTO_APERTURE)
+        self.assertTrue(F.env_matches("F9", F.CONFIG_ENV["F9"]))
+        self.assertFalse(F.env_matches("F9", F.CONFIG_ENV["F8"]))
+
+    def test_response_faces_split_by_side(self):
+        np, T = self.np, self.T
+        allf = np.zeros((20, 20, 10))
+        resp = np.zeros_like(allf)
+        allf[5:15, 8:12, 2:8] = 1.0          # a lit void channel between two slabs of response material
+        resp[5:15, 7, 2:8] = 1.0
+        resp[5:15, 12, 2:8] = 1.0
+        allf += resp
+        faces = T.response_faces(resp, allf, self.ll, self.width)
+        self.assertEqual(len(faces), 2)
+        self.assertEqual(sorted(float(f[3][1]) for f in faces), [-1.0, 1.0])
+
 if __name__ == "__main__":
     unittest.main()

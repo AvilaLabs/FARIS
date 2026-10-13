@@ -193,7 +193,13 @@ def main() -> int:
     ap.add_argument("out", type=Path)
     ap.add_argument("--work", type=Path, required=True)
     ap.add_argument("--particles", type=int, default=2_000_000)
+    ap.add_argument("--targets", type=Path, help="targets.json from s0f_find_targets.py, in place of the hand-placed ones")
     args = ap.parse_args()
+    targets = TARGETS
+    if args.targets:
+        import json
+        targets = [(r["name"], tuple(r["centre"]), tuple(r["u"]), tuple(r["v"]), tuple(r["normal"]))
+                   for r in json.loads(args.targets.read_text())]
     x = args.base.read_text()
     j = x.index('<mesh id="9000"')
     mesh_xml = x[j:x.index("</mesh>", j) + len("</mesh>")]
@@ -212,7 +218,7 @@ def main() -> int:
     groups = bounds[g0:]
     volume = float(np.prod(width))
     new = lower.copy()
-    for target in TARGETS:
+    for target in targets:
         name, c, u, v, n = target
         mean, rel = visibility_run(args.base, args.work / name, target, groups, mesh_xml, args.particles)
         prob = reach_probability(mean, target_area(u, v), 1.0 / (len(groups) - 1), volume)
