@@ -162,6 +162,15 @@ that depends on it starts.
      uncertainties several times too small. Finer windows go deeper and stall. Next:
      replicate seeds with variance-of-variance checks, window depth control, and
      cells along the port, before any further gain claim.
+   - S0f (2026-10-12): the spikes are straight flights through the duct. Aiming
+     source and collisions at targets FARIS finds from the model, with windows
+     capped along the line of sight, gives 376× on new seeds (95 % lower bound 241,
+     unbiased; [CAD_TRANSPORT_S0F.md](notes/CAD_TRANSPORT_S0F.md), protocol 5). It
+     needs a patched OpenMC and is research scripts, not yet the product.
+   - Decision 2026-10-13: the requirement is split. NUC-055 holds the streaming
+     target (100×, met in research). NUC-050 becomes the deep-penetration target
+     its source measured: 275× on the inboard leg, not yet measured. The patched
+     OpenMC is an optional accelerator; stock OpenMC stays supported.
 2. **Laptop run time.** CAD is about 8× slower. PERF-025 asks for a preview
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.

@@ -16,6 +16,12 @@ method. Each item says how it was checked: **read** (the source text was opened 
   model, with FW-CADIS or any other method.
 - **Open for Connor.** NUC-050's 100× borrows its basis from a different kind of problem. The literature gives no
   streaming figure to replace it. The requirement is unchanged until he decides.
+- **Decided by Connor, 2026-10-13.** The requirement is split by kind of problem.
+  - NUC-050 is the deep-penetration requirement: at least 275× on heating in RM-M's inboard toroidal-field leg, the
+    response its source measured. This tightens the target from 100×; it is not yet measured.
+  - NUC-055 carries the streaming target: at least 100× for the magnet response behind RM-M's open port, with
+    targets FARIS finds itself. Its basis is stated as a FARIS choice.
+  - The patched OpenMC is an optional accelerator. FARIS keeps working on stock OpenMC.
 
 ## 2. The failure seen in S0f is documented
 
