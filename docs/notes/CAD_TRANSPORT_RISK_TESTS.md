@@ -641,3 +641,36 @@ The run did 1,530,000 histories in its 1,500 s (1,020 per second), against R3's 
 - **Next.** Test the hypothesis: R2S on the same mesh with a finer group structure and with 5 cm voxels, on the
   faster build. R3's R2S took about 3 h on the slow build; its cost on the faster one is not yet measured.
 
+## R3″: where the D1S/R2S offset comes from (diagnostic; protocol frozen 2026-10-13, before the two runs below)
+
+**Already checked, from stored files and one timing smoke (no rule; recorded here before the runs):**
+
+- **Decay bookkeeping: ruled out.** (Agent check, scripts in the session scratchpad, `agent-decay/`.) D1S's time
+  correction factors equal the analytic single-step result to six digits for Mn-54, W-187, W-181 and six others.
+  R2S's depletion inventory matches the same formula from its own reaction rates to 0.1 % (Mn-54) and 1.1 %
+  (W-187, from target burn-up). The nuclide lists differ by 0.04 % of emission. Together at most about 1 % of the
+  offset.
+- **R2S neutron statistics: not the cause.** R3's reaction-rate tallies have 1–3 % error in total and 14–30 % per
+  region. The smoke run of `r3p_r2s_rerun.py` used a tenth of R3's neutron histories (80,000, new seed) and gave
+  1.309e17 at 1 d against R3's 1.306e17. The total does not move with neutron noise.
+- **Open lead, opposite in sign.** W-181 carries 26–36 % of R2S's dose-weighted emission but 1.6–2.8 % of D1S's
+  dose. Its photons are below 100 keV and should be absorbed in the tungsten, so this may be nothing; it cannot
+  make D1S high.
+- **Running separately:** a check of R2S's material volumes per voxel (50,000 sample points).
+
+**Runs.** `r3p_r2s_rerun.py` on the `openmc0153dd` build, from R3's stored neutron model, 800,000 neutron
+histories as R3, seeds 20261221 and 20261231, photon budget 120 s per cooling time, 2 threads each, side by side,
+6 GB cap each. Outputs in `~/.cache/avila-night/cad-risk-tests/r3p/`.
+
+- **Groups:** activation in VITAMIN-J-175 instead of VITAMIN-J-42; 10 cm voxels.
+- **Voxels:** 5 cm voxels over the same box (48 × 14 × 14); VITAMIN-J-42.
+
+**Reading rule, on the change in R2S's total dose at 30 d against R3's 6.96e16** (30 d is Mn-54 alone, offset 14 %):
+
+- a rise of 7 % or more: that choice explains at least half the offset;
+- a rise of 3–7 %: a partial cause;
+- within ±3 %: not a cause;
+- a fall of more than 3 %: the offset is larger than measured, and the hypothesis is wrong in sign.
+
+The 1 d and 7 d changes are reported beside it. A run that fails or exceeds its memory cap is NOT_EVALUATED.
+
