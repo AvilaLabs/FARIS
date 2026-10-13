@@ -68,7 +68,7 @@ file is what it takes to get there.
 | Surface | Target | ID |
 | --- | --- | --- |
 | Geometry | Every defect in a seeded corpus of ≥ 20 models and ≥ 11 defect classes is detected before transport, with ≤ 1 % false alarms. Cell volumes match the source within 0.1 % (analytic) and 0.5 % (faceted). | [GEO-023](01-geometry-and-model.md), [GEO-030](01-geometry-and-model.md) |
-| Transport | Runs stop on a target error (1 % on TBR), not a fixed history count. Deep shielding gets automatic weight windows worth ≥ 275× in figure of merit, and streaming through ports ≥ 100×. Heating is always the neutron + photon + electron + positron sum. | [NUC-043](02-radiation-transport.md), [NUC-050](02-radiation-transport.md), [NUC-013](02-radiation-transport.md) |
+| Transport | Runs stop on a target error (1 % on TBR), not a fixed history count. Deep shielding and streaming through ports each get automatic weight windows worth ≥ 100× in figure of merit. Heating is always the neutron + photon + electron + positron sum. | [NUC-043](02-radiation-transport.md), [NUC-050](02-radiation-transport.md), [NUC-013](02-radiation-transport.md) |
 | Activation and materials | Activation results change < 1 % when time steps are halved. A component passes a damage limit only when the 2σ upper bound, data uncertainty included, is below it. No waste class is given without complete nuclide and impurity data. | [ACT-012](03-activation-and-materials.md), [MAT-014](03-activation-and-materials.md), [ACT-039](03-activation-and-materials.md) |
 | Plant systems | Required TBR is a surface over burn fraction × fuelling efficiency, availability, processing time and reserve, never one number. Published fuel-cycle (Abdou 2021, within 5 %) and cost (ARIES-ACT, within 10 %) cases are reproduced in CI. Net power comes from ≥ 10 itemised loads. | [FUEL-010](04-plant-systems.md), [FUEL-030](04-plant-systems.md), [ECO-013](04-plant-systems.md), [PWR-001](04-plant-systems.md) |
 | Operation and life | Availability from event-driven Monte Carlo with ≥ 10⁴ trials and a 95 % interval half-width ≤ 0.5 points. | [OPS-040](05-operation-and-life.md) |
@@ -113,7 +113,7 @@ Its main gaps against these targets:
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 0 | 26 | 1 | 46 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 105 | 1 | 43 | 2 | 59 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 106 | 1 | 43 | 3 | 59 |
 | [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 1 | 9 | 0 | 87 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 4 | 16 | 0 | 79 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 2 | 8 | 0 | 35 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 21 | 1 | 52 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 16 | 1 | 28 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 5 | 17 | 2 | 12 |
-| **Total** | | **1417** | **46** | **418** | **38** | **915** |
+| **Total** | | **1418** | **46** | **418** | **39** | **915** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 46 of 1417 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 46 of 1418 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

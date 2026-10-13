@@ -171,6 +171,12 @@ that depends on it starts.
      target (100×, met in research). NUC-050 becomes the deep-penetration target
      its source measured: 275× on the inboard leg, not yet measured. The patched
      OpenMC is an optional accelerator; stock OpenMC stays supported.
+   - Correction 2026-10-13 (approved by Connor): the 275× put a target in the
+     release gate that its own source needed 121 days of computing to check, and
+     that it reached only after closing a streaming gap in the CAD model. This
+     release's question rests on fast-neutron fluence, so NUC-050 is 100× on
+     fast flux in the inboard leg, NUC-055 joins the gate, and the heating
+     figure becomes NUC-078 at a later phase.
 2. **Laptop run time.** CAD is about 8× slower. PERF-025 asks for a preview
    within 60 s on the laptop for RM-M.
    - Test: preview-tier error achievable in 60 s on RM-M with windows.
@@ -233,7 +239,7 @@ These IDs must be Met:
 - **Geometry:** GEO-012, GEO-020, GEO-021, GEO-022, GEO-023, GEO-025, GEO-030,
   GEO-032.
 - **Source:** SRC-001, SRC-002, SRC-010, SRC-011, SRC-018.
-- **Transport and magnet:** NUC-013, NUC-043, NUC-050, NUC-051, NUC-053, NUC-056,
+- **Transport and magnet:** NUC-013, NUC-043, NUC-050, NUC-051, NUC-053, NUC-055, NUC-056,
   MAG-003, MAG-004.
 - **Life model:** MAT-018, OPS-001, OPS-031, OPS-032, OPS-033.
 - **Validation:** VAL-023 (or its access outcome recorded), VAL-027, VAL-043,

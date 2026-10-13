@@ -487,3 +487,30 @@ cannot rank them by magnet fluence.
 
 Summary and evidence hashes:
 [`references/cad-transport-risk-tests.json`](../../references/cad-transport-risk-tests.json).
+
+## R2′: laptop preview with aimed windows (protocol frozen 2026-10-13, before any R2′ run)
+
+**Why.** R2 failed on response (a): 56 % at 60 s against 20 %. S0f changed how (a) is computed
+([CAD_TRANSPORT_S0F.md](CAD_TRANSPORT_S0F.md), protocol 5). R2 is repeated with that method.
+
+**Runs.** Script `s0g_preview.py`; outputs in `~/.cache/avila-night/cad-risk-tests/r2p/`.
+
+- **Aimed:** `base-model-f9.xml` (sha256 62464ca5…) on the patched OpenMC 0.15.3 (`libopenmc.so` 2d25e1cd…) with
+  protocol 5's F9 variables. Two runs, seeds 77600001 and 77600002.
+- **Stock fall-back, reported and not judged:** `base-model.xml` (c0c107f1…) on stock OpenMC 0.15.3 with no patch
+  variables, seed 77600001. This is what a user without the patch gets.
+- As R2: the `openmc` process is stopped by process group 60 s after it starts, so reading the model, cross
+  sections and windows counts. The last complete statepoint inside the 60 s gives both responses.
+- Departures from R2, fixed here:
+  - 4 threads on cores 0 to 3 under a 6 GB cap, not 8 threads alone. The machine is shared; this can only make
+    the result worse.
+  - Batches of 20,000 histories with a statepoint each, not 1,000. R2's batch size made the statepoints the
+    main cost.
+  - Each run starts when the 1-minute load is below 3.0 (wait up to 10 min).
+
+**Rule (R2's, unchanged).** PASS if both aimed runs have TBR relative error ≤ 2 % and response (a) ≤ 20 % (1σ) at
+60 s. Otherwise FAIL, and the errors go to change control for PERF-025.
+
+**Not covered.** The one-time costs R2 excluded stay excluded and are unchanged, plus about 5 min to find targets
+and cap windows. A 60 s single run cannot show an unresolved tail; protocol 5 covers that for 3 M histories.
+

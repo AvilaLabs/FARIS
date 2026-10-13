@@ -6,12 +6,12 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 125 of 1417 requirements.
+Traced: 125 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 105 | 9 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 9 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 1 |

@@ -22,6 +22,9 @@ method. Each item says how it was checked: **read** (the source text was opened 
   - NUC-055 carries the streaming target: at least 100× for the magnet response behind RM-M's open port, with
     targets FARIS finds itself. Its basis is stated as a FARIS choice.
   - The patched OpenMC is an optional accelerator. FARIS keeps working on stock OpenMC.
+- **Corrected the same day, approved by Connor.** NUC-050 is 100× on fast-neutron flux in the inboard leg, which
+  is what magnet lifetime rests on. The 275× on heating moves to a new requirement, NUC-078, at a later phase.
+  Reasons: the addendum below (121 days of analog computing; 275× only after a gap was closed) and the pilot.
 
 ## 2. The failure seen in S0f is documented
 
