@@ -187,20 +187,10 @@ def visibility_run(base: Path, work: Path, target, groups: np.ndarray, mesh_xml:
     return mean, np.where(mean > 0, sd / np.where(mean > 0, mean, 1.0), np.inf)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("base", type=Path)
-    ap.add_argument("out", type=Path)
-    ap.add_argument("--work", type=Path, required=True)
-    ap.add_argument("--particles", type=int, default=2_000_000)
-    ap.add_argument("--targets", type=Path, help="targets.json from s0f_find_targets.py, in place of the hand-placed ones")
-    args = ap.parse_args()
-    targets = TARGETS
-    if args.targets:
-        import json
-        targets = [(r["name"], tuple(r["centre"]), tuple(r["u"]), tuple(r["v"]), tuple(r["normal"]))
-                   for r in json.loads(args.targets.read_text())]
-    x = args.base.read_text()
+def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 2_000_000) -> dict:
+    """Write `out`: `base` with its windows capped from each target in turn. Returns counts for the record."""
+    targets = TARGETS if targets is None else targets
+    x = base.read_text()
     j = x.index('<mesh id="9000"')
     mesh_xml = x[j:x.index("</mesh>", j) + len("</mesh>")]
     get = lambda tag, s: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S).group(1).split()]
@@ -220,7 +210,7 @@ def main() -> int:
     new = lower.copy()
     for target in targets:
         name, c, u, v, n = target
-        mean, rel = visibility_run(args.base, args.work / name, target, groups, mesh_xml, args.particles)
+        mean, rel = visibility_run(base, work / name, target, groups, mesh_xml, particles)
         prob = reach_probability(mean, target_area(u, v), 1.0 / (len(groups) - 1), volume)
         w_t = aperture_bound(new.ravel(), (np.asarray(c), np.asarray(u), np.asarray(v)), lower_left, width, dims,
                              n_e, normal=np.asarray(n))[g0:]
@@ -239,7 +229,24 @@ def main() -> int:
                  flags=re.S)
     ww2 = re.sub(r"<upper_ww_bounds>.*?</upper_ww_bounds>", f"<upper_ww_bounds>{fmt(new_up)}</upper_ww_bounds>", ww2,
                  flags=re.S)
-    args.out.write_text(x[:i] + ww2 + x[k:])
+    out.write_text(x[:i] + ww2 + x[k:])
+    return {"lowered": int(m.sum()), "positive": int((lower > 0).sum())}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("base", type=Path)
+    ap.add_argument("out", type=Path)
+    ap.add_argument("--work", type=Path, required=True)
+    ap.add_argument("--particles", type=int, default=2_000_000)
+    ap.add_argument("--targets", type=Path, help="targets.json from s0f_find_targets.py, in place of the hand-placed ones")
+    args = ap.parse_args()
+    targets = None
+    if args.targets:
+        import json
+        targets = [(r["name"], tuple(r["centre"]), tuple(r["u"]), tuple(r["v"]), tuple(r["normal"]))
+                   for r in json.loads(args.targets.read_text())]
+    cap_model(args.base, args.out, args.work, targets, args.particles)
     print(args.out)
     return 0
 

@@ -780,6 +780,20 @@ All 12 runs completed (job time 1,577 s of 5,400). None was contended.
 - **One F9 run (seed 4) has VOV 0.25.** A single 3 M-history run can still carry an unresolved tail; the pooled
   result does not.
 
+### 16. One entry point with a fall-back (2026-10-13)
+
+`integrations/openmc/streaming_aim.py` plans a run from a model file and the OpenMC library it will use.
+
+- **Aimed** if the library holds the patch's variables, a response face is in line of sight of the source and a
+  narrow channel leads to it. It finds the targets, caps the windows and returns the variables of protocol 5's F9.
+- **Windows-only** otherwise, with the reason and the next step in words: a stock OpenMC, no line of sight (a
+  bent duct or a solid shield), or a lit response with no channel.
+- Run end to end on RM-M: with the patched library it found the same four targets as fact 14 and lowered the
+  same 27,706 bounds, in 4.9 min. With the stock library it returned windows-only at once.
+  - The aimed model it wrote (sha256 794e63a9) is not byte-identical to protocol 5's (62464ca5). The difference
+    was not traced, and this model has not been run.
+- Nothing in the app calls it yet.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
