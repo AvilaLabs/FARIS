@@ -43,6 +43,7 @@ mod reader;
 #[cfg(test)]
 mod testutil;
 mod topology;
+mod transport;
 
 pub use geometry::{
     BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
@@ -53,12 +54,18 @@ pub use geometry::{
     WaiverUse,
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
+pub use transport::{
+    DesignTransportOptions, DesignTransportReport, NotEvaluated, SolidFlux, design_transport,
+    flux_n_m2_s, render_transport_text,
+};
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
 const CAD_FACETS_HELPER: &str = include_str!("../../../integrations/cad/faris_facets.py");
 const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris_deviation.py");
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
+const DESIGN_TRANSPORT_WORKER: &str =
+    include_str!("../../../integrations/openmc/design_transport.py");
 const MATERIAL_AUDIT: &str = include_str!("../../../integrations/openmc/material_audit.py");
 const AUDIT_LIBRARY: &str = include_str!("../../../integrations/openmc/audit_library.py");
 const MAX_JSON_BYTES: u64 = 64 * 1024 * 1024;

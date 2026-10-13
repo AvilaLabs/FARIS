@@ -1,9 +1,10 @@
-//! `faris design init` and `faris design check`: the design file for a STEP model.
+//! `faris design init`, `check` and `transport`: the design file for a STEP model.
 
 use clap::{Args, Subcommand};
 use faris_engine::design::{
-    CadReader, GeometryOptions, ImportReport, ToolPaths, check_design_with_tools,
-    design_init_with_tools, render_text,
+    CadReader, DesignTransportOptions, GeometryOptions, ImportReport, ToolPaths,
+    check_design_with_tools, design_init_with_tools, design_transport, render_text,
+    render_transport_text,
 };
 use faris_model::design::LengthUnit;
 use std::{
@@ -108,6 +109,40 @@ pub enum DesignCommand {
         #[command(flatten)]
         tools: ToolArguments,
     },
+    /// Compute the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
+    /// `design check`, running until the mean over the coils reaches the target error.
+    /// Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error.
+    Transport {
+        design: PathBuf,
+        /// The report `design check --report` wrote for this design; its work directory must
+        /// still hold the conversion.
+        #[arg(long, value_name = "JSON")]
+        check_report: PathBuf,
+        /// A new directory for the run. Never overwrites.
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        /// Also write the result as JSON to this new file.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Relative standard error of the mean flux at which the run stops.
+        #[arg(long, default_value_t = 0.05)]
+        target_error: f64,
+        /// Stop after this many histories even when the target is not reached.
+        #[arg(long, default_value_t = 50_000_000)]
+        max_histories: u64,
+        /// Stop after this many seconds of sampling even when the target is not reached.
+        #[arg(long, default_value_t = 3600)]
+        max_seconds: u64,
+        /// Histories per batch; the error is checked after every batch.
+        #[arg(long, default_value_t = 20_000)]
+        particles: u64,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(u32).range(1..=32))]
+        threads: u32,
+        #[command(flatten)]
+        tools: ToolArguments,
+    },
 }
 
 /// A failed check: the report was already printed.
@@ -201,6 +236,49 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 Err(Box::new(DesignCheckFailed(result.summary)))
             }
         }
+        DesignCommand::Transport {
+            design,
+            check_report,
+            out,
+            report,
+            target_error,
+            max_histories,
+            max_seconds,
+            particles,
+            seed,
+            threads,
+            tools,
+        } => {
+            let interrupts = crate::control::interrupt_cancellation()?;
+            #[cfg(unix)]
+            let cancellation = interrupts.cancellation.clone();
+            #[cfg(not(unix))]
+            let cancellation = interrupts.clone();
+            let options = DesignTransportOptions {
+                check_report,
+                out_dir: out,
+                target_relative_error: target_error,
+                particles_per_batch: particles,
+                max_histories,
+                max_seconds,
+                seed,
+                threads,
+                cancellation,
+            };
+            let result = design_transport(&design, &tools.paths(), &options)?;
+            print!("{}", render_transport_text(&result));
+            if let Some(path) = report {
+                write_json(&path, &result)?;
+                println!("Report written to {}", path.display());
+            }
+            if result.target_reached {
+                Ok(())
+            } else {
+                Err(Box::new(DesignCheckFailed(
+                    "the transport run stopped before its target error".into(),
+                )))
+            }
+        }
     }
 }
 
@@ -220,6 +298,13 @@ fn progress_printer() -> faris_engine::design::ProgressFn {
 }
 
 fn write_report(path: &Path, report: &ImportReport) -> Result<(), Box<dyn std::error::Error>> {
+    write_json(path, report)
+}
+
+fn write_json<T: serde::Serialize>(
+    path: &Path,
+    report: &T,
+) -> Result<(), Box<dyn std::error::Error>> {
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
         .write(true)
