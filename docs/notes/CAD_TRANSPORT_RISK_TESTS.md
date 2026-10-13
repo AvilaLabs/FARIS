@@ -674,3 +674,60 @@ histories as R3, seeds 20261221 and 20261231, photon budget 120 s per cooling ti
 
 The 1 d and 7 d changes are reported beside it. A run that fails or exceeds its memory cap is NOT_EVALUATED.
 
+### R3″ results (2026-10-13; protocol 55f137e)
+
+**The material-volume check, which was running when the protocol was frozen.** (Agent check, scratchpad
+`agent-volumes/`.) `n_samples` is a ray count: 50,000 gives rays about 0.9 cm apart, with exact chords. Against a
+0.25 cm point classification of the specified geometry, R2S holds 2.9 % too little steel and 2.3 % too much
+tungsten in the box. That bounds the effect at about 3 % at 7 d and 30 d, and it has the other sign at 1 d. The
+independent volumes come from the specification, not from the faceted CAD file.
+
+**The two variants** (change in R2S's total dose against R3's):
+
+| Variant | 1 d | 7 d | 30 d | Activation regions | Total time |
+| --- | --- | --- | --- | --- | --- |
+| VITAMIN-J-175, 10 cm | −2.8 % | −3.4 % | −3.8 % | 1,026 | 15 min |
+| VITAMIN-J-42, 5 cm | +3.5 % | −3.2 % | −3.6 % | 6,134 | 40 min |
+
+- **By the frozen rule, both read "wrong in sign":** the 30 d dose fell by more than 3 % in each. Neither finer
+  groups nor finer voxels brings R2S toward D1S.
+- **The rule's ±3 % band was set without knowing the run-to-run scatter, which is a fault in the protocol.** Both
+  variants fell by the same 3–4 % at 7 d and 30 d, on new seeds and a different build from R3. That looks like
+  scatter or a build difference in the baseline, not an effect of either choice. No baseline was rerun, so this
+  is not settled.
+- **Voxel size does move the 1 d dose** (+3.5 %), where tungsten capture matters, but by a quarter of the offset.
+
+**Production check, added after the runs (diagnostic, no rule).** A direct continuous-energy tally of the
+production rates in the box (2 M histories, `~/.cache/avila-night/s0h-d1s/prod/`) against what each R2S run fed
+to its activation step:
+
+| Run | Fe-54(n,p) → Mn-54 | W-186(n,γ) → W-187 | W-182(n,2n) → W-181 |
+| --- | --- | --- | --- |
+| Direct tally, atoms/s | 3.26e15 ± 1.8 % | 5.04e15 ± 2.8 % | 2.08e16 ± 1.4 % |
+| R3's R2S / direct | 1.065 | 0.902 | 1.015 |
+| 175 groups / direct | 1.051 | 0.898 | 1.024 |
+| 5 cm / direct | 1.031 | 0.965 | 1.009 |
+
+- **R2S does not under-produce Mn-54.** It is 3–6 % above the direct tally, while its 30 d dose, which is Mn-54,
+  is 14 % below D1S. So the offset at 7 d and 30 d is not in R2S's activation. It is in how many decay photons
+  D1S emits per reaction, or in how either method carries photons to the dose.
+- R2S's tungsten capture is 10 % low on 10 cm voxels and 3.5 % low on 5 cm. That goes the same way as the 1 d
+  voxel result and is the only part of the offset traced so far: a few percent at 1 d.
+- **A probe that did not work.** A D1S run scoring photon heating over all space for photons born in the box, by
+  parent nuclide, was meant to give D1S's emitted energy per reaction. Its values are about 2,800 times below
+  the expected 14.6 eV per source neutron for Mn-54, with 14 % error at 600,000 histories. I cannot yet say
+  what that tally measures under D1S, so it supports no conclusion.
+
+**State of the question.**
+
+| Candidate | Result |
+| --- | --- |
+| Unconverged D1S (R3) | Was the cause of R3's 0.25–0.64. Fixed. |
+| Decay bookkeeping | About 1 %. |
+| R2S neutron statistics | None seen. |
+| R2S material volumes | About 3 % at most, at 7 d and 30 d. |
+| R2S group structure | None. |
+| R2S voxel size | A few percent at 1 d; none at 30 d. |
+| R2S activation of Mn-54 | Not low: 3–6 % high. |
+| D1S photon emission per reaction; photon transport in either method | Open. |
+
