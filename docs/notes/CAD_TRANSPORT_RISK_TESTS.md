@@ -514,3 +514,39 @@ Summary and evidence hashes:
 **Not covered.** The one-time costs R2 excluded stay excluded and are unchanged, plus about 5 min to find targets
 and cap windows. A 60 s single run cannot show an unresolved tail; protocol 5 covers that for 3 M histories.
 
+### R2′ results (2026-10-13; protocol 9b79768): FAIL
+
+| | Aimed, seed 1 | Aimed, seed 2 | Stock fall-back |
+| --- | --- | --- | --- |
+| Histories at the last statepoint | 1,700,000 | 1,720,000 | 1,980,000 |
+| Last statepoint | 59.6 s | 59.4 s | 59.9 s |
+| First statepoint after start | 4.6 s | 4.6 s | 4.6 s |
+| "TBR" tally | 0.415, R 5.5 % | 0.398, R 5.4 % | 0.452, R 5.0 % |
+| Response (a), cm per source neutron | 1.114e-3, R 3.3 % | 1.051e-3, R 3.1 % | 1.282e-3, R 7.4 % |
+
+- **Verdict: FAIL as the rule is written.** The TBR error is 5.4–5.5 % against 2 %.
+- **Response (a) passes with a wide margin:** 3.1–3.3 % against 20 %. R2 had 56 %. The stock fall-back gives 7.4 %
+  in this one run; protocol 5 showed that its single runs can carry unresolved spikes.
+- **The TBR failure is a fault in this protocol, and mine.** The S0f models carry a 0.1 MeV neutron cut-off and
+  windows aimed at the magnet. Most tritium is bred below 0.1 MeV, so the tally here is not the TBR: it reads
+  0.40–0.45 where R2 measured 1.23. I froze the protocol without checking that the model could answer for TBR.
+- **What it shows.** One run cannot serve both responses. A preview needs a TBR run without the cut-off and a
+  magnet run with it.
+
+## R2″: laptop preview as two runs side by side (protocol frozen 2026-10-13, before any R2″ run)
+
+**Runs.** `s0g_preview.py`, both processes started together and each stopped 60 s after its own start. Outputs in
+`~/.cache/avila-night/cad-risk-tests/r2p/`.
+
+- **TBR run:** `tbr-model.xml` (sha256 c9228b93…): `base-model.xml` with windows off and the cut-off removed. Stock
+  OpenMC 0.15.3, 2 threads on cores 0 and 1.
+- **Magnet run:** as R2′'s aimed run, 2 threads on cores 2 and 3.
+- Two repetitions, seeds 77700001 and 77700002 (the same seed for both runs of a repetition). 6 GB cap each.
+  Each repetition starts when the 1-minute load is below 3.0 (wait up to 10 min).
+- R2 allowed 8 threads alone. This uses 4 in total, which can only make the result worse.
+
+**Rule (R2's levels).** PASS if, in both repetitions, the TBR run's TBR relative error is ≤ 2 % and the magnet
+run's response (a) is ≤ 20 % (1σ) at 60 s. Otherwise FAIL, and the errors go to change control for PERF-025.
+
+**Reported, not judged.** The TBR value against R2's 1.23, as a check that this tally is the TBR.
+
