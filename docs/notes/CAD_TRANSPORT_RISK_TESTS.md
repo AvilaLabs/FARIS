@@ -731,3 +731,20 @@ to its activation step:
 | R2S activation of Mn-54 | Not low: 3–6 % high. |
 | D1S photon emission per reaction; photon transport in either method | Open. |
 
+## R3 cube check (diagnostic; frozen 2026-10-13 before its run; the last round on the offset for now)
+
+**Question.** Is D1S's photon emission per reaction right? R3″ left the offset in D1S's emission or in photon
+transport.
+
+**Case.** `r3_cube_check.py`: a 2 cm cube of iron at 1 g/cm³ in vacuum, a 14.1 MeV beam on one face, dose in a
+6 cm box around it at 30 d after R3's irradiation. The cube is thin for neutrons and photons. Three values of the
+Mn-54 dose: D1S; mesh R2S; and a manual one from a direct Fe-54(n,p) tally, the Bateman factor, the chain's
+photons per decay and a photon-only run for dose per photon. 30 M neutron histories; a 3 M smoke run first to see
+that the script works, whose numbers are not used.
+
+**Reading rule.**
+- D1S and R2S both within 3 % of manual (or 2σ of the combined error, if larger): both methods are right on a
+  simple case, and the offset on RM-M is an effect of its geometry. It is then reported as measured.
+- D1S more than that above manual: D1S over-emits; the size is compared with RM-M's 14 %.
+- R2S more than that below manual: R2S under-emits or under-transports; likewise.
+
