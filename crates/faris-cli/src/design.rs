@@ -140,6 +140,14 @@ pub enum DesignCommand {
         seed: u64,
         #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(u32).range(1..=32))]
         threads: u32,
+        /// A Python with OpenMC 0.16 or later. With it, weight windows are made for the magnets
+        /// before the run, which then needs far fewer histories.
+        #[arg(long, value_name = "PYTHON")]
+        window_python: Option<PathBuf>,
+        /// A directory holding an `openmc` package to use in place of --openmc-python's own, such
+        /// as a build with the aiming patch.
+        #[arg(long, value_name = "DIR")]
+        openmc_package_path: Option<PathBuf>,
         #[command(flatten)]
         tools: ToolArguments,
     },
@@ -247,6 +255,8 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             particles,
             seed,
             threads,
+            window_python,
+            openmc_package_path,
             tools,
         } => {
             let interrupts = crate::control::interrupt_cancellation()?;
@@ -263,6 +273,8 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 max_seconds,
                 seed,
                 threads,
+                window_python,
+                openmc_package_path,
                 cancellation,
             };
             let result = design_transport(&design, &tools.paths(), &options)?;

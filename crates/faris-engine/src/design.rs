@@ -59,8 +59,8 @@ pub use life::{
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 pub use transport::{
-    DesignTransportOptions, DesignTransportReport, NotEvaluated, SolidFlux, design_transport,
-    flux_n_m2_s, render_transport_text,
+    DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, SolidFlux,
+    VarianceReduction, design_transport, flux_n_m2_s, render_transport_text,
 };
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
@@ -70,6 +70,13 @@ const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
 const DESIGN_TRANSPORT_WORKER: &str =
     include_str!("../../../integrations/openmc/design_transport.py");
+const STREAMING_AIM_HELPER: &str = include_str!("../../../integrations/openmc/streaming_aim.py");
+const AIM_COMMON_HELPER: &str =
+    include_str!("../../../integrations/openmc/risk_tests/s0f_common.py");
+const AIM_TARGETS_HELPER: &str =
+    include_str!("../../../integrations/openmc/risk_tests/s0f_find_targets.py");
+const AIM_WINDOWS_HELPER: &str =
+    include_str!("../../../integrations/openmc/risk_tests/s0f_los_windows.py");
 const MATERIAL_AUDIT: &str = include_str!("../../../integrations/openmc/material_audit.py");
 const AUDIT_LIBRARY: &str = include_str!("../../../integrations/openmc/audit_library.py");
 const MAX_JSON_BYTES: u64 = 64 * 1024 * 1024;

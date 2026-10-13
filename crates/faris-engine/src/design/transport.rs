@@ -5,13 +5,23 @@
 //! (`integrations/openmc/design_transport.py`) runs as a bounded job and stops at a
 //! target relative error or at its history or time limit. It answers per source
 //! neutron; the source rate and the volumes are applied here.
+//!
+//! With an OpenMC 0.16 interpreter for the window step, two jobs run first: a
+//! multigroup library on the design's materials and a random-ray adjoint of the
+//! response, which gives weight windows. The run then uses them and, on an OpenMC
+//! built with the aiming patch, aims at a streaming channel when it finds one.
+//! Each coil's flux is then compared with the design's fluence limit over the
+//! linked operating history (`life`).
 
+use super::life::{FluenceAssessment, LimitStatus, PowerHistory, assess_fluence, power_history};
 use super::{
-    CAD_ADDRESS_SPACE, DESIGN_TRANSPORT_WORKER, DesignError, DesignIdentity, ImportReport,
-    Launched, MAX_JSON_BYTES, ToolPaths, io_error, launch_python, sha256_file, sha256_hex,
+    AIM_COMMON_HELPER, AIM_TARGETS_HELPER, AIM_WINDOWS_HELPER, CAD_ADDRESS_SPACE,
+    DESIGN_TRANSPORT_WORKER, DesignError, DesignIdentity, ImportReport, Launched, MAX_JSON_BYTES,
+    STREAMING_AIM_HELPER, ToolPaths, io_error, launch_python, resolve, sha256_file, sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
 use faris_model::design::{self, Design, Metric, Role};
+use faris_model::history::OperatingHistoryAssumptions;
 use faris_model::transport::FAST_NEUTRON_ENERGY_MIN_EV;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -22,15 +32,19 @@ use std::{
     time::Duration,
 };
 
-pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.1";
-const REQUEST_SCHEMA: &str = "faris-design-transport-request/v1";
-const RESULT_SCHEMA: &str = "faris-design-transport/v1";
+pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.2";
+const REQUEST_SCHEMA: &str = "faris-design-transport-request/v2";
+const RESULT_SCHEMA: &str = "faris-design-transport/v2";
 /// Energy released per D-T reaction, as in the reactor transport request.
 const ENERGY_PER_REACTION_EV: f64 = 17.6e6;
 const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
-const MIN_BATCHES: u64 = 10;
-/// Time the worker gets beyond its sampling limit to load the geometry and write its result.
-const STARTUP_ALLOWANCE: Duration = Duration::from_secs(10 * 60);
+/// The fewest batches a run may stop at, as for the reactor run's sampling plan.
+const MIN_BATCHES: u64 = 30;
+/// Time the run gets beyond its sampling limit to load the geometry, look for a streaming
+/// channel and write its result.
+const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
+const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Clone, Debug)]
 pub struct DesignTransportOptions {
@@ -44,6 +58,11 @@ pub struct DesignTransportOptions {
     pub max_seconds: u64,
     pub seed: u64,
     pub threads: u32,
+    /// A Python with OpenMC 0.16 or later, for the weight-window step. `None`: an analog run.
+    pub window_python: Option<PathBuf>,
+    /// A directory holding an `openmc` package to use in place of the interpreter's own, such
+    /// as a build with the aiming patch.
+    pub openmc_package_path: Option<PathBuf>,
     pub cancellation: Cancellation,
 }
 
@@ -65,7 +84,7 @@ struct WorkerResult {
     schema: String,
     openmc: String,
     h5m_sha256: String,
-    void_h5m_sha256: String,
+    run_h5m_sha256: String,
     model_xml_sha256: String,
     seed: u64,
     threads: u32,
@@ -81,8 +100,34 @@ struct WorkerResult {
     energy_min_ev: f64,
     total: WorkerValue,
     solids: Vec<WorkerSolid>,
+    variance_reduction: VarianceReduction,
     why: Option<String>,
     next_step: Option<String>,
+}
+
+/// How the run was sped up, with the reason for the mode and what the user can do.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct VarianceReduction {
+    /// `analog`, `windows-only` or `aimed`.
+    pub mode: String,
+    pub reason: String,
+    pub next_step: String,
+    /// The streaming targets an aimed run found.
+    #[serde(default)]
+    pub targets: Vec<String>,
+    pub windows_sha256: Option<String>,
+    /// Seconds the run spent looking for a streaming channel before sampling.
+    #[serde(default)]
+    pub aim_seconds: f64,
+}
+
+/// One fluence limit of the design against the flux of the worst solid of its group.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct FluenceLimit {
+    pub group_id: String,
+    /// The solid of the group with the highest flux.
+    pub solid_id: String,
+    pub assessment: FluenceAssessment,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -130,6 +175,10 @@ pub struct DesignTransportReport {
     pub mean_relative_error: Option<f64>,
     pub total_volume_m3: f64,
     pub solids: Vec<SolidFlux>,
+    pub variance_reduction: VarianceReduction,
+    /// Seconds spent before sampling on weight windows and the search for a streaming channel.
+    pub setup_seconds: f64,
+    pub fluence_limits: Vec<FluenceLimit>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
 }
@@ -156,7 +205,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, DesignError> {
     std::fs::read(path).map_err(|e| io_error(path, e))
 }
 
-/// One entry per solid that is not void: its nuclide vector from the check's audit and its density.
+/// One entry per design material in use: its nuclide vector from the check's audit and its density.
 fn material_entries(
     design: &Design,
     report: &ImportReport,
@@ -168,18 +217,15 @@ fn material_entries(
         .filter_map(|m| Some((m.id.as_str(), m.nuclides.as_ref()?)))
         .collect();
     let mut entries = Vec::new();
-    for solid in &design.solids {
-        let Some(material_id) = solid.material_id.as_deref() else {
-            return Err(tool(format!("solid {} has no material", solid.id)));
-        };
-        if material_id == design.cad.implicit_complement_material_id || material_id == "void" {
+    for material in &design.materials {
+        if !design
+            .solids
+            .iter()
+            .any(|s| s.material_id.as_deref() == Some(material.id.as_str()))
+        {
             continue;
         }
-        let material = design
-            .materials
-            .iter()
-            .find(|m| m.id == material_id)
-            .ok_or_else(|| tool(format!("material {material_id} is not in the design file")))?;
+        let material_id = material.id.as_str();
         let nuclides = audited.get(material_id).ok_or_else(|| {
             tool(format!(
                 "the check report holds no audited composition for material {material_id}; run \
@@ -197,13 +243,71 @@ fn material_entries(
             })
             .ok_or_else(|| tool(format!("material {material_id} has no density")))?;
         entries.push(serde_json::json!({
-            "solid_id": solid.id,
+            "material_id": material_id,
             "nuclide_atom_fractions": nuclides,
             "density_kg_m3": density,
             "temperature_k": material.temperature_k,
         }));
     }
     Ok(entries)
+}
+
+/// Every solid with its DAGMC volume from the check's binding; `material_id` null for empty space.
+fn solid_entries(
+    design: &Design,
+    report: &ImportReport,
+) -> Result<Vec<serde_json::Value>, DesignError> {
+    let volumes: BTreeMap<&str, u32> = report
+        .geometry
+        .binding
+        .iter()
+        .filter_map(|row| Some((row.solid_id.as_deref()?, row.volume)))
+        .collect();
+    design
+        .solids
+        .iter()
+        .map(|solid| {
+            let volume = volumes.get(solid.id.as_str()).ok_or_else(|| {
+                tool(format!(
+                    "the check report binds no DAGMC volume to solid {}",
+                    solid.id
+                ))
+            })?;
+            let material = solid
+                .material_id
+                .as_deref()
+                .ok_or_else(|| tool(format!("solid {} has no material", solid.id)))?;
+            Ok(serde_json::json!({
+                "solid_id": solid.id,
+                "volume_id": volume,
+                "material_id": (material != "void").then_some(material),
+            }))
+        })
+        .collect()
+}
+
+/// The power history the design links to; an error sentence when it cannot be used.
+fn linked_history(
+    design_path: &Path,
+    design: &Design,
+    fusion_power_mw: f64,
+) -> Result<PowerHistory, String> {
+    let relative = design
+        .operating_scenario
+        .path
+        .as_deref()
+        .ok_or("The design file links no operating history.")?;
+    let path = resolve(design_path, relative);
+    let bytes =
+        read_bounded(&path).map_err(|e| format!("The operating history cannot be read: {e}."))?;
+    if let Some(expected) = design.operating_scenario.sha256.as_deref()
+        && !sha256_hex(&bytes).eq_ignore_ascii_case(expected)
+    {
+        return Err("The operating history file is not the one the design file records.".into());
+    }
+    let history: OperatingHistoryAssumptions = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("The operating history does not parse: {e}."))?;
+    power_history(&history, fusion_power_mw)
 }
 
 /// The check report must describe this design file and a complete, passing import.
@@ -297,12 +401,12 @@ pub fn design_transport(
         .plasma
         .fusion_power_mw
         .ok_or_else(|| tool("the design's plasma block has no fusion power"))?;
-    let void_ids: Vec<&str> = design
-        .solids
-        .iter()
-        .filter(|s| s.material_id.as_deref() == Some("void"))
-        .map(|s| s.id.as_str())
-        .collect();
+    let chamber = design
+        .plasma
+        .chamber_solid_id
+        .as_deref()
+        .ok_or_else(|| tool("the design's plasma block names no chamber solid"))?;
+    let history = linked_history(design_path, &design, fusion_power_mw);
 
     let dir = &options.out_dir;
     std::fs::create_dir(dir).map_err(|e| {
@@ -320,9 +424,11 @@ pub fn design_transport(
         "schema": REQUEST_SCHEMA,
         "h5m": h5m,
         "cross_sections": cross_sections,
-        "void_solid_ids": void_ids,
+        "solids": solid_entries(&design, &report)?,
         "materials": material_entries(&design, &report)?,
         "plasma": design.plasma,
+        "chamber_solid_id": chamber,
+        "variance_reduction": if options.window_python.is_some() { "windows" } else { "none" },
         "response": {
             "solid_ids": response.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             "energy_min_ev": FAST_NEUTRON_ENERGY_MIN_EV,
@@ -338,7 +444,17 @@ pub fn design_transport(
         },
     });
     let script = dir.join("design_transport.py");
-    std::fs::write(&script, DESIGN_TRANSPORT_WORKER).map_err(|e| io_error(&script, e))?;
+    let helpers = dir.join("risk_tests");
+    std::fs::create_dir(&helpers).map_err(|e| io_error(&helpers, e))?;
+    for (path, text) in [
+        (script.clone(), DESIGN_TRANSPORT_WORKER),
+        (dir.join("streaming_aim.py"), STREAMING_AIM_HELPER),
+        (helpers.join("s0f_common.py"), AIM_COMMON_HELPER),
+        (helpers.join("s0f_find_targets.py"), AIM_TARGETS_HELPER),
+        (helpers.join("s0f_los_windows.py"), AIM_WINDOWS_HELPER),
+    ] {
+        std::fs::write(&path, text).map_err(|e| io_error(&path, e))?;
+    }
     let request_path = dir.join("request.json");
     std::fs::write(
         &request_path,
@@ -348,33 +464,55 @@ pub fn design_transport(
     let solver = dir.join("solver");
     let tmp = dir.join("tmp");
     std::fs::create_dir_all(&tmp).map_err(|e| io_error(&tmp, e))?;
-    let arguments: Vec<OsString> = vec![
-        script.into_os_string(),
-        "--request".into(),
-        request_path.into_os_string(),
-        "--out-dir".into(),
-        solver.clone().into_os_string(),
-    ];
-    let environment: Vec<(OsString, OsString)> = vec![
-        ("TMPDIR".into(), tmp.into_os_string()),
-        // OpenMC initialises MPI, which refuses to start without a home directory.
-        ("HOME".into(), dir.as_os_str().to_owned()),
-        ("PYTHONPATH".into(), plasma_source.as_os_str().to_owned()),
-        ("OMP_NUM_THREADS".into(), options.threads.to_string().into()),
-    ];
-    match launch_python(
-        python,
-        arguments,
-        &dir,
-        Duration::from_secs(options.max_seconds) + STARTUP_ALLOWANCE,
-        "the transport run",
-        &options.cancellation,
-        environment,
-        ResourceLimits::with_address_space(CAD_ADDRESS_SPACE),
-    )? {
-        Launched::Succeeded(_) => {}
-        Launched::Failed(text) => return Err(tool(text)),
+    let mut python_path = plasma_source.as_os_str().to_owned();
+    if let Some(package) = &options.openmc_package_path {
+        python_path.push(":");
+        python_path.push(package);
     }
+    let phase = |name: &str, interpreter: &Path, with_packages: bool, timeout: Duration| {
+        let arguments: Vec<OsString> = vec![
+            script.clone().into_os_string(),
+            "--phase".into(),
+            name.into(),
+            "--request".into(),
+            request_path.clone().into_os_string(),
+            "--work-dir".into(),
+            dir.clone().into_os_string(),
+        ];
+        let mut environment: Vec<(OsString, OsString)> = vec![
+            ("TMPDIR".into(), tmp.clone().into_os_string()),
+            // OpenMC initialises MPI, which refuses to start without a home directory.
+            ("HOME".into(), dir.as_os_str().to_owned()),
+            ("OMP_NUM_THREADS".into(), options.threads.to_string().into()),
+        ];
+        if with_packages {
+            environment.push(("PYTHONPATH".into(), python_path.clone()));
+        }
+        match launch_python(
+            interpreter,
+            arguments,
+            &dir,
+            timeout,
+            &format!("the transport {name} step"),
+            &options.cancellation,
+            environment,
+            ResourceLimits::with_address_space(CAD_ADDRESS_SPACE),
+        )? {
+            Launched::Succeeded(seconds) => Ok(seconds),
+            Launched::Failed(text) => Err(tool(text)),
+        }
+    };
+    let mut setup_seconds = 0.0;
+    if let Some(window_python) = &options.window_python {
+        setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
+        setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
+    }
+    phase(
+        "run",
+        python,
+        true,
+        Duration::from_secs(options.max_seconds) + STARTUP_ALLOWANCE,
+    )?;
     let result_path = solver.join("result.json");
     let worker: WorkerResult = serde_json::from_slice(&read_bounded(&result_path)?)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
@@ -397,6 +535,8 @@ pub fn design_transport(
             fusion_power_mw,
             response: &response,
             design: &design,
+            history,
+            setup_seconds,
         },
     )
 }
@@ -411,6 +551,8 @@ struct Inputs<'a> {
     fusion_power_mw: f64,
     response: &'a [(&'a str, f64)],
     design: &'a Design,
+    history: Result<PowerHistory, String>,
+    setup_seconds: f64,
 }
 
 /// Check the worker's answer against the request and convert it to fluxes.
@@ -457,10 +599,8 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             relative_error: relative(w.mean, w.standard_error),
         })
         .collect();
-    let mut notices = vec![
-        "Volumes are the CAD volumes of the design file's fingerprints.".to_string(),
-        "The run is analog (no weight windows).".to_string(),
-    ];
+    let mut notices =
+        vec!["Volumes are the CAD volumes of the design file's fingerprints.".to_string()];
     if let Some(audited) = &inputs.audit_cross_sections_sha256
         && !audited.eq_ignore_ascii_case(&inputs.cross_sections_sha256)
     {
@@ -468,23 +608,58 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             "The nuclear data of this run is not the library the design check audited.".into(),
         );
     }
+    let mut fluence_limits = Vec::new();
     let mut not_evaluated = Vec::new();
     for group in &inputs.design.replacement_groups {
         for limit in &group.limits {
-            if limit.metric == Metric::FastNeutronFluence {
+            if limit.metric != Metric::FastNeutronFluence {
+                continue;
+            }
+            let item = format!(
+                "{}: fast-neutron fluence against the limit of {:e} n/m²",
+                group.id, limit.limit
+            );
+            if limit.energy_threshold_ev != Some(worker.energy_min_ev) {
                 not_evaluated.push(NotEvaluated {
-                    item: format!(
-                        "{}: fast-neutron fluence against the limit of {:e} n/m²",
-                        group.id, limit.limit
-                    ),
-                    why: "This run gives a flux averaged over each coil. The limit applies to a \
-                          fluence, which also needs the operating history, at the averaging the \
-                          design file asks for."
+                    item,
+                    why: "The limit counts neutrons above a different energy than this run scored."
                         .into(),
-                    next_step: "Not available from this command yet; compare the highest coil \
-                                flux above with the limit by hand only as a screening value."
-                        .into(),
+                    next_step: "Not available from this command yet.".into(),
                 });
+                continue;
+            }
+            let worst = solids
+                .iter()
+                .filter(|flux| {
+                    inputs.design.solids.iter().any(|s| {
+                        s.id == flux.solid_id
+                            && s.replacement_group_id.as_deref() == Some(group.id.as_str())
+                    })
+                })
+                .max_by(|a, b| a.flux_n_m2_s.total_cmp(&b.flux_n_m2_s));
+            match (worst, &inputs.history) {
+                (Some(worst), Ok(history)) => fluence_limits.push(FluenceLimit {
+                    group_id: group.id.clone(),
+                    solid_id: worst.solid_id.clone(),
+                    assessment: assess_fluence(
+                        worst.flux_n_m2_s,
+                        worst.relative_error,
+                        limit.limit,
+                        history,
+                    ),
+                }),
+                (None, _) => not_evaluated.push(NotEvaluated {
+                    item,
+                    why: "No solid of this group is a TF magnet, and this run scores only those."
+                        .into(),
+                    next_step: "Not available from this command yet.".into(),
+                }),
+                (_, Err(problem)) => not_evaluated.push(NotEvaluated {
+                    item,
+                    why: problem.clone(),
+                    next_step: "Link a valid operating history in the design file and run again."
+                        .into(),
+                }),
             }
         }
     }
@@ -512,6 +687,9 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         mean_relative_error: relative(worker.total.mean, worker.total.standard_error),
         total_volume_m3,
         solids,
+        setup_seconds: inputs.setup_seconds + worker.variance_reduction.aim_seconds,
+        variance_reduction: worker.variance_reduction,
+        fluence_limits,
         notices,
         not_evaluated,
     })
@@ -572,6 +750,49 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         report.source_rate_per_s,
         report.fusion_power_mw
     );
+    let reduction = &report.variance_reduction;
+    let _ = writeln!(
+        out,
+        "  Speed-up: {} ({:.0} s of preparation). {}",
+        reduction.mode, report.setup_seconds, reduction.reason
+    );
+    if reduction.mode != "aimed" {
+        let _ = writeln!(out, "    Next: {}", reduction.next_step);
+    }
+    for limit in &report.fluence_limits {
+        let a = &limit.assessment;
+        let _ = writeln!(
+            out,
+            "  Fluence limit of {} ({:e} n/m²), worst coil {}: {}",
+            limit.group_id,
+            a.limit_n_m2,
+            limit.solid_id,
+            match a.status {
+                LimitStatus::Within => "WITHIN",
+                LimitStatus::Exceeded => "EXCEEDED",
+                LimitStatus::Inconclusive => "INCONCLUSIVE",
+            }
+        );
+        let _ = writeln!(
+            out,
+            "    Over the {:.1}-year history ({:.1} years at full power): {:.3e} n/m² {}",
+            a.history_calendar_years,
+            a.history_full_power_years,
+            a.history_fluence_n_m2,
+            percent(a.flux_relative_error)
+        );
+        if let (Some(full), Some(calendar)) =
+            (a.full_power_years_to_limit, a.calendar_years_to_limit)
+        {
+            let _ = writeln!(
+                out,
+                "    Reaches the limit after {full:.1} years at full power ({calendar:.1} years of this history) {}",
+                percent(a.years_relative_error)
+            );
+        }
+        let _ = writeln!(out, "    Why: {}", a.why);
+        let _ = writeln!(out, "    Next: {}", a.next_step);
+    }
     for notice in &report.notices {
         let _ = writeln!(out, "  Note: {notice}");
     }

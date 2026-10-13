@@ -13,8 +13,13 @@ basis.
 
 - `faris design transport`: the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
   `faris design check`, computed on its CAD geometry and run until the mean over the coils reaches a target
-  error. A run stopped by its history or time limit says how many more histories it needs. Analog only: no
-  weight windows yet, and a flux, not a fluence against the design's limit.
+  error. A run stopped by its history or time limit says how many more histories it needs.
+  - With `--window-python` (OpenMC 0.16 or later) weight windows for the magnets are made first, and on an
+    OpenMC built with the aiming patch the run also aims at a streaming channel it finds. The report names the
+    mode that ran and why.
+  - The worst coil's flux is compared with the design's fluence limit over the linked operating history: years
+    to the limit, and a status of WITHIN, EXCEEDED or INCONCLUSIVE. This uses each coil's average flux, not the peak inside
+    a coil.
 - A second local nuclear-data library, built by `scripts/build_nuclear_data_v2.py`: all FENDL-3.2 neutron
   nuclides, ENDF/B-VII.1 photon data for every element in them, and ENDF/B-VIII.1 thermal-scattering tables for
   fusion materials, with a provenance record and an audit of the new `fusion-materials-v1` nuclide set

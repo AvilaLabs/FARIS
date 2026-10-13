@@ -67,10 +67,18 @@ def choose(supported: bool, targets) -> dict | None:
     return None
 
 
+def tidy(directory: Path) -> None:
+    """Remove the bulky files of finished helper runs under `directory`: inputs, statepoints and summaries."""
+    for pattern in ("model.xml", "statepoint.*.h5", "summary.h5", "tallies.out"):
+        for path in Path(directory).rglob(pattern):
+            path.unlink()
+
+
 def plan(model: Path, work: Path, library: Path | None, response_material: int = 4,
-         particles: int = 10_000_000) -> dict:
+         particles: int = 10_000_000, keep_runs: bool = True) -> dict:
     """Decide the mode for `model` (one XML file with its windows on mesh 9000) and prepare an aimed run if one
-    is possible. Writes WORK/plan.json and, for an aimed run, WORK/model-aimed.xml."""
+    is possible. Writes WORK/plan.json and, for an aimed run, WORK/model-aimed.xml. With `keep_runs` false the
+    helper runs' bulky files are removed as soon as each step has read them."""
     work.mkdir(parents=True, exist_ok=True)
     out = choose(aiming_supported(library), None)
     if out is None:
@@ -78,10 +86,14 @@ def plan(model: Path, work: Path, library: Path | None, response_material: int =
         import s0f_find_targets as T
         import s0f_los_windows as W
         targets = T.find_targets(model, work / "targets", particles, 10.0, response_material, 1.0e7)
+        if not keep_runs:
+            tidy(work / "targets")
         out = choose(True, targets)
         if out is None:
             aimed = work / "model-aimed.xml"
             counts = W.cap_model(model, aimed, work / "visibility", targets)
+            if not keep_runs:
+                tidy(work / "visibility")
             out = {"mode": "aimed", "model": str(aimed), "env": aim_env(T.aperture_spec(targets, SOURCE_BETA)),
                    "reason": "A straight channel from the source to the response was found.",
                    "next_step": "Run the aimed model with the variables given, on the patched OpenMC.",

@@ -15,11 +15,16 @@ REQUEST = {
     "schema": DT.REQUEST_SCHEMA,
     "h5m": "model.h5m",
     "cross_sections": "cross_sections.xml",
-    "void_solid_ids": ["plasma"],
-    "materials": [{"solid_id": "coil", "nuclide_atom_fractions": {"Fe56": 1.0}, "density_kg_m3": 7874.0, "temperature_k": None}],
+    "solids": [{"solid_id": "plasma", "volume_id": 1, "material_id": None},
+               {"solid_id": "coil-a", "volume_id": 2, "material_id": "tf-coil"},
+               {"solid_id": "coil-b", "volume_id": 3, "material_id": "tf-coil"}],
+    "materials": [{"material_id": "tf-coil", "nuclide_atom_fractions": {"Fe56": 1.0}, "density_kg_m3": 7874.0,
+                   "temperature_k": None}],
     "plasma": {},
-    "response": {"solid_ids": ["coil"], "energy_min_ev": 1.0e5},
+    "chamber_solid_id": "plasma",
+    "response": {"solid_ids": ["coil-a", "coil-b"], "energy_min_ev": 1.0e5},
     "sampling": SAMPLING,
+    "variance_reduction": "none",
 }
 
 
@@ -83,23 +88,69 @@ class RequestTest(unittest.TestCase):
 
         for path, value in [
             (("schema",), "other"),
+            (("variance_reduction",), "magic"),
             (("sampling", "target_relative_error"), 0.0),
             (("sampling", "min_batches"), 1),
             (("sampling", "threads"), 64),
             (("response", "solid_ids"), []),
             (("response", "solid_ids"), ["missing"]),
-            (("void_solid_ids",), ["coil"]),
+            (("response", "solid_ids"), ["plasma"]),
+            (("chamber_solid_id",), "missing"),
+            (("solids", 1, "volume_id"), 1),
+            (("solids", 1, "material_id"), "unknown"),
             (("materials", 0, "density_kg_m3"), 0.0),
+            (("materials", 0, "material_id"), DT.FILLER),
         ]:
             with self.subTest(path=path), self.assertRaises(ValueError):
                 DT.validate_request(changed(path, value))
 
 
-class VoidNamesTest(unittest.TestCase):
-    def test_only_the_void_solids_are_found(self):
-        names = [b"mat:plasma".ljust(32, b"\0"), b"mat:plasma-facing".ljust(32, b"\0"), b"mat:coil".ljust(32, b"\0"),
-                 b"picked".ljust(32, b"\0")]
-        self.assertEqual(DT.void_names(names, ["plasma"]), [0])
+class RetagTest(unittest.TestCase):
+    def test_solids_take_their_material_and_empty_space_is_void(self):
+        names = DT.retag_map(REQUEST["solids"], random_ray=False)
+        self.assertEqual(names, {b"mat:plasma": b"mat:void", b"mat:coil-a": b"mat:tf-coil", b"mat:coil-b": b"mat:tf-coil"})
+
+    def test_random_ray_fills_empty_space_and_the_outside(self):
+        names = DT.retag_map(REQUEST["solids"], random_ray=True)
+        self.assertEqual(names[b"mat:plasma"], f"mat:{DT.FILLER}".encode())
+        self.assertEqual(names[b"mat:void_comp"], f"mat:{DT.FILLER}_comp".encode())
+
+    def test_only_exact_names_are_rewritten(self):
+        values = [b"mat:plasma".ljust(32, b"\0"), b"mat:plasma-facing".ljust(32, b"\0"), b"picked".ljust(32, b"\0")]
+        new, hits = DT.retagged(values, {b"mat:plasma": b"mat:void"}, 32)
+        self.assertEqual(hits, 1)
+        self.assertEqual(new[0], b"mat:void".ljust(32, b"\0"))
+        self.assertEqual(new[1:], values[1:])
+
+    def test_a_tag_too_long_for_the_file_is_refused(self):
+        with self.assertRaises(ValueError):
+            DT.retagged([b"mat:a".ljust(8, b"\0")], {b"mat:a": b"mat:far-too-long"}, 8)
+
+
+class WindowHelpersTest(unittest.TestCase):
+    def test_library_entries_tolerate_rewritten_characters(self):
+        self.assertEqual(DT.library_entries(["tf-coil", "flibe"], ["flibe", "tf_coil", "other"]),
+                         {"tf-coil": "tf_coil", "flibe": "flibe"})
+        with self.assertRaises(ValueError):
+            DT.library_entries(["tf-coil"], ["flibe"])
+        with self.assertRaises(ValueError):
+            DT.library_entries(["tf-coil"], ["tf_coil", "tf.coil"])
+
+    def test_response_groups_start_at_the_threshold(self):
+        groups = DT.response_groups(DT.GROUP_EDGES_EV, 1.0e5)
+        self.assertEqual(groups[0], 1.0e5)
+        self.assertEqual(len(groups) - 1, 10)
+        with self.assertRaises(ValueError):
+            DT.response_groups(DT.GROUP_EDGES_EV, 2.0e5)
+
+    def test_window_grid_reproduces_the_research_mesh_on_the_reference_model(self):
+        lower, upper, dimension = DT.window_grid([-645.0, -645.0, -381.0], [645.0, 645.0, 381.0])
+        self.assertEqual((lower, upper), ([-650.0, -650.0, -386.0], [650.0, 650.0, 386.0]))
+        self.assertEqual(dimension, [52, 52, 31])
+
+    def test_a_stopped_windowed_run_does_not_suggest_windows(self):
+        _, next_step = DT.explain("time_limit", stats_of([0.0, 10.0] * 10), SAMPLING, windows=True)
+        self.assertNotIn("weight windows", next_step)
 
 
 class PlasmaTest(unittest.TestCase):
