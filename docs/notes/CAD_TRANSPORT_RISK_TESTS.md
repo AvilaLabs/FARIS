@@ -603,3 +603,9 @@ FAIL, with the dominant nuclides reported.
 30 d if R3's errors scale. The two builds are assumed to give the same physics; the 1 d value against R3's
 8.32e16 ± 14 % is the check.
 
+**Amendment, 2026-10-13, before any R3′ transport.** The first attempt stopped while building the model: the
+`openmc0153dd` interpreter has no `openmc_plasma_source`, and that environment is not to be changed. No history
+was run. R3′ therefore uses `r3p_d1s_rerun.py`, which takes R3's D1S model file (sha256 12630130…) and its list
+of radionuclides as they are, changes only the seed, and applies the same time correction as `r3_d1s.py`.
+Everything else in the protocol stands.
+
