@@ -86,3 +86,41 @@ the response as the innermost target. Do not pursue window corrections further.
   the targets chained outward. Fact 12's F7 was an incomplete version of this (no response target, no chaining, a
   slow ray march). "Do not pursue window corrections further" is withdrawn.
 - The every-collision contribution with attenuation stays as a possible later step.
+
+## Addendum, 2026-10-13: what the 275× was, and the photon gap
+
+Read after the inboard-leg pilot ([CAD_TRANSPORT_S0G_INBOARD_PILOT.md](CAD_TRANSPORT_S0G_INBOARD_PILOT.md)).
+
+- **Read (slides, text extracted).** Ibrahim et al., ANS 2010 presentation of the same work
+  (`fti.neep.wisc.edu/.../ibrahim_ans0410.pdf`). Its figure-of-merit table for inboard coil heating:
+
+| Run | Time (days) | Max. uncertainty | FOM, first model | FOM, after fixing geometry |
+| --- | --- | --- | --- | --- |
+| Analog | 121.3 | 5.9 % | 1 | |
+| MCNP weight-window generator | 11.0 | 3.6 % | 30 | |
+| FW-CADIS | 0.8 | 4.5 % | 42 | 275 |
+
+  - FW-CADIS first gave 42×. The slides say it was "controlled by occasional histories which took several
+    minutes": a particle that "acquired high weight" in front of the vessel and "streams directly to TFC where
+    weights are very low", through "a gap in VV".
+  - That is the failure S0f traced on RM-M. The authors removed it by closing the air gap in the CAD model, and
+    275× is the figure after that change. FARIS's aiming treats the gap instead of removing it.
+  - The analog reference took 121 days of computing for 5.9 %. The uncertainty is the largest over ten segments
+    of the leg. A like-for-like measurement is a cluster-scale job, not a laptop one.
+  - Not read: whether the deterministic importance was coupled neutron-photon. The slides do not say.
+- **Verified locally.** OpenMC 0.15.3 accepts photon weight windows, and its window generator takes
+  `particle_type` photon (`openmc.WeightWindowGenerator`; `src/weight_windows.cpp` accepts neutron and photon).
+  FARIS's adjoint comes from the multigroup random-ray solver, which is neutron-only, so it gives no photon
+  importance.
+- **Search results only, not read.** A TRIPOLI-4 paper on linking the photon importance map to photon production,
+  because independently made neutron and photon maps needed hand adjustment; a coupled neutron-photon
+  auto-importance method (arXiv 1603.01480). No source was found that quantifies heating gain under neutron-only
+  windows.
+- **Reading.**
+  - The pilot's low heating gain has a standard cause and a standard remedy: photons need their own windows.
+  - The only photon windows available to FARIS today are OpenMC's forward generator, which is global, and fact 15
+    measured global forward windows as far slower than analog on a duct problem. A response-directed photon map
+    needs a coupled adjoint that FARIS does not have.
+  - The release's own question is magnet lifetime, which rests on fast-neutron fluence, not heating. On fast
+    flux the pilot gives about 320× on the inboard leg and protocol 5 gives 376× behind the port.
+
