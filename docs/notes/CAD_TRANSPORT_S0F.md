@@ -743,6 +743,43 @@ reach NUC-050's 100× on RM-M?
   history are reported beside it.
 - **Not decided here:** NUC-050's basis, and whether FARIS ships the patched OpenMC.
 
+## Protocol 5 results (2026-10-12; protocol f8743ae; `references/cad-transport-s0f5.json`, `cad-transport-s0f5-hand.json`)
+
+All 12 runs completed (job time 1,577 s of 5,400). None was contended.
+
+| Run | Gain vs D2 | Mean of (a) | Variance per history | VOV | T (s) |
+| --- | --- | --- | --- | --- | --- |
+| F0 seed 1 | 56.6 | 1.066e-3 | 13,225 | 0.26 | 121 |
+| F0 seed 2 | 28.6 | 1.168e-3 | 29,935 | 0.57 | 106 |
+| F0 seed 3 | 211.5 | 0.941e-3 | 4,302 | 0.08 | 99 |
+| F0 seed 4 | 107.2 | 1.064e-3 | 8,259 | 0.09 | 102 |
+| F8 seed 1 | 281.6 | 1.110e-3 | 2,268 | 0.14 | 142 |
+| F8 seed 2 | 305.8 | 1.095e-3 | 1,970 | 0.08 | 150 |
+| F8 seed 3 | 473.1 | 1.061e-3 | 1,382 | 0.03 | 138 |
+| F8 seed 4 | 259.4 | 1.073e-3 | 2,450 | 0.17 | 142 |
+| F9 seed 1 | 545.1 | 1.080e-3 | 1,179 | 0.01 | 141 |
+| F9 seed 2 | 320.4 | 1.102e-3 | 1,982 | 0.09 | 142 |
+| F9 seed 3 | 554.8 | 1.057e-3 | 1,151 | 0.01 | 142 |
+| F9 seed 4 | 259.4 | 1.070e-3 | 2,467 | 0.25 | 141 |
+
+- **F0, pooled.** G = 55.0, L = 6.2 (seed bound; bootstrap 31.8). z = −0.14. VOV 0.21, tail not resolved.
+- **F8, pooled.** G = 312.1, L = 215.5 (bootstrap 242.5). z = +0.20. VOV 0.033.
+- **F9, pooled.** G = 375.9, L = 240.8 (bootstrap 281.4). Mean 1.077e-3, z = +0.09, so unbiased. VOV 0.040.
+- **H11: confirmed.** Paired FOM ratios F9/F0: 9.6, 11.2, 2.6 and 2.4; pooled 6.8.
+- **H12: confirmed.** Paired FOM ratios F9/F8: 1.94, 1.05, 1.17 and 1.00; pooled 1.20. Targets found automatically
+  do at least as well as the hand-placed ones. The 1.20 is inside the seed scatter and is not a claim that they do
+  better.
+- **NUC-050: ≥ 100 at the 95 % lower bound**, by the frozen rule, now with targets FARIS found itself.
+  - The analysis prints "with a hand-placed aperture" for this band. That text is inherited from protocol 2's rule
+    and is wrong for F9; the rule and its outcome are unchanged.
+- **Machine speed.** The machine was in its fast state again (F0 took 99–121 s per run), so gains against D2 are
+  inflated as in protocol 4. The quantities that do not depend on it:
+  - Variance per history: F9 1,700, F8 2,025, F0 15,367. F9 is 9.0× below F0.
+  - Time per history relative to F0: F9 1.32×, F8 1.34×.
+- **Cost not in T.** About 2 min to find the targets and 2.8 min for the capped windows.
+- **One F9 run (seed 4) has VOV 0.25.** A single 3 M-history run can still carry an unresolved tail; the pooled
+  result does not.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:
