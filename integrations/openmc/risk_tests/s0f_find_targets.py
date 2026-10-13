@@ -152,6 +152,8 @@ def channel_rectangles(allf: np.ndarray, p_rev: np.ndarray, ll, width, face, kee
             vec[o] = width[o] * (hi[k] - lo[k]) / 2.0
         nrm = np.zeros(3)
         nrm[ax] = -float(step)                        # toward the response
+        if np.dot(np.cross(uu, vv), nrm) < 0:         # the one-sided rule reads the normal as u x v
+            uu, vv = vv, uu
         out.append((name, c, uu, vv, nrm))
     return out
 

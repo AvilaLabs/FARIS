@@ -207,6 +207,22 @@ class FindTargetsTest(unittest.TestCase):
         self.assertTrue(F.env_matches("F9", F.CONFIG_ENV["F9"]))
         self.assertFalse(F.env_matches("F9", F.CONFIG_ENV["F8"]))
 
+    def test_duct_along_another_axis_keeps_the_normal_rule(self):
+        np = self.np
+        prod = np.transpose(self.prod, (1, 0, 2))     # the same duct, now along y
+        face = (np.array([50.0, 385.0, 50.0]), np.array([10.0, 0.0, 0.0]), np.array([0.0, 0.0, 10.0]),
+                np.array([0.0, 1.0, 0.0]), 1.0)
+        for _, c, u, v, n in self.T.channel_rectangles(prod, np.ones_like(prod), self.ll, self.width, face):
+            self.assertGreater(float(np.dot(np.cross(u, v), n)), 0.0)
+
+    def test_protocol_5_rules(self):
+        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.92), "H12 confirmed")
+        self.assertEqual(F.h12_outcome([1.1, 0.9, 1.0, 0.7], 0.79), "H12 rejected")
+        self.assertEqual(F.h12_outcome([1.0], 1.0), "NOT_EVALUATED")
+        self.assertEqual(F.h11_outcome([2.0, 3.0, 2.5, 4.0], 2.8), F.h7_outcome([2.0, 3.0, 2.5, 4.0], 2.8).replace("H7", "H11"))
+        self.assertIn("F9", F.nuc050_outcome5(150.0, 120.0, True) + F.nuc050_outcome5(50.0, 20.0, True))
+        self.assertTrue(F.env_matches("B9", F.CONFIG_ENV["B9"]))
+
     def test_response_faces_split_by_side(self):
         np, T = self.np, self.T
         allf = np.zeros((20, 20, 10))

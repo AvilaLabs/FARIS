@@ -670,6 +670,79 @@ F8's four targets were placed by hand from the drawing. `s0f_find_targets.py` no
 - **Records.** `~/.cache/avila-night/s0f-diag/auto/`: `targets.json`, `model-f9.xml` (sha256 62464ca5), runs
   `F9-77300001`, `F9-77300002`, `F8-77300001`.
 
+### 15. A second geometry: the targets are found and the method carries over (diagnostic)
+
+The test set before building fact 14: FARIS must find the targets on a geometry it was not developed on, and the
+method must help there. If not, stop and write up.
+
+- **The model** (`s0f_second_model.py`). Made to differ from RM-M:
+  - Constructive solid geometry, not CAD. A 300 cm void room inside TiH2.
+  - Source: 14.1 MeV, isotropic, uniform in a 200 cm box. Not a plasma.
+  - One duct, 16 cm × 24 cm, along +y through a 200 cm wall, 20 cm off the source's centre line in x and z.
+  - Response: flux above 0.1 MeV in a slab that faces the duct, 50 cm beyond the wall. In RM-M the response lies
+    beside the duct.
+- **Targets found, unaided, in 28 s.** One code change was made first, from reading the code and not from a run:
+  the rectangle's edges are ordered so that u × v points toward the response, which the one-sided rule needs for a
+  duct along y.
+
+| Target | Found | True |
+| --- | --- | --- |
+| Response face | y = 400, centre (20, −20), ±20 × ±20 | y = 400; the duct's projection is centred (20, −20) |
+| Exit | y = 385, centre (20, −20), ±20 × ±20 | duct exit at y = 350, 16 × 24 |
+| Inlet | y = 125, centre (20, −20), ±10 × ±20 | duct inlet at y = 150, 16 × 24 |
+
+  - The exit sits in the void between the wall and the slab, and the inlet 25 cm inside the room. Both are on the
+    duct's axis. The duct run is cut by channel area, so it extends into void where the beam is still narrow.
+- **Windows.** This model has no adjoint pipeline, so its windows are not FARIS's.
+  - OpenMC's MAGIC generator gave global windows spanning 10⁻¹⁹ to 0.5. A run with them alone did 410 of 3,000
+    batches in about 9 min, against 15 s for the whole analog run. It was stopped. No windows-only baseline exists
+    for this model.
+  - Used instead: a flat window (0.2 to 1.0) everywhere, set to three times the source's uncollided reach
+    probability (8.1e-6) in the mesh layer holding the slab, then capped along the line of sight by
+    `s0f_los_windows.py` from the found targets. 7,488 of 79,200 bounds lowered.
+- **Result, 3 M histories per run, seeds 78100001 onward.**
+
+| Configuration | Runs | Mean | Variance per history | T per run (s) | Pooled FOM |
+| --- | --- | --- | --- | --- | --- |
+| Analog | 12 | 2.687e-4 ± 0.169e-4 | 141,350 | 15.4 | 1.37 |
+| Automatic (B9) | 4 | 2.636e-4 ± 0.058e-4 | 5,574 | 19.9 | 26.1 |
+
+  - Pooled FOM ratio 19. Variance per history 25× lower; time per history 1.3× higher.
+  - z = −0.28 against the analog mean, so no visible bias.
+  - Per-seed FOM of B9: 47, 18, 21 and 42. Two of the four runs have VOV above 0.1 (0.13 and 0.17), so the tail is
+    not fully resolved in single runs.
+- **What this does and does not show.**
+  - The target finder carried over without tuning, and aiming with line-of-sight windows gave a large gain on a
+    second geometry.
+  - It is not a protocol: seeds were not frozen ahead and there is one model.
+  - It does not test FARIS's adjoint windows on this model, a bent duct, or a duct at an angle to the mesh.
+  - A bent duct has no uncollided path from source to response. The finder would return no face. That limit is
+    known, not measured.
+- **Records.** `~/.cache/avila-night/s0f-diag/second/`: `analog.xml` (sha256 503d7735), `windows-flat-capped.xml`
+  (0f507097), `auto/targets.json`, runs `analog-781000NN` and `autoflat-781000NN`.
+
+## Protocol 5 (frozen 2026-10-12, before any protocol 5 run; about 35 min, within my one-hour latitude)
+
+**Question.** On new seeds, do targets found automatically (F9) do as well as the hand-placed ones (F8)? Does F9
+reach NUC-050's 100× on RM-M?
+
+**Configurations.** All files in `~/.cache/avila-night/cad-risk-tests/s0f5/`.
+- **F0:** as before, on `base-model.xml` (sha256 c0c107f1f79c06d6…).
+- **F8:** as protocol 4, on `base-model-f8.xml` (ad135bd4…).
+- **F9:** the patched 0.15.3 (`libopenmc.so` 2d25e1cd…) with F6's variables, except the rectangles are fact 14's
+  (`s0f_common.AUTO_APERTURE`), on `base-model-f9.xml` (62464ca5…): windows capped from the found targets.
+
+**Runs.** As protocol 4, with seeds 77500001–77500004 and F0, F8, then F9 for each seed. Driver
+`s0f_scripts/run5.sh`. Time box 90 min of job time.
+
+**Analysis.** `s0f_analyse.py --pair F0 F9 --seed-set 5` and `--pair F8 F9 --seed-set 6`, protocol 2's statistics.
+- **H11 (F9 beats F0):** H7's rule.
+- **H12 (automatic as good as hand-placed):** confirmed if the pooled FOM ratio F9/F8 is at least 0.8.
+- **NUC-050 band for F9:** protocol 2's bands (`nuc050_outcome5`). D2 was timed once, so the gain against it moves
+  with the machine's speed (protocol 4 results). F0's gain on the same seeds, variance per history and time per
+  history are reported beside it.
+- **Not decided here:** NUC-050's basis, and whether FARIS ships the patched OpenMC.
+
 ## Records
 
 `~/.cache/avila-night/s0f-diag/`:

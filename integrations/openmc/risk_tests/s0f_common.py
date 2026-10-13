@@ -185,6 +185,8 @@ DUCT_INLET = "446 0 0 0 15 0 0 0 15"
 SEEDS3 = [77300001, 77300002, 77300003, 77300004]
 # Protocol 4: F8 = F6 on reciprocity-capped windows; new seeds.
 SEEDS4 = [77400001, 77400002, 77400003, 77400004]
+# Protocol 5: F9 = F8's recipe with targets found by s0f_find_targets.py; new seeds.
+SEEDS5 = [77500001, 77500002, 77500003, 77500004]
 CONFIG_ENV = {
     "F0": {},
     "F1": {"OPENMC_WW_SKIP_VOID": "1", "OPENMC_APERTURE_BIAS": APERTURE},
@@ -202,6 +204,9 @@ CONFIG_ENV["F8"] = dict(CONFIG_ENV["F6"])
 # below are its output on RM-M, and its windows are capped from the faces it found.
 AUTO_APERTURE = "0.1 590 0 0 0 20 0 0 0 20; 435 5 0 0 25 0 0 0 20"
 CONFIG_ENV["F9"] = dict(CONFIG_ENV["F6"], OPENMC_APERTURE_BIAS=AUTO_APERTURE)
+# B9 = F9's recipe on the second geometry (s0f_second_model.py, fact 15); rectangles as s0f_find_targets.py found them.
+SECOND_APERTURE = "0.1 20 385 -20 0 0 20 20 0 0; 20 125 -20 0 0 20 10 0 0"
+CONFIG_ENV["B9"] = dict(CONFIG_ENV["F6"], OPENMC_APERTURE_BIAS=SECOND_APERTURE)
 PATCH_VARIABLES = ("OPENMC_WW_SKIP_VOID", "OPENMC_APERTURE_BIAS", "OPENMC_SPLIT_BEFORE_COLLISION",
                    "OPENMC_COLLISION_AIM", "OPENMC_WW_ROULETTE_FACTOR", "OPENMC_APERTURE_ONE_SIDED")
 
@@ -251,3 +256,21 @@ def nuc050_outcome4(gain: float | None, lower: float | None, unbiased: bool | No
     """Protocol 4: F8's NUC-050 band, by protocol 2's rule."""
     return nuc050_outcome2(gain, lower, unbiased).replace("of F4", "of F8").replace(
         "collision aiming not adopted", "capped windows with aiming not adopted")
+
+
+def h11_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H11: F9 beats F0, by the same rule as H7."""
+    return h7_outcome(paired_ratios, pooled_ratio).replace("H7", "H11")
+
+
+def h12_outcome(paired_ratios: list[float], pooled_ratio: float | None) -> str:
+    """H12: targets found automatically (F9) do as well as hand-placed ones (F8): pooled FOM ratio F9/F8 >= 0.8."""
+    if pooled_ratio is None or len(paired_ratios) < 3:
+        return "NOT_EVALUATED"
+    return "H12 confirmed" if pooled_ratio >= 0.8 else "H12 rejected"
+
+
+def nuc050_outcome5(gain: float | None, lower: float | None, unbiased: bool | None) -> str:
+    """Protocol 5: F9's NUC-050 band, by protocol 2's rule."""
+    return nuc050_outcome2(gain, lower, unbiased).replace("of F4", "of F9").replace(
+        "collision aiming not adopted", "automatic targets not adopted")
