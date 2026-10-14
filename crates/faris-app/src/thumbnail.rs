@@ -3,13 +3,13 @@
 //! for it and never fails because of it.
 
 use crate::export_panel::crop_rgba;
+use crate::time::Duration;
 use eframe::egui;
 use image::{
     ExtendedColorType, ImageEncoder, RgbImage,
     codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder},
     imageops::{self, FilterType},
 };
-use crate::time::Duration;
 
 /// Tag on the screenshot command so it is not mistaken for --capture, the
 /// export panel's capture or the recorder's.

@@ -6,7 +6,7 @@
 //! computation in the engine; this file only draws them. The window has no plots, so scrolling it
 //! never pans or zooms anything.
 
-use crate::time::{Duration};
+use crate::time::Duration;
 use crate::{
     badge::{self, Kind},
     design_check_result::{

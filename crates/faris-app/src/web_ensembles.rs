@@ -46,11 +46,8 @@ pub(crate) fn write(
                 .ok_or("a transport record has no raw identity")?;
             let rates =
                 TransportDrivingRates::from_normalized(normalized, manifest.fusion_power_mw, raw)?;
-            let result = run_operating_history_cancellable(
-                &assumptions,
-                &rates,
-                &Cancellation::default(),
-            )?;
+            let result =
+                run_operating_history_cancellable(&assumptions, &rates, &Cancellation::default())?;
             let key = EnsembleKey::new(&result.driving_rates, &result.assumptions, samples)?;
             let started = std::time::Instant::now();
             let ensemble = run_history_ensemble(

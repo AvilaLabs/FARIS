@@ -9,7 +9,6 @@ mod badge;
 mod browser;
 mod camera;
 mod commands;
-mod dialog;
 mod compare_panel;
 mod design_check_panel;
 mod design_check_result;
@@ -19,6 +18,7 @@ mod design_tools;
 mod design_transport_panel;
 mod design_transport_result;
 mod design_transport_run;
+mod dialog;
 mod export_panel;
 mod history_panel;
 mod interface_check;
@@ -48,10 +48,10 @@ mod viewport;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(not(target_arch = "wasm32"))]
-mod web_ensembles;
 #[cfg(target_arch = "wasm32")]
 mod web;
+#[cfg(not(target_arch = "wasm32"))]
+mod web_ensembles;
 
 /// Native entry point: parses the command line and opens the window.
 #[cfg(not(target_arch = "wasm32"))]
@@ -59,7 +59,7 @@ pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
     native::main()
 }
 
-use crate::time::{Instant};
+use crate::time::Instant;
 use camera::{Camera, triangle_hit};
 use eframe::egui;
 use faris_engine::{

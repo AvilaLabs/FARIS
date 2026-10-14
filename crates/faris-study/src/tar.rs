@@ -494,6 +494,7 @@ fn extract_verified(
         output
             .flush()
             .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e))?;
+        #[cfg_attr(target_arch = "wasm32", allow(clippy::drop_non_drop))]
         drop(output);
         #[cfg(not(unix))]
         {

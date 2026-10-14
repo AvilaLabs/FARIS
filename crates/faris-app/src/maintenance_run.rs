@@ -4,8 +4,8 @@
 //! run` calls; nothing here owns physics. The worker never touches egui state: it reports
 //! through a mutex-guarded progress record and a channel.
 
-use crate::time::{Duration, Instant};
 use crate::badge::Kind;
+use crate::time::{Duration, Instant};
 use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,

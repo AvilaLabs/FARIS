@@ -209,7 +209,7 @@ pub(crate) struct Arguments {
 impl Arguments {
     /// Whether any flag or file supplies the study, which turns off finding a
     /// package automatically.
-    fn supplies_study(&self) -> bool {
+    pub(crate) fn supplies_study(&self) -> bool {
         self.study.is_some()
             || self.scenario.is_some()
             || self.control_scenario.is_some()
@@ -608,4 +608,3 @@ fn app_icon() -> egui::IconData {
     eframe::icon_data::from_png_bytes(include_bytes!("../assets/faris-icon-256.png"))
         .expect("the bundled application icon is a valid PNG")
 }
-

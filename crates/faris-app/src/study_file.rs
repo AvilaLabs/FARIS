@@ -464,8 +464,8 @@ fn open_study(
     set_progress(progress, "Verifying the file…");
     let mut reader = StudyReader::open(path).map_err(|e| e.to_string())?;
     let file_bytes = reader.file_bytes;
-    let workspace = faris_engine::vfs::ScratchDir::new_in(runs_directory, "faris-study-")
-        .map_err(|e| {
+    let workspace =
+        faris_engine::vfs::ScratchDir::new_in(runs_directory, "faris-study-").map_err(|e| {
             format!(
                 "cannot create a workspace in {}: {e}",
                 runs_directory.display()
@@ -943,7 +943,8 @@ impl FarisApp {
         let spawned = crate::thread::Builder::new()
             .name("faris-file-dialog".into())
             .spawn(move || {
-                let dialog = crate::dialog::FileDialog::new().add_filter("FARIS study", &[EXTENSION]);
+                let dialog =
+                    crate::dialog::FileDialog::new().add_filter("FARIS study", &[EXTENSION]);
                 let picked = match action {
                     Action::Open => dialog.set_title("Open study").pick_file(),
                     _ => {
@@ -1368,7 +1369,10 @@ mod tests {
     #[test]
     fn a_study_file_conflicts_with_the_other_input_flags() {
         assert!(crate::native::Arguments::try_parse_from(["faris-app", "study.faris"]).is_ok());
-        assert!(crate::native::Arguments::try_parse_from(["faris-app", "study.faris", "--core", "x"]).is_ok());
+        assert!(
+            crate::native::Arguments::try_parse_from(["faris-app", "study.faris", "--core", "x"])
+                .is_ok()
+        );
         for flag in [
             "--bundle",
             "--sweep-bundle",
@@ -1378,12 +1382,24 @@ mod tests {
             "--saved-study",
         ] {
             assert!(
-                crate::native::Arguments::try_parse_from(["faris-app", "study.faris", flag, "x.json"]).is_err(),
+                crate::native::Arguments::try_parse_from([
+                    "faris-app",
+                    "study.faris",
+                    flag,
+                    "x.json"
+                ])
+                .is_err(),
                 "{flag}"
             );
         }
         assert!(
-            crate::native::Arguments::try_parse_from(["faris-app", "study.faris", "--step", "compare"]).is_err()
+            crate::native::Arguments::try_parse_from([
+                "faris-app",
+                "study.faris",
+                "--step",
+                "compare"
+            ])
+            .is_err()
         );
     }
 

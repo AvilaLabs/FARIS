@@ -543,8 +543,8 @@ impl ToolsModel {
         let spawned = crate::thread::Builder::new()
             .name("faris-tools-dialog".into())
             .spawn(move || {
-                let mut dialog =
-                    crate::dialog::FileDialog::new().set_title(format!("Choose the {}", tool.label()));
+                let mut dialog = crate::dialog::FileDialog::new()
+                    .set_title(format!("Choose the {}", tool.label()));
                 if let Some(dir) = start {
                     dialog = dialog.set_directory(dir);
                 }

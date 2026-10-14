@@ -116,7 +116,7 @@ fn fetch(url: String) -> impl std::future::Future<Output = Result<Vec<u8>, Strin
         if !response.ok() {
             return Err(format!("{url}: HTTP {}", response.status()));
         }
-        let buffer = JsFuture::from(response.array_buffer().map_err(|e| js_text(e))?)
+        let buffer = JsFuture::from(response.array_buffer().map_err(js_text)?)
             .await
             .map_err(|e| format!("{url}: {}", js_text(e)))?;
         Ok(js_sys::Uint8Array::new(&buffer).to_vec())
@@ -213,14 +213,17 @@ impl FarisApp {
         match ready {
             Some(Ok(paths)) => {
                 let runs = PathBuf::from("/faris-runs");
-                self.sweep = Some(sweep_panel::SweepPanel::load_in_background(ctx, move || {
-                    let loaded = crate::load_sweep(&paths, &runs);
-                    // The panel holds the parsed records; free the raw files.
-                    for path in &paths {
-                        faris_engine::vfs::remove(path);
-                    }
-                    loaded
-                }));
+                self.sweep = Some(sweep_panel::SweepPanel::load_in_background(
+                    ctx,
+                    move || {
+                        let loaded = crate::load_sweep(&paths, &runs);
+                        // The panel holds the parsed records; free the raw files.
+                        for path in &paths {
+                            faris_engine::vfs::remove(path);
+                        }
+                        loaded
+                    },
+                ));
             }
             Some(Err(error)) => {
                 self.message = format!("The allocation sweep could not be loaded: {error}");
@@ -239,7 +242,13 @@ fn upload_path(name: &str) -> PathBuf {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let safe: String = name
         .chars()
-        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     PathBuf::from(format!(
         "/upload/{}/{safe}",
@@ -311,8 +320,8 @@ pub fn download_bytes(name: &str, bytes: &[u8]) -> Result<(), String> {
 pub fn download_export(input: &ReportInput) -> Result<ExportOutcome, String> {
     let export = faris_report::export_files(input).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for (path, bytes) in &export.files {
         archive
             .start_file(format!("{}/{path}", export.folder_name), options)
@@ -385,7 +394,10 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
         let ranges: crate::browser::PrecomputedEnsembles = serde_json::from_slice(&bytes)
             .map_err(|e| format!("the uncertainty ranges are unreadable: {e}"))?;
         if ranges.schema != crate::browser::ENSEMBLES_SCHEMA {
-            return Err(format!("unknown uncertainty file version {:?}", ranges.schema));
+            return Err(format!(
+                "unknown uncertainty file version {:?}",
+                ranges.schema
+            ));
         }
         history.restore_ensembles(
             ranges
@@ -438,10 +450,9 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
             canvas,
             options,
             Box::new(move |cc| {
-                let state = cc
-                    .wgpu_render_state
-                    .as_ref()
-                    .ok_or("the 3D viewport needs WebGPU or WebGL2, and this browser offers neither")?;
+                let state = cc.wgpu_render_state.as_ref().ok_or(
+                    "the 3D viewport needs WebGPU or WebGL2, and this browser offers neither",
+                )?;
                 viewport::initialize(state);
                 let mut visuals = egui::Visuals::dark();
                 visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
@@ -494,7 +505,10 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
         element.remove();
     }
     // The sweep is large; it arrives after the first frame.
-    let context = slot.lock().ok().and_then(|s| s.as_ref().map(|(c, _)| c.clone()));
+    let context = slot
+        .lock()
+        .ok()
+        .and_then(|s| s.as_ref().map(|(c, _)| c.clone()));
     wasm_bindgen_futures::spawn_local(async move {
         let result = load_files(&sweep_files, "Loading the allocation sweep")
             .await

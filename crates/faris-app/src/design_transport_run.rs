@@ -3,7 +3,7 @@
 //! function the command line calls; nothing here owns physics. The worker never touches egui
 //! state: it reports through a mutex-guarded snapshot and a channel, as the maintenance run does.
 
-use crate::time::{Instant};
+use crate::time::Instant;
 use crate::{
     design_shared::{self, beside, trimmed},
     maintenance_run::unused_path,

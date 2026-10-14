@@ -3,8 +3,8 @@
 //! machine (start on a worker thread, live progress, cancel, collect). Nothing here owns
 //! physics; the windows keep their own inputs and their own wording of results.
 
-use crate::time::{Instant};
 use crate::badge::Kind;
+use crate::time::Instant;
 use eframe::egui;
 use faris_engine::jobs::Cancellation;
 use std::{

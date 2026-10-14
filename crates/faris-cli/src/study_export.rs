@@ -31,13 +31,19 @@ struct Loaded {
     manifest: DemoManifest,
     records: BTreeMap<String, ReactorRun>,
     // Keeps the replay files of the loaded bundles alive.
-    _directories: Vec<tempfile::TempDir>,
+    _directories: Vec<faris_engine::vfs::ScratchDir>,
 }
 
 fn load_records(
     scenario: &LoadedScenario,
     bundles: &[std::path::PathBuf],
-) -> Result<(BTreeMap<String, ReactorRun>, Vec<tempfile::TempDir>), Failure> {
+) -> Result<
+    (
+        BTreeMap<String, ReactorRun>,
+        Vec<faris_engine::vfs::ScratchDir>,
+    ),
+    Failure,
+> {
     let mut records = BTreeMap::new();
     let mut directories = Vec::new();
     for path in bundles {
@@ -105,7 +111,7 @@ struct LoadedSweep {
     scenario: LoadedScenario,
     fusion_power_mw: f64,
     records: BTreeMap<String, ReactorRun>,
-    _directories: Vec<tempfile::TempDir>,
+    _directories: Vec<faris_engine::vfs::ScratchDir>,
 }
 
 /// A study file read, verified and validated; nothing calculated yet.

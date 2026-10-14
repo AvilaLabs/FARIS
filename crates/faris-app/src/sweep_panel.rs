@@ -21,9 +21,7 @@ use faris_engine::{
     },
 };
 use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
-use std::{
-    sync::mpsc::{self, Receiver, TryRecvError},
-};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
 /// Named arrangements of the demo, matched by blanket thickness.

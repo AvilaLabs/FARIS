@@ -197,8 +197,7 @@ pub fn read_verified(path: &Path, expected: &str) -> Result<Vec<u8>, String> {
     if size > MAX_FILE_BYTES {
         return Err(format!("{name} is larger than the package file limit"));
     }
-    let bytes =
-        faris_engine::vfs::read(path).map_err(|e| format!("{name} cannot be read: {e}"))?;
+    let bytes = faris_engine::vfs::read(path).map_err(|e| format!("{name} cannot be read: {e}"))?;
     if format!("sha256:{:x}", Sha256::digest(&bytes)) != expected {
         return Err(format!(
             "{name} differs from the package index in SHA-256; download the package again"
@@ -1278,7 +1277,7 @@ mod tests {
         let parse = |extra: &[&str]| {
             let mut all = vec!["faris-app", "--package", "p"];
             all.extend_from_slice(extra);
-            crate::Arguments::try_parse_from(all)
+            crate::native::Arguments::try_parse_from(all)
         };
         assert!(parse(&[]).is_ok());
         assert!(parse(&["--core", "c", "--runs-directory", "r", "--step", "evidence"]).is_ok());
@@ -1298,7 +1297,8 @@ mod tests {
             assert!(parse(&[flag, "x"]).is_err(), "{flag}");
         }
         assert!(
-            crate::Arguments::try_parse_from(["faris-app", "--package", "p", "s.faris"]).is_err()
+            crate::native::Arguments::try_parse_from(["faris-app", "--package", "p", "s.faris"])
+                .is_err()
         );
     }
 
@@ -1308,7 +1308,7 @@ mod tests {
         let supplies = |args: &[&str]| {
             let mut all = vec!["faris-app"];
             all.extend_from_slice(args);
-            crate::Arguments::try_parse_from(all)
+            crate::native::Arguments::try_parse_from(all)
                 .unwrap()
                 .supplies_study()
         };

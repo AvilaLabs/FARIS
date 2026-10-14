@@ -1,8 +1,8 @@
 //! Reopening saved studies revalidates their identities on a worker thread.
 
-use crate::time::{Duration, Instant};
 use crate::badge::{self, Kind};
 use crate::package::{SavedStore, StoreOrigin};
+use crate::time::{Duration, Instant};
 use eframe::egui;
 use faris_engine::{
     case_archive::{SavedCaseInspection, inspect_saved_case, inspect_saved_case_in_store},

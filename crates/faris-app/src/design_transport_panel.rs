@@ -4,7 +4,7 @@
 //! the result in `design_transport_result`, and the computation in the engine; this file only
 //! draws them. The window has no plots, so scrolling it never pans or zooms anything.
 
-use crate::time::{Duration};
+use crate::time::Duration;
 use crate::{
     badge::{self, Kind},
     design_shared::{missing_count_text, needs_list, path_row},
