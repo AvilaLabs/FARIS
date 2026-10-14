@@ -445,10 +445,10 @@ fn write_marker(path: &Path, status: &str, error: Option<String>) {
         text.truncate(text.trim_end().len());
         value["error"] = text.into();
     }
-    let staging = path.with_extension("tmp");
-    if std::fs::write(&staging, serde_json::to_vec(&value).unwrap_or_default()).is_ok() {
-        let _ = std::fs::rename(&staging, path);
-    }
+    let _ = faris_engine::atomic_file::write_atomic(
+        path,
+        &serde_json::to_vec(&value).unwrap_or_default(),
+    );
 }
 
 /// Verify the file, unpack it under a fresh workspace and load it. Runs on a

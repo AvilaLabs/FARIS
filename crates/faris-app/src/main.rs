@@ -387,12 +387,8 @@ fn check_package(
         "problems": problems,
         "elapsed_s": started.elapsed().as_secs_f64(),
     });
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(report)?;
-    std::io::Write::write_all(
-        &mut file,
+    faris_engine::atomic_file::write_new(
+        report,
         (serde_json::to_string_pretty(&value)? + "\n").as_bytes(),
     )?;
     drop(session);

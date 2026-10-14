@@ -51,14 +51,19 @@ fn cad_limits() -> ResourceLimits {
 /// The bounds a native stage runs under: the stage's wall-clock timeout, and the address space
 /// of the Python stage's job limits. The worker is one thread, so its CPU seconds cannot pass
 /// the wall-clock seconds; the CPU limit is set to them.
-fn native_bounds(timeout: Duration, limits: ResourceLimits) -> Bounds {
-    Bounds {
+fn native_bounds(timeout: Duration, limits: ResourceLimits) -> Result<Bounds, DesignError> {
+    let policy = crate::memory::policy();
+    let address_space = crate::memory::effective_address_space(limits.address_space_bytes, &policy);
+    if let crate::memory::Admission::Refused(why) = crate::memory::admit(address_space, &policy) {
+        return Err(DesignError::Tool(format!("the native CAD reader: {why}")));
+    }
+    Ok(Bounds {
         wall_seconds: timeout.as_secs_f64(),
         limits: Limits {
-            address_space_mb: Some(limits.address_space_bytes >> 20),
+            address_space_mb: Some(address_space >> 20),
             cpu_seconds: Some(timeout.as_secs()),
         },
-    }
+    })
 }
 
 /// STEP inspect in the native worker: the same `faris-step-inspect/v1` report as the helper's.
@@ -77,7 +82,7 @@ pub(super) fn inspect_native(
                 step,
                 assume_unit: assume.map(|u| u.label().to_string()),
             },
-            native_bounds(super::CAD_TIMEOUT, ResourceLimits::default()),
+            native_bounds(super::CAD_TIMEOUT, ResourceLimits::default())?,
             &|| ext.cancellation.is_cancelled(),
         )
         .map_err(|e| DesignError::Tool(format!("the native CAD reader: {e}")))?;
@@ -464,7 +469,7 @@ pub(super) fn tessellate(
             };
             let value = match native.worker.run_cancellable(
                 operation,
-                native_bounds(TESSELLATE_TIMEOUT, cad_limits()),
+                native_bounds(TESSELLATE_TIMEOUT, cad_limits())?,
                 &|| ext.cancellation.is_cancelled(),
             ) {
                 Ok(value) => value,

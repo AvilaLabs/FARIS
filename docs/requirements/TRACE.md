@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 136 of 1418 requirements.
+Traced: 138 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -17,7 +17,7 @@ Traced: 136 of 1418 requirements.
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 18 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
-| [08-performance.md](08-performance.md) | 37 | 3 |
+| [08-performance.md](08-performance.md) | 37 | 4 |
 | [09-usability.md](09-usability.md) | 73 | 2 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 1 |
 | [11-visualization.md](11-visualization.md) | 49 | 8 |
@@ -28,7 +28,7 @@ Traced: 136 of 1418 requirements.
 | [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 13 |
 | [17-collaboration.md](17-collaboration.md) | 40 | 3 |
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
-| [19-security.md](19-security.md) | 55 | 6 |
+| [19-security.md](19-security.md) | 55 | 7 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 0 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 1 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 0 |
@@ -113,6 +113,7 @@ Traced: 136 of 1418 requirements.
 | PERF-022 | F1 | `crates/faris-engine/src/history_ensemble/tests.rs::progress_reports_every_sample` |
 | PERF-024 | F1 | `crates/faris-engine/src/design/par.rs::cancelling_stops_the_workers_and_returns_nothing_partial`<br>`crates/faris-engine/src/history_ensemble/tests.rs::cancellation_stops_promptly_and_returns_no_partial_result` |
 | PERF-027 | F1 | `crates/faris-app/src/uncertainty/tests.rs::an_unchanged_key_never_reruns`<br>`crates/faris-app/src/uncertainty/tests.rs::stored_ensembles_are_reused_only_under_an_exact_key` |
+| PERF-041 | F1 | `crates/faris-engine/src/jobs.rs::a_finished_job_records_its_peak_memory_and_the_check_made_before_it`<br>`crates/faris-engine/src/jobs.rs::a_job_projected_beyond_free_memory_is_refused_before_it_starts`<br>`crates/faris-engine/src/memory.rs::a_job_that_fits_is_admitted_and_one_that_does_not_is_refused_with_a_reason`<br>`crates/faris-engine/src/memory.rs::a_refusal_comes_from_the_injected_free_figure`<br>`crates/faris-engine/src/memory.rs::an_unreadable_free_figure_is_not_evaluated_not_guessed`<br>`crates/faris-engine/src/memory.rs::meminfo_and_proc_text_parse`<br>`crates/faris-engine/src/memory.rs::the_cap_lowers_but_never_raises_a_jobs_address_space`<br>`crates/faris-engine/src/memory.rs::this_machines_free_memory_is_readable` |
 | UX-027 | F1 | `crates/faris-app/src/study_file.rs::a_changed_view_marks_the_title_until_it_is_saved_again`<br>`crates/faris-app/src/study_file.rs::title_names_the_file_marks_changes_and_says_unsaved` |
 | UX-053 | F1 | `crates/faris-app/src/tour.rs::next_back_skip_and_finish_transitions` |
 | L10N-033 | F4 | `crates/faris-report/src/tests.rs::pdf_embeds_fonts_and_keeps_text_as_text` |
@@ -159,9 +160,10 @@ Traced: 136 of 1418 requirements.
 | COL-006 | F1 | `crates/faris-report/src/tests.rs::export_writes_the_documented_folder_layout` |
 | COL-007 | F1 | `crates/faris-cli/src/study_export.rs::cli_and_desktop_assembly_export_identical_csv_and_manifest` |
 | REL-006 | F1 | `crates/faris-engine/src/jobs.rs::timeout_cleans_up_descendants_holding_the_output_pipe` |
-| REL-010 | F1 | `crates/faris-study/src/tests.rs::saving_replaces_atomically_and_leaves_no_temporary_files` |
+| REL-010 | F1 | `crates/faris-engine/src/atomic_file.rs::a_failed_save_leaves_the_previous_file`<br>`crates/faris-engine/src/atomic_file.rs::modelled_power_loss_states_never_expose_partial_data`<br>`crates/faris-engine/src/atomic_file.rs::replace_and_refuse_leave_no_temporary_files`<br>`crates/faris-engine/src/atomic_file.rs::the_power_loss_model_catches_a_rename_before_fsync`<br>`crates/faris-engine/tests/kill_during_save.rs::full_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-engine/tests/kill_during_save.rs::reduced_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/kill_tests.rs::full_study_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/kill_tests.rs::reduced_study_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/tests.rs::saving_replaces_atomically_and_leaves_no_temporary_files` |
 | REL-020 | F1 | `crates/faris-cli/tests/study_file.rs::a_damaged_file_fails_verification_with_status_one`<br>`crates/faris-study/src/tests.rs::an_altered_blob_is_named_and_refused` |
 | REL-021 | F1 | `crates/faris-study/src/tests.rs::a_blob_without_an_entry_or_an_entry_without_a_blob_is_refused`<br>`crates/faris-study/src/tests.rs::a_damaged_ensemble_record_refuses_the_file`<br>`crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_entry_larger_than_its_recorded_size_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named`<br>`crates/faris-study/src/tests.rs::tar_gz_refuses_traversal_links_duplicates_and_damage`<br>`crates/faris-study/src/tests.rs::unexpected_entry_names_are_refused` |
+| SEC-001 | F1 | `crates/faris-engine/src/design/transport.rs::a_report_cannot_point_the_model_at_a_relative_climbing_or_linked_path`<br>`crates/faris-engine/tests/hostile_files.rs::a_hostile_check_report_cannot_make_transport_start_or_read_elsewhere`<br>`crates/faris-engine/tests/hostile_files.rs::a_hostile_free_text_design_with_no_tools_configured_starts_nothing`<br>`crates/faris-engine/tests/hostile_files.rs::hostile_design_files_are_parsed_and_checked_without_starting_a_process`<br>`crates/faris-engine/tests/hostile_files.rs::the_process_check_can_see_a_process`<br>`crates/faris-engine/tests/process_audit.rs::every_process_start_and_dynamic_load_in_the_workspace_is_on_the_reviewed_list`<br>`crates/faris-engine/tests/process_audit.rs::no_reviewed_entry_takes_anything_from_file_content`<br>`crates/faris-engine/tests/process_audit.rs::the_workspace_depends_on_no_dynamic_loader_or_opener_crate`<br>`crates/faris-study/src/hostile_tests.rs::a_study_full_of_hostile_text_opens_verifies_and_unpacks_without_a_process` |
 | SEC-002 | F1 | `crates/faris-engine/src/case_archive.rs::a_directory_tree_and_a_store_tree_read_the_same_files_the_same_way`<br>`crates/faris-engine/src/case_archive.rs::archive_file_reader_rejects_symlink_and_oversize`<br>`crates/faris-engine/src/case_archive.rs::archive_paths_and_digests_are_strict`<br>`crates/faris-engine/src/case_archive.rs::tree_limits_are_enforced_alike_on_a_directory_and_on_the_store_index`<br>`crates/faris-engine/src/core_evidence.rs::portable_record_refuses_path_escape_and_missing_artifacts`<br>`crates/faris-engine/src/evidence_store.rs::a_decompression_bomb_is_bounded_by_the_indexed_length`<br>`crates/faris-engine/src/evidence_store.rs::a_symlink_blob_or_blob_directory_is_refused`<br>`crates/faris-engine/src/evidence_store.rs::a_tampered_blob_is_detected_and_never_returned`<br>`crates/faris-engine/src/evidence_store.rs::pack_then_read_round_trips_every_file_and_shares_blobs`<br>`crates/faris-study/src/tests.rs::evidence_paths_must_be_safe_relative_paths`<br>`crates/faris-study/src/tests.rs::tar_gz_refuses_traversal_links_duplicates_and_damage`<br>`crates/faris-study/src/tests.rs::unexpected_entry_names_are_refused`<br>`crates/faris-study/src/tests.rs::unsafe_bundle_names_in_the_manifest_are_refused`<br>`scripts/test_evidence_store.py::test_a_flipped_byte_in_a_blob_is_detected`<br>`scripts/test_evidence_store.py::test_a_symlink_blob_is_refused_and_never_read`<br>`scripts/test_evidence_store.py::test_bad_paths_are_refused`<br>`scripts/test_verify_recorded_demo.py::test_index_rejects_extra_unindexed_file_and_path_traversal` |
 | SEC-003 | F1 | `crates/faris-cli/src/transport.rs::special_files_cannot_bypass_input_bounds`<br>`crates/faris-study/src/tests.rs::an_entry_larger_than_its_recorded_size_is_refused`<br>`crates/faris-study/src/tests.rs::declared_totals_beyond_the_bound_are_refused` |
 | SEC-004 | F1 | `crates/faris-study/src/tests.rs::a_blob_without_an_entry_or_an_entry_without_a_blob_is_refused`<br>`crates/faris-study/src/tests.rs::a_damaged_ensemble_record_refuses_the_file`<br>`crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named`<br>`crates/faris-study/src/tests.rs::unexpected_entry_names_are_refused` |

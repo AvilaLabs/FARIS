@@ -21,6 +21,9 @@ xz2.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
 
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true, features = ["resource", "time"] }
+
 [features]
 # Small synthetic histories and ensembles for tests and development checks.
 # Off in every normal build.

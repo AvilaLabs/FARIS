@@ -399,23 +399,8 @@ impl Default for RunPanel {
 fn write_new(path: &Path, result: &MaintenanceResult) -> Result<(), String> {
     let mut bytes = serde_json::to_vec_pretty(result).map_err(|e| e.to_string())?;
     bytes.push(b'\n');
-    let mut tmp_name = path.as_os_str().to_os_string();
-    tmp_name.push(".partial");
-    let tmp = PathBuf::from(tmp_name);
-    let write = || -> std::io::Result<()> {
-        use std::io::Write;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)?;
-        file.write_all(&bytes)?;
-        file.sync_all()?;
-        // A hard link fails if the target exists, so an existing file is never replaced.
-        std::fs::hard_link(&tmp, path)
-    };
-    let outcome = write();
-    let _ = std::fs::remove_file(&tmp);
-    outcome.map_err(|e| format!("cannot write {}: {e}", path.display()))
+    faris_engine::atomic_file::write_new(path, &bytes)
+        .map_err(|e| format!("cannot write {}: {e}", path.display()))
 }
 
 impl RunPanel {

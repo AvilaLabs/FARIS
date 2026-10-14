@@ -1030,6 +1030,7 @@ dependencies = [
  "faris-engine",
  "faris-model",
  "flate2",
+ "nix",
  "serde",
  "serde_json",
  "sha2",

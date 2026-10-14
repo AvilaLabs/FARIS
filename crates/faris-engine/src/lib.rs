@@ -1,5 +1,6 @@
 //! Shared geometry, checked transport normalization and bounded external jobs.
 
+pub mod atomic_file;
 pub mod brief;
 pub mod case_archive;
 pub mod comparison;
@@ -17,6 +18,7 @@ pub mod history_ensemble;
 pub mod history_uncertainty;
 pub mod jobs;
 pub mod maintenance;
+pub mod memory;
 pub mod mesh;
 pub mod presets;
 pub mod reactor;

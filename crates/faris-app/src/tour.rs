@@ -57,7 +57,7 @@ pub fn write_marker(path: &Path) {
     let result = path
         .parent()
         .map_or(Ok(()), std::fs::create_dir_all)
-        .and_then(|()| std::fs::write(path, "completed\n"));
+        .and_then(|()| faris_engine::atomic_file::write_atomic(path, b"completed\n"));
     if let Err(error) = result {
         eprintln!(
             "FARIS tour marker not written ({}): {error}",

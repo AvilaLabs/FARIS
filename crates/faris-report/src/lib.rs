@@ -661,7 +661,7 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
         if let Some(dir) = target.parent() {
             fs::create_dir_all(dir)?;
         }
-        fs::write(&target, bytes)?;
+        faris_engine::atomic_file::write_new(&target, bytes)?;
         records.push(FileRecord {
             path: path.clone(),
             sha256: sha256_hex(bytes),
@@ -687,7 +687,12 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
     let mut text =
         serde_json::to_string_pretty(&manifest).map_err(|e| ExportError::Render(e.to_string()))?;
     text.push('\n');
-    fs::write(staging.path().join("export-manifest.json"), text)?;
+    faris_engine::atomic_file::write_new(
+        &staging.path().join("export-manifest.json"),
+        text.as_bytes(),
+    )?;
+    // The folder appears under its final name only once its entries are on disk.
+    let _ = faris_engine::atomic_file::sync_directory(staging.path());
 
     // The check above can race with another writer; rename onto an existing
     // directory would silently replace an empty one, so look again.
@@ -698,6 +703,7 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
     fs::rename(&staged, &final_dir).inspect_err(|_| {
         let _ = fs::remove_dir_all(&staged);
     })?;
+    let _ = faris_engine::atomic_file::sync_directory(parent);
     Ok(ExportOutcome {
         folder: final_dir,
         files: records,

@@ -75,6 +75,15 @@ basis.
   is not closed as a tessellation problem. Tessellations and overlap booleans are cached in `--work-dir`
   (keyed by the STEP hash, tolerances and helper version; `--no-reuse` turns this off). `--imprint-threads` now
   defaults to 4.
+- The files FARIS saves for you (study files, design drafts, check, transport and evidence reports, exports) are
+  written to a temporary file in the same folder, flushed to disk, renamed into place and the folder flushed, so a
+  crash or power cut leaves the previous file or the complete new one. A killed save can leave a `.faris-save-*.tmp`
+  file beside it; delete it. Tests kill the saving process at random points (300 trials in the normal test run,
+  10,000 with `--ignored`).
+- Memory is budgeted. Every external job runs under a memory cap (default 4 GiB; `FARIS_MEMORY_CAP_MB` lowers it
+  for all jobs). Before a job starts FARIS compares the cap with the memory free now, less a reserve
+  (`FARIS_MEMORY_MARGIN_MB`, default 1024), and refuses the job with the numbers and what to do if it would not fit.
+  Where the system gives free memory (Linux), a finished job's result records its peak memory and the check made.
 
 ### Changed
 
@@ -84,6 +93,9 @@ basis.
   (it was 0.5 %); at a tolerance you set the limit stays 0.5 %. The message says which solid and to set a smaller
   tolerance. The seeded-defect corpus now has overlaps of 1e-4 and 1e-5 of the smaller solid, with the overlap volume
   OpenCASCADE measured for each.
+- `faris design transport` refuses a check report whose conversion directory is not an absolute path without `..`
+  or whose `model.h5m` is a link; the report is rewritten by `faris design check --work-dir DIR --report FILE`.
+- The component ids sent to the activation input builder are passed as `--component=ID`, one token each.
 - The OKTAVIAN aluminium validation case now has a confirmed normalisation: the
   experimental values are the leakage current through the whole outer surface
   (MCNP surface 6) per source neutron, per unit lethargy (neutrons) or per MeV

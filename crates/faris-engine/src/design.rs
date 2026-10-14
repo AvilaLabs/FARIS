@@ -1749,15 +1749,7 @@ pub fn design_init(
     let mut body =
         serde_json::to_vec_pretty(&draft).map_err(|e| DesignError::Init(e.to_string()))?;
     body.push(b'\n');
-    {
-        use std::io::Write;
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&out_path)
-            .map_err(|e| io_error(&out_path, e))?;
-        file.write_all(&body).map_err(|e| io_error(&out_path, e))?;
-    }
+    crate::atomic_file::write_new(&out_path, &body).map_err(|e| io_error(&out_path, e))?;
     Ok(InitSummary {
         path: out_path,
         solids: draft.solids.len(),

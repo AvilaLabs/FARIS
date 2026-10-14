@@ -22,6 +22,9 @@ use std::{
 
 pub const MAX_CAPTURE_BYTES: usize = 4 * 1024 * 1024;
 pub const ARTIFACT_SCAN_INTERVAL: Duration = Duration::from_millis(100);
+/// How often a running job's memory is read. A spike shorter than this between two reads can
+/// be missed; the kernel's own high-water mark for each process narrows that gap.
+pub const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Per-job ceilings. Callers may request lower limits than the defaults; only the address
 /// space may be raised, up to [`ResourceLimits::ADDRESS_SPACE_CEILING`], because a CAD
@@ -136,6 +139,13 @@ pub struct JobResult {
     pub artifact_bytes_observed: u64,
     #[serde(default)]
     pub largest_artifact_file_bytes_observed: u64,
+    /// Peak resident memory of the job and its descendants, sampled while it ran, where the
+    /// platform gives it (Linux: `/proc`). `None` means not measured, not zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak_memory_bytes: Option<u64>,
+    /// The memory check made before the job started, as a verdict line (PERF-041).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_check: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -144,6 +154,9 @@ pub enum JobError {
     Invalid(&'static str),
     #[error("external job I/O: {0}")]
     Io(#[from] std::io::Error),
+    /// The memory check refused the job; the text says why and what to do.
+    #[error("{0}")]
+    MemoryRefused(String),
     #[error("job output reader panicked")]
     ReaderPanic,
 }
@@ -363,6 +376,16 @@ pub fn run_job_with_lines(
             "at most 16 artifact roots may be configured",
         ));
     }
+    // The cap FARIS applies to every external job, then the check that the job fits.
+    let memory_policy = crate::memory::policy();
+    let mut limits = spec.resource_limits;
+    limits.address_space_bytes =
+        crate::memory::effective_address_space(limits.address_space_bytes, &memory_policy);
+    let admission = crate::memory::admit(limits.address_space_bytes, &memory_policy);
+    if let crate::memory::Admission::Refused(why) = admission {
+        return Err(JobError::MemoryRefused(why));
+    }
+    let memory_check = Some(admission.record());
     let mut artifact_roots = vec![spec.working_directory.clone()];
     for root in &spec.artifact_roots {
         if !root.is_absolute() {
@@ -374,11 +397,11 @@ pub fn run_job_with_lines(
         }
         artifact_roots.push(root.clone());
     }
-    let initial_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
+    let initial_usage = artifact_usage(&artifact_roots, limits)?;
     if initial_usage.exceeded_scan_bound
-        || initial_usage.files > spec.resource_limits.artifact_file_count
-        || initial_usage.bytes > spec.resource_limits.artifact_total_bytes
-        || initial_usage.largest_file_bytes > spec.resource_limits.single_file_bytes
+        || initial_usage.files > limits.artifact_file_count
+        || initial_usage.bytes > limits.artifact_total_bytes
+        || initial_usage.largest_file_bytes > limits.single_file_bytes
     {
         return Err(JobError::Invalid(
             "existing artifact roots already exceed configured limits",
@@ -403,18 +426,17 @@ pub fn run_job_with_lines(
             stderr: String::new(),
             stdout_truncated: false,
             stderr_truncated: false,
-            resource_limits: spec.resource_limits,
+            resource_limits: limits,
             artifact_files_observed: initial_usage.files,
             artifact_bytes_observed: initial_usage.bytes,
             largest_artifact_file_bytes_observed: initial_usage.largest_file_bytes,
+            peak_memory_bytes: None,
+            memory_check: memory_check.clone(),
         });
     }
     let mut child = Command::new(prlimit)
-        .arg(format!("--as={}", spec.resource_limits.address_space_bytes))
-        .arg(format!(
-            "--fsize={}",
-            spec.resource_limits.single_file_bytes
-        ))
+        .arg(format!("--as={}", limits.address_space_bytes))
+        .arg(format!("--fsize={}", limits.single_file_bytes))
         .arg("--")
         .arg(&spec.program)
         .args(&spec.arguments)
@@ -435,13 +457,15 @@ pub fn run_job_with_lines(
     let limit = spec.capture_limit_bytes;
     let out_flag = exceeded.clone();
     let err_flag = exceeded.clone();
-    let (outcome, cleanup, waited, out, err) = thread::scope(|scope| {
+    let (outcome, cleanup, waited, out, err, peak_memory) = thread::scope(|scope| {
         let out_reader =
             scope.spawn(move || capture(stdout, limit, out_flag, Some(on_stdout_line)));
         let err_reader = scope.spawn(move || capture(stderr, limit, err_flag, None));
 
         let mut observed_usage: ArtifactUsage;
         let mut next_artifact_scan = Instant::now();
+        let mut peak = crate::memory::sampler::Peak::default();
+        let mut next_memory_sample = Instant::now();
         let outcome: Result<_, JobError> = loop {
             if cancellation.is_cancelled() {
                 break Ok((ExecutionStatus::Cancelled, None));
@@ -453,20 +477,28 @@ pub fn run_job_with_lines(
                 break Ok((ExecutionStatus::TimedOut, None));
             }
             if Instant::now() >= next_artifact_scan {
-                observed_usage = match artifact_usage(&artifact_roots, spec.resource_limits) {
+                observed_usage = match artifact_usage(&artifact_roots, limits) {
                     Ok(usage) => usage,
                     Err(error) => break Err(error),
                 };
-                if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
+                if observed_usage.largest_file_bytes > limits.single_file_bytes {
                     break Ok((ExecutionStatus::FileSizeLimit, None));
                 }
                 if observed_usage.exceeded_scan_bound
-                    || observed_usage.files > spec.resource_limits.artifact_file_count
-                    || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
+                    || observed_usage.files > limits.artifact_file_count
+                    || observed_usage.bytes > limits.artifact_total_bytes
                 {
                     break Ok((ExecutionStatus::ArtifactLimit, None));
                 }
                 next_artifact_scan = Instant::now() + ARTIFACT_SCAN_INTERVAL;
+            }
+            // Read before try_wait: once the child is reaped its /proc entries are gone.
+            if Instant::now() >= next_memory_sample {
+                peak.observe(crate::memory::sampler::sample(
+                    pid.as_raw(),
+                    std::path::Path::new("/proc"),
+                ));
+                next_memory_sample = Instant::now() + MEMORY_SAMPLE_INTERVAL;
             }
             match child.try_wait() {
                 Ok(Some(status)) => {
@@ -494,20 +526,20 @@ pub fn run_job_with_lines(
         let waited = child.wait();
         let out = out_reader.join().map_err(|_| JobError::ReaderPanic)??;
         let err = err_reader.join().map_err(|_| JobError::ReaderPanic)??;
-        Ok::<_, JobError>((outcome, cleanup, waited, out, err))
+        Ok::<_, JobError>((outcome, cleanup, waited, out, err, peak.bytes()))
     })?;
     cleanup?;
     let (mut execution_status, exit_code) = outcome?;
     let waited = waited?;
     // Catch short-lived bursts that may finish between watchdog polls. A
     // completed job that crossed either aggregate ceiling is never succeeded.
-    let observed_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
-    if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
+    let observed_usage = artifact_usage(&artifact_roots, limits)?;
+    if observed_usage.largest_file_bytes > limits.single_file_bytes {
         execution_status = ExecutionStatus::FileSizeLimit;
     } else if observed_usage.exceeded_scan_bound
-        || observed_usage.files > spec.resource_limits.artifact_file_count
-        || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
-        || observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes
+        || observed_usage.files > limits.artifact_file_count
+        || observed_usage.bytes > limits.artifact_total_bytes
+        || observed_usage.largest_file_bytes > limits.single_file_bytes
     {
         execution_status = ExecutionStatus::ArtifactLimit;
     }
@@ -527,10 +559,12 @@ pub fn run_job_with_lines(
         stderr: String::from_utf8_lossy(&err.bytes).into_owned(),
         stdout_truncated: out.truncated,
         stderr_truncated: err.truncated,
-        resource_limits: spec.resource_limits,
+        resource_limits: limits,
         artifact_files_observed: observed_usage.files,
         artifact_bytes_observed: observed_usage.bytes,
         largest_artifact_file_bytes_observed: observed_usage.largest_file_bytes,
+        peak_memory_bytes: peak_memory,
+        memory_check,
     })
 }
 
@@ -821,5 +855,39 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].len(), MAX_LINE_BYTES);
         assert_eq!(lines[1], "after");
+    }
+
+    // Verifies: PERF-041
+    #[test]
+    fn a_finished_job_records_its_peak_memory_and_the_check_made_before_it() {
+        // 0.3 s of sleep spans several 50 ms samples of the running process group.
+        let (_dir, spec) = shell("sleep 0.3");
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        let peak = result
+            .peak_memory_bytes
+            .expect("peak memory is measured on Linux");
+        assert!(peak > 0 && peak < 1 << 30, "implausible peak {peak}");
+        assert!(result.memory_check.unwrap().starts_with("PASS: "));
+    }
+
+    // Verifies: PERF-041
+    #[test]
+    fn a_job_projected_beyond_free_memory_is_refused_before_it_starts() {
+        let (dir, spec) = shell("echo started > ran");
+        crate::memory::tests::inject_free(Some(crate::memory::GIB));
+        let outcome = run_job(&spec, &Cancellation::default());
+        crate::memory::tests::inject_free(None);
+        let Err(JobError::MemoryRefused(why)) = outcome else {
+            panic!("expected a refusal, got {outcome:?}");
+        };
+        assert!(
+            why.starts_with("not started: ") && why.contains("4.0 GiB"),
+            "{why}"
+        );
+        assert!(
+            !dir.path().join("ran").exists(),
+            "the job must not have started"
+        );
     }
 }

@@ -11,7 +11,7 @@ use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs, io::Write, path::Path, time::Duration};
+use std::{collections::BTreeMap, fs, path::Path, time::Duration};
 
 const MAX_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
 /// History stage envelopes contain an exact compact JSON string for up to a
@@ -159,11 +159,8 @@ pub fn load_recorded_bundle(
 }
 
 pub fn write_new(path: &Path, bytes: &[u8]) -> Result<(), ReactorError> {
-    let parent = path.parent().ok_or("artifact needs a parent directory")?;
-    let mut file = tempfile::NamedTempFile::new_in(parent)?;
-    file.write_all(bytes)?;
-    file.as_file().sync_all()?;
-    file.persist_noclobber(path)?;
+    path.parent().ok_or("artifact needs a parent directory")?;
+    crate::atomic_file::write_new(path, bytes)?;
     Ok(())
 }
 

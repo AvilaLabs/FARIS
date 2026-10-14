@@ -7,7 +7,7 @@ use faris_model::{
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -66,15 +66,8 @@ pub fn write_new_json(
 }
 
 pub fn write_new_bytes(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let parent = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-    std::fs::create_dir_all(parent)?;
-    let mut file = tempfile::NamedTempFile::new_in(parent)?;
-    file.write_all(bytes)?;
-    file.as_file().sync_all()?;
-    file.persist_noclobber(path)?;
+    std::fs::create_dir_all(faris_engine::atomic_file::parent_directory(path))?;
+    faris_engine::atomic_file::write_new(path, bytes)?;
     Ok(())
 }
 

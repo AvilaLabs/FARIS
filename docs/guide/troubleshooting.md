@@ -49,6 +49,14 @@ The saved Core receipts were executed with the loaded assumptions, and the curre
 **Compile study says the Core executable is unavailable.**
 Choose the installed Avila Core file under **Compiler settings**, or start the app with `--core`.
 
+## Memory
+
+**A job says "not started" and gives memory figures.**
+FARIS holds every external job to a memory cap (4 GiB unless the job needs more) and does not start one when the cap plus a reserve of 1 GiB is more than the memory free now. FARIS has no estimate of how much a given job really uses, so it compares the cap, which can refuse a job that would have fitted. Close other programs and run it again. If the job is known to be small, lower the cap for all jobs with `FARIS_MEMORY_CAP_MB` (for example `2048`); `FARIS_MEMORY_MARGIN_MB` changes the reserve. On a system without `/proc/meminfo` the check is recorded as NOT_EVALUATED and the cap still applies.
+
+**A job stopped with "failed" and mentions its memory limit.**
+It reached the cap. The job's result records its peak memory (Linux), which says how close it came. The setting only lowers the cap; each kind of job has its own upper limit, and a CAD conversion of a whole reactor model is allowed more than the default.
+
 ## Still stuck
 
 Report reproducible problems through [GitHub issues](https://github.com/AvilaLabs/FARIS/issues). Include your version, the command or step, and the message.

@@ -393,7 +393,7 @@ fn builder_arguments_follow_the_driver() {
         "--cooling-grid 1.0s,10.0s,100.0s,1000.0s --actinv-outputs heat --actinv ",
         "--output-dir ",
         "decay --decay-continuations ",
-        "decay-times.json --continuations-only --component blanket --component magnets",
+        "decay-times.json --continuations-only --component=blanket --component=magnets",
     ] {
         assert!(line.contains(expected), "missing {expected:?} in {line}");
     }

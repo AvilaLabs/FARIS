@@ -347,18 +347,13 @@ fn write_json<T: serde::Serialize>(
     path: &Path,
     report: &T,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    use std::io::Write;
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map_err(|e| {
-            format!(
-                "{}: {e} (an existing report is never overwritten)",
-                path.display()
-            )
-        })?;
-    file.write_all(&serde_json::to_vec_pretty(report)?)?;
-    file.write_all(b"\n")?;
+    let mut bytes = serde_json::to_vec_pretty(report)?;
+    bytes.push(b'\n');
+    faris_engine::atomic_file::write_new(path, &bytes).map_err(|e| {
+        format!(
+            "{}: {e} (an existing report is never overwritten)",
+            path.display()
+        )
+    })?;
     Ok(())
 }

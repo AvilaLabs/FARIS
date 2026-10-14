@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -253,9 +253,7 @@ pub struct CoreCompilation {
 }
 
 fn new_file(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut file = File::options().write(true).create_new(true).open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
+    crate::atomic_file::write_new(path, bytes)?;
     Ok(())
 }
 fn digest(bytes: &[u8]) -> String {
@@ -286,14 +284,7 @@ fn executable_digest(path: &Path) -> Result<String, Box<dyn std::error::Error + 
 }
 
 fn replace_file(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let temporary = path.with_extension("json.tmp");
-    let mut file = File::options()
-        .write(true)
-        .create_new(true)
-        .open(&temporary)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    std::fs::rename(temporary, path)?;
+    crate::atomic_file::write_atomic(path, bytes)?;
     Ok(())
 }
 

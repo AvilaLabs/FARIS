@@ -20,7 +20,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -302,18 +302,11 @@ pub fn write_points(result_path: &Path, points_path: &Path) -> Result<(), String
     if let Some(parent) = points_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
-    let mut tmp_name = points_path.as_os_str().to_os_string();
-    tmp_name.push(".tmp");
-    let tmp = PathBuf::from(tmp_name);
-    let write = || -> std::io::Result<()> {
-        let mut out = BufWriter::new(std::fs::File::create(&tmp)?);
-        serde_json::to_writer(&mut out, &doc).map_err(std::io::Error::from)?;
-        out.write_all(b"\n")?;
-        out.flush()?;
-        out.get_ref().sync_all()
-    };
-    write().map_err(|e| format!("{}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, points_path).map_err(|e| format!("{}: {e}", points_path.display()))?;
+    let mut bytes =
+        serde_json::to_vec(&doc).map_err(|e| format!("{}: {e}", points_path.display()))?;
+    bytes.push(b'\n');
+    crate::atomic_file::write_atomic(points_path, &bytes)
+        .map_err(|e| format!("{}: {e}", points_path.display()))?;
     std::fs::remove_file(result_path).map_err(|e| format!("{}: {e}", result_path.display()))
 }
 
@@ -528,11 +521,7 @@ fn tail_of(text: &str) -> String {
 }
 
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let mut tmp_name = path.as_os_str().to_os_string();
-    tmp_name.push(".tmp");
-    let tmp = PathBuf::from(tmp_name);
-    std::fs::write(&tmp, bytes).map_err(|e| format!("{}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
+    crate::atomic_file::write_atomic(path, bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// `build_activation_inputs.py` writes manifest.json last; a folder without it, or whose
@@ -760,8 +749,8 @@ impl ActinvDecaySource {
             "--continuations-only".into(),
         ];
         for component in components {
-            arguments.push("--component".into());
-            arguments.push(component.into());
+            // One token, so an id that starts with `-` is a value and never an option.
+            arguments.push(format!("--component={component}").into());
         }
         if let Some(path) = &self.config.impurities {
             arguments.push("--impurities".into());

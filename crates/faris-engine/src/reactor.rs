@@ -32,7 +32,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsString,
     fs::File,
-    io::{Read, Write},
+    io::Read,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -623,9 +623,7 @@ fn canonicalize_required_input(path: &Path, label: &str) -> Result<PathBuf, Reac
         .map_err(|error| format!("cannot locate {label} at {}: {error}", path.display()).into())
 }
 fn write_new(path: &Path, bytes: &[u8]) -> Result<(), ReactorError> {
-    let mut file = File::options().write(true).create_new(true).open(path)?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
+    crate::atomic_file::write_new(path, bytes)?;
     Ok(())
 }
 

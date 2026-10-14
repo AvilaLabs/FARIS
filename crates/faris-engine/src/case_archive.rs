@@ -1216,6 +1216,8 @@ mod tests {
                 artifact_files_observed: 0,
                 artifact_bytes_observed: 0,
                 largest_artifact_file_bytes_observed: 0,
+                peak_memory_bytes: None,
+                memory_check: None,
             },
             report: json!({}),
             expected_case_id: "x".into(),

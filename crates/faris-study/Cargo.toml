@@ -22,5 +22,8 @@ tempfile.workspace = true
 [dev-dependencies]
 faris-engine = { workspace = true, features = ["fixtures"] }
 
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true, features = ["resource", "time"] }
+
 [lints]
 workspace = true

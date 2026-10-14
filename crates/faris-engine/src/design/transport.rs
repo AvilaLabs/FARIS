@@ -661,6 +661,39 @@ fn accept_check_report(report: &ImportReport, design_sha256: &str) -> Result<(),
     Ok(())
 }
 
+/// The geometry file a check report names. The directory comes from the report's text, so it is
+/// never a program or an argument to one (the OpenMC step receives it as data inside its request
+/// file); it is still held to a path FARIS itself wrote: absolute, with no `..`, holding a plain
+/// `model.h5m` that is not a link to somewhere else. SEC-001.
+fn converted_model(directory: &str) -> Result<PathBuf, DesignError> {
+    let refuse = |why: &str| {
+        tool(format!(
+            "the check report names the conversion directory {directory:?}, which {why}; run \
+             `faris design check --work-dir DIR --report FILE` again and use the new report"
+        ))
+    };
+    let directory_path = Path::new(directory);
+    if directory.is_empty() || directory.contains('\0') {
+        return Err(refuse("is empty or holds a NUL character"));
+    }
+    if !directory_path.is_absolute() {
+        return Err(refuse("is not an absolute path"));
+    }
+    if directory_path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err(refuse("climbs out with `..`"));
+    }
+    let h5m = directory_path.join("model.h5m");
+    if let Ok(metadata) = std::fs::symlink_metadata(&h5m)
+        && metadata.file_type().is_symlink()
+    {
+        return Err(refuse("holds a model.h5m that is a link"));
+    }
+    Ok(h5m)
+}
+
 /// Run the flux response of a checked design to a target error.
 pub fn design_transport(
     design_path: &Path,
@@ -709,7 +742,7 @@ pub fn design_transport(
         .conversion
         .as_ref()
         .ok_or_else(|| tool("the check report records no conversion"))?;
-    let h5m = Path::new(&conversion.directory).join("model.h5m");
+    let h5m = converted_model(&conversion.directory)?;
     if !h5m.is_file() || !sha256_file(&h5m)?.eq_ignore_ascii_case(&conversion.h5m_sha256) {
         return Err(tool(format!(
             "{} is missing or is not the geometry the check report describes; run `faris design \
@@ -1375,6 +1408,37 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: SEC-001
+    #[test]
+    fn a_report_cannot_point_the_model_at_a_relative_climbing_or_linked_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let good = dir.path().to_str().unwrap();
+        assert_eq!(converted_model(good).unwrap(), dir.path().join("model.h5m"));
+        for hostile in [
+            "",
+            "relative/dir",
+            "-rf",
+            "$(touch /tmp/x)",
+            "/tmp/../etc",
+            "/tmp/a\0b",
+        ] {
+            let error = converted_model(hostile).unwrap_err().to_string();
+            assert!(error.contains("--work-dir"), "{hostile:?}: {error}");
+        }
+        #[cfg(unix)]
+        {
+            let elsewhere = dir.path().join("elsewhere.h5m");
+            std::fs::write(&elsewhere, b"x").unwrap();
+            std::os::unix::fs::symlink(&elsewhere, dir.path().join("model.h5m")).unwrap();
+            assert!(
+                converted_model(good)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("a link")
+            );
+        }
+    }
 
     #[test]
     fn flux_conversion_has_the_right_units() {

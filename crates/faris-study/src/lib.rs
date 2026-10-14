@@ -16,6 +16,10 @@ mod tar;
 mod write;
 
 #[cfg(test)]
+mod hostile_tests;
+#[cfg(test)]
+mod kill_tests;
+#[cfg(test)]
 mod store_tests;
 #[cfg(test)]
 pub(crate) mod tests;

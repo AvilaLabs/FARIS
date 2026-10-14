@@ -584,11 +584,8 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         .metadata()
         .map_err(|e| StudyError::io("measuring study file", e))?
         .len();
-    temp.persist(path)
-        .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e.error))?;
-    if let Ok(directory) = File::open(parent) {
-        let _ = directory.sync_all();
-    }
+    faris_engine::atomic_file::commit(temp, path, faris_engine::atomic_file::Existing::Replace)
+        .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e))?;
     Ok(WriteReport {
         file_bytes,
         blob_count: blobs.table.len(),
