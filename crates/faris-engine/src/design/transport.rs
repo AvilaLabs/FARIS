@@ -47,6 +47,9 @@ const MIN_BATCHES: u64 = 30;
 const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
 const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+/// Names the way weight windows, the channel search and piece volumes are made. Kept results are
+/// reused only under the same name: change it whenever one of those steps changes what it writes.
+const PREPARATION_RECIPE: &str = "2026-10-13";
 const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.
@@ -529,7 +532,7 @@ fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenRespons
     }
 }
 
-/// One entry of the cache per model, materials, response, nuclear data and worker version.
+/// One entry of the cache per model, materials, response, nuclear data and preparation recipe.
 fn cache_key(
     request: &serde_json::Value,
     h5m_sha256: &str,
@@ -537,7 +540,7 @@ fn cache_key(
     window_python: Option<&Path>,
 ) -> String {
     let identity = serde_json::json!({
-        "worker": sha256_hex(DESIGN_TRANSPORT_WORKER.as_bytes()),
+        "recipe": PREPARATION_RECIPE,
         "h5m": h5m_sha256,
         "cross_sections": cross_sections_sha256,
         "solids": request["solids"],
@@ -871,6 +874,10 @@ pub fn design_transport(
         if !windows_reused {
             setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
             setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
+            // Kept at once: a run that fails later does not cost the windows again.
+            if let Some(entry) = &entry {
+                keep_for_later(&dir, entry, false)?;
+            }
         }
     }
     if chosen.peak_voxel_m.is_some() {

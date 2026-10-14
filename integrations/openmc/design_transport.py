@@ -795,7 +795,7 @@ def phase_run(request: dict, work: Path) -> dict:
     settings.statepoint = {"batches": []}
     # Lost neutrons are counted and judged here, with a result that says so, rather than by an abort.
     settings.max_lost_particles = 2_000_000_000
-    settings.rel_max_lost_particles = 1.0
+    settings.rel_max_lost_particles = 0.5
     settings.max_write_lost_particles = LOST_LOCATIONS
 
     solids = response["solid_ids"]
