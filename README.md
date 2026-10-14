@@ -7,6 +7,10 @@ operation. It shows how a blanket and shield design changes tritium breeding,
 magnet exposure, component replacements and net electricity year by year, and
 how sure those numbers are.
 
+**Try it in your browser: [faris.avilalabs.org](https://faris.avilalabs.org)**, with
+nothing to install. The browser version explores recorded results; running new
+transport needs the desktop app below.
+
 > **Research screening only.** FARIS results are not a licensing, safety or
 > design basis. Every number is labelled as calculated, authored, literature,
 > conditional or not evaluated.
@@ -49,7 +53,8 @@ outboard service port and a matched port-free control.
 
 ## Get it
 
-Or try the [browser version](https://faris.avilalabs.org) (explore recorded results).
+In the browser: [faris.avilalabs.org](https://faris.avilalabs.org) (explore
+recorded results). On your computer:
 
 Download the app for your platform from the
 [latest release](https://github.com/AvilaLabs/FARIS/releases/latest) and check
