@@ -326,10 +326,15 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
         match row.state {
             ToolState::Set => {}
             ToolState::Missing if !info.required() => {}
-            _ => problems.push(Problem::new(
+            ToolState::NotFound(path) => problems.push(Problem::new(
                 info.field,
-                row.statement(),
-                "set it in the list of tools.",
+                format!("{} {} does not exist.", info.label, path.display()),
+                "choose it again in the list of tools.",
+            )),
+            ToolState::Missing => problems.push(Problem::new(
+                info.field,
+                format!("{} is not set.", info.label),
+                "set it in the list of tools; its row says what it is for.",
             )),
         }
     }

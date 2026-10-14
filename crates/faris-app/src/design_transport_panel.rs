@@ -297,7 +297,7 @@ impl DesignTransportPanel {
                     if row(
                         ui,
                         info.label,
-                        info.purpose,
+                        if info.is_folder { "folder" } else { "file" },
                         info.field,
                         self.inputs.text_mut(info.field),
                     ) {
