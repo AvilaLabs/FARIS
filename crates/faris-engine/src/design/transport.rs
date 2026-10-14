@@ -167,6 +167,9 @@ struct WorkerResult {
     stop_reason: String,
     target_relative_error: f64,
     target_reached: bool,
+    /// Variance of the variance of the batch values; absent from workers before 2026-10-14.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    variance_of_variance: Option<f64>,
     estimator: String,
     unit: String,
     energy_min_ev: f64,
@@ -275,6 +278,10 @@ pub struct DesignTransportReport {
     /// Volume-averaged flux above the threshold over all TF magnet solids.
     pub mean_flux_n_m2_s: f64,
     pub mean_relative_error: Option<f64>,
+    /// Variance of the variance of the batch values of the mean (MCNP's check; a run is accepted only at or
+    /// below 0.1). `None`: an earlier report, or too few batches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variance_of_variance: Option<f64>,
     pub total_volume_m3: f64,
     pub solids: Vec<SolidFlux>,
     pub variance_reduction: VarianceReduction,
@@ -302,6 +309,7 @@ pub struct DesignTransportReport {
 pub const DESIGN_TRANSPORT_OUTPUTS: &[Output] = &[
     calculated("mean_flux_n_m2_s", Quantity::Flux),
     calculated("mean_relative_error", Quantity::Flux),
+    calculated("variance_of_variance", Quantity::Flux),
     calculated("flux_n_m2_s", Quantity::Flux),
     calculated("relative_error", Quantity::Flux),
     calculated("flux_relative_error", Quantity::Flux),
@@ -1289,6 +1297,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         next_step: worker.next_step,
         mean_flux_n_m2_s: mean_flux,
         mean_relative_error,
+        variance_of_variance: worker.variance_of_variance,
         total_volume_m3,
         solids,
         setup_seconds: inputs.setup_seconds + worker.variance_reduction.aim_seconds,
@@ -1420,6 +1429,12 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     };
     if report.target_reached {
         let _ = writeln!(out, "  Target of {target} % on {on}: reached.");
+        if let Some(vov) = report.variance_of_variance {
+            let _ = writeln!(
+                out,
+                "  Batches agree: variance of the variance {vov:.3} (accepted at or below 0.1)."
+            );
+        }
     } else {
         let _ = writeln!(out, "  Target of {target} % on {on}: NOT reached.");
         if let (Some(why), Some(next)) = (&report.why, &report.next_step) {
@@ -1810,6 +1825,7 @@ mod tests {
             next_step: None,
             mean_flux_n_m2_s: 3.1e13,
             mean_relative_error: Some(0.012),
+            variance_of_variance: Some(0.02),
             total_volume_m3: 4.0,
             solids: vec![solid("tf-1", 3.0e13), solid("tf-2", 3.2e13)],
             variance_reduction: VarianceReduction {

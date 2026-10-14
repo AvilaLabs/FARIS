@@ -63,6 +63,23 @@ class StopRuleTest(unittest.TestCase):
         self.assertEqual(DT.stop_reason(stats_of(noisy[:20]), SAMPLING, 61.0), "time_limit")
         self.assertIsNone(DT.stop_reason(stats_of(noisy[:20]), SAMPLING, 1.0))
 
+    # Verifies: NUC-043
+    def test_a_run_one_batch_dominates_is_not_accepted(self):
+        # 400 batches agree to 1 %, one carries a heavy history: the error is 0.5 %, well under the target, but
+        # the variance of the variance is near 1, so the run goes on.
+        values = [1.0 + 0.01 * (-1) ** i for i in range(399)] + [3.0]
+        stats = stats_of(values)
+        self.assertLess(stats.relative_error, SAMPLING["target_relative_error"])
+        self.assertGreater(stats.variance_of_variance, 0.5)
+        self.assertIsNone(DT.stop_reason(stats, {**SAMPLING, "max_batches": 1000}, 1.0))
+        settled = stats_of([1.0 + 0.01 * (-1) ** i for i in range(400)])
+        self.assertLess(settled.variance_of_variance, DT.VOV_LIMIT)
+        self.assertEqual(DT.stop_reason(settled, SAMPLING, 1.0), "target_reached")
+        why, next_step = DT.explain("history_limit", stats, SAMPLING)
+        self.assertIn("variance of the variance", why)
+        self.assertIn("heavy history", why)
+        self.assertIn("weight windows", next_step)
+
     def test_a_stopped_run_says_why_and_what_to_do(self):
         why, next_step = DT.explain("time_limit", stats_of([0.0, 10.0] * 10), SAMPLING)
         self.assertIn("time limit", why)

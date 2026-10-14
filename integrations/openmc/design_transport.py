@@ -318,15 +318,30 @@ def peak_of(sums, squares, volumes, ranked, batches: int) -> dict | None:
 
 
 class RunningSum:
-    """Mean and standard error of per-batch values, one batch at a time."""
+    """Mean, standard error and variance of the variance of per-batch values, one batch at a time."""
 
     def __init__(self):
         self.n, self.total, self.total_sq = 0, 0.0, 0.0
+        self.values: list[float] = []
 
     def add(self, value: float) -> None:
         self.n += 1
         self.total += value
         self.total_sq += value * value
+        self.values.append(value)
+
+    @property
+    def variance_of_variance(self) -> float | None:
+        """MCNP's VOV over the batch values, sum (x - mean)^4 / (sum (x - mean)^2)^2 - 1/n: near 1 when one batch
+        holds most of the sum (a rare heavy history), small when the batches agree. None below 2 batches or with
+        no spread."""
+        if self.n < 2:
+            return None
+        mean = self.mean
+        second = sum((x - mean) ** 2 for x in self.values)
+        if second <= 0.0:
+            return None
+        return sum((x - mean) ** 4 for x in self.values) / (second * second) - 1.0 / self.n
 
     @property
     def mean(self) -> float:
@@ -377,6 +392,12 @@ def lost_positions(directory: Path) -> list[list[float]]:
     return out
 
 
+# A run is not accepted while the variance of the variance of its batch values is above this: MCNP's statistical
+# check uses 0.1 (X-5 Monte Carlo Team, MCNP5 manual Vol. I, ch. 2, "variance of the variance"). On batch values it
+# catches a sum one batch dominates; it cannot see a heavy history that has not happened yet.
+VOV_LIMIT = 0.1
+
+
 def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple | None = None) -> str | None:
     """Why the run stops after this batch, or None to continue. The target is checked first.
 
@@ -385,7 +406,9 @@ def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple |
     """
     rel, target = stats.relative_error, sampling["target_relative_error"]
     peak_met = peak is None or (peak[0] is not None and peak[0] <= PEAK_TARGET_FACTOR * target)
-    if stats.n >= sampling["min_batches"] and rel is not None and rel <= target and peak_met:
+    vov = stats.variance_of_variance
+    settled = vov is None or vov <= VOV_LIMIT
+    if stats.n >= sampling["min_batches"] and rel is not None and rel <= target and peak_met and settled:
         return "target_reached"
     if stats.n >= sampling["max_batches"]:
         return "history_limit"
@@ -414,6 +437,11 @@ def explain(reason: str, stats: RunningSum, sampling: dict, windows: bool = Fals
         factor = (rel / sampling["target_relative_error"]) ** 2
         more = f"About {factor:.1f} times as many histories are needed for {target:g} %: raise the limits{other}."
     limit = "history limit" if reason == "history_limit" else "time limit"
+    vov = stats.variance_of_variance
+    if vov is not None and vov > VOV_LIMIT:
+        seen += (f", and a few batches hold much of the sum (variance of the variance {vov:.2f}, above "
+                 f"{VOV_LIMIT:g}): a rare heavy history, so the error itself is not yet reliable")
+        more += " If it recurs, report the model: the weight windows may let too heavy a history through."
     return f"The run stopped at its {limit}; {seen} against a target of {target:g} %.", more
 
 
@@ -1001,6 +1029,7 @@ def phase_run(request: dict, work: Path) -> dict:
         "stop_reason": reason,
         "target_relative_error": sampling["target_relative_error"],
         "target_reached": reason == "target_reached",
+        "variance_of_variance": stats.variance_of_variance,
         "estimator": "tracklength",
         "unit": "cm_per_source",
         "energy_min_ev": response["energy_min_ev"],

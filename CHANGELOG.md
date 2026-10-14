@@ -126,6 +126,9 @@ basis.
 
 ### Changed
 
+- `faris design transport` accepts a run at its target error only when the batches agree: the variance of the
+  variance of the batch values must be at or below 0.1, MCNP's check. A run in which one rare heavy history holds
+  much of the sum goes on sampling, and a run stopped at a limit in that state says so. The report gives the value.
 - `faris design transport` on large machines: the weight windows are no longer written into `model.xml` (a
   2000 MW model's 129 MB windows passed OpenMC's 256 MiB file limit) or copied beside it; the model names the
   windows file by relative path. The aiming map is kept to at most 2 million cells (it was 7.4 million, 194 MB,

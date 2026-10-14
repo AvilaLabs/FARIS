@@ -119,6 +119,19 @@
       "fixed_in": "5e4b666",
       "disposition": "On the 2000 MW test model each aiming target's visibility run left about 90 MB (model, statepoint, summary), 406 MB for five targets, and the run step stopped with ArtifactLimit. Each run's bulky files are now removed once its tally is read, unless the runs are kept on purpose.",
       "regression_test": "integrations/openmc/risk_tests/test_windows_file.py::test_cap_model_with_a_real_visibility_run_agrees_between_the_two_paths"
+    },
+    {
+      "id": "FARIS-010",
+      "title": "Transport stop rule could accept a run while one heavy history dominated the sum",
+      "severity": "S2",
+      "status": "open",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": null,
+      "disposition": "On the 2000 MW test model the error on the coil mean fell to 5.5 % and then jumped to 28 % when one history landed; a run that reached 5 % just after such a jump would have been accepted with an unreliable error. The stop rule now also needs the variance of the variance of the batch values at or below 0.1. Open because a heavy history not yet sampled cannot be seen from batch values: closing it needs a history-level tail check (MCNP's slope of the largest scores) or a weight ceiling in the aimed windows.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_a_run_one_batch_dominates_is_not_accepted"
     }
   ]
 }

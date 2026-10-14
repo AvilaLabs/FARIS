@@ -324,6 +324,7 @@ pub(crate) mod tests {
             next_step: None,
             mean_flux_n_m2_s: 2.0e14,
             mean_relative_error: Some(0.043),
+            variance_of_variance: None,
             total_volume_m3: 12.0,
             solids: vec![
                 SolidFlux {
