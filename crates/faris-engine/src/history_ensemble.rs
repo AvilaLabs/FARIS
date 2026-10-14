@@ -1,7 +1,7 @@
 //! Ensemble of operating histories on sampled, correlated transport rates.
 //!
 //! The transport Monte Carlo result gives each driving rate a mean and a
-//! covariance (see [`DrivingCovariance`]). This module draws rate vectors from
+//! covariance (see [`DrivingCovariance`](crate::history::DrivingCovariance)). This module draws rate vectors from
 //! a multivariate normal with those moments, runs the deterministic history on
 //! each draw, and summarises the spread of the outputs. It carries only the
 //! transport sampling uncertainty; nuclear data, model form, half-life and

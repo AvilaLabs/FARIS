@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Reference geometries
 
 Three reference sets ship with, or are checked by, FARIS for validation and

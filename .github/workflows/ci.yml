@@ -68,6 +68,10 @@ jobs:
         run: python3 scripts/requirement_scorecard.py --check
       - name: Wording lint over user-facing text
         run: python3 scripts/wording_lint.py
+      - name: Validation matrix, rule hashes and case manifests
+        run: python3 -m validation.checks
+      - name: Source rules for the calculation crates
+        run: python3 scripts/source_lint.py
       - name: Platform support table names real CI jobs
         run: python3 scripts/platform_table.py --check
       - name: Defect log lint
