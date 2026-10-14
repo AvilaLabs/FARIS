@@ -392,6 +392,12 @@ def lost_positions(directory: Path) -> list[list[float]]:
     return out
 
 
+# A batch more than this many times the median of the batches before it is recorded with its per-piece scores
+# (after the first few batches): the trace of a rare heavy history.
+HEAVY_BATCH_FACTOR = 10.0
+HEAVY_BATCH_AFTER = 5
+
+
 # A run is not accepted while the variance of the variance of its batch values is above this: MCNP's statistical
 # check uses 0.1 (X-5 Monte Carlo Team, MCNP5 manual Vol. I, ch. 2, "variance of the variance"). On batch values it
 # catches a sum one batch dominates; it cannot see a heavy history that has not happened yet.
@@ -963,21 +969,35 @@ def phase_run(request: dict, work: Path) -> dict:
             openmc.lib.simulation_init()
             handle = openmc.lib.tallies[TALLY_ID]
             previous = np.zeros(len(solids))
+            previous_pieces = None
             last_report = started
+            # Every batch's value per solid, written as the run goes (a cancelled run keeps it): the evidence for
+            # judging the run's statistics, and where a batch far above the others came from.
+            batch_log = (out_dir / "batches.csv").open("w")
+            batch_log.write("batch,total," + ",".join(str(s) for s in solids) + "\n")
             while reason is None:
                 openmc.lib.next_batch()
                 # Column 1 holds the sum of the batch values so far; its increase is this batch's value.
                 sums = np.array(handle.results[:, 0, 1], dtype=float)
                 batch = sums - previous
                 previous = sums
+                heavy = stats.n > HEAVY_BATCH_AFTER and float(batch.sum()) > HEAVY_BATCH_FACTOR * float(
+                    np.median(stats.values)) > 0.0
                 stats.add(float(batch.sum()))
                 for accumulator, value in zip(per_solid, batch):
                     accumulator.add(float(value))
+                batch_log.write(f"{stats.n},{float(batch.sum())!r}," + ",".join(repr(float(v)) for v in batch) + "\n")
+                batch_log.flush()
                 elapsed = time.monotonic() - started
                 if pieces is not None:
                     # Mesh bins run over r, then z; the solids follow as the next filter.
                     scored = np.array(openmc.lib.tallies[PEAK_TALLY_ID].results[:, 0, 1:3], dtype=float)
                     scored = scored.reshape(-1, len(solids), 2)
+                    if heavy and previous_pieces is not None:
+                        # This batch's score in every piece, to find where the heavy history landed.
+                        np.savez_compressed(out_dir / f"heavy-batch-{stats.n}.npz",
+                                            pieces=scored[:, :, 0] - previous_pieces, solids=np.array(solids))
+                    previous_pieces = scored[:, :, 0].copy()
                     leading = (leading_piece(scored, piece_volumes, piece_ranked, stats.n),)
                 reason = stop_reason(stats, sampling, elapsed, leading)
                 lost = lost_count(openmc.lib._dll)
@@ -993,6 +1013,7 @@ def phase_run(request: dict, work: Path) -> dict:
                             "peak_relative_error": leading[0] if leading else None,
                             "elapsed_seconds": elapsed,
                         }}), flush=True)
+            batch_log.close()
             if pieces is not None:
                 # Every piece's sums, kept beside the result: the evidence behind the peak.
                 np.savez_compressed(out_dir / "pieces.npz", sums=scored[:, :, 0], squares=scored[:, :, 1],
