@@ -11,6 +11,13 @@ basis.
 
 ### Added
 
+- A shared **Tools** section in the Design check and Design flux windows: the CAD Python, OpenMC Python, cross
+  sections, plasma source folder, window Python and OpenMC package folder are set once, shared by both windows and
+  kept in a `settings.json` in the platform's configuration folder (also the last folder each window used). An
+  environment variable (`FARIS_CAD_PYTHON` and the others) still wins for the session and the window says so.
+  **Find tools**, which also runs the first time with nothing stored, looks in `PATH`, conda and mamba environments
+  and `~/.venvs`, asks each Python once what it has under a time and memory limit, and shows what it found before
+  anything is changed; extra search folders can be added.
 - Optional `plasma.min_first_wall_clearance_m` in the design file (metres, positive; `null` or absent for no
   minimum; `faris design init` writes `null`). Check 9 fails when the nearest source site is closer to the first
   wall than that, and says so as NOT_EVALUATED if no solid has the role `first_wall`. FARIS sets no minimum itself.

@@ -17,8 +17,10 @@ use crate::{
         check_failure_text, check_tool_rows, init_failure_text, init_tool_rows, validate_check,
         validate_init,
     },
-    design_shared::{missing_count_text, path_row, tools_grid},
+    design_shared::{missing_count_text, needs_list, path_row},
+    design_tools::{SharedTools, ToolsModel, Window},
     maintenance_run::elapsed_text,
+    settings::Tool,
 };
 use eframe::egui;
 use faris_engine::design::CheckStatus;
@@ -46,6 +48,7 @@ struct Preview {
 pub struct DesignCheckPanel {
     pub open: bool,
     inputs: Inputs,
+    tools: SharedTools,
     init_job: InitJob,
     check_job: CheckJob,
     pick: Option<(Field, Receiver<Option<PathBuf>>)>,
@@ -63,11 +66,7 @@ pub struct DesignCheckPanel {
 
 impl Default for DesignCheckPanel {
     fn default() -> Self {
-        Self::with_jobs(
-            InitJob::default(),
-            CheckJob::default(),
-            Inputs::from_environment(),
-        )
+        Self::with_jobs(InitJob::default(), CheckJob::default(), Inputs::default())
     }
 }
 
@@ -94,10 +93,10 @@ fn dialog_title(field: Field) -> &'static str {
         Field::Design => "Choose the design file",
         Field::WorkDir => "Choose the work folder",
         Field::Report => "Name the check report to write",
-        Field::CadPython => "Choose the Python with cadquery",
-        Field::OpenmcPython => "Choose the OpenMC Python",
-        Field::CrossSections => "Choose cross_sections.xml",
-        Field::PlasmaSource => "Choose the folder that holds openmc_plasma_source",
+        // The tools are chosen in the shared Tools section, not here.
+        Field::CadPython | Field::OpenmcPython | Field::CrossSections | Field::PlasmaSource => {
+            "Choose a file"
+        }
     }
 }
 
@@ -122,6 +121,7 @@ impl DesignCheckPanel {
         Self {
             open: false,
             inputs,
+            tools: ToolsModel::in_memory().shared(),
             init_job,
             check_job,
             pick: None,
@@ -135,6 +135,21 @@ impl DesignCheckPanel {
         }
     }
 
+    /// Use the tool values the Design flux window uses too.
+    pub fn use_tools(&mut self, tools: SharedTools) {
+        self.tools = tools;
+        self.sync_tools();
+    }
+
+    /// Copies the shared tool values into the inputs the checks read.
+    fn sync_tools(&mut self) {
+        let tools = self.tools.borrow();
+        self.inputs.cad_python = tools.value(Tool::CadPython);
+        self.inputs.openmc_python = tools.value(Tool::OpenmcPython);
+        self.inputs.cross_sections = tools.value(Tool::CrossSections);
+        self.inputs.plasma_source = tools.value(Tool::PlasmaSource);
+    }
+
     /// Start values for the two files (command-line options).
     pub fn prefill(&mut self, step: Option<&Path>, design: Option<&Path>) {
         if let Some(p) = step {
@@ -143,6 +158,11 @@ impl DesignCheckPanel {
         if let Some(p) = design {
             self.inputs.design = p.display().to_string();
         }
+    }
+
+    /// True while Find tools is looking.
+    pub fn tools_busy(&self) -> bool {
+        self.tools.borrow().is_finding()
     }
 
     pub fn is_running(&self) -> bool {
@@ -188,10 +208,14 @@ impl DesignCheckPanel {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let start = self.inputs.clone();
+        let folder = self.tools.borrow().last_folder(Window::DesignCheck);
         let spawned = std::thread::Builder::new()
             .name("faris-design-check-dialog".into())
             .spawn(move || {
-                let dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                let mut dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                if let Some(folder) = folder {
+                    dialog = dialog.set_directory(folder);
+                }
                 let picked = match field {
                     Field::Step => dialog.add_filter("STEP", &["step", "stp"]).pick_file(),
                     Field::Design => dialog.add_filter("JSON", &["json"]).pick_file(),
@@ -230,6 +254,9 @@ impl DesignCheckPanel {
             Ok(picked) => {
                 self.pick = None;
                 if let Some(path) = picked {
+                    self.tools
+                        .borrow_mut()
+                        .remember_folder(Window::DesignCheck, &path);
                     *self.inputs.text_mut(field) = path.display().to_string();
                     self.init_problems.clear();
                     self.check_problems.clear();
@@ -249,6 +276,20 @@ impl DesignCheckPanel {
              file from the STEP file and fill it in; then check it. The check runs the nine import \
              checks and keeps its work folder, which the flux step reads.",
         );
+        // The tools are set once for both windows, in the shared section.
+        self.sync_tools();
+        let tools_before = self.inputs.clone();
+        let attention = init_tool_rows(&self.inputs)
+            .iter()
+            .chain(&check_tool_rows(&self.inputs))
+            .any(|row| row.blocks());
+        let tools = self.tools.clone();
+        ui.add_enabled_ui(!running, |ui| tools.borrow_mut().ui(ui, attention));
+        self.sync_tools();
+        if self.inputs != tools_before {
+            self.init_problems.clear();
+            self.check_problems.clear();
+        }
         // Show what is missing before the first click, too; checked again only when an input
         // changed, so the disk is not asked every frame.
         if !running
@@ -350,15 +391,7 @@ impl DesignCheckPanel {
                 });
             ui.add_space(4.0);
             ui.strong("Tool this action uses");
-            let rows = init_tool_rows(&self.inputs);
-            tools_grid(
-                ui,
-                "design-check-init-tools",
-                &rows,
-                &mut self.inputs,
-                Inputs::text_mut,
-                pick,
-            );
+            needs_list(ui, &init_tool_rows(&self.inputs));
         });
         ui.add_space(4.0);
         if let Some((wall, cancelling)) = self.init_job.running() {
@@ -465,15 +498,7 @@ impl DesignCheckPanel {
                 );
             ui.add_space(4.0);
             ui.strong("Tools the check needs");
-            let rows = check_tool_rows(&self.inputs);
-            tools_grid(
-                ui,
-                "design-check-tools",
-                &rows,
-                &mut self.inputs,
-                Inputs::text_mut,
-                pick,
-            );
+            needs_list(ui, &check_tool_rows(&self.inputs));
         });
         ui.add_space(4.0);
         if let Some(view) = self.check_job.running_view() {

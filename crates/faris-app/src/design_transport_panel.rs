@@ -6,13 +6,15 @@
 
 use crate::{
     badge::{self, Kind},
-    design_shared::{missing_count_text, path_row, tools_grid},
+    design_shared::{missing_count_text, needs_list, path_row},
+    design_tools::{SharedTools, ToolsModel, Window},
     design_transport_result::{LimitView, ResultView, Row, result_view},
     design_transport_run::{
         Field, Job, MIN_HISTORIES, Problem, RunInputs, RunningView, failure_text, tool_rows,
         validate,
     },
     maintenance_run::elapsed_text,
+    settings::Tool,
 };
 use eframe::egui;
 use faris_engine::design::LimitStatus;
@@ -32,6 +34,7 @@ struct Shown {
 pub struct DesignTransportPanel {
     pub open: bool,
     inputs: RunInputs,
+    tools: SharedTools,
     job: Job,
     pick: Option<(Field, Receiver<Option<PathBuf>>)>,
     /// Problems found when Run was pressed; cleared when an input changes.
@@ -43,7 +46,7 @@ pub struct DesignTransportPanel {
 
 impl Default for DesignTransportPanel {
     fn default() -> Self {
-        Self::with_job(Job::default(), RunInputs::from_environment())
+        Self::with_job(Job::default(), RunInputs::default())
     }
 }
 
@@ -60,16 +63,13 @@ fn dialog_title(field: Field) -> &'static str {
         Field::Design => "Choose the design file",
         Field::CheckReport => "Choose the design check report",
         Field::Output => "Name a new folder for the run",
-        Field::OpenmcPython => "Choose the OpenMC Python",
-        Field::CrossSections => "Choose cross_sections.xml",
-        Field::PlasmaSource => "Choose the folder that holds openmc_plasma_source",
-        Field::WindowPython => "Choose the Python with OpenMC 0.16 or later",
-        Field::OpenmcPackage => "Choose the folder that holds the openmc package",
+        // The tools are chosen in the shared Tools section, not here.
+        Field::OpenmcPython
+        | Field::CrossSections
+        | Field::PlasmaSource
+        | Field::WindowPython
+        | Field::OpenmcPackage => "Choose a file",
     }
-}
-
-fn is_folder_field(field: Field) -> bool {
-    matches!(field, Field::PlasmaSource | Field::OpenmcPackage)
 }
 
 impl DesignTransportPanel {
@@ -77,12 +77,29 @@ impl DesignTransportPanel {
         Self {
             open: false,
             inputs,
+            tools: ToolsModel::in_memory().shared(),
             job,
             pick: None,
             problems: Vec::new(),
             preview: None,
             result: None,
         }
+    }
+
+    /// Use the tool values the Design check window uses too.
+    pub fn use_tools(&mut self, tools: SharedTools) {
+        self.tools = tools;
+        self.sync_tools();
+    }
+
+    /// Copies the shared tool values into the inputs the run reads.
+    fn sync_tools(&mut self) {
+        let tools = self.tools.borrow();
+        self.inputs.openmc_python = tools.value(Tool::OpenmcPython);
+        self.inputs.cross_sections = tools.value(Tool::CrossSections);
+        self.inputs.plasma_source = tools.value(Tool::PlasmaSource);
+        self.inputs.window_python = tools.value(Tool::WindowPython);
+        self.inputs.openmc_package = tools.value(Tool::OpenmcPackage);
     }
 
     /// Start values for the two files (command-line options).
@@ -125,16 +142,19 @@ impl DesignTransportPanel {
         }
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
+        let folder = self.tools.borrow().last_folder(Window::DesignFlux);
         let spawned = std::thread::Builder::new()
             .name("faris-design-transport-dialog".into())
             .spawn(move || {
-                let dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                let mut dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                if let Some(folder) = folder {
+                    dialog = dialog.set_directory(folder);
+                }
                 let picked = match field {
                     Field::Output => dialog.set_file_name("faris-transport-run").save_file(),
                     Field::Design | Field::CheckReport => {
                         dialog.add_filter("JSON", &["json"]).pick_file()
                     }
-                    f if is_folder_field(f) => dialog.pick_folder(),
                     _ => dialog.pick_file(),
                 };
                 let _ = sender.send(picked);
@@ -154,6 +174,9 @@ impl DesignTransportPanel {
             Ok(picked) => {
                 self.pick = None;
                 if let Some(path) = picked {
+                    self.tools
+                        .borrow_mut()
+                        .remember_folder(Window::DesignFlux, &path);
                     *self.inputs.text_mut(field) = path.display().to_string();
                     self.problems.clear();
                 }
@@ -173,6 +196,16 @@ impl DesignTransportPanel {
              design's operating history. Check the design first (the Design check window, or \
              `faris design check --report`) and keep its work folder.",
         );
+        // The tools are set once for both windows, in the shared section.
+        self.sync_tools();
+        let tools_before = self.inputs.clone();
+        let attention = tool_rows(&self.inputs).iter().any(|row| row.blocks());
+        let tools = self.tools.clone();
+        ui.add_enabled_ui(!running, |ui| tools.borrow_mut().ui(ui, attention));
+        self.sync_tools();
+        if self.inputs != tools_before {
+            self.problems.clear();
+        }
         // Show what is missing before the first click, too; checked again only when an input
         // changed, so the disk is not asked every frame.
         if !running
@@ -288,15 +321,7 @@ impl DesignTransportPanel {
             });
         ui.add_space(6.0);
         ui.strong("Tools the run needs");
-        let rows = tool_rows(&self.inputs);
-        tools_grid(
-            ui,
-            "design-transport-tools",
-            &rows,
-            &mut self.inputs,
-            RunInputs::text_mut,
-            pick,
-        );
+        needs_list(ui, &tool_rows(&self.inputs));
     }
 
     fn limits(&mut self, ui: &mut egui::Ui, shown: &[Problem], kind: Kind) {

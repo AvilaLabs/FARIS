@@ -289,8 +289,8 @@ file (`NAME-check-work` and `NAME-check-report.json`, numbered if it exists). Un
 temporary folder and removes it, the window keeps the work folder: the flux step reads the conversion from it, and a second
 check reuses what matches (tick **Do everything again** to redo it all). A report is never overwritten.
 
-The list of tools says, for each tool, whether it is set, what it is for and what the check loses without it. The CAD
-Python is required. Without the OpenMC Python, the cross sections or the plasma source folder the check still runs, but
+Each action lists the tools it needs and says, for each, whether it is set, what it is for and what the check loses
+without it; the paths themselves are set once in the **Tools** section (see below). The CAD Python is required. Without the OpenMC Python, the cross sections or the plasma source folder the check still runs, but
 check 5's nuclear-data audit or check 9 says `NOT_EVALUATED`, the import is not complete, and the flux cannot be run. Anything
 that stops the check is marked beside its field, once, and the button area only says how many things need fixing.
 
@@ -309,6 +309,35 @@ record the engine could not measure says which check did not get there. Nothing 
 When all nine checks pass, **Run the flux for this design** opens the Design flux window with this design file and this
 report already filled in.
 
+### Tools
+
+The **Tools** section at the top of both the Design check and the Design flux window holds the six paths the two windows
+use: the CAD Python, the OpenMC Python, the cross sections, the plasma source folder, and the optional window Python and
+OpenMC package folder. They are the same values in both windows, so a path set in one is set in the other, and FARIS
+keeps them for the next session. You never have to type them to get started:
+
+- **Find tools** (it also runs by itself the first time you open a window with nothing stored) looks in the usual
+  places without installing or changing anything: the Pythons on `PATH`, conda and mamba environments
+  (`~/micromamba/envs`, `~/miniforge3/envs`, `~/miniconda3/envs`, `~/anaconda3/envs`, `~/.conda/envs`, the active
+  `CONDA_PREFIX`), virtualenvs in `~/.venvs`, and any folder you add under **Also search these folders**. It asks each
+  Python once what it has (cadquery, cad_to_dagmc, h5py, OpenMC and its version, whether OpenMC has DAGMC, the
+  plasma source package, the configured cross sections), with a time and memory limit per Python, so a broken
+  environment is reported and skipped.
+- It then shows what it found and from where, one tick per tool, and changes nothing until you press **Use the ticked
+  values**. An empty field is filled by a find that is clear-cut; a value you already set is replaced only if you tick
+  the replacement; when several nuclear-data libraries or plasma-source folders are found they are not equal, so none is
+  ticked and you choose. The OpenMC Python is the 0.15 build with DAGMC, the window Python an OpenMC 0.16 or later, and
+  the OpenMC package folder one whose library carries the aiming patch.
+- An environment variable still wins for the session (`FARIS_CAD_PYTHON`, `FARIS_OPENMC_PYTHON`,
+  `FARIS_CROSS_SECTIONS`, `FARIS_PLASMA_SOURCE_PATH`): the field shows its value, says which variable it comes from and
+  cannot be edited until you unset it. The saved value is not touched.
+
+The settings are one JSON file, `settings.json` in a `faris` folder of your configuration folder:
+`$XDG_CONFIG_HOME/faris` or `~/.config/faris` on Linux, `~/Library/Application Support/faris` on macOS and
+`%APPDATA%\faris` on Windows. It also remembers the folder each window last picked a file in. If it cannot be read,
+FARIS keeps a copy beside it as `settings.json.bad`, starts with nothing saved and tells you once; delete the file at
+any time to start again.
+
 ## Run the flux from the desktop
 
 Available from the next release. Open **Design flux** in the top bar. The window runs the same computation as
@@ -317,9 +346,10 @@ Available from the next release. Open **Design flux** in the top bar. The window
 1. Choose the design file and the JSON report `faris design check --report` wrote for it. The check's work folder must
    still hold the conversion. You can also pass them at launch with `--design-flux --flux-design FILE
    --flux-check-report FILE`.
-2. Under **Tools the run needs**, set the OpenMC Python, the cross sections and the plasma source folder. FARIS fills
-   them from `FARIS_OPENMC_PYTHON`, `FARIS_CROSS_SECTIONS` and `FARIS_PLASMA_SOURCE_PATH` when those are set. Each row says
-   whether it is set, what it is for and what to do if it is missing. The window Python (OpenMC 0.16 or later) and the
+2. In the **Tools** section (shared with the Design check window, see above), set the OpenMC Python, the cross sections and
+   the plasma source folder, or press **Find tools**. FARIS fills them from `FARIS_OPENMC_PYTHON`, `FARIS_CROSS_SECTIONS` and
+   `FARIS_PLASMA_SOURCE_PATH` when those are set. Under **Tools the run needs** each row says whether it is set, what it is
+   for and what to do if it is missing. The window Python (OpenMC 0.16 or later) and the
    OpenMC package folder are optional; the row says what the run loses without them (weight windows, aiming).
 3. Set the target error (5 % by default), the history limit and the time limit, then press **Run**. Anything that stops
    the run is listed under the form with what to do next.

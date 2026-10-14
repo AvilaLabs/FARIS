@@ -10,6 +10,7 @@ mod design_check_panel;
 mod design_check_result;
 mod design_check_run;
 mod design_shared;
+mod design_tools;
 mod design_transport_panel;
 mod design_transport_result;
 mod design_transport_run;
@@ -20,10 +21,12 @@ mod maintenance_panel;
 mod maintenance_run;
 mod package;
 mod recorder;
+mod settings;
 mod study_file;
 mod study_panel;
 mod sweep_panel;
 mod thumbnail;
+mod tool_finder;
 mod tour;
 mod transport_panel;
 mod uncertainty;
@@ -622,6 +625,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if args.maintenance_run {
                 app.maintenance.open = true;
             }
+            // One set of tool paths for both design windows, kept between sessions.
+            let tools = design_tools::ToolsModel::load().shared();
+            app.design_flux.use_tools(tools.clone());
+            app.design_check.use_tools(tools);
             app.design_flux.prefill(
                 args.flux_design.as_deref(),
                 args.flux_check_report.as_deref(),
@@ -1308,6 +1315,7 @@ impl FarisApp {
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.study.archive.is_loading()
+            && !self.design_check.tools_busy()
             && self.tour.settled()
             && self.interface_check.as_ref().is_none_or(|c| c.finished())
             && self.export.development_settled()

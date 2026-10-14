@@ -56,7 +56,7 @@ impl<F> ToolRow<F> {
         match (&self.state, info.required()) {
             (ToolState::Set, _) => format!("Set. {}", info.purpose),
             (ToolState::Missing, true) => format!(
-                "Missing. {} Next step: choose the {kind}{}.",
+                "Missing. {} Next step: press Find tools in the Tools section, or choose the {kind}{}.",
                 info.purpose,
                 info.environment
                     .map(|e| format!(" or set {e} before starting FARIS"))
@@ -66,7 +66,7 @@ impl<F> ToolRow<F> {
                 format!("Not set. {} Without it: {}", info.purpose, info.without)
             }
             (ToolState::NotFound(path), _) => format!(
-                "{} is not a {kind} that exists. {} Next step: choose the {kind} again.",
+                "{} is not a {kind} that exists. {} Next step: choose the {kind} again in the Tools section.",
                 path.display(),
                 info.purpose
             ),
@@ -164,12 +164,28 @@ pub fn path_row(
     text: &mut String,
     note: Option<(Kind, &str)>,
 ) -> bool {
+    path_row_enabled(ui, label, hint, text, note, true)
+}
+
+/// [`path_row`] that can be shown read-only (a value the environment supplies).
+pub fn path_row_enabled(
+    ui: &mut egui::Ui,
+    label: &str,
+    hint: &str,
+    text: &mut String,
+    note: Option<(Kind, &str)>,
+    enabled: bool,
+) -> bool {
     ui.label(label).on_hover_text(hint);
     ui.add_sized(
         [FIELD_WIDTH, ui.spacing().interact_size.y],
-        egui::TextEdit::singleline(text).hint_text(hint),
+        egui::TextEdit::singleline(text)
+            .hint_text(hint)
+            .interactive(enabled),
     );
-    let clicked = ui.button("Browse\u{2026}").clicked();
+    let clicked = ui
+        .add_enabled(enabled, egui::Button::new("Browse\u{2026}"))
+        .clicked();
     ui.end_row();
     if let Some((kind, note)) = note {
         ui.label("");
@@ -179,39 +195,29 @@ pub fn path_row(
     clicked
 }
 
-/// The tool list as a grid: each tool's path, and under it the statement of where it stands.
-pub fn tools_grid<F: Copy, I>(
-    ui: &mut egui::Ui,
-    id: &str,
-    rows: &[ToolRow<F>],
-    inputs: &mut I,
-    text_mut: fn(&mut I, F) -> &mut String,
-    pick: &mut Option<F>,
-) {
-    egui::Grid::new(id)
-        .num_columns(3)
-        .spacing([8.0, 2.0])
-        .show(ui, |ui| {
-            for tool in rows {
-                let info = tool.info;
-                let kind = match (&tool.state, info.required()) {
-                    (ToolState::Set, _) => Kind::Calculated,
-                    (_, true) => Kind::Failed,
-                    (ToolState::Missing, false) => Kind::NotEvaluated,
-                    (ToolState::NotFound(_), false) => Kind::Failed,
-                };
-                let statement = tool.statement();
-                if path_row(
-                    ui,
-                    info.label,
-                    if info.is_folder { "folder" } else { "file" },
-                    text_mut(inputs, info.field),
-                    Some((kind, &statement)),
-                ) {
-                    *pick = Some(info.field);
-                }
-            }
+/// The tools a window (or one of its actions) needs, each with the statement of where it
+/// stands. The values themselves are set once, in the shared Tools section.
+pub fn needs_list<F: Copy>(ui: &mut egui::Ui, rows: &[ToolRow<F>]) {
+    for tool in rows {
+        let info = tool.info;
+        let kind = match (&tool.state, info.required()) {
+            (ToolState::Set, _) => Kind::Calculated,
+            (_, true) => Kind::Failed,
+            (ToolState::Missing, false) => Kind::NotEvaluated,
+            (ToolState::NotFound(_), false) => Kind::Failed,
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.strong(info.label);
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(tool.statement())
+                        .small()
+                        .color(kind.color()),
+                )
+                .wrap(),
+            );
         });
+    }
 }
 
 // ------------------------------------------------------------------ run state --
@@ -472,12 +478,12 @@ mod tests {
         let rows = tool_rows(&TOOLS, |_| "");
         assert_eq!(
             rows[0].statement(),
-            "Missing. Does the work. Next step: choose the file or set TOOL_ENV before starting FARIS."
+            "Missing. Does the work. Next step: press Find tools in the Tools section, or choose the file or set TOOL_ENV before starting FARIS."
         );
         assert!(rows[0].blocks());
         assert_eq!(
             rows[1].statement(),
-            "Missing. Holds the package. Next step: choose the folder."
+            "Missing. Holds the package. Next step: press Find tools in the Tools section, or choose the folder."
         );
         assert_eq!(
             rows[2].statement(),

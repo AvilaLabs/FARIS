@@ -135,18 +135,6 @@ impl Default for RunInputs {
 }
 
 impl RunInputs {
-    /// The command line's defaults, with the tool paths the environment names filled in.
-    pub fn from_environment() -> Self {
-        let tools = ToolPaths::from_flags_and_environment(None, None, None);
-        let text = |p: Option<PathBuf>| p.map(|p| p.display().to_string()).unwrap_or_default();
-        Self {
-            openmc_python: text(tools.openmc_python),
-            cross_sections: text(tools.cross_sections),
-            plasma_source: text(tools.plasma_source_path),
-            ..Self::default()
-        }
-    }
-
     pub fn text_mut(&mut self, field: Field) -> &mut String {
         match field {
             Field::Design => &mut self.design,
@@ -229,12 +217,12 @@ pub fn validate(inputs: &RunInputs) -> Result<RunPlan, Vec<Problem>> {
             ToolState::NotFound(path) => problems.push(Problem::new(
                 info.field,
                 format!("{} {} does not exist.", info.label, path.display()),
-                "choose it again in the list of tools.",
+                "choose it again in the Tools section.",
             )),
             ToolState::Missing => problems.push(Problem::new(
                 info.field,
                 format!("{} is not set.", info.label),
-                "set it in the list of tools; its row says what it is for.",
+                "press Find tools in the Tools section, or set it there; its row says what it is for.",
             )),
         }
     }
