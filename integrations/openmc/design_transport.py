@@ -79,6 +79,11 @@ ENERGY_MAX_EV = 2.0e7
 TALLY_ID = 1
 OUTER_ID = 10_000_000
 AIM_THRESHOLD_EV = 1.0e5     # the aiming helpers were built and measured for this threshold only
+# A roulette survivor may be at most this many times heavier than the particle it replaces (patched OpenMC,
+# OPENMC_WW_ROULETTE_FACTOR; stock OpenMC ignores it). MCNP limits one split or roulette to 5 (MXSPLN on the WWP
+# card). Without it a particle beside a port mouth, where coarse windows are too high, survived 210 times heavier
+# and then dominated a batch (FARIS-010).
+ROULETTE_FACTOR = 5.0
 PROGRESS_SECONDS = 5.0
 # A neutron the geometry cannot place is lost. Above this share of the histories the answer is not trusted.
 LOST_FRACTION_LIMIT = 1.0e-6
@@ -634,6 +639,7 @@ def phase_run(request: dict, work: Path) -> dict:
     aim_seconds = 0.0
     model_xml = out_dir / "model.xml"
     if request["variance_reduction"] == "windows":
+        os.environ["OPENMC_WW_ROULETTE_FACTOR"] = f"{ROULETTE_FACTOR:g}"
         filled = work / "windows" / "filled.h5"
         windows_record = json.loads((work / "windows" / "record.json").read_text())
         if sha256_file(filled) != windows_record["filled_sha256"]:

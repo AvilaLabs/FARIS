@@ -112,3 +112,21 @@ Open, in order:
    the variance, or the largest single batch's share of the sum, the checks MCNP's ten statistical tests make.
 
 No answer for this model is reported.
+
+## Addendum 2026-10-14: FARIS-010 closed
+
+The large model's heavy batch had two causes. First, the aiming patch let a particle headed at the duct skip the
+windows inside a coil; the patch now skips them only in void. Second, with that fixed the same batch was still 18 times
+the median: one source neutron struck the first wall 15 cm outside the port mouth, where the coarse windows are far too
+high, survived roulette 210 times heavier and reached coils 00 and 17 split into 8,012 copies (every track of batch 73
+recorded). Design transport now caps a roulette survivor at 5 times the weight it replaces, the MCNP limit for one
+split or roulette.
+
+| Run (seed 21 unless stated) | Histories | Mean error | Heaviest batch / median | VOV | Summed coil flux |
+| --- | --- | --- | --- | --- | --- |
+| Large, first fix only | 2.04 M | 13.9 % (jump at 1.4 M) | 18 | 0.80 | 3.20e15 ± 10 % |
+| Large, first fix and cap | 2.76 M | 4.3 %, no jump | 3.4 | 0.027 | 3.00e15 ± 3.3 % |
+| Bent duct, cap, seeds 21 and 22, against stock | 0.68 M, 0.60 M | 2.9 %, 2.9 % | | 0.098, 0.052 | pooled z = −1.45 |
+
+The large run still ended at its 1 h limit: the peak piece was at 11.7 % against a 10 % target. Finer windows at the
+port mouth (NUC-079) are the next step there.
