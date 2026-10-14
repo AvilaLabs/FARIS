@@ -25,7 +25,7 @@ zip = { workspace = true, features = ["zstd"] }
 # by the pure-Rust decoder.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 zip = { workspace = true }
-ruzstd = { version = "0.8", default-features = false, features = ["std", "hash"] }
+ruzstd = { version = "0.9", default-features = false, features = ["std", "hash"] }
 
 [dev-dependencies]
 faris-engine = { workspace = true, features = ["fixtures"] }
