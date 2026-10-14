@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 139 of 1418 requirements.
+Traced: 140 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -15,7 +15,7 @@ Traced: 139 of 1418 requirements.
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
-| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 18 |
+| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 19 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
 | [08-performance.md](08-performance.md) | 37 | 4 |
 | [09-usability.md](09-usability.md) | 73 | 2 |
@@ -101,6 +101,7 @@ Traced: 139 of 1418 requirements.
 | VAL-044 | F2 | `validation/test_manifest.py::test_both_evidence_classes_are_covered_and_literature_is_context` |
 | VAL-050 | F2 | `validation/test_matrix.py::test_every_calculated_quantity_has_a_row` |
 | VAL-051 | F2 | `scripts/test_release_gate.py::test_a_blank_matrix_cell_blocks_the_gate`<br>`scripts/test_release_gate.py::test_the_gate_reports_a_good_matrix_and_a_missing_one`<br>`validation/test_matrix.py::test_a_quantity_missing_from_the_matrix_or_the_registry_diff_is_found`<br>`validation/test_matrix.py::test_a_quantity_with_no_benchmark_is_labelled_not_validated_with_a_reason`<br>`validation/test_matrix.py::test_blank_cells_are_found`<br>`validation/test_matrix.py::test_no_benchmark_row_that_claims_validation_is_refused` |
+| VAL-054 | F2 | `crates/faris-engine/src/brief.rs::every_field_of_the_summaries_is_classed`<br>`crates/faris-engine/src/comparison.rs::every_number_of_a_history_and_its_comparison_is_classed`<br>`crates/faris-engine/src/design/transport.rs::a_report_without_marks_still_reads_and_shows_the_current_state`<br>`crates/faris-engine/src/design/transport.rs::every_number_of_the_transport_report_is_classed_and_every_calculated_one_has_a_state`<br>`crates/faris-engine/src/design/transport.rs::the_text_tags_each_calculated_number_and_explains_each_quantity_once`<br>`crates/faris-engine/src/history_ensemble/tests.rs::every_ensemble_output_name_is_classed`<br>`crates/faris-engine/src/transport.rs::every_number_of_the_receipt_is_classed_and_every_response_has_a_state`<br>`crates/faris-model/src/validation.rs::a_note_serialises_with_the_state_why_and_next_step`<br>`crates/faris-model/src/validation.rs::a_quantity_the_matrix_lacks_is_not_validated_with_a_reason_and_a_next_step`<br>`crates/faris-model/src/validation.rs::every_state_in_the_matrix_parses_and_every_quantity_has_a_note`<br>`crates/faris-model/src/validation.rs::rows_of_one_quantity_combine_with_the_failing_state_first`<br>`crates/faris-model/src/validation.rs::the_embedded_matrix_is_the_file_in_the_repository`<br>`crates/faris-model/src/validation.rs::the_quantity_enum_is_the_registry`<br>`crates/faris-model/src/validation.rs::the_tag_and_the_notes_block_say_the_state_why_and_next_step`<br>`crates/faris-report/src/tests.rs::every_calculated_column_of_the_tables_has_a_validation_column`<br>`crates/faris-report/src/tests.rs::the_ensemble_tables_carry_a_state_on_every_row`<br>`crates/faris-report/src/tests.rs::the_pdf_marks_calculated_numbers_and_prints_the_legend`<br>`crates/faris-report/src/tests.rs::the_validation_table_gives_the_why_and_next_step_of_every_quantity_once` |
 | VAL-056 | F4 | `validation/test_report.py::test_coverage_comes_with_its_list` |
 | VAL-070 | F2 | `validation/test_manifest.py::test_qualified_range_fields_are_required` |
 | VAL-075 | F2 | `validation/test_manifest.py::test_not_covered_list_is_required`<br>`validation/test_report.py::test_markdown_lists_what_is_not_covered` |

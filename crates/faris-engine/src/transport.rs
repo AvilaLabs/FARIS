@@ -6,6 +6,9 @@ use faris_model::transport::{
     TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
     TRANSPORT_REQUEST_LEGACY_VERSION, TransportRequest,
 };
+use faris_model::validation::{
+    Output, ValidationMark, by_score, not_calculated, quantity_of_score,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -154,6 +157,61 @@ pub struct NormalizedTransportResult {
     /// tallies existed; consumers that need correlations must then fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_covariance: Option<ResponseCovariance>,
+}
+
+/// Every numeric field of the normalized record (the reactor transport receipt), by JSON name.
+/// A tally's `mean` and its errors are calculated numbers whose quantity the tally's score
+/// names; see `NormalizedTransportResult::validation`.
+pub const NORMALIZED_OUTPUTS: &[Output] = &[
+    by_score("mean"),
+    by_score("standard_error"),
+    by_score("integrated_mean"),
+    by_score("integrated_standard_error"),
+    not_calculated(
+        "volume_m3",
+        "volume of the response domain, a geometry input to the normalization",
+    ),
+    not_calculated(
+        "volume_standard_error_m3",
+        "uncertainty of the geometry volume, an input",
+    ),
+    not_calculated("histories", "count of source neutrons run"),
+    not_calculated(
+        "source_reaction_rate_per_s",
+        "conversion of the authored fusion power at the stored energy per reaction",
+    ),
+    not_calculated(
+        "source_neutron_rate_per_s",
+        "conversion of the authored fusion power at the stored energy per reaction",
+    ),
+    not_calculated("source", "the authored source definition"),
+    not_calculated("bin", "index of a mesh bin"),
+    not_calculated(
+        "excluding_sector_half_width_rad",
+        "authored region definition",
+    ),
+    not_calculated("half_width_rad", "authored region definition"),
+    not_calculated("energy_min_ev", "authored threshold of the response"),
+    not_calculated(
+        "response_covariance",
+        "sampling covariance between the tallies; it accompanies the tagged tallies",
+    ),
+];
+
+impl NormalizedTransportResult {
+    /// The validation state of each response, by response id: the quantity its score measures
+    /// and that quantity's state in the matrix (VAL-054).
+    pub fn validation(&self) -> std::collections::BTreeMap<String, ValidationMark> {
+        self.results
+            .iter()
+            .map(|r| {
+                (
+                    r.response_id.clone(),
+                    ValidationMark::current(quantity_of_score(&r.score)),
+                )
+            })
+            .collect()
+    }
 }
 
 /// Monte Carlo sampling covariance of scalar response means from one transport run.
@@ -908,6 +966,27 @@ mod tests {
             }],
         };
         (req, art, scenario)
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn every_number_of_the_receipt_is_classed_and_every_response_has_a_state() {
+        let (req, art, scenario) = fixture(VolumeUnit::CubicMetre);
+        let result = normalize_transport_artifact(&req, &art, &scenario).unwrap();
+        let json = serde_json::to_value(&result).unwrap();
+        let loose = faris_model::validation::unclassified_numbers(&json, NORMALIZED_OUTPUTS);
+        assert!(
+            loose.is_empty(),
+            "classify these in NORMALIZED_OUTPUTS: {loose:?}"
+        );
+        let marks = result.validation();
+        assert_eq!(marks.len(), result.results.len());
+        let heat = marks["heat"];
+        assert_eq!(heat.quantity, faris_model::validation::Quantity::Heating);
+        assert_eq!(
+            heat.state,
+            faris_model::validation::ValidationState::NotValidated
+        );
     }
 
     /// A flux-only request and artifact, with one full-energy neutron spectrum and

@@ -191,6 +191,7 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
         .normalized
         .as_ref()
         .ok_or("run has no validated normalized responses")?;
+    let marks = normalized.validation();
     let summaries: Vec<_> = normalized
         .results
         .iter()
@@ -198,6 +199,7 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
         .map(|result| {
             serde_json::json!({
                 "response_id": result.response_id,
+                "validation": marks.get(&result.response_id),
                 "domain": result.domain,
                 "score": result.score,
                 "mean": result.mean,
@@ -208,6 +210,16 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
                 "integrated_unit": result.integrated_unit,
                 "volume_m3": result.volume_m3,
             })
+        })
+        .collect();
+    // The why and next step once per quantity, not on every response (VAL-054).
+    let validation_notes: std::collections::BTreeMap<_, _> = marks
+        .values()
+        .map(|mark| {
+            (
+                mark.quantity.id(),
+                serde_json::json!(faris_model::validation::note(mark.quantity)),
+            )
         })
         .collect();
     let mesh_nonzero_bins = normalized
@@ -229,6 +241,7 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "mesh_bin_count": normalized.results.len() - summaries.len(),
             "mesh_nonzero_flux_bin_count": mesh_nonzero_bins,
             "non_mesh_responses": summaries,
+            "validation_notes": validation_notes,
             "scientific_qualification": run.scientific_qualification,
             "notice": run.notice,
             "record": path,

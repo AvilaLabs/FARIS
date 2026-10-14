@@ -1110,3 +1110,34 @@ fn from_normalized_binds_whole_and_regional_fast_flux_into_the_covariance() {
     let parsed: TransportDrivingRates = serde_json::from_value(old).unwrap();
     assert!(parsed.region_flux_n_m2_s.is_empty());
 }
+
+// Verifies: VAL-054
+#[test]
+fn every_ensemble_output_name_is_classed() {
+    let fixture = crate::fixtures::ensemble(20, 7, 'a');
+    let summary = fixture.summary.as_ref().expect("an evaluated ensemble");
+    let history = run_operating_history(
+        &crate::fixtures::assumptions(),
+        &crate::fixtures::rates_without_covariance(0.02, 'a'),
+    )
+    .unwrap();
+    let nominal = nominal_sample(&history).unwrap();
+    let names: Vec<String> = nominal
+        .scalar_outputs()
+        .into_keys()
+        .chain(summary.continuous.iter().map(|c| c.name.clone()))
+        .chain(summary.discrete.iter().map(|d| d.name.clone()))
+        .collect();
+    assert!(!names.is_empty());
+    for name in names {
+        match output_quantity(&name) {
+            Ok(_) => {}
+            Err(why) => assert_ne!(
+                why, UNCLASSIFIED_OUTPUT,
+                "classify {name} in output_quantity"
+            ),
+        }
+    }
+    assert_eq!(output_quantity("flux_magnets_n_m2_s"), Ok(Quantity::Flux));
+    assert!(output_quantity("something_new").is_err());
+}

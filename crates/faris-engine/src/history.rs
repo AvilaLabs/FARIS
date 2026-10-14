@@ -8,6 +8,7 @@ use faris_model::transport::{
     HeatingConvention, HeatingParticleScope, ProducedParticle, ResponseDomain, ScoreDefinition,
     ToroidalRegion,
 };
+use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
@@ -702,6 +703,144 @@ pub struct HistoryResult {
     pub snapshots: Vec<HistorySnapshot>,
     pub energy_unavailable_reason: Option<String>,
     pub notice: String,
+}
+
+/// Every numeric field of a calculated history, of a paired comparison of two and of a parameter
+/// probe, by JSON name.
+/// The authored assumptions are one block of inputs. `events` lists the service-limit and
+/// replacement times, which follow the fluence limits; its imports and outages are authored.
+/// A driving rate is tagged with the quantity of the transport response it came from.
+pub const HISTORY_OUTPUTS: &[Output] = &[
+    not_calculated("assumptions", "authored operating-history inputs"),
+    not_calculated("reference_fusion_power_mw", "authored design input"),
+    not_calculated(
+        "fusion_reaction_rate_per_s",
+        "conversion of the authored fusion power",
+    ),
+    not_calculated(
+        "neutron_source_rate_per_s",
+        "conversion of the authored fusion power",
+    ),
+    not_calculated("total_reaction_energy_ev", "convention constant, stored"),
+    not_calculated("primary_neutron_energy_ev", "convention constant, stored"),
+    calculated("breeder_h3_per_source_neutron", Quantity::Tbr),
+    calculated("component_average_flux_n_m2_s", Quantity::Flux),
+    calculated("region_flux_n_m2_s", Quantity::Flux),
+    calculated("transport_deposited_heat_w", Quantity::Heating),
+    not_calculated(
+        "covariance",
+        "sampling covariance between the driving rates; it accompanies the tagged rates",
+    ),
+    not_calculated(
+        "tritium_decay_constant_per_s",
+        "physical constant from the tritium half-life",
+    ),
+    not_calculated("tritium_atom_mass_kg", "physical constant"),
+    not_calculated(
+        "mass_balance_tolerance_kg",
+        "numerical tolerance of the ledger check",
+    ),
+    not_calculated("integration_segment_count", "count of integration segments"),
+    not_calculated("integration_segment_limit", "bound on integration segments"),
+    calculated("events", Quantity::Fluence),
+    not_calculated("time_s", "the history clock"),
+    not_calculated("power_fraction", "authored operating schedule"),
+    calculated("available_tritium_kg", Quantity::TritiumInventory),
+    calculated("in_process_tritium_kg", Quantity::TritiumInventory),
+    calculated("cumulative_production_kg", Quantity::TritiumInventory),
+    not_calculated(
+        "cumulative_import_kg",
+        "authored tritium import schedule, summed",
+    ),
+    calculated("cumulative_burn_kg", Quantity::TritiumInventory),
+    calculated("cumulative_processing_loss_kg", Quantity::TritiumInventory),
+    calculated("cumulative_decay_kg", Quantity::TritiumInventory),
+    not_calculated(
+        "cumulative_full_power_seconds",
+        "arithmetic on the authored operating schedule",
+    ),
+    not_calculated(
+        "cumulative_fusion_energy_mwh",
+        "arithmetic on the authored operating schedule and fusion power",
+    ),
+    calculated(
+        "instantaneous_transport_recovered_heat_mw",
+        Quantity::Heating,
+    ),
+    not_calculated(
+        "instantaneous_alpha_recovered_heat_mw",
+        "authored fusion power times the authored alpha recovery",
+    ),
+    calculated(
+        "instantaneous_gross_electricity_mw",
+        Quantity::NetElectricPower,
+    ),
+    not_calculated(
+        "instantaneous_auxiliary_electricity_mw",
+        "authored auxiliary load",
+    ),
+    calculated(
+        "instantaneous_net_electricity_mw",
+        Quantity::NetElectricPower,
+    ),
+    calculated("cumulative_transport_recovered_heat_mwh", Quantity::Heating),
+    not_calculated(
+        "cumulative_alpha_recovered_heat_mwh",
+        "authored fusion power times the authored alpha recovery, summed",
+    ),
+    calculated(
+        "cumulative_gross_electricity_mwh",
+        Quantity::NetElectricPower,
+    ),
+    not_calculated(
+        "cumulative_auxiliary_electricity_mwh",
+        "authored auxiliary load, summed",
+    ),
+    calculated("cumulative_net_electricity_mwh", Quantity::NetElectricPower),
+    calculated("component_fluence_n_m2", Quantity::Fluence),
+    calculated("limit_fluence_n_m2", Quantity::Fluence),
+    calculated("component_replacements", Quantity::Fluence),
+    not_calculated(
+        "mass_balance_residual_kg",
+        "closure residual of the ledger, a check",
+    ),
+    calculated(
+        "produced_tritium_kg_right_minus_left",
+        Quantity::TritiumInventory,
+    ),
+    calculated(
+        "burned_tritium_kg_right_minus_left",
+        Quantity::TritiumInventory,
+    ),
+    not_calculated(
+        "full_power_seconds_right_minus_left",
+        "arithmetic on the authored operating schedule",
+    ),
+    calculated(
+        "net_electricity_mwh_right_minus_left",
+        Quantity::NetElectricPower,
+    ),
+    not_calculated("base_assumptions", "authored operating-history inputs"),
+    not_calculated("grid", "authored levels of the parameter probe"),
+    not_calculated("recovery_fraction", "authored parameter of the probe"),
+    not_calculated("delay_multiplier", "authored parameter of the probe"),
+    not_calculated(
+        "service_limit_multiplier",
+        "authored parameter of the probe",
+    ),
+    not_calculated("event_count", "count of history events"),
+    not_calculated(
+        "maximum_absolute_mass_balance_residual_kg",
+        "closure residual of the ledger, a check",
+    ),
+];
+
+impl HistoryResult {
+    /// The validation state of each calculated output, by output name (VAL-054). Derived from
+    /// the matrix as embedded; the stored history is unchanged so recorded evidence still verifies.
+    pub fn validation(&self) -> ValidationMarks {
+        ValidationMarks::for_catalogue(HISTORY_OUTPUTS)
+    }
 }
 
 #[derive(Clone)]

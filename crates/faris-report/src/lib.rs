@@ -611,6 +611,10 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
         ));
     }
     files.push((
+        "data/validation.csv".into(),
+        tables::with_statement(tables::validation_csv()).into_bytes(),
+    ));
+    files.push((
         "data/assumptions.csv".into(),
         tables::with_statement(tables::assumptions_csv(&p.assumptions)).into_bytes(),
     ));

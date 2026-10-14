@@ -173,6 +173,20 @@ pub struct HistoryDifferences {
     pub net_electricity_mwh_right_minus_left: Option<f64>,
 }
 
+impl PairedHistoryComparison {
+    /// The validation state of each calculated output (VAL-054); see `HistoryResult::validation`.
+    pub fn validation(&self) -> faris_model::validation::ValidationMarks {
+        faris_model::validation::ValidationMarks::for_catalogue(crate::history::HISTORY_OUTPUTS)
+    }
+}
+
+impl HistorySensitivityResult {
+    /// The validation state of each calculated output (VAL-054); see `HistoryResult::validation`.
+    pub fn validation(&self) -> faris_model::validation::ValidationMarks {
+        faris_model::validation::ValidationMarks::for_catalogue(crate::history::HISTORY_OUTPUTS)
+    }
+}
+
 pub fn compare_histories(
     assumptions: &OperatingHistoryAssumptions,
     left_label: &str,
@@ -410,6 +424,58 @@ mod tests {
             response_id: None,
             mass_kg: None,
             note: String::new(),
+        }
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn every_number_of_a_history_and_its_comparison_is_classed() {
+        use crate::fixtures::{assumptions, rates_without_covariance};
+        use faris_model::validation::{Quantity, unclassified_numbers};
+        let a = assumptions();
+        let left = rates_without_covariance(0.02, 'a');
+        let right = rates_without_covariance(0.05, 'a');
+        let history = crate::history::run_operating_history(&a, &left).unwrap();
+        let comparison =
+            compare_histories(&a, "left", &left, "right", &right, "the driving rates").unwrap();
+        let sensitivity = run_history_sensitivity(
+            &a,
+            &left,
+            &HistorySensitivityGrid {
+                recovery_fraction_levels: vec![0.5],
+                delay_multipliers: vec![1.0],
+                service_limit_multipliers: vec![1.0],
+                rationale: "test".into(),
+            },
+        )
+        .unwrap();
+        for (what, json) in [
+            ("history", serde_json::to_value(&history).unwrap()),
+            ("comparison", serde_json::to_value(&comparison).unwrap()),
+            ("sensitivity", serde_json::to_value(&sensitivity).unwrap()),
+        ] {
+            let loose = unclassified_numbers(&json, crate::history::HISTORY_OUTPUTS);
+            assert!(
+                loose.is_empty(),
+                "classify these {what} numbers in HISTORY_OUTPUTS: {loose:?}"
+            );
+        }
+        for marks in [
+            history.validation(),
+            comparison.validation(),
+            sensitivity.validation(),
+        ] {
+            let quantities = marks.quantities();
+            for q in [
+                Quantity::Tbr,
+                Quantity::Flux,
+                Quantity::Heating,
+                Quantity::Fluence,
+                Quantity::TritiumInventory,
+                Quantity::NetElectricPower,
+            ] {
+                assert!(quantities.contains(&q), "{q:?}");
+            }
         }
     }
 

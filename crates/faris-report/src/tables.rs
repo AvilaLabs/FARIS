@@ -6,6 +6,7 @@ use crate::{
     ArrangementData,
     uncertainty::{ContrastComparison, EnsembleInput},
 };
+use faris_engine::history_ensemble::{UNCLASSIFIED_OUTPUT, output_quantity};
 use faris_engine::{
     brief::{
         AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
@@ -18,6 +19,7 @@ use faris_engine::{
     sweep::{HistorySummary, TransportPoint, difference_resolved},
 };
 use faris_model::RESEARCH_SCREENING_STATEMENT;
+use faris_model::validation::{Quantity, note};
 use std::collections::BTreeSet;
 
 const MWH_PER_TWH: f64 = 1.0e6;
@@ -50,6 +52,58 @@ pub fn optional(value: Option<f64>) -> String {
     value.map_or_else(String::new, number)
 }
 
+/// The state of a quantity in the validation matrix, in the matrix's words (VAL-054).
+fn state_of(quantity: Quantity) -> String {
+    note(quantity).state.label().to_string()
+}
+
+/// Header cells `<quantity id>_validation`, one per quantity, to put after the numbers.
+fn validation_headers(quantities: &[Quantity]) -> Vec<String> {
+    quantities
+        .iter()
+        .map(|q| format!("{}_validation", q.id()))
+        .collect()
+}
+
+fn validation_cells(quantities: &[Quantity]) -> Vec<String> {
+    quantities.iter().map(|q| state_of(*q)).collect()
+}
+
+/// The validation cell of an ensemble output by its engine name. An output that is not a
+/// calculated number says so; one nobody classified reads "not validated", never blank.
+fn output_validation(raw_name: &str) -> String {
+    match output_quantity(raw_name) {
+        Ok(q) => state_of(q),
+        Err(UNCLASSIFIED_OUTPUT) => "not validated".into(),
+        Err(_) => "not a calculated number".into(),
+    }
+}
+
+/// What each state means for each quantity: the full why and next step, once, for the columns
+/// of the other tables (VAL-054). One row per calculated quantity of the matrix.
+pub fn validation_csv() -> String {
+    let mut out = row(&[
+        "quantity".into(),
+        "label".into(),
+        "validation".into(),
+        "scope".into(),
+        "why".into(),
+        "next_step".into(),
+    ]);
+    for q in Quantity::ALL {
+        let n = note(q);
+        out.push_str(&row(&[
+            q.id().into(),
+            q.label().into(),
+            n.state.label().into(),
+            n.scope,
+            n.why,
+            n.next_step,
+        ]));
+    }
+    out
+}
+
 fn row(cells: &[String]) -> String {
     let mut line = cells.iter().map(|c| field(c)).collect::<Vec<_>>().join(",");
     line.push('\n');
@@ -67,8 +121,15 @@ fn state_name(state: OperatingState) -> &'static str {
     }
 }
 
+/// The quantities of the columns of the history table, in column order.
+const HISTORIES_QUANTITIES: [Quantity; 3] = [
+    Quantity::Fluence,
+    Quantity::TritiumInventory,
+    Quantity::NetElectricPower,
+];
+
 pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
-    let mut out = row(&[
+    let mut header: Vec<String> = vec![
         "arrangement".into(),
         "calendar_year".into(),
         "state".into(),
@@ -78,7 +139,9 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
         "usable_tritium_kg".into(),
         "net_electricity_twh".into(),
         "magnet_swaps".into(),
-    ]);
+    ];
+    header.extend(validation_headers(&HISTORIES_QUANTITIES));
+    let mut out = row(&header);
     for data in arrangements {
         let Some(history) = &data.input.history else {
             continue;
@@ -92,7 +155,7 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
                 s.time_s,
                 horizon_s,
             );
-            out.push_str(&row(&[
+            let mut cells = vec![
                 data.input.arrangement.id().into(),
                 number(s.time_s / JULIAN_YEAR_SECONDS),
                 state_name(state).into(),
@@ -104,7 +167,9 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
                 s.component_replacements
                     .get("magnets")
                     .map_or_else(String::new, |n| n.to_string()),
-            ]));
+            ];
+            cells.extend(validation_cells(&HISTORIES_QUANTITIES));
+            out.push_str(&row(&cells));
         }
     }
     out
@@ -118,8 +183,17 @@ fn kind_or(value_present: bool, kind: StatusKind) -> String {
     }
 }
 
+/// The quantities of the validation columns of the comparison table, in column order.
+const COMPARISON_QUANTITIES: [Quantity; 5] = [
+    Quantity::Tbr,
+    Quantity::Flux,
+    Quantity::Fluence,
+    Quantity::NetElectricPower,
+    Quantity::TritiumInventory,
+];
+
 pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
-    let mut out = row(&[
+    let mut header: Vec<String> = vec![
         "arrangement".into(),
         "port".into(),
         "allocation".into(),
@@ -146,7 +220,9 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
         "horizon_years".into(),
         "transport_seed".into(),
         "transport_source_histories".into(),
-    ]);
+    ];
+    header.extend(validation_headers(&COMPARISON_QUANTITIES));
+    let mut out = row(&header);
     for data in arrangements {
         let a = data.input.arrangement;
         let s = &data.summary;
@@ -161,7 +237,7 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
             (None, _) if s.swaps == Some(0) => StatusKind::Conditional.label().to_string(),
             (None, _) => StatusKind::NotEvaluated.label().to_string(),
         };
-        out.push_str(&row(&[
+        let mut cells = vec![
             a.id().into(),
             if a.port { "with-port" } else { "no-port" }.into(),
             if a.breeder {
@@ -211,7 +287,9 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
             data.input
                 .sampling
                 .map_or_else(String::new, |x| x.histories.to_string()),
-        ]));
+        ];
+        cells.extend(validation_cells(&COMPARISON_QUANTITIES));
+        out.push_str(&row(&cells));
     }
     out
 }
@@ -224,8 +302,15 @@ fn flag(value: Option<(f64, bool)>) -> (String, String) {
     }
 }
 
+const DIFFERENCES_QUANTITIES: [Quantity; 4] = [
+    Quantity::Tbr,
+    Quantity::Flux,
+    Quantity::Fluence,
+    Quantity::NetElectricPower,
+];
+
 pub fn differences_csv(study: &StudyComparison) -> String {
-    let mut out = row(&[
+    let mut header: Vec<String> = vec![
         "comparison".into(),
         "breeding_change_percent".into(),
         "breeding_screening_flag".into(),
@@ -235,7 +320,9 @@ pub fn differences_csv(study: &StudyComparison) -> String {
         "first_swap_change_y".into(),
         "net_electricity_change_twh".into(),
         "history_kind".into(),
-    ]);
+    ];
+    header.extend(validation_headers(&DIFFERENCES_QUANTITIES));
+    let mut out = row(&header);
     let rows: [(&str, &Contrast); 4] = [
         (
             "breeder-heavy minus reference, with port",
@@ -251,7 +338,7 @@ pub fn differences_csv(study: &StudyComparison) -> String {
     for (name, c) in rows {
         let (b, bf) = flag(c.breeding_pct);
         let (x, xf) = flag(c.flux_pct);
-        out.push_str(&row(&[
+        let mut cells = vec![
             name.into(),
             b,
             bf,
@@ -261,13 +348,23 @@ pub fn differences_csv(study: &StudyComparison) -> String {
             optional(c.first_swap_y),
             optional(c.net_twh),
             StatusKind::Conditional.label().into(),
-        ]));
+        ];
+        cells.extend(validation_cells(&DIFFERENCES_QUANTITIES));
+        out.push_str(&row(&cells));
     }
     out
 }
 
+const SWEEP_QUANTITIES: [Quantity; 5] = [
+    Quantity::Tbr,
+    Quantity::Flux,
+    Quantity::Fluence,
+    Quantity::NetElectricPower,
+    Quantity::TritiumInventory,
+];
+
 pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]) -> String {
-    let mut out = row(&[
+    let mut header: Vec<String> = vec![
         "blanket_m".into(),
         "shield_m".into(),
         "variant_id".into(),
@@ -287,7 +384,9 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
         "net_electricity_twh".into(),
         "final_usable_tritium_kg".into(),
         "history_kind".into(),
-    ]);
+    ];
+    header.extend(validation_headers(&SWEEP_QUANTITIES));
+    let mut out = row(&header);
     let ready = summaries.len() == points.len();
     for (i, p) in points.iter().enumerate() {
         let s = if ready { summaries[i].as_ref() } else { None };
@@ -295,7 +394,7 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
             .checked_sub(1)
             .map(|j| difference_resolved(&points[j].breeding, &p.breeding).to_string())
             .unwrap_or_default();
-        out.push_str(&row(&[
+        let mut cells = vec![
             number(p.blanket_m),
             number(p.shield_m),
             p.variant_id.clone(),
@@ -315,7 +414,9 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
             optional(s.and_then(|s| s.net_electricity_twh)),
             optional(s.map(|s| s.final_available_tritium_kg)),
             kind_or(s.is_some(), StatusKind::Conditional),
-        ]));
+        ];
+        cells.extend(validation_cells(&SWEEP_QUANTITIES));
+        out.push_str(&row(&cells));
     }
     out
 }
@@ -331,6 +432,16 @@ fn evaluated(data: &ArrangementData) -> Option<&HistoryEnsemble> {
 /// One row per sample per arrangement with an evaluated ensemble: the sampled
 /// driving rates and every per-sample outcome. Sample 0, the nominal history,
 /// is in the summary table; numbering here is the engine's (1 to N).
+const SAMPLES_QUANTITIES: [Quantity; 7] = [
+    Quantity::Tbr,
+    Quantity::Flux,
+    Quantity::Heating,
+    Quantity::Fluence,
+    Quantity::TritiumInventory,
+    Quantity::NetElectricPower,
+    Quantity::Availability,
+];
+
 pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
     let ensembles: Vec<(&ArrangementData, &HistoryEnsemble)> = arrangements
         .iter()
@@ -374,6 +485,7 @@ pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
             .map(|id| format!("first_replacement_year_{id}")),
     );
     header.extend(triggered.iter().map(|id| format!("first_trigger_{id}")));
+    header.extend(validation_headers(&SAMPLES_QUANTITIES));
     let mut out = row(&header);
     for (data, e) in ensembles {
         for s in &e.samples {
@@ -423,6 +535,7 @@ pub fn ensemble_samples_csv(arrangements: &[&ArrangementData]) -> String {
                     .cloned()
                     .unwrap_or_default()
             }));
+            cells.extend(validation_cells(&SAMPLES_QUANTITIES));
             out.push_str(&row(&cells));
         }
     }
@@ -477,6 +590,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
         "ci95_high".into(),
         "n".into(),
         "note".into(),
+        "validation".into(),
     ]);
     for data in arrangements {
         let id = data.input.arrangement.id();
@@ -504,7 +618,8 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
                 ),
                 EnsembleInput::None => continue,
             };
-        let cell = |output: &str,
+        let cell = |raw: &str,
+                    output: &str,
                     unit: &str,
                     statistic: &str,
                     category: &str,
@@ -523,6 +638,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
                 ci.1,
                 n,
                 note.clone(),
+                output_validation(raw),
             ])
         };
         let no_ci = || (String::new(), String::new());
@@ -530,6 +646,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             for (name, value) in n.scalar_outputs() {
                 let (output, unit, factor) = summary_unit(&name);
                 out.push_str(&cell(
+                    &name,
                     &output,
                     unit,
                     "nominal",
@@ -541,6 +658,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             }
             out.push_str(&cell(
                 "terminal_status",
+                "terminal_status",
                 "",
                 "nominal",
                 outcome_category(&n.outcome),
@@ -550,6 +668,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             ));
             for (component, response) in &n.first_trigger_response {
                 out.push_str(&cell(
+                    "first_trigger",
                     &format!("first_trigger:{component}"),
                     "",
                     "nominal",
@@ -567,6 +686,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             let (output, unit, factor) = summary_unit(&c.name);
             let n = c.n.to_string();
             out.push_str(&cell(
+                &c.name,
                 &output,
                 unit,
                 "mean",
@@ -577,6 +697,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             ));
             for (stat, q) in [("p5", &c.p5), ("p50", &c.p50), ("p95", &c.p95)] {
                 out.push_str(&cell(
+                    &c.name,
                     &output,
                     unit,
                     stat,
@@ -598,6 +719,7 @@ pub fn ensemble_summary_csv(arrangements: &[&ArrangementData]) -> String {
             };
             for (category, p) in &d.categories {
                 out.push_str(&cell(
+                    &d.name,
                     &d.name,
                     unit,
                     "share",
@@ -696,6 +818,7 @@ pub(crate) fn ensemble_comparison_csv(comparisons: &[ContrastComparison]) -> Str
         }
     }
     header.push("note".into());
+    header.push("validation".into());
     let width = header.len();
     let mut out = row(&header);
     for c in comparisons {
@@ -734,16 +857,18 @@ pub(crate) fn ensemble_comparison_csv(comparisons: &[ContrastComparison]) -> Str
                         ]);
                     }
                     cells.push(found.scope.clone());
+                    cells.push(output_validation(&p.name));
                     out.push_str(&row(&cells));
                 }
             }
             Err(n) => {
                 let mut cells = lead("not_compared", "", String::new());
-                cells.resize(width - 1, String::new());
+                cells.resize(width - 2, String::new());
                 cells.push(format!(
                     "no paired comparison: {}. Next step: {}.",
                     n.why, n.next_step
                 ));
+                cells.push(String::new());
                 out.push_str(&row(&cells));
             }
         }

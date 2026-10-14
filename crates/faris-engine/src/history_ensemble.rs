@@ -28,6 +28,7 @@ use crate::history::{
 use crate::jobs::Cancellation;
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
 use faris_model::math;
+use faris_model::validation::Quantity;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -659,6 +660,38 @@ fn time_grid(horizon_s: f64) -> Vec<f64> {
     (0..SERIES_GRID_POINTS)
         .map(|k| horizon_s * k as f64 / last)
         .collect()
+}
+
+/// The quantity an ensemble output (a summary or paired-comparison name) is an instance of.
+/// `Err` says why it is not a calculated number, or that it is not classified: the caller then
+/// writes "not validated" with that reason rather than a blank.
+///
+/// Full-power time, the end of the history and the terminal status are the plant's time at power,
+/// so they carry availability. Replacement counts and times follow the fluence against the
+/// authored limit, so they carry fluence.
+pub const UNCLASSIFIED_OUTPUT: &str = "this output is not classified";
+
+pub fn output_quantity(name: &str) -> Result<Quantity, &'static str> {
+    let base = name.split_once(':').map_or(name, |(base, _)| base);
+    match base {
+        "breeder_h3_per_source_neutron" => Ok(Quantity::Tbr),
+        "heating_w" => Ok(Quantity::Heating),
+        "full_power_time_s" | "terminal_time_s" | "terminal_status" => Ok(Quantity::Availability),
+        "final_available_tritium_kg" | "final_in_process_tritium_kg" => {
+            Ok(Quantity::TritiumInventory)
+        }
+        "cumulative_gross_electricity_mwh" | "cumulative_net_electricity_mwh" => {
+            Ok(Quantity::NetElectricPower)
+        }
+        "cumulative_auxiliary_electricity_mwh" => Err("authored auxiliary load, summed"),
+        "replacements"
+        | "first_replacement_time_s"
+        | "fluence_n_m2"
+        | "limit_fluence_n_m2"
+        | "first_trigger" => Ok(Quantity::Fluence),
+        _ if base.starts_with("flux_") => Ok(Quantity::Flux),
+        _ => Err(UNCLASSIFIED_OUTPUT),
+    }
 }
 
 fn series_of(run: &HistoryResult, grid: &[f64]) -> Series {

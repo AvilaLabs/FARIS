@@ -22,6 +22,7 @@ only when complete.
 | `data/comparison.csv` | One row per arrangement with standard errors, transport seed and histories, and a kind column per value. |
 | `data/differences.csv` | The four contrasts with 2σ screening flags. |
 | `data/sweep.csv` | One row per sweep allocation. |
+| `data/validation.csv` | The validation state of each calculated quantity (VAL-054) with its scope, why and next step. The other tables carry a `<quantity>_validation` column (a `validation` column on the long-format ensemble tables) with one of the four states; the PDF marks each calculated row with a code and prints the legend. |
 | `data/assumptions.csv` | Every operating assumption: value, unit, kind, full provenance. |
 | `data/caveats.csv` | The caveat list as in the PDF. |
 | `data/history-ensemble-samples.csv` | Only when an ensemble exists: one row per sample per evaluated arrangement, with the sampled rates (breeder H3 per source neutron, component fluxes, heating), the outcome, terminal and full-power time, final tritium, electricity and each component's replacement count and first replacement year, and the response (region) that tripped each component first (empty when it never tripped). The nominal history is not repeated here. |

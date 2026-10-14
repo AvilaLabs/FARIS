@@ -16,6 +16,7 @@ use crate::{
     reactor::ReactorRun,
 };
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
+use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
 
 /// What kind of statement a value or result is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -135,6 +136,46 @@ impl Arrangement {
 pub const REFERENCE_BLANKET_M: f64 = 0.45;
 pub const BREEDER_BLANKET_M: f64 = 0.55;
 pub const BLANKET_PLUS_SHIELD_M: f64 = 0.9;
+
+/// Every number of the per-arrangement summaries and the contrasts between them, by field name:
+/// a calculated number names its quantity, any other says why it is not one. The magnet swap
+/// count and the first swap follow from the fluence against the authored limit, so they carry the
+/// fluence state. These types are not stored, so there is no field to hold the marks: exports
+/// read them with `validation()`.
+pub const BRIEF_OUTPUTS: &[Output] = &[
+    calculated("breeder_h3_per_source", Quantity::Tbr),
+    calculated("total_h3_per_source", Quantity::Tbr),
+    calculated("breeding", Quantity::Tbr),
+    calculated("breeding_pct", Quantity::Tbr),
+    calculated("magnet_flux", Quantity::Flux),
+    calculated("flux_pct", Quantity::Flux),
+    calculated("nuclear_heat_w", Quantity::Heating),
+    calculated("swaps", Quantity::Fluence),
+    calculated("first_swap_y", Quantity::Fluence),
+    calculated("first_swap_relative_sampling", Quantity::Fluence),
+    calculated("net_twh", Quantity::NetElectricPower),
+    calculated("final_tritium_kg", Quantity::TritiumInventory),
+    calculated("magnet_replacements", Quantity::Fluence),
+    calculated("first_magnet_replacement_years", Quantity::Fluence),
+    calculated("magnet_permanent_limit_years", Quantity::Fluence),
+    calculated("net_electricity_twh", Quantity::NetElectricPower),
+    calculated("final_available_tritium_kg", Quantity::TritiumInventory),
+    not_calculated(
+        "magnets_replaceable",
+        "whether the authored limit class allows swaps",
+    ),
+    not_calculated("horizon_years", "authored operating-history horizon"),
+    not_calculated("recorded", "whether a transport record is loaded"),
+    not_calculated(
+        "breeding_is_total",
+        "which H3 response the breeding value is",
+    ),
+];
+
+/// The validation state of each calculated output of the summaries and contrasts (VAL-054).
+pub fn validation() -> ValidationMarks {
+    ValidationMarks::for_catalogue(BRIEF_OUTPUTS)
+}
 
 /// Per-arrangement transport numbers as (mean, standard error).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -900,6 +941,93 @@ mod tests {
             net_twh: Some(net),
             horizon_years: 30.0,
             ..ArrangementSummary::default()
+        }
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn every_field_of_the_summaries_is_classed() {
+        // Naming every field, without `..`, stops compiling when one is added; the fix is to
+        // class the new field in BRIEF_OUTPUTS below.
+        let TransportSummary {
+            breeder_h3_per_source: _,
+            total_h3_per_source: _,
+            magnet_flux: _,
+            nuclear_heat_w: _,
+        } = TransportSummary::default();
+        let ArrangementSummary {
+            recorded: _,
+            breeding: _,
+            breeding_is_total: _,
+            magnet_flux: _,
+            swaps: _,
+            first_swap_y: _,
+            first_swap_relative_sampling: _,
+            net_twh: _,
+            final_tritium_kg: _,
+            horizon_years: _,
+        } = ArrangementSummary::default();
+        let Contrast {
+            breeding_pct: _,
+            flux_pct: _,
+            swaps: _,
+            first_swap_y: _,
+            net_twh: _,
+        } = Contrast::default();
+        let crate::sweep::HistorySummary {
+            magnets_replaceable: _,
+            magnet_replacements: _,
+            first_magnet_replacement_years: _,
+            magnet_permanent_limit_years: _,
+            net_electricity_twh: _,
+            final_available_tritium_kg: _,
+        } = crate::sweep::HistorySummary {
+            magnets_replaceable: true,
+            magnet_replacements: 0,
+            first_magnet_replacement_years: None,
+            magnet_permanent_limit_years: None,
+            net_electricity_twh: None,
+            final_available_tritium_kg: 0.0,
+        };
+        let fields = [
+            "magnets_replaceable",
+            "magnet_replacements",
+            "first_magnet_replacement_years",
+            "magnet_permanent_limit_years",
+            "net_electricity_twh",
+            "final_available_tritium_kg",
+            "breeder_h3_per_source",
+            "total_h3_per_source",
+            "magnet_flux",
+            "nuclear_heat_w",
+            "recorded",
+            "breeding",
+            "breeding_is_total",
+            "swaps",
+            "first_swap_y",
+            "first_swap_relative_sampling",
+            "net_twh",
+            "final_tritium_kg",
+            "horizon_years",
+            "breeding_pct",
+            "flux_pct",
+        ];
+        for field in fields {
+            assert!(
+                BRIEF_OUTPUTS.iter().any(|o| o.name == field),
+                "{field} is not in BRIEF_OUTPUTS"
+            );
+        }
+        let marks = validation();
+        for q in [
+            Quantity::Tbr,
+            Quantity::Flux,
+            Quantity::Heating,
+            Quantity::Fluence,
+            Quantity::TritiumInventory,
+            Quantity::NetElectricPower,
+        ] {
+            assert!(marks.quantities().contains(&q), "{q:?}");
         }
     }
 

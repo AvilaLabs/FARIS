@@ -7,6 +7,7 @@ pub mod math;
 pub mod physics;
 pub mod remote_handling;
 pub mod transport;
+pub mod validation;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

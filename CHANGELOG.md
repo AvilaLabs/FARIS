@@ -14,6 +14,11 @@ basis.
 - Optional `plasma.min_first_wall_clearance_m` in the design file (metres, positive; `null` or absent for no
   minimum; `faris design init` writes `null`). Check 9 fails when the nearest source site is closer to the first
   wall than that, and says so as NOT_EVALUATED if no solid has the role `first_wall`. FARIS sets no minimum itself.
+- Validation status beside every calculated number (VAL-054): the transport report, the receipt inspection, the
+  history and comparison results and the study export read the V&V matrix and tag each number as validated within
+  range, validated but out of range, code-to-code only or not validated, with the why and next step once per
+  quantity (`data/validation.csv` in an export). Today every quantity is not validated. The design transport
+  report is now `faris-design-transport-report/v0.4`; older reports still read. The desktop panels do not show it yet.
 - Literature maintenance-duration presets (EU-DEMO blanket 10 months, best case 6 months, internal components 20
   months; Crofts and Harman) with their source link and conditions, each labelled literature. A condition the
   sources FARIS holds do not state is left empty with the reason.

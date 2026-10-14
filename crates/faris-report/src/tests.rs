@@ -292,7 +292,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     let mut lines = csv.lines();
     assert_eq!(
         lines.next().unwrap(),
-        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps"
+        "arrangement,calendar_year,state,magnet_fluence_n_m2,magnet_limit_fluence_n_m2,blanket_fluence_n_m2,usable_tritium_kg,net_electricity_twh,magnet_swaps,fluence_validation,tritium_inventory_validation,net_electric_power_validation"
     );
     let source = input();
     let expected: usize = source
@@ -711,7 +711,7 @@ mod ensembles {
         .clone()
     }
 
-    fn exported_with_ensembles() -> (tempfile::TempDir, ExportOutcome) {
+    pub(super) fn exported_with_ensembles() -> (tempfile::TempDir, ExportOutcome) {
         static ONCE: std::sync::OnceLock<ExportOutcome> = std::sync::OnceLock::new();
         let outcome = ONCE.get_or_init(|| {
             let dir = std::env::temp_dir().join("faris-report-shared-export-ensembles");
@@ -739,13 +739,13 @@ mod ensembles {
         let mut lines = csv.lines();
         assert_eq!(
             lines.next().unwrap(),
-            "arrangement,sample,rejected_draws,breeder_h3_per_source_neutron,flux_magnets_n_m2_s,heating_w,outcome,terminal_time_years,full_power_time_years,final_usable_tritium_kg,final_in_process_tritium_kg,gross_electricity_twh,auxiliary_electricity_twh,net_electricity_twh,replacements_magnets,first_replacement_year_magnets,first_trigger_magnets"
+            "arrangement,sample,rejected_draws,breeder_h3_per_source_neutron,flux_magnets_n_m2_s,heating_w,outcome,terminal_time_years,full_power_time_years,final_usable_tritium_kg,final_in_process_tritium_kg,gross_electricity_twh,auxiliary_electricity_twh,net_electricity_twh,replacements_magnets,first_replacement_year_magnets,first_trigger_magnets,tbr_validation,flux_validation,heating_validation,fluence_validation,tritium_inventory_validation,net_electric_power_validation,availability_validation"
         );
         let body: Vec<Vec<&str>> = lines.map(|l| l.split(',').collect()).collect();
         // Two evaluated arrangements; the not-evaluated and the missing ones
         // contribute no samples.
         assert_eq!(body.len(), 2 * SAMPLES as usize);
-        assert!(body.iter().all(|r| r.len() == 17));
+        assert!(body.iter().all(|r| r.len() == 24));
         let ids: Vec<&str> = body.iter().map(|r| r[0]).collect();
         assert!(ids[..6].iter().all(|i| *i == "port-reference"));
         assert!(ids[6..].iter().all(|i| *i == "no-port-reference"));
@@ -773,7 +773,7 @@ mod ensembles {
         let csv = table(&outcome.folder, "data/history-ensemble-summary.csv");
         assert_eq!(
             csv.lines().next().unwrap(),
-            "arrangement,ensemble_status,output,unit,statistic,category,value,ci95_low,ci95_high,n,note"
+            "arrangement,ensemble_status,output,unit,statistic,category,value,ci95_low,ci95_high,n,note,validation"
         );
         let rows: Vec<Vec<String>> = csv
             .lines()
@@ -1076,6 +1076,198 @@ mod ensembles {
         fs::create_dir_all(&dir).unwrap();
         export_study(&with_ensembles(), &dir).unwrap();
     }
+}
+
+/// The four states of VAL-054 and the word for a value that is not a calculated number.
+fn validation_words() -> Vec<&'static str> {
+    let mut words: Vec<&str> = faris_model::validation::ValidationState::ALL
+        .iter()
+        .map(|s| s.label())
+        .collect();
+    words.push("not a calculated number");
+    words
+}
+
+/// Every numeric column of the fixed-column tables with the quantity it is an instance of, or
+/// `None` for a column that is an input, an identity or a count. A new column fails the test
+/// below until it is placed here, so a calculated number cannot be added without a state.
+fn column_quantity(file: &str, column: &str) -> Option<Option<faris_model::validation::Quantity>> {
+    use faris_model::validation::Quantity::*;
+    let no = Some(None);
+    let q = |q| Some(Some(q));
+    match (file, column) {
+        (_, c) if c.ends_with("_validation") || c.ends_with("_kind") => no,
+        (_, "arrangement" | "state" | "variant_id" | "comparison" | "port" | "allocation") => no,
+        (_, "calendar_year" | "blanket_m" | "shield_m" | "horizon_years" | "transport_seed") => no,
+        (_, "transport_source_histories" | "transport_recorded" | "history_kind") => no,
+        (_, "breeding_ratio_scope" | "magnets_replaceable") => no,
+        (
+            "data/histories.csv",
+            "magnet_fluence_n_m2" | "magnet_limit_fluence_n_m2" | "blanket_fluence_n_m2",
+        ) => q(Fluence),
+        ("data/histories.csv", "magnet_swaps") => q(Fluence),
+        (_, "usable_tritium_kg" | "final_usable_tritium_kg" | "final_available_tritium_kg") => {
+            q(TritiumInventory)
+        }
+        (_, "net_electricity_twh" | "net_electricity_change_twh") => q(NetElectricPower),
+        (_, c)
+            if c.starts_with("breeding_ratio")
+                || c.starts_with("breeding_change")
+                || c == "breeding_screening_flag" =>
+        {
+            q(Tbr)
+        }
+        (_, c) if c.starts_with("magnet_flux") => q(Flux),
+        (
+            _,
+            "magnet_swaps"
+            | "magnet_swaps_change"
+            | "first_swap_year"
+            | "first_swap_change_y"
+            | "permanent_limit_year"
+            | "magnet_permanent_limit_year",
+        ) => q(Fluence),
+        (_, c) if c.starts_with("first_swap_") => q(Fluence),
+        (_, c) if c.starts_with("breeding_change_vs_previous") => q(Tbr),
+        _ => None,
+    }
+}
+
+// Verifies: VAL-054
+#[test]
+fn every_calculated_column_of_the_tables_has_a_validation_column() {
+    let (_guard, outcome) = exported();
+    let words = validation_words();
+    for file in [
+        "data/histories.csv",
+        "data/comparison.csv",
+        "data/differences.csv",
+        "data/sweep.csv",
+    ] {
+        let csv = table(&outcome.folder, file);
+        let header: Vec<&str> = csv.lines().next().unwrap().split(',').collect();
+        for column in &header {
+            let class = column_quantity(file, column);
+            let class = class.unwrap_or_else(|| {
+                panic!("{file}: classify the column {column} in column_quantity (a calculated number needs a quantity, anything else None)")
+            });
+            // A calculated column has a validation column for its quantity.
+            if let Some(q) = class {
+                let wanted = format!("{}_validation", q.id());
+                assert!(
+                    header.contains(&wanted.as_str()),
+                    "{file}: {column} needs {wanted}"
+                );
+            }
+        }
+        // Every validation cell is one of the four states.
+        for (i, column) in header
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| c.ends_with("_validation"))
+        {
+            for line in csv.lines().skip(1) {
+                // From the right: a first field may be quoted and hold a comma.
+                let cell = line.rsplit(',').nth(header.len() - 1 - i).unwrap();
+                assert!(words.contains(&cell), "{file} {column}: {cell}");
+            }
+        }
+    }
+}
+
+// Verifies: VAL-054
+#[test]
+fn the_ensemble_tables_carry_a_state_on_every_row() {
+    let (_dir, outcome) = ensembles::exported_with_ensembles();
+    let words = validation_words();
+    let samples = table(&outcome.folder, "data/history-ensemble-samples.csv");
+    let header: Vec<&str> = samples.lines().next().unwrap().split(',').collect();
+    for q in [
+        "tbr",
+        "flux",
+        "heating",
+        "fluence",
+        "tritium_inventory",
+        "net_electric_power",
+        "availability",
+    ] {
+        assert!(header.contains(&format!("{q}_validation").as_str()), "{q}");
+    }
+    for file in [
+        "data/history-ensemble-summary.csv",
+        "data/history-ensemble-comparison.csv",
+    ] {
+        let csv = table(&outcome.folder, file);
+        assert_eq!(
+            csv.lines().next().unwrap().split(',').next_back(),
+            Some("validation")
+        );
+        for line in csv.lines().skip(1) {
+            let cell = line.rsplit(',').next().unwrap();
+            // A row that could not be compared has no number and no state.
+            if !line.contains(",not_compared,") && !cell.is_empty() {
+                assert!(words.contains(&cell), "{file}: {cell}");
+            }
+        }
+        assert!(
+            csv.lines().skip(1).any(|l| l.ends_with("not validated")),
+            "{file}"
+        );
+    }
+}
+
+// Verifies: VAL-054
+#[test]
+fn the_validation_table_gives_the_why_and_next_step_of_every_quantity_once() {
+    let (_guard, outcome) = exported();
+    let csv = table(&outcome.folder, "data/validation.csv");
+    assert_eq!(
+        csv.lines().next().unwrap(),
+        "quantity,label,validation,scope,why,next_step"
+    );
+    assert_eq!(
+        csv.lines().count(),
+        1 + faris_model::validation::Quantity::ALL.len()
+    );
+    for line in csv.lines().skip(1) {
+        let cells: Vec<&str> = line.split(',').collect();
+        assert!(cells.len() >= 6, "{line}");
+        assert!(validation_words().contains(&cells[2]), "{line}");
+        assert!(!cells[cells.len() - 1].is_empty() && !cells[cells.len() - 2].is_empty());
+    }
+    assert!(
+        outcome
+            .files
+            .iter()
+            .any(|f| f.path == "data/validation.csv")
+    );
+}
+
+// Verifies: VAL-054
+#[test]
+fn the_pdf_marks_calculated_numbers_and_prints_the_legend() {
+    let (_guard, outcome) = exported();
+    assert!(
+        tool_available("pdftotext"),
+        "pdftotext is needed to read the PDF"
+    );
+    let out = Command::new("pdftotext")
+        .arg(outcome.folder.join("summary.pdf"))
+        .arg("-")
+        .output()
+        .unwrap();
+    let flat = String::from_utf8_lossy(&out.stdout).replace('\n', " ");
+    for marker in [
+        "[NV: TBR]",
+        "[NV: flux]",
+        "[NV: fluence]",
+        "[NV: net power]",
+    ] {
+        assert!(flat.contains(marker), "{marker}");
+    }
+    assert!(flat.contains("NV not validated"), "{flat}");
+    assert!(flat.contains("VR validated within range"));
+    assert!(flat.contains("CC code-to-code only"));
 }
 
 // Verifies: LEG-040

@@ -13,9 +13,11 @@ use faris_engine::{
         AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
         REFERENCE_BLANKET_M, StatusKind, StudyComparison,
     },
+    history_ensemble::output_quantity,
     history_uncertainty::{SCOPE_DETAIL, SCOPE_LINE},
 };
 use faris_model::RESEARCH_SCREENING_STATEMENT;
+use faris_model::validation::{Quantity, ValidationState, note};
 use krilla::{
     Document,
     color::rgb,
@@ -317,6 +319,38 @@ pub fn first_sentence(s: &str) -> String {
     s.to_string()
 }
 
+/// The short marker beside a calculated number, for example `[NV: flux]` (VAL-054).
+fn marker(quantity: Quantity) -> String {
+    format!("[{}: {}]", note(quantity).state.code(), quantity.short())
+}
+
+/// Markers of several quantities in one string.
+fn markers(quantities: &[Quantity]) -> String {
+    quantities
+        .iter()
+        .map(|q| marker(*q))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The marker of an ensemble output by its engine name; none for a value that is not calculated.
+fn output_marker(name: &str) -> Option<String> {
+    output_quantity(name).ok().map(marker)
+}
+
+/// The legend for the markers, one line; the why and next step per quantity are in
+/// `data/validation.csv` of the export.
+pub fn validation_legend() -> String {
+    let states: Vec<String> = ValidationState::ALL
+        .iter()
+        .map(|s| format!("{} {}", s.code(), s.label()))
+        .collect();
+    format!(
+        "Validation status beside each calculated number: {}. Why and next step per quantity: data/validation.csv.",
+        states.join(" · ")
+    )
+}
+
 fn fmt_sig(v: f64) -> String {
     format!("{v:.2e}")
 }
@@ -545,6 +579,14 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
             6.2,
         );
         let _ = pw;
+        cv.right(
+            MARGIN + text_w - 8.0,
+            y + 10.0,
+            &markers(&[Quantity::Tbr, Quantity::Fluence, Quantity::NetElectricPower]),
+            6.0,
+            MUTED,
+            FontKind::Body,
+        );
         let mut ty = y + 15.0;
         for line in &lines {
             cv.body(MARGIN + 8.0, ty + 8.6, line, 8.6, INK);
@@ -594,25 +636,37 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
     y += 27.0;
     let horizon = c.study.horizon_years;
     let any_total = c.arrangements.iter().any(|d| d.summary.breeding_is_total);
-    let row_labels: [(String, &str); 5] = [
+    let row_labels: [(String, String); 5] = [
         (
             format!("Magnet swaps in {horizon:.0} y"),
-            "count, conditional on the authored limit",
+            format!(
+                "count, conditional on the authored limit {}",
+                marker(Quantity::Fluence)
+            ),
         ),
         (
             "First magnet swap".into(),
-            "calendar year ± first-order sampling",
+            format!(
+                "calendar year ± first-order sampling {}",
+                marker(Quantity::Fluence)
+            ),
         ),
-        ("Lifetime net electricity".into(), "TWh, signed"),
+        (
+            "Lifetime net electricity".into(),
+            format!("TWh, signed {}", marker(Quantity::NetElectricPower)),
+        ),
         (
             if any_total {
                 "Tritium breeding ratio".into()
             } else {
                 "Breeder H3 per source".into()
             },
-            "H3 per source neutron ± 1 SE",
+            format!("H3 per source neutron ± 1 SE {}", marker(Quantity::Tbr)),
         ),
-        ("Magnet-region flux".into(), "n/m²/s ± 1 SE"),
+        (
+            "Magnet-region flux".into(),
+            format!("n/m²/s ± 1 SE {}", marker(Quantity::Flux)),
+        ),
     ];
     let cells: Vec<[Cell; 5]> = c.arrangements.iter().map(|d| comparison_cells(d)).collect();
     let row_h = 25.0;
@@ -643,6 +697,14 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         y += row_h;
     }
     cv.hline(MARGIN, PAGE_W - MARGIN, y - 1.0, RULE, 0.6);
+    cv.body(
+        MARGIN + 4.0,
+        y + 6.2,
+        &fit_text(&validation_legend(), CONTENT_W - 8.0, 6.2),
+        6.2,
+        MUTED,
+    );
+    y += 9.0;
     if c.uncertainty.is_some() {
         cv.body(
             MARGIN + 4.0,
@@ -667,17 +729,20 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
     y += 13.0;
     let name_w = 150.0;
     let dw = (CONTENT_W - name_w) / 5.0;
-    for (i, h) in [
-        "Δ breeding",
-        "Δ magnet flux",
-        "Δ magnet swaps",
-        "Δ first swap",
-        "Δ net electricity",
+    for (i, (h, q)) in [
+        ("Δ breeding", Quantity::Tbr),
+        ("Δ magnet flux", Quantity::Flux),
+        ("Δ magnet swaps", Quantity::Fluence),
+        ("Δ first swap", Quantity::Fluence),
+        ("Δ net electricity", Quantity::NetElectricPower),
     ]
     .iter()
     .enumerate()
     {
-        cv.bold(MARGIN + name_w + dw * i as f32 + 4.0, y + 7.0, h, 6.8, INK);
+        let x = MARGIN + name_w + dw * i as f32 + 4.0;
+        cv.bold(x, y + 7.0, h, 6.8, INK);
+        let code = format!("[{}: {}]", note(*q).state.code(), q.short());
+        cv.body(x, y + 14.0, &code, 5.4, MUTED);
     }
     y += 10.0;
     cv.hline(MARGIN, PAGE_W - MARGIN, y, RULE, 0.6);
@@ -732,9 +797,22 @@ fn page_two(cv: &mut Canvas, c: &PdfContent, k: f32) -> f32 {
     cv.body(
         MARGIN + 82.0,
         y + 9.0,
-        &fit_text(&c.sweep_note, CONTENT_W - 82.0, 7.0),
+        &fit_text(&c.sweep_note, CONTENT_W - 82.0 - 210.0, 7.0),
         7.0,
         MUTED,
+    );
+    cv.right(
+        PAGE_W - MARGIN,
+        y + 9.0,
+        &markers(&[
+            Quantity::Tbr,
+            Quantity::Flux,
+            Quantity::Fluence,
+            Quantity::NetElectricPower,
+        ]),
+        6.0,
+        MUTED,
+        FontKind::Body,
     );
     y += 16.0;
     if let Some(charts) = c.sweep_charts {
@@ -1051,7 +1129,11 @@ fn page_three(cv: &mut Canvas, c: &PdfContent, report: &UncertaintyReport) -> f3
                 None,
             );
         }
-        let label_lines = wrap_lines(label, label_w - 8.0, 7.2);
+        let labelled = match output_marker(name) {
+            Some(m) => format!("{label} {m}"),
+            None => label.clone(),
+        };
+        let label_lines = wrap_lines(&labelled, label_w - 8.0, 7.2);
         let mut ly = y + 2.0;
         for line in &label_lines {
             cv.bold(MARGIN + 4.0, ly + 7.2, line, 7.2, INK);
@@ -1078,7 +1160,14 @@ fn page_three(cv: &mut Canvas, c: &PdfContent, report: &UncertaintyReport) -> f3
         y += h;
     }
     cv.hline(MARGIN, PAGE_W - MARGIN, y + 0.5, RULE, 0.6);
-    y += 8.0;
+    cv.body(
+        MARGIN + 4.0,
+        y + 7.0,
+        &fit_text(&validation_legend(), CONTENT_W - 8.0, 6.2),
+        6.2,
+        MUTED,
+    );
+    y += 16.0;
     // The band charts, when both fit under the table.
     let needed: f32 = c.band_charts.iter().map(|b| b.height + 4.0).sum();
     if !c.band_charts.is_empty() && y + needed <= BOTTOM {

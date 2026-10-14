@@ -88,6 +88,35 @@ A record carries the identity it was produced with (library hash, code version,
 adapter hash). If it differs from the current identity every row is STALE, naming the
 field that changed. Each scored row repeats the three values.
 
+## Validation status beside a result (VAL-054)
+
+Every calculated number FARIS shows or exports carries the validation state of the quantity it is an
+instance of: one of the twelve quantities of the V&V matrix (TBR, heating, flux, fluence, dpa, gas
+production, activation, decay heat, shutdown dose rate, tritium inventory, availability, net electric
+power). The Rust code reads `validation/matrix.json` at build time, so a result and the release gate agree.
+
+| State | What it means for a reader |
+| --- | --- |
+| validated within range | A benchmark with an experimental reference was scored and agrees within its rule. It holds only inside the benchmark's qualified range, which is in the matrix row. |
+| validated but out of range | At least one scored benchmark detector FAILs its rule. Treat the number as unreliable until the cause is found. |
+| code-to-code only | The only agreement is with another code (shared nuclear data and geometry are listed). That is verification, not validation (VAL-041). |
+| not validated | No FARIS run has been scored against a benchmark that measures this quantity. The number is a calculation with a stated sampling error and nothing more. Today every quantity is in this state. |
+
+A quantity with several benchmark rows shows the failing state first (any row out of range), then the
+strongest evidence. A quantity the matrix does not name shows "not validated: this quantity is not in the
+validation matrix" with a next step, never a blank.
+
+How it shows: a short tag after the number, for example `[not validated: flux]`, and the why and next step once
+per quantity in a block at the end of the text (`faris design transport`, `faris reactor inspect`). The CSV
+exports have a `<quantity>_validation` column, or a `validation` column on the long-format tables, and
+`data/validation.csv` holds the scope, why and next step of each quantity. The PDF marks a row with a code
+(`NV`, `VR`, `VO`, `CC`) and prints the legend. A value that is an authored input, a conversion of one or a
+count is not a calculated number and carries no state; the report types list which fields those are.
+
+A new numeric field in `DesignTransportReport`, the transport receipt, the history and comparison results, the
+brief summaries and the exported tables fails a test until it is classed as a calculated number (with its
+quantity) or as not calculated (with the reason).
+
 ## Adding a case
 
 1. Take the reference data from a source whose licence permits redistribution of the

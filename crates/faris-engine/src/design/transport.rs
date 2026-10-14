@@ -28,6 +28,9 @@ use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
 use faris_model::transport::FAST_NEUTRON_ENERGY_MIN_EV;
+use faris_model::validation::{
+    Output, Quantity, ValidationMarks, calculated, not_calculated, notes_block,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -37,7 +40,7 @@ use std::{
     time::Duration,
 };
 
-pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.3";
+pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.4";
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-transport/v3";
 /// The fewest batches a run may stop at, as for the reactor run's sampling plan.
@@ -288,7 +291,84 @@ pub struct DesignTransportReport {
     pub lost_positions_m: Vec<[f64; 3]>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
+    /// The validation state of each calculated number above when the report was made (VAL-054).
+    /// Empty in a report written before v0.4.
+    #[serde(default, skip_serializing_if = "ValidationMarks::is_empty")]
+    pub validation: ValidationMarks,
 }
+
+/// Every numeric field of the report, by JSON name: a calculated number names its quantity, any
+/// other says why it is not one. A test fails on a number in neither list.
+pub const DESIGN_TRANSPORT_OUTPUTS: &[Output] = &[
+    calculated("mean_flux_n_m2_s", Quantity::Flux),
+    calculated("mean_relative_error", Quantity::Flux),
+    calculated("flux_n_m2_s", Quantity::Flux),
+    calculated("relative_error", Quantity::Flux),
+    calculated("flux_relative_error", Quantity::Flux),
+    calculated("history_fluence_n_m2", Quantity::Fluence),
+    calculated("history_fluence_standard_error_n_m2", Quantity::Fluence),
+    calculated("history_fluence_low_n_m2", Quantity::Fluence),
+    calculated("history_fluence_high_n_m2", Quantity::Fluence),
+    calculated("full_power_years_to_limit", Quantity::Fluence),
+    calculated("calendar_years_to_limit", Quantity::Fluence),
+    calculated("full_power_years_to_limit_earliest", Quantity::Fluence),
+    calculated("full_power_years_to_limit_latest", Quantity::Fluence),
+    calculated("calendar_years_to_limit_earliest", Quantity::Fluence),
+    calculated("calendar_years_to_limit_latest", Quantity::Fluence),
+    calculated("years_relative_error", Quantity::Fluence),
+    not_calculated("energy_min_ev", "authored threshold of the response"),
+    not_calculated(
+        "source_rate_per_s",
+        "conversion of the authored fusion power at the stored energy per reaction",
+    ),
+    not_calculated("energy_per_reaction_ev", "convention constant, stored"),
+    not_calculated("fusion_power_mw", "authored design input"),
+    not_calculated("histories", "count of source neutrons run"),
+    not_calculated("elapsed_seconds", "wall-clock time of the run"),
+    not_calculated("seed", "run setting"),
+    not_calculated("threads", "run setting"),
+    not_calculated("target_relative_error", "authored stopping target"),
+    not_calculated(
+        "total_volume_m3",
+        "CAD volume of the design file, an input to the flux normalization",
+    ),
+    not_calculated(
+        "volume_m3",
+        "CAD volume of the design file, an input to the flux normalization",
+    ),
+    not_calculated(
+        "r_m",
+        "location of the highest piece, a position and not a transport quantity",
+    ),
+    not_calculated(
+        "z_m",
+        "location of the highest piece, a position and not a transport quantity",
+    ),
+    not_calculated("pieces_ranked", "count of pieces compared"),
+    not_calculated("aim_seconds", "wall-clock time of the channel search"),
+    not_calculated("setup_seconds", "wall-clock time of the preparation steps"),
+    not_calculated("limit_n_m2", "authored fluence limit of the design"),
+    not_calculated(
+        "history_calendar_years",
+        "arithmetic on the authored operating history only",
+    ),
+    not_calculated(
+        "history_full_power_years",
+        "arithmetic on the authored operating history only",
+    ),
+    not_calculated(
+        "capacity_factor",
+        "arithmetic on the authored operating history only",
+    ),
+    not_calculated(
+        "lost_particles",
+        "count of neutrons the geometry could not place, a run-integrity check",
+    ),
+    not_calculated(
+        "lost_positions_m",
+        "positions of the first lost neutrons, a run-integrity check",
+    ),
+];
 
 fn default_energy_per_reaction_ev() -> f64 {
     D_T_ENERGY_PER_REACTION_EV
@@ -1207,6 +1287,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             .collect(),
         notices,
         not_evaluated,
+        validation: ValidationMarks::for_catalogue(DESIGN_TRANSPORT_OUTPUTS),
     })
 }
 
@@ -1276,12 +1357,17 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         "{what} in {place} of {}",
         report.design.id.as_deref().unwrap_or("the design")
     );
+    let flux_tag = report.validation.tag("flux_n_m2_s", Quantity::Flux);
+    let fluence_tag = report
+        .validation
+        .tag("history_fluence_n_m2", Quantity::Fluence);
     let _ = writeln!(
         out,
-        "  Mean over {} solids: {:.3e} n/m²/s {}",
+        "  Mean over {} solids: {:.3e} n/m²/s {} {}",
         report.solids.len(),
         report.mean_flux_n_m2_s,
-        percent(report.mean_relative_error)
+        percent(report.mean_relative_error),
+        report.validation.tag("mean_flux_n_m2_s", Quantity::Flux)
     );
     if let Some(highest) = report
         .solids
@@ -1290,7 +1376,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     {
         let _ = writeln!(
             out,
-            "  Highest solid: {} at {:.3e} n/m²/s {}",
+            "  Highest solid: {} at {:.3e} n/m²/s {} {flux_tag}",
             highest.solid_id,
             highest.flux_n_m2_s,
             percent(highest.relative_error)
@@ -1299,7 +1385,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     if let Some((solid, peak)) = leading_peak(&report.solids) {
         let _ = writeln!(
             out,
-            "  Highest piece: {:.3e} n/m²/s {} in {} at r {:.2}–{:.2} m, z {:.2}–{:.2} m ({:.1} litres)",
+            "  Highest piece: {:.3e} n/m²/s {} in {} at r {:.2}–{:.2} m, z {:.2}–{:.2} m ({:.1} litres) {flux_tag}",
             peak.flux_n_m2_s,
             percent(peak.relative_error),
             solid.solid_id,
@@ -1370,7 +1456,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         );
         let _ = writeln!(
             out,
-            "    Over the {:.1}-year history ({:.1} years at full power): {:.3e} n/m² {}",
+            "    Over the {:.1}-year history ({:.1} years at full power): {:.3e} n/m² {} {fluence_tag}",
             a.history_calendar_years,
             a.history_full_power_years,
             a.history_fluence_n_m2,
@@ -1381,13 +1467,16 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         {
             let _ = writeln!(
                 out,
-                "    Reaches the limit after {} at full power ({} of this history) {}",
+                "    Reaches the limit after {} at full power ({} of this history) {} {}",
                 span_text(full),
                 span_text(calendar),
                 years_band(
                     a.full_power_years_to_limit_earliest,
                     a.full_power_years_to_limit_latest
-                )
+                ),
+                report
+                    .validation
+                    .tag("full_power_years_to_limit", Quantity::Fluence)
             );
         }
         let _ = writeln!(out, "    Why: {}", a.why);
@@ -1401,6 +1490,13 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         let _ = writeln!(out, "    Why: {}", item.why);
         let _ = writeln!(out, "    Next: {}", item.next_step);
     }
+    let mut shown = vec![Quantity::Flux];
+    if !report.fluence_limits.is_empty() {
+        shown.push(Quantity::Fluence);
+    }
+    for line in notes_block(&shown, &report.validation).lines() {
+        let _ = writeln!(out, "  {line}");
+    }
     let _ = writeln!(out, "  Run directory: {}", report.run_directory);
     out
 }
@@ -1408,6 +1504,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::design::life::SECONDS_PER_YEAR;
 
     // Verifies: SEC-001
     #[test]
@@ -1623,6 +1720,147 @@ mod tests {
         let bare = assess_fluence(8.0, None, 10.0, &history);
         assert!(fluence_band(&bare).contains("no error band"));
         assert!(years_band(None, None).contains("no error band"));
+    }
+
+    fn sample_report() -> DesignTransportReport {
+        let history = PowerHistory {
+            calendar_seconds: 20.0 * SECONDS_PER_YEAR,
+            full_power_seconds: 8.0 * SECONDS_PER_YEAR,
+        };
+        let solid = |id: &str, flux: f64| SolidFlux {
+            solid_id: id.into(),
+            volume_m3: 2.0,
+            flux_n_m2_s: flux,
+            relative_error: Some(0.012),
+            peak: Some(PeakFlux {
+                r_m: [1.0, 1.1],
+                z_m: [0.0, 0.1],
+                volume_m3: 0.004,
+                flux_n_m2_s: 2.0 * flux,
+                relative_error: Some(0.04),
+                pieces_ranked: 12,
+            }),
+        };
+        DesignTransportReport {
+            schema_version: DESIGN_TRANSPORT_VERSION.into(),
+            design: DesignIdentity {
+                path: "rm-m.faris-design.json".into(),
+                sha256: "0".repeat(64),
+                id: Some("rm-m".into()),
+            },
+            check_report_sha256: "1".repeat(64),
+            h5m_sha256: "2".repeat(64),
+            cross_sections_sha256: "3".repeat(64),
+            openmc: "0.15.3".into(),
+            run_directory: "runs/t1".into(),
+            energy_min_ev: 1.0e5,
+            response_group_id: Some("coils".into()),
+            source_rate_per_s: 1.8618e20,
+            energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
+            fusion_power_mw: 525.0,
+            histories: 2_000_000,
+            elapsed_seconds: 310.0,
+            seed: 7,
+            threads: 4,
+            target_relative_error: 0.05,
+            target_reached: true,
+            stop_reason: "target".into(),
+            why: None,
+            next_step: None,
+            mean_flux_n_m2_s: 3.1e13,
+            mean_relative_error: Some(0.012),
+            total_volume_m3: 4.0,
+            solids: vec![solid("tf-1", 3.0e13), solid("tf-2", 3.2e13)],
+            variance_reduction: VarianceReduction {
+                mode: "analog".into(),
+                reason: "no window interpreter".into(),
+                next_step: "give --window-python".into(),
+                targets: vec![],
+                windows_sha256: None,
+                aim_seconds: 0.0,
+                aim_reused: false,
+            },
+            setup_seconds: 0.0,
+            windows_reused: false,
+            fluence_limits: vec![FluenceLimit {
+                group_id: "coils".into(),
+                basis: "peak_piece".into(),
+                solid_id: Some("tf-2".into()),
+                assessment: assess_fluence(6.4e13, Some(0.04), 3.0e22, &history),
+            }],
+            lost_particles: Some(0),
+            lost_positions_m: vec![],
+            notices: vec![],
+            not_evaluated: vec![],
+            validation: ValidationMarks::for_catalogue(DESIGN_TRANSPORT_OUTPUTS),
+        }
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn every_number_of_the_transport_report_is_classed_and_every_calculated_one_has_a_state() {
+        let report = sample_report();
+        let json = serde_json::to_value(&report).unwrap();
+        let loose = faris_model::validation::unclassified_numbers(&json, DESIGN_TRANSPORT_OUTPUTS);
+        assert!(
+            loose.is_empty(),
+            "add these to DESIGN_TRANSPORT_OUTPUTS as calculated (with a quantity) or not: {loose:?}"
+        );
+        for output in DESIGN_TRANSPORT_OUTPUTS {
+            if let faris_model::validation::Class::Calculated(q) = output.class {
+                assert_eq!(
+                    report.validation.0[output.name].quantity, q,
+                    "{}",
+                    output.name
+                );
+            }
+        }
+        // A number added without a class is found.
+        let mut extra = json.clone();
+        extra["new_number"] = 1.0.into();
+        assert_eq!(
+            faris_model::validation::unclassified_numbers(&extra, DESIGN_TRANSPORT_OUTPUTS),
+            vec!["$.new_number"]
+        );
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn a_report_without_marks_still_reads_and_shows_the_current_state() {
+        let mut json = serde_json::to_value(sample_report()).unwrap();
+        json.as_object_mut().unwrap().remove("validation");
+        let old: DesignTransportReport = serde_json::from_value(json).unwrap();
+        assert!(old.validation.is_empty());
+        let text = render_transport_text(&old);
+        assert!(text.contains("[not validated: flux]"), "{text}");
+    }
+
+    // Verifies: VAL-054
+    #[test]
+    fn the_text_tags_each_calculated_number_and_explains_each_quantity_once() {
+        let text = render_transport_text(&sample_report());
+        for line in text.lines().filter(|l| {
+            l.contains("Mean over")
+                || l.contains("Highest solid")
+                || l.contains("Highest piece")
+                || l.contains("Over the")
+                || l.contains("Reaches the limit")
+        }) {
+            assert!(line.contains("[not validated: "), "{line}");
+        }
+        assert_eq!(text.matches("[not validated: flux]").count(), 3);
+        assert_eq!(text.matches("[not validated: fluence]").count(), 2);
+        assert_eq!(
+            text.matches("Validation status, once per quantity:")
+                .count(),
+            1
+        );
+        assert_eq!(
+            text.matches("neutron flux: not validated. Why: ").count(),
+            1
+        );
+        assert_eq!(text.matches("fluence: not validated. Why: ").count(), 1);
+        assert!(text.contains(" Next: "), "{text}");
     }
 
     // Verifies: SRC-001
