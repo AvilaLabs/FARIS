@@ -1092,18 +1092,14 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             }
             // (basis, solid, flux, relative error) of the value the limit's averaging names.
             let judged = if inputs.chosen.peak_voxel_m.is_some() {
-                solids
-                    .iter()
-                    .filter_map(|s| Some((s, s.peak.as_ref()?)))
-                    .max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s))
-                    .map(|(s, p)| {
-                        (
-                            "peak_piece",
-                            Some(s.solid_id.clone()),
-                            p.flux_n_m2_s,
-                            p.relative_error,
-                        )
-                    })
+                leading_peak(&solids).map(|(s, p)| {
+                    (
+                        "peak_piece",
+                        Some(s.solid_id.clone()),
+                        p.flux_n_m2_s,
+                        p.relative_error,
+                    )
+                })
             } else {
                 Some(("group_average", None, mean_flux, mean_relative_error))
             };
@@ -1188,12 +1184,34 @@ fn percent(relative: Option<f64>) -> String {
     )
 }
 
+/// The solid whose leading piece is the highest the run has resolved: the highest flux after two
+/// standard errors are taken off, as the worker ranks pieces within a solid. With nothing
+/// resolved above zero, the highest flux.
+pub fn leading_peak(solids: &[SolidFlux]) -> Option<(&SolidFlux, &PeakFlux)> {
+    let resolved = |p: &PeakFlux| p.flux_n_m2_s * (1.0 - 2.0 * p.relative_error.unwrap_or(1.0));
+    let peaks = || solids.iter().filter_map(|s| Some((s, s.peak.as_ref()?)));
+    let best = peaks().max_by(|a, b| resolved(a.1).total_cmp(&resolved(b.1)))?;
+    if resolved(best.1) > 0.0 {
+        Some(best)
+    } else {
+        peaks().max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s))
+    }
+}
+
+/// A time to a limit in words: years, or days when it is under a tenth of a year.
+pub fn span_text(years: f64) -> String {
+    if years >= 0.1 {
+        format!("{years:.1} years")
+    } else {
+        format!("{:.0} days", years * 365.25)
+    }
+}
+
 /// The fluence's 2-sigma band; the verdict never says WITHIN unless the upper edge is inside.
 fn fluence_band(a: &FluenceAssessment) -> String {
     match (a.history_fluence_low_n_m2, a.history_fluence_high_n_m2) {
         (Some(low), Some(high)) => format!(
-            "(2-sigma band {low:.3e} to {high:.3e}; WITHIN needs the upper edge below the limit, {})",
-            percent(a.flux_relative_error)
+            "(2-sigma band {low:.3e} to {high:.3e}; the verdict uses the unfavourable edge)"
         ),
         _ => "(no error band: the flux has no error estimate)".into(),
     }
@@ -1202,10 +1220,8 @@ fn fluence_band(a: &FluenceAssessment) -> String {
 /// The years to the limit with their 2-sigma band; the earliest edge is the one the verdict uses.
 fn years_band(earliest: Option<f64>, latest: Option<f64>) -> String {
     match (earliest, latest) {
-        (Some(e), Some(l)) => format!("(2-sigma band {e:.1} to {l:.1} years; earliest edge used)"),
-        (Some(e), None) => {
-            format!("(2-sigma band from {e:.1} years, no upper edge; earliest edge used)")
-        }
+        (Some(e), Some(l)) => format!("(2-sigma band {} to {})", span_text(e), span_text(l)),
+        (Some(e), None) => format!("(2-sigma band from {}, no upper edge)", span_text(e)),
         _ => "(no error band: the flux has no error estimate)".into(),
     }
 }
@@ -1247,12 +1263,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
             percent(highest.relative_error)
         );
     }
-    if let Some((solid, peak)) = report
-        .solids
-        .iter()
-        .filter_map(|s| Some((s, s.peak.as_ref()?)))
-        .max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s))
-    {
+    if let Some((solid, peak)) = leading_peak(&report.solids) {
         let _ = writeln!(
             out,
             "  Highest piece: {:.3e} n/m²/s {} in {} at r {:.2}–{:.2} m, z {:.2}–{:.2} m ({:.1} litres)",
@@ -1337,7 +1348,9 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         {
             let _ = writeln!(
                 out,
-                "    Reaches the limit after {full:.1} years at full power ({calendar:.1} years of this history) {}",
+                "    Reaches the limit after {} at full power ({} of this history) {}",
+                span_text(full),
+                span_text(calendar),
                 years_band(
                     a.full_power_years_to_limit_earliest,
                     a.full_power_years_to_limit_latest
@@ -1539,7 +1552,9 @@ mod tests {
             )
         );
         assert!(text.contains("2-sigma band 4.000e0 to 1.200e1"), "{text}");
-        assert!(text.contains("earliest edge used"), "{text}");
+        assert!(text.contains("unfavourable edge"), "{text}");
+        assert_eq!(span_text(1.04), "1.0 years");
+        assert_eq!(span_text(0.002), "1 days");
         // With no error estimate the display says so rather than showing a bare margin.
         let bare = assess_fluence(8.0, None, 10.0, &history);
         assert!(fluence_band(&bare).contains("no error band"));

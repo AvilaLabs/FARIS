@@ -64,7 +64,7 @@ pub use source::{CLOSURE_TOLERANCE, SourceClosure};
 pub use transport::{
     DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, PeakFlux, SolidFlux,
     TransportProgress, TransportProgressFn, VarianceReduction, design_transport, flux_n_m2_s,
-    render_transport_text,
+    leading_peak, render_transport_text, span_text,
 };
 pub use transport_progress::{
     SamplingEstimate, StopsAt, duration_text, estimate_sampling, estimate_text, histories_text,

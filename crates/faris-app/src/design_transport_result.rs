@@ -5,7 +5,7 @@
 //! reason it has none; nothing is built before a report exists.
 
 use faris_engine::design::{
-    DesignTransportReport, FluenceLimit, LimitStatus, NotEvaluated, SolidFlux,
+    DesignTransportReport, FluenceLimit, LimitStatus, NotEvaluated, SolidFlux, span_text,
 };
 
 /// A quantity with its caption: the value, and its error or why there is none.
@@ -114,14 +114,14 @@ fn limit_view(limit: &FluenceLimit) -> LimitView {
         a.full_power_years_to_limit_earliest,
         a.full_power_years_to_limit_latest,
     ) {
-        (Some(early), Some(late)) => format!("2σ band {early:.1} to {late:.1} years"),
-        (Some(early), None) => format!("2σ band: {early:.1} years at the earliest, no latest"),
+        (Some(early), Some(late)) => format!("2σ band {} to {}", span_text(early), span_text(late)),
+        (Some(early), None) => format!("2σ band: {} at the earliest, no latest", span_text(early)),
         _ => error_text(a.years_relative_error),
     };
     let years = match a.full_power_years_to_limit {
         Some(years) => Row {
             caption: "Years to the limit at full power".into(),
-            value: format!("{years:.1} years"),
+            value: span_text(years),
             error: years_error.clone(),
         },
         None => Row {
@@ -135,7 +135,7 @@ fn limit_view(limit: &FluenceLimit) -> LimitView {
             "Years to the limit over this history (capacity factor {:.2})",
             a.capacity_factor
         ),
-        value: format!("{years:.1} years"),
+        value: span_text(years),
         error: years_error,
     });
     LimitView {
@@ -184,11 +184,7 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
         .solids
         .iter()
         .max_by(|a, b| a.flux_n_m2_s.total_cmp(&b.flux_n_m2_s));
-    let piece = report
-        .solids
-        .iter()
-        .filter_map(|s| Some((s, s.peak.as_ref()?)))
-        .max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s));
+    let piece = faris_engine::design::leading_peak(&report.solids);
     let has_peak = report.solids.iter().any(|s| s.peak.is_some());
     let target = 100.0 * report.target_relative_error;
     let on = if has_peak {
@@ -406,7 +402,7 @@ pub(crate) mod tests {
         // Verifies: MAG-004
         assert_eq!(limit.fluence.error, "2σ band 1.23e22 to 1.77e22 n/m²");
         assert_eq!(limit.years.value, "47.5 years");
-        assert_eq!(limit.years.error, "2σ band 40.3 to 57.9 years");
+        assert_eq!(limit.years.error, "2σ band 40.3 years to 57.9 years");
         assert!(
             limit
                 .calendar_years
