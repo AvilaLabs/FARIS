@@ -105,11 +105,19 @@ fn limit_view(limit: &FluenceLimit) -> LimitView {
         Some(solid) => format!("highest piece, in {solid}"),
         None => "mean over the group".to_string(),
     };
-    let fluence_error = match a.history_fluence_standard_error_n_m2 {
-        Some(se) => format!("± {se:.2e} n/m² ({})", error_text(a.flux_relative_error)),
-        None => error_text(None),
+    // Margins carry the two-standard-error band the verdict is judged on.
+    let fluence_error = match (a.history_fluence_low_n_m2, a.history_fluence_high_n_m2) {
+        (Some(low), Some(high)) => format!("2σ band {low:.2e} to {high:.2e} n/m²"),
+        _ => error_text(None),
     };
-    let years_error = error_text(a.years_relative_error);
+    let years_error = match (
+        a.full_power_years_to_limit_earliest,
+        a.full_power_years_to_limit_latest,
+    ) {
+        (Some(early), Some(late)) => format!("2σ band {early:.1} to {late:.1} years"),
+        (Some(early), None) => format!("2σ band: {early:.1} years at the earliest, no latest"),
+        _ => error_text(a.years_relative_error),
+    };
     let years = match a.full_power_years_to_limit {
         Some(years) => Row {
             caption: "Years to the limit at full power".into(),
@@ -224,12 +232,18 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
             next_step: report.next_step.clone().filter(|_| !report.target_reached),
         },
         run_line: format!(
-            "{} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power.",
+            "{} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power at {} MeV per reaction. {}",
             report.histories,
             report.elapsed_seconds,
             report.threads,
             report.source_rate_per_s,
-            report.fusion_power_mw
+            report.fusion_power_mw,
+            report.energy_per_reaction_ev / 1.0e6,
+            match report.lost_particles {
+                Some(lost) =>
+                    format!("Lost neutrons: {lost} (a run fails above one in a million)."),
+                None => "Lost neutrons were not counted by this OpenMC build.".to_string(),
+            }
         ),
         speed_up: SpeedUpView {
             mode: reduction.mode.clone(),
@@ -267,11 +281,17 @@ pub(crate) mod tests {
             flux_relative_error: flux_error,
             history_fluence_n_m2: 1.5e22,
             history_fluence_standard_error_n_m2: flux_error.map(|e| 1.5e22 * e),
+            history_fluence_low_n_m2: flux_error.map(|e| 1.5e22 * (1.0 - 2.0 * e)),
+            history_fluence_high_n_m2: flux_error.map(|e| 1.5e22 * (1.0 + 2.0 * e)),
             history_calendar_years: 30.0,
             history_full_power_years: 24.0,
             capacity_factor: 0.8,
             full_power_years_to_limit: Some(47.5),
             calendar_years_to_limit: Some(59.4),
+            full_power_years_to_limit_earliest: flux_error.map(|e| 47.5 / (1.0 + 2.0 * e)),
+            full_power_years_to_limit_latest: flux_error.map(|e| 47.5 / (1.0 - 2.0 * e)),
+            calendar_years_to_limit_earliest: flux_error.map(|e| 59.4 / (1.0 + 2.0 * e)),
+            calendar_years_to_limit_latest: flux_error.map(|e| 59.4 / (1.0 - 2.0 * e)),
             years_relative_error: flux_error,
             status,
             why: "The fluence is below the limit.".into(),
@@ -293,6 +313,9 @@ pub(crate) mod tests {
             response_group_id: None,
             source_rate_per_s: 1.0e20,
             fusion_power_mw: 500.0,
+            energy_per_reaction_ev: 17.6e6,
+            lost_particles: Some(0),
+            lost_positions_m: Vec::new(),
             histories: 3_000_000,
             elapsed_seconds: 640.0,
             seed: 1,
@@ -380,9 +403,10 @@ pub(crate) mod tests {
         assert_eq!(limit.status_word, "WITHIN");
         assert!(limit.title.contains("highest piece, in coil-b"));
         assert_eq!(limit.fluence.value, "1.500e22 n/m²");
-        assert!(limit.fluence.error.contains("± 9.0 %"));
+        // Verifies: MAG-004
+        assert_eq!(limit.fluence.error, "2σ band 1.23e22 to 1.77e22 n/m²");
         assert_eq!(limit.years.value, "47.5 years");
-        assert_eq!(limit.years.error, "± 9.0 %");
+        assert_eq!(limit.years.error, "2σ band 40.3 to 57.9 years");
         assert!(
             limit
                 .calendar_years
@@ -403,6 +427,10 @@ pub(crate) mod tests {
         a.calendar_years_to_limit = None;
         a.flux_relative_error = None;
         a.history_fluence_standard_error_n_m2 = None;
+        a.history_fluence_low_n_m2 = None;
+        a.history_fluence_high_n_m2 = None;
+        a.full_power_years_to_limit_earliest = None;
+        a.full_power_years_to_limit_latest = None;
         a.status = LimitStatus::Inconclusive;
         let view = result_view(&report);
         let limit = &view.limits[0];
