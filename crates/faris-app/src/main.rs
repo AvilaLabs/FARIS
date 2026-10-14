@@ -6,6 +6,9 @@ mod archive_panel;
 mod badge;
 mod camera;
 mod compare_panel;
+mod design_transport_panel;
+mod design_transport_result;
+mod design_transport_run;
 mod export_panel;
 mod history_panel;
 mod interface_check;
@@ -175,6 +178,15 @@ struct Arguments {
     /// ACTINV data root, for the Maintenance window's Run section.
     #[arg(long)]
     actinv_data: Option<PathBuf>,
+    /// Open the Design flux window (the neutron flux of a checked design in its magnets).
+    #[arg(long)]
+    design_flux: bool,
+    /// The design file for the Design flux window.
+    #[arg(long, value_name = "DESIGN.json")]
+    flux_design: Option<PathBuf>,
+    /// The `design check --report` file for the Design flux window.
+    #[arg(long, value_name = "CHECK.json")]
+    flux_check_report: Option<PathBuf>,
     /// Matched feature-free scenario to compare against the penetration.
     #[arg(long)]
     control_scenario: Option<PathBuf>,
@@ -600,6 +612,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if args.maintenance_run {
                 app.maintenance.open = true;
             }
+            app.design_flux.prefill(
+                args.flux_design.as_deref(),
+                args.flux_check_report.as_deref(),
+            );
+            app.design_flux.open = args.design_flux;
             if let Some(path) = args.maintenance.clone() {
                 app.maintenance.load_in_background(&cc.egui_ctx, path);
             }
@@ -869,6 +886,7 @@ struct FarisApp {
     history: history_panel::HistoryPanel,
     sweep: Option<sweep_panel::SweepPanel>,
     maintenance: maintenance_panel::MaintenancePanel,
+    design_flux: design_transport_panel::DesignTransportPanel,
     step: Step,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
@@ -923,6 +941,7 @@ impl FarisApp {
             history,
             sweep: None,
             maintenance: maintenance_panel::MaintenancePanel::default(),
+            design_flux: design_transport_panel::DesignTransportPanel::default(),
             step: Step::Design,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
@@ -2193,6 +2212,13 @@ impl eframe::App for FarisApp {
                 interface_size_menu(ui);
                 ui.toggle_value(&mut self.maintenance.open, "Maintenance")
                     .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
+                let flux_label = if self.design_flux.is_running() {
+                    "Design flux (running)"
+                } else {
+                    "Design flux"
+                };
+                ui.toggle_value(&mut self.design_flux.open, flux_label)
+                    .on_hover_text("Run the neutron flux of a checked design in its magnets, compared with its fluence limit, and watch it");
                 let replay = ui.button("Tour").on_hover_text("Replay the guided tour");
                 self.tour.anchor("tour-button", replay.rect);
                 if replay.clicked() {
@@ -2229,6 +2255,7 @@ impl eframe::App for FarisApp {
         });
         let bar_bottom = bar.response.rect.bottom();
         self.maintenance.window(&ctx);
+        self.design_flux.window(&ctx);
         if self.sign_in_prompt
             && !self.tour.active
             && let Some(suite) = &mut self.suite

@@ -45,6 +45,7 @@ mod reader;
 mod testutil;
 mod topology;
 mod transport;
+mod transport_progress;
 
 pub use geometry::{
     BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
@@ -59,9 +60,13 @@ pub use life::{
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 pub use transport::{
-    DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, SolidFlux,
+    DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, PeakFlux, SolidFlux,
     TransportProgress, TransportProgressFn, VarianceReduction, design_transport, flux_n_m2_s,
     render_transport_text,
+};
+pub use transport_progress::{
+    SamplingEstimate, StopsAt, duration_text, estimate_sampling, estimate_text, histories_text,
+    progress_line, step_text,
 };
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";

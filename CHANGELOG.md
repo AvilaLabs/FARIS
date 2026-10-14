@@ -36,6 +36,9 @@ basis.
     and progress is printed while the run samples.
   - A design that gives an emissivity table or a fuel other than D-T is refused; it is never run with the
     tokamak D-T source in its place.
+- The desktop has a **Design flux** window that runs `faris design transport` without a terminal: it names the tools
+  the run needs and which are missing, shows the step, the errors against the target and a labelled estimate of the
+  time left while it runs, offers Cancel, and shows the result with every number's error and every limit's why and next step.
 - A second local nuclear-data library, built by `scripts/build_nuclear_data_v2.py`: all FENDL-3.2 neutron
   nuclides, ENDF/B-VII.1 photon data for every element in them, and ENDF/B-VIII.1 thermal-scattering tables for
   fusion materials, with a provenance record and an audit of the new `fusion-materials-v1` nuclide set

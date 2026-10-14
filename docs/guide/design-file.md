@@ -251,6 +251,34 @@ both. You cannot waive an open or non-manifold surface (`GEO-020`), inverted nor
 degenerate triangle, because transport is not defined for them. You also cannot waive a failed conversion
 (`GEO-012`) or source sites outside the chamber (`SRC-018`).
 
+## Run the flux from the desktop
+
+Available from the next release. Open **Design flux** in the top bar. The window runs the same computation as
+`faris design transport` (see [Command line](cli.md)); the command line stays the way to script it.
+
+1. Choose the design file and the JSON report `faris design check --report` wrote for it. The check's work folder must
+   still hold the conversion. You can also pass them at launch with `--design-flux --flux-design FILE
+   --flux-check-report FILE`.
+2. Under **Tools the run needs**, set the OpenMC Python, the cross sections and the plasma source folder. FARIS fills
+   them from `FARIS_OPENMC_PYTHON`, `FARIS_CROSS_SECTIONS` and `FARIS_PLASMA_SOURCE_PATH` when those are set. Each row says
+   whether it is set, what it is for and what to do if it is missing. The window Python (OpenMC 0.16 or later) and the
+   OpenMC package folder are optional; the row says what the run loses without them (weight windows, aiming).
+3. Set the target error (5 % by default), the history limit and the time limit, then press **Run**. Anything that stops
+   the run is listed under the form with what to do next.
+
+While it runs, the window shows the current step in plain words. Once sampling starts it shows the elapsed time, the error
+on the mean against the target and, when the limit asks for a peak, the error on the highest piece. From the second batch it
+shows a progress bar and a sentence marked **Estimate**: the error falls as 1 over the square root of the histories, so the
+histories still needed follow from the error reached and the target. If the history or time limit will come first, the
+sentence says so. The errors shown are provisional while the run goes. **Cancel** stops OpenMC and writes no result; the run
+folder is left as it is. You can close the window and reopen it while a run goes on.
+
+When the run ends, the window shows the mean flux with its error, the highest solid, the highest piece with its place and
+volume when the limit asks for a peak, each fluence limit with its status (WITHIN, EXCEEDED or INCONCLUSIVE), the fluence over
+the history and the years to the limit with their error, and the why and next step for each. It also shows the speed-up mode
+and why it ran, every note, and everything that was not evaluated with why. A number with no error says why it has none.
+Nothing is shown before a run has finished. The report is also saved as `design-transport-report.json` in the run folder.
+
 ## What this version does not do
 
 A design that passes checks 1 to 9 is checked and convertible, but not yet run: the transport and maintenance
