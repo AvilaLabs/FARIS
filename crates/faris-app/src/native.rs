@@ -397,6 +397,9 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
         return check_package(&args, package_session, &runs_directory, &report);
     }
     if let Some(out) = args.write_web_ensembles.clone() {
+        if let Some(failure) = package_session.as_ref().and_then(|s| s.failure.as_ref()) {
+            return Err(format!("the package did not open: {}", failure.text).into());
+        }
         return crate::web_ensembles::write(&args, &runs_directory, &out);
     }
     if args
@@ -534,7 +537,8 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
             // One set of tool paths for both design windows, kept between sessions.
             let tools = design_tools::ToolsModel::load().shared();
             app.design_flux.use_tools(tools.clone());
-            app.design_check.use_tools(tools);
+            app.design_check.use_tools(tools.clone());
+            app.tools = Some(tools);
             app.design_flux.prefill(
                 args.flux_design.as_deref(),
                 args.flux_check_report.as_deref(),

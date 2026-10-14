@@ -328,6 +328,8 @@ struct FarisApp {
     study: study_panel::StudyPanel,
     transport: transport_panel::TransportPanel,
     paired: Option<(DemoManifest, transport_panel::TransportPanel)>,
+    /// The tool paths shared with the design windows (the Window Python for Production runs).
+    tools: Option<design_tools::SharedTools>,
     history: history_panel::HistoryPanel,
     sweep: Option<sweep_panel::SweepPanel>,
     maintenance: maintenance_panel::MaintenancePanel,
@@ -390,6 +392,7 @@ impl FarisApp {
             study: study_panel::StudyPanel::new(core, runs_directory),
             transport,
             paired,
+            tools: None,
             history,
             sweep: None,
             maintenance: maintenance_panel::MaintenancePanel::default(),
@@ -1376,8 +1379,11 @@ impl FarisApp {
         );
         self.tour.anchor_in(ui, "transport-card", card);
         ui.add_space(12.0);
-        self.transport
-            .controls(ui, &self.manifest.variants[self.variant].id);
+        self.transport.controls(
+            ui,
+            &self.manifest.variants[self.variant].id,
+            self.tools.as_ref(),
+        );
     }
 
     fn operate_step(&mut self, ui: &mut egui::Ui) {

@@ -755,7 +755,12 @@ impl FarisApp {
         self.paired = session.control;
         self.transport = session.transport;
         self.history = session.history;
-        self.history.restore_ensembles(opened.ensembles);
+        #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
+        let mut ensembles = opened.ensembles;
+        // The browser cannot calculate ranges; the bundled study's apply where the keys match.
+        #[cfg(target_arch = "wasm32")]
+        ensembles.extend(crate::web::demo_ensembles());
+        self.history.restore_ensembles(ensembles);
         self.file.workspace = Some(opened.workspace);
         if !opened.sweep.is_empty() {
             let (paths, runs) = (opened.sweep.clone(), self.file.runs_directory.clone());

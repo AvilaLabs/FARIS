@@ -311,7 +311,8 @@ impl MaintenancePanel {
         let mut open_dialog = false;
         let mut open_recorded = false;
         ui.horizontal(|ui| {
-            if ui
+            if !crate::browser::IS_BROWSER
+                && ui
                 .add_enabled(!self.is_pending(), egui::Button::new("Open result\u{2026}"))
                 .on_hover_text(
                     "Open a faris-maintenance-result/v0.1 file written by the maintenance command.",
@@ -339,7 +340,11 @@ impl MaintenancePanel {
             }
         });
         if self.recorded.is_some() {
-            ui.weak(RECORDED_NOTE);
+            ui.weak(if crate::browser::IS_BROWSER {
+                "Recorded with ACTINV for the four packaged arrangements."
+            } else {
+                RECORDED_NOTE
+            });
         }
         if open_recorded {
             self.load_recorded_in_background(&ui.ctx().clone());
@@ -348,15 +353,19 @@ impl MaintenancePanel {
             self.pick_file(&ui.ctx().clone());
         }
         ui.separator();
-        let running = self.run.is_running();
-        egui::CollapsingHeader::new(if running {
-            "Run (in progress)"
+        if crate::browser::IS_BROWSER {
+            crate::browser::desktop_only_note(ui, "Running the maintenance calculation (ACTINV)");
         } else {
-            "Run\u{2026}"
-        })
-        .id_salt("maintenance-run-section")
-        .default_open(matches!(self.state, State::Empty) || running)
-        .show(ui, |ui| self.run.ui(ui));
+            let running = self.run.is_running();
+            egui::CollapsingHeader::new(if running {
+                "Run (in progress)"
+            } else {
+                "Run\u{2026}"
+            })
+            .id_salt("maintenance-run-section")
+            .default_open(matches!(self.state, State::Empty) || running)
+            .show(ui, |ui| self.run.ui(ui));
+        }
         self.poll_run();
         ui.separator();
         let selected = &mut self.selected;

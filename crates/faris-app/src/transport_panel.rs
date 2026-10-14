@@ -1,9 +1,9 @@
+use crate::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::{
     badge::{self, Kind},
     design_tools::SharedTools,
     settings::Tool,
 };
-use crate::time::{Duration, SystemTime, UNIX_EPOCH};
 use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,

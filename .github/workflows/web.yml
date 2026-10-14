@@ -2,6 +2,10 @@ name: Web
 
 # Builds the faris-app browser bundle (wasm32), adds the handbook, and checks
 # the whole bundle in a browser. The result is the "faris-web" artifact.
+# The recorded demo study comes from the v0.2.0 release package (downloaded
+# here, not kept in git). The uncertainty ensembles are calculated in this job
+# by a native build of the app (--write-web-ensembles), because the browser
+# cannot calculate them; they are never committed.
 # Nothing is published here: deploy/web/sync.sh stages that artifact for
 # `wrangler deploy`, which is run by hand.
 
@@ -15,6 +19,7 @@ on:
       - "book.toml"
       - "docs/guide/**"
       - "scripts/web_smoke.mjs"
+      - "scripts/prepare_web_demo.py"
       - ".github/workflows/web.yml"
   workflow_dispatch:
 
@@ -28,7 +33,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +74,44 @@ jobs:
         uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
         with:
           tool: mdbook@0.5.4
+
+      - name: Download the recorded demo package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p demo-package
+          gh release download v0.2.0 -R AvilaLabs/FARIS \
+            -p 'FARIS-0.2.0-linux-x86_64.tar.gz' -p SHA256SUMS -D demo-package
+          (cd demo-package && grep 'FARIS-0.2.0-linux-x86_64.tar.gz' SHA256SUMS | sha256sum -c -)
+          tar -xzf demo-package/FARIS-0.2.0-linux-x86_64.tar.gz -C demo-package
+          index=$(find demo-package -name package-index.json | head -n 1)
+          test -n "$index"
+          echo "PACKAGE_DIR=$(dirname "$index")" >> "$GITHUB_ENV"
+
+      - name: Install native build libraries
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev
+
+      # Native release build of the app, used only to write the ensembles.
+      - name: Calculate the uncertainty ensembles
+        run: |
+          set -euo pipefail
+          mkdir -p web-ensembles runs-scratch
+          cd "$PACKAGE_DIR"
+          cargo run --release --locked --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" -p faris-app -- \
+            --bundle port/bundles/reference.transport-bundle.json \
+            --bundle port/bundles/breeder-emphasis.transport-bundle.json \
+            --control-scenario control/scenario.json \
+            --control-bundle control/bundles/reference.transport-bundle.json \
+            --control-bundle control/bundles/breeder-emphasis.transport-bundle.json \
+            --assumptions operating-assumptions.json \
+            --runs-directory "$GITHUB_WORKSPACE/runs-scratch" \
+            --write-web-ensembles "$GITHUB_WORKSPACE/web-ensembles/ensembles.json"
+
+      - name: Prepare the demo data
+        run: |
+          python3 scripts/prepare_web_demo.py "$PACKAGE_DIR" \
+            --out crates/faris-app/demo --ensembles web-ensembles/ensembles.json
 
       - name: Build wasm bundle
         working-directory: crates/faris-app

@@ -20,6 +20,18 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 
+/// The uncertainty ranges that came with the bundled study, kept so a study the
+/// user opens whose inputs are the same (same key) shows them too.
+static DEMO_ENSEMBLES: Mutex<Vec<faris_study::StoredEnsemble>> = Mutex::new(Vec::new());
+
+/// The bundled study's precomputed ranges; empty when none were loaded.
+pub(crate) fn demo_ensembles() -> Vec<faris_study::StoredEnsemble> {
+    DEMO_ENSEMBLES
+        .lock()
+        .map(|held| held.clone())
+        .unwrap_or_default()
+}
+
 const CANVAS_ID: &str = "faris_canvas";
 const LOADING_ID: &str = "faris-loading";
 /// Where the bundled study lives on the page's own origin.
@@ -399,18 +411,20 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
                 ranges.schema
             ));
         }
-        history.restore_ensembles(
-            ranges
-                .ensembles
-                .into_iter()
-                .map(|e| faris_study::StoredEnsemble {
-                    scenario_sha256: e.scenario_sha256,
-                    variant: e.variant,
-                    key: e.key,
-                    ensemble: e.ensemble,
-                })
-                .collect(),
-        );
+        let stored: Vec<_> = ranges
+            .ensembles
+            .into_iter()
+            .map(|e| faris_study::StoredEnsemble {
+                scenario_sha256: e.scenario_sha256,
+                variant: e.variant,
+                key: e.key,
+                ensemble: e.ensemble,
+            })
+            .collect();
+        if let Ok(mut held) = DEMO_ENSEMBLES.lock() {
+            *held = stored.clone();
+        }
+        history.restore_ensembles(stored);
     }
     // The checked records are in memory now; free the raw bundle files.
     for file in &manifest.core {
