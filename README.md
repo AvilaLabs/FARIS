@@ -49,6 +49,8 @@ outboard service port and a matched port-free control.
 
 ## Get it
 
+Or try the [browser version](https://faris.avilalabs.org) (explore recorded results).
+
 Download the app for your platform from the
 [latest release](https://github.com/AvilaLabs/FARIS/releases/latest) and check
 it against `SHA256SUMS`:

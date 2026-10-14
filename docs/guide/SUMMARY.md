@@ -6,6 +6,7 @@
 
 - [Download and verify](install.md)
 - [Supported platforms](platforms.md)
+- [The browser version](browser.md)
 - [Take the tour](quick-start.md)
 - [Keyboard](keyboard.md)
 

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "faris-web",
+  "compatibility_date": "2026-10-14",
+  "routes": [{ "pattern": "faris.avilalabs.org", "custom_domain": true }],
+  // Static bundle only, no worker script. Workers static assets serves
+  // `.wasm` as application/wasm by default, which streaming compilation needs.
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  },
+  "observability": { "enabled": true }
+}

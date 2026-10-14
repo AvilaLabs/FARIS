@@ -1,0 +1,125 @@
+name: Web
+
+# Builds the faris-app browser bundle (wasm32), adds the handbook, and checks
+# the whole bundle in a browser. The result is the "faris-web" artifact.
+# Nothing is published here: deploy/web/sync.sh stages that artifact for
+# `wrangler deploy`, which is run by hand.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "book.toml"
+      - "docs/guide/**"
+      - "scripts/web_smoke.mjs"
+      - ".github/workflows/web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      # rust-toolchain.toml pins the channel but not extra targets.
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # The CLI must match the wasm-bindgen crate in Cargo.lock exactly, so
+      # read the version from the lockfile instead of writing it here.
+      - name: Read the locked wasm-bindgen version
+        id: bindgen
+        run: |
+          version=$(python3 - <<'PY'
+          import tomllib
+          lock = tomllib.load(open("Cargo.lock", "rb"))
+          print(next(p["version"] for p in lock["package"] if p["name"] == "wasm-bindgen"))
+          PY
+          )
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "wasm-bindgen $version"
+
+      - name: Install trunk
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: trunk@0.21.14
+
+      - name: Install wasm-bindgen-cli
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: wasm-bindgen-cli@${{ steps.bindgen.outputs.version }}
+
+      - name: Install mdBook
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: mdbook@0.5.4
+
+      - name: Build wasm bundle
+        working-directory: crates/faris-app
+        run: trunk build --release --public-url ./
+
+      # The notices cover the crates linked into the wasm32 build. Fetching
+      # the full target graph first lets the metadata step run offline.
+      - name: Add license and third-party notices to the web bundle
+        run: |
+          set -euo pipefail
+          cargo fetch --locked --target wasm32-unknown-unknown
+          mkdir -p notices-work
+          cargo metadata --locked --offline --format-version 1 \
+            --filter-platform wasm32-unknown-unknown > notices-work/faris-web.json
+          python3 scripts/collect_dependency_notices.py \
+            --metadata notices-work/faris-web.json \
+            --root-crate faris-app \
+            --title "FARIS browser dependency notices" \
+            --platform-label "Browser" --target-triple "wasm32-unknown-unknown" \
+            --output crates/faris-app/dist/THIRD_PARTY_NOTICES.md
+          cp LICENSE crates/faris-app/dist/
+
+      - name: Build the handbook into the bundle
+        run: |
+          set -euo pipefail
+          mdbook build
+          test -f dist/docs/index.html
+          test -f dist/docs/browser.html
+          rm -rf crates/faris-app/dist/docs
+          cp -R dist/docs crates/faris-app/dist/docs
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The smoke script loads WEB_URL in headless Chromium and fails on any
+      # console error. The package is installed without saving, so no
+      # package.json is added to the repository.
+      - name: Check the complete bundle in a browser
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.62.1
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 --directory crates/faris-app/dist --bind 127.0.0.1 &
+          server_pid=$!
+          trap 'kill "$server_pid"; wait "$server_pid" || true' EXIT
+          WEB_URL=http://127.0.0.1:8080/ timeout 180s node scripts/web_smoke.mjs
+
+      - name: Upload complete web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: faris-web
+          path: crates/faris-app/dist
+          if-no-files-found: error
