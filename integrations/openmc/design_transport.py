@@ -4,8 +4,9 @@
     design_transport.py --phase run     --request request.json --work-dir DIR
     design_transport.py --phase mgxs    --request request.json --work-dir DIR
     design_transport.py --phase windows --request request.json --work-dir DIR
+    design_transport.py --phase volumes --request request.json --work-dir DIR
 
-The request (`faris-design-transport-request/v2`) is written by the engine from a design file
+The request (`faris-design-transport-request/v3`) is written by the engine from a design file
 that passed `faris design check`:
 
     h5m                 path of the converted geometry; every solid is tagged with its solid id
@@ -15,13 +16,14 @@ that passed `faris design check`:
     plasma              the design file's plasma block (SI)
     chamber_solid_id    the solid the source sits in
     response            {solid_ids, energy_min_ev}: flux above the threshold in these solids
-                        (any solids that are not empty space; 0 for the flux at all energies)
+                        (any solids that are not empty space; 0 for the flux at all energies);
+                        with peak_voxel_cm [dr, dz] also the highest flux inside each solid
     sampling            {target_relative_error, particles_per_batch, min_batches, max_batches,
                          max_seconds, seed, threads}
     variance_reduction  "none" or "windows"
 
 `run` scores the track-length flux above the threshold in each response solid and stops at the
-first batch where the relative standard error of the sum over the solids is at or below the
+first batch (of at least min_batches) where the relative standard error of the sum over the solids is at or below the
 target, or at the batch or time limit. The error of the sum comes from the per-batch sums,
 so correlation between solids is included. Neutrons below the threshold are not followed:
 they cannot score. Results are per source neutron (cm); the engine converts them to a flux.
@@ -36,8 +38,16 @@ from the source to the response and aims at it (streaming_aim.py); otherwise the
 used as they are. Either way the result says which mode ran and why. This is the recipe of
 docs/notes/CAD_TRANSPORT_S0F.md (pilot p1-fr, protocols 4 and 5).
 
+With `peak_voxel_cm`, `volumes` runs before `run`. The peak is taken over pieces of each solid:
+rings of dr by dz about the z axis, each cut by the solid, so a piece spans the solid's full
+toroidal width (null for dr or dz: its full width in that direction too). `volumes` measures
+the volume of every piece by ray tracing; `run` scores the same pieces and reports, per solid,
+the piece with the highest flux. Pieces under a quarter of the solid's largest are not ranked.
+The run then stops only when the piece that leads at that batch is within twice the target as well
+(10 % for the default 5 %): one piece of a few litres takes many more histories than the mean.
+
 Progress goes to standard output as one JSON object per line. The result file is
-WORK/solver/result.json (`faris-design-transport/v2`). openmc is imported lazily so the pure
+WORK/solver/result.json (`faris-design-transport/v3`). openmc is imported lazily so the pure
 helpers import without it.
 """
 from __future__ import annotations
@@ -51,8 +61,8 @@ import sys
 import time
 from pathlib import Path
 
-REQUEST_SCHEMA = "faris-design-transport-request/v2"
-RESULT_SCHEMA = "faris-design-transport/v2"
+REQUEST_SCHEMA = "faris-design-transport-request/v3"
+RESULT_SCHEMA = "faris-design-transport/v3"
 ENERGY_MAX_EV = 2.0e7
 TALLY_ID = 1
 OUTER_ID = 10_000_000
@@ -75,6 +85,12 @@ RANDOM_RAY = {"rays": 20000, "batches": 60, "inactive": 30, "distance_inactive_c
               "distance_active_cm": 2500.0, "source_shape": "flat", "volume_estimator": "hybrid",
               "diagonal_stabilization_rho": 1.0, "sample_method": "prng"}
 PROGRESS_SECONDS = 5.0
+# The peak inside a solid: rings of dr by dz about the machine axis, each cut by the solid.
+PEAK_TALLY_ID = 2
+PEAK_MESH_ID = 9001
+PEAK_RAYS = 2_000_000        # rays that measure how much of each ring lies in each solid
+PEAK_TARGET_FACTOR = 2.0     # the highest piece is held to this many times the target on the mean
+PEAK_MIN_FILL = 0.25         # a piece smaller than this share of the solid's largest piece is a sliver: not ranked
 
 
 def sha256_file(path: Path) -> str:
@@ -144,6 +160,10 @@ def validate_request(request: dict) -> None:
         need(solids[solid_id]["material_id"] is not None, f"the response solid {solid_id} is empty space")
     need(len(set(response["solid_ids"])) == len(response["solid_ids"]), "a response solid is listed twice")
     need(0.0 <= response["energy_min_ev"] < ENERGY_MAX_EV, "energy_min_ev is outside the data range")
+    voxel = response.get("peak_voxel_cm")
+    if voxel is not None:
+        need(len(voxel) == 2 and all(v is None or v >= 1.0 for v in voxel),
+             "peak_voxel_cm must be [dr, dz] with each at least 1 cm or null")
     need(request["chamber_solid_id"] in solids, "the plasma chamber solid is not in the model")
     for material in request["materials"]:
         need(material["density_kg_m3"] > 0.0, f"{material['material_id']}: density must be positive")
@@ -219,6 +239,51 @@ def window_grid(lower: list[float], upper: list[float], cell_cm: float = WINDOW_
     return [float(v) for v in lo], [float(v) for v in hi], [max(1, round((h - l) / cell_cm)) for l, h in zip(lo, hi)]
 
 
+def ring_edges(low: float, high: float, step: float | None) -> list[float]:
+    """Edges from `low` to at least `high` in steps of `step`; one bin when `step` is None."""
+    if step is None:
+        return [float(low), float(high)]
+    count = max(1, math.ceil((high - low) / step - 1.0e-9))
+    return [low + i * step for i in range(count + 1)]
+
+
+def leading_piece(scored, volumes, batches: int, min_fill: float = PEAK_MIN_FILL):
+    """Relative error of the piece with the highest flux over all solids (numpy), or None when unknown.
+
+    `scored[piece, solid]` holds (sum, sum of squares) of the batch values and `volumes[solid, piece]` the cm3.
+    """
+    import numpy as np
+
+    ranked = volumes >= min_fill * volumes.max(axis=1, keepdims=True)
+    flux = np.where(ranked, scored[:, :, 0].T / np.where(ranked, volumes, 1.0), -1.0)
+    solid, piece = np.unravel_index(int(np.argmax(flux)), flux.shape)
+    mean = scored[piece, solid, 0] / batches
+    if batches < 2 or mean <= 0.0:
+        return None
+    return math.sqrt(max(scored[piece, solid, 1] / batches - mean * mean, 0.0) / (batches - 1)) / mean
+
+
+def peak_of(sums, squares, volumes, batches: int, min_fill: float = PEAK_MIN_FILL) -> dict | None:
+    """The piece of one solid with the highest track length per volume.
+
+    `sums` and `squares` hold each piece's sum of batch values and of their squares, `volumes` the cm3 of the
+    piece. Slivers (under `min_fill` of the solid's largest piece) are not ranked: their volume is poorly known
+    and their score is noise. Returns the flat index, mean, standard error and volume, or None with no piece.
+    """
+    largest = max(volumes, default=0.0)
+    best = None
+    for index, (total, square, volume) in enumerate(zip(sums, squares, volumes)):
+        if largest <= 0.0 or volume < min_fill * largest:
+            continue
+        mean = total / batches
+        if best is None or mean / volume > best["mean"] / best["volume_cm3"]:
+            error = None
+            if batches >= 2:
+                error = math.sqrt(max(square / batches - mean * mean, 0.0) / (batches - 1))
+            best = {"index": index, "mean": mean, "standard_error": error, "volume_cm3": volume}
+    return best
+
+
 class RunningSum:
     """Mean and standard error of per-batch values, one batch at a time."""
 
@@ -249,10 +314,15 @@ class RunningSum:
         return se / self.mean
 
 
-def stop_reason(stats: RunningSum, sampling: dict, elapsed: float) -> str | None:
-    """Why the run stops after this batch, or None to continue. The target is checked first."""
-    rel = stats.relative_error
-    if stats.n >= sampling["min_batches"] and rel is not None and rel <= sampling["target_relative_error"]:
+def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple | None = None) -> str | None:
+    """Why the run stops after this batch, or None to continue. The target is checked first.
+
+    `peak` is None when no peak is asked for, else a one-item tuple holding the relative error of the highest
+    piece (None when unknown): it must then be within PEAK_TARGET_FACTOR times the target as well.
+    """
+    rel, target = stats.relative_error, sampling["target_relative_error"]
+    peak_met = peak is None or (peak[0] is not None and peak[0] <= PEAK_TARGET_FACTOR * target)
+    if stats.n >= sampling["min_batches"] and rel is not None and rel <= target and peak_met:
         return "target_reached"
     if stats.n >= sampling["max_batches"]:
         return "history_limit"
@@ -261,10 +331,18 @@ def stop_reason(stats: RunningSum, sampling: dict, elapsed: float) -> str | None
     return None
 
 
-def explain(reason: str, stats: RunningSum, sampling: dict, windows: bool = False) -> tuple[str, str]:
-    """(why, next_step) for a run that stopped before its target."""
+def explain(reason: str, stats: RunningSum, sampling: dict, windows: bool = False,
+            peak: tuple | None = None) -> tuple[str, str]:
+    """(why, next_step) for a run that stopped before its target. `peak` as for `stop_reason`."""
     rel = stats.relative_error
     seen = "no nonzero score was recorded" if rel is None else f"the error reached {100.0 * rel:.1f} %"
+    if rel is not None and peak is not None:
+        if peak[0] is None:
+            seen += " on the mean and is unknown for the highest piece"
+        else:
+            seen += (f" on the mean and {100.0 * peak[0]:.1f} % on the highest piece (held to "
+                     f"{100.0 * PEAK_TARGET_FACTOR * sampling['target_relative_error']:g} %)")
+            rel = max(rel, peak[0] / PEAK_TARGET_FACTOR)
     target = 100.0 * sampling["target_relative_error"]
     other = "" if windows else ", or run with weight windows"
     if rel is None:
@@ -481,6 +559,75 @@ def phase_windows(request: dict, work: Path) -> dict:
     return record
 
 
+def phase_volumes(request: dict, work: Path) -> dict:
+    """Measure the volume of every ring piece of every response solid. Writes WORK/peak/volumes.npz."""
+    import numpy as np
+    import openmc
+
+    out_dir = work / "peak"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    # The checked h5m tags each solid with its own id: one stand-in material per solid tells the solids apart.
+    numbers = {s["solid_id"]: n for n, s in enumerate(request["solids"], start=1)}
+    stand_ins = []
+    for solid_id, number in numbers.items():
+        material = openmc.Material(material_id=number, name=solid_id)
+        material.add_nuclide("H1", 1.0, percent_type="ao")
+        material.set_density("kg/m3", FILLER_DENSITY_KG_M3)
+        stand_ins.append(material)
+    universe = openmc.DAGMCUniverse(str(request["h5m"]))
+    box = universe.bounding_box
+    reach = max(math.hypot(x, y) for x in (box.lower_left[0], box.upper_right[0])
+                for y in (box.lower_left[1], box.upper_right[1]))
+    dr, dz = request["response"]["peak_voxel_cm"]
+    r_edges = ring_edges(0.0, math.ceil(reach), dr)
+    z_edges = ring_edges(math.floor(box.lower_left[2]), math.ceil(box.upper_right[2]), dz)
+    # The rays start on the box around the mesh, so the model must reach past it. Ids clear of the h5m's.
+    half, low, high = r_edges[-1] + 20.0, z_edges[0] - 20.0, z_edges[-1] + 20.0
+    sides = [openmc.XPlane(-half, surface_id=OUTER_ID + 1), openmc.XPlane(half, surface_id=OUTER_ID + 2),
+             openmc.YPlane(-half, surface_id=OUTER_ID + 3), openmc.YPlane(half, surface_id=OUTER_ID + 4),
+             openmc.ZPlane(low, surface_id=OUTER_ID + 5), openmc.ZPlane(high, surface_id=OUTER_ID + 6)]
+    for side in sides:
+        side.boundary_type = "vacuum"
+    region = +sides[0] & -sides[1] & +sides[2] & -sides[3] & +sides[4] & -sides[5]
+    model = openmc.Model(geometry=openmc.Geometry([openmc.Cell(cell_id=OUTER_ID, fill=universe, region=region)]),
+                         materials=openmc.Materials(stand_ins))
+    model.materials.cross_sections = str(request["cross_sections"])
+    model.settings.run_mode = "fixed source"
+    model.settings.particles, model.settings.batches = 10, 1
+    model.settings.source = openmc.IndependentSource()
+    mesh = openmc.CylindricalMesh(r_grid=r_edges, z_grid=z_edges, phi_grid=[0.0, 2.0 * math.pi])
+    here = os.getcwd()
+    os.chdir(out_dir)
+    try:
+        measured = mesh.material_volumes(model, n_samples=PEAK_RAYS, max_materials=min(len(numbers), 64),
+                                         output=False, args=["--threads", str(int(request["sampling"]["threads"]))])
+    finally:
+        os.chdir(here)
+    solids = request["response"]["solid_ids"]
+    shape = (len(z_edges) - 1, len(r_edges) - 1)
+    volumes = np.zeros((len(solids),) + shape)
+    for row, solid_id in enumerate(solids):
+        volumes[row] = np.asarray(measured[numbers[solid_id]], dtype=float).reshape(shape)
+        if not volumes[row].sum() > 0.0:
+            raise RuntimeError(f"no volume was found for the solid {solid_id}")
+    # Keep only the rows and columns a response solid reaches.
+    used_z = np.nonzero(volumes.sum(axis=(0, 2)) > 0.0)[0]
+    used_r = np.nonzero(volumes.sum(axis=(0, 1)) > 0.0)[0]
+    z0, z1, r0, r1 = used_z[0], used_z[-1] + 1, used_r[0], used_r[-1] + 1
+    target = out_dir / "volumes.npz"
+    np.savez_compressed(target, volumes_cm3=volumes[:, z0:z1, r0:r1], r_edges_cm=np.array(r_edges[r0:r1 + 1]),
+                        z_edges_cm=np.array(z_edges[z0:z1 + 1]))
+    discard(out_dir, {"volumes.npz"})
+    record = {
+        "openmc": openmc.__version__, "rays": PEAK_RAYS, "voxel_cm": [dr, dz], "solid_ids": solids,
+        "solid_volume_cm3": [float(v.sum()) for v in volumes],
+        "volumes_sha256": sha256_file(target), "seconds": time.monotonic() - started,
+    }
+    (out_dir / "record.json").write_text(json.dumps(record, indent=1) + "\n")
+    return record
+
+
 def apply_windows(openmc, model, filled: Path) -> None:
     window = openmc.hdf5_to_wws(str(filled))[0]
     window.id, window.max_split = WINDOW_ID, MAX_SPLIT
@@ -596,7 +743,22 @@ def phase_run(request: dict, work: Path) -> dict:
     ]
     tally.scores = ["flux"]
     tally.estimator = "tracklength"
-    model.tallies = openmc.Tallies([tally])
+    tallies = [tally]
+    pieces = None
+    if response.get("peak_voxel_cm") is not None:
+        pieces_record = json.loads((work / "peak" / "record.json").read_text())
+        if (sha256_file(work / "peak" / "volumes.npz") != pieces_record["volumes_sha256"]
+                or pieces_record["solid_ids"] != solids or pieces_record["voxel_cm"] != response["peak_voxel_cm"]):
+            raise RuntimeError("the piece volumes do not match their record or this request")
+        pieces = np.load(work / "peak" / "volumes.npz")
+        rings = openmc.CylindricalMesh(mesh_id=PEAK_MESH_ID, r_grid=pieces["r_edges_cm"], z_grid=pieces["z_edges_cm"],
+                                       phi_grid=[0.0, 2.0 * math.pi])
+        peak_tally = openmc.Tally(tally_id=PEAK_TALLY_ID, name="response-peak")
+        peak_tally.filters = [openmc.MeshFilter(rings)] + list(tally.filters)
+        peak_tally.scores = ["flux"]
+        peak_tally.estimator = "tracklength"
+        tallies.append(peak_tally)
+    model.tallies = openmc.Tallies(tallies)
 
     mode = {"mode": "analog", "reason": "No weight windows were asked for.",
             "next_step": "Run with weight windows to reach the target sooner.", "env": {}}
@@ -625,6 +787,9 @@ def phase_run(request: dict, work: Path) -> dict:
     os.chdir(out_dir)
     stats = RunningSum()
     per_solid = [RunningSum() for _ in solids]
+    peaks = [None for _ in solids]
+    leading = None
+    piece_volumes = None if pieces is None else pieces["volumes_cm3"].reshape(len(solids), -1)
     started = time.monotonic()
     reason = None
     try:
@@ -644,7 +809,12 @@ def phase_run(request: dict, work: Path) -> dict:
                 for accumulator, value in zip(per_solid, batch):
                     accumulator.add(float(value))
                 elapsed = time.monotonic() - started
-                reason = stop_reason(stats, sampling, elapsed)
+                if pieces is not None:
+                    # Mesh bins run over r, then z; the solids follow as the next filter.
+                    scored = np.array(openmc.lib.tallies[PEAK_TALLY_ID].results[:, 0, 1:3], dtype=float)
+                    scored = scored.reshape(-1, len(solids), 2)
+                    leading = (leading_piece(scored, piece_volumes, stats.n),)
+                reason = stop_reason(stats, sampling, elapsed, leading)
                 if reason is not None or time.monotonic() - last_report >= PROGRESS_SECONDS:
                     last_report = time.monotonic()
                     print(json.dumps({
@@ -652,8 +822,20 @@ def phase_run(request: dict, work: Path) -> dict:
                             "batches": stats.n,
                             "histories": stats.n * int(sampling["particles_per_batch"]),
                             "relative_error": stats.relative_error,
+                            "peak_relative_error": leading[0] if leading else None,
                             "elapsed_seconds": elapsed,
                         }}), flush=True)
+            if pieces is not None:
+                volumes = pieces["volumes_cm3"]
+                r_edges, z_edges = pieces["r_edges_cm"], pieces["z_edges_cm"]
+                for row in range(len(solids)):
+                    peak = peak_of(scored[:, row, 0], scored[:, row, 1], volumes[row].ravel(), stats.n)
+                    if peak is not None:
+                        iz, ir = divmod(peak.pop("index"), volumes.shape[2])
+                        peak["r_cm"] = [float(r_edges[ir]), float(r_edges[ir + 1])]
+                        peak["z_cm"] = [float(z_edges[iz]), float(z_edges[iz + 1])]
+                        peak["pieces_ranked"] = int((volumes[row] >= PEAK_MIN_FILL * volumes[row].max()).sum())
+                    peaks[row] = peak
             openmc.lib.simulation_finalize()
         finally:
             openmc.lib.finalize()
@@ -679,8 +861,9 @@ def phase_run(request: dict, work: Path) -> dict:
         "unit": "cm_per_source",
         "energy_min_ev": response["energy_min_ev"],
         "total": {"mean": stats.mean, "standard_error": stats.standard_error},
-        "solids": [{"solid_id": s, "mean": a.mean, "standard_error": a.standard_error}
-                   for s, a in zip(solids, per_solid)],
+        "solids": [{"solid_id": s, "mean": a.mean, "standard_error": a.standard_error, "peak": peak}
+                   for s, a, peak in zip(solids, per_solid, peaks)],
+        "peak_voxel_cm": response.get("peak_voxel_cm"),
         "variance_reduction": {
             "mode": mode["mode"], "reason": mode["reason"], "next_step": mode["next_step"],
             "targets": [t["name"] for t in mode.get("targets", [])],
@@ -692,7 +875,7 @@ def phase_run(request: dict, work: Path) -> dict:
         "next_step": None,
     }
     if reason != "target_reached":
-        result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog")
+        result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog", leading)
     target = out_dir / "result.json"
     with target.open("x", encoding="utf-8") as stream:
         json.dump(result, stream, indent=1)
@@ -702,7 +885,7 @@ def phase_run(request: dict, work: Path) -> dict:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--phase", choices=("run", "mgxs", "windows"), required=True)
+    parser.add_argument("--phase", choices=("run", "mgxs", "windows", "volumes"), required=True)
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--work-dir", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -714,7 +897,7 @@ def main(argv=None) -> int:
         return 2
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    {"run": phase_run, "mgxs": phase_mgxs, "windows": phase_windows}[args.phase](request, work)
+    {"run": phase_run, "mgxs": phase_mgxs, "windows": phase_windows, "volumes": phase_volumes}[args.phase](request, work)
     return 0
 
 

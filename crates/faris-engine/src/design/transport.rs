@@ -11,8 +11,10 @@
 //! multigroup library on the design's materials and a random-ray adjoint of the
 //! response, which gives weight windows. The run then uses them and, on an OpenMC
 //! built with the aiming patch, aims at a streaming channel when it finds one.
-//! Each coil's flux is then compared with the design's fluence limit over the
-//! linked operating history (`life`).
+//! The flux is then compared with the design's fluence limit over the linked
+//! operating history (`life`): the mean over the group for a `group_average`
+//! limit, the highest piece of any solid for a `peak_mesh` limit. A piece is a
+//! ring of the limit's dr by dz about the machine axis, cut by the solid.
 
 use super::life::{FluenceAssessment, LimitStatus, PowerHistory, assess_fluence, power_history};
 use super::{
@@ -34,9 +36,9 @@ use std::{
     time::Duration,
 };
 
-pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.2";
-const REQUEST_SCHEMA: &str = "faris-design-transport-request/v2";
-const RESULT_SCHEMA: &str = "faris-design-transport/v2";
+pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.3";
+const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
+const RESULT_SCHEMA: &str = "faris-design-transport/v3";
 /// Energy released per D-T reaction, as in the reactor transport request.
 const ENERGY_PER_REACTION_EV: f64 = 17.6e6;
 const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
@@ -47,16 +49,19 @@ const MIN_BATCHES: u64 = 30;
 const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
 const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TransportProgress {
-    /// A step has started: `mgxs`, `windows` or `run`.
+    /// A step has started: `mgxs`, `windows`, `volumes` or `run`.
     Step(String),
     Sampling {
         histories: u64,
         /// `None` until two batches have scored.
         relative_error: Option<f64>,
+        /// The error of the highest piece, when the limit asks for a peak and it is known.
+        peak_relative_error: Option<f64>,
         elapsed_seconds: f64,
     },
 }
@@ -74,6 +79,8 @@ fn parse_progress(line: &str) -> Option<TransportProgress> {
     struct Sampling {
         histories: u64,
         relative_error: Option<f64>,
+        #[serde(default)]
+        peak_relative_error: Option<f64>,
         elapsed_seconds: f64,
     }
     if !line.starts_with("{\"progress\"") {
@@ -83,6 +90,7 @@ fn parse_progress(line: &str) -> Option<TransportProgress> {
     Some(TransportProgress::Sampling {
         histories: parsed.progress.histories,
         relative_error: parsed.progress.relative_error,
+        peak_relative_error: parsed.progress.peak_relative_error,
         elapsed_seconds: parsed.progress.elapsed_seconds,
     })
 }
@@ -124,6 +132,19 @@ struct WorkerSolid {
     solid_id: String,
     mean: f64,
     standard_error: Option<f64>,
+    #[serde(default)]
+    peak: Option<WorkerPeak>,
+}
+
+/// The piece of a solid with the highest flux: track length (cm per source neutron) in its volume.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+struct WorkerPeak {
+    mean: f64,
+    standard_error: Option<f64>,
+    volume_cm3: f64,
+    r_cm: [f64; 2],
+    z_cm: [f64; 2],
+    pieces_ranked: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -171,13 +192,28 @@ pub struct VarianceReduction {
     pub aim_reused: bool,
 }
 
-/// One fluence limit of the design against the flux of the worst solid of its group.
+/// One fluence limit of the design against the flux its averaging rule names.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct FluenceLimit {
     pub group_id: String,
-    /// The solid of the group with the highest flux.
-    pub solid_id: String,
+    /// `group_average`: the mean over the group's solids. `peak_piece`: the highest piece of
+    /// any solid of the group.
+    pub basis: String,
+    /// The solid that holds the highest piece; `None` for a group average.
+    pub solid_id: Option<String>,
     pub assessment: FluenceAssessment,
+}
+
+/// The piece of a solid with the highest flux: a ring about the machine axis, cut by the solid.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct PeakFlux {
+    pub r_m: [f64; 2],
+    pub z_m: [f64; 2],
+    pub volume_m3: f64,
+    pub flux_n_m2_s: f64,
+    pub relative_error: Option<f64>,
+    /// How many pieces of the solid were compared.
+    pub pieces_ranked: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -187,6 +223,8 @@ pub struct SolidFlux {
     pub flux_n_m2_s: f64,
     /// `None`: fewer than two batches, or no score.
     pub relative_error: Option<f64>,
+    /// `None`: the limit asks for no peak, or the solid has no piece to rank.
+    pub peak: Option<PeakFlux>,
 }
 
 /// Something the run did not compute, with the reason and what to do.
@@ -397,6 +435,19 @@ struct ChosenResponse {
     group_id: Option<String>,
     energy_min_ev: f64,
     limit_n_m2: Option<f64>,
+    /// `[dr, dz]` in metres of a `peak_mesh` limit; `None` in a place: the solid's full width.
+    peak_voxel_m: Option<[Option<f64>; 2]>,
+    /// The limit asks for pieces of a set toroidal width, which this command does not cut.
+    peak_ignores_dphi: bool,
+}
+
+fn peak_voxel(limit: &design::Limit) -> (Option<[Option<f64>; 2]>, bool) {
+    match &limit.averaging {
+        design::Averaging::PeakMesh { voxel_m } if voxel_m.len() == 3 => {
+            (Some([voxel_m[0], voxel_m[1]]), voxel_m[2].is_some())
+        }
+        _ => (None, false),
+    }
 }
 
 /// The fluence limit a metric and threshold describe: the energy above which neutrons count.
@@ -419,10 +470,13 @@ fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenRespons
         .iter()
         .filter_map(|g| {
             let limit = g.limits.iter().find(|l| fluence_threshold(l).is_some())?;
+            let (peak_voxel_m, peak_ignores_dphi) = peak_voxel(limit);
             Some(ChosenResponse {
                 group_id: Some(g.id.clone()),
                 energy_min_ev: fluence_threshold(limit)?,
                 limit_n_m2: Some(limit.limit),
+                peak_voxel_m,
+                peak_ignores_dphi,
             })
         })
         .collect();
@@ -448,6 +502,8 @@ fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenRespons
             group_id: None,
             energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
             limit_n_m2: None,
+            peak_voxel_m: None,
+            peak_ignores_dphi: false,
         }),
         (None, 1) => Ok(candidates[0].clone()),
         (None, _) => Err(tool(format!(
@@ -514,6 +570,32 @@ fn restore_windows(entry: &Path, dir: &Path) -> Result<bool, DesignError> {
         if block.is_file() {
             copy_file(&block, &dir.join("aim-kept").join("windows-block.xml"))?;
         }
+    }
+    Ok(true)
+}
+
+const PIECE_FILES: [&str; 2] = ["record.json", "volumes.npz"];
+
+#[derive(Deserialize)]
+struct PiecesRecord {
+    volumes_sha256: String,
+}
+
+/// Put a kept entry's piece volumes into the run directory; a damaged entry is ignored.
+fn restore_pieces(entry: &Path, dir: &Path) -> Result<bool, DesignError> {
+    let record_path = entry.join("peak").join("record.json");
+    let volumes = entry.join("peak").join("volumes.npz");
+    if !record_path.is_file() || !volumes.is_file() {
+        return Ok(false);
+    }
+    let Ok(record) = serde_json::from_slice::<PiecesRecord>(&read_bounded(&record_path)?) else {
+        return Ok(false);
+    };
+    if !sha256_file(&volumes)?.eq_ignore_ascii_case(&record.volumes_sha256) {
+        return Ok(false);
+    }
+    for name in PIECE_FILES {
+        copy_file(&entry.join("peak").join(name), &dir.join("peak").join(name))?;
     }
     Ok(true)
 }
@@ -676,6 +758,7 @@ pub fn design_transport(
         "response": {
             "solid_ids": response.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             "energy_min_ev": chosen.energy_min_ev,
+            "peak_voxel_cm": chosen.peak_voxel_m.map(|v| v.map(|d| d.map(|m| m * 100.0))),
         },
         "sampling": {
             "target_relative_error": options.target_relative_error,
@@ -774,6 +857,20 @@ pub fn design_transport(
             setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
         }
     }
+    if chosen.peak_voxel_m.is_some() {
+        let reused = match &entry {
+            Some(entry) => restore_pieces(entry, &dir)?,
+            None => false,
+        };
+        if !reused {
+            setup_seconds += phase("volumes", python, true, VOLUMES_TIMEOUT)?;
+            if let Some(entry) = &entry {
+                for name in PIECE_FILES {
+                    copy_file(&dir.join("peak").join(name), &entry.join("peak").join(name))?;
+                }
+            }
+        }
+    }
     phase(
         "run",
         python,
@@ -856,7 +953,14 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         ));
     }
     let finite = |v: f64| v.is_finite() && v >= 0.0;
-    if !finite(worker.total.mean) || worker.solids.iter().any(|s| !finite(s.mean)) {
+    if !finite(worker.total.mean)
+        || worker.solids.iter().any(|s| !finite(s.mean))
+        || worker
+            .solids
+            .iter()
+            .filter_map(|s| s.peak.as_ref())
+            .any(|p| !finite(p.mean) || !(p.volume_cm3.is_finite() && p.volume_cm3 > 0.0))
+    {
         return Err(tool(
             "the transport worker returned a value that is not a finite score",
         ));
@@ -873,6 +977,14 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             volume_m3: *volume,
             flux_n_m2_s: flux_n_m2_s(w.mean, rate, *volume),
             relative_error: relative(w.mean, w.standard_error),
+            peak: w.peak.as_ref().map(|p| PeakFlux {
+                r_m: p.r_cm.map(|v| v / 100.0),
+                z_m: p.z_cm.map(|v| v / 100.0),
+                volume_m3: p.volume_cm3 / 1.0e6,
+                flux_n_m2_s: flux_n_m2_s(p.mean, rate, p.volume_cm3 / 1.0e6),
+                relative_error: relative(p.mean, p.standard_error),
+                pieces_ranked: p.pieces_ranked,
+            }),
         })
         .collect();
     let mut notices =
@@ -882,6 +994,22 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
     {
         notices.push(
             "The nuclear data of this run is not the library the design check audited.".into(),
+        );
+    }
+    let mean_flux = flux_n_m2_s(worker.total.mean, rate, total_volume_m3);
+    let mean_relative_error = relative(worker.total.mean, worker.total.standard_error);
+    if inputs.chosen.peak_voxel_m.is_some() {
+        notices.push(
+            "The peak is the highest of many noisy pieces, so it leans high; its error is that \
+             of the one piece."
+                .into(),
+        );
+    }
+    if inputs.chosen.peak_ignores_dphi {
+        notices.push(
+            "The limit's toroidal voxel width is not applied: each piece spans the solid's full \
+             toroidal width."
+                .into(),
         );
     }
     let mut fluence_limits = Vec::new();
@@ -921,21 +1049,37 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
                 });
                 continue;
             }
-            let worst = solids
-                .iter()
-                .max_by(|a, b| a.flux_n_m2_s.total_cmp(&b.flux_n_m2_s));
-            match (worst, &inputs.history) {
-                (Some(worst), Ok(history)) => fluence_limits.push(FluenceLimit {
-                    group_id: group.id.clone(),
-                    solid_id: worst.solid_id.clone(),
-                    assessment: assess_fluence(
-                        worst.flux_n_m2_s,
-                        worst.relative_error,
-                        limit.limit,
-                        history,
-                    ),
+            // (basis, solid, flux, relative error) of the value the limit's averaging names.
+            let judged = if inputs.chosen.peak_voxel_m.is_some() {
+                solids
+                    .iter()
+                    .filter_map(|s| Some((s, s.peak.as_ref()?)))
+                    .max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s))
+                    .map(|(s, p)| {
+                        (
+                            "peak_piece",
+                            Some(s.solid_id.clone()),
+                            p.flux_n_m2_s,
+                            p.relative_error,
+                        )
+                    })
+            } else {
+                Some(("group_average", None, mean_flux, mean_relative_error))
+            };
+            match (judged, &inputs.history) {
+                (Some((basis, solid_id, flux, error)), Ok(history)) => {
+                    fluence_limits.push(FluenceLimit {
+                        group_id: group.id.clone(),
+                        basis: basis.into(),
+                        solid_id,
+                        assessment: assess_fluence(flux, error, limit.limit, history),
+                    })
+                }
+                (None, _) => not_evaluated.push(NotEvaluated {
+                    item,
+                    why: "No piece of any solid of the group could be ranked.".into(),
+                    next_step: "Use a larger voxel in the limit's averaging.".into(),
                 }),
-                (None, _) => {}
                 (_, Err(problem)) => not_evaluated.push(NotEvaluated {
                     item,
                     why: problem.clone(),
@@ -966,8 +1110,8 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         stop_reason: worker.stop_reason,
         why: worker.why,
         next_step: worker.next_step,
-        mean_flux_n_m2_s: flux_n_m2_s(worker.total.mean, rate, total_volume_m3),
-        mean_relative_error: relative(worker.total.mean, worker.total.standard_error),
+        mean_flux_n_m2_s: mean_flux,
+        mean_relative_error,
         total_volume_m3,
         solids,
         setup_seconds: inputs.setup_seconds + worker.variance_reduction.aim_seconds,
@@ -1023,11 +1167,35 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
             percent(highest.relative_error)
         );
     }
+    if let Some((solid, peak)) = report
+        .solids
+        .iter()
+        .filter_map(|s| Some((s, s.peak.as_ref()?)))
+        .max_by(|a, b| a.1.flux_n_m2_s.total_cmp(&b.1.flux_n_m2_s))
+    {
+        let _ = writeln!(
+            out,
+            "  Highest piece: {:.3e} n/m²/s {} in {} at r {:.2}–{:.2} m, z {:.2}–{:.2} m ({:.1} litres)",
+            peak.flux_n_m2_s,
+            percent(peak.relative_error),
+            solid.solid_id,
+            peak.r_m[0],
+            peak.r_m[1],
+            peak.z_m[0],
+            peak.z_m[1],
+            peak.volume_m3 * 1.0e3
+        );
+    }
     let target = 100.0 * report.target_relative_error;
-    if report.target_reached {
-        let _ = writeln!(out, "  Target of {target} % on the mean: reached.");
+    let on = if report.solids.iter().any(|s| s.peak.is_some()) {
+        format!("the mean and {} % on the highest piece", 2.0 * target)
     } else {
-        let _ = writeln!(out, "  Target of {target} % on the mean: NOT reached.");
+        "the mean".to_string()
+    };
+    if report.target_reached {
+        let _ = writeln!(out, "  Target of {target} % on {on}: reached.");
+    } else {
+        let _ = writeln!(out, "  Target of {target} % on {on}: NOT reached.");
         if let (Some(why), Some(next)) = (&report.why, &report.next_step) {
             let _ = writeln!(out, "    Why: {why}");
             let _ = writeln!(out, "    Next: {next}");
@@ -1053,12 +1221,15 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     }
     for limit in &report.fluence_limits {
         let a = &limit.assessment;
+        let judged = match &limit.solid_id {
+            Some(solid) => format!("highest piece, in {solid}"),
+            None => "mean over the group".to_string(),
+        };
         let _ = writeln!(
             out,
-            "  Fluence limit of {} ({:e} n/m²), worst solid {}: {}",
+            "  Fluence limit of {} ({:e} n/m²), {judged}: {}",
             limit.group_id,
             a.limit_n_m2,
-            limit.solid_id,
             match a.status {
                 LimitStatus::Within => "WITHIN",
                 LimitStatus::Exceeded => "EXCEEDED",
@@ -1165,6 +1336,24 @@ mod tests {
     }
 
     #[test]
+    fn a_peak_limit_asks_for_pieces_of_its_voxel() {
+        let mut design = design_with_groups(&[("coils", "fast_neutron_fluence", Some(1.0e5))]);
+        assert_eq!(choose_response(&design, None).unwrap().peak_voxel_m, None);
+        design.replacement_groups[0].limits[0].averaging = design::Averaging::PeakMesh {
+            voxel_m: vec![Some(0.05), Some(0.10), None],
+        };
+        let chosen = choose_response(&design, None).unwrap();
+        assert_eq!(chosen.peak_voxel_m, Some([Some(0.05), Some(0.10)]));
+        assert!(!chosen.peak_ignores_dphi);
+        design.replacement_groups[0].limits[0].averaging = design::Averaging::PeakMesh {
+            voxel_m: vec![Some(0.05), None, Some(0.2)],
+        };
+        let chosen = choose_response(&design, None).unwrap();
+        assert_eq!(chosen.peak_voxel_m, Some([Some(0.05), None]));
+        assert!(chosen.peak_ignores_dphi);
+    }
+
+    #[test]
     fn a_total_fluence_limit_scores_all_energies() {
         let design = design_with_groups(&[("vessel", "neutron_fluence", None)]);
         assert_eq!(choose_response(&design, None).unwrap().energy_min_ev, 0.0);
@@ -1216,6 +1405,7 @@ mod tests {
             Some(TransportProgress::Sampling {
                 histories: 240_000,
                 relative_error: Some(0.21),
+                peak_relative_error: None,
                 elapsed_seconds: 31.2
             })
         );

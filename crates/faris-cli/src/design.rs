@@ -343,19 +343,26 @@ fn transport_progress_printer() -> faris_engine::design::TransportProgressFn {
             match name.as_str() {
                 "mgxs" => "preparing weight windows: condensing the nuclear data",
                 "windows" => "preparing weight windows: solving for where neutrons matter",
+                "volumes" => "measuring the pieces of each solid for the peak",
                 _ => "starting the run",
             }
         ),
         TransportProgress::Sampling {
             histories,
             relative_error,
+            peak_relative_error,
             elapsed_seconds,
-        } => match relative_error {
-            Some(error) => eprintln!(
+        } => match (relative_error, peak_relative_error) {
+            (Some(error), Some(peak)) => eprintln!(
+                "  {histories} histories, {elapsed_seconds:.0} s: error {:.1} %, highest piece {:.1} %",
+                100.0 * error,
+                100.0 * peak
+            ),
+            (Some(error), None) => eprintln!(
                 "  {histories} histories, {elapsed_seconds:.0} s: error {:.1} %",
                 100.0 * error
             ),
-            None => eprintln!("  {histories} histories, {elapsed_seconds:.0} s"),
+            (None, _) => eprintln!("  {histories} histories, {elapsed_seconds:.0} s"),
         },
     })
 }

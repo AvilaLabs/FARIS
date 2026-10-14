@@ -17,9 +17,11 @@ basis.
   - With `--window-python` (OpenMC 0.16 or later) weight windows for the magnets are made first, and on an
     OpenMC built with the aiming patch the run also aims at a streaming channel it finds. The report names the
     mode that ran and why.
-  - The worst coil's flux is compared with the design's fluence limit over the linked operating history: years
-    to the limit, and a status of WITHIN, EXCEEDED or INCONCLUSIVE. This uses each coil's average flux, not the peak inside
-    a coil.
+  - The flux is compared with the design's fluence limit over the linked operating history: years to the
+    limit, and a status of WITHIN, EXCEEDED or INCONCLUSIVE. The limit's `averaging` decides which flux: the mean
+    over the group for `group_average`, the highest piece of any solid for `peak_mesh`. A piece is a ring of the
+    limit's dr by dz about the machine axis, cut by the solid; the volume of every piece is measured on the CAD
+    geometry. With a peak, the run continues until the highest piece is within twice the target error (10 % by default).
   - The solids and the energy threshold come from the design's fluence limit (`--group` when several groups
     have one), so the response is not fixed to the TF magnets above 0.1 MeV.
   - Weight windows and the channel search are kept between runs on the same model (`--cache-dir`, `--no-cache`),

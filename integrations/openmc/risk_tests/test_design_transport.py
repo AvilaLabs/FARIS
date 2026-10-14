@@ -176,6 +176,49 @@ class WindowHelpersTest(unittest.TestCase):
         self.assertNotIn("weight windows", next_step)
 
 
+class PeakTest(unittest.TestCase):
+    def test_ring_edges_cover_the_range_in_whole_steps(self):
+        self.assertEqual(DT.ring_edges(0.0, 12.0, 5.0), [0.0, 5.0, 10.0, 15.0])
+        self.assertEqual(DT.ring_edges(-10.0, 10.0, 10.0), [-10.0, 0.0, 10.0])
+        self.assertEqual(DT.ring_edges(-3.0, 7.0, None), [-3.0, 7.0])
+
+    def test_the_peak_is_the_highest_track_length_per_volume(self):
+        # Three pieces over four batches: the second has less track but a smaller volume.
+        peak = DT.peak_of([40.0, 24.0, 8.0], [500.0, 150.0, 20.0], [1000.0, 400.0, 1000.0], 4)
+        self.assertEqual(peak["index"], 1)
+        self.assertAlmostEqual(peak["mean"], 6.0)
+        self.assertAlmostEqual(peak["volume_cm3"], 400.0)
+        # Batch values with mean 6 and mean square 37.5: variance of the mean (37.5 - 36) / 3.
+        self.assertAlmostEqual(peak["standard_error"], (1.5 / 3.0) ** 0.5)
+
+    def test_slivers_are_not_ranked(self):
+        # The sliver has by far the highest ratio and is skipped.
+        peak = DT.peak_of([10.0, 9.0], [0.0, 0.0], [1000.0, 10.0], 2)
+        self.assertEqual(peak["index"], 0)
+        self.assertIsNone(DT.peak_of([], [], [], 2))
+        self.assertIsNone(DT.peak_of([1.0], [1.0], [0.0], 2))
+
+    def test_a_wanted_peak_holds_the_run_until_it_meets_the_target(self):
+        stats = stats_of([10.0] * 5 + [10.2] * 5)
+        self.assertEqual(DT.stop_reason(stats, SAMPLING, 1.0), "target_reached")
+        # The piece is held to twice the 5 % target on the mean.
+        self.assertIsNone(DT.stop_reason(stats, SAMPLING, 1.0, (0.2,)))
+        self.assertIsNone(DT.stop_reason(stats, SAMPLING, 1.0, (None,)))
+        self.assertEqual(DT.stop_reason(stats, SAMPLING, 1.0, (0.1,)), "target_reached")
+        why, more = DT.explain("time_limit", stats, SAMPLING, True, (0.2,))
+        self.assertIn("20.0 % on the highest piece (held to 10 %)", why)
+        self.assertIn("4.0 times", more)
+
+    def test_a_peak_voxel_must_be_two_sizes_of_a_centimetre_or_more(self):
+        request = copy.deepcopy(REQUEST)
+        request["response"]["peak_voxel_cm"] = [5.0, None]
+        DT.validate_request(request)
+        for bad in ([5.0], [0.1, 10.0], [5.0, 10.0, 1.0]):
+            request["response"]["peak_voxel_cm"] = bad
+            with self.assertRaises(ValueError):
+                DT.validate_request(request)
+
+
 class PlasmaTest(unittest.TestCase):
     def test_lengths_are_converted_to_centimetres(self):
         plasma = {"major_radius_m": 3.3, "minor_radius_m": 1.13, "elongation": 1.84, "triangularity": 0.375,

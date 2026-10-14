@@ -1,7 +1,7 @@
 //! Converts a full-power fast-neutron flux into years until a fluence limit,
 //! using the power history linked to the design. Pure arithmetic: no I/O and
-//! no solver. The flux is an average over the solid it was scored in, so the
-//! result says nothing about the peak inside that solid.
+//! no solver. The caller chooses which flux is judged (a mean or a peak) and
+//! says so beside the result.
 
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
@@ -164,13 +164,15 @@ pub fn assess_fluence(
         if fluence - band > limit_n_m2 {
             (
                 LimitStatus::Exceeded,
-                "The fluence over the history is above the limit by more than two standard errors; this is an average over the solid the flux was scored in, not the peak inside it.".to_string(),
+                "The fluence over the history is above the limit by more than two standard errors."
+                    .to_string(),
                 "Shorten the service interval of this group, or add shielding.".to_string(),
             )
         } else if fluence + band < limit_n_m2 {
             (
                 LimitStatus::Within,
-                "The fluence over the history is below the limit by more than two standard errors; this is an average over the solid the flux was scored in, not the peak inside it.".to_string(),
+                "The fluence over the history is below the limit by more than two standard errors."
+                    .to_string(),
                 "No action is needed for this limit.".to_string(),
             )
         } else {
@@ -278,13 +280,13 @@ mod tests {
         assert_eq!(s(12.0), LimitStatus::Inconclusive);
         assert_eq!(s(12.001), LimitStatus::Within);
         let ex = assess_fluence(8.0, Some(0.25), 1.0, &unit());
-        assert!(ex.why.contains("not the peak"));
+        assert!(ex.why.contains("above the limit"));
         assert_eq!(
             ex.next_step,
             "Shorten the service interval of this group, or add shielding."
         );
         let wi = assess_fluence(8.0, Some(0.25), 100.0, &unit());
-        assert!(wi.why.contains("not the peak"));
+        assert!(wi.why.contains("below the limit"));
         assert_eq!(wi.next_step, "No action is needed for this limit.");
         let inc = assess_fluence(8.0, Some(0.25), 8.0, &unit());
         assert_eq!(
