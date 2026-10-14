@@ -25,6 +25,12 @@ jobs:
       # faris-occt builds OpenCASCADE from source (about 90 minutes); it has its own gate, see crates/faris-occt/README.md.
       - run: cargo clippy --workspace --exclude faris-occt --all-targets --locked -- -D warnings
       - run: cargo test --workspace --exclude faris-occt --locked
+      # The fuzz entries (fuzz/entries, outside the workspace) run on the seed corpus and plain inputs, so a
+      # parser change that panics fails here without a fuzzer. It reuses this job's build directory.
+      - name: Fuzz entries survive the seed corpus
+        run: |
+          python3 scripts/fuzz_seed.py > /dev/null
+          CARGO_TARGET_DIR=target cargo test --locked --manifest-path fuzz/entries/Cargo.toml
       - name: Independent analytic control checks (no OpenMC installation)
         run: python3 -m unittest discover -s controls -p 'test_*.py'
       - name: Validation harness tests (no OpenMC installation)

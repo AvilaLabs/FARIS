@@ -1,0 +1,39 @@
+name: Fuzz targets
+
+# Builds every libFuzzer target on nightly and runs each for 30 seconds, so the targets cannot rot
+# (QA-033). It is separate from the push checks because the sanitizer build of the engine takes
+# longer than the five minutes a push check may use. The release run, 3600 seconds per target,
+# is made by hand with scripts/fuzz_all.sh (docs/FUZZING.md).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+  pull_request:
+    paths:
+      - "fuzz/**"
+      - "scripts/fuzz_*"
+      - ".github/workflows/fuzz.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked --version 0.13.2
+      - name: Build and run each target for 30 seconds
+        env:
+          CARGO_BUILD_JOBS: 2
+        run: scripts/fuzz_all.sh 30 fuzz/evidence.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fuzz-evidence
+          path: |
+            fuzz/evidence.json
+            fuzz/artifacts

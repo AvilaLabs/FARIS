@@ -16,6 +16,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+Every parser of outside bytes has a fuzz target; a new one needs an entry in `fuzz/entries` and a target
+file (`docs/FUZZING.md`).
+
 Use tests that establish meaningful behavior: geometry identities, independent
 volume checks, conservation, units, event semantics, unsupported-domain handling,
 or a named external reference. Future numerical-model changes need appropriate

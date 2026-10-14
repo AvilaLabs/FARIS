@@ -15,7 +15,7 @@ condition passes. It uses only the Python standard library.
 | The V&V matrix has no blank cell, and a quantity with no benchmark is labelled "not validated" with a reason (VAL-051) | `validation/matrix.json` |
 | The V&V report exists and its hash matches the release record (VAL-091) | `--vv-report`, `--release-record` |
 | Wording lint is clean | `scripts/wording_lint.py` |
-| All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them |
+| All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them (fuzz: `scripts/fuzz_all.sh 3600`, see `docs/FUZZING.md`) |
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
 | 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log |
 

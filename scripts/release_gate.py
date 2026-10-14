@@ -22,9 +22,11 @@ match the report.json bytes, and the report must carry methods, matrix, C/E dist
 ranges, known issues and last-run dates.
 
 Conditions a script cannot decide from the repository take their evidence from a file and FAIL when it is
-absent, unreadable, empty or for another commit. Test, performance, fuzz and documentation-test evidence is
+absent, unreadable, empty or for another commit. Test, performance and documentation-test evidence is
 JSON {"commit": SHA, "checks": [{"name": ..., "verdict": "PASS"}, ...]}; every check must be PASS and at
-least one must exist. Reproducible-build evidence is {"commit": SHA, "builds": [{"artifact": ...,
+least one must exist. Fuzz evidence (scripts/fuzz_all.sh) has the same shape with "driver": "libfuzzer",
+"dirty": false and, per target, "seconds" >= 3600 and "crashes": 0; every file in fuzz/fuzz_targets needs
+its check (QA-033). Reproducible-build evidence is {"commit": SHA, "builds": [{"artifact": ...,
 "sha256_a": ..., "sha256_b": ...}]} with equal hashes. The defect log is {"defects": [{"id": ...,
 "severity": "S1".."S4", "status": "open" or other, "waiver": {"owner": ..., "reason": ..., "expiry":
 "YYYY-MM-DD"}}]}: an open S1 always blocks (QA-083), an open S2 needs a complete waiver that has not
@@ -57,6 +59,7 @@ REQUIREMENTS = Path("docs") / "requirements"
 REPORT_KEYS = ("methods", "matrix", "cases", "qualified_ranges", "known_issues", "last_run")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 MAX_WAIVER_DAYS = 90
+FUZZ_SECONDS = 3600  # QA-033: at least one CPU-hour per fuzz target per release
 
 
 class Gate:
@@ -274,6 +277,38 @@ def _checks(name: str, what: str):
     return check
 
 
+def check_fuzz(g: Gate):
+    """QA-033: every fuzz target in the repository ran for an hour with libFuzzer and found nothing.
+
+    Evidence is what scripts/fuzz_all.sh writes: the usual checks (one per target, verdict PASS) with
+    `seconds` and `crashes`, plus `driver` and `dirty`. The smoke driver and a dirty tree do not count.
+    """
+    data = _evidence(g, "fuzz", "fuzz evidence")
+    checks = data.get("checks")
+    if not isinstance(checks, list) or not checks:
+        raise ValueError("fuzz evidence lists no checks")
+    targets = sorted(p.stem for p in (g.root / "fuzz" / "fuzz_targets").glob("*.rs"))
+    if not targets:
+        return False, "the repository has no fuzz targets (fuzz/fuzz_targets)"
+    problems = []
+    if data.get("driver") != "libfuzzer":
+        problems.append(f"driver is {data.get('driver')!r}, not libfuzzer")
+    if data.get("dirty") is not False:
+        problems.append("the fuzzed tree was not clean")
+    by_name = {c.get("name"): c for c in checks if isinstance(c, dict)}
+    for target in targets:
+        c = by_name.get(target)
+        if c is None:
+            problems.append(f"{target} was not fuzzed")
+        elif c.get("verdict") != "PASS" or c.get("crashes") != 0:
+            problems.append(f"{target} did not finish clean")
+        elif not isinstance(c.get("seconds"), int) or c["seconds"] < FUZZ_SECONDS:
+            problems.append(f"{target} ran {c.get('seconds')} s, under {FUZZ_SECONDS} s")
+    if problems:
+        return False, f"{len(problems)} problems, first: {problems[0]}"
+    return True, f"all {len(targets)} fuzz targets ran at least {FUZZ_SECONDS} s with 0 crashes for commit {g.commit[:12]}"
+
+
 def check_repro(g: Gate):
     data = _evidence(g, "repro", "reproducible-build evidence")
     builds = data.get("builds")
@@ -332,7 +367,7 @@ CONDITIONS = (
     ("all tests pass", "QA-070", _checks("tests", "test evidence")),
     ("performance gates pass", "PERF-051", _checks("perf", "performance evidence")),
     ("no open S1, no open S2 without a waiver", "QA-083", check_defects),
-    ("fuzz clean", "QA-033", _checks("fuzz", "fuzz evidence")),
+    ("fuzz clean", "QA-033", check_fuzz),
     ("reproducible build", "QA-063", check_repro),
     ("documentation tests pass", "QA-016", _checks("doc_tests", "documentation-test evidence")),
 )

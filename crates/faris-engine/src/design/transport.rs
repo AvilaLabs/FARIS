@@ -646,6 +646,22 @@ struct WindowsRecord {
     filled_sha256: String,
 }
 
+/// What the design import reads back from the helpers and its kept entries, for the fuzz targets
+/// (QA-033): each of these files is parsed from disk by code that is not otherwise reachable.
+#[doc(hidden)]
+pub fn fuzz_helper_outputs(bytes: &[u8]) {
+    let _ = serde_json::from_slice::<WorkerResult>(bytes);
+    let _ = serde_json::from_slice::<WindowsRecord>(bytes);
+    let _ = serde_json::from_slice::<PiecesRecord>(bytes);
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        let _ = parse_progress(text);
+        for line in text.lines().take(64) {
+            let _ = parse_progress(line);
+        }
+    }
+    super::external::fuzz_cache_key(bytes);
+}
+
 /// Put a kept entry's weight windows and channel search into the run directory. True when the
 /// windows were found and match their record; a damaged entry is ignored, not trusted.
 fn restore_windows(entry: &Path, dir: &Path) -> Result<bool, DesignError> {

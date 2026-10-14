@@ -1,0 +1,135 @@
+[package]
+name = "faris-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Outside the FARIS workspace: normal builds and tests never see it.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+faris-fuzz-entries = { path = "entries" }
+
+[[bin]]
+name = "actinv_result"
+path = "fuzz_targets/actinv_result.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "design_file"
+path = "fuzz_targets/design_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "evidence_store"
+path = "fuzz_targets/evidence_store.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "facets"
+path = "fuzz_targets/facets.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "file_readers"
+path = "fuzz_targets/file_readers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "helper_outputs"
+path = "fuzz_targets/helper_outputs.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "history_assumptions"
+path = "fuzz_targets/history_assumptions.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "json_records"
+path = "fuzz_targets/json_records.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "png_header"
+path = "fuzz_targets/png_header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "proc_and_config_text"
+path = "fuzz_targets/proc_and_config_text.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "saved_case"
+path = "fuzz_targets/saved_case.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scenario"
+path = "fuzz_targets/scenario.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "step_inspection"
+path = "fuzz_targets/step_inspection.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "study_file"
+path = "fuzz_targets/study_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "tar_gz"
+path = "fuzz_targets/tar_gz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transport_artifact"
+path = "fuzz_targets/transport_artifact.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "nuclear_data_audit"
+path = "fuzz_targets/nuclear_data_audit.rs"
+test = false
+doc = false
+bench = false

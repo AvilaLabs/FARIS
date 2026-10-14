@@ -1,0 +1,25 @@
+[package]
+name = "faris-fuzz-entries"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-only"
+publish = false
+description = "Every FARIS parser as a function of bytes, shared by the cargo-fuzz targets and the smoke driver"
+
+# Outside the FARIS workspace: normal builds and tests never see it.
+[workspace]
+
+[dependencies]
+faris-model = { path = "../../crates/faris-model" }
+faris-engine = { path = "../../crates/faris-engine" }
+faris-study = { path = "../../crates/faris-study" }
+faris-occt-client = { path = "../../crates/faris-occt-client" }
+serde_json = { version = "=1.0.151", features = ["float_roundtrip"] }
+tempfile = "=3.27.0"
+
+# The workspace builds release with overflow checks; the fuzz entries must too, and with
+# debug assertions, so an arithmetic slip is a crash the fuzzer sees.
+[profile.release]
+overflow-checks = true
+debug-assertions = true

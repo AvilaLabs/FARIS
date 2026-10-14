@@ -192,6 +192,11 @@ pub(super) fn helper_version() -> String {
         .to_string()
 }
 
+/// The recorded cache key, parsed from arbitrary bytes, for the fuzz targets (QA-033).
+pub(super) fn fuzz_cache_key(bytes: &[u8]) {
+    let _ = serde_json::from_slice::<CacheKey>(bytes);
+}
+
 /// What decides a tessellation or a set of boolean verdicts: the STEP hash, the tolerances, the
 /// helper's version, and (for booleans) the pairs. A recorded result is reused only when the key
 /// matches what the run would use.

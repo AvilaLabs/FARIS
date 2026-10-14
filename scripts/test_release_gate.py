@@ -59,6 +59,14 @@ def evidence(kind="checks", commit=COMMIT):
     return {"commit": commit, "checks": [{"name": "suite", "verdict": "PASS"}]}
 
 
+FUZZ_TARGETS = ("scenario", "facets")
+
+
+def fuzz_evidence(**changes):
+    checks = [{"name": t, "verdict": "PASS", "seconds": 3600, "executions": 10, "crashes": 0} for t in FUZZ_TARGETS]
+    return {"commit": COMMIT, "driver": "libfuzzer", "dirty": False, "checks": checks, **changes}
+
+
 def make_root(d: Path, now="Met", traced=True, matrix=None):
     write(d / "docs" / "NEXT_RELEASE_PLAN.md", PLAN)
     write(d / "docs" / "requirements" / "01-a.md", "".join(row(r, now) for r in ("AAA-001", "AAA-002", "BBB-001", "GEO-010")))
@@ -88,6 +96,9 @@ def passing_inputs(d: Path) -> dict:
     for name, kind in (("tests", "checks"), ("perf", "checks"), ("fuzz", "checks"), ("doc_tests", "checks"), ("repro", "builds")):
         paths[name] = d / f"{name}.json"
         write(paths[name], json.dumps(evidence(kind)))
+    write(paths["fuzz"], json.dumps(fuzz_evidence()))
+    for target in FUZZ_TARGETS:
+        write(d / "fuzz" / "fuzz_targets" / f"{target}.rs", "")
     paths["defects"] = d / "defects.json"
     write(paths["defects"], json.dumps({"defects": [{"id": "D-1", "severity": "S3", "status": "open"}]}))
     return dict(paths, vv_report=out, release_record=record, commit=COMMIT, today=TODAY, terms=TERMS)
@@ -166,6 +177,29 @@ class ReleaseGate(unittest.TestCase):
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
         write(inputs["tests"], "not json")
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
+
+    # Verifies: QA-033
+    def test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash(self):
+        make_root(self.d)
+        inputs = passing_inputs(self.d)
+        self.assertTrue(results(rg.Gate(self.d, **inputs))["fuzz clean"][0])
+
+        def reason(**changes):
+            write(inputs["fuzz"], json.dumps(fuzz_evidence(**changes)))
+            passed, why = results(rg.Gate(self.d, **inputs))["fuzz clean"]
+            self.assertFalse(passed)
+            return why
+
+        short = fuzz_evidence()["checks"]
+        short[1] = dict(short[1], seconds=60)
+        self.assertIn("facets ran 60 s", reason(checks=short))
+        crashed = fuzz_evidence()["checks"]
+        crashed[0] = dict(crashed[0], crashes=1, verdict="FAIL")
+        self.assertIn("scenario did not finish clean", reason(checks=crashed))
+        self.assertIn("facets was not fuzzed", reason(checks=fuzz_evidence()["checks"][:1]))
+        self.assertIn("not libfuzzer", reason(driver="smoke"))
+        self.assertIn("not clean", reason(dirty=True))
+        self.assertIn("not " + COMMIT[:12], reason(commit="d" * 40))
 
     # Verifies: QA-070
     def test_reproducible_build_needs_equal_hashes(self):
