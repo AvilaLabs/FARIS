@@ -111,6 +111,11 @@ fn point_triangle_sq(p: V3, t: [V3; 3]) -> f64 {
     ])
 }
 
+/// Distance from a point to a triangle, nm (`f64`).
+pub fn point_triangle_distance(p: P3, t: [P3; 3]) -> f64 {
+    point_triangle_sq(f(p), t.map(f)).sqrt()
+}
+
 /// Squared distance between segments `p1 q1` and `p2 q2`.
 fn segment_segment_sq(p1: V3, q1: V3, p2: V3, q2: V3) -> f64 {
     let (d1, d2, r) = (sub(q1, p1), sub(q2, p2), sub(p1, p2));

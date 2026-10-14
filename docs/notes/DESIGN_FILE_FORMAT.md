@@ -277,7 +277,8 @@ repaired (GEO-027).
    agrees. Faceted volume is within 0.5 % of the CAD volume (GEO-030). The
    faceting deviation is reported (GEO-032).
 8. The integrity checks from the plan (GEO-020 to GEO-025) run.
-9. Source sites sampled from `plasma` all lie in the chamber solid (SRC-018).
+9. Source sites sampled from `plasma` all lie in the chamber solid (SRC-018). The report adds the smallest
+   distance from a site to a `first_wall` solid; only a site inside it fails (no minimum is set).
 
 Checks 1 to 5 need no CAD kernel beyond reading the STEP file, so they run in
 seconds and catch most user errors before the slow steps.

@@ -187,7 +187,18 @@ the interpreter that ran them, and every void solid.
    Every finding gives the solids, a position in metres, why it stops the import and what to change in your CAD
    tool. Nothing is repaired.
 9. **The plasma source lies inside the chamber.** FARIS samples 100,000 source sites from the plasma block with
-   OpenMC's plasma source and tests each against the `plasma_chamber` volume. All must be inside.
+   OpenMC's plasma source and tests each against the `plasma_chamber` volume. All must be inside. The report
+   also gives the smallest distance from any site to a `first_wall` solid and the site that has it
+   (`Clearance to the first wall`). No minimum is set: only a site inside the first wall stops the import, and a
+   design with no `first_wall` solid says the clearance was not measured.
+
+   Once checks 1 to 5 pass, whatever stops checks 6 to 9, the report also adds a line `Source closure`: the D-T fusion power that the
+   plasma block's ion density and temperature profiles imply, next to `fusion_power_mw`. Transport takes its
+   source strength from `fusion_power_mw` alone and the profiles only set the shape, so if the two differ by more
+   than 1e-3 relative the line reads `EXCEEDED` and a notice gives both numbers. It does not stop the import and
+   FARIS rescales neither value: correct the profiles, or set `fusion_power_mw` to the profiles' value if the
+   profiles are the plasma you mean. The profile power counts D-T reactions only, with the profile shapes and
+   the Bosch-Hale reactivity that `openmc_plasma_source` uses.
 
 Every void solid is listed in the report, because a void region hides streaming paths.
 

@@ -221,6 +221,8 @@ fn design_of(f: &Facets, waivers: Vec<Waiver>) -> Design {
     let stats = binding::volume_stats(&mesh, f, &manifest);
     let mut d = design_for(&["shell", "core"], &stats);
     d.plasma.chamber_solid_id = Some("core".into());
+    // The template solid is a first wall; only the shell is one here.
+    d.solids[1].role = Some(Role::PlasmaChamber);
     d.waivers = waivers;
     d
 }
@@ -634,4 +636,133 @@ fn a_site_on_the_chamber_surface_is_not_inside() {
     b.sites[0] = [2.0, 0.0, 0.0];
     let report = run_with(&design(Vec::new()), &b);
     assert_eq!(report.checks[3].status, Fail);
+}
+
+// Verifies: SRC-018
+#[test]
+fn the_clearance_to_the_first_wall_is_measured_and_reported() {
+    let b = geo();
+    let report = run_with(&design(Vec::new()), &b);
+    assert_eq!(report.checks[3].status, Pass);
+    let s = report.geometry.sources.as_ref().unwrap();
+    assert_eq!(s.first_wall_solids, ["shell"]);
+    // The shell's nearest surface to the sites is its inner face at 2 m (the core's outer face).
+    let reach = b
+        .sites
+        .iter()
+        .flat_map(|p| p.iter().map(|c| c.abs()))
+        .fold(0.0, f64::max);
+    let clearance = s.first_wall_clearance_m.unwrap();
+    assert!(
+        (clearance - (2.0 - reach)).abs() < 1.0e-6,
+        "{clearance} against {}",
+        2.0 - reach
+    );
+    let at = s.first_wall_clearance_at_m.unwrap();
+    assert!(at.iter().any(|c| (c.abs() - reach).abs() < 1.0e-12));
+    assert_eq!(s.in_first_wall, 0);
+    let note = report.checks[3].sub_checks[0].why.as_deref().unwrap();
+    assert!(note.contains("nearest site to the first wall"), "{note}");
+}
+
+// Verifies: SRC-018
+#[test]
+fn a_site_inside_the_first_wall_fails_check_9_with_zero_clearance() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    // The plasma chamber is also the first wall: every site is inside a first-wall solid.
+    d.solids[1].role = Some(Role::FirstWall);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Fail);
+    let f = &report.checks[3].findings[0];
+    assert_eq!(f.requirement.as_deref(), Some("SRC-018"));
+    assert!(f.why.contains("inside a first-wall solid"), "{}", f.why);
+    assert!(!f.waivable);
+    assert_eq!(report.geometry.sources.as_ref().unwrap().in_first_wall, 500);
+}
+
+// Verifies: SRC-018
+#[test]
+fn a_design_without_a_first_wall_says_the_clearance_was_not_measured() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    d.solids[0].role = Some(Role::Blanket);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Pass);
+    let s = report.geometry.sources.as_ref().unwrap();
+    assert_eq!(s.first_wall_clearance_m, None);
+    let note = report.checks[3].sub_checks[0].why.as_deref().unwrap();
+    assert!(note.contains("no solid has the role first_wall"), "{note}");
+}
+
+// Verifies: SRC-010
+#[test]
+fn the_declared_power_is_reported_next_to_the_profiles_power_without_changing_the_verdict() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    let rm_m: Design = serde_json::from_str(include_str!(
+        "../../../../../scenarios/rm-m/rm-m.faris-design.json"
+    ))
+    .unwrap();
+    d.plasma = rm_m.plasma;
+    d.plasma.chamber_solid_id = Some("core".into());
+    let report = run_with(&d, &b);
+    // The RM-M profiles imply 190.5 MW against 525 MW declared: shown, not blocking.
+    assert_eq!(report.checks[3].status, Pass);
+    let closure = report.geometry.source_closure.as_ref().unwrap();
+    assert!(!closure.closes);
+    assert_eq!(closure.declared_fusion_power_mw, 525.0);
+    let notice = report
+        .notices
+        .iter()
+        .find(|n| n.item == "plasma.fusion_power_mw")
+        .unwrap();
+    assert_eq!(notice.check, 9);
+    assert!(
+        notice.message.contains("525.00 MW") && notice.message.contains("190.55 MW"),
+        "{}",
+        notice.message
+    );
+    assert!(
+        notice.message.contains("Correct the profiles"),
+        "{}",
+        notice.message
+    );
+    // Made to close, the same block reports a closing notice.
+    d.plasma.fusion_power_mw = Some(closure.implied_fusion_power_mw);
+    let report = run_with(&d, &b);
+    assert!(report.geometry.source_closure.as_ref().unwrap().closes);
+    let notice = report
+        .notices
+        .iter()
+        .find(|n| n.item == "plasma.fusion_power_mw")
+        .unwrap();
+    assert!(
+        notice.message.contains("closes with the profiles"),
+        "{}",
+        notice.message
+    );
+}
+
+// Verifies: SRC-018
+#[test]
+fn the_nearest_wall_search_agrees_with_a_brute_force_distance() {
+    let mesh = super::super::mesh::Mesh::from_facets(&imprinted()).unwrap();
+    let tris = mesh.volume_triangles()[0].clone();
+    let walls = Bvh::build(&mesh, tris.clone());
+    let mut rng = Rng::new(7);
+    for _ in 0..200 {
+        let p = [0; 3].map(|_| super::super::mesh::to_grid(rng.next_f64() * 24.0 - 12.0).unwrap());
+        let brute = tris
+            .iter()
+            .map(|&t| overlap::point_triangle_distance(p, mesh.tri_pts(t)))
+            .fold(f64::INFINITY, f64::min);
+        let fast = nearest_nm(&mesh, &walls, p, f64::INFINITY, mesh.diagonal() + 1.0).unwrap();
+        assert!(
+            (brute - fast).abs() < 1.0e-6,
+            "{p:?}: {brute} against {fast}"
+        );
+        // With a bound at or below the answer, nothing nearer is found.
+        assert_eq!(nearest_nm(&mesh, &walls, p, brute * 0.5, 1.0e12), None);
+    }
 }

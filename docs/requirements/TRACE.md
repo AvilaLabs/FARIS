@@ -6,12 +6,12 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 134 of 1418 requirements.
+Traced: 136 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 11 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 13 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
@@ -71,12 +71,14 @@ Traced: 134 of 1418 requirements.
 | SRC-001 | F1 | `crates/faris-engine/src/design/transport.rs::design_source_rate_matches_the_reactor_path_per_megawatt`<br>`crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3`<br>`crates/faris-engine/src/transport.rs::source_strength_is_3_546e17_per_megawatt_at_17_6_mev` |
 | SRC-002 | F1 | `crates/faris-engine/src/history.rs::alpha_power_is_the_fusion_power_the_neutron_does_not_carry`<br>`crates/faris-engine/src/transport.rs::fusion_power_is_not_neutron_power` |
 | SRC-003 | F5 | `crates/faris-model/src/transport.rs::source_requires_physical_dt_energy_and_single_neutron_yield` |
-| SRC-018 | F1 | `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_on_the_chamber_surface_is_not_inside`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_outside_the_plasma_chamber_fails_check_9` |
+| SRC-010 | F5 | `crates/faris-engine/src/design/geometry/tests.rs::the_declared_power_is_reported_next_to_the_profiles_power_without_changing_the_verdict`<br>`crates/faris-engine/src/design/source.rs::a_declared_power_equal_to_the_profiles_closes`<br>`crates/faris-engine/src/design/source.rs::a_plasma_block_that_cannot_be_integrated_says_which_field`<br>`crates/faris-engine/src/design/source.rs::a_uniform_plasma_closes_on_the_closed_form_volume`<br>`crates/faris-engine/src/design/source.rs::the_dt_reactivity_matches_the_nesst_fit`<br>`crates/faris-engine/src/design/source.rs::the_rm_m_profiles_imply_a_power_far_from_the_declared_525_mw`<br>`integrations/openmc/risk_tests/test_source_sampling.py::test_the_package_strength_for_dt_matches_the_rust_integral` |
+| SRC-011 | F5 | `integrations/openmc/risk_tests/test_source_sampling.py::test_a_shifted_negative_triangularity_l_mode_follows_its_profile`<br>`integrations/openmc/risk_tests/test_source_sampling.py::test_rm_m_sites_follow_the_analytic_profile`<br>`integrations/openmc/risk_tests/test_source_sampling.py::test_the_test_can_tell_a_wrong_shape_from_the_right_one` |
+| SRC-018 | F1 | `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_design_without_a_first_wall_says_the_clearance_was_not_measured`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_inside_the_first_wall_fails_check_9_with_zero_clearance`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_on_the_chamber_surface_is_not_inside`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_outside_the_plasma_chamber_fails_check_9`<br>`crates/faris-engine/src/design/geometry/tests.rs::the_clearance_to_the_first_wall_is_measured_and_reported`<br>`crates/faris-engine/src/design/geometry/tests.rs::the_nearest_wall_search_agrees_with_a_brute_force_distance` |
 | ACT-009 | F2 | `scripts/test_build_activation_inputs.py::test_arbitrary_piecewise_history_keeps_flux_scaling_and_duration_per_segment`<br>`scripts/test_build_activation_inputs.py::test_ten_thousand_or_more_segments_are_accepted` |
 | MAT-018 | F4 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
 | FUEL-003 | F4 | `crates/faris-engine/src/history.rs::decay_only_history_matches_half_life_and_is_daily_decimated` |
 | FUEL-004 | F4 | `crates/faris-engine/src/history.rs::rejects_invalid_transport_bindings_before_history_execution`<br>`crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units`<br>`crates/faris-engine/src/transport.rs::validates_volume_domains_units_and_exact_echo` |
-| MAG-004 | F3 | `crates/faris-engine/src/brief.rs::the_first_swap_is_shown_with_a_two_sigma_band`<br>`crates/faris-engine/src/comparison.rs::crossing_time_band_gives_the_earliest_edge_first`<br>`crates/faris-engine/src/design/life.rs::the_margin_carries_a_two_sigma_band_and_the_verdict_uses_the_unfavourable_edge`<br>`crates/faris-engine/src/design/transport.rs::a_fluence_margin_is_shown_with_its_band_and_judged_on_the_unfavourable_edge`<br>`crates/faris-report/src/pdf.rs::the_first_swap_cell_shows_the_two_sigma_band_earliest_edge_first`<br>`crates/faris-report/src/tests.rs::comparison_sweep_and_assumption_tables_carry_units_and_kinds` |
+| MAG-004 | F3 | `crates/faris-app/src/design_transport_result.rs::a_limit_shows_status_fluence_years_and_the_why_and_next_text`<br>`crates/faris-engine/src/brief.rs::the_first_swap_is_shown_with_a_two_sigma_band`<br>`crates/faris-engine/src/comparison.rs::crossing_time_band_gives_the_earliest_edge_first`<br>`crates/faris-engine/src/design/life.rs::the_margin_carries_a_two_sigma_band_and_the_verdict_uses_the_unfavourable_edge`<br>`crates/faris-engine/src/design/transport.rs::a_fluence_margin_is_shown_with_its_band_and_judged_on_the_unfavourable_edge`<br>`crates/faris-report/src/pdf.rs::the_first_swap_cell_shows_the_two_sigma_band_earliest_edge_first`<br>`crates/faris-report/src/tests.rs::comparison_sweep_and_assumption_tables_carry_units_and_kinds` |
 | MAG-020 | F3 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
 | MAG-025 | F3 | `crates/faris-engine/src/history.rs::kth_replacement_uses_kth_duration_then_falls_back`<br>`crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
 | PWR-012 | F5 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |

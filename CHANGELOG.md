@@ -17,6 +17,10 @@ basis.
 - A remote-handling model: outage length against the number of parallel systems, ports and crews, within 10 % of
   the published five-point table (1 to 8 systems), and a tornado of lifetime net electricity and availability
   against each replacement duration. Both are engine functions; no desktop view yet.
+- `faris design check` reports the D-T fusion power the plasma profiles imply next to `plasma.fusion_power_mw`
+  (`Source closure`, WITHIN or EXCEEDED the 1e-3 limit) and the smallest distance from the sampled source sites
+  to the first wall. A mismatch is a notice with both numbers, not a failure, and neither value is rescaled. A
+  sampling test compares the real source sites with the analytic profile by chi-square.
 - `faris design transport`: the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
   `faris design check`, computed on its CAD geometry and run until the mean over the coils reaches a target
   error. A run stopped by its history or time limit says how many more histories it needs.

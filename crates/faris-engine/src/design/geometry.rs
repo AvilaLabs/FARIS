@@ -6,16 +6,20 @@
 //! exact-arithmetic checks here run the same on recorded or generated models.
 
 use super::binding::{self, BindingRow, VolumeGate};
+use super::bvh::Bvh;
+use super::exact::P3;
 use super::integrity::{self, IntegrityRecord};
+use super::mesh::Mesh;
 use super::model::Model;
 use super::overlap::{self, BooleanResult, PairRecord};
 use super::par::{Cancelled, Ctl};
 use super::rays::{Caster, Rng};
+use super::source::{self, SourceClosure};
 use super::{Backends, CheckOutcome, CheckStatus, DesignError, ImportReport, SubCheck, check_name};
 use crate::jobs::Cancellation;
 use faris_model::design::{
-    Design, Facets, FacetsManifest, Finding, Notice, Plasma, StepInspection, Waiver, apply_waivers,
-    void_solids,
+    Design, Facets, FacetsManifest, Finding, Notice, Plasma, Role, StepInspection, Waiver,
+    apply_waivers, void_solids,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -374,6 +378,19 @@ pub struct SourceRecord {
     pub versions: serde_json::Value,
     pub sampling_seconds: f64,
     pub test_seconds: f64,
+    /// Solids with the role `first_wall`; the clearance is measured to these.
+    #[serde(default)]
+    pub first_wall_solids: Vec<String>,
+    /// The smallest distance from a sampled site to a first-wall surface, m. `None`: no solid
+    /// has the role `first_wall`, so nothing was measured.
+    #[serde(default)]
+    pub first_wall_clearance_m: Option<f64>,
+    /// The site that has it.
+    #[serde(default)]
+    pub first_wall_clearance_at_m: Option<[f64; 3]>,
+    /// Sites inside a first-wall solid.
+    #[serde(default)]
+    pub in_first_wall: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -397,6 +414,9 @@ pub struct GeometryRecords {
     pub integrity: Option<IntegrityRecord>,
     pub deviation: Option<DeviationRecord>,
     pub sources: Option<SourceRecord>,
+    /// The fusion power the plasma profiles imply, next to the declared one (SRC-010).
+    #[serde(default)]
+    pub source_closure: Option<SourceClosure>,
     pub waivers: Vec<WaiverUse>,
     /// Wall time and the process's peak memory so far, per stage.
     pub stages: Vec<StageClock>,
@@ -596,6 +616,32 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     };
     let ctl = Ctl::new(&options.cancellation, &progress_fn, options.threads);
     let mut records = GeometryRecords::default();
+    // SRC-010: pure arithmetic on the plasma block, so it is reported whatever stops the checks.
+    match source::closure(&design.plasma) {
+        Ok(closure) => {
+            report.notices.push(Notice::new(
+                9,
+                "plasma.fusion_power_mw",
+                if closure.closes {
+                    format!(
+                        "the declared power closes with the profiles: {}",
+                        closure.summary()
+                    )
+                } else {
+                    closure.disagreement()
+                },
+            ));
+            records.source_closure = Some(closure);
+        }
+        Err(why) => report.notices.push(Notice::new(
+            9,
+            "plasma.fusion_power_mw",
+            format!(
+                "the fusion power the profiles imply could not be computed, so the declared power \
+                 is not compared with them: {why}. Correct that field in the plasma block."
+            ),
+        )),
+    }
     let mut waivers = Waivers::new(&design.waivers);
     let chord_m = design.cad.faceting_tolerance_m.unwrap_or(DEFAULT_CHORD_M);
     let shape_unit_m = if inspection.unit.declared.is_some() {
@@ -1111,7 +1157,10 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 )
                 .requirement("SRC-018"),
             ],
-            vec![sub("sites inside the plasma chamber (SRC-018)", &[])],
+            vec![sub(
+                "sites inside the plasma chamber and clear of the first wall (SRC-018)",
+                &[],
+            )],
             &mut waivers,
         ),
         (Some(_), Some(ToolResult::Unavailable { why, next_step })) => {
@@ -1126,12 +1175,27 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 next_step,
                 "SRC-018",
             )],
-            vec![sub("sites inside the plasma chamber (SRC-018)", &[])],
+            vec![sub(
+                "sites inside the plasma chamber and clear of the first wall (SRC-018)",
+                &[],
+            )],
             &mut waivers,
         ),
         (Some(volume), Some(ToolResult::Done(sites))) => {
             let tested = Instant::now();
             let caster = Caster::new(&model.mesh, &model.bvh);
+            let first_wall_solids: Vec<String> = design
+                .solids
+                .iter()
+                .filter(|s| s.role == Some(Role::FirstWall))
+                .map(|s| s.id.clone())
+                .collect();
+            let first_wall_volumes: Vec<u32> = volume_solid
+                .iter()
+                .enumerate()
+                .filter(|&(_, &s)| design.solids[s].role == Some(Role::FirstWall))
+                .map(|(v, _)| v as u32 + 1)
+                .collect();
             let count = sites.points.len();
             let chunks = ctl
                 .run("source sites", count, 2048, |range| {
@@ -1155,7 +1219,13 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                         };
                         let seed = Rng::for_item(options.seed ^ 0x5C, i as u64).next_u64();
                         match caster.classify(point, seed, &mut scratch) {
-                            Ok(class) if class.volumes.contains(&volume) => out.inside += 1,
+                            Ok(class) if class.volumes.contains(&volume) => {
+                                out.inside += 1;
+                                if class.volumes.iter().any(|v| first_wall_volumes.contains(v)) {
+                                    out.in_first_wall += 1;
+                                    out.first_in_wall.get_or_insert(p);
+                                }
+                            }
                             Ok(class) => {
                                 out.outside += 1;
                                 out.first_outside.get_or_insert(p);
@@ -1177,8 +1247,12 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 total.inside += c.inside;
                 total.outside += c.outside;
                 total.undecided += c.undecided;
+                total.in_first_wall += c.in_first_wall;
                 if total.first_outside.is_none() {
                     total.first_outside = c.first_outside;
+                }
+                if total.first_in_wall.is_none() {
+                    total.first_in_wall = c.first_in_wall;
                 }
                 for (v, n) in c.elsewhere {
                     *total.elsewhere.entry(v).or_default() += n;
@@ -1198,6 +1272,8 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     )
                 })
                 .collect();
+            let clearance = first_wall_clearance(&model, &first_wall_volumes, &sites.points, &ctl)
+                .map_err(cancelled)?;
             records.sources = Some(SourceRecord {
                 sites: count as u64,
                 seed: options.seed,
@@ -1210,6 +1286,10 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 versions: sites.versions.clone(),
                 sampling_seconds: sites.seconds,
                 test_seconds: tested.elapsed().as_secs_f64(),
+                first_wall_solids: first_wall_solids.clone(),
+                first_wall_clearance_m: clearance.map(|c| c.0),
+                first_wall_clearance_at_m: clearance.map(|c| c.1),
+                in_first_wall: total.in_first_wall,
             });
             let mut findings9 = Vec::new();
             if total.outside + total.undecided > 0 {
@@ -1235,13 +1315,70 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 }
                 findings9.push(f);
             }
+            // Clearance to the first wall. The row states no minimum, so the only limit is that a
+            // site is not in or on a first-wall solid; the measured value is always reported.
+            if total.in_first_wall > 0 {
+                let mut f = Finding::new(
+                    9,
+                    format!("plasma sites inside {}", first_wall_solids.join(", ")),
+                    format!(
+                        "{} of {count} source sites are inside a first-wall solid (clearance 0 m); \
+                         a neutron born there would start inside the wall",
+                        total.in_first_wall
+                    ),
+                    "Shrink the plasma block (radii, elongation, shift) or move the first wall so \
+                     the plasma region lies clear of it.",
+                )
+                .requirement("SRC-018")
+                .cells(first_wall_solids.clone());
+                if let Some(p) = total.first_in_wall {
+                    f = f.at(p);
+                }
+                findings9.push(f);
+            } else if let Some((distance, at)) = clearance.filter(|c| c.0 <= 0.0) {
+                findings9.push(
+                    Finding::new(
+                        9,
+                        format!("plasma sites touch {}", first_wall_solids.join(", ")),
+                        format!(
+                            "a source site lies {distance:.3e} m from a first-wall surface, which is \
+                             not a positive clearance"
+                        ),
+                        "Shrink the plasma block or move the first wall so the plasma region lies \
+                         clear of it.",
+                    )
+                    .requirement("SRC-018")
+                    .cells(first_wall_solids.clone())
+                    .at(at),
+                );
+            }
             finish(
                 9,
                 findings9,
                 vec![{
-                    let mut s = sub("sites inside the plasma chamber (SRC-018)", &[]);
+                    let mut s = sub(
+                        "sites inside the plasma chamber and clear of the first wall (SRC-018)",
+                        &[],
+                    );
+                    let clearance_note = match clearance {
+                        Some((d, at)) => format!(
+                            "the nearest site to the first wall ({}) is {d:.4} m away, at \
+                             ({:.3}, {:.3}, {:.3}) m; the row states no minimum, so the value is \
+                             reported and only a site in or on the wall fails",
+                            first_wall_solids.join(", "),
+                            at[0],
+                            at[1],
+                            at[2]
+                        ),
+                        None => {
+                            "clearance to the first wall was not measured because no solid has \
+                                 the role first_wall"
+                                .to_string()
+                        }
+                    };
                     s.note = Some(format!(
-                        "{} of {count} sites are inside; each is tested with FARIS's exact point-in-volume",
+                        "{} of {count} sites are inside; each is tested with FARIS's exact \
+                         point-in-volume; {clearance_note}",
                         total.inside
                     ));
                     s
@@ -1263,11 +1400,90 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
 
 #[derive(Default)]
 struct SiteChunk {
+    in_first_wall: u64,
+    first_in_wall: Option<[f64; 3]>,
     inside: u64,
     outside: u64,
     undecided: u64,
     first_outside: Option<[f64; 3]>,
     elsewhere: BTreeMap<u32, u64>,
+}
+
+/// The smallest distance from any of `sites` to a surface of the first-wall volumes, m, and the
+/// site that has it. `None` when there is no first-wall volume or it has no triangle.
+fn first_wall_clearance(
+    model: &Model,
+    volumes: &[u32],
+    sites: &[[f64; 3]],
+    ctl: &Ctl,
+) -> Result<Option<(f64, [f64; 3])>, Cancelled> {
+    let per_volume = model.mesh.volume_triangles();
+    let triangles: Vec<u32> = volumes
+        .iter()
+        .flat_map(|&v| per_volume[v as usize - 1].iter().copied())
+        .collect();
+    if triangles.is_empty() {
+        return Ok(None);
+    }
+    let mesh = &model.mesh;
+    let walls = Bvh::build(mesh, triangles);
+    let reach_limit = mesh.diagonal() + 1.0;
+    let chunks = ctl.run("first-wall clearance", sites.len(), 2048, |range| {
+        let mut best: Option<(f64, [f64; 3])> = None;
+        for i in range {
+            let p = sites[i];
+            let (Some(x), Some(y), Some(z)) = (
+                super::mesh::to_grid(p[0]),
+                super::mesh::to_grid(p[1]),
+                super::mesh::to_grid(p[2]),
+            ) else {
+                continue;
+            };
+            let bound = best.map_or(f64::INFINITY, |b| b.0);
+            if let Some(d) = nearest_nm(mesh, &walls, [x, y, z], bound, reach_limit)
+                && d < bound
+            {
+                best = Some((d, p));
+            }
+        }
+        best
+    })?;
+    Ok(chunks
+        .into_iter()
+        .flatten()
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(nm, at)| (nm / super::mesh::GRID_PER_M, at)))
+}
+
+/// The distance, nm, from `p` to the nearest triangle in `walls`, when it is below `bound`
+/// (`INFINITY`: always). A triangle within `r` of `p` has a box that meets the box of half-width
+/// `r` around `p`, so the search grows `r` until the nearest candidate is within it.
+fn nearest_nm(mesh: &Mesh, walls: &Bvh, p: P3, bound: f64, reach_limit_nm: f64) -> Option<f64> {
+    let mut r = if bound.is_finite() {
+        bound.ceil() + 1.0
+    } else {
+        1.0e7
+    };
+    loop {
+        let radius = r as i64;
+        let lo = [p[0] - radius, p[1] - radius, p[2] - radius];
+        let hi = [p[0] + radius, p[1] + radius, p[2] + radius];
+        let mut nearest = f64::INFINITY;
+        walls.query_box(lo, hi, &mut |t| {
+            nearest = nearest.min(overlap::point_triangle_distance(p, mesh.tri_pts(t)));
+        });
+        if nearest <= r {
+            return Some(nearest);
+        }
+        if bound.is_finite() || r > reach_limit_nm {
+            return None;
+        }
+        r = if nearest.is_finite() {
+            nearest.ceil() + 1.0
+        } else {
+            r * 4.0
+        };
+    }
 }
 
 /// Put the records in the report, and say which waivers covered nothing.

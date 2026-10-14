@@ -41,6 +41,7 @@ mod overlap;
 mod par;
 mod rays;
 mod reader;
+mod source;
 #[cfg(test)]
 mod testutil;
 mod topology;
@@ -59,6 +60,7 @@ pub use life::{
     FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
+pub use source::{CLOSURE_TOLERANCE, SourceClosure};
 pub use transport::{
     DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, PeakFlux, SolidFlux,
     TransportProgress, TransportProgressFn, VarianceReduction, design_transport, flux_n_m2_s,
@@ -1447,6 +1449,25 @@ fn render_geometry(g: &GeometryRecords) -> String {
         out.push_str(&format!(
             "\nSource sites (check 9): {} of {} inside {} (seed {}, {:.1} s sampling, {:.1} s test)\n",
             s.inside, s.sites, s.plasma_chamber_solid, s.seed, s.sampling_seconds, s.test_seconds
+        ));
+        match (s.first_wall_clearance_m, s.first_wall_clearance_at_m) {
+            (Some(d), Some(at)) => out.push_str(&format!(
+                "  Clearance to the first wall ({}): nearest site {:.4} m away at ({:.3}, {:.3}, {:.3}) m; {} site(s) inside the wall\n",
+                s.first_wall_solids.join(", "),
+                d,
+                at[0],
+                at[1],
+                at[2],
+                s.in_first_wall
+            )),
+            _ => out.push_str("  Clearance to the first wall: not measured, no solid has the role first_wall\n"),
+        }
+    }
+    if let Some(c) = &g.source_closure {
+        out.push_str(&format!(
+            "\nSource closure (SRC-010): {} - {}\n",
+            if c.closes { "WITHIN" } else { "EXCEEDED" },
+            c.summary()
         ));
     }
     if !g.waivers.is_empty() {
