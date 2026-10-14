@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 145 of 1418 requirements.
+Traced: 146 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -30,7 +30,7 @@ Traced: 145 of 1418 requirements.
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
 | [19-security.md](19-security.md) | 55 | 7 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 0 |
-| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 4 |
+| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 5 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 0 |
 | [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 5 |
 
@@ -178,6 +178,7 @@ Traced: 145 of 1418 requirements.
 | QA-033 | F2 | `scripts/test_fuzz_seed.py::test_every_fuzz_target_gets_seeds_from_the_repository`<br>`scripts/test_release_gate.py::test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash` |
 | QA-063 | F2 | `scripts/test_repro_check.py::test_different_binaries_exit_1_and_the_gate_rejects_the_evidence`<br>`scripts/test_repro_check.py::test_equal_binaries_write_evidence_the_release_gate_accepts`<br>`scripts/test_repro_check.py::test_the_recipe_remaps_checkout_cargo_rustup_and_target_and_pins_the_epoch` |
 | QA-070 | F2 | `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`<br>`scripts/test_release_gate.py::test_an_unmet_requirement_fails_the_gate_and_the_exit_code_is_nonzero`<br>`scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver`<br>`scripts/test_release_gate.py::test_evidence_must_name_the_commit_and_every_check_must_pass`<br>`scripts/test_release_gate.py::test_missing_evidence_fails_and_never_passes_by_default`<br>`scripts/test_release_gate.py::test_reproducible_build_needs_equal_hashes`<br>`scripts/test_release_gate.py::test_the_gate_ids_are_parsed_from_the_plan`<br>`scripts/test_release_gate.py::test_trace_gap_and_unknown_marker_fail` |
+| QA-080 | F1 | `scripts/test_defect_log.py::test_a_complete_entry_passes`<br>`scripts/test_defect_log.py::test_duplicate_ids_and_a_missing_list_are_reported`<br>`scripts/test_defect_log.py::test_each_required_field_is_checked`<br>`scripts/test_defect_log.py::test_every_problem_is_listed_and_the_exit_status_follows`<br>`scripts/test_defect_log.py::test_open_and_wont_fix_entries`<br>`scripts/test_defect_log.py::test_the_real_log_passes`<br>`scripts/test_defect_log.py::test_the_regression_test_must_exist`<br>`scripts/test_defect_log.py::test_values_are_checked` |
 | LEG-040 | F1 | `crates/faris-cli/tests/history_screening.rs::history_run_and_ensemble_print_the_statement_without_changing_the_file`<br>`crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |
 | LEG-041 | F1 | `scripts/test_wording_lint.py::test_allow_list_is_exact_sentence_and_must_be_used`<br>`scripts/test_wording_lint.py::test_claims_are_flagged`<br>`scripts/test_wording_lint.py::test_negated_and_limited_uses_are_allowed`<br>`scripts/test_wording_lint.py::test_negation_must_be_in_the_same_sentence_and_close` |
 | LEG-042 | F1 | `scripts/test_wording_lint.py::test_twin_is_flagged`<br>`scripts/test_wording_lint.py::test_twin_only_in_allow_listed_sentence` |

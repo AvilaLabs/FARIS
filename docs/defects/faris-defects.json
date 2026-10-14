@@ -106,6 +106,19 @@
       "fixed_in": "33de1a3",
       "disposition": "The doctor note was left from before those commands existed and told users the tools could not run. It now names the commands that run tools and says the desktop app's Find tools searches environments as well as PATH.",
       "regression_test": "crates/faris-cli/tests/doctor.rs::the_note_names_the_commands_that_run_tools_and_no_longer_says_not_implemented"
+    },
+    {
+      "id": "FARIS-009",
+      "title": "Aiming visibility runs left their statepoints in the run folder and tripped its 512 MB limit",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "5e4b666",
+      "disposition": "On the 2000 MW test model each aiming target's visibility run left about 90 MB (model, statepoint, summary), 406 MB for five targets, and the run step stopped with ArtifactLimit. Each run's bulky files are now removed once its tally is read, unless the runs are kept on purpose.",
+      "regression_test": "integrations/openmc/risk_tests/test_windows_file.py::test_cap_model_with_a_real_visibility_run_agrees_between_the_two_paths"
     }
   ]
 }
