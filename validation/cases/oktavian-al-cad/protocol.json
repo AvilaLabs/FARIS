@@ -1,0 +1,52 @@
+{
+  "declared": "2026-10-14",
+  "basis": "Written and committed before the first transport run whose result is read. A timing run of 20,000 histories was made to size the history count; only its wall time and lost-particle count were read.",
+  "question": "Does the FARIS CAD-to-DAGMC path, given the OpenMC-Fusion-Benchmarks STEP file, materials, source histogram and tally energy bins, reproduce the measured OKTAVIAN aluminium-sphere leakage neutron spectrum within the declared compatibility rule, and does it agree with the FARIS CSG run of the same sphere?",
+  "quantities": {
+    "scored": "neutron_leakage_spectrum, detectors n-0.10521 to n-20.66 (133 bins, 101.09 keV to 20.66 MeV); n-0.10109 is blocked as in oktavian-al",
+    "context_only": "photon_leakage_spectrum (57 bins): every photon detector is blocked, because the edge convention is unresolved. The photon values are recorded in the run record and never scored.",
+    "value": "outward partial current from DAGMC volume 2 across the surface that borders the implicit complement, per source neutron, divided by the lethargy width of the bin (photons: the MeV width)",
+    "energy_bins": "the OFB tally edges, identical to the IAEA table edges"
+  },
+  "per_detector_rule": "The manifest's compatibility block, unchanged from oktavian-al: |C - E| <= 2 sqrt(u_C^2 + u_E^2), covariance independent. A bin whose Monte Carlo error exceeds 0.5 u_E is INCONCLUSIVE (VAL-028), so the verdict of a short run is limited by statistics, not by the geometry.",
+  "case_outcome": {
+    "rule": "Counted over the 133 scored neutron bins after the harness has given each bin its verdict. INCONCLUSIVE if fewer than 67 of the 133 bins (half, rounded up) are PASS or FAIL. Otherwise PASS if at least 90 % of the PASS-or-FAIL bins are PASS, and FAIL if fewer.",
+    "basis": "authored and provisional: with k = 2 a correct calculation with Gaussian errors passes about 95 % of independent bins, and the experimental error column is of unspecified kind (it may omit systematic terms), so 90 % allows for that without hiding a poor model; half the bins is the least coverage at which a pass fraction means anything.",
+    "also_reported_not_gating": "the harness's C/E distribution and bootstrap bias (mean log C/E) of the neutron class; the median C/E in the ranges 0.1 to 1 MeV, 1 to 10 MeV and 10 to 20.66 MeV; the number of INCONCLUSIVE bins and the precision that would resolve them"
+  },
+  "geometry_path_comparison": {
+    "comparator": "the FARIS CSG run of oktavian-al (validation/cases/oktavian-al/run_case.py, the published OpenMC geometry with the MCNP materials and source), run in the same session with the same library, OpenMC version, particle count, seed, threads and neutron cutoff",
+    "rule": "for each neutron bin 1 to 133 in which both runs have a relative Monte Carlo error of 20 % or less: agree if |C_cad - C_csg| <= 2 sqrt(u_cad^2 + u_csg^2) (the two runs are independent). PASS if at least 90 % of the compared bins agree and at least 50 bins are compared; FAIL if at least 50 bins are compared and fewer agree; INCONCLUSIVE otherwise.",
+    "class": "code-to-code verification (same code, same nuclear data, same materials and source; the geometry representation and the tally surface differ). It says nothing about the experiment (VAL-041).",
+    "context": "the stored OpenMC 0.14.0 CSG runs in the OFB results database are literature context only and are not part of any rule"
+  },
+  "conversion": {
+    "chord_cm": 0.1,
+    "angular_rad": 0.1,
+    "implicit_complement": "void",
+    "imprint": true,
+    "tool": "integrations/cad/faris_cad.py convert (cad_to_dagmc 0.14.2 with the cad-to-dagmc mesher), STEP unit millimetres (declared in the file, read two ways)",
+    "validity_checks": "the faceted result must have five volumes; exactly one surface between volume 2 and the implicit complement, a sphere of radius 100 cm within 1 % in radius and area; no particle lost in the run; the net current equals the partial current in absolute value within 3 combined standard deviations in every bin (reported, not gating the verdict, but a failure is stated)"
+  },
+  "run_conditions": {
+    "code": "OpenMC 0.15.3 with DAGMC (~/micromamba/envs/openmc0153dd)",
+    "library": "FENDL-3.2 neutron data (HDF5 files of the FARIS data cache) with ENDF/B-VII.1 photon data, written by make_library.py; the sha256 of the resulting cross_sections.xml is in the run record. Two other libraries were tried and set aside: data/raw/combined-fendl32-endfbvii1 has no Al, Si, Cr or Ni neutron data; the photon files of the full FENDL-3.2 HDF5 directory crash OpenMC 0.15.3 in photon transport (segmentation fault in sample_photon_reaction), so photon transport needs the ENDF/B-VII.1 photon files.",
+    "temperature_k": 293.6,
+    "photon_transport": true,
+    "neutron_cutoff_ev": 1000.0,
+    "histories": 10000000,
+    "batches": 100,
+    "seed": 1,
+    "threads": 3,
+    "wall_limit_minutes": 10,
+    "machine": "cores 0 to 2 only, memory cap 6 GB, no swap",
+    "sizing": "two timing runs of 20,000 and 200,000 histories on the same cores took 7.6 s and 16.7 s of transport (0 lost particles), about 5e-5 s per history after a fixed start of a few seconds, so 10,000,000 histories (the specification's 100 batches of 100,000) are expected to take about 9 minutes. Only the wall times and lost-particle counts were read from these runs, plus the console line 'Leakage Fraction = 1.36184 +/- 0.00644' of the 20,000-history run (neutrons and photons together; it is not a scored quantity)."
+  },
+  "deviations_from_the_ofb_specification": [
+    "The source is isotropic and the energy weights are read as interval probabilities: OFB's own source function does neither (see known_upstream_defects).",
+    "The tally is on the whole outer boundary of the void sphere (DAGMC surface 6 of this conversion), not on 'surface 7', and is not divided by an area.",
+    "A 1 keV neutron cutoff is applied, as in the MCNP input of the IAEA package; the specification sets none. Leakage above 97 keV is unaffected; photon values are context only.",
+    "Photon transport uses ENDF/B-VII.1 photon data with the FENDL-3.2 neutron data (see run_conditions.library); the specification names no library."
+  ],
+  "append_only": "The run record and its result are added in later commits. This block and the manifest are not edited after the run; a changed rule would be a new case revision with a new declared date."
+}

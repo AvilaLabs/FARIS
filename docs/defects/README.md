@@ -12,6 +12,7 @@ or gives a wrong answer silently, and whether a workaround exists).
 | [OPENMC-003](OPENMC-003-stochastic-slab-negative-total-low-density.md): negative transport-corrected total aborts random ray | Yes | Moderate–high | Verified; not reported |
 | [DOUBLEDOWN-001](DOUBLEDOWN-001-ray-hit-layout-depends-on-tail-padding.md): ray-hit layouts agree only through tail-padding reuse; MSVC crash | Yes | Low now, latent | Verified; not reported |
 | [OPENMC-004](OPENMC-004-first-check-in-invalid-window-splits-without-limit.md): a first window check in an invalid bin scales windows as if born at 1.0; the history splits without limit | Yes | Moderate–high | Verified; not reported |
+| [OFB-001](OFB-001-oktavian-source-and-tally-definitions.md): OFB's OKTAVIAN source is a thin ring and its energy weights are read as densities; the CAD tally's surface id is not the leakage surface (findings 3 and 4 partly unconfirmed) | Findings 1, 2 and 4 yes; 3 not confirmed end to end | Not assessed (wrong answer, silent) | Drafted; not reported |
 
 ## Verification record (2026-10-10)
 

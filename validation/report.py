@@ -61,6 +61,8 @@ def build_suite(manifests: list[dict], records: dict[str, dict], current: Identi
         result["license"] = m["license"]
         result["literature_context"] = m.get("literature_context", [])
         result["known_issues"] = m.get("known_upstream_defects", [])
+        result["registration"] = m.get("registration")
+        result["geometry_path"] = m.get("geometry_path")
         result["normalisation"] = {k: m["normalisation"][k] for k in ("status", "units")}
         cases.append(result)
     suite = {
@@ -135,6 +137,11 @@ def render_markdown(suite: dict) -> str:
                   f"Evidence class: **{c['evidence_class']}**. Source: {c['source']['url']} ({c['source'].get('commit') or c['source'].get('doi')}). "
                   f"Licence: {c['license']['spdx']}. Rule: k = {c['k']}, covariance {c['covariance']['kind']}. Normalisation: {c['normalisation']['status']} ({c['normalisation']['units']}).",
                   "", "Verdicts: " + ", ".join(f"{k} {v}" for k, v in c["verdict_counts"].items() if v) + ".", ""]
+        if c.get("geometry_path"):
+            lines += [f"Geometry path: {c['geometry_path']}.", ""]
+        reg = c.get("registration")
+        if reg:
+            lines += [f"Registration status: **{reg['status']}**. Missing: " + "; ".join(reg["missing"]) + f". Why it matters: {reg['why_it_matters']}", ""]
         for name, cls in c["classes"].items():
             lines.append(f"### Response class {name}")
             lines.append("")

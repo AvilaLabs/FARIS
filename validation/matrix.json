@@ -55,6 +55,19 @@
       "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run"
     },
     {
+      "benchmark_id": "oktavian-al-cad/neutron_leakage_spectrum",
+      "bias": "not evaluated: no detector in this class has a C/E value from a current run",
+      "evidence_class": "experiment",
+      "last_run": "never run: no FARIS run record for this case",
+      "next_step": "run the case and resolve the blocked or missing detectors",
+      "not_covered": "fusion plant geometry: ports, streaming paths, plasma source shape, divertor and breeder blanket; tritium production and activation reaction rates (leakage spectra only); nuclear heating and dose; materials other than aluminium and the stainless-steel shells at 14 MeV; deep penetration beyond 20 cm; time dependence, burnup and cooling-time behaviour; magnet and superconductor response; CAD geometries with curved surfaces other than spheres and cylinders, imprint failures on larger models, and overlap handling (this STEP has five non-overlapping solids); variance reduction: the case is analog",
+      "qualified_range": "materials: aluminium (density 1.223 g/cm3 in the model), stainless steel shells (7.824 g/cm3). Geometry: spherical shell assembly, 19.95 cm outer radius, one beam-tube cylinder. Spectrum: D-T point source with the MCNP histogram energy distribution, leakage observed above 100 keV. Parameters: outer_radius 19.95 to 19.95 cm; source_energy 0.1 to 20.25 MeV. Cooling time: not applicable (prompt transport only)",
+      "quantity": "flux",
+      "reason": "the benchmark is registered but no current FARIS run has a PASS or FAIL verdict on it. Scope: neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux",
+      "status": "not validated",
+      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run"
+    },
+    {
       "benchmark_id": "iter-1d/neutron_flux",
       "bias": "not evaluated: no detector in this class has a C/E value from a current run",
       "evidence_class": "code-to-code",

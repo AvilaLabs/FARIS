@@ -191,6 +191,68 @@ remain blocked; that is the existing photon blocker, not a new one.
 Literature context (never scored): the MIT-licensed repository holds OpenMC 0.14.0 and
 MCNP results for the same sphere with several libraries, including FENDL-3.2.
 
+### OKTAVIAN aluminium sphere from a STEP file (`oktavian-al-cad`, experiment, geometry path CAD)
+
+The same sphere and the same measurement as `oktavian-al`, but the geometry is the OFB STEP file
+(`lfs/benchmarks/oktavian/oktavian_a.step`, five solids, millimetres) converted by FARIS's own CAD helper
+(`integrations/cad/faris_cad.py convert`, chord 0.1 cm, angular 0.1 rad) to a DAGMC model, and the materials,
+source histogram and tally energy bins come from OFB's specification. Source: OFB `develop` 653d6ab with
+openmc_fusion_benchmarks-lfs dace719 (MIT); the measured spectrum is the IAEA table (CC-BY-4.0), which is the
+same measurement as OFB's packaged `experiment.h5`: every bin of OFB's table equals the IAEA value times the bin
+width divided by one constant, 4 pi (19.5 cm)^2 = 4778.362 cm2 (checked at build time and recorded in the
+manifest's `equivalence`). So OFB's stored values are per bin and per cm2, and the unit question left open by
+the `oktavian-al` note is settled in the same direction: FARIS's per-source-neutron, per-lethargy, no-area
+convention divides by neither. OFB's SS-304 is the real 13-nuclide composition (the same as the MCNP input of the
+IAEA package), not pure Cr50.
+
+The rule was written and committed before the first transport run whose result was read (manifest block
+`protocol`, declared 2026-10-14):
+
+- Scored: the 133 neutron bins from 101 keV to 20.66 MeV. Photons are recorded and not scored (edge convention
+  unresolved, as in `oktavian-al`).
+- Per bin: the manifest's rule, |C - E| <= 2 sqrt(u_C^2 + u_E^2), independent; INCONCLUSIVE when the Monte Carlo
+  error exceeds 0.5 u_E.
+- Case outcome: INCONCLUSIVE if fewer than 67 of the 133 bins are PASS or FAIL; otherwise PASS if at least 90 %
+  of those are PASS, FAIL if fewer. The 90 % and the 67 are authored and provisional.
+- Against the FARIS CSG run of `oktavian-al` made in the same session with the same library, code, histories,
+  seed and cutoff: per bin with a relative Monte Carlo error of 20 % or less in both, agree if the two currents
+  differ by at most 2 combined standard deviations; PASS at 90 % agreement over at least 50 bins. This is
+  code-to-code verification of the geometry path, not validation (VAL-041).
+
+Deviations from OFB's specification are listed in the protocol: an isotropic source and probability-weighted
+energy bins (OFB's own source function builds neither, see below), a tally on the whole outer boundary instead of
+"surface 7", a 1 keV neutron cutoff as in the IAEA MCNP input, and photon data from ENDF/B-VII.1. The library is
+FENDL-3.2 neutron data with ENDF/B-VII.1 photon data (`make_library.py`): the photon files of the FENDL-3.2 HDF5
+directory crash OpenMC 0.15.3 (segmentation fault in `sample_photon_reaction`), which also stops the existing
+`oktavian-al` runner, and `data/raw/combined-fendl32-endfbvii1` has no Al, Si, Cr or Ni neutron data.
+
+Defects found in OFB while building this case are in the manifest (`known_upstream_defects`) and in
+[defects/OFB-001-oktavian-source-and-tally-definitions.md](defects/OFB-001-oktavian-source-and-tally-definitions.md).
+
+### Cases awaiting an upstream specification
+
+`fng-streaming-onaxis`, `fng-streaming-offaxis`, `fng-streaming-heating` (OFB item 3, STEP files present) and
+`fns-dogleg-duct` (item 2, no geometry at all). Each manifest has `registration.status =
+awaiting-upstream-specification` and lists exactly what is missing; every detector is NOT_EVALUATED with why and
+next step. They are registered so the gap is visible in the report and the matrix cannot silently skip them.
+
+What is missing for all four: a specification in `src/openmc_fusion_benchmarks/benchmarks/` (OFB `develop` has
+`oktavian_al` only), the measured values with uncertainties in a hashable form (the `develop` results database has
+`oktavian_al` only), and the licence under which the measured values may be redistributed. For the FNG cases also
+the foil or detector positions, the FNG source and the shield compositions (none are in a STEP file); for the
+dogleg also the geometry (OFB-LFS has no STEP file for it) and the JAEA FNS source.
+
+The FNS dogleg is the priority of the four: the bent-duct finding in
+[notes/CAD_TRANSPORT_TEST_SET.md](notes/CAD_TRANSPORT_TEST_SET.md) (0 of 20,016 void lines from plasma to coil
+through the dog-leg duct, so neutrons reach the response without a collision only through thin material) is a
+claim about a CAD-derived bent streaming path, and a measured bent duct is the experiment that tests it.
+
+The older `master` branch of OFB (commit c47fc57) has a CSG model and an `experiment.h5` for FNG streaming and
+the FNS duct, with literature attributes (`doi:10.1016/S0920-3796(00)00205-2`, ENEA Frascati 1997 to 1998;
+`doi:10.1080/00223131.2004.10875640`, JAERI 2004). `develop` removed them, and the repository does not say where
+the measured values come from or whether they may be redistributed. They are not registered and no value from
+them is used.
+
 ### ITER_1D (`iter-1d`, code-to-code)
 
 Uses the identities already registered in `references/iter-1d-reference.json`

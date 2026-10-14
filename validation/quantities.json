@@ -6,6 +6,7 @@
     {"id": "heating", "label": "nuclear heating", "kind": "calculated", "benchmarks": []},
     {"id": "flux", "label": "neutron flux", "kind": "calculated", "benchmarks": [
       {"case_id": "oktavian-al", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere, not an interior flux"},
+      {"case_id": "oktavian-al-cad", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux"},
       {"case_id": "iter-1d", "response_class": "neutron_flux", "scope": "track-length flux per material cell in a one-dimensional ITER model"}
     ]},
     {"id": "fluence", "label": "fluence", "kind": "calculated", "benchmarks": []},

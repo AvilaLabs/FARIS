@@ -19,7 +19,8 @@ SCHEMA = "faris.validation-case/1.0.0"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 DOI = re.compile(r"^10\.\d{4,9}/\S+$")
-SPDX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+-]*$")
+# an SPDX licence id or expression ("MIT AND CC-BY-4.0")
+SPDX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+-]*( (AND|OR|WITH) [A-Za-z0-9][A-Za-z0-9.+-]*)*$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 

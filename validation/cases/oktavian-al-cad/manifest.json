@@ -1,0 +1,4518 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "oktavian-al-cad",
+  "title": "OKTAVIAN aluminium sphere from the OpenMC-Fusion-Benchmarks STEP file, FARIS CAD-to-DAGMC path (D-T point source)",
+  "evidence_class": "experiment",
+  "geometry_path": "CAD",
+  "source": {
+    "url": "https://github.com/eepeterson/openmc_fusion_benchmarks",
+    "commit": "653d6aba04d993d2915a4e4e983e2a2119fa0e27",
+    "retrieved": "2026-10-14",
+    "lfs_url": "https://github.com/SteSeg/openmc_fusion_benchmarks-lfs",
+    "lfs_commit": "dace719d46c76c3b9f24a98ebf9f85ce1b8092a7",
+    "experiment_origin": "the measurement is the OKTAVIAN table of IAEA-NDS/open-benchmarks (identical to OFB's packaged experiment, see equivalence), commit 1d9855b00e05c5d5e25a11026ac56940dc75b516, CC-BY-4.0; original: Osaka University OKTAVIAN, Ichihara et al. (see the oktavian-al case)",
+    "paper": "Segantin, Pettinari, Shimwell, Peterson, Fusion Science and Technology 2026, doi 10.1080/15361055.2026.2664345",
+    "doi": "10.1080/15361055.2026.2664345",
+    "fetch": "git clone --recurse-submodules https://github.com/eepeterson/openmc_fusion_benchmarks && git -C openmc_fusion_benchmarks checkout 653d6aba04d993d2915a4e4e983e2a2119fa0e27 && git -C openmc_fusion_benchmarks/lfs checkout dace719d46c76c3b9f24a98ebf9f85ce1b8092a7 && git -C openmc_fusion_benchmarks/lfs lfs pull; git clone https://github.com/IAEA-NDS/open-benchmarks && git -C open-benchmarks checkout 1d9855b00e05c5d5e25a11026ac56940dc75b516"
+  },
+  "source_layout": "path_in_source is relative to a directory that holds the two checkouts side by side: openmc_fusion_benchmarks/ and open-benchmarks/",
+  "license": {
+    "spdx": "MIT AND CC-BY-4.0",
+    "attribution": "Geometry (STEP), specification and packaging: OpenMC-Fusion-Benchmarks, Copyright (c) 2025 MIT PSFC (https://github.com/eepeterson/openmc_fusion_benchmarks) and openmc_fusion_benchmarks-lfs, Copyright (c) 2025 Stefano Segantin, both MIT licence, commits 653d6aba04d993d2915a4e4e983e2a2119fa0e27 and dace719d46c76c3b9f24a98ebf9f85ce1b8092a7. Experimental spectra: IAEA-NDS/open-benchmarks (IAEA Nuclear Data Section), CC BY 4.0, https://creativecommons.org/licenses/by/4.0/, commit 1d9855b00e05c5d5e25a11026ac56940dc75b516; the detector tables in this manifest were copied unchanged from the IAEA CSV files named under files. The MIT permission notice is in the LICENSE files named under files.",
+    "terms": "OFB and OFB-LFS: MIT. IAEA table: CC-BY-4.0 (upstream states all contents are)."
+  },
+  "files": [
+    {
+      "role": "OFB benchmark specification (materials, source, tallies, settings)",
+      "path_in_source": "openmc_fusion_benchmarks/src/openmc_fusion_benchmarks/benchmarks/oktavian_al/specifications.yaml",
+      "sha256": "8d3fb2c03bc9018c7649fcd9b7d3894739fdf552b687a470a88eb048ee0fca59",
+      "bytes": 7730
+    },
+    {
+      "role": "OFB specification schema",
+      "path_in_source": "openmc_fusion_benchmarks/src/openmc_fusion_benchmarks/benchmarks/benchmark_schema.yaml",
+      "sha256": "ea923f9774701260afe3b97a08ff7ab6dfd3551390f14c8077f971ffe8161e7e",
+      "bytes": 9725
+    },
+    {
+      "role": "OFB packaged experiment (equivalent to the IAEA table, see equivalence)",
+      "path_in_source": "openmc_fusion_benchmarks/src/openmc_fusion_benchmarks/results_database/oktavian_al/experiment.h5",
+      "sha256": "bab8f8f9a03d543bac4a3549fb8d1cdb621e493d06cd8a1b0161f8de113211c7",
+      "bytes": 19262
+    },
+    {
+      "role": "OFB Git LFS pointer of the STEP geometry (the file's own sha256 is lfs_object_sha256)",
+      "path_in_source": "openmc_fusion_benchmarks/lfs/benchmarks/oktavian/oktavian_a.step",
+      "sha256": "036986507514c6db662a1f48098527e33a99f88e6eeb3dc31a3f7ef9a68bfede",
+      "bytes": 130,
+      "lfs_object_sha256": "9857d176b1faa0db3247b44b198b377ddcf08e43be15e5fbc2346d2f05262966",
+      "lfs_object_bytes": 48440,
+      "lfs_submodule_commit": "dace719d46c76c3b9f24a98ebf9f85ce1b8092a7"
+    },
+    {
+      "role": "OFB licence (MIT)",
+      "path_in_source": "openmc_fusion_benchmarks/LICENSE",
+      "sha256": "1da773dbea96bcf9f118cbe770414a8dcd40d0f53c2e14046c5c3640cf5ed83a",
+      "bytes": 1064
+    },
+    {
+      "role": "OFB benchmark list",
+      "path_in_source": "openmc_fusion_benchmarks/benchmark_list.txt",
+      "sha256": "7fc6f07077aa45f7dadb775bb52fcba490edd08c8201b4a8e305342d584c7f6e",
+      "bytes": 2170
+    },
+    {
+      "role": "OFB-LFS licence (MIT)",
+      "path_in_source": "openmc_fusion_benchmarks/lfs/LICENSE",
+      "sha256": "0a103dd5632e2c59f06ccfac27530ac4011c44f159be0ce95559eee62ae9246a",
+      "bytes": 1073
+    },
+    {
+      "role": "experimental neutron leakage spectrum (IAEA)",
+      "path_in_source": "open-benchmarks/jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Neutron flux.csv",
+      "sha256": "26b3fac092cb4ea75936a36e4994411db17345619787861edd73b3c38ea7f20a",
+      "bytes": 3273
+    },
+    {
+      "role": "experimental photon leakage spectrum (IAEA)",
+      "path_in_source": "open-benchmarks/jade_open_benchmarks/exp_results/Oktavian/Oktavian_Al Gamma flux.csv",
+      "sha256": "a0cb21f6b8310587e1a10a27d5290ed21404cce7859747bee9b8a7fb914f8337",
+      "bytes": 1142
+    },
+    {
+      "role": "mcnp input of the IAEA package (source histogram, same material compositions)",
+      "path_in_source": "open-benchmarks/jade_open_benchmarks/inputs/Oktavian/Oktavian_Al/mcnp/Oktavian_Al.i",
+      "sha256": "569a7fc42ebe51ae8d98250fb739e20ba478ceed744618e5a4c986b1bed5a4b4",
+      "bytes": 5119
+    },
+    {
+      "role": "IAEA licence text",
+      "path_in_source": "open-benchmarks/LICENSE",
+      "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94",
+      "bytes": 18656
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "equivalence": {
+    "neutron": {
+      "bins": 134,
+      "value_over_stored_min": 4778.362426110049,
+      "value_over_stored_max": 4778.362426110101,
+      "error_over_stored_min": 4778.3624261100495,
+      "error_over_stored_max": 4778.362426110101
+    },
+    "photon": {
+      "bins": 57,
+      "value_over_stored_min": 4778.362426110058,
+      "value_over_stored_max": 4778.362426110101,
+      "error_over_stored_min": 4778.362426110058,
+      "error_over_stored_max": 4778.3624261101
+    },
+    "conclusion": "every bin of the OFB table equals the IAEA table times the bin width (lethargy for neutrons, MeV for photons) divided by one constant, 4778.362426 cm2 to 4778.362426 cm2 for neutrons; 4 pi (19.5 cm)^2 = 4778.362426 cm2. The measurement and its uncertainty column are the same; OFB stores a per-bin, per-cm2 quantity."
+  },
+  "model": {
+    "attribution": "numbers extracted from OpenMC-Fusion-Benchmarks specifications.yaml, Copyright (c) 2025 MIT PSFC, MIT licence, commit 653d6aba04d993d2915a4e4e983e2a2119fa0e27",
+    "materials": [
+      {
+        "id": 1,
+        "name": "Aluminum",
+        "fraction_type": "ao",
+        "nuclides": {
+          "Al27": 0.9975488,
+          "Si28": 0.001329808,
+          "Si29": 6.752131e-05,
+          "Si30": 4.450956e-05,
+          "Fe54": 5.651123e-05,
+          "Fe56": 0.0008871055,
+          "Fe57": 2.048713e-05,
+          "Fe58": 2.726461e-06,
+          "Cu63": 2.938581e-05,
+          "Cu65": 1.309765e-05
+        },
+        "density_g_cm3": 1.223
+      },
+      {
+        "id": 2,
+        "name": "SS-304",
+        "fraction_type": "wo",
+        "nuclides": {
+          "Cr50": 0.00803825,
+          "Cr52": 0.15501,
+          "Cr53": 0.0175768,
+          "Cr54": 0.00437525,
+          "Fe54": 0.0411488,
+          "Fe56": 0.645948,
+          "Fe57": 0.0149178,
+          "Fe58": 0.00198528,
+          "Ni58": 0.0755655,
+          "Ni60": 0.0291075,
+          "Ni61": 0.0012654,
+          "Ni62": 0.00403374,
+          "Ni64": 0.00102786
+        },
+        "density_g_cm3": 7.824
+      }
+    ],
+    "step_solids": [
+      {
+        "step_index": 0,
+        "step_name": "Cell_1_0",
+        "tag": "void",
+        "ofb_volume_id": 1
+      },
+      {
+        "step_index": 1,
+        "step_name": "Cell_5_0",
+        "tag": "void",
+        "ofb_volume_id": 2
+      },
+      {
+        "step_index": 2,
+        "step_name": "Cell_2_2",
+        "tag": "SS-304",
+        "ofb_volume_id": 3
+      },
+      {
+        "step_index": 3,
+        "step_name": "Cell_4_2",
+        "tag": "SS-304",
+        "ofb_volume_id": 4
+      },
+      {
+        "step_index": 4,
+        "step_name": "Cell_3_1",
+        "tag": "Aluminum",
+        "ofb_volume_id": 5
+      }
+    ],
+    "cad_file": "oktavian/oktavian_a.step",
+    "ofb_surface_id_for_tallies": {
+      "neutron_leakage": [
+        7
+      ],
+      "photon_leakage": [
+        7
+      ]
+    },
+    "source": {
+      "particle": "neutron",
+      "point_cm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "angular": "isotropic",
+      "energy_edges_ev": [
+        100000.0,
+        136440.0,
+        150790.0,
+        166650.0,
+        184180.0,
+        203550.0,
+        224960.0,
+        248620.0,
+        274760.0,
+        303660.0,
+        335600.0,
+        370890.0,
+        409900.0,
+        453010.0,
+        500650.0,
+        553310.0,
+        611500.0,
+        675810.0,
+        746890.0,
+        825440.0,
+        912250.0,
+        1008200.0,
+        1114200.0,
+        1231400.0,
+        1360900.0,
+        1504000.0,
+        1662200.0,
+        1837000.0,
+        2030200.0,
+        2243800.0,
+        2479700.0,
+        2740500.0,
+        3028800.0,
+        3347300.0,
+        3699300.0,
+        4088400.0,
+        4518400.0,
+        4993600.0,
+        5518800.0,
+        6099200.0,
+        6740600.0,
+        7449600.0,
+        8233000.0,
+        9098900.0,
+        10056000.0,
+        11113000.0,
+        12282000.0,
+        13574000.0,
+        15002000.0,
+        16579000.0,
+        18323000.0,
+        20250000.0
+      ],
+      "bin_probability": [
+        3.00903e-05,
+        9.65131e-05,
+        2.80822e-05,
+        0.000306354,
+        0.000210096,
+        0.000205622,
+        0.000381712,
+        0.000300617,
+        0.00037554,
+        0.000512358,
+        0.000520925,
+        0.000630849,
+        0.000570806,
+        0.000734549,
+        0.000957807,
+        0.000969666,
+        0.00114997,
+        0.00129308,
+        0.00152998,
+        0.00162696,
+        0.00182414,
+        0.00178747,
+        0.0019783,
+        0.00194289,
+        0.00194365,
+        0.00201828,
+        0.00202883,
+        0.00211401,
+        0.00208776,
+        0.00213729,
+        0.00279908,
+        0.00349091,
+        0.00176878,
+        0.00182381,
+        0.00178018,
+        0.00164407,
+        0.00154299,
+        0.00140505,
+        0.00130596,
+        0.00137888,
+        0.00125414,
+        0.00135987,
+        0.00149605,
+        0.0019113,
+        0.00254563,
+        0.00464189,
+        0.0207244,
+        0.62147,
+        0.295462,
+        0.000602722,
+        1.92596e-05
+      ],
+      "last_weight_in_specification": 0.0,
+      "reading": "weights[i] is the probability of the interval [edges[i], edges[i+1]); they equal the MCNP sp1 entries of the IAEA input one for one (checked at build time)"
+    },
+    "tally_energy_edges_ev": {
+      "neutron_leakage": [
+        97122.0,
+        101090.0,
+        105210.0,
+        109500.0,
+        113970.0,
+        118620.0,
+        123470.0,
+        128500.0,
+        133750.0,
+        139210.0,
+        144890.0,
+        150800.0,
+        156960.0,
+        163360.0,
+        170030.0,
+        176970.0,
+        184190.0,
+        191710.0,
+        199530.0,
+        207670.0,
+        216150.0,
+        224970.0,
+        234150.0,
+        243710.0,
+        253650.0,
+        264000.0,
+        274780.0,
+        285990.0,
+        297660.0,
+        309810.0,
+        322450.0,
+        335610.0,
+        349310.0,
+        363570.0,
+        378400.0,
+        393850.0,
+        409920.0,
+        426650.0,
+        444060.0,
+        462180.0,
+        481050.0,
+        500680.0,
+        521110.0,
+        542380.0,
+        564510.0,
+        587550.0,
+        611530.0,
+        636480.0,
+        662460.0,
+        689500.0,
+        717630.0,
+        746920.0,
+        777400.0,
+        809130.0,
+        842150.0,
+        876520.0,
+        912290.0,
+        949520.0,
+        988270.0,
+        1028600.0,
+        1070600.0,
+        1114300.0,
+        1159800.0,
+        1207100.0,
+        1256300.0,
+        1307600.0,
+        1361000.0,
+        1416500.0,
+        1474300.0,
+        1534500.0,
+        1597100.0,
+        1662300.0,
+        1730100.0,
+        1800800.0,
+        1874200.0,
+        1950700.0,
+        2030300.0,
+        2113200.0,
+        2199400.0,
+        2289200.0,
+        2382600.0,
+        2479900.0,
+        2581100.0,
+        2686400.0,
+        2796000.0,
+        2910100.0,
+        3028900.0,
+        3152500.0,
+        3281200.0,
+        3415100.0,
+        3554500.0,
+        3699500.0,
+        3850500.0,
+        4007600.0,
+        4171200.0,
+        4341400.0,
+        4518600.0,
+        4703000.0,
+        4894900.0,
+        5094700.0,
+        5302600.0,
+        5519000.0,
+        5744300.0,
+        5978700.0,
+        6222700.0,
+        6476600.0,
+        6741000.0,
+        7016100.0,
+        7302400.0,
+        7600400.0,
+        7910600.0,
+        8233400.0,
+        8569400.0,
+        8919200.0,
+        9283200.0,
+        9662000.0,
+        10056000.0,
+        10467000.0,
+        10894000.0,
+        11339000.0,
+        11801000.0,
+        12283000.0,
+        12784000.0,
+        13306000.0,
+        13849000.0,
+        14414000.0,
+        15002000.0,
+        15615000.0,
+        16252000.0,
+        16915000.0,
+        17605000.0,
+        18324000.0,
+        19072000.0,
+        19850000.0,
+        20660000.0
+      ],
+      "photon_leakage": [
+        500000.0,
+        600000.0,
+        700000.0,
+        800000.0,
+        900000.0,
+        1000000.0,
+        1100000.0,
+        1200000.0,
+        1300000.0,
+        1400000.0,
+        1500000.0,
+        1600000.0,
+        1700000.0,
+        1800000.0,
+        1900000.0,
+        2000000.0,
+        2100000.0,
+        2200000.0,
+        2300000.0,
+        2400000.0,
+        2500000.0,
+        2600000.0,
+        2700000.0,
+        2800000.0,
+        2900000.0,
+        3000000.0,
+        3100000.0,
+        3200000.0,
+        3300000.0,
+        3400000.0,
+        3500000.0,
+        3600000.0,
+        3700000.0,
+        3800000.0,
+        3900000.0,
+        4000000.0,
+        4100000.0,
+        4200000.0,
+        4300000.0,
+        4400000.0,
+        4500000.0,
+        4600000.0,
+        4700000.0,
+        4800000.0,
+        4900000.0,
+        5000000.0,
+        5500000.0,
+        6000000.0,
+        6500000.0,
+        7000000.0,
+        7500000.0,
+        8000000.0,
+        8500000.0,
+        9000000.0,
+        9500000.0,
+        10000000.0,
+        10500000.0,
+        11000000.0
+      ]
+    },
+    "settings": {
+      "batches": 100,
+      "particles_per_batch": 100000,
+      "photon_transport": true,
+      "run_mode": "fixed_source"
+    }
+  },
+  "normalisation": {
+    "status": "confirmed",
+    "blocks_scoring": false,
+    "quantity": "leakage current through the whole outer boundary of the void sphere around the assembly (DAGMC surface between the r = 100 cm void volume and the implicit complement), per source neutron; no area factor",
+    "units": "neutrons per source neutron per unit lethargy; photons per source neutron per MeV",
+    "source_normalisation": "per source neutron (D-T source, MCNP sdef histogram si1/sp1 in the MCNP input)",
+    "location": "the r = 100 cm sphere; nothing returns across it, so it equals the r = 19.95 cm surface current of the oktavian-al case; the experiment is a time-of-flight detector at about 11 m",
+    "reaction_or_particle": "neutrons above 100 keV; photons 0.5 to 11 MeV",
+    "energy_integration": "neutron: log-spaced bins of constant lethargy width (about 0.04); photon: 0.1 MeV bins to 5 MeV, then 0.5 MeV bins",
+    "basis": "Confirmed from three independent pieces of evidence. (1) The original report, Ichihara, Kobayashi, Hayashi, Kimura, Yamamoto, Takahashi, 'Numerical data of leakage neutron spectra from various sphere piles with 14 MeV neutrons', OSTI ETDE 407537 (https://www.osti.gov/etdeweb/biblio/407537), states in its abstract: 'The leakage current spectrum from the outer surface of spherical piles of a variety of materials with 14 MeV neutrons normalized per source neutron was measured for each sample.' (2) The upstream MCNP input tallies f21:n 6 and f41:p 6 are type-1 tallies (the tally type is the last digit of the number): particles crossing surface 6, integrated over the surface, not per cm2. The JADE post-processing (JADE-V-V/JADE commit bf13b63, src/jade/resources/default_cfg/benchmarks_pp/raw/mcnp/Oktavian.yaml) only divides tally 21 by the lethargy width and tally 41 by the energy width, with no area factor. (3) Numerical check on the CSV tables: the neutron spectrum integrated over lethargy is 0.942 neutrons per source neutron above 0.097 MeV, and the photon spectrum integrated over energy is 0.372 photons per source neutron above 0.5 MeV with the CSV energy read as the upper bin edge (first bin dropped), 0.399 read as the lower edge (the photon edge convention is unresolved, see the detectors); both are physical for a 40 cm sphere, while per-cm2 values would be about 5000 times smaller. The per-cm2 values in the openmc_fusion_benchmarks packaging are that packaging's division by 4*pi*19.5^2 cm2 and are not used.",
+    "corrections": "An earlier version of this manifest and of docs/VALIDATION.md recorded the status as inferred, an area factor of 4*pi*19.5^2 cm2, and that the upstream tally 'is a flux (MCNP F2) not a current'. That was wrong: F21 and F41 are type-1 tallies (current through a surface). The git history keeps the old text.",
+    "scored_quantity": "outward partial current from DAGMC volume 2 across that surface (CellFromFilter on volume 2); the net current is recorded as a check on its absolute value"
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "Error column as provided",
+        "kind": "unspecified",
+        "meaning": "absolute 1 sigma assumed, same units as Value; upstream does not state whether it is statistical only or includes systematic terms or a normalisation uncertainty"
+      }
+    ],
+    "note": "Relative values run from about 0.2 % near the 15 MeV peak to above 80 % in the last bins; a statistical-only column would make the test stricter than the experiment justifies."
+  },
+  "compatibility": {
+    "declared": "2026-10-14",
+    "k": 2.0,
+    "k_basis": "authored: coverage factor 2 on the combined standard uncertainty, assuming the Error column is a 1 sigma value (unconfirmed)",
+    "covariance": {
+      "kind": "independent",
+      "basis": "authored: the calculation shares no random input or measurement with the experiment, so Cov(C, E) = 0; shared source or normalisation terms are inside u_E as published or not stated"
+    }
+  },
+  "protocol": {
+    "declared": "2026-10-14",
+    "basis": "Written and committed before the first transport run whose result is read. A timing run of 20,000 histories was made to size the history count; only its wall time and lost-particle count were read.",
+    "question": "Does the FARIS CAD-to-DAGMC path, given the OpenMC-Fusion-Benchmarks STEP file, materials, source histogram and tally energy bins, reproduce the measured OKTAVIAN aluminium-sphere leakage neutron spectrum within the declared compatibility rule, and does it agree with the FARIS CSG run of the same sphere?",
+    "quantities": {
+      "scored": "neutron_leakage_spectrum, detectors n-0.10521 to n-20.66 (133 bins, 101.09 keV to 20.66 MeV); n-0.10109 is blocked as in oktavian-al",
+      "context_only": "photon_leakage_spectrum (57 bins): every photon detector is blocked, because the edge convention is unresolved. The photon values are recorded in the run record and never scored.",
+      "value": "outward partial current from DAGMC volume 2 across the surface that borders the implicit complement, per source neutron, divided by the lethargy width of the bin (photons: the MeV width)",
+      "energy_bins": "the OFB tally edges, identical to the IAEA table edges"
+    },
+    "per_detector_rule": "The manifest's compatibility block, unchanged from oktavian-al: |C - E| <= 2 sqrt(u_C^2 + u_E^2), covariance independent. A bin whose Monte Carlo error exceeds 0.5 u_E is INCONCLUSIVE (VAL-028), so the verdict of a short run is limited by statistics, not by the geometry.",
+    "case_outcome": {
+      "rule": "Counted over the 133 scored neutron bins after the harness has given each bin its verdict. INCONCLUSIVE if fewer than 67 of the 133 bins (half, rounded up) are PASS or FAIL. Otherwise PASS if at least 90 % of the PASS-or-FAIL bins are PASS, and FAIL if fewer.",
+      "basis": "authored and provisional: with k = 2 a correct calculation with Gaussian errors passes about 95 % of independent bins, and the experimental error column is of unspecified kind (it may omit systematic terms), so 90 % allows for that without hiding a poor model; half the bins is the least coverage at which a pass fraction means anything.",
+      "also_reported_not_gating": "the harness's C/E distribution and bootstrap bias (mean log C/E) of the neutron class; the median C/E in the ranges 0.1 to 1 MeV, 1 to 10 MeV and 10 to 20.66 MeV; the number of INCONCLUSIVE bins and the precision that would resolve them"
+    },
+    "geometry_path_comparison": {
+      "comparator": "the FARIS CSG run of oktavian-al (validation/cases/oktavian-al/run_case.py, the published OpenMC geometry with the MCNP materials and source), run in the same session with the same library, OpenMC version, particle count, seed, threads and neutron cutoff",
+      "rule": "for each neutron bin 1 to 133 in which both runs have a relative Monte Carlo error of 20 % or less: agree if |C_cad - C_csg| <= 2 sqrt(u_cad^2 + u_csg^2) (the two runs are independent). PASS if at least 90 % of the compared bins agree and at least 50 bins are compared; FAIL if at least 50 bins are compared and fewer agree; INCONCLUSIVE otherwise.",
+      "class": "code-to-code verification (same code, same nuclear data, same materials and source; the geometry representation and the tally surface differ). It says nothing about the experiment (VAL-041).",
+      "context": "the stored OpenMC 0.14.0 CSG runs in the OFB results database are literature context only and are not part of any rule"
+    },
+    "conversion": {
+      "chord_cm": 0.1,
+      "angular_rad": 0.1,
+      "implicit_complement": "void",
+      "imprint": true,
+      "tool": "integrations/cad/faris_cad.py convert (cad_to_dagmc 0.14.2 with the cad-to-dagmc mesher), STEP unit millimetres (declared in the file, read two ways)",
+      "validity_checks": "the faceted result must have five volumes; exactly one surface between volume 2 and the implicit complement, a sphere of radius 100 cm within 1 % in radius and area; no particle lost in the run; the net current equals the partial current in absolute value within 3 combined standard deviations in every bin (reported, not gating the verdict, but a failure is stated)"
+    },
+    "run_conditions": {
+      "code": "OpenMC 0.15.3 with DAGMC (~/micromamba/envs/openmc0153dd)",
+      "library": "FENDL-3.2 neutron data (HDF5 files of the FARIS data cache) with ENDF/B-VII.1 photon data, written by make_library.py; the sha256 of the resulting cross_sections.xml is in the run record. Two other libraries were tried and set aside: data/raw/combined-fendl32-endfbvii1 has no Al, Si, Cr or Ni neutron data; the photon files of the full FENDL-3.2 HDF5 directory crash OpenMC 0.15.3 in photon transport (segmentation fault in sample_photon_reaction), so photon transport needs the ENDF/B-VII.1 photon files.",
+      "temperature_k": 293.6,
+      "photon_transport": true,
+      "neutron_cutoff_ev": 1000.0,
+      "histories": 10000000,
+      "batches": 100,
+      "seed": 1,
+      "threads": 3,
+      "wall_limit_minutes": 10,
+      "machine": "cores 0 to 2 only, memory cap 6 GB, no swap",
+      "sizing": "two timing runs of 20,000 and 200,000 histories on the same cores took 7.6 s and 16.7 s of transport (0 lost particles), about 5e-5 s per history after a fixed start of a few seconds, so 10,000,000 histories (the specification's 100 batches of 100,000) are expected to take about 9 minutes. Only the wall times and lost-particle counts were read from these runs, plus the console line 'Leakage Fraction = 1.36184 +/- 0.00644' of the 20,000-history run (neutrons and photons together; it is not a scored quantity)."
+    },
+    "deviations_from_the_ofb_specification": [
+      "The source is isotropic and the energy weights are read as interval probabilities: OFB's own source function does neither (see known_upstream_defects).",
+      "The tally is on the whole outer boundary of the void sphere (DAGMC surface 6 of this conversion), not on 'surface 7', and is not divided by an area.",
+      "A 1 keV neutron cutoff is applied, as in the MCNP input of the IAEA package; the specification sets none. Leakage above 97 keV is unaffected; photon values are context only.",
+      "Photon transport uses ENDF/B-VII.1 photon data with the FENDL-3.2 neutron data (see run_conditions.library); the specification names no library."
+    ],
+    "append_only": "The run record and its result are added in later commits. This block and the manifest are not edited after the run; a changed rule would be a new case revision with a new declared date."
+  },
+  "response_classes": {
+    "neutron_leakage_spectrum": {
+      "unit": "n per source neutron per unit lethargy",
+      "description": "neutron leakage, 134 bins from 97 keV to 20.66 MeV"
+    },
+    "photon_leakage_spectrum": {
+      "unit": "photons per source neutron per MeV",
+      "description": "photon leakage, 57 bins from 0.5 MeV"
+    }
+  },
+  "detectors": [
+    {
+      "id": "n-0.10109",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.097122,
+        "hi_mev": 0.10109,
+        "tally_bin": 0,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.10109,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00623,
+        "u": 0.003557
+      },
+      "blocked": {
+        "why": "the first bin (97.1 to 101.1 keV) straddles the 100 keV lower limit of the time-of-flight measurement",
+        "next_step": "score only bins entirely above 100 keV, or confirm the measurement range in the original publication"
+      }
+    },
+    {
+      "id": "n-0.10521",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.10109,
+        "hi_mev": 0.10521,
+        "tally_bin": 1,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.10521,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01289,
+        "u": 0.003257
+      }
+    },
+    {
+      "id": "n-0.1095",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.10521,
+        "hi_mev": 0.1095,
+        "tally_bin": 2,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1095,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01159,
+        "u": 0.002912
+      }
+    },
+    {
+      "id": "n-0.11397",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1095,
+        "hi_mev": 0.11397,
+        "tally_bin": 3,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.11397,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008544,
+        "u": 0.002564
+      }
+    },
+    {
+      "id": "n-0.11862",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.11397,
+        "hi_mev": 0.11862,
+        "tally_bin": 4,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.11862,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008838,
+        "u": 0.002309
+      }
+    },
+    {
+      "id": "n-0.12347",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.11862,
+        "hi_mev": 0.12347,
+        "tally_bin": 5,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.12347,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009435,
+        "u": 0.002097
+      }
+    },
+    {
+      "id": "n-0.1285",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.12347,
+        "hi_mev": 0.1285,
+        "tally_bin": 6,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1285,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01149,
+        "u": 0.001935
+      }
+    },
+    {
+      "id": "n-0.13375",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1285,
+        "hi_mev": 0.13375,
+        "tally_bin": 7,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.13375,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009426,
+        "u": 0.001744
+      }
+    },
+    {
+      "id": "n-0.13921",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.13375,
+        "hi_mev": 0.13921,
+        "tally_bin": 8,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.13921,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.005602,
+        "u": 0.00155
+      }
+    },
+    {
+      "id": "n-0.14489",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.13921,
+        "hi_mev": 0.14489,
+        "tally_bin": 9,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.14489,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004172,
+        "u": 0.001404
+      }
+    },
+    {
+      "id": "n-0.1508",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.14489,
+        "hi_mev": 0.1508,
+        "tally_bin": 10,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.1508,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004657,
+        "u": 0.001307
+      }
+    },
+    {
+      "id": "n-0.15696",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.1508,
+        "hi_mev": 0.15696,
+        "tally_bin": 11,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.15696,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.003615,
+        "u": 0.001206
+      }
+    },
+    {
+      "id": "n-0.16336",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.15696,
+        "hi_mev": 0.16336,
+        "tally_bin": 12,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.16336,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01015,
+        "u": 0.001217
+      }
+    },
+    {
+      "id": "n-0.17003",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.16336,
+        "hi_mev": 0.17003,
+        "tally_bin": 13,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.17003,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01321,
+        "u": 0.001185
+      }
+    },
+    {
+      "id": "n-0.17697",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.17003,
+        "hi_mev": 0.17697,
+        "tally_bin": 14,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.17697,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01198,
+        "u": 0.001103
+      }
+    },
+    {
+      "id": "n-0.18419",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.17697,
+        "hi_mev": 0.18419,
+        "tally_bin": 15,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.18419,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01239,
+        "u": 0.001048
+      }
+    },
+    {
+      "id": "n-0.19171",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.18419,
+        "hi_mev": 0.19171,
+        "tally_bin": 16,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.19171,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008653,
+        "u": 0.000942
+      }
+    },
+    {
+      "id": "n-0.19953",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.19171,
+        "hi_mev": 0.19953,
+        "tally_bin": 17,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.19953,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.007314,
+        "u": 0.000872
+      }
+    },
+    {
+      "id": "n-0.20767",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.19953,
+        "hi_mev": 0.20767,
+        "tally_bin": 18,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.20767,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.008257,
+        "u": 0.0008514
+      }
+    },
+    {
+      "id": "n-0.21615",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.20767,
+        "hi_mev": 0.21615,
+        "tally_bin": 19,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.21615,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01231,
+        "u": 0.000874
+      }
+    },
+    {
+      "id": "n-0.22497",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.21615,
+        "hi_mev": 0.22497,
+        "tally_bin": 20,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.22497,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01547,
+        "u": 0.0008837
+      }
+    },
+    {
+      "id": "n-0.23415",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.22497,
+        "hi_mev": 0.23415,
+        "tally_bin": 21,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.23415,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01889,
+        "u": 0.0008959
+      }
+    },
+    {
+      "id": "n-0.24371",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.23415,
+        "hi_mev": 0.24371,
+        "tally_bin": 22,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.24371,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02166,
+        "u": 0.0008998
+      }
+    },
+    {
+      "id": "n-0.25365",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.24371,
+        "hi_mev": 0.25365,
+        "tally_bin": 23,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.25365,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02257,
+        "u": 0.000883
+      }
+    },
+    {
+      "id": "n-0.264",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.25365,
+        "hi_mev": 0.264,
+        "tally_bin": 24,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.264,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02091,
+        "u": 0.0008384
+      }
+    },
+    {
+      "id": "n-0.27478",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.264,
+        "hi_mev": 0.27478,
+        "tally_bin": 25,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.27478,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0136,
+        "u": 0.0007332
+      }
+    },
+    {
+      "id": "n-0.28599",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.27478,
+        "hi_mev": 0.28599,
+        "tally_bin": 26,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.28599,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01638,
+        "u": 0.0007558
+      }
+    },
+    {
+      "id": "n-0.29766",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.28599,
+        "hi_mev": 0.29766,
+        "tally_bin": 27,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.29766,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01888,
+        "u": 0.0007738
+      }
+    },
+    {
+      "id": "n-0.30981",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.29766,
+        "hi_mev": 0.30981,
+        "tally_bin": 28,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.30981,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02134,
+        "u": 0.0007904
+      }
+    },
+    {
+      "id": "n-0.32245",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.30981,
+        "hi_mev": 0.32245,
+        "tally_bin": 29,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.32245,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02788,
+        "u": 0.0008489
+      }
+    },
+    {
+      "id": "n-0.33561",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.32245,
+        "hi_mev": 0.33561,
+        "tally_bin": 30,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.33561,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03111,
+        "u": 0.0008699
+      }
+    },
+    {
+      "id": "n-0.34931",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.33561,
+        "hi_mev": 0.34931,
+        "tally_bin": 31,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.34931,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03068,
+        "u": 0.0008543
+      }
+    },
+    {
+      "id": "n-0.36357",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.34931,
+        "hi_mev": 0.36357,
+        "tally_bin": 32,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.36357,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02944,
+        "u": 0.0008305
+      }
+    },
+    {
+      "id": "n-0.3784",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.36357,
+        "hi_mev": 0.3784,
+        "tally_bin": 33,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.3784,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03073,
+        "u": 0.0008362
+      }
+    },
+    {
+      "id": "n-0.39385",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.3784,
+        "hi_mev": 0.39385,
+        "tally_bin": 34,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.39385,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02779,
+        "u": 0.0007999
+      }
+    },
+    {
+      "id": "n-0.40992",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.39385,
+        "hi_mev": 0.40992,
+        "tally_bin": 35,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.40992,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02476,
+        "u": 0.0007613
+      }
+    },
+    {
+      "id": "n-0.42665",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.40992,
+        "hi_mev": 0.42665,
+        "tally_bin": 36,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.42665,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02412,
+        "u": 0.0007475
+      }
+    },
+    {
+      "id": "n-0.44406",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.42665,
+        "hi_mev": 0.44406,
+        "tally_bin": 37,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.44406,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03078,
+        "u": 0.0008087
+      }
+    },
+    {
+      "id": "n-0.46218",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.44406,
+        "hi_mev": 0.46218,
+        "tally_bin": 38,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.46218,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03237,
+        "u": 0.0008171
+      }
+    },
+    {
+      "id": "n-0.48105",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.46218,
+        "hi_mev": 0.48105,
+        "tally_bin": 39,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.48105,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03631,
+        "u": 0.0008469
+      }
+    },
+    {
+      "id": "n-0.50068",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.48105,
+        "hi_mev": 0.50068,
+        "tally_bin": 40,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.50068,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03954,
+        "u": 0.0008721
+      }
+    },
+    {
+      "id": "n-0.52111",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.50068,
+        "hi_mev": 0.52111,
+        "tally_bin": 41,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.52111,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04038,
+        "u": 0.0008798
+      }
+    },
+    {
+      "id": "n-0.54238",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.52111,
+        "hi_mev": 0.54238,
+        "tally_bin": 42,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.54238,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0462,
+        "u": 0.0009303
+      }
+    },
+    {
+      "id": "n-0.56451",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.54238,
+        "hi_mev": 0.56451,
+        "tally_bin": 43,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.56451,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04582,
+        "u": 0.0009277
+      }
+    },
+    {
+      "id": "n-0.58755",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.56451,
+        "hi_mev": 0.58755,
+        "tally_bin": 44,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.58755,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05114,
+        "u": 0.0009726
+      }
+    },
+    {
+      "id": "n-0.61153",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.58755,
+        "hi_mev": 0.61153,
+        "tally_bin": 45,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.61153,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0496,
+        "u": 0.000961
+      }
+    },
+    {
+      "id": "n-0.63648",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.61153,
+        "hi_mev": 0.63648,
+        "tally_bin": 46,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.63648,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04957,
+        "u": 0.000962
+      }
+    },
+    {
+      "id": "n-0.66246",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.63648,
+        "hi_mev": 0.66246,
+        "tally_bin": 47,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.66246,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05723,
+        "u": 0.001025
+      }
+    },
+    {
+      "id": "n-0.6895",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.66246,
+        "hi_mev": 0.6895,
+        "tally_bin": 48,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.6895,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05772,
+        "u": 0.00103
+      }
+    },
+    {
+      "id": "n-0.71763",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.6895,
+        "hi_mev": 0.71763,
+        "tally_bin": 49,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.71763,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05971,
+        "u": 0.001047
+      }
+    },
+    {
+      "id": "n-0.74692",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.71763,
+        "hi_mev": 0.74692,
+        "tally_bin": 50,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.74692,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05651,
+        "u": 0.001024
+      }
+    },
+    {
+      "id": "n-0.7774",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.74692,
+        "hi_mev": 0.7774,
+        "tally_bin": 51,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.7774,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05496,
+        "u": 0.001014
+      }
+    },
+    {
+      "id": "n-0.80913",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.7774,
+        "hi_mev": 0.80913,
+        "tally_bin": 52,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.80913,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0607,
+        "u": 0.001061
+      }
+    },
+    {
+      "id": "n-0.84215",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.80913,
+        "hi_mev": 0.84215,
+        "tally_bin": 53,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.84215,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06588,
+        "u": 0.001103
+      }
+    },
+    {
+      "id": "n-0.87652",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.84215,
+        "hi_mev": 0.87652,
+        "tally_bin": 54,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.87652,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07278,
+        "u": 0.001156
+      }
+    },
+    {
+      "id": "n-0.91229",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.87652,
+        "hi_mev": 0.91229,
+        "tally_bin": 55,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.91229,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07811,
+        "u": 0.001198
+      }
+    },
+    {
+      "id": "n-0.94952",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.91229,
+        "hi_mev": 0.94952,
+        "tally_bin": 56,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.94952,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07729,
+        "u": 0.001196
+      }
+    },
+    {
+      "id": "n-0.98827",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.94952,
+        "hi_mev": 0.98827,
+        "tally_bin": 57,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.98827,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07351,
+        "u": 0.001174
+      }
+    },
+    {
+      "id": "n-1.0286",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.98827,
+        "hi_mev": 1.0286,
+        "tally_bin": 58,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0286,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.078,
+        "u": 0.001211
+      }
+    },
+    {
+      "id": "n-1.0706",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0286,
+        "hi_mev": 1.0706,
+        "tally_bin": 59,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0706,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08255,
+        "u": 0.001249
+      }
+    },
+    {
+      "id": "n-1.1143",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0706,
+        "hi_mev": 1.1143,
+        "tally_bin": 60,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1143,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07953,
+        "u": 0.001233
+      }
+    },
+    {
+      "id": "n-1.1598",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1143,
+        "hi_mev": 1.1598,
+        "tally_bin": 61,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1598,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0814,
+        "u": 0.001253
+      }
+    },
+    {
+      "id": "n-1.2071",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1598,
+        "hi_mev": 1.2071,
+        "tally_bin": 62,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2071,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0869,
+        "u": 0.001298
+      }
+    },
+    {
+      "id": "n-1.2563",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2071,
+        "hi_mev": 1.2563,
+        "tally_bin": 63,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2563,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08818,
+        "u": 0.001305
+      }
+    },
+    {
+      "id": "n-1.3076",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2563,
+        "hi_mev": 1.3076,
+        "tally_bin": 64,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.3076,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09031,
+        "u": 0.001318
+      }
+    },
+    {
+      "id": "n-1.361",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.3076,
+        "hi_mev": 1.361,
+        "tally_bin": 65,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.361,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0871,
+        "u": 0.001294
+      }
+    },
+    {
+      "id": "n-1.4165",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.361,
+        "hi_mev": 1.4165,
+        "tally_bin": 66,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4165,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08542,
+        "u": 0.001281
+      }
+    },
+    {
+      "id": "n-1.4743",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4165,
+        "hi_mev": 1.4743,
+        "tally_bin": 67,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4743,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08882,
+        "u": 0.001302
+      }
+    },
+    {
+      "id": "n-1.5345",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4743,
+        "hi_mev": 1.5345,
+        "tally_bin": 68,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5345,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09099,
+        "u": 0.001315
+      }
+    },
+    {
+      "id": "n-1.5971",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5345,
+        "hi_mev": 1.5971,
+        "tally_bin": 69,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5971,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09417,
+        "u": 0.001335
+      }
+    },
+    {
+      "id": "n-1.6623",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5971,
+        "hi_mev": 1.6623,
+        "tally_bin": 70,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.6623,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09448,
+        "u": 0.001339
+      }
+    },
+    {
+      "id": "n-1.7301",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.6623,
+        "hi_mev": 1.7301,
+        "tally_bin": 71,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.7301,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0956,
+        "u": 0.001352
+      }
+    },
+    {
+      "id": "n-1.8008",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.7301,
+        "hi_mev": 1.8008,
+        "tally_bin": 72,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8008,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09988,
+        "u": 0.001387
+      }
+    },
+    {
+      "id": "n-1.8742",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8008,
+        "hi_mev": 1.8742,
+        "tally_bin": 73,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8742,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09852,
+        "u": 0.001385
+      }
+    },
+    {
+      "id": "n-1.9507",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8742,
+        "hi_mev": 1.9507,
+        "tally_bin": 74,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.9507,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09895,
+        "u": 0.001396
+      }
+    },
+    {
+      "id": "n-2.0303",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.9507,
+        "hi_mev": 2.0303,
+        "tally_bin": 75,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.0303,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09723,
+        "u": 0.001392
+      }
+    },
+    {
+      "id": "n-2.1132",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.0303,
+        "hi_mev": 2.1132,
+        "tally_bin": 76,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1132,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1006,
+        "u": 0.001423
+      }
+    },
+    {
+      "id": "n-2.1994",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1132,
+        "hi_mev": 2.1994,
+        "tally_bin": 77,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1994,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09916,
+        "u": 0.001423
+      }
+    },
+    {
+      "id": "n-2.2892",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1994,
+        "hi_mev": 2.2892,
+        "tally_bin": 78,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.2892,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1001,
+        "u": 0.001433
+      }
+    },
+    {
+      "id": "n-2.3826",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.2892,
+        "hi_mev": 2.3826,
+        "tally_bin": 79,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.3826,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1012,
+        "u": 0.001444
+      }
+    },
+    {
+      "id": "n-2.4799",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.3826,
+        "hi_mev": 2.4799,
+        "tally_bin": 80,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.4799,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09564,
+        "u": 0.00141
+      }
+    },
+    {
+      "id": "n-2.5811",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.4799,
+        "hi_mev": 2.5811,
+        "tally_bin": 81,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.5811,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09417,
+        "u": 0.001403
+      }
+    },
+    {
+      "id": "n-2.6864",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.5811,
+        "hi_mev": 2.6864,
+        "tally_bin": 82,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.6864,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1002,
+        "u": 0.001449
+      }
+    },
+    {
+      "id": "n-2.796",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.6864,
+        "hi_mev": 2.796,
+        "tally_bin": 83,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.796,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1032,
+        "u": 0.001474
+      }
+    },
+    {
+      "id": "n-2.9101",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.796,
+        "hi_mev": 2.9101,
+        "tally_bin": 84,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.9101,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0971,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-3.0289",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.9101,
+        "hi_mev": 3.0289,
+        "tally_bin": 85,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.0289,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09233,
+        "u": 0.001413
+      }
+    },
+    {
+      "id": "n-3.1525",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.0289,
+        "hi_mev": 3.1525,
+        "tally_bin": 86,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.1525,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09188,
+        "u": 0.001427
+      }
+    },
+    {
+      "id": "n-3.2812",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.1525,
+        "hi_mev": 3.2812,
+        "tally_bin": 87,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.2812,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0901,
+        "u": 0.001431
+      }
+    },
+    {
+      "id": "n-3.4151",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.2812,
+        "hi_mev": 3.4151,
+        "tally_bin": 88,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.4151,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08812,
+        "u": 0.001435
+      }
+    },
+    {
+      "id": "n-3.5545",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.4151,
+        "hi_mev": 3.5545,
+        "tally_bin": 89,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.5545,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08851,
+        "u": 0.001459
+      }
+    },
+    {
+      "id": "n-3.6995",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.5545,
+        "hi_mev": 3.6995,
+        "tally_bin": 90,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.6995,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09326,
+        "u": 0.001518
+      }
+    },
+    {
+      "id": "n-3.8505",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.6995,
+        "hi_mev": 3.8505,
+        "tally_bin": 91,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.8505,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09163,
+        "u": 0.001531
+      }
+    },
+    {
+      "id": "n-4.0076",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.8505,
+        "hi_mev": 4.0076,
+        "tally_bin": 92,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.0076,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09169,
+        "u": 0.001559
+      }
+    },
+    {
+      "id": "n-4.1712",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.0076,
+        "hi_mev": 4.1712,
+        "tally_bin": 93,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.1712,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08939,
+        "u": 0.001543
+      }
+    },
+    {
+      "id": "n-4.3414",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.1712,
+        "hi_mev": 4.3414,
+        "tally_bin": 94,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.3414,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08775,
+        "u": 0.001532
+      }
+    },
+    {
+      "id": "n-4.5186",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.3414,
+        "hi_mev": 4.5186,
+        "tally_bin": 95,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.5186,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08986,
+        "u": 0.001553
+      }
+    },
+    {
+      "id": "n-4.703",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.5186,
+        "hi_mev": 4.703,
+        "tally_bin": 96,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.703,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08407,
+        "u": 0.001508
+      }
+    },
+    {
+      "id": "n-4.8949",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.703,
+        "hi_mev": 4.8949,
+        "tally_bin": 97,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.8949,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07946,
+        "u": 0.001471
+      }
+    },
+    {
+      "id": "n-5.0947",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.8949,
+        "hi_mev": 5.0947,
+        "tally_bin": 98,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.0947,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0806,
+        "u": 0.001484
+      }
+    },
+    {
+      "id": "n-5.3026",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.0947,
+        "hi_mev": 5.3026,
+        "tally_bin": 99,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.3026,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07666,
+        "u": 0.001453
+      }
+    },
+    {
+      "id": "n-5.519",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.3026,
+        "hi_mev": 5.519,
+        "tally_bin": 100,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.519,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0764,
+        "u": 0.001458
+      }
+    },
+    {
+      "id": "n-5.7443",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.519,
+        "hi_mev": 5.7443,
+        "tally_bin": 101,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.7443,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07479,
+        "u": 0.001456
+      }
+    },
+    {
+      "id": "n-5.9787",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.7443,
+        "hi_mev": 5.9787,
+        "tally_bin": 102,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.9787,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07129,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-6.2227",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.9787,
+        "hi_mev": 6.2227,
+        "tally_bin": 103,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.2227,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07135,
+        "u": 0.001451
+      }
+    },
+    {
+      "id": "n-6.4766",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.2227,
+        "hi_mev": 6.4766,
+        "tally_bin": 104,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.4766,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06948,
+        "u": 0.001448
+      }
+    },
+    {
+      "id": "n-6.741",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.4766,
+        "hi_mev": 6.741,
+        "tally_bin": 105,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.741,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07071,
+        "u": 0.001476
+      }
+    },
+    {
+      "id": "n-7.0161",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.741,
+        "hi_mev": 7.0161,
+        "tally_bin": 106,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.0161,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06868,
+        "u": 0.001474
+      }
+    },
+    {
+      "id": "n-7.3024",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.0161,
+        "hi_mev": 7.3024,
+        "tally_bin": 107,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.3024,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06483,
+        "u": 0.001453
+      }
+    },
+    {
+      "id": "n-7.6004",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.3024,
+        "hi_mev": 7.6004,
+        "tally_bin": 108,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.6004,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06145,
+        "u": 0.001437
+      }
+    },
+    {
+      "id": "n-7.9106",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.6004,
+        "hi_mev": 7.9106,
+        "tally_bin": 109,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.9106,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06315,
+        "u": 0.001465
+      }
+    },
+    {
+      "id": "n-8.2334",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.9106,
+        "hi_mev": 8.2334,
+        "tally_bin": 110,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.2334,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06195,
+        "u": 0.00146
+      }
+    },
+    {
+      "id": "n-8.5694",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.2334,
+        "hi_mev": 8.5694,
+        "tally_bin": 111,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.5694,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06282,
+        "u": 0.001479
+      }
+    },
+    {
+      "id": "n-8.9192",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.5694,
+        "hi_mev": 8.9192,
+        "tally_bin": 112,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.9192,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07218,
+        "u": 0.001588
+      }
+    },
+    {
+      "id": "n-9.2832",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.9192,
+        "hi_mev": 9.2832,
+        "tally_bin": 113,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.2832,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07791,
+        "u": 0.001657
+      }
+    },
+    {
+      "id": "n-9.662",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.2832,
+        "hi_mev": 9.662,
+        "tally_bin": 114,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.662,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08239,
+        "u": 0.001711
+      }
+    },
+    {
+      "id": "n-10.056",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.662,
+        "hi_mev": 10.056,
+        "tally_bin": 115,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.056,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08692,
+        "u": 0.001765
+      }
+    },
+    {
+      "id": "n-10.467",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.056,
+        "hi_mev": 10.467,
+        "tally_bin": 116,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.467,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1022,
+        "u": 0.001931
+      }
+    },
+    {
+      "id": "n-10.894",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.467,
+        "hi_mev": 10.894,
+        "tally_bin": 117,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.894,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1234,
+        "u": 0.002151
+      }
+    },
+    {
+      "id": "n-11.339",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.894,
+        "hi_mev": 11.339,
+        "tally_bin": 118,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 11.339,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.171,
+        "u": 0.002555
+      }
+    },
+    {
+      "id": "n-11.801",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 11.339,
+        "hi_mev": 11.801,
+        "tally_bin": 119,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 11.801,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2127,
+        "u": 0.002847
+      }
+    },
+    {
+      "id": "n-12.283",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 11.801,
+        "hi_mev": 12.283,
+        "tally_bin": 120,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 12.283,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2486,
+        "u": 0.003078
+      }
+    },
+    {
+      "id": "n-12.784",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 12.283,
+        "hi_mev": 12.784,
+        "tally_bin": 121,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 12.784,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.318,
+        "u": 0.003474
+      }
+    },
+    {
+      "id": "n-13.306",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 12.784,
+        "hi_mev": 13.306,
+        "tally_bin": 122,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 13.306,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.4452,
+        "u": 0.004101
+      }
+    },
+    {
+      "id": "n-13.849",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 13.306,
+        "hi_mev": 13.849,
+        "tally_bin": 123,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 13.849,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 1.026,
+        "u": 0.0062
+      }
+    },
+    {
+      "id": "n-14.414",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 13.849,
+        "hi_mev": 14.414,
+        "tally_bin": 124,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 14.414,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 3.767,
+        "u": 0.01184
+      }
+    },
+    {
+      "id": "n-15.002",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 14.414,
+        "hi_mev": 15.002,
+        "tally_bin": 125,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 15.002,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 6.44,
+        "u": 0.01542
+      }
+    },
+    {
+      "id": "n-15.615",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 15.002,
+        "hi_mev": 15.615,
+        "tally_bin": 126,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 15.615,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 3.5,
+        "u": 0.01135
+      }
+    },
+    {
+      "id": "n-16.252",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 15.615,
+        "hi_mev": 16.252,
+        "tally_bin": 127,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 16.252,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.4853,
+        "u": 0.00424
+      }
+    },
+    {
+      "id": "n-16.915",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 16.252,
+        "hi_mev": 16.915,
+        "tally_bin": 128,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 16.915,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02432,
+        "u": 0.001018
+      }
+    },
+    {
+      "id": "n-17.605",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 16.915,
+        "hi_mev": 17.605,
+        "tally_bin": 129,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 17.605,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00306,
+        "u": 0.0005026
+      }
+    },
+    {
+      "id": "n-18.324",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 17.605,
+        "hi_mev": 18.324,
+        "tally_bin": 130,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 18.324,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.002431,
+        "u": 0.0004761
+      }
+    },
+    {
+      "id": "n-19.072",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 18.324,
+        "hi_mev": 19.072,
+        "tally_bin": 131,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 19.072,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.001259,
+        "u": 0.0004252
+      }
+    },
+    {
+      "id": "n-19.85",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 19.072,
+        "hi_mev": 19.85,
+        "tally_bin": 132,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 19.85,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0004715,
+        "u": 0.0003861
+      }
+    },
+    {
+      "id": "n-20.66",
+      "response_class": "neutron_leakage_spectrum",
+      "bin": {
+        "lo_mev": 19.85,
+        "hi_mev": 20.66,
+        "tally_bin": 133,
+        "edge_convention": "CSV energy is the upper edge of the bin; same edge list as the OFB specification"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 20.66,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.000441,
+        "u": 0.0003812
+      }
+    },
+    {
+      "id": "g-0.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.5,
+        "hi_mev": 0.6,
+        "tally_bin": 0,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2025,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.6,
+        "hi_mev": 0.7,
+        "tally_bin": 1,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.181,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.7,
+        "hi_mev": 0.8,
+        "tally_bin": 2,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1655,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.8,
+        "hi_mev": 0.9,
+        "tally_bin": 3,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2199,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-0.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 0.9,
+        "hi_mev": 1.0,
+        "tally_bin": 4,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 0.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.2042,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.0,
+        "hi_mev": 1.1,
+        "tally_bin": 5,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.181,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.1,
+        "hi_mev": 1.2,
+        "tally_bin": 6,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1364,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.2,
+        "hi_mev": 1.3,
+        "tally_bin": 7,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1203,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.3,
+        "hi_mev": 1.4,
+        "tally_bin": 8,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1159,
+        "u": 0.0004
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.4,
+        "hi_mev": 1.5,
+        "tally_bin": 9,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1033,
+        "u": 0.0005
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.5,
+        "hi_mev": 1.6,
+        "tally_bin": 10,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08601,
+        "u": 0.00062
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.6,
+        "hi_mev": 1.7,
+        "tally_bin": 11,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.08412,
+        "u": 0.00052
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.7,
+        "hi_mev": 1.8,
+        "tally_bin": 12,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1108,
+        "u": 0.0006
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.8,
+        "hi_mev": 1.9,
+        "tally_bin": 13,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1251,
+        "u": 0.0006
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-1.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 1.9,
+        "hi_mev": 2.0,
+        "tally_bin": 14,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 1.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09976,
+        "u": 0.00042
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.0,
+        "hi_mev": 2.1,
+        "tally_bin": 15,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07944,
+        "u": 0.00052
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.1,
+        "hi_mev": 2.2,
+        "tally_bin": 16,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.09377,
+        "u": 0.00071
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.2,
+        "hi_mev": 2.3,
+        "tally_bin": 17,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.1112,
+        "u": 0.0007
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.3,
+        "hi_mev": 2.4,
+        "tally_bin": 18,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0963,
+        "u": 0.00069
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.4,
+        "hi_mev": 2.5,
+        "tally_bin": 19,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06832,
+        "u": 0.00105
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.5,
+        "hi_mev": 2.6,
+        "tally_bin": 20,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05362,
+        "u": 0.00088
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.6,
+        "hi_mev": 2.7,
+        "tally_bin": 21,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04855,
+        "u": 0.00054
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.7,
+        "hi_mev": 2.8,
+        "tally_bin": 22,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.04804,
+        "u": 0.00099
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.8,
+        "hi_mev": 2.9,
+        "tally_bin": 23,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.05524,
+        "u": 0.00101
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-2.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 2.9,
+        "hi_mev": 3.0,
+        "tally_bin": 24,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 2.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06851,
+        "u": 0.00081
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.0,
+        "hi_mev": 3.1,
+        "tally_bin": 25,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.07359,
+        "u": 0.00081
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.1,
+        "hi_mev": 3.2,
+        "tally_bin": 26,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.06203,
+        "u": 0.00075
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.2,
+        "hi_mev": 3.3,
+        "tally_bin": 27,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0447,
+        "u": 0.00061
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.3,
+        "hi_mev": 3.4,
+        "tally_bin": 28,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.03335,
+        "u": 0.00069
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.4,
+        "hi_mev": 3.5,
+        "tally_bin": 29,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02885,
+        "u": 0.00091
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.5,
+        "hi_mev": 3.6,
+        "tally_bin": 30,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02788,
+        "u": 0.00096
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.6,
+        "hi_mev": 3.7,
+        "tally_bin": 31,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.028,
+        "u": 0.00097
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.7,
+        "hi_mev": 3.8,
+        "tally_bin": 32,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02814,
+        "u": 0.00086
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.8,
+        "hi_mev": 3.9,
+        "tally_bin": 33,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02828,
+        "u": 0.00074
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-3.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 3.9,
+        "hi_mev": 4.0,
+        "tally_bin": 34,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 3.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02817,
+        "u": 0.00096
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.0,
+        "hi_mev": 4.1,
+        "tally_bin": 35,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02716,
+        "u": 0.00122
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.1",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.1,
+        "hi_mev": 4.2,
+        "tally_bin": 36,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.1,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02539,
+        "u": 0.00144
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.2",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.2,
+        "hi_mev": 4.3,
+        "tally_bin": 37,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.2,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02371,
+        "u": 0.00203
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.3",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.3,
+        "hi_mev": 4.4,
+        "tally_bin": 38,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.3,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02253,
+        "u": 0.00261
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.4",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.4,
+        "hi_mev": 4.5,
+        "tally_bin": 39,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.4,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0219,
+        "u": 0.00245
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.5,
+        "hi_mev": 4.6,
+        "tally_bin": 40,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02213,
+        "u": 0.00162
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.6,
+        "hi_mev": 4.7,
+        "tally_bin": 41,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.6,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02346,
+        "u": 0.00255
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.7,
+        "hi_mev": 4.8,
+        "tally_bin": 42,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.7,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02536,
+        "u": 0.00465
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.8,
+        "hi_mev": 4.9,
+        "tally_bin": 43,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.8,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.02654,
+        "u": 0.00547
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-4.9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 4.9,
+        "hi_mev": 5.0,
+        "tally_bin": 44,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 4.9,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0255,
+        "u": 0.00383
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.0,
+        "hi_mev": 5.5,
+        "tally_bin": 45,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01596,
+        "u": 0.00232
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-5.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 5.5,
+        "hi_mev": 6.0,
+        "tally_bin": 46,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 5.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01899,
+        "u": 0.00186
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-6",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.0,
+        "hi_mev": 6.5,
+        "tally_bin": 47,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0163,
+        "u": 0.00136
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-6.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 6.5,
+        "hi_mev": 7.0,
+        "tally_bin": 48,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 6.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.006569,
+        "u": 0.002461
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-7",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.0,
+        "hi_mev": 7.5,
+        "tally_bin": 49,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.01641,
+        "u": 0.0023
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-7.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 7.5,
+        "hi_mev": 8.0,
+        "tally_bin": 50,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 7.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.004856,
+        "u": 0.001785
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-8",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.0,
+        "hi_mev": 8.5,
+        "tally_bin": 51,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.009137,
+        "u": 0.001409
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-8.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 8.5,
+        "hi_mev": 9.0,
+        "tally_bin": 52,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 8.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.005316,
+        "u": 0.000696
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-9",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.0,
+        "hi_mev": 9.5,
+        "tally_bin": 53,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.00166,
+        "u": 0.000589
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-9.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 9.5,
+        "hi_mev": 10.0,
+        "tally_bin": 54,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 9.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.003036,
+        "u": 0.000405
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-10",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.0,
+        "hi_mev": 10.5,
+        "tally_bin": 55,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.001489,
+        "u": 0.000241
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    },
+    {
+      "id": "g-10.5",
+      "response_class": "photon_leakage_spectrum",
+      "bin": {
+        "lo_mev": 10.5,
+        "hi_mev": 11.0,
+        "tally_bin": 56,
+        "edge_convention": "read as the lower edge by OFB, which is also what its stored table does; the MCNP e41 card of the IAEA input would make it the upper edge (unresolved)"
+      },
+      "controlling_variable": {
+        "name": "energy",
+        "value": 10.5,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 0.0006201,
+        "u": 0.0001409
+      },
+      "blocked": {
+        "why": "the photon bin edge convention is unresolved (lower edge in OFB, upper edge by the MCNP e41 card of the IAEA input); OFB's tally uses the lower-edge reading and does not resolve it either",
+        "next_step": "resolve the convention against the original OKTAVIAN gamma-spectrum publication or the CoNDERC record, then lift this block in the manifest"
+      }
+    }
+  ],
+  "not_covered": [
+    "fusion plant geometry: ports, streaming paths, plasma source shape, divertor and breeder blanket",
+    "tritium production and activation reaction rates (leakage spectra only)",
+    "nuclear heating and dose",
+    "materials other than aluminium and the stainless-steel shells at 14 MeV; deep penetration beyond 20 cm",
+    "time dependence, burnup and cooling-time behaviour",
+    "magnet and superconductor response",
+    "CAD geometries with curved surfaces other than spheres and cylinders, imprint failures on larger models, and overlap handling (this STEP has five non-overlapping solids)",
+    "variance reduction: the case is analog"
+  ],
+  "qualified_range": {
+    "materials": [
+      "aluminium (density 1.223 g/cm3 in the model)",
+      "stainless steel shells (7.824 g/cm3)"
+    ],
+    "geometry_class": "spherical shell assembly, 19.95 cm outer radius, one beam-tube cylinder",
+    "spectrum_class": "D-T point source with the MCNP histogram energy distribution, leakage observed above 100 keV",
+    "parameters": [
+      {
+        "name": "outer_radius",
+        "min": 19.95,
+        "max": 19.95,
+        "unit": "cm"
+      },
+      {
+        "name": "source_energy",
+        "min": 0.1,
+        "max": 20.25,
+        "unit": "MeV"
+      }
+    ],
+    "cooling_time": "not applicable (prompt transport only)"
+  },
+  "known_upstream_defects": [
+    "OpenMC-Fusion-Benchmarks (commit 653d6aba04d993d2915a4e4e983e2a2119fa0e27), benchmark.py `_build_source`: the angle bins [0, 360] degrees go through np.cos before the unit conversion, then the cosines are multiplied by pi/180 and used as the limits of the polar cosine distribution. Running OFB's own function on its specification gives mu uniform on [-0.00495, 0.01745] about the reference direction (0, 1, 0), not [-1, 1]: the source is emitted in a thin ring perpendicular to y, not isotropically. The function also returns the last source object, not the list. FARIS does not use this code path; its runner builds an isotropic point source.",
+    "Same function: the specification's `weights` are the probabilities of the energy intervals (they equal the MCNP sp1 entries of the IAEA input exactly) but are passed to openmc.stats.Tabular as histogram densities, which OpenMC weights by the interval width. Run on the specification, the mean source energy is 14.637 MeV instead of 14.031 MeV with the weights read as probabilities, and the 13.57 to 15.00 MeV interval carries 63.1 % instead of 62.0 %. FARIS converts probability to density (divides by the interval width).",
+    "specifications.yaml tallies the DAGMC surface 'values: [7]' for both spectra and OFB's post-processing divides by that surface's area. Surface 7 is the id of the outer r = 100 cm sphere in the CSG model; in the DAGMC conversion of oktavian_a.step with OFB's own meshing call (cad_to_dagmc 0.14.3, imprint, the specification's mesh sizes) surface 7 is a 3543 cm2 patch of the r = 19.95 cm sphere (6 is the r = 100 cm sphere), so the tally would see about 70 % of the leakage surface and normalise it by the patch area. The stored experiment is the IAEA table divided by 4 pi (19.5 cm)^2 = 4778.36 cm2, a radius that is neither the sample's outer radius (19.95 cm) nor the shell radius (19.75 cm). Unconfirmed against an OFB end-to-end run, which needs pydagmc (not installed here); see docs/defects/OFB-001.",
+    "oktavian_al.step in the OFB-LFS repository (a different file from the oktavian_a.step the specification names) holds five solids with the volumes of full nested spheres (0.0045, 0.0312 and 0.0332 m3 for the shells), not of shells: overlapping solids. The specification does not use it."
+  ],
+  "literature_context": []
+}

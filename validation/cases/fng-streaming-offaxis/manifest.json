@@ -1,0 +1,123 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "fng-streaming-offaxis",
+  "title": "FNG ITER shield streaming mock-up, off-axis foil reaction rates (awaiting upstream specification)",
+  "evidence_class": "experiment",
+  "geometry_path": "CAD",
+  "source": {
+    "url": "https://github.com/eepeterson/openmc_fusion_benchmarks",
+    "commit": "653d6aba04d993d2915a4e4e983e2a2119fa0e27",
+    "retrieved": "2026-10-14",
+    "reference": "Segantin, Ebiwonjumi, Peterson, Fusion Science and Technology 81 (2024) 437-447, doi 10.1080/15361055.2024.2400762",
+    "lfs_commit": "dace719d46c76c3b9f24a98ebf9f85ce1b8092a7"
+  },
+  "source_layout": "path_in_source is relative to a directory that holds the checkout openmc_fusion_benchmarks/",
+  "license": {
+    "spdx": "MIT",
+    "attribution": "OpenMC-Fusion-Benchmarks, Copyright (c) 2025 MIT PSFC, and openmc_fusion_benchmarks-lfs, Copyright (c) 2025 Stefano Segantin, both MIT licence (the permission notice is in the LICENSE files named under files). Only file hashes are recorded; no OFB content is copied.",
+    "terms": "MIT for the OFB files hashed here. As fng-streaming-onaxis: SINBAD terms apply to the original values; OFB's redistribution terms are not stated."
+  },
+  "files": [
+    {
+      "role": "OFB list of benchmarks planned upstream",
+      "path_in_source": "openmc_fusion_benchmarks/benchmark_list.txt",
+      "sha256": "7fc6f07077aa45f7dadb775bb52fcba490edd08c8201b4a8e305342d584c7f6e",
+      "bytes": 2170
+    },
+    {
+      "role": "OFB licence (MIT)",
+      "path_in_source": "openmc_fusion_benchmarks/LICENSE",
+      "sha256": "1da773dbea96bcf9f118cbe770414a8dcd40d0f53c2e14046c5c3640cf5ed83a",
+      "bytes": 1064
+    },
+    {
+      "role": "OFB Git LFS pointer of the STEP geometry (the file's own sha256 is lfs_object_sha256)",
+      "path_in_source": "openmc_fusion_benchmarks/lfs/benchmarks/fng_str_offaxis/fng_str_offaxis.step",
+      "sha256": "7a406f2e79b4b0b0b2025c8cd19a9a62030109f43fc31a679ea1fd85c6faacb4",
+      "bytes": 132,
+      "lfs_object_sha256": "710d7bbbf3c693e230f7039f41bdaba8c51f79bb851b4fef9756a07094b39cf4",
+      "lfs_object_bytes": 4960269,
+      "lfs_submodule_commit": "dace719d46c76c3b9f24a98ebf9f85ce1b8092a7"
+    },
+    {
+      "role": "OFB-LFS licence (MIT)",
+      "path_in_source": "openmc_fusion_benchmarks/lfs/LICENSE",
+      "sha256": "0a103dd5632e2c59f06ccfac27530ac4011c44f159be0ce95559eee62ae9246a",
+      "bytes": 1073
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "registration": {
+    "status": "awaiting-upstream-specification",
+    "benchmark_list_item": "3. Frascati Neutron Generator (FNG) streaming benchmark",
+    "missing": [
+      "a benchmark specification in src/openmc_fusion_benchmarks/benchmarks/ (materials, source, tallies, settings): develop defines only oktavian_al, and benchmark_list.txt lists this experiment as planned",
+      "the measured values with their uncertainties in a form FARIS can hash and cite (develop's results database has only oktavian_al)",
+      "the licence under which the measured values may be redistributed",
+      "the foil positions and materials, the FNG source, and the shield material compositions, none of which are in the STEP file"
+    ],
+    "why_it_matters": "VAL-021, and the off-axis foils test the shield outside the line of sight of the channel.",
+    "legacy_inventory": "The older master branch of the same repository (commit c47fc573a7e2a9ca11a8958dc67155b1146adf51, layout before 2025-03-28) holds a CSG OpenMC model and an experiment.h5 for this experiment; develop deleted both (2025-03-28 and 2025-12-01) and the repository does not say where the measured values come from or under which terms they may be redistributed (the MIT licence of the repository covers its authors' own work, not third-party data). They are not registered here and no value from them is used.",
+    "last_checked": "2026-10-14 against OFB develop at the pinned commit"
+  },
+  "normalisation": {
+    "status": "unconfirmed",
+    "blocks_scoring": true,
+    "quantity": "not defined: no specification",
+    "units": "not defined: no specification",
+    "source_normalisation": "not defined: no specification",
+    "location": "not defined: no specification",
+    "reaction_or_particle": "not defined: no specification",
+    "energy_integration": "not defined: no specification",
+    "basis": "OFB develop has no specification for this experiment, so no tally definition or normalisation exists to confirm.",
+    "why": "the case has no specification and no registered measured values",
+    "next_step": "register the specification and values, then confirm the normalisation from the original publication"
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "none registered",
+        "kind": "unspecified",
+        "meaning": "no measured values are registered"
+      }
+    ],
+    "note": "No reference uncertainty exists because no reference value is registered."
+  },
+  "compatibility": {
+    "declared": "2026-10-14",
+    "k": 2.0,
+    "k_basis": "authored default, to be reviewed when values exist",
+    "covariance": {
+      "kind": "unknown",
+      "basis": "no reference values and no calculation exist yet"
+    }
+  },
+  "response_classes": {
+    "activation_foil_reaction_rate": {
+      "unit": "reactions per atom per source neutron",
+      "description": "activation-foil reaction rates behind the shield off the channel axis (foil types and positions not registered)"
+    }
+  },
+  "detectors": [
+    {
+      "id": "activation-foil-reaction-rate-set",
+      "response_class": "activation_foil_reaction_rate",
+      "reference_missing_why": "no measured values are registered: the measured values with their uncertainties in a form FARIS can hash and cite (develop's results database has only oktavian_al); the licence question is open (As fng-streaming-onaxis: SINBAD terms apply to the original values; OFB's redistribution terms are not stated.)",
+      "reference_missing_next_step": "wait for the upstream specification and results database entry, or obtain the measured values from their original source under its terms, then add detectors with reference value and uncertainty to this manifest"
+    }
+  ],
+  "not_covered": [
+    "everything: the case has no specification, no registered measured values and no FARIS run",
+    "the SINBAD licence terms for the original values are not settled (docs/NEXT_RELEASE_PLAN.md, open decision 5)"
+  ],
+  "qualified_range": {
+    "materials": [
+      "not defined: no specification"
+    ],
+    "geometry_class": "streaming path in a shield mock-up",
+    "spectrum_class": "D-T point-like source",
+    "parameters": [],
+    "cooling_time": "not applicable (prompt transport only)"
+  },
+  "literature_context": []
+}
