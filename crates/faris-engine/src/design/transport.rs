@@ -1,4 +1,5 @@
-//! `faris design transport`: the fast-neutron flux in a checked design's TF magnets.
+//! `faris design transport`: the neutron flux in the solids a fluence limit of a checked
+//! design applies to (the TF magnets, when the design has no such limit).
 //!
 //! The design must have passed `faris design check` with every check evaluated; the
 //! check report names the conversion whose h5m is run. The OpenMC worker
@@ -17,7 +18,8 @@ use super::life::{FluenceAssessment, LimitStatus, PowerHistory, assess_fluence, 
 use super::{
     AIM_COMMON_HELPER, AIM_TARGETS_HELPER, AIM_WINDOWS_HELPER, CAD_ADDRESS_SPACE,
     DESIGN_TRANSPORT_WORKER, DesignError, DesignIdentity, ImportReport, Launched, MAX_JSON_BYTES,
-    STREAMING_AIM_HELPER, ToolPaths, io_error, launch_python, resolve, sha256_file, sha256_hex,
+    STREAMING_AIM_HELPER, ToolPaths, io_error, launch_python_with_lines, resolve, sha256_file,
+    sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
 use faris_model::design::{self, Design, Metric, Role};
@@ -46,7 +48,46 @@ const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
 const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 
-#[derive(Clone, Debug)]
+/// Where a run is: a step that prepares it, or sampling with the error reached so far.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransportProgress {
+    /// A step has started: `mgxs`, `windows` or `run`.
+    Step(String),
+    Sampling {
+        histories: u64,
+        /// `None` until two batches have scored.
+        relative_error: Option<f64>,
+        elapsed_seconds: f64,
+    },
+}
+
+/// Called from the thread that reads the worker's output.
+pub type TransportProgressFn = std::sync::Arc<dyn Fn(TransportProgress) + Send + Sync>;
+
+/// A worker output line as progress, if it is one.
+fn parse_progress(line: &str) -> Option<TransportProgress> {
+    #[derive(Deserialize)]
+    struct Line {
+        progress: Sampling,
+    }
+    #[derive(Deserialize)]
+    struct Sampling {
+        histories: u64,
+        relative_error: Option<f64>,
+        elapsed_seconds: f64,
+    }
+    if !line.starts_with("{\"progress\"") {
+        return None;
+    }
+    let parsed: Line = serde_json::from_str(line).ok()?;
+    Some(TransportProgress::Sampling {
+        histories: parsed.progress.histories,
+        relative_error: parsed.progress.relative_error,
+        elapsed_seconds: parsed.progress.elapsed_seconds,
+    })
+}
+
+#[derive(Clone)]
 pub struct DesignTransportOptions {
     /// The JSON report `faris design check --report` wrote for this design.
     pub check_report: PathBuf,
@@ -63,6 +104,12 @@ pub struct DesignTransportOptions {
     /// A directory holding an `openmc` package to use in place of the interpreter's own, such
     /// as a build with the aiming patch.
     pub openmc_package_path: Option<PathBuf>,
+    /// The replacement group whose fluence limit names the response. `None`: the only group
+    /// with a fluence limit, or the TF magnets when the design has no such limit.
+    pub group: Option<String>,
+    /// Where weight windows and the channel search are kept between runs. `None`: nothing is kept.
+    pub cache_dir: Option<PathBuf>,
+    pub progress: Option<TransportProgressFn>,
     pub cancellation: Cancellation,
 }
 
@@ -119,6 +166,9 @@ pub struct VarianceReduction {
     /// Seconds the run spent looking for a streaming channel before sampling.
     #[serde(default)]
     pub aim_seconds: f64,
+    /// The channel search of an earlier run on the same model was used.
+    #[serde(default)]
+    pub aim_reused: bool,
 }
 
 /// One fluence limit of the design against the flux of the worst solid of its group.
@@ -157,6 +207,8 @@ pub struct DesignTransportReport {
     pub openmc: String,
     pub run_directory: String,
     pub energy_min_ev: f64,
+    /// The replacement group the response was taken from; `None`: the TF magnets, by role.
+    pub response_group_id: Option<String>,
     /// Source neutrons per second, from the fusion power at 17.6 MeV per reaction.
     pub source_rate_per_s: f64,
     pub fusion_power_mw: f64,
@@ -178,6 +230,8 @@ pub struct DesignTransportReport {
     pub variance_reduction: VarianceReduction,
     /// Seconds spent before sampling on weight windows and the search for a streaming channel.
     pub setup_seconds: f64,
+    /// The weight windows of an earlier run on the same model were used.
+    pub windows_reused: bool,
     pub fluence_limits: Vec<FluenceLimit>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
@@ -310,6 +364,184 @@ fn linked_history(
     power_history(&history, fusion_power_mw)
 }
 
+/// The run's source is the tokamak formula for a D-T plasma. A design that asks for another
+/// source is refused, so that it is never run with the wrong one.
+fn refuse_unsupported_source(design: &Design) -> Result<(), DesignError> {
+    if design.plasma.emissivity_table.is_some() {
+        return Err(tool(
+            "the design gives an emissivity table, which this command cannot use yet: it would \
+             run the tokamak profile instead. Remove emissivity_table to run with the profile",
+        ));
+    }
+    let share = |species: &str| {
+        design
+            .plasma
+            .fuel
+            .as_ref()
+            .and_then(|fuel| fuel.get(species).copied())
+            .unwrap_or(0.0)
+    };
+    if !(share("D") > 0.0 && share("T") > 0.0) {
+        return Err(tool(
+            "the design's fuel is not a deuterium-tritium mix; this command's source rate and \
+             neutron energy are for D-T only",
+        ));
+    }
+    Ok(())
+}
+
+/// What the run scores: the flux above a threshold in the solids of one replacement group.
+#[derive(Clone, Debug, PartialEq)]
+struct ChosenResponse {
+    /// `None`: the TF magnets by role, for a design with no fluence limit.
+    group_id: Option<String>,
+    energy_min_ev: f64,
+    limit_n_m2: Option<f64>,
+}
+
+/// The fluence limit a metric and threshold describe: the energy above which neutrons count.
+fn fluence_threshold(limit: &design::Limit) -> Option<f64> {
+    match limit.metric {
+        Metric::FastNeutronFluence => Some(
+            limit
+                .energy_threshold_ev
+                .unwrap_or(FAST_NEUTRON_ENERGY_MIN_EV),
+        ),
+        Metric::NeutronFluence => Some(0.0),
+        _ => None,
+    }
+}
+
+/// Pick the response from the design's fluence limits. With several groups the caller names one.
+fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenResponse, DesignError> {
+    let candidates: Vec<ChosenResponse> = design
+        .replacement_groups
+        .iter()
+        .filter_map(|g| {
+            let limit = g.limits.iter().find(|l| fluence_threshold(l).is_some())?;
+            Some(ChosenResponse {
+                group_id: Some(g.id.clone()),
+                energy_min_ev: fluence_threshold(limit)?,
+                limit_n_m2: Some(limit.limit),
+            })
+        })
+        .collect();
+    let ids = || {
+        candidates
+            .iter()
+            .filter_map(|c| c.group_id.as_deref())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match (group, candidates.len()) {
+        (Some(wanted), _) => candidates
+            .iter()
+            .find(|c| c.group_id.as_deref() == Some(wanted))
+            .cloned()
+            .ok_or_else(|| {
+                tool(format!(
+                    "the replacement group {wanted} has no fluence limit; the groups with one are: {}",
+                    ids()
+                ))
+            }),
+        (None, 0) => Ok(ChosenResponse {
+            group_id: None,
+            energy_min_ev: FAST_NEUTRON_ENERGY_MIN_EV,
+            limit_n_m2: None,
+        }),
+        (None, 1) => Ok(candidates[0].clone()),
+        (None, _) => Err(tool(format!(
+            "several replacement groups have a fluence limit; name one with --group: {}",
+            ids()
+        ))),
+    }
+}
+
+/// One entry of the cache per model, materials, response, nuclear data and worker version.
+fn cache_key(
+    request: &serde_json::Value,
+    h5m_sha256: &str,
+    cross_sections_sha256: &str,
+    window_python: Option<&Path>,
+) -> String {
+    let identity = serde_json::json!({
+        "worker": sha256_hex(DESIGN_TRANSPORT_WORKER.as_bytes()),
+        "h5m": h5m_sha256,
+        "cross_sections": cross_sections_sha256,
+        "solids": request["solids"],
+        "materials": request["materials"],
+        "chamber_solid_id": request["chamber_solid_id"],
+        "response": request["response"],
+        "window_python": window_python.map(|p| p.display().to_string()),
+    });
+    sha256_hex(identity.to_string().as_bytes())
+}
+
+fn copy_file(from: &Path, to: &Path) -> Result<(), DesignError> {
+    if let Some(parent) = to.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
+    }
+    std::fs::copy(from, to)
+        .map(|_| ())
+        .map_err(|e| io_error(from, e))
+}
+
+#[derive(Deserialize)]
+struct WindowsRecord {
+    filled_sha256: String,
+}
+
+/// Put a kept entry's weight windows and channel search into the run directory. True when the
+/// windows were found and match their record; a damaged entry is ignored, not trusted.
+fn restore_windows(entry: &Path, dir: &Path) -> Result<bool, DesignError> {
+    let record_path = entry.join("windows").join("record.json");
+    let filled = entry.join("windows").join("filled.h5");
+    if !record_path.is_file() || !filled.is_file() {
+        return Ok(false);
+    }
+    let Ok(record) = serde_json::from_slice::<WindowsRecord>(&read_bounded(&record_path)?) else {
+        return Ok(false);
+    };
+    if !sha256_file(&filled)?.eq_ignore_ascii_case(&record.filled_sha256) {
+        return Ok(false);
+    }
+    copy_file(&record_path, &dir.join("windows").join("record.json"))?;
+    copy_file(&filled, &dir.join("windows").join("filled.h5"))?;
+    let plan = entry.join("aim").join("plan.json");
+    if plan.is_file() {
+        copy_file(&plan, &dir.join("aim-kept").join("plan.json"))?;
+        let block = entry.join("aim").join("windows-block.xml");
+        if block.is_file() {
+            copy_file(&block, &dir.join("aim-kept").join("windows-block.xml"))?;
+        }
+    }
+    Ok(true)
+}
+
+/// Keep this run's weight windows and channel search for the next run on the same model.
+fn keep_for_later(dir: &Path, entry: &Path, windows_reused: bool) -> Result<(), DesignError> {
+    if !windows_reused {
+        for name in ["record.json", "filled.h5"] {
+            copy_file(
+                &dir.join("windows").join(name),
+                &entry.join("windows").join(name),
+            )?;
+        }
+    }
+    // The worker writes these only after a search of its own.
+    let plan = dir.join("aim").join("plan.json");
+    if plan.is_file() {
+        let block = dir.join("aim").join("windows-block.xml");
+        if block.is_file() {
+            copy_file(&block, &entry.join("aim").join("windows-block.xml"))?;
+        } else {
+            let _ = std::fs::remove_file(entry.join("aim").join("windows-block.xml"));
+        }
+        copy_file(&plan, &entry.join("aim").join("plan.json"))?;
+    }
+    Ok(())
+}
+
 /// The check report must describe this design file and a complete, passing import.
 fn accept_check_report(report: &ImportReport, design_sha256: &str) -> Result<(), DesignError> {
     if !report.design.sha256.eq_ignore_ascii_case(design_sha256) {
@@ -328,7 +560,7 @@ fn accept_check_report(report: &ImportReport, design_sha256: &str) -> Result<(),
     Ok(())
 }
 
-/// Run the fast-neutron flux response of a checked design to a target error.
+/// Run the flux response of a checked design to a target error.
 pub fn design_transport(
     design_path: &Path,
     tools: &ToolPaths,
@@ -385,18 +617,30 @@ pub fn design_transport(
         )));
     }
 
+    let chosen = choose_response(&design, options.group.as_deref())?;
     let response: Vec<(&str, f64)> = design
         .solids
         .iter()
-        .filter(|s| s.role == Some(Role::TfMagnet) && s.material_id.as_deref() != Some("void"))
+        .filter(|s| s.material_id.as_deref() != Some("void"))
+        .filter(|s| match &chosen.group_id {
+            Some(group) => s.replacement_group_id.as_deref() == Some(group.as_str()),
+            None => s.role == Some(Role::TfMagnet),
+        })
         .map(|s| (s.id.as_str(), s.fingerprint.cad_volume_m3))
         .collect();
     if response.is_empty() {
-        return Err(tool(
-            "the design has no solid with the role tf_magnet, so there is no magnet response to \
-             compute; give the TF coil solids that role in the design file",
-        ));
+        return Err(tool(match &chosen.group_id {
+            Some(group) => {
+                format!("the replacement group {group} has no solid that is not empty space")
+            }
+            None => {
+                "the design has no fluence limit and no solid with the role tf_magnet, so there \
+                     is no response to compute; add a fluence limit to a replacement group"
+                    .into()
+            }
+        }));
     }
+    refuse_unsupported_source(&design)?;
     let fusion_power_mw = design
         .plasma
         .fusion_power_mw
@@ -431,7 +675,7 @@ pub fn design_transport(
         "variance_reduction": if options.window_python.is_some() { "windows" } else { "none" },
         "response": {
             "solid_ids": response.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-            "energy_min_ev": FAST_NEUTRON_ENERGY_MIN_EV,
+            "energy_min_ev": chosen.energy_min_ev,
         },
         "sampling": {
             "target_relative_error": options.target_relative_error,
@@ -488,7 +732,10 @@ pub fn design_transport(
         if with_packages {
             environment.push(("PYTHONPATH".into(), python_path.clone()));
         }
-        match launch_python(
+        if let Some(progress) = &options.progress {
+            progress(TransportProgress::Step(name.to_string()));
+        }
+        match launch_python_with_lines(
             interpreter,
             arguments,
             &dir,
@@ -497,15 +744,35 @@ pub fn design_transport(
             &options.cancellation,
             environment,
             ResourceLimits::with_address_space(CAD_ADDRESS_SPACE),
+            &|line| {
+                if let (Some(progress), Some(update)) = (&options.progress, parse_progress(line)) {
+                    progress(update);
+                }
+            },
         )? {
             Launched::Succeeded(seconds) => Ok(seconds),
             Launched::Failed(text) => Err(tool(text)),
         }
     };
+    let entry = options.cache_dir.as_ref().map(|cache| {
+        cache.join(cache_key(
+            &request,
+            &conversion.h5m_sha256,
+            &cross_sections_sha256,
+            options.window_python.as_deref(),
+        ))
+    });
     let mut setup_seconds = 0.0;
+    let mut windows_reused = false;
     if let Some(window_python) = &options.window_python {
-        setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
-        setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
+        windows_reused = match &entry {
+            Some(entry) => restore_windows(entry, &dir)?,
+            None => false,
+        };
+        if !windows_reused {
+            setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
+            setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
+        }
     }
     phase(
         "run",
@@ -513,6 +780,11 @@ pub fn design_transport(
         true,
         Duration::from_secs(options.max_seconds) + STARTUP_ALLOWANCE,
     )?;
+    if let Some(entry) = &entry
+        && options.window_python.is_some()
+    {
+        keep_for_later(&dir, entry, windows_reused)?;
+    }
     let result_path = solver.join("result.json");
     let worker: WorkerResult = serde_json::from_slice(&read_bounded(&result_path)?)
         .map_err(|e| tool(format!("{}: {e}", result_path.display())))?;
@@ -537,6 +809,8 @@ pub fn design_transport(
             design: &design,
             history,
             setup_seconds,
+            windows_reused,
+            chosen: &chosen,
         },
     )
 }
@@ -553,6 +827,8 @@ struct Inputs<'a> {
     design: &'a Design,
     history: Result<PowerHistory, String>,
     setup_seconds: f64,
+    windows_reused: bool,
+    chosen: &'a ChosenResponse,
 }
 
 /// Check the worker's answer against the request and convert it to fluxes.
@@ -610,32 +886,43 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
     }
     let mut fluence_limits = Vec::new();
     let mut not_evaluated = Vec::new();
+    if inputs.windows_reused {
+        notices.push("The weight windows of an earlier run on this model were used.".into());
+    }
+    if worker.variance_reduction.aim_reused {
+        notices.push("The channel search of an earlier run on this model was used.".into());
+    }
     for group in &inputs.design.replacement_groups {
         for limit in &group.limits {
-            if limit.metric != Metric::FastNeutronFluence {
-                continue;
-            }
             let item = format!(
-                "{}: fast-neutron fluence against the limit of {:e} n/m²",
-                group.id, limit.limit
+                "{}: {} against the limit of {:e}",
+                group.id,
+                limit.metric.label(),
+                limit.limit
             );
-            if limit.energy_threshold_ev != Some(worker.energy_min_ev) {
+            let scored = inputs.chosen.group_id.as_deref() == Some(group.id.as_str())
+                && fluence_threshold(limit) == Some(worker.energy_min_ev);
+            if !scored {
+                let (why, next_step) = if fluence_threshold(limit).is_some() {
+                    (
+                        "This run scored another group or another energy threshold.",
+                        format!("Run again with --group {}.", group.id),
+                    )
+                } else {
+                    (
+                        "This command computes neutron fluence limits only.",
+                        "Not available from this command yet.".to_string(),
+                    )
+                };
                 not_evaluated.push(NotEvaluated {
                     item,
-                    why: "The limit counts neutrons above a different energy than this run scored."
-                        .into(),
-                    next_step: "Not available from this command yet.".into(),
+                    why: why.into(),
+                    next_step,
                 });
                 continue;
             }
             let worst = solids
                 .iter()
-                .filter(|flux| {
-                    inputs.design.solids.iter().any(|s| {
-                        s.id == flux.solid_id
-                            && s.replacement_group_id.as_deref() == Some(group.id.as_str())
-                    })
-                })
                 .max_by(|a, b| a.flux_n_m2_s.total_cmp(&b.flux_n_m2_s));
             match (worst, &inputs.history) {
                 (Some(worst), Ok(history)) => fluence_limits.push(FluenceLimit {
@@ -648,12 +935,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
                         history,
                     ),
                 }),
-                (None, _) => not_evaluated.push(NotEvaluated {
-                    item,
-                    why: "No solid of this group is a TF magnet, and this run scores only those."
-                        .into(),
-                    next_step: "Not available from this command yet.".into(),
-                }),
+                (None, _) => {}
                 (_, Err(problem)) => not_evaluated.push(NotEvaluated {
                     item,
                     why: problem.clone(),
@@ -672,6 +954,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         openmc: worker.openmc,
         run_directory: inputs.run_directory,
         energy_min_ev: worker.energy_min_ev,
+        response_group_id: inputs.chosen.group_id.clone(),
         source_rate_per_s: rate,
         fusion_power_mw: inputs.fusion_power_mw,
         histories: worker.histories,
@@ -688,6 +971,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         total_volume_m3,
         solids,
         setup_seconds: inputs.setup_seconds + worker.variance_reduction.aim_seconds,
+        windows_reused: inputs.windows_reused,
         variance_reduction: worker.variance_reduction,
         fluence_limits,
         notices,
@@ -705,15 +989,23 @@ fn percent(relative: Option<f64>) -> String {
 /// The report as text for the terminal.
 pub fn render_transport_text(report: &DesignTransportReport) -> String {
     let mut out = String::new();
+    let what = if report.energy_min_ev > 0.0 {
+        format!("Neutron flux above {} MeV", report.energy_min_ev / 1.0e6)
+    } else {
+        "Neutron flux at all energies".to_string()
+    };
+    let place = match &report.response_group_id {
+        Some(group) => format!("the group {group}"),
+        None => "the TF magnets".to_string(),
+    };
     let _ = writeln!(
         out,
-        "Fast-neutron flux (above {} MeV) in the TF magnets of {}",
-        report.energy_min_ev / 1.0e6,
+        "{what} in {place} of {}",
         report.design.id.as_deref().unwrap_or("the design")
     );
     let _ = writeln!(
         out,
-        "  Mean over {} coil solids: {:.3e} n/m²/s {}",
+        "  Mean over {} solids: {:.3e} n/m²/s {}",
         report.solids.len(),
         report.mean_flux_n_m2_s,
         percent(report.mean_relative_error)
@@ -725,7 +1017,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     {
         let _ = writeln!(
             out,
-            "  Highest coil: {} at {:.3e} n/m²/s {}",
+            "  Highest solid: {} at {:.3e} n/m²/s {}",
             highest.solid_id,
             highest.flux_n_m2_s,
             percent(highest.relative_error)
@@ -763,7 +1055,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         let a = &limit.assessment;
         let _ = writeln!(
             out,
-            "  Fluence limit of {} ({:e} n/m²), worst coil {}: {}",
+            "  Fluence limit of {} ({:e} n/m²), worst solid {}: {}",
             limit.group_id,
             a.limit_n_m2,
             limit.solid_id,
@@ -813,6 +1105,130 @@ mod tests {
     fn flux_conversion_has_the_right_units() {
         // 1 cm of track per source neutron in 1 m³ at 1e6 n/s: 1e6 cm/s in 1e6 cm³ = 1 /cm²/s.
         assert!((flux_n_m2_s(1.0, 1.0e6, 1.0) - 1.0e4).abs() < 1.0e-9);
+    }
+
+    fn design_with_groups(limits: &[(&str, &str, Option<f64>)]) -> Design {
+        let groups: Vec<serde_json::Value> = limits
+            .iter()
+            .map(|(id, metric, threshold)| {
+                serde_json::json!({
+                    "id": id, "label": id,
+                    "limits": [{
+                        "metric": metric, "energy_threshold_ev": threshold, "limit": 3.0e22,
+                        "averaging": {"kind": "group_average"},
+                        "provenance": {"label": "authored", "note": "test"},
+                    }],
+                    "replacement_duration": {"kind": "computed"},
+                })
+            })
+            .collect();
+        let text = include_str!("../../../../scenarios/rm-m/rm-m.faris-design.json");
+        let mut value: serde_json::Value = serde_json::from_str(text).unwrap();
+        value["replacement_groups"] = serde_json::Value::Array(groups);
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn other_sources_are_refused_not_replaced() {
+        let mut design = design_with_groups(&[("coils", "fast_neutron_fluence", Some(1.0e5))]);
+        assert!(refuse_unsupported_source(&design).is_ok());
+        design.plasma.fuel = Some([("D".to_string(), 1.0)].into_iter().collect());
+        assert!(
+            refuse_unsupported_source(&design)
+                .unwrap_err()
+                .to_string()
+                .contains("D-T")
+        );
+        design.plasma.fuel = Some(
+            [("D".to_string(), 0.5), ("T".to_string(), 0.5)]
+                .into_iter()
+                .collect(),
+        );
+        design.plasma.emissivity_table = Some(design::EmissivityTable {
+            path: "table.csv".into(),
+            sha256: "0".repeat(64),
+        });
+        assert!(
+            refuse_unsupported_source(&design)
+                .unwrap_err()
+                .to_string()
+                .contains("emissivity")
+        );
+    }
+
+    #[test]
+    fn the_only_fluence_limit_names_the_response() {
+        let design = design_with_groups(&[("coils", "fast_neutron_fluence", Some(1.0e5))]);
+        let chosen = choose_response(&design, None).unwrap();
+        assert_eq!(chosen.group_id.as_deref(), Some("coils"));
+        assert_eq!(chosen.energy_min_ev, 1.0e5);
+    }
+
+    #[test]
+    fn a_total_fluence_limit_scores_all_energies() {
+        let design = design_with_groups(&[("vessel", "neutron_fluence", None)]);
+        assert_eq!(choose_response(&design, None).unwrap().energy_min_ev, 0.0);
+    }
+
+    #[test]
+    fn several_limits_need_a_named_group() {
+        let design = design_with_groups(&[
+            ("coils", "fast_neutron_fluence", Some(1.0e5)),
+            ("vessel", "neutron_fluence", None),
+        ]);
+        let error = choose_response(&design, None).unwrap_err().to_string();
+        assert!(
+            error.contains("--group") && error.contains("coils, vessel"),
+            "{error}"
+        );
+        let chosen = choose_response(&design, Some("vessel")).unwrap();
+        assert_eq!(chosen.group_id.as_deref(), Some("vessel"));
+        assert!(choose_response(&design, Some("missing")).is_err());
+    }
+
+    #[test]
+    fn a_design_without_fluence_limits_falls_back_to_the_tf_magnets() {
+        let design = design_with_groups(&[("coils", "helium_appm", None)]);
+        let chosen = choose_response(&design, None).unwrap();
+        assert_eq!(chosen.group_id, None);
+        assert_eq!(chosen.energy_min_ev, FAST_NEUTRON_ENERGY_MIN_EV);
+    }
+
+    #[test]
+    fn the_cache_key_follows_the_model_and_the_response() {
+        let request = serde_json::json!({"solids": [1], "materials": [2], "chamber_solid_id": "p",
+            "response": {"solid_ids": ["a"], "energy_min_ev": 1.0e5}, "sampling": {"seed": 1}});
+        let mut other_seed = request.clone();
+        other_seed["sampling"]["seed"] = 2.into();
+        let mut other_response = request.clone();
+        other_response["response"]["energy_min_ev"] = 0.0.into();
+        let key = |r: &serde_json::Value, h: &str| cache_key(r, h, "x", None);
+        assert_eq!(key(&request, "h"), key(&other_seed, "h"));
+        assert_ne!(key(&request, "h"), key(&other_response, "h"));
+        assert_ne!(key(&request, "h"), key(&request, "h2"));
+    }
+
+    #[test]
+    fn progress_lines_are_recognised_and_other_output_is_ignored() {
+        let line = r#"{"progress": {"batches": 12, "histories": 240000, "relative_error": 0.21, "elapsed_seconds": 31.2}}"#;
+        assert_eq!(
+            parse_progress(line),
+            Some(TransportProgress::Sampling {
+                histories: 240_000,
+                relative_error: Some(0.21),
+                elapsed_seconds: 31.2
+            })
+        );
+        let first = r#"{"progress": {"batches": 1, "histories": 20000, "relative_error": null, "elapsed_seconds": 6.8}}"#;
+        assert!(matches!(
+            parse_progress(first),
+            Some(TransportProgress::Sampling {
+                relative_error: None,
+                ..
+            })
+        ));
+        assert_eq!(parse_progress(" Simulating batch 3"), None);
+        assert_eq!(parse_progress("{\"progress\": broken"), None);
     }
 
     #[test]

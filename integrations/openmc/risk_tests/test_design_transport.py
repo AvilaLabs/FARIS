@@ -136,12 +136,35 @@ class WindowHelpersTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             DT.library_entries(["tf-coil"], ["tf_coil", "tf.coil"])
 
-    def test_response_groups_start_at_the_threshold(self):
-        groups = DT.response_groups(DT.GROUP_EDGES_EV, 1.0e5)
-        self.assertEqual(groups[0], 1.0e5)
-        self.assertEqual(len(groups) - 1, 10)
+    def test_group_edges_gain_a_threshold_that_is_not_an_edge(self):
+        self.assertEqual(DT.group_edges(1.0e5), DT.GROUP_EDGES_EV)
+        edges = DT.group_edges(2.0e5)
+        self.assertEqual(len(edges), len(DT.GROUP_EDGES_EV) + 1)
+        self.assertEqual(edges, sorted(edges))
+        self.assertIn(2.0e5, edges)
+
+    def test_response_lines_cover_each_group_above_the_threshold(self):
+        lines = DT.response_lines(DT.group_edges(1.0e5), 1.0e5)
+        self.assertEqual(len(lines), 10)
+        self.assertAlmostEqual(lines[0], (1.0e5 * 5.0e5) ** 0.5)
+        everything = DT.response_lines(DT.group_edges(0.0), 0.0)
+        self.assertEqual(len(everything), 17)
+        self.assertAlmostEqual(everything[0], 0.029)
+        self.assertTrue(all(a < b for a, b in zip(everything, everything[1:])))
+
+    def test_window_block_is_replaced_whole(self):
+        xml = '<model><settings><weight_windows id="1"><a>1</a></weight_windows><x/></settings></model>'
+        block = DT.window_block(xml)
+        self.assertEqual(block, '<weight_windows id="1"><a>1</a></weight_windows>')
+        new = DT.with_window_block(xml, '<weight_windows id="1"><a>2</a></weight_windows>')
+        self.assertEqual(new, xml.replace("<a>1</a>", "<a>2</a>"))
+
+    def test_the_window_seeds_are_reserved(self):
+        import copy as c
+        request = c.deepcopy(REQUEST)
+        request["sampling"]["seed"] = DT.WINDOW_SEED
         with self.assertRaises(ValueError):
-            DT.response_groups(DT.GROUP_EDGES_EV, 2.0e5)
+            DT.validate_request(request)
 
     def test_window_grid_reproduces_the_research_mesh_on_the_reference_model(self):
         lower, upper, dimension = DT.window_grid([-645.0, -645.0, -381.0], [645.0, 645.0, 381.0])

@@ -15,6 +15,7 @@ that passed `faris design check`:
     plasma              the design file's plasma block (SI)
     chamber_solid_id    the solid the source sits in
     response            {solid_ids, energy_min_ev}: flux above the threshold in these solids
+                        (any solids that are not empty space; 0 for the flux at all energies)
     sampling            {target_relative_error, particles_per_batch, min_batches, max_batches,
                          max_seconds, seed, threads}
     variance_reduction  "none" or "windows"
@@ -62,8 +63,10 @@ FILLER_DENSITY_KG_M3 = 1.0
 SOURCE_ENERGY_EV = 14.06e6
 WINDOW_CELL_CM = 25.0
 MAX_SPLIT = 1000
-# The steps that make the windows never share a random stream with the run that uses them (NUC-053).
-MGXS_SEED_OFFSET, WINDOW_SEED_OFFSET = 1_000_003, 2_000_003
+# The steps that make the windows have their own fixed seeds, so that windows can be reused between runs; a run
+# may not use either seed, so it never shares a random stream with them (NUC-053).
+MGXS_SEED, WINDOW_SEED = 811_500_991, 811_500_993
+AIM_THRESHOLD_EV = 1.0e5     # the aiming helpers were built and measured for this threshold only
 # 17 groups, ten above 0.1 MeV (S0f pilot p1-fr).
 GROUP_EDGES_EV = [0.0, 0.058, 0.14, 0.28, 0.625, 4.0, 5530.0, 1.0e5, 5.0e5, 8.21e5, 1.353e6, 2.231e6, 3.679e6,
                   6.0655e6, 1.0e7, 1.3e7, 1.5e7, 2.0e7]
@@ -123,6 +126,7 @@ def validate_request(request: dict) -> None:
     need(2 <= sampling["min_batches"] <= sampling["max_batches"], "need 2 <= min_batches <= max_batches")
     need(sampling["max_seconds"] > 0.0, "max_seconds must be positive")
     need(1 <= sampling["threads"] <= 32, "threads must lie between 1 and 32")
+    need(sampling["seed"] not in (MGXS_SEED, WINDOW_SEED), "this seed is reserved for the weight-window steps")
     solids = {s["solid_id"]: s for s in request["solids"]}
     need(len(solids) == len(request["solids"]), "a solid is listed twice")
     volumes = [s["volume_id"] for s in request["solids"]]
@@ -193,11 +197,19 @@ def library_entries(names: list[str], stored: list[str]) -> dict[str, str]:
     return out
 
 
-def response_groups(edges_ev: list[float], energy_min_ev: float) -> list[float]:
-    """The group edges at and above the response threshold, which must be one of them."""
-    if energy_min_ev not in edges_ev:
-        raise ValueError(f"the response threshold {energy_min_ev:g} eV is not an edge of the group structure")
-    return edges_ev[edges_ev.index(energy_min_ev):]
+def group_edges(energy_min_ev: float) -> list[float]:
+    """The group structure for a response above `energy_min_ev`: the standard edges, with the threshold added
+    as an edge if it is not one already."""
+    if energy_min_ev in GROUP_EDGES_EV:
+        return list(GROUP_EDGES_EV)
+    return sorted(GROUP_EDGES_EV + [float(energy_min_ev)])
+
+
+def response_lines(edges_ev: list[float], energy_min_ev: float) -> list[float]:
+    """One energy per group at or above the threshold, for the adjoint source: the geometric midpoint of the
+    group, or the arithmetic one for a group that starts at zero. Random ray maps each to its group."""
+    edges = edges_ev[edges_ev.index(energy_min_ev):]
+    return [math.sqrt(a * b) if a > 0.0 else 0.5 * b for a, b in zip(edges, edges[1:])]
 
 
 def window_grid(lower: list[float], upper: list[float], cell_cm: float = WINDOW_CELL_CM) -> tuple[list[float], list[float], list[int]]:
@@ -354,26 +366,27 @@ def run_cli(directory: Path, threads: int, log_name: str) -> None:
 
 
 def phase_mgxs(request: dict, work: Path) -> dict:
-    """Condense the library to GROUP_EDGES_EV on the design's materials. Writes WORK/mgxs/mgxs.h5."""
+    """Condense the library to the response's group structure on the design's materials. Writes WORK/mgxs/mgxs.h5."""
     import openmc
     import openmc.mgxs
 
     directory = work / "mgxs"
     directory.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
+    edges = group_edges(float(request["response"]["energy_min_ev"]))
     geometry = geometry_copy(request, work / "geometry" / "model-rr.h5m", random_ray=True)
     model, _, _ = build_model(openmc, request, geometry, random_ray=True)
     model.settings.source = [point_source(openmc, request)]
     model.settings.batches = MGXS["batches"]
     model.settings.particles = MGXS["nparticles"]
-    model.settings.seed = int(request["sampling"]["seed"]) + MGXS_SEED_OFFSET
+    model.settings.seed = MGXS_SEED
     os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
     os.environ["OMP_NUM_THREADS"] = str(int(request["sampling"]["threads"]))
     target = directory / "mgxs.h5"
     here = os.getcwd()
     os.chdir(directory)
     try:
-        model.convert_to_multigroup(method=MGXS["method"], groups=openmc.mgxs.EnergyGroups(GROUP_EDGES_EV),
+        model.convert_to_multigroup(method=MGXS["method"], groups=openmc.mgxs.EnergyGroups(edges),
                                     nparticles=MGXS["nparticles"], overwrite_mgxs_library=False,
                                     mgxs_path=str(target), correction=MGXS["correction"])
     finally:
@@ -382,7 +395,7 @@ def phase_mgxs(request: dict, work: Path) -> dict:
         raise RuntimeError("the multigroup step wrote no library")
     discard(directory, keep={"mgxs.h5"})
     record = {"schema": "faris-design-mgxs/v1", "openmc": openmc.__version__, "parameters": MGXS,
-              "group_edges_ev": GROUP_EDGES_EV, "mgxs_sha256": sha256_file(target),
+              "group_edges_ev": edges, "mgxs_sha256": sha256_file(target),
               "elapsed_seconds": time.monotonic() - started}
     (directory / "record.json").write_text(json.dumps(record, indent=1) + "\n")
     return record
@@ -423,14 +436,15 @@ def phase_windows(request: dict, work: Path) -> dict:
     settings.source = [point_source(openmc, request)]
     settings.batches, settings.inactive = RANDOM_RAY["batches"], RANDOM_RAY["inactive"]
     settings.particles = RANDOM_RAY["rays"]
-    settings.seed = int(request["sampling"]["seed"]) + WINDOW_SEED_OFFSET
+    settings.seed = WINDOW_SEED
     settings.output = {"tallies": False, "summary": False}
     box = universe.bounding_box
     lower, upper, dimension = window_grid(list(box.lower_left), list(box.upper_right))
     mesh = openmc.RegularMesh(name="ww-mesh")
     mesh.lower_left, mesh.upper_right, mesh.dimension = lower, upper, dimension
-    groups = response_groups(GROUP_EDGES_EV, float(request["response"]["energy_min_ev"]))
-    lines = [math.sqrt(a * b) for a, b in zip(groups, groups[1:])]
+    threshold = float(request["response"]["energy_min_ev"])
+    edges = group_edges(threshold)
+    lines = response_lines(edges, threshold)
     # The response is the flux above the threshold: weight 1 in each group above it, uniform over its materials.
     adjoint = openmc.IndependentSource(
         energy=openmc.stats.Discrete(lines, [1.0 / len(lines)] * len(lines)), particle="neutron",
@@ -445,7 +459,7 @@ def phase_windows(request: dict, work: Path) -> dict:
         "adjoint_source": [adjoint],
     }
     settings.weight_window_generators = [openmc.WeightWindowGenerator(
-        mesh=mesh, energy_bounds=list(GROUP_EDGES_EV), particle_type="neutron", method="fw_cadis",
+        mesh=mesh, energy_bounds=list(edges), particle_type="neutron", method="fw_cadis",
         max_realizations=RANDOM_RAY["batches"] - RANDOM_RAY["inactive"])]
     model.export_to_model_xml(str(directory))
     run_cli(directory, threads, "openmc.log")
@@ -457,7 +471,7 @@ def phase_windows(request: dict, work: Path) -> dict:
     record = {"schema": "faris-design-windows/v1", "openmc": openmc.__version__, "parameters": RANDOM_RAY,
               "method": "CADIS: random-ray adjoint of the response, bins without a value filled from neighbours",
               "mesh": {"lower_left": lower, "upper_right": upper, "dimension": dimension},
-              "group_edges_ev": GROUP_EDGES_EV, "mgxs_sha256": sha256_file(library),
+              "group_edges_ev": edges, "mgxs_sha256": sha256_file(library),
               "weight_windows_sha256": sha256_file(files[0]), "filled_sha256": sha256_file(filled),
               "bins_filled_per_group": fill["bins_filled_per_group"],
               "elapsed_seconds": time.monotonic() - started}
@@ -476,25 +490,72 @@ def apply_windows(openmc, model, filled: Path) -> None:
     model.settings.weight_window_checkpoints = {"collision": True, "surface": True}
 
 
+WINDOW_BLOCK = ('<weight_windows id="%d">' % WINDOW_ID, "</weight_windows>")
+
+
+def window_block(xml: str) -> str:
+    """The weight-window element of a model file, as text."""
+    start = xml.index(WINDOW_BLOCK[0])
+    return xml[start:xml.index(WINDOW_BLOCK[1], start) + len(WINDOW_BLOCK[1])]
+
+
+def with_window_block(xml: str, block: str) -> str:
+    """`xml` with its weight-window element replaced by `block`."""
+    return xml.replace(window_block(xml), block, 1)
+
+
+def reuse_aim(model_xml: Path, work: Path, supported: bool) -> dict | None:
+    """A plan kept from an earlier run on the same geometry, materials, response and windows (WORK/aim-kept), if
+    it was made for the same kind of OpenMC build. An aimed plan's capped windows are put into this run's model."""
+    kept = work / "aim-kept"
+    if not (kept / "plan.json").is_file():
+        return None
+    plan = json.loads((kept / "plan.json").read_text())
+    if plan.get("library_supported") != supported:
+        return None
+    if plan["mode"] == "aimed":
+        aimed = work / "aim" / "model-aimed.xml"
+        aimed.parent.mkdir(parents=True, exist_ok=True)
+        aimed.write_text(with_window_block(model_xml.read_text(), (kept / "windows-block.xml").read_text()))
+        plan["model"] = str(aimed)
+    plan["reused"] = True
+    return plan
+
+
 def plan_aim(request: dict, model_xml: Path, work: Path, material_numbers: dict) -> dict:
-    """Ask streaming_aim.py whether this run can aim; always returns a plan with its reason and next step."""
+    """Ask streaming_aim.py whether this run can aim; always returns a plan with its reason and next step.
+    The plan and an aimed plan's capped windows are left in WORK/aim for the engine to keep."""
     import openmc.lib
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import streaming_aim
 
     library = Path(openmc.lib._dll._name)
+    supported = streaming_aim.aiming_supported(library)
     response = response_materials(request)
+    if float(request["response"]["energy_min_ev"]) != AIM_THRESHOLD_EV:
+        return streaming_aim.windows_only(
+            "Aiming is available for a response above 0.1 MeV only, and this response has another threshold.",
+            "Nothing to do: the weight windows apply as they are.")
     if len(response) != 1:
         return streaming_aim.windows_only(
             "The response solids are made of more than one material, and aiming handles one.",
             "Nothing to do: the weight windows apply as they are.")
+    kept = reuse_aim(model_xml, work, supported)
+    if kept is not None:
+        return kept
     try:
-        return streaming_aim.plan(model_xml, work / "aim", library, material_numbers[response[0]], keep_runs=False)
+        plan = streaming_aim.plan(model_xml, work / "aim", library, material_numbers[response[0]], keep_runs=False)
     except Exception as error:  # the search is an accelerator: its failure must not stop the run
         return streaming_aim.windows_only(
             f"The search for a streaming channel failed ({type(error).__name__}: {error}).",
             "Results are unaffected; the weight windows apply as they are.")
+    plan["library_supported"] = supported
+    plan["reused"] = False
+    (work / "aim" / "plan.json").write_text(json.dumps(plan, indent=1))
+    if plan["mode"] == "aimed":
+        (work / "aim" / "windows-block.xml").write_text(window_block(Path(plan["model"]).read_text()))
+    return plan
 
 
 def phase_run(request: dict, work: Path) -> dict:
@@ -519,8 +580,9 @@ def phase_run(request: dict, work: Path) -> dict:
     settings.particles = int(sampling["particles_per_batch"])
     settings.batches = int(sampling["max_batches"])
     settings.seed = int(sampling["seed"])
-    # A neutron below the threshold cannot score and is not followed.
-    settings.cutoff = {"energy_neutron": float(response["energy_min_ev"])}
+    if float(response["energy_min_ev"]) > 0.0:
+        # A neutron below the threshold cannot score and is not followed.
+        settings.cutoff = {"energy_neutron": float(response["energy_min_ev"])}
     settings.output = {"tallies": False, "summary": False}
     settings.sourcepoint = {"write": False}
     settings.statepoint = {"batches": []}
@@ -624,6 +686,7 @@ def phase_run(request: dict, work: Path) -> dict:
             "targets": [t["name"] for t in mode.get("targets", [])],
             "windows_sha256": windows_record["filled_sha256"] if windows_record else None,
             "aim_seconds": aim_seconds,
+            "aim_reused": bool(mode.get("reused", False)),
         },
         "why": None,
         "next_step": None,

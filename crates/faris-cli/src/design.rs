@@ -109,8 +109,9 @@ pub enum DesignCommand {
         #[command(flatten)]
         tools: ToolArguments,
     },
-    /// Compute the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
-    /// `design check`, running until the mean over the coils reaches the target error.
+    /// Compute the neutron flux in the solids a fluence limit of the design applies to (the TF
+    /// magnets, above 0.1 MeV, when it has none), for a design that passed `design check`,
+    /// running until the mean over those solids reaches the target error.
     /// Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error.
     Transport {
         design: PathBuf,
@@ -148,6 +149,17 @@ pub enum DesignCommand {
         /// as a build with the aiming patch.
         #[arg(long, value_name = "DIR")]
         openmc_package_path: Option<PathBuf>,
+        /// The replacement group whose fluence limit names the solids and the energy threshold
+        /// to score [default: the only group with a fluence limit].
+        #[arg(long, value_name = "ID")]
+        group: Option<String>,
+        /// Where weight windows and the channel search are kept, so that a later run on the same
+        /// model starts sampling at once [default: `faris-transport-cache` beside the design file].
+        #[arg(long, value_name = "DIR")]
+        cache_dir: Option<PathBuf>,
+        /// Keep nothing between runs and reuse nothing.
+        #[arg(long, conflicts_with = "cache_dir")]
+        no_cache: bool,
         #[command(flatten)]
         tools: ToolArguments,
     },
@@ -257,6 +269,9 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             threads,
             window_python,
             openmc_package_path,
+            group,
+            cache_dir,
+            no_cache,
             tools,
         } => {
             let interrupts = crate::control::interrupt_cancellation()?;
@@ -275,6 +290,16 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 threads,
                 window_python,
                 openmc_package_path,
+                group,
+                cache_dir: (!no_cache).then(|| {
+                    cache_dir.unwrap_or_else(|| {
+                        design
+                            .parent()
+                            .unwrap_or(Path::new("."))
+                            .join("faris-transport-cache")
+                    })
+                }),
+                progress: Some(transport_progress_printer()),
                 cancellation,
             };
             let result = design_transport(&design, &tools.paths(), &options)?;
@@ -306,6 +331,32 @@ fn progress_printer() -> faris_engine::design::ProgressFn {
             eprintln!("  {stage}: {done} of {total}");
             *state = (stage.to_string(), Instant::now());
         }
+    })
+}
+
+/// Progress lines on standard error: each step as it starts, and the error reached while sampling.
+fn transport_progress_printer() -> faris_engine::design::TransportProgressFn {
+    use faris_engine::design::TransportProgress;
+    std::sync::Arc::new(|update: TransportProgress| match update {
+        TransportProgress::Step(name) => eprintln!(
+            "  {}",
+            match name.as_str() {
+                "mgxs" => "preparing weight windows: condensing the nuclear data",
+                "windows" => "preparing weight windows: solving for where neutrons matter",
+                _ => "starting the run",
+            }
+        ),
+        TransportProgress::Sampling {
+            histories,
+            relative_error,
+            elapsed_seconds,
+        } => match relative_error {
+            Some(error) => eprintln!(
+                "  {histories} histories, {elapsed_seconds:.0} s: error {:.1} %",
+                100.0 * error
+            ),
+            None => eprintln!("  {histories} histories, {elapsed_seconds:.0} s"),
+        },
     })
 }
 

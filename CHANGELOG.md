@@ -20,6 +20,12 @@ basis.
   - The worst coil's flux is compared with the design's fluence limit over the linked operating history: years
     to the limit, and a status of WITHIN, EXCEEDED or INCONCLUSIVE. This uses each coil's average flux, not the peak inside
     a coil.
+  - The solids and the energy threshold come from the design's fluence limit (`--group` when several groups
+    have one), so the response is not fixed to the TF magnets above 0.1 MeV.
+  - Weight windows and the channel search are kept between runs on the same model (`--cache-dir`, `--no-cache`),
+    and progress is printed while the run samples.
+  - A design that gives an emissivity table or a fuel other than D-T is refused; it is never run with the
+    tokamak D-T source in its place.
 - A second local nuclear-data library, built by `scripts/build_nuclear_data_v2.py`: all FENDL-3.2 neutron
   nuclides, ENDF/B-VII.1 photon data for every element in them, and ENDF/B-VIII.1 thermal-scattering tables for
   fusion materials, with a provenance record and an audit of the new `fusion-materials-v1` nuclide set

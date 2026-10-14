@@ -8,7 +8,7 @@
 //! (conversion, DAGMC binding, integrity, source sites) live in `geometry`;
 //! the exact-arithmetic integrity checks are FARIS's own Rust. Nothing is repaired.
 
-use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
+use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job_with_lines};
 use faris_model::design::{
     self, CENTROID_TOLERANCE, Cad, CatalogMaterial, Component, DESIGN_VERSION, Design,
     DesignMaterial, Extent, Finding, Fingerprint, LengthUnit, Notice, OperatingScenarioLink,
@@ -60,7 +60,8 @@ pub use life::{
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
 pub use transport::{
     DesignTransportOptions, DesignTransportReport, FluenceLimit, NotEvaluated, SolidFlux,
-    VarianceReduction, design_transport, flux_n_m2_s, render_transport_text,
+    TransportProgress, TransportProgressFn, VarianceReduction, design_transport, flux_n_m2_s,
+    render_transport_text,
 };
 
 pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
@@ -381,6 +382,33 @@ fn launch_python(
     environment: Vec<(OsString, OsString)>,
     limits: ResourceLimits,
 ) -> Result<Launched, DesignError> {
+    launch_python_with_lines(
+        python,
+        arguments,
+        scratch,
+        timeout,
+        what,
+        cancellation,
+        environment,
+        limits,
+        &|_| {},
+    )
+}
+
+/// As [`launch_python`], handing each line of the helper's standard output to `on_line` as it
+/// is printed (on the thread that reads the output).
+#[allow(clippy::too_many_arguments)]
+fn launch_python_with_lines(
+    python: &Path,
+    arguments: Vec<OsString>,
+    scratch: &Path,
+    timeout: Duration,
+    what: &str,
+    cancellation: &Cancellation,
+    environment: Vec<(OsString, OsString)>,
+    limits: ResourceLimits,
+    on_line: &(dyn Fn(&str) + Sync),
+) -> Result<Launched, DesignError> {
     // Not canonicalised: a virtual environment's python is a symlink, and the
     // interpreter finds its packages from the path it was started by.
     let python = std::path::absolute(python)
@@ -405,8 +433,8 @@ fn launch_python(
         artifact_roots: Vec::new(),
         resource_limits: limits,
     };
-    let result =
-        run_job(&spec, cancellation).map_err(|e| DesignError::Tool(format!("{what}: {e}")))?;
+    let result = run_job_with_lines(&spec, cancellation, on_line)
+        .map_err(|e| DesignError::Tool(format!("{what}: {e}")))?;
     match result.execution_status {
         ExecutionStatus::Succeeded => Ok(Launched::Succeeded(result.elapsed_seconds)),
         ExecutionStatus::Cancelled => Err(DesignError::Tool(format!("{what}: cancelled"))),
