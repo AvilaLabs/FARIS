@@ -112,3 +112,26 @@ or gives a wrong answer silently, and whether a workaround exists).
     `max_history_splits`.
   - Fix: set `wgt_ww_born` at the first valid window (a few lines), or have the generator never write −1 inside its
     energy range.
+
+# FARIS's own defect log
+
+Defects in FARIS itself are kept in [`faris-defects.json`](faris-defects.json), separate from the upstream drafts above
+(QA-080). It is the file the release gate reads with `--defects` (QA-083), and `python3 scripts/defect_log.py` lints it
+in CI. Each entry has an id (`FARIS-NNN`), title, severity, status, the date found, the affected versions, a
+disposition, and the test that now prevents recurrence; a fixed entry also names where it was fixed (`fixed_in`).
+
+| Severity | Meaning |
+| --- | --- |
+| S1 | A wrong physics answer without warning. |
+| S2 | A wrong answer with a warning, or the loss of user work or data. |
+| S3 | A function fails or misleads, but the user is told or a workaround exists. |
+| S4 | Cosmetic. |
+
+Status is `open`, `fixed` or `wont-fix`. `affected_versions` lists the released versions (`0.2.0`) that had the defect,
+or `["unreleased"]` when it was fixed before any release carried it. `regression_test` is `path::test_name` for a
+fixed entry (the lint checks that the file exists and contains the name), and the reason for a `wont-fix` entry. An open
+S1 blocks a release; an open S2 needs a waiver with owner, reason and an expiry within 90 days (see
+`docs/RELEASING.md`).
+
+The log is filled from the commit history and the changelog. Where the date a defect was first seen is not recorded,
+`found` is the date of the commit that fixed it. A fix that has no test is not recorded as fixed until one is written.

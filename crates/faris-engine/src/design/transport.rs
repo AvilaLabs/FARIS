@@ -1738,6 +1738,31 @@ mod tests {
         assert!(years_band(None, None).contains("no error band"));
     }
 
+    #[test]
+    fn the_leading_piece_is_the_one_the_run_tracks_not_the_noisiest() {
+        let solid = |id: &str, flux: f64, error: f64| SolidFlux {
+            solid_id: id.into(),
+            volume_m3: 1.0,
+            flux_n_m2_s: flux,
+            relative_error: Some(0.01),
+            peak: Some(PeakFlux {
+                r_m: [1.0, 1.1],
+                z_m: [0.0, 0.1],
+                volume_m3: 0.004,
+                flux_n_m2_s: flux,
+                relative_error: Some(error),
+                pieces_ranked: 5,
+            }),
+        };
+        // A piece with a higher flux but a 60 % error is not resolved above the steadier one.
+        let solids = [solid("noisy", 10.0, 0.6), solid("steady", 8.0, 0.05)];
+        assert_eq!(leading_peak(&solids).unwrap().0.solid_id, "steady");
+        // With nothing resolved above zero, the highest flux leads.
+        let solids = [solid("noisy", 10.0, 0.6), solid("noisier", 8.0, 0.7)];
+        assert_eq!(leading_peak(&solids).unwrap().0.solid_id, "noisy");
+        assert!(leading_peak(&[]).is_none());
+    }
+
     fn sample_report() -> DesignTransportReport {
         let history = PowerHistory {
             calendar_seconds: 20.0 * SECONDS_PER_YEAR,

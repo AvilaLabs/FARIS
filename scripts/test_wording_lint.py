@@ -128,6 +128,13 @@ fn b() { "after" }
         findings = lint.lint_text("m.md", units, TERMS)
         self.assertEqual([(f.line, f.rule) for f in findings], [(4, "LEG-041")])
 
+    def test_aiming_wording_does_not_claim_a_straight_channel(self):
+        # FARIS-005: the aiming also fires for a bent duct, so no user-facing text may call it a straight channel.
+        root = Path(__file__).resolve().parent.parent
+        for name in ("crates/faris-app/src/design_transport_run.rs", "docs/guide/cli.md",
+                     "integrations/openmc/design_transport.py", "integrations/openmc/streaming_aim.py"):
+            self.assertNotIn("straight channel", (root / name).read_text(encoding="utf-8"), name)
+
     def test_repository_is_clean(self):
         self.assertEqual([f.render() for f in lint.run()], [])
 

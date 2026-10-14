@@ -17,7 +17,7 @@ condition passes. It uses only the Python standard library.
 | Wording lint is clean | `scripts/wording_lint.py` |
 | All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them (fuzz: `scripts/fuzz_all.sh 3600`, see `docs/FUZZING.md`) |
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
-| 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log |
+| 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
 
 A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,
 empty, not valid JSON or for another commit. Nothing passes by default. The formats are in the script's header.
@@ -27,7 +27,7 @@ At release time:
 ```sh
 python3 -m validation report --out vv --release-record release-record.json
 python3 scripts/release_gate.py --vv-report vv --release-record release-record.json \
-    --tests tests.json --perf perf.json --defects defects.json --fuzz fuzz.json \
+    --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
     --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
 ```
 

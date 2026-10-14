@@ -1,0 +1,111 @@
+{
+  "schema_version": "faris-defect-log/v0.1",
+  "defects": [
+    {
+      "id": "FARIS-001",
+      "title": "Tritium release windows closed inconsistently at late times, creating mass",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-10-05",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "542dcb3",
+      "disposition": "The release-rate lookup and the step bound rounded differently near 1.3e8 s, so a window could stay open one step too long and the in-process clamp then created 7.4e-4 kg of tritium in one ensemble draw. All three comparisons now use the same form, and a history regression test runs the failing draw.",
+      "regression_test": "crates/faris-engine/src/history.rs::release_window_closes_at_the_step_bound_despite_rounding"
+    },
+    {
+      "id": "FARIS-002",
+      "title": "Verifier refused every recorded package that carried a sweep",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-10-05",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "706a801",
+      "disposition": "The package index records the sweep scenario digest bare but the verifier compared it with a prefixed file digest, so it refused real packages with an error. It now compares the bare form, and the test fixture uses the form the packager writes.",
+      "regression_test": "scripts/test_verify_recorded_demo.py::test_sweep_scenario_identity_is_bare_and_still_checked"
+    },
+    {
+      "id": "FARIS-003",
+      "title": "OKTAVIAN-Al validation runner scored the wrong tally values",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-10-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "de12df4",
+      "disposition": "The runner compared a per-cell partial tally without summing over cells and read the neutron detector one bin off, so the calculation-to-experiment ratios it printed were wrong with no warning. It now sums the partial tally over cells, scores the net current and reads bin j for upper edge j; the case had not been published.",
+      "regression_test": "validation/test_oktavian_runner.py::test_bin_indices_follow_the_tally_edges"
+    },
+    {
+      "id": "FARIS-004",
+      "title": "The reported highest piece was the noisiest, not the one the run tracked",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-10-13",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "67340b7",
+      "disposition": "The report ranked pieces by raw flux, while the worker ranks them by flux less two standard errors, so a poorly resolved piece could be shown as the highest and judged against the limit. The report now uses the same ranking (leading_peak); the result stays on the unfavourable side and is no longer inconsistent with the run's own stopping rule.",
+      "regression_test": "crates/faris-engine/src/design/transport.rs::the_leading_piece_is_the_one_the_run_tracks_not_the_noisiest"
+    },
+    {
+      "id": "FARIS-005",
+      "title": "The aiming reason claimed a straight channel from the plasma to the magnets",
+      "severity": "S4",
+      "status": "fixed",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "c3251c6",
+      "disposition": "The aiming step also fires for a bent duct that neutrons cross without a collision, so \"straight channel\" in the reason, the tool description and the handbook was wrong. All three now describe a duct that neutrons cross without a collision.",
+      "regression_test": "scripts/test_wording_lint.py::test_aiming_wording_does_not_claim_a_straight_channel"
+    },
+    {
+      "id": "FARIS-006",
+      "title": "The job artifact scanner stopped counting at the cap, so growth was unmeasurable",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "9a93ef6",
+      "disposition": "The scanner returned as soon as a total passed its limit, and the limits counted files already in the job's folders, so a large machine's transport run was refused for what earlier steps had left. The scanner now counts totals fully and the limits apply to growth from the start of the job.",
+      "regression_test": "crates/faris-engine/src/jobs.rs::files_already_in_the_roots_do_not_count_against_the_total"
+    },
+    {
+      "id": "FARIS-007",
+      "title": "Large models' weight windows written into model.xml exceeded the 256 MiB file limit",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "9a93ef6",
+      "disposition": "A machine 1.8 times the reference size has 475,695 voxels and 17 groups of window bounds; as text in the model file they passed the job runner's single-file limit and the run died with \"File too large\". The windows now go to an HDF5 file named by relative path, and results are unchanged for a given seed.",
+      "regression_test": "integrations/openmc/risk_tests/test_windows_file.py::test_the_model_file_holds_no_bounds_and_the_run_file_carries_the_ids"
+    },
+    {
+      "id": "FARIS-008",
+      "title": "faris doctor said transport and Core execution were not implemented",
+      "severity": "S4",
+      "status": "fixed",
+      "found": "2026-10-14",
+      "affected_versions": [
+        "0.1.0",
+        "0.1.1",
+        "0.2.0"
+      ],
+      "fixed_in": "33de1a3",
+      "disposition": "The doctor note was left from before those commands existed and told users the tools could not run. It now names the commands that run tools and says the desktop app's Find tools searches environments as well as PATH.",
+      "regression_test": "crates/faris-cli/tests/doctor.rs::the_note_names_the_commands_that_run_tools_and_no_longer_says_not_implemented"
+    }
+  ]
+}
