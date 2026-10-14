@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Simulate: transport results
 
 Press 2 to open the Simulate step.

@@ -34,6 +34,8 @@
 - [Reading the numbers](results.md)
 - [Method](method.md)
 - [Scope and limits](scope.md)
+- [Known limitations](limitations.md)
+- [External tools and their licences](external-tools.md)
 - [Troubleshooting](troubleshooting.md)
 
 # About

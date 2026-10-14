@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Does stopping at the target error bias the answer?
 
 `faris design transport` stops at the first batch where the relative standard error of the response is at or

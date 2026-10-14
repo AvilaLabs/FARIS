@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Fuzzing the parsers
 
 Requirement QA-033: every parser that reads bytes or text from outside FARIS has a fuzz target, each

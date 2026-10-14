@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Cold-data ARC-inspired transport reference
 
 **Scope:** executable OpenMC fixed-source numerical reference for checking FARIS

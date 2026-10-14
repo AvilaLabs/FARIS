@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Where FARIS is going
 
 0.2 added [computed maintenance durations](maintenance.md): replacement outages worked out from the decay heat of

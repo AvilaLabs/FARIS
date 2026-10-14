@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # FARIS functional demo roadmap
 
 Status: scoped functional/numerical demo complete on the named Linux workstation,

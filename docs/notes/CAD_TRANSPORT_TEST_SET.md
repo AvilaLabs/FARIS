@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # CAD transport on the four-model test set (2026-10-13/14)
 
 What happened when four machines other than RM-M went through `faris design check` and

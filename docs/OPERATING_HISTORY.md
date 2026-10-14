@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Operating-history ledger and controls
 
 FARIS operating history is a deterministic, conditional ledger driven by one identified fixed-source transport result. It is not a reactor qualification or a prediction. The calculation keeps opening available and in-process tritium, breeder-only H3 production, D-T burn, imports, in-process inventory, process loss, and radioactive decay in one site balance. Only the blanket H3-production response contributes breeder production. Heating, flux, component exposure, transport uncertainty, and assumptions retain their response identities and units.

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Scope and limits
 
 FARIS 0.2.0 is research-screening software and a deliberately narrow demo. Its results are not a licensing, safety or design basis. Nothing in FARIS is a licence, safety, certification or validation claim.

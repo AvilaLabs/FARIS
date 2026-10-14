@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Command line
 
 The package holds two programs: `faris-app`, the desktop, and `faris`, the command line. The `faris` command needs no graphics, Python, OpenMC or Avila Core, except for the commands marked below. Run `faris --version` to check the version and `faris COMMAND --help` for every flag of a command.

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Computed maintenance durations
 
 > **New in FARIS 0.2.** The download includes a recorded result for the four demo arrangements: open

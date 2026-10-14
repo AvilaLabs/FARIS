@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Nuclear-data library v2
 
 FARIS has two local, Git-ignored nuclear-data libraries. The first,

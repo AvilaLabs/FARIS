@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # DOUBLEDOWN-001: the intersection callback reads one buffer as two struct types whose `hit` offsets agree only through tail-padding reuse
 
 Status: drafted, not reported. Verification and significance: see [README.md](README.md). Found by the Windows native

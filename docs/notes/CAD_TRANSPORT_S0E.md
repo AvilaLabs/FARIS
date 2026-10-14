@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Energy cut-off, a build-aligned mesh and a per-region breakdown on RM-M (stage S0e)
 
 Status: protocol frozen 2026-10-11, before any S0e run. Results are appended in a section below; this protocol is never

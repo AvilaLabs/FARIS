@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Independent numerical controls
 
 Status: the analytic control and OpenMC 0.15.3 execution path are implemented.

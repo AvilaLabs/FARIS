@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Export a brief, tables and charts
 
 An export is a folder a colleague can read without FARIS. The `.faris` file stays the source of truth, and the export names its SHA-256 when the study has been saved.

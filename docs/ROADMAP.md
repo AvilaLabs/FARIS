@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # FARIS project roadmap
 
 This roadmap covers the long-term FARIS project. The focused first demo has its

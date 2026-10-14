@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # FARIS user guide
 
 This guide is for release 0.1.1 of the FARIS desktop app and command line. It assumes you know neutronics and plant engineering. It does not assume you know this tool.

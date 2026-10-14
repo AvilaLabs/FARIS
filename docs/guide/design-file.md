@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # The design file (bring your own CAD)
 
 > **Available from the next FARIS release.** FARIS 0.2.0 does not include this. The format and the checks

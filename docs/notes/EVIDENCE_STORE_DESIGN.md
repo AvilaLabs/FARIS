@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Core evidence in one content-addressed store
 
 Status: decided 2026-10-08. Implements Avila Core ADR-0028

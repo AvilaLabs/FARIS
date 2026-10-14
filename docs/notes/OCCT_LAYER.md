@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Native CAD layer, first slice (OpenCASCADE behind a C++ shim)
 
 Status: built and measured 2026-10-11 on branch `occt-layer`; wired into `faris design check` the same day on branch `occt-wire`. Design:

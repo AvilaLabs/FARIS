@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Scientific tools and integration roles
 
 FARIS can use the wider open-source ecosystem. This table is a shortlist, not

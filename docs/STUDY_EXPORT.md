@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Study export
 
 The export is the human-readable deliverable of a study: a folder a colleague

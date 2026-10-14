@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Next FARIS release: plan
 
 Status: approved 2026-10-09. The version number is decided at release.

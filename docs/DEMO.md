@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # First demo: blanket, shielding, and plant life
 
 The question is: **within one compact D-T tokamak's fixed radial envelope, how

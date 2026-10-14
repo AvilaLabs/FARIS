@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Avila Labs account (optional)
 
 The desktop app has an optional Avila Labs account. Every part of FARIS works fully without one. FARIS has no feature that needs an account.
@@ -23,3 +24,7 @@ The token is saved in `credentials.json` (mode 0600), in the folder named by `AV
 The app sends the service a sign-in request with the app name, the token during sign-in, and afterwards the token to check your account status about once a minute. Nothing from your FARIS work is sent: no inputs, results or files. The account service's [privacy notice](https://api.avilalabs.org/privacy) has the details.
 
 The roadmap plans to move token storage into the operating system's credential store where one exists, with an owner-only file as the fallback.
+
+## Privacy
+
+FARIS itself collects nothing about you. It makes no network request unless you sign in or ask for something that needs the network, and it sends no usage data, inputs, results or files. The only personal data in the whole product is what the optional account holds: your email address and a sign-in token. The account service's [privacy notice](https://api.avilalabs.org/privacy) lists what it keeps, why, where and for how long. Read it before you sign in.

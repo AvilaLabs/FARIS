@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Photon data acquisition and local assembly
 
 FARIS uses photoatomic interaction and atomic-relaxation records from the

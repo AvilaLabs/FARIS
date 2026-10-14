@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Result: does physics-derived maintenance time change the answers?
 
 Recorded 2026-10-06. Protocol: `docs/notes/MAINTENANCE_COUPLING_TEST.md` (body SHA-256

@@ -1,3 +1,4 @@
+<!-- kind: tutorial -->
 # FARIS functional demo walkthrough
 
 This walkthrough is for the identified local FARIS workspace. It uses a cold-data

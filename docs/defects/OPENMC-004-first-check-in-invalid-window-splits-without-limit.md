@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # OPENMC-004: a particle whose first weight-window check falls in an invalid bin is scaled as if born in a window of 1.0, and splits up to `max_history_splits`
 
 Status: drafted, not reported. Verification and significance: see [README.md](README.md). Found by S0e's E2′ stall and

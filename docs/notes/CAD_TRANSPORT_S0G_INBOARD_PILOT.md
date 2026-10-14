@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # S0g pilot: the inboard-leg response (NUC-050)
 
 Date: 2026-10-13. A pilot, not a protocol: single runs, one seed, no frozen rule. It sizes the measurement that

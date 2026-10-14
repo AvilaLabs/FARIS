@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Design: the plant in 3D
 
 Press 1 to open the Design step.

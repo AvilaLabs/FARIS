@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # CAD transport diagnostics (stage S0b)
 
 Status: protocol frozen 2026-10-10, before any S0b run. Results are appended in a

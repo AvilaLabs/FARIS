@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # FARIS
 
 **Fusion Analysis and Reactor Integration Simulator, by Avila Labs.**
@@ -407,6 +408,10 @@ development artifacts, not simulation evidence.
 | `docs/MATERIAL_BASELINE.md` | Primary-source material candidates and inputs that still need resolution |
 | `docs/STUDY_FILE.md` | The `.faris` study file: container, size policy, reading rules |
 | `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
+| `docs/FILE_FORMATS.md` | Every file format named in the code, where it is described, and which are not yet |
+| `docs/MODEL_PAGES.md` | Index of the model descriptions (theory manual) and the models with no page |
+| `docs/UI_INVENTORY.md` | The app's windows and steps, their handbook pages and screenshots |
+| `docs/NOTICE_COVERAGE.md` | Dependency notices on other platforms and where each licence text comes from |
 | `controls/` | Independent analytic controls and external OpenMC numerical checks |
 | `references/` | Identified scientific sources and read-only tool/data audits |
 | `integrations/` | Scientific adapters, Core template and integration documentation |

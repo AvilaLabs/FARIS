@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Architecture
 
 FARIS owns scenario semantics and the coupled research question. Existing

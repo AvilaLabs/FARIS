@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Validation harness
 
 The harness in `validation/` scores FARIS runs against reference data and writes

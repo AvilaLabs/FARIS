@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # M1 material baseline
 
 **Status:** recommended candidate inputs for implementation; not a qualified
