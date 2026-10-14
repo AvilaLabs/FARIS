@@ -1726,6 +1726,218 @@ mod tests {
         assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
     }
 
+    // Verifies: NUC-001
+    #[test]
+    fn adapter_artifacts_are_strictly_typed_at_the_boundary() {
+        let (request, artifact, scenario) = fixture(VolumeUnit::CubicMetre);
+        let bytes = serde_json::to_vec(&artifact).unwrap();
+        let parsed = TransportArtifact::from_bytes(&bytes).unwrap();
+        assert_eq!(parsed, artifact);
+        assert!(normalize_transport_artifact(&request, &parsed, &scenario).is_ok());
+        // An unknown field at any level, an unknown unit or estimator name, a missing field and
+        // a wrong type are all refused at parse time, before any number is used.
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let mut faults: Vec<(&str, serde_json::Value)> = Vec::new();
+        for (name, pointer, replacement) in [
+            (
+                "unknown top-level field",
+                "/extra",
+                Some(serde_json::json!(1)),
+            ),
+            (
+                "unknown tally field",
+                "/tallies/0/extra",
+                Some(serde_json::json!(1)),
+            ),
+            (
+                "unknown solver field",
+                "/solver/extra",
+                Some(serde_json::json!(1)),
+            ),
+            (
+                "unknown unit",
+                "/tallies/0/unit",
+                Some(serde_json::json!("barns")),
+            ),
+            (
+                "unknown estimator",
+                "/tallies/0/estimator",
+                Some(serde_json::json!("magic")),
+            ),
+            (
+                "string for a number",
+                "/tallies/0/mean",
+                Some(serde_json::json!("2.0")),
+            ),
+            (
+                "negative histories",
+                "/histories",
+                Some(serde_json::json!(-1)),
+            ),
+            ("missing tallies", "/tallies", None),
+            ("missing solver", "/solver", None),
+        ] {
+            let mut v = value.clone();
+            match replacement {
+                Some(r) if v.pointer(pointer).is_some() => *v.pointer_mut(pointer).unwrap() = r,
+                Some(r) => {
+                    let (parent, key) = pointer.rsplit_once('/').unwrap();
+                    let target = if parent.is_empty() {
+                        &mut v
+                    } else {
+                        v.pointer_mut(parent).unwrap()
+                    };
+                    target.as_object_mut().unwrap().insert(key.into(), r);
+                }
+                None => {
+                    let (parent, key) = pointer.rsplit_once('/').unwrap();
+                    let target = if parent.is_empty() {
+                        &mut v
+                    } else {
+                        v.pointer_mut(parent).unwrap()
+                    };
+                    target.as_object_mut().unwrap().remove(key);
+                }
+            }
+            faults.push((name, v));
+        }
+        for (name, v) in faults {
+            assert!(
+                TransportArtifact::from_bytes(&serde_json::to_vec(&v).unwrap()).is_err(),
+                "{name} was accepted"
+            );
+        }
+        // The size bound applies before parsing.
+        let oversize = vec![b' '; MAX_TRANSPORT_ARTIFACT_BYTES + 1];
+        assert!(TransportArtifact::from_bytes(&oversize).is_err());
+    }
+
+    // Verifies: NUC-004
+    #[test]
+    fn every_injected_artifact_fault_is_refused_with_a_reason() {
+        type Fault = (&'static str, Box<dyn Fn(&mut TransportArtifact)>);
+        let faults: Vec<Fault> = vec![
+            ("no histories", Box::new(|a| a.histories = 0)),
+            ("missing tally", Box::new(|a| a.tallies.clear())),
+            (
+                "duplicate tally",
+                Box::new(|a| a.tallies.push(a.tallies[0].clone())),
+            ),
+            (
+                "tally for an unrequested response",
+                Box::new(|a| a.tallies[0].response_id = "other".into()),
+            ),
+            (
+                "not-a-number mean",
+                Box::new(|a| a.tallies[0].mean = f64::NAN),
+            ),
+            (
+                "infinite mean",
+                Box::new(|a| a.tallies[0].mean = f64::INFINITY),
+            ),
+            (
+                "negative standard error",
+                Box::new(|a| a.tallies[0].standard_error = -0.1),
+            ),
+            (
+                "not-a-number standard error",
+                Box::new(|a| a.tallies[0].standard_error = f64::NAN),
+            ),
+            (
+                "unit of another score",
+                Box::new(|a| a.tallies[0].unit = RawTallyUnit::CmPerSource),
+            ),
+            ("missing volume", Box::new(|a| a.volumes.clear())),
+            ("zero volume", Box::new(|a| a.volumes[0].value = 0.0)),
+            (
+                "negative volume error",
+                Box::new(|a| a.volumes[0].standard_error = -1.0),
+            ),
+            (
+                "wrong binding: other scenario",
+                Box::new(|a| a.request.scenario_sha256 = "0".repeat(64)),
+            ),
+            (
+                "wrong binding: other variant",
+                Box::new(|a| a.request.variant_id = "other".into()),
+            ),
+            (
+                "wrong binding: other source",
+                Box::new(|a| a.request.fusion_power_mw += 1.0),
+            ),
+            (
+                "wrong binding: other definitions",
+                Box::new(|a| a.request.responses[0].id = "renamed".into()),
+            ),
+            (
+                "unsupported schema",
+                Box::new(|a| a.schema_version = "faris-transport-artifact/v9".into()),
+            ),
+            (
+                "solver without a digest",
+                Box::new(|a| a.solver.digest = "sha256:solver".into()),
+            ),
+            (
+                "data without a name",
+                Box::new(|a| a.nuclear_data.name.clear()),
+            ),
+        ];
+        let count = faults.len();
+        for (name, inject) in faults {
+            let (request, mut artifact, scenario) = fixture(VolumeUnit::CubicMetre);
+            inject(&mut artifact);
+            let error = normalize_transport_artifact(&request, &artifact, &scenario)
+                .expect_err(name)
+                .to_string();
+            assert!(!error.is_empty(), "{name}: the refusal needs a reason");
+        }
+        // Truncated bytes are refused at parse time.
+        let (_, artifact, _) = fixture(VolumeUnit::CubicMetre);
+        let bytes = serde_json::to_vec(&artifact).unwrap();
+        for cut in [1, bytes.len() / 2, bytes.len() - 1] {
+            assert!(TransportArtifact::from_bytes(&bytes[..cut]).is_err());
+        }
+        assert!(count >= 19);
+    }
+
+    // Verifies: NUC-012
+    #[test]
+    fn spectrum_bin_sums_equal_the_integrated_flux_and_a_broken_sum_is_refused() {
+        let (req, artifact, normalized, mut sidecar) = spectra_fixture(false, 0.0);
+        let out =
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).unwrap();
+        let sum: f64 = out[0].mean_per_square_metre_second.iter().sum();
+        let flux = normalized.results[0].mean;
+        assert!((sum / flux - 1.0).abs() < 1e-12, "{sum} against {flux}");
+        // 128 bins from zero to 1 GeV, whose raw sum is the tallied flux.
+        let bins = 128_usize;
+        let edges: Vec<f64> = (0..=bins)
+            .map(|i| {
+                if i == 0 {
+                    0.0
+                } else {
+                    1.0e9 * math::powf(1.0e-9, 1.0 - i as f64 / bins as f64)
+                }
+            })
+            .collect();
+        let weights: Vec<f64> = (0..bins).map(|i| 1.0 + (i % 7) as f64).collect();
+        let total: f64 = weights.iter().sum();
+        sidecar.spectra[0].energy_edges_ev = edges;
+        sidecar.spectra[0].mean_cm_per_source_per_bin =
+            weights.iter().map(|w| 4.0 * w / total).collect();
+        sidecar.spectra[0].standard_error_cm_per_source_per_bin = vec![0.01; bins];
+        let out =
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).unwrap();
+        assert_eq!(out[0].mean_per_square_metre_second.len(), bins);
+        let sum: f64 = out[0].mean_per_square_metre_second.iter().sum();
+        assert!((sum / flux - 1.0).abs() < 1e-12, "{sum} against {flux}");
+        // One bin changed by a part in a million breaks the sum and is refused.
+        sidecar.spectra[0].mean_cm_per_source_per_bin[5] *= 1.0 + 1.0e-6;
+        assert!(
+            normalize_spectra(&sidecar, &artifact, &normalized, &req, &"e".repeat(64)).is_err()
+        );
+    }
+
     // Verifies: SRC-001
     #[test]
     fn source_strength_is_3_546e17_per_megawatt_at_17_6_mev() {

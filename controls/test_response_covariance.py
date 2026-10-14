@@ -78,6 +78,29 @@ class WorkerHelperTests(unittest.TestCase):
         self.assertAlmostEqual(matrix[0][1], 2.0 / 3.0, places=15)
         self.assertEqual(matrix[0][1], matrix[1][0])
 
+    # Verifies: NUC-045
+    def test_a_correlated_sum_needs_the_covariance_and_quadrature_is_wrong_by_more_than_10_percent(self):
+        """The sum of two response means has variance var_a + var_b + 2 cov_ab, not var_a + var_b."""
+        ids = ["flux", "rate", "heat"]
+        matrix = WORKER.batch_mean_covariance([VALUES[i] for i in ids])
+        for a, b in [(0, 1), (0, 2), (1, 2)]:
+            summed = [x + y for x, y in zip(VALUES[ids[a]], VALUES[ids[b]])]
+            direct = WORKER.batch_mean_covariance([summed])[0][0]
+            with_covariance = matrix[a][a] + matrix[b][b] + 2.0 * matrix[a][b]
+            quadrature = matrix[a][a] + matrix[b][b]
+            self.assertAlmostEqual(with_covariance / direct, 1.0, places=12)
+            # Standard errors: correlated pairs (flux, rate) and (rate, heat) are far from independent.
+            wrong = abs(quadrature**0.5 / direct**0.5 - 1.0)
+            if abs(matrix[a][b]) / (matrix[a][a] * matrix[b][b]) ** 0.5 > 0.5:
+                self.assertGreater(wrong, 0.10, (ids[a], ids[b]))
+        # Neighbouring bins of one spectrum, strongly correlated batch to batch, behave the same.
+        base = [1.0, 2.0, 4.0, 3.0, 5.0]
+        neighbour = [1.1 * v + 0.05 for v in base]
+        pair = WORKER.batch_mean_covariance([base, neighbour])
+        total = WORKER.batch_mean_covariance([[x + y for x, y in zip(base, neighbour)]])[0][0]
+        self.assertAlmostEqual((pair[0][0] + pair[1][1] + 2.0 * pair[0][1]) / total, 1.0, places=12)
+        self.assertGreater(abs((pair[0][0] + pair[1][1]) ** 0.5 / total**0.5 - 1.0), 0.10)
+
     def test_verification_rejects_inconsistent_mean_or_error(self):
         values = [1.0, 2.0, 4.0, 3.0]
         se = (sum((v - 2.5) ** 2 for v in values) / 3 / 4) ** 0.5

@@ -62,6 +62,7 @@ class GuardRestartsARun(unittest.TestCase):
 
     # Verifies: NUC-043
     def test_an_unsettled_target_takes_the_run_on_to_its_budget_as_one_run(self):
+        # Stochastic: seed 17; structural; expected: none, the test checks which batches run and whether the run restarts
         import warnings
 
         import openmc
@@ -105,6 +106,7 @@ class GuardRestartsARun(unittest.TestCase):
 
     # Verifies: NUC-043
     def test_a_settled_target_is_not_restarted(self):
+        # Stochastic: seed 17; structural; expected: none, the test checks which batches run and whether the run restarts
         import warnings
 
         import openmc

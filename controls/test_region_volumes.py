@@ -64,6 +64,7 @@ class RegionVolumeTests(unittest.TestCase):
 
     # Verifies: GEO-024
     def test_membership_samples_reproduce_analytic_fractions(self):
+        # Stochastic: seed 20261005; |z| < 3; expected: analytic torus region volumes (WORKER.torus_region_volume_m3, checked to 50 digits by check_transport_arithmetic)
         # Independent of the formulas: uniform points of the torus shell are
         # classified by position; the fractions match the analytic volumes.
         rng = random.Random(20261005)
@@ -90,7 +91,7 @@ class RegionVolumeTests(unittest.TestCase):
         for count, region in zip(counts, PARTITION):
             expected = WORKER.torus_region_volume_m3(R0, A, B, region) / full
             sigma = math.sqrt(expected * (1 - expected) / n)
-            self.assertLess(abs(count / n - expected), 5 * sigma, region)
+            self.assertLess(abs(count / n - expected), 3 * sigma, region)
 
     def test_sector_is_symmetric_and_excludes_the_far_side(self):
         for sign in (1, -1):
