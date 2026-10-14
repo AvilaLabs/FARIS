@@ -3,7 +3,10 @@
 // built dist (crates/faris-app/dist) first, e.g.
 //   python3 -m http.server --bind 127.0.0.1 8080 --directory crates/faris-app/dist
 // WEB_URL selects another address; WEB_SCREENSHOT the picture's path
-// (default web-smoke.png); PLAYWRIGHT_MODULE a playwright index.mjs to use.
+// (default web-smoke.png); PLAYWRIGHT_MODULE a playwright index.mjs to use;
+// CHROMIUM_PATH a browser executable to use instead of playwright's own.
+// The account check (api.avilalabs.org) is refused by the browser when the page
+// is not served from an Avila Labs address; that one error is expected locally.
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -24,6 +27,7 @@ for (let attempt = 0; ; attempt++) {
 
 const browser = await chromium.launch({
   headless: true,
+  executablePath: process.env.CHROMIUM_PATH || undefined,
   // Headless Chromium has no GPU: the software GL path stands in for a user's.
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
 });
@@ -33,7 +37,8 @@ try {
   page.on("pageerror", error => problems.push(`page error: ${error.message}`));
   page.on("console", message => {
     const text = message.text();
-    if (message.type() === "error" || /panicked/.test(text)) problems.push(`console ${message.type()}: ${text}`);
+    const expected = /api\.avilalabs\.org|net::ERR_FAILED/.test(text);
+    if (!expected && (message.type() === "error" || /panicked/.test(text))) problems.push(`console ${message.type()}: ${text}`);
   });
   await page.goto(url.href);
   await page.locator("#faris_canvas").waitFor({ state: "attached" });
