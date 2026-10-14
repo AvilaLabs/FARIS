@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1418 | 58 | 441 | 880 | 39 | 148 | 10 % | 503 | 150 | 458 | 116 | 431 | 98 |
+| All requirements | 1418 | 58 | 443 | 878 | 39 | 153 | 11 % | 503 | 150 | 458 | 116 | 431 | 98 |
 
 ## By category
 
@@ -22,8 +22,8 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 3 | 30 | 39 | 0 | 19 | 26 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 5 | 14 % | 15 | 7 | 15 | 3 | 7 | 0 |
-| [Usability](09-usability.md) | 73 | 0 | 22 | 48 | 3 | 2 | 3 % | 37 | 12 | 30 | 10 | 5 | 6 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 12 | 32 | 13 | 1 | 2 % | 42 | 5 | 13 | 4 | 1 | 1 |
+| [Usability](09-usability.md) | 73 | 0 | 24 | 46 | 3 | 5 | 7 % | 37 | 12 | 30 | 10 | 5 | 6 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 12 | 32 | 13 | 2 | 4 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 8 | 16 % | 21 | 7 | 22 | 7 | 8 | 0 |
 | [Configurability](12-configurability.md) | 63 | 1 | 18 | 43 | 1 | 4 | 6 % | 27 | 3 | 26 | 2 | 15 | 0 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 16 | 58 | 0 | 4 | 5 % | 35 | 8 | 25 | 1 | 20 | 4 |
@@ -35,15 +35,15 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Security](19-security.md) | 55 | 8 | 20 | 26 | 1 | 7 | 13 % | 14 | 3 | 7 | 0 | 36 | 10 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 18 | 23 | 0 | 0 | 0 % | 5 | 2 | 6 | 1 | 33 | 7 |
 | [Quality assurance](21-quality-assurance.md) | 77 | 3 | 26 | 47 | 1 | 5 | 6 % | 16 | 13 | 23 | 7 | 34 | 7 |
-| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 0 | 0 % | 13 | 1 | 22 | 11 | 4 | 2 |
+| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 1 | 2 % | 13 | 1 | 22 | 11 | 4 | 2 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 5 | 17 | 12 | 2 | 5 | 14 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
 ## By phase
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 43 | 226 | 157 | 19 | 85 | 19 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 496 | 5 | 144 | 329 | 18 | 38 | 8 % | 173 | 56 | 188 | 51 | 122 | 37 |
+| F1 | 445 | 43 | 226 | 157 | 19 | 87 | 20 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 496 | 5 | 146 | 327 | 18 | 41 | 8 % | 173 | 56 | 188 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 3 | 5 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 5 | 30 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
@@ -106,9 +106,10 @@ Marked Met in the Now column, but no test declares `Verifies:` for them.
 - LEG-028 (23-compliance-and-privacy.md)
 - LEG-046 (23-compliance-and-privacy.md)
 
-## Traced but marked No (2)
+## Traced but marked No (3)
 
 A test declares `Verifies:` for them while the Now column says No; the Now column may be stale.
 
 - VAL-050 (06-accuracy-and-validation.md): `validation/test_matrix.py::test_every_calculated_quantity_has_a_row`
+- UX-010 (09-usability.md): `crates/faris-app/src/commands.rs::core_tasks_t1_to_t5_are_reachable_with_key_events_only`
 - QA-070 (21-quality-assurance.md): `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`, `scripts/test_release_gate.py::test_an_unmet_requirement_fails_the_gate_and_the_exit_code_is_nonzero`, `scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver` and 5 more
