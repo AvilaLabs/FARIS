@@ -294,7 +294,7 @@ pub(crate) mod tests {
             next_step: "Keep the margin in mind.".into(),
         };
         DesignTransportReport {
-            schema_version: "faris-design-transport-report/v0.3".into(),
+            schema_version: "faris-design-transport-report/v0.4".into(),
             design: DesignIdentity {
                 path: "d.json".into(),
                 sha256: "0".into(),
@@ -318,6 +318,7 @@ pub(crate) mod tests {
             threads: 4,
             target_relative_error: 0.05,
             target_reached: true,
+            validation: Default::default(),
             stop_reason: "target".into(),
             why: None,
             next_step: None,
