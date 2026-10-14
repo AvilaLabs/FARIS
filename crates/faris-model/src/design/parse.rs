@@ -11,8 +11,9 @@ const CHECK: u8 = 1;
 
 /// Paths where `null` is a legal value in v0.1. `*` stands for any array index
 /// or map key. Every other `null` is a field the user has not filled in.
-const NULLABLE: [&str; 6] = [
+const NULLABLE: [&str; 7] = [
     "cad.faceting_tolerance_m",
+    "plasma.min_first_wall_clearance_m",
     "solids[*].step_name",
     "solids[*].replacement_group_id",
     "materials[*].temperature_k",

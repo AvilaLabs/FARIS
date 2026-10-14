@@ -163,9 +163,9 @@
     "pedestal_radius_m": 1.0,
     "mode": "H",
     "ion_density_m3": {
-      "centre": 1.5e+20,
-      "pedestal": 1.1e+20,
-      "separatrix": 4e+19,
+      "centre": 2.531537061e+20,
+      "pedestal": 1.856460512e+20,
+      "separatrix": 6.75076550e+19,
       "peaking_factor": 1.0
     },
     "ion_temperature_ev": {

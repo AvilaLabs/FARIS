@@ -492,6 +492,10 @@ pub struct Plasma {
     pub fuel: Option<BTreeMap<String, f64>>,
     #[serde(deserialize_with = "present")]
     pub fusion_power_mw: Option<f64>,
+    /// The smallest distance, m, a source site may have to the first wall. `null` or absent:
+    /// no minimum is set, and check 9 only reports the distance it measured (SRC-018).
+    #[serde(default)]
+    pub min_first_wall_clearance_m: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub emissivity_table: Option<EmissivityTable>,
     #[serde(deserialize_with = "present")]

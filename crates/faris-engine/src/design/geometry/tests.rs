@@ -695,22 +695,20 @@ fn a_design_without_a_first_wall_says_the_clearance_was_not_measured() {
     assert!(note.contains("no solid has the role first_wall"), "{note}");
 }
 
+/// The D-T power the fixture's profiles imply, MW (RM-M's plasma block with a 1.0 m pedestal, its densities scaled to close at 525 MW).
+fn implied_power_mw(d: &Design) -> f64 {
+    source::closure(&d.plasma).unwrap().implied_fusion_power_mw
+}
+
 // Verifies: SRC-010
 #[test]
-fn the_declared_power_is_reported_next_to_the_profiles_power_without_changing_the_verdict() {
+fn a_declared_power_that_closes_with_the_profiles_passes_check_9() {
     let b = geo();
-    let mut d = design(Vec::new());
-    let rm_m: Design = serde_json::from_str(include_str!(
-        "../../../../../scenarios/rm-m/rm-m.faris-design.json"
-    ))
-    .unwrap();
-    d.plasma = rm_m.plasma;
-    d.plasma.chamber_solid_id = Some("core".into());
-    let report = run_with(&d, &b);
-    // The RM-M profiles imply 190.5 MW against 525 MW declared: shown, not blocking.
+    let report = run_with(&design(Vec::new()), &b);
     assert_eq!(report.checks[3].status, Pass);
+    assert!(report.checks[3].findings.is_empty());
     let closure = report.geometry.source_closure.as_ref().unwrap();
-    assert!(!closure.closes);
+    assert!(closure.closes);
     assert_eq!(closure.declared_fusion_power_mw, 525.0);
     let notice = report
         .notices
@@ -719,28 +717,134 @@ fn the_declared_power_is_reported_next_to_the_profiles_power_without_changing_th
         .unwrap();
     assert_eq!(notice.check, 9);
     assert!(
-        notice.message.contains("525.00 MW") && notice.message.contains("190.55 MW"),
+        notice.message.contains("closes with the profiles"),
         "{}",
         notice.message
     );
-    assert!(
-        notice.message.contains("Correct the profiles"),
-        "{}",
-        notice.message
-    );
-    // Made to close, the same block reports a closing notice.
-    d.plasma.fusion_power_mw = Some(closure.implied_fusion_power_mw);
+}
+
+// Verifies: SRC-010
+#[test]
+fn a_declared_power_beyond_the_tolerance_blocks_check_9_and_says_what_to_do() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    let implied = implied_power_mw(&d);
+    d.plasma.fusion_power_mw = Some(implied * 1.01);
     let report = run_with(&d, &b);
-    assert!(report.geometry.source_closure.as_ref().unwrap().closes);
+    assert_eq!(report.checks[3].status, Fail);
+    let f = &report.checks[3].findings[0];
+    assert_eq!(f.requirement.as_deref(), Some("SRC-010"));
+    assert_eq!(f.item, "plasma.fusion_power_mw");
+    assert!(f.waivable && f.blocks());
+    assert_eq!(f.cells, vec!["core"]);
+    assert!(
+        f.why.contains(&format!("{:.2} MW", implied * 1.01))
+            && f.why.contains(&format!("{implied:.2} MW")),
+        "{}",
+        f.why
+    );
+    assert!(f.why.contains("ratio 0.9901"), "{}", f.why);
+    assert!(f.why.contains("declared power alone"), "{}", f.why);
+    assert!(
+        f.next_step.contains("Correct the profiles") && f.next_step.contains("waiver"),
+        "{}",
+        f.next_step
+    );
+    assert!(!report.geometry.source_closure.as_ref().unwrap().closes);
+    // Inside the 1e-3 tolerance it does not block.
+    d.plasma.fusion_power_mw = Some(implied * 1.0005);
+    assert_eq!(run_with(&d, &b).checks[3].status, Pass);
+}
+
+// Verifies: SRC-010
+#[test]
+fn a_waiver_with_a_reason_lets_a_closure_mismatch_through_and_stays_in_the_report() {
+    let b = geo();
+    let mut d = design(vec![waiver("SRC-010", &["core"])]);
+    d.plasma.fusion_power_mw = Some(implied_power_mw(&d) * 2.0);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Pass);
+    let f = &report.checks[3].findings[0];
+    assert!(f.waived.is_some() && !f.blocks());
+    assert_eq!(f.waived.as_ref().unwrap().reason, "accepted after review");
+    assert_eq!(report.geometry.waivers[0].covered_findings, 1);
+    // A waiver that names another solid covers nothing.
+    let mut d = design(vec![waiver("SRC-010", &["shell"])]);
+    d.plasma.fusion_power_mw = Some(implied_power_mw(&d) * 2.0);
+    assert_eq!(run_with(&d, &b).checks[3].status, Fail);
+}
+
+// Verifies: SRC-010
+#[test]
+fn a_plasma_block_that_cannot_be_integrated_keeps_its_notice_and_does_not_block() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    d.plasma.pedestal_radius_m = Some(5.0);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Pass);
+    assert!(report.geometry.source_closure.is_none());
     let notice = report
         .notices
         .iter()
         .find(|n| n.item == "plasma.fusion_power_mw")
         .unwrap();
     assert!(
-        notice.message.contains("closes with the profiles"),
+        notice.message.contains("pedestal_radius_m"),
         "{}",
         notice.message
+    );
+}
+
+// Verifies: SRC-018
+#[test]
+fn a_clearance_below_the_users_minimum_fails_check_9_and_is_not_waivable() {
+    let b = geo();
+    let measured = {
+        let report = run_with(&design(Vec::new()), &b);
+        report
+            .geometry
+            .sources
+            .as_ref()
+            .unwrap()
+            .first_wall_clearance_m
+            .unwrap()
+    };
+    let mut d = design(vec![waiver("SRC-018", &["shell"])]);
+    d.plasma.min_first_wall_clearance_m = Some(measured * 1.01);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Fail);
+    let f = &report.checks[3].findings[0];
+    assert_eq!(f.requirement.as_deref(), Some("SRC-018"));
+    assert!(!f.waivable && f.waived.is_none());
+    assert!(f.why.contains("min_first_wall_clearance_m"), "{}", f.why);
+    assert!(f.location_m.is_some());
+    // At the measured value, or with no minimum, it passes and still reports the distance.
+    d.plasma.min_first_wall_clearance_m = Some(measured * 0.99);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, Pass);
+    let note = report.checks[3].sub_checks[0].why.as_deref().unwrap();
+    assert!(note.contains("sets a minimum of"), "{note}");
+    d.plasma.min_first_wall_clearance_m = None;
+    let report = run_with(&d, &b);
+    let note = report.checks[3].sub_checks[0].why.as_deref().unwrap();
+    assert!(note.contains("sets no minimum"), "{note}");
+}
+
+// Verifies: SRC-018
+#[test]
+fn a_minimum_clearance_without_a_first_wall_is_not_evaluated() {
+    let b = geo();
+    let mut d = design(Vec::new());
+    d.solids[0].role = Some(Role::Blanket);
+    d.plasma.min_first_wall_clearance_m = Some(0.1);
+    let report = run_with(&d, &b);
+    assert_eq!(report.checks[3].status, NotEvaluated);
+    assert!(
+        report.checks[3]
+            .why
+            .as_deref()
+            .unwrap()
+            .contains("no solid has the role first_wall")
     );
 }
 

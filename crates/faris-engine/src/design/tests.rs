@@ -533,6 +533,13 @@ fn init_writes_the_draft_and_never_overwrites() {
     assert_eq!(written["materials"], json!([]));
     assert_eq!(written["plasma"]["ion_density_m3"]["centre"], Value::Null);
     assert_eq!(written["operating_scenario"]["path"], Value::Null);
+    // the optional minimum clearance is an explicit null, and is not a value to fill in
+    assert!(written["plasma"].as_object().unwrap()["min_first_wall_clearance_m"].is_null());
+    assert!(
+        !faris_model::design::nullable_paths(&written)
+            .iter()
+            .any(|p| p.contains("min_first_wall_clearance_m"))
+    );
     // a second run refuses
     let again = design_init(&step, None, None, &fake).unwrap_err();
     assert!(again.to_string().contains("never overwrites"));

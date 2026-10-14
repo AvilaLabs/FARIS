@@ -114,6 +114,64 @@ def model_params(name: str) -> dict:
     return p
 
 
+ENERGY_PER_REACTION_J = 17.6e6 * 1.602176634e-19  # D-T, as crates/faris-engine/src/design/source.rs
+CLOSURE_TOLERANCE = 1.0e-3
+
+
+def reactivity_dt(t_ev: float) -> float:
+    """D-T reactivity in m3/s (Bosch-Hale fit as NeSST.reac_DT, truncated exponents included)."""
+    kev = t_ev / 1.0e3
+    if not kev > 0.0:
+        return 0.0
+    numerator = ((-0.10675e-3 * kev + 4.6064e-3) * kev + 15.136e-3) * kev
+    denominator = ((0.01366e-3 * kev + 13.5e-3) * kev + 75.189e-3) * kev + 1.0
+    xi = 6.6610 * kev ** -0.333333333
+    eta = 1.0 - numerator / denominator
+    return 643.41e-22 * eta ** -0.833333333 * xi * xi * math.exp(-3.0 * eta ** 0.333333333 * xi)
+
+
+def implied_fusion_power_mw(plasma: dict, cells: int = 300) -> float:
+    """The D-T fusion power the plasma block's profiles imply: the integral of crates/faris-engine/src/design/source.rs
+    (H mode, equal D and T), on a midpoint grid of cells x cells. 300 cells are within 1e-5 of the Rust 1000 x 1000."""
+    major, minor, kappa = plasma["major_radius_m"], plasma["minor_radius_m"], plasma["elongation"]
+    delta, shift, pedestal = plasma["triangularity"], plasma["shafranov_shift_m"], plasma["pedestal_radius_m"]
+    n, t = plasma["ion_density_m3"], plasma["ion_temperature_ev"]
+    fuel = plasma["fuel"]
+    da, dalpha = minor / cells, 2.0 * math.pi / cells
+    angles = [(j + 0.5) * dalpha for j in range(cells)]
+    total = 0.0
+    for i in range(cells):
+        a = (i + 0.5) * da
+        if a < pedestal:
+            density = (n["centre"] - n["pedestal"]) * (1.0 - (a / pedestal) ** 2) ** n["peaking_factor"] + n["pedestal"]
+            temperature = t["pedestal"] + (t["centre"] - t["pedestal"]) * (
+                1.0 - (a / pedestal) ** t["beta"]) ** t["peaking_factor"]
+        else:
+            density = (n["pedestal"] - n["separatrix"]) * (minor - a) / (minor - pedestal) + n["separatrix"]
+            temperature = t["separatrix"] + (t["pedestal"] - t["separatrix"]) * (minor - a) / (minor - pedestal)
+        rate = density ** 2 * fuel["D"] * fuel["T"] * reactivity_dt(temperature)
+        ring = 0.0
+        for alpha in angles:
+            theta = alpha + delta * math.sin(alpha)
+            radius = major + a * math.cos(theta) + shift * (1.0 - (a / minor) ** 2)
+            d_r_da = math.cos(theta) - 2.0 * shift * a / (minor * minor)
+            d_r_dalpha = -a * math.sin(theta) * (1.0 + delta * math.cos(alpha))
+            ring += radius * abs(d_r_da * kappa * a * math.cos(alpha) - d_r_dalpha * kappa * math.sin(alpha))
+        total += rate * ring
+    return total * da * dalpha * 2.0 * math.pi * ENERGY_PER_REACTION_J / 1.0e6
+
+
+def close_density(plasma: dict) -> float:
+    """Multiply the centre, pedestal and separatrix ion densities of plasma by one factor so the profiles imply its
+    declared fusion power (the implied power goes as the density squared; the shape is unchanged). Returns the factor."""
+    factor = math.sqrt(plasma["fusion_power_mw"] / implied_fusion_power_mw(plasma))
+    for key in ("centre", "pedestal", "separatrix"):
+        plasma["ion_density_m3"][key] *= factor
+    if abs(implied_fusion_power_mw(plasma) / plasma["fusion_power_mw"] - 1.0) > CLOSURE_TOLERANCE / 10:
+        raise ValueError("the scaled profiles do not close at the declared fusion power")
+    return factor
+
+
 def port_boxes(p: dict) -> list[tuple[float, float, float, float, float, float]]:
     """Cutter boxes (x0, x1, y0, y1, z0, z1) in cm; their union is the duct cutter. Empty without a port."""
     if p["port"] is None:
@@ -252,6 +310,26 @@ def export_step(cq, solids: list[dict], path: Path) -> None:
 
 # ---------------------------------------------------------------- design file
 
+def model_plasma(p: dict, template: dict) -> dict:
+    """The plasma block of one model: RM-M's profiles on the model's own dimensions and fusion power, with the ion
+    density scaled so the profiles close at that power."""
+    name = p["name"]
+    plasma = copy.deepcopy(template)
+    plasma.update({"chamber_solid_id": "plasma", "major_radius_m": p["major"] / 100.0, "minor_radius_m": p["minor"] / 100.0,
+                   "elongation": p["elongation"], "triangularity": p["triangularity"],
+                   "pedestal_radius_m": round(0.9 * p["minor"] / 100.0, 12), "fusion_power_mw": p["fusion_power_mw"]})
+    note = f"Authored for the {name} test-set model, not from a reference."
+    plasma["provenance"] = {"label": "authored", "note": note + " Major radius, minor radius, elongation and fusion power."}
+    plasma["field_provenance"]["triangularity"] = {"label": "authored", "note": note + " Triangularity 0.375 as RM-M."}
+    plasma["field_provenance"]["pedestal_radius_m"]["note"] = "0.9 of the minor radius, as in RM-M."
+    factor = close_density(plasma)
+    plasma["field_provenance"]["ion_density_m3"] = {
+        "label": "authored",
+        "note": f"Profile shape is the RM-M S0 model card's; the level is RM-M's scaled by {factor:.6f} so the profiles "
+                f"close at this model's {p['fusion_power_mw']:g} MW fusion power. A normalisation, not a published density."}
+    return plasma
+
+
 def write_design(p: dict, step: Path, out_dir: Path, faris: str, cad_python: str) -> Path:
     """`faris design init` on the STEP, then the RM-M materials, roles, group, limits and a model-specific plasma."""
     name = p["name"]
@@ -281,15 +359,7 @@ def write_design(p: dict, step: Path, out_dir: Path, faris: str, cad_python: str
     group = copy.deepcopy(template["replacement_groups"])
     group[0]["label"] = f"All {p['n_coils']} TF coils"
     d["replacement_groups"] = group
-    plasma = copy.deepcopy(template["plasma"])
-    plasma.update({"chamber_solid_id": "plasma", "major_radius_m": p["major"] / 100.0, "minor_radius_m": p["minor"] / 100.0,
-                   "elongation": p["elongation"], "triangularity": p["triangularity"],
-                   "pedestal_radius_m": round(0.9 * p["minor"] / 100.0, 12), "fusion_power_mw": p["fusion_power_mw"]})
-    note = f"Authored for the {name} test-set model, not from a reference."
-    plasma["provenance"] = {"label": "authored", "note": note + " Major radius, minor radius, elongation and fusion power."}
-    plasma["field_provenance"]["triangularity"] = {"label": "authored", "note": note + " Triangularity 0.375 as RM-M."}
-    plasma["field_provenance"]["pedestal_radius_m"]["note"] = "0.9 of the minor radius, as in RM-M."
-    d["plasma"] = plasma
+    d["plasma"] = model_plasma(p, template["plasma"])
     history = out_dir / f"{name}.operating-history.json"
     history.write_bytes(RM_M_HISTORY.read_bytes())
     d["operating_scenario"] = {"path": history.name, "sha256": build_rm_m.sha256(history)}

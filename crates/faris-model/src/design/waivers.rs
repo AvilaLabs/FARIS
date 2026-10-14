@@ -11,7 +11,8 @@ use super::{Design, Finding};
 use serde::{Deserialize, Serialize};
 
 /// Waiver ids for findings a person may accept.
-pub const WAIVABLE_IDS: [&str; 9] = [
+pub const WAIVABLE_IDS: [&str; 10] = [
+    "SRC-010",
     "GEO-021",
     "GEO-022",
     "GEO-024",

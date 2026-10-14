@@ -56,20 +56,26 @@ impl SourceClosure {
         )
     }
 
-    /// What it means and what to do, when the two do not close.
+    /// What the disagreement means, when the two do not close: both powers, the ratio, and what
+    /// transport takes from each.
     pub fn disagreement(&self) -> String {
         format!(
             "{}. Transport takes the source strength from the declared power alone and uses the \
              profiles only for its shape, so every flux, heating and fluence number follows the \
-             declared {:.2} MW while the plasma the profiles describe would give {:.2} MW. Either \
-             the profiles (ion density, ion temperature, peaking) or the declared power is wrong. \
-             Correct the profiles so they give the declared power, or set \
-             plasma.fusion_power_mw to the profiles' value if the profiles are the intended plasma; \
-             FARIS does not rescale either one.",
+             declared {:.2} MW while the plasma the profiles describe would give {:.2} MW. FARIS \
+             does not rescale either one.",
             self.summary(),
             self.declared_fusion_power_mw,
             self.implied_fusion_power_mw
         )
+    }
+
+    /// The next step when the two do not close.
+    pub fn next_step() -> &'static str {
+        "Correct the profiles (ion density, ion temperature, peaking) so they give the declared \
+         power, or correct plasma.fusion_power_mw if the profiles are the intended plasma. If the \
+         profile is only an approximate shape for a known fusion power, accept the difference with \
+         a waiver for SRC-010 that names the plasma chamber solid in solid_ids and gives the reason."
     }
 }
 
@@ -295,15 +301,26 @@ mod tests {
             "{}",
             c.disagreement()
         );
+        assert!(SourceClosure::next_step().contains("waiver"));
+    }
+
+    /// RM-M's plasma block with the S0 model card's own ion densities, before they were scaled
+    /// to close at the published fusion power.
+    fn model_card_plasma() -> Plasma {
+        let mut p = rm_m_plasma();
+        p.ion_density_m3.centre = Some(1.5e20);
+        p.ion_density_m3.pedestal = Some(1.1e20);
+        p.ion_density_m3.separatrix = Some(4.0e19);
+        p
     }
 
     // Verifies: SRC-010
     #[test]
-    fn the_rm_m_profiles_imply_a_power_far_from_the_declared_525_mw() {
+    fn the_model_card_densities_imply_a_power_far_from_the_declared_525_mw() {
         // 190.546 MW, 6.75737e19 D-T reactions per second: the same profile formulas evaluated
         // with openmc_plasma_source's own functions on a 2000 x 2000 grid (a script outside the
         // repository), and checked against tokamak_source by test_source_sampling.py.
-        let c = closure(&rm_m_plasma()).unwrap();
+        let c = closure(&model_card_plasma()).unwrap();
         assert_eq!(c.declared_fusion_power_mw, 525.0);
         assert!(
             (c.implied_reaction_rate_per_s / 6.757372e19 - 1.0).abs() < 1.0e-5,
@@ -316,6 +333,28 @@ mod tests {
             text.contains("190.55 MW") && text.contains("525.00 MW"),
             "{text}"
         );
+    }
+
+    // Verifies: SRC-010
+    #[test]
+    fn the_rm_m_design_file_closes_at_its_published_525_mw() {
+        let c = closure(&rm_m_plasma()).unwrap();
+        assert_eq!(c.declared_fusion_power_mw, 525.0);
+        assert!(c.closes, "{c:?}");
+        // The rate test_source_sampling.py compares the package's strength with.
+        assert!(
+            (c.implied_reaction_rate_per_s / 1.861814e20 - 1.0).abs() < 1.0e-5,
+            "{c:?}"
+        );
+        // The same shape as the model card's profile, scaled in level only.
+        let (new, old) = (
+            rm_m_plasma().ion_density_m3,
+            model_card_plasma().ion_density_m3,
+        );
+        let factor = new.centre.unwrap() / old.centre.unwrap();
+        assert!((factor - 1.65989).abs() < 1.0e-5, "{factor}");
+        assert!((new.pedestal.unwrap() / old.pedestal.unwrap() / factor - 1.0).abs() < 1.0e-8);
+        assert!((new.separatrix.unwrap() / old.separatrix.unwrap() / factor - 1.0).abs() < 1.0e-8);
     }
 
     // Verifies: SRC-010

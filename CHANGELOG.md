@@ -11,6 +11,9 @@ basis.
 
 ### Added
 
+- Optional `plasma.min_first_wall_clearance_m` in the design file (metres, positive; `null` or absent for no
+  minimum; `faris design init` writes `null`). Check 9 fails when the nearest source site is closer to the first
+  wall than that, and says so as NOT_EVALUATED if no solid has the role `first_wall`. FARIS sets no minimum itself.
 - Literature maintenance-duration presets (EU-DEMO blanket 10 months, best case 6 months, internal components 20
   months; Crofts and Harman) with their source link and conditions, each labelled literature. A condition the
   sources FARIS holds do not state is left empty with the reason.
@@ -19,8 +22,9 @@ basis.
   against each replacement duration. Both are engine functions; no desktop view yet.
 - `faris design check` reports the D-T fusion power the plasma profiles imply next to `plasma.fusion_power_mw`
   (`Source closure`, WITHIN or EXCEEDED the 1e-3 limit) and the smallest distance from the sampled source sites
-  to the first wall. A mismatch is a notice with both numbers, not a failure, and neither value is rescaled. A
-  sampling test compares the real source sites with the analytic profile by chi-square.
+  to the first wall. A mismatch beyond the limit is a blocking finding of check 9 (SRC-010) with both powers and the
+  ratio, which a waiver with a written reason accepts (`SRC-010`, naming the plasma chamber solid); neither value
+  is rescaled. A sampling test compares the real source sites with the analytic profile by chi-square.
 - `faris design transport`: the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
   `faris design check`, computed on its CAD geometry and run until the mean over the coils reaches a target
   error. A run stopped by its history or time limit says how many more histories it needs.
@@ -93,6 +97,11 @@ basis.
 
 ### Changed
 
+- The reference design RM-M (`scenarios/rm-m/rm-m.faris-design.json`) now closes: its ion densities (centre,
+  pedestal, separatrix) were multiplied by 1.65989, so its profiles imply the published 525 MW instead of 190.5 MW.
+  The source shape is unchanged; the density is a normalisation, not a published plasma density. The file's sha256
+  changed, so a design check or run recorded against the old file names a different file. The test-set builder
+  does the same per model, and the fixture designs of the tests were scaled the same way.
 - `faris design check` judges every solid's faceted volume against its CAD volume and lists each one as WITHIN or
   EXCEEDED in the report, with the faceting tolerance it was converted at and whether that was the default or the
   design file's `cad.faceting_tolerance_m`. At the default tolerance a solid more than 0.1 % off now stops the check

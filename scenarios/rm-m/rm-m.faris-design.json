@@ -655,9 +655,9 @@
     "pedestal_radius_m": 1.0170000000000001,
     "mode": "H",
     "ion_density_m3": {
-      "centre": 1.5e+20,
-      "pedestal": 1.1e+20,
-      "separatrix": 4e+19,
+      "centre": 2.489834118e+20,
+      "pedestal": 1.825878353e+20,
+      "separatrix": 6.639557649e+19,
       "peaking_factor": 1.0
     },
     "ion_temperature_ev": {
@@ -689,7 +689,7 @@
       },
       "ion_density_m3": {
         "label": "authored",
-        "note": "Profile values are authored in the S0 model."
+        "note": "The profile shape is the S0 model card's. The level was scaled by 1.65989 (centre, pedestal and separatrix by the same factor) so the profiles close at the published 525 MW fusion power (Table 1 of Sorbom 2015) within the 1e-3 closure limit; the model card's own densities (1.5e20, 1.1e20, 4e19 m-3) imply 190.5 MW. The resulting density is a normalisation, not a published plasma density."
       },
       "ion_temperature_ev": {
         "label": "authored",

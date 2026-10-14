@@ -628,7 +628,11 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                         closure.summary()
                     )
                 } else {
-                    closure.disagreement()
+                    format!(
+                        "the declared power does not close with the profiles: {}. This blocks \
+                         check 9 when it runs (SRC-010); its finding says what to do.",
+                        closure.summary()
+                    )
                 },
             ));
             records.source_closure = Some(closure);
@@ -1148,15 +1152,16 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     let nine = match (chamber_volume, sampled) {
         (None, _) | (Some(_), None) => finish(
             9,
-            vec![
-                Finding::new(
-                    9,
-                    "plasma.chamber_solid_id",
-                    format!("there is no volume for the plasma chamber solid {chamber:?}"),
-                    "Name the plasma chamber solid in plasma.chamber_solid_id.",
-                )
-                .requirement("SRC-018"),
-            ],
+            [Finding::new(
+                9,
+                "plasma.chamber_solid_id",
+                format!("there is no volume for the plasma chamber solid {chamber:?}"),
+                "Name the plasma chamber solid in plasma.chamber_solid_id.",
+            )
+            .requirement("SRC-018")]
+            .into_iter()
+            .chain(closure_finding(records.source_closure.as_ref(), &chamber))
+            .collect(),
             vec![sub(
                 "sites inside the plasma chamber and clear of the first wall (SRC-018)",
                 &[],
@@ -1168,13 +1173,16 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         }
         (Some(_), Some(ToolResult::Failed { why, next_step })) => finish(
             9,
-            vec![tool_finding(
+            [tool_finding(
                 9,
                 "source sampling",
                 why,
                 next_step,
                 "SRC-018",
-            )],
+            )]
+            .into_iter()
+            .chain(closure_finding(records.source_closure.as_ref(), &chamber))
+            .collect(),
             vec![sub(
                 "sites inside the plasma chamber and clear of the first wall (SRC-018)",
                 &[],
@@ -1351,7 +1359,29 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     .cells(first_wall_solids.clone())
                     .at(at),
                 );
+            } else if let (Some(minimum), Some((distance, at))) =
+                (design.plasma.min_first_wall_clearance_m, clearance)
+                && distance < minimum
+            {
+                findings9.push(
+                    Finding::new(
+                        9,
+                        format!("plasma sites too close to {}", first_wall_solids.join(", ")),
+                        format!(
+                            "the nearest source site is {distance:.4} m from a first-wall surface, \
+                             below the minimum clearance of {minimum} m that \
+                             plasma.min_first_wall_clearance_m sets"
+                        ),
+                        "Shrink the plasma block (radii, elongation, shift) or move the first wall \
+                         so the plasma region is at least that far from it, or lower \
+                         plasma.min_first_wall_clearance_m if the minimum was set too high.",
+                    )
+                    .requirement("SRC-018")
+                    .cells(first_wall_solids.clone())
+                    .at(at),
+                );
             }
+            findings9.extend(closure_finding(records.source_closure.as_ref(), &chamber));
             finish(
                 9,
                 findings9,
@@ -1360,16 +1390,32 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                         "sites inside the plasma chamber and clear of the first wall (SRC-018)",
                         &[],
                     );
+                    let minimum_note = match design.plasma.min_first_wall_clearance_m {
+                        Some(m) => format!("the design file sets a minimum of {m} m"),
+                        None => "the design file sets no minimum, so only a site in or on the \
+                                 wall fails"
+                            .to_string(),
+                    };
                     let clearance_note = match clearance {
                         Some((d, at)) => format!(
                             "the nearest site to the first wall ({}) is {d:.4} m away, at \
-                             ({:.3}, {:.3}, {:.3}) m; the row states no minimum, so the value is \
-                             reported and only a site in or on the wall fails",
+                             ({:.3}, {:.3}, {:.3}) m; {minimum_note}",
                             first_wall_solids.join(", "),
                             at[0],
                             at[1],
                             at[2]
                         ),
+                        None if design.plasma.min_first_wall_clearance_m.is_some() => {
+                            s.not_evaluated = Some((
+                                "plasma.min_first_wall_clearance_m is set, but no solid has the \
+                                 role first_wall, so the clearance could not be measured"
+                                    .to_string(),
+                                "Give the first-wall solid the role first_wall, or set \
+                                 plasma.min_first_wall_clearance_m to null."
+                                    .to_string(),
+                            ));
+                            "clearance to the first wall was not measured".to_string()
+                        }
                         None => {
                             "clearance to the first wall was not measured because no solid has \
                                  the role first_wall"
@@ -1484,6 +1530,23 @@ fn nearest_nm(mesh: &Mesh, walls: &Bvh, p: P3, bound: f64, reach_limit_nm: f64) 
             r * 4.0
         };
     }
+}
+
+/// The check 9 finding for a declared power the profiles do not close with (SRC-010). It names
+/// the plasma chamber solid, so a waiver covers it with that solid in `solid_ids`.
+fn closure_finding(closure: Option<&SourceClosure>, chamber: &str) -> Option<Finding> {
+    let closure = closure.filter(|c| !c.closes)?;
+    Some(
+        Finding::new(
+            9,
+            "plasma.fusion_power_mw",
+            closure.disagreement(),
+            SourceClosure::next_step(),
+        )
+        .requirement("SRC-010")
+        .cells(vec![chamber.to_string()])
+        .waivable(),
+    )
 }
 
 /// Put the records in the report, and say which waivers covered nothing.

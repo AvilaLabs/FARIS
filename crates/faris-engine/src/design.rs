@@ -1650,6 +1650,7 @@ pub fn build_draft(
             },
             fuel: None,
             fusion_power_mw: None,
+            min_first_wall_clearance_m: None,
             emissivity_table: None,
             provenance: None,
             field_provenance: BTreeMap::new(),

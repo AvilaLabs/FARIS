@@ -1,4 +1,6 @@
 """Fast tests of the parameter helpers of build_test_set.py (standard library; the classifier test needs numpy)."""
+import copy
+import json
 import math
 from pathlib import Path
 import sys
@@ -76,6 +78,50 @@ class Parameters(unittest.TestCase):
     def test_coil_span(self):
         self.assertAlmostEqual(bts.coil_span_deg(18), 16.0)
         self.assertAlmostEqual(bts.coil_span_deg(12), 24.0)
+
+
+class Closure(unittest.TestCase):
+    """The ion density of each generated design is scaled so its profiles close at its own fusion power."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.template = json.loads(bts.RM_M_DESIGN.read_text())["plasma"]
+
+    # Verifies: SRC-010
+    def test_the_rm_m_template_closes_at_525_mw(self):
+        self.assertEqual(self.template["fusion_power_mw"], 525.0)
+        self.assertLess(abs(bts.implied_fusion_power_mw(self.template) / 525.0 - 1.0), 1.0e-4)
+
+    # Verifies: SRC-010
+    def test_the_model_card_densities_imply_the_rust_value(self):
+        # 190.5465 MW is the Rust integral of crates/faris-engine/src/design/source.rs for the model card's densities.
+        plasma = copy.deepcopy(self.template)
+        plasma["ion_density_m3"].update(centre=1.5e20, pedestal=1.1e20, separatrix=4.0e19)
+        self.assertLess(abs(bts.implied_fusion_power_mw(plasma) / 190.5465 - 1.0), 1.0e-4)
+
+    # Verifies: SRC-010
+    def test_every_model_closes_at_its_own_fusion_power(self):
+        for name in bts.MODELS:
+            p = bts.model_params(name)
+            plasma = bts.model_plasma(p, self.template)
+            implied = bts.implied_fusion_power_mw(plasma)
+            self.assertLess(abs(implied / p["fusion_power_mw"] - 1.0), bts.CLOSURE_TOLERANCE / 10, name)
+            self.assertEqual(plasma["fusion_power_mw"], p["fusion_power_mw"])
+            self.assertIn("scaled by", plasma["field_provenance"]["ion_density_m3"]["note"])
+
+    # Verifies: SRC-010
+    def test_scaling_keeps_the_shape_and_everything_else(self):
+        p = bts.model_params("st-compact")
+        plasma = bts.model_plasma(p, self.template)
+        old, new = self.template["ion_density_m3"], plasma["ion_density_m3"]
+        ratios = [new[k] / old[k] for k in ("centre", "pedestal", "separatrix")]
+        self.assertAlmostEqual(ratios[0], ratios[1], places=9)
+        self.assertAlmostEqual(ratios[0], ratios[2], places=9)
+        self.assertEqual(new["peaking_factor"], old["peaking_factor"])
+        self.assertEqual(plasma["ion_temperature_ev"], self.template["ion_temperature_ev"])
+        # a spherical tokamak at 200 MW in a smaller volume needs a different level than RM-M
+        self.assertNotAlmostEqual(ratios[0], 1.0, places=2)
+        self.assertEqual(self.template["ion_density_m3"], old)
 
 
 def port_x(p):

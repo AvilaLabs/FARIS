@@ -38,8 +38,9 @@ RM_M = Path(__file__).resolve().parents[3] / "scenarios" / "rm-m" / "rm-m.faris-
 SITES = 100_000
 SEED = 1
 # The strength of the D-T reactions alone, tokamak_source's 100 x 100 mesh over the 500 x 500
-# (a, alpha) grid; the Rust integral in crates/faris-engine/src/design/source.rs gives 6.757372e19.
-RM_M_DT_RATE_PER_S = 6.757372e19
+# (a, alpha) grid; the Rust integral in crates/faris-engine/src/design/source.rs gives 1.861814e20
+# (525 MW; the design file's ion densities were scaled so the profiles close at that power).
+RM_M_DT_RATE_PER_S = 1.861814e20
 
 
 def chi2_survival(chi2, dof):

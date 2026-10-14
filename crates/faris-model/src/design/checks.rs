@@ -725,6 +725,17 @@ pub fn check_5(design: &Design) -> (Vec<Finding>, Vec<Notice>) {
             format!("Set chamber_solid_id to {only:?}, or change the roles."),
         ));
     }
+    if let Some(minimum) = design.plasma.min_first_wall_clearance_m
+        && !(minimum.is_finite() && minimum > 0.0)
+    {
+        findings.push(Finding::new(
+            CHECK,
+            "plasma.min_first_wall_clearance_m",
+            format!("the minimum clearance is {minimum} m; it must be positive"),
+            "Give the smallest distance in metres a source site may have to the first wall, or \
+             null to set no minimum.",
+        ));
+    }
     for (i, material) in design.materials.iter().enumerate() {
         if material.catalog_id.is_some() {
             continue;

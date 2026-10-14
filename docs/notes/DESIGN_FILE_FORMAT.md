@@ -188,7 +188,7 @@ without `waivers` is unchanged and stays valid.
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| `check_id` | string | The class of finding: `GEO-021`, `GEO-022`, `GEO-024`, `GEO-025`, `GEO-031`, `GEO-032`, `SLIVER`, `SELF-INTERSECTION` or `DUPLICATE-SURFACE`. |
+| `check_id` | string | The class of finding: `GEO-021`, `GEO-022`, `GEO-024`, `GEO-025`, `GEO-031`, `GEO-032`, `SLIVER`, `SELF-INTERSECTION`, `DUPLICATE-SURFACE` or `SRC-010` (a declared fusion power that does not close with the profiles; `solid_ids` is the plasma chamber solid). |
 | `solid_ids` | array of string | The solids the finding is about, as a set; it must equal the finding's set. |
 | `point_m` | `[x, y, z]` | For a gap, the interior point FARIS reported, equal to 1e-9 m. Give `solid_ids`, `point_m` or both. |
 | `reason`, `author` | string | Not empty. |
@@ -199,7 +199,7 @@ receipt, labelled with the waiver (index, author, date, reason), and does not
 stop the import. A waiver that covers no finding is reported as a notice. The
 classes `GEO-020`, `INVERTED-NORMALS`, `ZERO-VOLUME` and `DEGENERATE-TRIANGLE`
 cannot be waived: check 1 rejects a waiver for them. A failed conversion
-(`GEO-012`) and source sites outside the chamber (`SRC-018`) have no waiver id.
+(`GEO-012`) and every `SRC-018` finding (sites outside the chamber, in or on the first wall, or closer to it than `min_first_wall_clearance_m`) have no waiver id.
 Check 4 requires every `solid_ids` entry to exist. A gap raises two findings at
 the same place (the topological cavity, `GEO-022`, and the sampled points in no
 solid, `GEO-024`); a `GEO-022` waiver covers both, and an overlap (`GEO-021`)
@@ -240,13 +240,18 @@ SI. FARIS converts lengths to centimetres when it calls the package.
 | `ion_temperature_ev` | `{centre, pedestal, separatrix, peaking_factor, beta}`. |
 | `fuel` | `{"D": 0.5, "T": 0.5}`. |
 | `fusion_power_mw` | Total D-T fusion power. Source strength S = P/(Q·e) with Q = 17.6 MeV (SRC-001). The neutron power fraction 14.1/17.6 is shown wherever neutron power is used (SRC-002). |
+| `min_first_wall_clearance_m` | Optional, metres, positive when set. The smallest distance a sampled source site may have to a `first_wall` solid (SRC-018). `null` or absent: no minimum, and check 9 only reports the measured distance. `faris design init` writes an explicit `null`. Check 5 refuses zero, negative and non-finite values. |
 | `emissivity_table` | Optional `{path, sha256}`. It replaces the profiles (SRC-004). |
 | `provenance` | One object for the block, plus per-field overrides in `field_provenance`. |
 
 The profile integral sets only the shape of the source. Its absolute strength
 comes from `fusion_power_mw` alone. FARIS reports the profile's own implied
-fusion power next to the declared value (SRC-010 closure), and a difference
-above 1e-3 relative is shown, not hidden.
+fusion power next to the declared value (SRC-010 closure). A difference above
+1e-3 relative is a blocking finding of check 9 (the closure is computed there,
+from the plasma block alone, and is reported whatever stops the later checks),
+which a waiver for `SRC-010` with a written reason accepts. FARIS rescales
+neither value. A plasma block that cannot be integrated keeps a notice naming
+the field, and does not block.
 
 ### `operating_scenario`
 
@@ -278,7 +283,10 @@ repaired (GEO-027).
    faceting deviation is reported (GEO-032).
 8. The integrity checks from the plan (GEO-020 to GEO-025) run.
 9. Source sites sampled from `plasma` all lie in the chamber solid (SRC-018). The report adds the smallest
-   distance from a site to a `first_wall` solid; only a site inside it fails (no minimum is set).
+   distance from a site to a `first_wall` solid. A site inside or on it fails, as does a nearest site closer
+   than `plasma.min_first_wall_clearance_m` when that is set (no built-in minimum); neither can be waived.
+   Check 9 also fails when the profiles' D-T fusion power does not close with `fusion_power_mw` within 1e-3
+   (SRC-010, waivable with `SRC-010` and the chamber solid).
 
 Checks 1 to 5 need no CAD kernel beyond reading the STEP file, so they run in
 seconds and catch most user errors before the slow steps.

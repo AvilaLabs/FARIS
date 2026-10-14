@@ -189,16 +189,22 @@ the interpreter that ran them, and every void solid.
 9. **The plasma source lies inside the chamber.** FARIS samples 100,000 source sites from the plasma block with
    OpenMC's plasma source and tests each against the `plasma_chamber` volume. All must be inside. The report
    also gives the smallest distance from any site to a `first_wall` solid and the site that has it
-   (`Clearance to the first wall`). No minimum is set: only a site inside the first wall stops the import, and a
-   design with no `first_wall` solid says the clearance was not measured.
+   (`Clearance to the first wall`). FARIS sets no minimum of its own. A site inside or touching the first wall
+   stops the import. If you set `plasma.min_first_wall_clearance_m` (metres, positive, `null` or left out for no
+   minimum), a nearest site closer than that also stops it. Neither finding can be waived. A design with no
+   `first_wall` solid says the clearance was not measured, and with a minimum set that check 9 is
+   `NOT_EVALUATED` until a solid has the role `first_wall` or the minimum is `null`.
 
-   Once checks 1 to 5 pass, whatever stops checks 6 to 9, the report also adds a line `Source closure`: the D-T fusion power that the
-   plasma block's ion density and temperature profiles imply, next to `fusion_power_mw`. Transport takes its
-   source strength from `fusion_power_mw` alone and the profiles only set the shape, so if the two differ by more
-   than 1e-3 relative the line reads `EXCEEDED` and a notice gives both numbers. It does not stop the import and
-   FARIS rescales neither value: correct the profiles, or set `fusion_power_mw` to the profiles' value if the
-   profiles are the plasma you mean. The profile power counts D-T reactions only, with the profile shapes and
-   the Bosch-Hale reactivity that `openmc_plasma_source` uses.
+   Check 9 also owns the source closure. FARIS integrates the D-T fusion power that the plasma block's ion density
+   and temperature profiles imply and compares it with `fusion_power_mw`; the report shows it as the line
+   `Source closure` whatever stops checks 6 to 9. Transport takes its source strength from `fusion_power_mw`
+   alone and the profiles only set the shape, so if the two differ by more than 1e-3 relative the line reads
+   `EXCEEDED` and check 9 reports a blocking finding (`SRC-010`) with both powers and their ratio. Correct the
+   profiles (or the declared power), or, if the profile is only an approximate shape for a fusion power you
+   know, accept the difference with a waiver for `SRC-010` that names the plasma chamber solid in `solid_ids`
+   and gives the reason. FARIS rescales neither value. If the plasma block cannot be integrated at all, a notice
+   says which field to correct and the declared power is not compared. The profile power counts D-T reactions
+   only, with the profile shapes and the Bosch-Hale reactivity that `openmc_plasma_source` uses.
 
 Every void solid is listed in the report, because a void region hides streaming paths.
 
@@ -257,10 +263,12 @@ nothing matches loosely. A waived finding stays in the report and in every recei
 no longer stops the import. A waiver that covers nothing is reported.
 
 You can waive `GEO-021` (overlap), `GEO-022` (gap), `GEO-024`, `GEO-025`, `GEO-031`, `GEO-032`, `SLIVER`,
-`SELF-INTERSECTION` and `DUPLICATE-SURFACE`. A gap is found by two checks that share a position; one waiver covers
+`SELF-INTERSECTION`, `DUPLICATE-SURFACE` and `SRC-010` (the declared fusion power does not close with the
+profiles; name the plasma chamber solid). A gap is found by two checks that share a position; one waiver covers
 both. You cannot waive an open or non-manifold surface (`GEO-020`), inverted normals, a zero-volume solid or a
 degenerate triangle, because transport is not defined for them. You also cannot waive a failed conversion
-(`GEO-012`) or source sites outside the chamber (`SRC-018`).
+(`GEO-012`), source sites outside the chamber, or a first-wall clearance that is not positive or is below your
+minimum (`SRC-018`).
 
 ## Check a design from the desktop
 

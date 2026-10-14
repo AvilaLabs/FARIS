@@ -931,3 +931,64 @@ fn a_waiver_for_a_missing_solid_stops_at_check_4() {
     let findings = check_4(&d);
     assert_eq!(one(&findings).item, "waivers[0].solid_ids[1]");
 }
+
+#[test]
+// Verifies: SRC-018
+fn the_minimum_first_wall_clearance_is_optional_and_must_be_positive() {
+    // absent and null both mean no minimum, and neither is a finding
+    let absent = edit(|v| {
+        assert!(
+            v["plasma"]
+                .as_object_mut()
+                .unwrap()
+                .remove("min_first_wall_clearance_m")
+                .is_none()
+        );
+    });
+    assert!(absent.findings.is_empty(), "{:#?}", absent.findings);
+    assert_eq!(
+        absent.design.unwrap().plasma.min_first_wall_clearance_m,
+        None
+    );
+    let null = edit(|v| v["plasma"]["min_first_wall_clearance_m"] = Value::Null);
+    assert!(null.findings.is_empty(), "{:#?}", null.findings);
+    // a value is read, and written back by serialisation (null when unset)
+    let set = edit(|v| v["plasma"]["min_first_wall_clearance_m"] = json!(0.05));
+    let mut d = set.design.unwrap();
+    assert_eq!(d.plasma.min_first_wall_clearance_m, Some(0.05));
+    assert!(check_5(&d).0.is_empty());
+    d.plasma.min_first_wall_clearance_m = None;
+    let written = serde_json::to_value(&d).unwrap();
+    assert!(written["plasma"]["min_first_wall_clearance_m"].is_null());
+    // zero, negative and not-finite values are refused with a reason and a next step
+    for bad in [0.0, -0.1, f64::NAN] {
+        let mut d = design();
+        d.plasma.min_first_wall_clearance_m = Some(bad);
+        let findings = check_5(&d).0;
+        explains(&findings);
+        assert_eq!(items(&findings), ["plasma.min_first_wall_clearance_m"]);
+        assert!(findings[0].why.contains("must be positive"));
+    }
+    // a string is a schema error that names the key's type problem
+    let wrong = edit(|v| v["plasma"]["min_first_wall_clearance_m"] = json!("0.05"));
+    assert!(wrong.design.is_none());
+    assert!(one(&wrong.findings).why.contains("does not match"));
+}
+
+#[test]
+// Verifies: SRC-010
+fn the_closure_id_can_be_waived() {
+    assert!(WAIVABLE_IDS.contains(&"SRC-010"));
+    assert!(waiver_id_is_known("SRC-010"));
+    let mut d = design();
+    d.waivers = vec![Waiver {
+        check_id: "SRC-010".into(),
+        solid_ids: vec!["plasma".into()],
+        point_m: None,
+        reason: "approximate profile for a known fusion power".into(),
+        author: "A. Designer".into(),
+        date: "2026-10-13".into(),
+    }];
+    assert!(check_waivers(&d).is_empty());
+    assert!(waiver_references(&d).is_empty());
+}
