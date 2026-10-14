@@ -296,31 +296,114 @@ def batch_mean_covariance(columns: list[list[float]]) -> list[list[float]]:
     return matrix
 
 
-def read_batch_sums(openmc, out: Path, n_batches: int, tally_names: list[str]) -> dict[str, list[float]]:
+# Stop-rule constants. A run with a target error watches the magnet fast-flux
+# response (the Transport panel's headline) and never stops before this many
+# batches, because a relative error estimated from fewer is not trustworthy.
+STOP_RULE_RESPONSE_ID = "magnets-fast-flux"
+STOP_RULE_MIN_BATCHES = 30
+
+
+def stop_rule(sampling: dict) -> dict | None:
+    """The trigger settings a sampling plan asks for, or None for a fixed run.
+
+    `batches` is the budget when a target error is given. OpenMC runs
+    `min_batches` first, then checks the trigger after every batch until it is
+    met or `max_batches` is reached.
+    """
+    target = sampling.get("target_relative_error")
+    if target is None:
+        return None
+    target = float(target)
+    budget = int(sampling["batches"])
+    require(math.isfinite(target) and 0.0 < target <= 0.5, "target relative error must be in (0, 0.5]")
+    require(budget >= STOP_RULE_MIN_BATCHES, f"a target-error run needs a budget of at least {STOP_RULE_MIN_BATCHES} batches")
+    return {
+        "response_id": STOP_RULE_RESPONSE_ID,
+        "target_relative_error": target,
+        "min_batches": STOP_RULE_MIN_BATCHES,
+        "max_batches": budget,
+        "batch_interval": 1,
+    }
+
+
+def apply_stop_rule(openmc, settings, tallies_by_name: dict, rule: dict | None) -> None:
+    """Configure OpenMC tally triggers; no-op for a fixed run."""
+    if rule is None:
+        return
+    matches = [t for name, t in tallies_by_name.items() if name == f"response-{rule['response_id']}"]
+    require(len(matches) == 1, f"a target-error run needs the {rule['response_id']} response in the request")
+    trigger = openmc.Trigger("rel_err", rule["target_relative_error"])
+    trigger.scores = list(matches[0].scores)
+    matches[0].triggers = [trigger]
+    settings.batches = rule["min_batches"]
+    settings.trigger_active = True
+    settings.trigger_max_batches = rule["max_batches"]
+    settings.trigger_batch_interval = rule["batch_interval"]
+
+
+def judge_stop(rule: dict | None, realized: int, achieved: float | None) -> tuple[str, str]:
+    """Why a run stopped: (code, plain words). Refuses a stop the rule cannot explain."""
+    if rule is None:
+        return "fixed_count", "ran the requested number of batches"
+    require(rule["min_batches"] <= realized <= rule["max_batches"], "realized batches are outside the stop-rule range")
+    met = achieved is not None and achieved <= rule["target_relative_error"] * (1.0 + 1.0e-9)
+    if met:
+        return "target_met", "target error met"
+    require(realized == rule["max_batches"], "OpenMC stopped before the target error was met and before the batch budget")
+    return "budget_exhausted", "batch budget used up before the target error was met"
+
+
+def read_scalar_sums(path: Path, names: list[str]) -> tuple[int, int, dict[str, float]]:
+    """(current_batch, n_realizations, cumulative sum of each named scalar tally) of one statepoint.
+
+    Reads the HDF5 file directly: opening it through openmc.StatePoint rebuilds
+    every filter and costs about 0.3 s, which is most of a 30-batch preview's
+    bookkeeping. `results[..., 0]` is the accumulated sum that Tally.sum returns.
+    """
+    import h5py
+
+    with h5py.File(path, "r") as f:
+        sums = {}
+        by_name = {}
+        for key in f["tallies"]:
+            if key.startswith("tally "):
+                by_name[f["tallies"][key]["name"][()].decode()] = f["tallies"][key]
+        for name in names:
+            require(name in by_name, f"{name} is missing from {path.name}")
+            results = by_name[name]["results"][()]
+            require(results.size == 2, f"{name} did not produce one scalar in {path.name}")
+            sums[name] = float(results.ravel()[0])
+        return int(f["current_batch"][()]), int(f["n_realizations"][()]), sums
+
+
+def read_batch_sums(openmc, out: Path, min_batches: int, max_batches: int, tally_names: list[str]) -> tuple[dict[str, list[float]], int]:
     """Read cumulative scalar tally sums from every per-batch statepoint.
 
+    A fixed run has min_batches == max_batches. A target-error run stops on its
+    own, so the files must cover batches 1..N exactly for some N in the range.
     Intermediate statepoints are deleted as soon as they are read; only the
     final one remains, as the rest of the worker and its checks expect.
+    Returns the sums and N.
     """
     files = {}
     for path in out.glob("statepoint.*.h5"):
         files[int(path.name.split(".")[1])] = path
-    require(sorted(files) == list(range(1, n_batches + 1)), "per-batch statepoints do not cover batches 1..N exactly")
+    realized = len(files)
+    require(min_batches <= realized <= max_batches, f"{realized} per-batch statepoints written; expected {min_batches}..{max_batches}")
+    require(sorted(files) == list(range(1, realized + 1)), "per-batch statepoints do not cover batches 1..N exactly")
     sums = {name: [] for name in tally_names}
     try:
-        for batch in range(1, n_batches + 1):
-            with openmc.StatePoint(str(files[batch])) as sp:
-                require(int(sp.current_batch) == batch and int(sp.n_realizations) == batch, f"statepoint for batch {batch} has unexpected realization count")
-                for name in tally_names:
-                    values = sp.get_tally(name=name).sum.ravel()
-                    require(len(values) == 1, f"{name} did not produce one scalar in batch {batch}")
-                    sums[name].append(float(values[0]))
-            if batch < n_batches:
+        for batch in range(1, realized + 1):
+            current, n_realizations, values = read_scalar_sums(files[batch], tally_names)
+            require(current == batch and n_realizations == batch, f"statepoint for batch {batch} has unexpected realization count")
+            for name in tally_names:
+                sums[name].append(values[name])
+            if batch < realized:
                 files[batch].unlink()
     finally:
-        for batch in range(1, n_batches):
+        for batch in range(1, realized):
             files[batch].unlink(missing_ok=True)
-    return sums
+    return sums, realized
 
 
 def sampling_precision_report(request: dict, tallies: list[dict], volumes: list[dict]) -> dict:
@@ -969,6 +1052,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     settings.batches = int(sampling["batches"])
     # One statepoint per batch gives batch-resolved scalar tallies for the
     # response covariance; the worker deletes all but the final statepoint.
+    # With a stop rule the budget is the most batches that can be reached.
     settings.statepoint = {"batches": list(range(1, int(sampling["batches"]) + 1))}
     settings.particles = int(sampling["particles_per_batch"])
     settings.seed = int(sampling["seed"])
@@ -1071,6 +1155,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
             tally.estimator = "tracklength"
         tallies.append(tally)
         response_by_tally[tally.name] = response
+    apply_stop_rule(openmc, settings, {t.name: t for t in tallies if t.name in response_by_tally}, stop_rule(sampling))
 
     mesh_meta = inp.get("mesh")
     mesh_response_defs = [r for r in request["responses"] if r["domain"]["kind"] == "mesh"]
@@ -1180,8 +1265,10 @@ def main() -> int:
         require(solver_output["return_code"] == 0, f"OpenMC exited {solver_output['return_code']}; inspect bounded output logs")
         log = (out / "openmc.stdout.log").read_bytes() + b"\n" + (out / "openmc.stderr.log").read_bytes()
         require(not re.search(rb"(?i)particle\s+\d+\s+was lost|lost particles?", log), "OpenMC reported lost particles")
-        n_batches = int(inp["sampling"]["batches"])
-        batch_sums = read_batch_sums(openmc, out, n_batches, list(response_by_tally))
+        rule = stop_rule(inp["sampling"])
+        budget = int(inp["sampling"]["batches"])
+        min_batches = rule["min_batches"] if rule else budget
+        batch_sums, n_batches = read_batch_sums(openmc, out, min_batches, budget, list(response_by_tally))
         statepoints = sorted(out.glob("statepoint.*.h5"))
         require(statepoints, "OpenMC produced no statepoint")
         require(len(statepoints) == 1, "expected exactly one final statepoint")
@@ -1192,9 +1279,10 @@ def main() -> int:
             require(observed_version == expected_version == (0, 15, 3), f"statepoint version {observed_version} does not match requested OpenMC {expected_version}")
             require(sp.run_mode == "fixed source", f"statepoint run mode is {sp.run_mode!r}, not fixed source")
             require(int(sp.seed) == int(inp["sampling"]["seed"]), "statepoint seed differs from request")
-            require(int(sp.n_batches) == int(inp["sampling"]["batches"]), "statepoint n_batches differs from request")
-            require(int(sp.current_batch) == int(inp["sampling"]["batches"]), "statepoint current_batch is incomplete")
-            require(int(sp.n_realizations) == int(inp["sampling"]["batches"]), "statepoint realization count differs from requested batches")
+            if rule is None:
+                require(int(sp.n_batches) == budget, "statepoint n_batches differs from request")
+            require(int(sp.current_batch) == n_batches, "statepoint current_batch is incomplete")
+            require(int(sp.n_realizations) == n_batches, "statepoint realization count differs from the batches realized")
             require(int(sp.n_particles) == int(inp["sampling"]["particles_per_batch"]), "statepoint particles per batch differs from request")
             raw_tallies = []
             batch_columns = {}
@@ -1301,8 +1389,14 @@ def main() -> int:
             (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
+        achieved = None
+        if rule is not None:
+            target_tally = next(t for t in raw_tallies if t["response_id"] == rule["response_id"])
+            achieved = target_tally["standard_error"] / abs(target_tally["mean"]) if target_tally["mean"] != 0.0 else None
+        stop_code, stop_words = judge_stop(rule, n_batches, achieved)
+        sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": rule["response_id"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "stop_reason": stop_code, "stop_reason_text": stop_words}
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:

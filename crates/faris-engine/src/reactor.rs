@@ -415,13 +415,21 @@ fn mesh_payload_preflight_with_encoding(
     })
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SamplingPlan {
+    /// Batches to run; the budget (most batches) when a target error is set.
     pub batches: u32,
     pub particles_per_batch: u32,
     pub seed: u64,
     pub threads: u32,
+    /// Stop once the relative standard error of the magnet fast flux
+    /// ([`STOP_RULE_RESPONSE_ID`]) reaches this, after at least
+    /// [`STOP_RULE_MIN_BATCHES`] batches, or when `batches` is used up.
+    /// Absent means a fixed run of exactly `batches`, as records made before
+    /// the stop rule existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_relative_error: Option<f64>,
 }
 impl Default for SamplingPlan {
     fn default() -> Self {
@@ -430,8 +438,144 @@ impl Default for SamplingPlan {
             particles_per_batch: 10_000,
             seed: 123_456_789,
             threads: 1,
+            target_relative_error: None,
         }
     }
+}
+/// Response the stop rule watches: the panel's headline magnet fast flux.
+pub const STOP_RULE_RESPONSE_ID: &str = "magnets-fast-flux";
+/// Fewest batches a target-error run may stop at; a relative error estimated
+/// from fewer batches is not trustworthy.
+pub const STOP_RULE_MIN_BATCHES: u32 = 30;
+/// Largest target relative error a plan may ask for.
+pub const STOP_RULE_MAX_TARGET: f64 = 0.5;
+
+/// Why a run stopped.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StopReason {
+    /// A fixed run did the batches it was asked for.
+    FixedCount,
+    TargetMet,
+    BudgetExhausted,
+}
+
+/// What a run actually sampled, read from the hash-bound worker receipt.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SamplingOutcome {
+    pub batches_realized: u32,
+    pub histories_realized: u64,
+    pub target_relative_error: Option<f64>,
+    /// Relative standard error of the watched response, when a target was set.
+    pub achieved_relative_error: Option<f64>,
+    pub stop_reason: StopReason,
+}
+
+impl SamplingOutcome {
+    /// One plain sentence for the result view.
+    pub fn summary(&self) -> String {
+        let histories = self.histories_realized;
+        match (
+            self.stop_reason,
+            self.target_relative_error,
+            self.achieved_relative_error,
+        ) {
+            (StopReason::TargetMet, Some(target), Some(achieved)) => format!(
+                "Stopped after {histories} histories because the target was met: magnet fast flux {:.1}% (target {:.1}%).",
+                achieved * 100.0,
+                target * 100.0
+            ),
+            (StopReason::BudgetExhausted, Some(target), Some(achieved)) => format!(
+                "Target not met: magnet fast flux {:.1}% after {histories} histories (target {:.1}%). The run used up its budget; run longer or use more threads.",
+                achieved * 100.0,
+                target * 100.0
+            ),
+            (StopReason::BudgetExhausted, Some(target), None) => format!(
+                "Target not met: the magnet fast flux scored nothing in {histories} histories (target {:.1}%). Run longer.",
+                target * 100.0
+            ),
+            _ => format!("Ran the requested {histories} histories."),
+        }
+    }
+}
+
+/// Histories a successful run must have recorded: the fixed count, or the
+/// realized count of a target-error run.
+fn expected_histories(
+    plan: &SamplingPlan,
+    outcome: Option<&SamplingOutcome>,
+) -> Result<u64, ReactorError> {
+    let per_batch = u64::from(plan.particles_per_batch);
+    match (plan.target_relative_error, outcome) {
+        (None, _) => Ok(u64::from(plan.batches) * per_batch),
+        (Some(_), Some(outcome)) => Ok(outcome.histories_realized),
+        (Some(_), None) => {
+            Err("target-error run has no sampling outcome in its worker receipt".into())
+        }
+    }
+}
+
+/// Read and check the worker's `sampling_outcome` against the plan. Receipts
+/// from before the stop rule have none, which is only valid for a fixed plan.
+pub fn sampling_outcome(
+    worker: &Value,
+    plan: &SamplingPlan,
+) -> Result<Option<SamplingOutcome>, ReactorError> {
+    let Some(raw) = worker.get("sampling_outcome") else {
+        if plan.target_relative_error.is_some() {
+            return Err("target-error run has no sampling outcome in its worker receipt".into());
+        }
+        return Ok(None);
+    };
+    let bad = |what: &str| -> ReactorError { format!("sampling outcome {what}").into() };
+    let batches_realized = raw
+        .get("batches_realized")
+        .and_then(Value::as_u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .ok_or_else(|| bad("batches are missing"))?;
+    let histories_realized = raw
+        .get("histories_realized")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| bad("histories are missing"))?;
+    let target = raw.get("target_relative_error").and_then(Value::as_f64);
+    let achieved = raw.get("achieved_relative_error").and_then(Value::as_f64);
+    let reason = match raw.get("stop_reason").and_then(Value::as_str) {
+        Some("fixed_count") => StopReason::FixedCount,
+        Some("target_met") => StopReason::TargetMet,
+        Some("budget_exhausted") => StopReason::BudgetExhausted,
+        _ => return Err(bad("stop reason is unknown")),
+    };
+    if histories_realized != u64::from(batches_realized) * u64::from(plan.particles_per_batch)
+        || target != plan.target_relative_error
+        || achieved.is_some_and(|v| !v.is_finite() || v < 0.0)
+    {
+        return Err(bad("disagrees with the sampling plan"));
+    }
+    let consistent = match plan.target_relative_error {
+        None => reason == StopReason::FixedCount && batches_realized == plan.batches,
+        Some(target) => {
+            (STOP_RULE_MIN_BATCHES..=plan.batches).contains(&batches_realized)
+                && match reason {
+                    StopReason::TargetMet => achieved.is_some_and(|v| v <= target * (1.0 + 1e-9)),
+                    StopReason::BudgetExhausted => {
+                        batches_realized == plan.batches
+                            && achieved.is_none_or(|v| v > target * (1.0 + 1e-9))
+                    }
+                    StopReason::FixedCount => false,
+                }
+        }
+    };
+    if !consistent {
+        return Err(bad(
+            "stop reason contradicts the batches and error recorded",
+        ));
+    }
+    Ok(Some(SamplingOutcome {
+        batches_realized,
+        histories_realized,
+        target_relative_error: target,
+        achieved_relative_error: achieved,
+        stop_reason: reason,
+    }))
 }
 /// Upper bound on histories in one fixed-source run. Wall time is bounded
 /// separately by the job deadline; this bound keeps a typo from requesting a
@@ -456,7 +600,7 @@ pub fn validate_run_timeout(timeout: Duration) -> Result<(), ReactorError> {
 
 impl SamplingPlan {
     pub fn validate(&self) -> Result<(), ReactorError> {
-        if self.batches < 30
+        if self.batches < STOP_RULE_MIN_BATCHES
             || self.batches > 1000
             || self.particles_per_batch == 0
             || u64::from(self.batches) * u64::from(self.particles_per_batch) > MAX_RUN_HISTORIES
@@ -466,6 +610,11 @@ impl SamplingPlan {
             || self.threads > 32
         {
             return Err("sampling requires 30..1000 batches, 1..50M total histories, positive signed-64-bit seed and 1..32 threads".into());
+        }
+        if let Some(target) = self.target_relative_error
+            && !(target.is_finite() && target > 0.0 && target <= STOP_RULE_MAX_TARGET)
+        {
+            return Err("target relative error must be above 0 and at most 0.5".into());
         }
         Ok(())
     }
@@ -518,8 +667,24 @@ pub struct ReactorRun {
     /// from run.json so established evidence bytes stay immutable.
     #[serde(skip)]
     pub sampling_precision_summary: Option<SamplingPrecisionSummary>,
+    /// Batches and histories actually run, the achieved error and why the run
+    /// stopped; recomputed from the same worker receipt, absent on records
+    /// made before the stop rule.
+    #[serde(skip)]
+    pub sampling_outcome: Option<SamplingOutcome>,
     pub scientific_qualification: String,
     pub notice: String,
+}
+
+impl ReactorRun {
+    /// Histories the run actually sampled: the realized count of a
+    /// target-error run, else the planned batches times particles.
+    pub fn histories_sampled(&self) -> u64 {
+        self.sampling_outcome.as_ref().map_or_else(
+            || u64::from(self.sampling.batches) * u64::from(self.sampling.particles_per_batch),
+            |outcome| outcome.histories_realized,
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1488,7 +1653,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -1510,10 +1675,10 @@ pub fn run_reactor(
                 &physics,
             )?;
             let precision_summary = sampling_precision_summary(&worker)?;
+            let outcome = sampling_outcome(&worker, &job.sampling)?;
             let raw_bytes = read_json_bytes(&output.join("solver/transport-artifact.json"))?;
             let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
-            if artifact.histories
-                != u64::from(job.sampling.batches) * u64::from(job.sampling.particles_per_batch)
+            if artifact.histories != expected_histories(&job.sampling, outcome.as_ref())?
                 || artifact.solver.digest != format!("sha256:{}", record.openmc_sha256)
                 || artifact.nuclear_data.digest != input.nuclear_data_digest
             {
@@ -1541,6 +1706,7 @@ pub fn run_reactor(
                 digest(&raw_bytes),
                 digest(&worker_bytes),
                 precision_summary,
+                outcome,
                 normalized,
                 digest(&spectra_bytes),
                 normalized_spectra,
@@ -1551,6 +1717,7 @@ pub fn run_reactor(
                 digest,
                 worker_digest,
                 precision_summary,
+                outcome,
                 normalized,
                 spectra_digest,
                 normalized_spectra,
@@ -1558,6 +1725,7 @@ pub fn run_reactor(
                 record.raw_artifact_sha256 = Some(digest);
                 record.worker_result_sha256 = Some(worker_digest);
                 record.sampling_precision_summary = Some(precision_summary);
+                record.sampling_outcome = outcome;
                 record.normalized = Some(normalized);
                 record.transport_spectra_sha256 = Some(spectra_digest);
                 record.normalized_spectra = Some(normalized_spectra);
@@ -1675,13 +1843,20 @@ pub fn load_reactor_run(
         return Err("recorded raw artifact digest differs".into());
     }
     let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
+    // A target-error run's history count is only known from its bound receipt.
+    let recorded_outcome = match record.worker_result_sha256.as_deref() {
+        Some(_) => sampling_outcome(
+            &serde_json::from_slice(&read_json_bytes(&parent.join("solver/worker-result.json"))?)?,
+            &record.sampling,
+        )?,
+        None => None,
+    };
     if artifact.solver.digest != format!("sha256:{}", record.openmc_sha256)
         || artifact.nuclear_data.digest.as_str()
             != input["nuclear_data_digest"]
                 .as_str()
                 .ok_or("missing recorded data digest")?
-        || artifact.histories
-            != u64::from(record.sampling.batches) * u64::from(record.sampling.particles_per_batch)
+        || artifact.histories != expected_histories(&record.sampling, recorded_outcome.as_ref())?
     {
         return Err("recorded solver/data/sampling identity differs".into());
     }
@@ -1693,6 +1868,7 @@ pub fn load_reactor_run(
         let worker: Value = serde_json::from_slice(&worker_bytes)?;
         validate_geometry_ownership_receipt(&worker, &record.input_sha256, scenario, &physics)?;
         record.sampling_precision_summary = Some(sampling_precision_summary(&worker)?);
+        record.sampling_outcome = recorded_outcome;
     } else if record.adapter_sha256 == embedded_worker_sha256() {
         return Err("current worker run is missing its bound geometry-ownership receipt".into());
     }
@@ -1939,6 +2115,100 @@ mod tests {
             }
             .validate()
             .is_err()
+        );
+    }
+
+    // Verifies: PERF-025, NUC-043
+    #[test]
+    fn stop_rule_target_is_validated_and_optional() {
+        let plan = |target| SamplingPlan {
+            target_relative_error: target,
+            ..Default::default()
+        };
+        assert!(plan(Some(0.05)).validate().is_ok());
+        for bad in [0.0, -0.1, 0.51, f64::NAN, f64::INFINITY] {
+            assert!(plan(Some(bad)).validate().is_err(), "{bad} accepted");
+        }
+        // The budget is `batches`, so the 30-batch minimum still applies.
+        assert!(
+            SamplingPlan {
+                batches: 29,
+                target_relative_error: Some(0.05),
+                ..Default::default()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+
+    // Verifies: PERF-025
+    #[test]
+    fn plans_without_a_target_read_and_write_as_before() {
+        let old = r#"{"batches":100,"particles_per_batch":10000,"seed":123456789,"threads":1}"#;
+        let plan: SamplingPlan = serde_json::from_str(old).unwrap();
+        assert_eq!(plan, SamplingPlan::default());
+        assert_eq!(serde_json::to_string(&plan).unwrap(), old);
+        let with: SamplingPlan = serde_json::from_str(
+            r#"{"batches":100,"particles_per_batch":10000,"seed":1,"threads":2,"target_relative_error":0.05}"#,
+        )
+        .unwrap();
+        assert_eq!(with.target_relative_error, Some(0.05));
+        assert!(serde_json::to_string(&with).unwrap().contains("0.05"));
+    }
+
+    fn outcome_json(batches: u64, reason: &str, achieved: Option<f64>) -> Value {
+        serde_json::json!({"sampling_outcome": {
+            "batches_realized": batches,
+            "histories_realized": batches * 10_000,
+            "target_relative_error": 0.05,
+            "achieved_relative_error": achieved,
+            "stop_reason": reason,
+        }})
+    }
+
+    // Verifies: PERF-025, NUC-043
+    #[test]
+    fn sampling_outcome_accepts_only_stops_the_rule_can_explain() {
+        let plan = SamplingPlan {
+            batches: 100,
+            target_relative_error: Some(0.05),
+            ..Default::default()
+        };
+        let met = sampling_outcome(&outcome_json(47, "target_met", Some(0.049)), &plan)
+            .unwrap()
+            .unwrap();
+        assert_eq!(met.stop_reason, StopReason::TargetMet);
+        assert_eq!(expected_histories(&plan, Some(&met)).unwrap(), 470_000);
+        assert!(met.summary().contains("target was met"));
+        let spent = sampling_outcome(&outcome_json(100, "budget_exhausted", Some(0.08)), &plan)
+            .unwrap()
+            .unwrap();
+        assert!(spent.summary().contains("Target not met"));
+        assert!(spent.summary().contains("run longer"));
+        // Stopped early without meeting the target, below the minimum, or over budget.
+        for (batches, reason, achieved) in [
+            (47, "target_met", Some(0.06)),
+            (47, "budget_exhausted", Some(0.06)),
+            (29, "target_met", Some(0.01)),
+            (101, "budget_exhausted", Some(0.06)),
+            (100, "budget_exhausted", Some(0.04)),
+            (100, "fixed_count", Some(0.04)),
+        ] {
+            assert!(
+                sampling_outcome(&outcome_json(batches, reason, achieved), &plan).is_err(),
+                "{batches} {reason} {achieved:?} accepted"
+            );
+        }
+        // A target-error plan needs the receipt; a fixed plan may lack one.
+        assert!(sampling_outcome(&serde_json::json!({}), &plan).is_err());
+        assert!(
+            sampling_outcome(&serde_json::json!({}), &SamplingPlan::default())
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            expected_histories(&SamplingPlan::default(), None).unwrap(),
+            1_000_000
         );
     }
 

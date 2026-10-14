@@ -1818,8 +1818,7 @@ impl FarisApp {
                 ui,
                 "Histories",
                 &transport_panel::grouped(
-                    (u64::from(record.sampling.batches)
-                        * u64::from(record.sampling.particles_per_batch)) as usize,
+                    record.histories_sampled() as usize,
                 ),
                 badge::Kind::Calculated,
                 &format!("Particle histories sampled in the recorded run (seed {}). {note}", record.sampling.seed),

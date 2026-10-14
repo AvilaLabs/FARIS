@@ -159,6 +159,15 @@ intermediate ones are deleted after reading (about 0.3 MB each for the coarse
 mesh, so a 1000-batch run briefly holds a few hundred MB against the 512 MiB
 artifact cap).
 
+A reactor run can stop on an error (`target_relative_error` in the sampling plan, `--target-error` on
+the command line): the worker sets an OpenMC relative-error trigger on the `magnets-fast-flux` tally with at
+least 30 batches and `batches` as the budget, and writes one statepoint per batch reached. It checks that the
+files cover batches 1..N exactly for an N between 30 and the budget, that the statepoint's realization count is
+N, and that the stop is explained (target met, or the whole budget used); the worker receipt carries
+`sampling_outcome` (batches and histories realized, achieved error, stop reason), which Rust re-reads and ties to
+the plan before accepting the artifact's history count. Without a target nothing changes: the batch count is
+exact and the receipt's stop reason is `fixed_count`.
+
 A reactor run accepts 30 to 1000 batches and at most 50 million histories
 (`MAX_RUN_HISTORIES`). Wall time is bounded separately by `--timeout-seconds`
 (default 3,600 s, at most 14,400 s, `MAX_RUN_TIMEOUT_SECONDS`); a 30 million

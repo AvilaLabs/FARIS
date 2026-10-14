@@ -110,7 +110,7 @@ pub fn transport_point(run: &ReactorRun, variant: &Variant) -> Result<TransportP
             standard_error: flux.standard_error,
         },
         seed: run.sampling.seed,
-        histories: u64::from(run.sampling.batches) * u64::from(run.sampling.particles_per_batch),
+        histories: run.histories_sampled(),
     })
 }
 

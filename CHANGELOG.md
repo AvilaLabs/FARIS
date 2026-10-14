@@ -11,6 +11,16 @@ basis.
 
 ### Added
 
+- A preview tier and a production tier for the reactor transport study. **Run quality** in the Transport panel
+  replaces the two history-count choices: **Preview** is a fixed 90,000-history run that finishes in about a
+  minute on two threads (the total-tritium error is stated, and the magnet fast flux is stated as roughly known),
+  and **Production** runs until the magnet fast flux is known to 5 % or the 50 million history budget is used. The
+  result view says which tier ran, the error reached, the histories sampled and why the run stopped; a spent
+  budget says the target was not met and to run longer or use more threads. The panel now uses up to four threads
+  (one fewer than the machine has). `faris reactor run --target-error 0.05` does the same from the command line,
+  with `--batches` as the budget. The stop rule uses OpenMC's relative-error tally trigger on the magnet fast
+  flux, after at least 30 batches; the per-batch values behind the covariance cover the batches
+  reached. Plans without a target, and every earlier record, read and verify as before.
 - A shared **Tools** section in the Design check and Design flux windows: the CAD Python, OpenMC Python, cross
   sections, plasma source folder, window Python and OpenMC package folder are set once, shared by both windows and
   kept in a `settings.json` in the platform's configuration folder (also the last folder each window used). An

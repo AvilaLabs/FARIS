@@ -12,6 +12,7 @@ use faris_model::{LoadedScenario, transport::ResponseDomain};
 use std::{path::PathBuf, time::Duration};
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)] // one command is parsed per process
 pub enum ReactorCommand {
     /// Run one bounded fixed-source Monte Carlo calculation and retain its artifacts.
     Run {
@@ -30,6 +31,7 @@ pub enum ReactorCommand {
         /// New exclusive evidence directory; existing paths are refused.
         #[arg(long)]
         output: PathBuf,
+        /// Batches to run; with --target-error, the most batches (the budget).
         #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(30..=1000))]
         batches: u32,
         #[arg(long, default_value_t = 10_000, value_parser = clap::value_parser!(u32).range(1..=1_000_000))]
@@ -40,6 +42,11 @@ pub enum ReactorCommand {
         threads: u32,
         #[arg(long, default_value_t = 3600, value_parser = clap::value_parser!(u64).range(1..=faris_engine::reactor::MAX_RUN_TIMEOUT_SECONDS))]
         timeout_seconds: u64,
+        /// Stop once the relative standard error of the magnet fast flux reaches
+        /// this (for example 0.05), after at least 30 batches, or when --batches
+        /// is used up; the record states the achieved error and why it stopped.
+        #[arg(long, value_parser = parse_target_error)]
+        target_error: Option<f64>,
         /// Spatial flux tally resolution; local variants use the same outboard bounds.
         #[arg(long, default_value = "coarse", value_parser = ["coarse", "outboard-local-coarse", "outboard-local", "outboard-port-window"])]
         mesh_preset: String,
@@ -58,6 +65,15 @@ pub enum ReactorCommand {
     },
 }
 
+fn parse_target_error(text: &str) -> Result<f64, String> {
+    let value: f64 = text.parse().map_err(|_| "expected a number such as 0.05")?;
+    if value.is_finite() && value > 0.0 && value <= faris_engine::reactor::STOP_RULE_MAX_TARGET {
+        Ok(value)
+    } else {
+        Err("the target relative error must be above 0 and at most 0.5".into())
+    }
+}
+
 pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         ReactorCommand::Run {
@@ -73,6 +89,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             seed,
             threads,
             timeout_seconds,
+            target_error,
             mesh_preset,
             activation_spectra,
         } => run_case(
@@ -88,6 +105,7 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             seed,
             threads,
             timeout_seconds,
+            target_error,
             mesh_preset,
             activation_spectra,
         ),
@@ -109,6 +127,7 @@ fn run_case(
     seed: u64,
     threads: u32,
     timeout_seconds: u64,
+    target_error: Option<f64>,
     mesh_preset: String,
     activation_spectra: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -120,7 +139,11 @@ fn run_case(
         particles_per_batch: particles,
         seed,
         threads,
+        target_relative_error: target_error,
     };
+    sampling
+        .validate()
+        .map_err(|error| std::io::Error::other(error.to_string()))?;
     let preset = MeshPreset::from_cli(&mesh_preset)
         .map_err(|error| std::io::Error::other(error.to_string()))?;
     let manifest = build_manifest(&scenario)?;
@@ -134,8 +157,12 @@ fn run_case(
     let output_absolute = std::path::absolute(&output)?;
     const ADAPTER: &[u8] = include_bytes!("../../../integrations/openmc/reactor_transport.py");
     eprintln!(
-        "Running fixed-source OpenMC job ({} batches × {} particles; {} thread(s), {}s limit). Ctrl-C cancels the process group.",
-        batches, particles, threads, timeout_seconds
+        "Running fixed-source OpenMC job ({}{} batches × {} particles; {} thread(s), {}s limit). Ctrl-C cancels the process group.",
+        if target_error.is_some() { "up to " } else { "" },
+        batches,
+        particles,
+        threads,
+        timeout_seconds
     );
     let job = ReactorJob {
         scenario: &scenario,
@@ -164,6 +191,9 @@ fn run_case(
         response_count,
         output_absolute.display()
     );
+    if let Some(outcome) = &run.sampling_outcome {
+        println!("{}", outcome.summary());
+    }
     if execution != Some(ExecutionStatus::Succeeded) {
         let reason = run
             .import_error
@@ -227,26 +257,36 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
         .iter()
         .filter(|result| matches!(result.domain, ResponseDomain::Mesh { .. }) && result.mean > 0.0)
         .count();
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "inspection_status": "REVALIDATED_NORMALIZATION",
-            "scenario_id": scenario.scenario.id,
-            "scenario_sha256": run.scenario_sha256,
-            "variant_id": run.variant_id,
-            "scientific_scope": run.scientific_scope,
-            "sampling": run.sampling,
-            "execution_status": run.execution.as_ref().map(|e| e.execution_status),
-            "response_count": normalized.results.len(),
-            "mesh_bin_count": normalized.results.len() - summaries.len(),
-            "mesh_nonzero_flux_bin_count": mesh_nonzero_bins,
-            "non_mesh_responses": summaries,
-            "validation_notes": validation_notes,
-            "scientific_qualification": run.scientific_qualification,
-            "notice": run.notice,
-            "record": path,
-        }))?
-    );
+    let mut inspection = serde_json::json!({
+        "inspection_status": "REVALIDATED_NORMALIZATION",
+        "scenario_id": scenario.scenario.id,
+        "scenario_sha256": run.scenario_sha256,
+        "variant_id": run.variant_id,
+        "scientific_scope": run.scientific_scope,
+        "sampling": run.sampling,
+        "execution_status": run.execution.as_ref().map(|e| e.execution_status),
+        "response_count": normalized.results.len(),
+        "mesh_bin_count": normalized.results.len() - summaries.len(),
+        "mesh_nonzero_flux_bin_count": mesh_nonzero_bins,
+        "non_mesh_responses": summaries,
+        "validation_notes": validation_notes,
+        "scientific_qualification": run.scientific_qualification,
+        "notice": run.notice,
+        "record": path,
+    });
+    // Only runs made with the stop rule report how they stopped.
+    if let Some(outcome) = &run.sampling_outcome
+        && outcome.stop_reason != faris_engine::reactor::StopReason::FixedCount
+    {
+        inspection["sampling_outcome"] = serde_json::json!({
+            "batches_realized": outcome.batches_realized,
+            "histories_realized": outcome.histories_realized,
+            "target_relative_error": outcome.target_relative_error,
+            "achieved_relative_error": outcome.achieved_relative_error,
+            "summary": outcome.summary(),
+        });
+    }
+    println!("{}", serde_json::to_string_pretty(&inspection)?);
     Ok(())
 }
 
@@ -275,6 +315,7 @@ mod tests {
             "--seed",
             "--threads",
             "--timeout-seconds",
+            "--target-error",
             "--mesh-preset",
             "--activation-spectra",
         ] {

@@ -28,6 +28,65 @@ pub enum FieldView {
 
 pub use faris_engine::brief::TransportSummary;
 
+/// How hard a run samples: a quick look, or a run that stops on its error.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Tier {
+    #[default]
+    Preview,
+    Production,
+}
+
+/// Preview: a fixed count small enough to finish in about a minute. Measured on
+/// the cold-coupled control, coarse mesh, 2 threads, on the reference laptop:
+/// 30 × 3,000 = 90,000 histories took 46 s from start to finished record (about
+/// 13 s of that is the worker's data check, 33 s the transport). At this size the
+/// total-tritium error is about 0.4 % and the magnet fast flux about 50 to 65 %,
+/// so the result view states both errors beside the numbers.
+const PREVIEW_BATCHES: u32 = 30;
+const PREVIEW_PARTICLES: u32 = 3_000;
+/// Production stops once the magnet fast flux is known to this relative error.
+const PRODUCTION_TARGET: f64 = 0.05;
+/// Production budget: the engine's whole history cap (`MAX_RUN_HISTORIES`,
+/// 50 million) in 250,000-history batches, so the run can stop at any batch
+/// from the 30th on.
+const PRODUCTION_BATCHES: u32 = 200;
+const PRODUCTION_PARTICLES: u32 = 250_000;
+
+/// Threads for a run: all but one of the machine's, at most four, at least one.
+fn run_threads() -> u32 {
+    let available = std::thread::available_parallelism().map_or(1, |n| n.get());
+    available.saturating_sub(1).clamp(1, 4) as u32
+}
+
+fn sampling_for(tier: Tier, threads: u32) -> SamplingPlan {
+    match tier {
+        Tier::Preview => SamplingPlan {
+            batches: PREVIEW_BATCHES,
+            particles_per_batch: PREVIEW_PARTICLES,
+            threads,
+            ..SamplingPlan::default()
+        },
+        Tier::Production => SamplingPlan {
+            batches: PRODUCTION_BATCHES,
+            particles_per_batch: PRODUCTION_PARTICLES,
+            threads,
+            target_relative_error: Some(PRODUCTION_TARGET),
+            ..SamplingPlan::default()
+        },
+    }
+}
+
+/// Which tier made a record, in words; earlier records only have a fixed count.
+fn tier_label(plan: &SamplingPlan) -> &'static str {
+    if plan.target_relative_error.is_some() {
+        "Production tier"
+    } else if plan.batches == PREVIEW_BATCHES && plan.particles_per_batch == PREVIEW_PARTICLES {
+        "Preview tier"
+    } else {
+        "Fixed history count"
+    }
+}
+
 pub struct TransportConfiguration {
     pub python: Option<PathBuf>,
     pub openmc: Option<PathBuf>,
@@ -57,7 +116,7 @@ pub struct TransportPanel {
     audit: String,
     cross_sections: String,
     runs_directory: PathBuf,
-    sampling: SamplingPlan,
+    tier: Tier,
     mesh_preset: MeshPreset,
     pending: Option<Pending>,
     last_attempt: Option<(faris_engine::jobs::ExecutionStatus, PathBuf)>,
@@ -153,7 +212,7 @@ impl TransportPanel {
             audit: path_text(config.audit),
             cross_sections: path_text(config.cross_sections),
             runs_directory: config.runs_directory,
-            sampling: SamplingPlan::default(),
+            tier: Tier::default(),
             mesh_preset: MeshPreset::Coarse,
             pending: None,
             last_attempt: None,
@@ -289,7 +348,7 @@ impl TransportPanel {
         let openmc = PathBuf::from(&self.openmc);
         let audit = PathBuf::from(&self.audit);
         let cross_sections = PathBuf::from(&self.cross_sections);
-        let sampling = self.sampling.clone();
+        let sampling = sampling_for(self.tier, run_threads());
         let mesh = match faris_engine::build_manifest(&scenario)
             .map_err(|e| e.to_string())
             .and_then(|m| FieldMesh::for_preset(&m, self.mesh_preset).map_err(|e| e.to_string()))
@@ -371,19 +430,23 @@ impl TransportPanel {
                 ui.label(label);
                 ui.add(egui::TextEdit::singleline(path).desired_width(f32::INFINITY));
             }
-            ui.label("Histories (100 batches)");
-            ui.radio_value(
-                &mut self.sampling.particles_per_batch,
-                1_000,
-                "100,000 · pilot",
-            );
-            ui.radio_value(&mut self.sampling.particles_per_batch, 10_000, "1,000,000");
             egui::ComboBox::from_id_salt("fresh-field-mesh")
                 .selected_text(match self.mesh_preset {MeshPreset::Coarse => "Whole model · coarse", MeshPreset::OutboardLocalCoarse => "Port region · coarse", MeshPreset::OutboardLocal => "Port region · fine", MeshPreset::OutboardPortWindow => "Direct port-window average"})
                 .show_ui(ui, |ui| {
                     for (preset, label) in [(MeshPreset::Coarse,"Whole model · 12 × 8 × 12"),(MeshPreset::OutboardLocalCoarse,"Port region · 12 × 6 × 12"),(MeshPreset::OutboardLocal,"Port region · 24 × 12 × 24"),(MeshPreset::OutboardPortWindow,"Direct port window · one bin")] {ui.selectable_value(&mut self.mesh_preset, preset, label);}
                 });
-            ui.small("One thread; 1 hour limit; 4 GiB process memory; 512 MiB artifacts. Mesh/request/JSON sizes are checked before spawning. Sampling precision is measured after execution.");
+            ui.small(format!("{} thread(s); 4 hour limit; 4 GiB process memory; 512 MiB artifacts. Mesh/request/JSON sizes are checked before spawning. Sampling precision is measured after execution.", run_threads()));
+        });
+        ui.label("Run quality");
+        ui.radio_value(&mut self.tier, Tier::Preview, "Preview · about a minute");
+        ui.radio_value(
+            &mut self.tier,
+            Tier::Production,
+            "Production · stop at 5 % on the magnet flux",
+        );
+        ui.small(match self.tier {
+            Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
+            Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. This can take hours; you can cancel at any time.",
         });
         if let Some(pending) = &self.pending {
             ui.horizontal(|ui| {
@@ -434,9 +497,29 @@ impl TransportPanel {
                 ));
                 ui.small(format!(
                     "{} histories",
-                    u64::from(record.sampling.batches)
-                        * u64::from(record.sampling.particles_per_batch)
+                    grouped(record.histories_sampled() as usize)
                 ));
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.strong(tier_label(&record.sampling));
+                match &record.sampling_outcome {
+                    Some(outcome) if outcome.target_relative_error.is_some() => {
+                        ui.label(outcome.summary());
+                    }
+                    _ => {
+                        let relative = |id: &str| {
+                            self.response(variant, id).filter(|t| t.integrated_mean > 0.0).map(
+                                |t| 100.0 * t.integrated_standard_error / t.integrated_mean,
+                            )
+                        };
+                        if let (Some(magnet), Some(tritium)) = (
+                            relative(faris_engine::reactor::STOP_RULE_RESPONSE_ID),
+                            relative("total-tritium-production"),
+                        ) {
+                            ui.label(format!("Magnet fast flux {magnet:.1} % and total tritium {tritium:.2} % relative error. Choose Production to sample until the magnet flux is known to 5 %."));
+                        }
+                    }
+                }
             });
             if let Some(precision) = &record.sampling_precision_summary {
                 let targets = format!(
@@ -856,5 +939,45 @@ mod colormap_tests {
             c.iter().cloned().fold(0.0, f32::max) - c.iter().cloned().fold(1.0, f32::min)
         };
         assert!(spread(noisy) < 0.5 * spread(sharp));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Verifies: PERF-025
+    #[test]
+    fn both_tiers_are_valid_sampling_plans() {
+        for threads in [1, 4] {
+            for tier in [Tier::Preview, Tier::Production] {
+                sampling_for(tier, threads).validate().unwrap();
+            }
+        }
+        let preview = sampling_for(Tier::Preview, 2);
+        assert_eq!(preview.target_relative_error, None);
+        assert!(
+            u64::from(preview.batches) * u64::from(preview.particles_per_batch) <= 100_000,
+            "preview must stay a small fixed run"
+        );
+    }
+
+    // Verifies: PERF-025, NUC-043
+    #[test]
+    fn production_stops_on_a_target_within_the_history_cap() {
+        let production = sampling_for(Tier::Production, 3);
+        assert_eq!(production.target_relative_error, Some(0.05));
+        assert_eq!(
+            u64::from(production.batches) * u64::from(production.particles_per_batch),
+            faris_engine::reactor::MAX_RUN_HISTORIES
+        );
+        assert_eq!(tier_label(&production), "Production tier");
+        assert_eq!(tier_label(&sampling_for(Tier::Preview, 1)), "Preview tier");
+        assert_eq!(tier_label(&SamplingPlan::default()), "Fixed history count");
+    }
+
+    #[test]
+    fn run_threads_are_between_one_and_four() {
+        assert!((1..=4).contains(&run_threads()));
     }
 }

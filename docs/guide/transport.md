@@ -28,6 +28,8 @@ faris reactor run \
 
 The scenario and physics files shown are the port-free arrangement with the reference allocation. The port arrangements use `cold-reference-port.scenario.json` and its matching physics files.
 
+To stop on an error instead of a fixed count, add `--target-error 0.05`. The run then stops as soon as the relative standard error of the magnet fast flux is at or below 5 %, but not before 30 batches, and `--batches` becomes the budget: the most batches it may use. The result says how many histories were sampled, the error reached and why it stopped. If the budget runs out first, the result says the target was not met; run again with a larger budget (up to the limits below) or more threads. The magnet fast flux is the hardest response in the model to sample, so a 5 % target on it needs millions of histories.
+
 The limits are:
 
 - 30 to 1000 batches, and at most 50 million histories in all.
@@ -59,7 +61,7 @@ faris-app \
   --run runs/cold-coupled-control-reference-001/run.json --field-view flux-slice
 ```
 
-Repeat `--run` for the other arrangement. Add `--python`, `--openmc`, `--audit` and `--cross-sections` to enable **Run and review transport** in the Simulate step, or set them under **Transport configuration**. Closing the app cancels its transport workers. Camera interaction stays available while a job runs.
+Repeat `--run` for the other arrangement. Add `--python`, `--openmc`, `--audit` and `--cross-sections` to enable **Run and review transport** in the Simulate step, or set them under **Transport configuration**. Under **Run quality**, **Preview** runs a fixed 90,000 histories, about a minute on two threads; it states the errors it reached, and the magnet fast flux is only roughly known at that size. **Production** stops once the magnet fast flux is known to 5 %, or when its budget of 50 million histories is used, and says which. The app uses up to four threads, one fewer than the machine has. Closing the app cancels its transport workers. Camera interaction stays available while a job runs.
 
 A study started from `--run` records cannot be saved as a `.faris` file, because a study file holds recorded-transport bundles. `faris transport pack` packages a completed run into a portable bundle:
 

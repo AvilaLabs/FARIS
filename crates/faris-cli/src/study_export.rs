@@ -324,6 +324,7 @@ mod tests {
             worker_result_sha256: None,
             normalized_spectra: None,
             sampling_precision_summary: None,
+            sampling_outcome: None,
             scientific_qualification: "NOT_EVALUATED".into(),
             notice: "test".into(),
         }

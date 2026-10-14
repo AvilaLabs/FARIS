@@ -66,8 +66,7 @@ pub fn assemble_report_input<'a>(
                     .map(transport_summary),
                 sampling: record.map(|r| Sampling {
                     seed: r.sampling.seed,
-                    histories: u64::from(r.sampling.batches)
-                        * u64::from(r.sampling.particles_per_batch),
+                    histories: r.histories_sampled(),
                 }),
                 history: record
                     .and_then(|r| history(&r.scenario_sha256, variant))
