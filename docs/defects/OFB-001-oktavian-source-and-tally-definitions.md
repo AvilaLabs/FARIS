@@ -63,6 +63,28 @@ spheres of r = 10.2, 19.75 and 19.95 cm (the beam channel changes each a little)
 (0.00031, 0.00097 and 0.0268 m3 for the two steel shells and the aluminium) and do not overlap. The unused file is a
 trap for anyone who builds from the folder name.
 
+## Significance
+
+Silent and large where it applies. To measure it, the same DAGMC model (FARIS conversion, FENDL-3.2 neutron data with
+ENDF/B-VII.1 photon data, OpenMC 0.15.3, 3,000,000 histories each, tally on the whole outer boundary) was run once with
+the source OFB's own `_build_source` returns for its specification (findings 1 and 2 together) and once with the
+isotropic, probability-weighted source. Leakage per source neutron, OFB-as-built over the correct source:
+
+| Energy range | Ratio |
+| --- | --- |
+| 0.097 to 1 MeV | 0.741 |
+| 1 to 10 MeV | 0.810 |
+| 10 to 13.3 MeV | 0.923 |
+| 13.3 to 15.0 MeV | 1.049 |
+| 15.0 to 20.7 MeV | 1.166 |
+| 0.097 to 20.7 MeV in total | 1.003 |
+
+The total hardly changes and the spectrum shape does, so a C/E taken per bin is wrong by 20 to 25 % at low energy and 17 %
+above 15 MeV while an integral check would look fine. Findings 1 and 2 were not separated. This measures the source
+definition on FARIS's model, not OFB's pipeline end to end; it applies only to a user who builds the OKTAVIAN model with
+OFB's package. The stored results database predates the CAD route (its runs are CSG), so published OFB C/E values are not
+affected.
+
 ## What FARIS did
 
 `oktavian-al-cad` builds the source itself (isotropic, interval probabilities divided by the interval width), tallies the

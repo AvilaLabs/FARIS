@@ -229,6 +229,43 @@ directory crash OpenMC 0.15.3 (segmentation fault in `sample_photon_reaction`), 
 Defects found in OFB while building this case are in the manifest (`known_upstream_defects`) and in
 [defects/OFB-001-oktavian-source-and-tally-definitions.md](defects/OFB-001-oktavian-source-and-tally-definitions.md).
 
+#### Result of the first run (2026-10-14, appended after the protocol commit 46d23ff)
+
+Sealed records and the analysis are in `validation/cases/oktavian-al-cad/records/` (CAD record sha256 `76c79fd6...`,
+CSG comparator record `284d2144...`; `analysis.json` is `analyse.py` applied to both, which uses only the numbers of
+the protocol block). Conversion: STEP read, DAGMC conversion and facet export 8.4 s, 604 MB peak, 5 volumes, 18
+surfaces, 43,732 triangles; the tally surface was found by rule (surface 6, 125,567 cm2 faceted against 125,664 cm2
+for the sphere). Transport: OpenMC 0.15.3, 10,000,000 histories (100 batches), seed 1, 3 threads on cores 0 to 2,
+455 s (22,200 histories per second), 0 lost particles; the net current equals the outward partial current in every
+bin of both particle types. The CSG comparator took 137 s with the same settings.
+
+Against the experiment, by the declared rule: **FAIL**. Of the 133 scored neutron bins, 29 PASS, 103 FAIL, 1
+INCONCLUSIVE (132 are PASS or FAIL, so the coverage condition holds; 22 % PASS against the 90 % required). C/E
+over the 133 bins: median 0.906, 5th to 95th percentile 0.47 to 1.77, bias (mean log C/E) -0.077 with 95 % bootstrap
+interval [-0.166, +0.017]; the median C/E is 1.001 from 0.1 to 1 MeV, 0.895 from 1 to 10 MeV and 0.709 from 10 to 20.7
+MeV. The Monte Carlo error is 0.07 to 2.8 % in the bins below 17 MeV and exceeds half the experimental uncertainty in one
+bin only (16.92 MeV, the INCONCLUSIVE one), so the FAILs are not a statistics artefact. The worst bins sit at the 14 to 17 MeV edge of the source histogram
+(C/E 2.41 at 13.85 MeV, 4.42 at 16.25 MeV, 43.1 at 16.92 MeV).
+
+Where the FAIL comes from, as measured: the FARIS CSG run (same library, code, histories and seed) scores 28 PASS, 103
+FAIL, 2 INCONCLUSIVE with the same bias (-0.078) against the same experiment, and the geometry-path comparison is a
+PASS: 132 of the 133 bins agree within 2 combined standard deviations (the one exception is n-1.0706, 2.14 sigma), the
+median CAD over CSG is 0.9998, the largest bin deviation is 2.14 sigma. So the CAD-to-DAGMC path reproduces the CSG
+result of the same OpenMC, library and source. That is verification of the path (VAL-041), not evidence about the
+physics. The disagreement with the measurement is common to both geometries. The OFB results database (OpenMC 0.14.0
+and MCNP 6.1.1b CSG runs) shows the same bin pattern near the source edge (C/E as stored 2.35 at 13.85 MeV, 4.75 at
+16.25 MeV, 46 at 16.92 MeV for OpenMC with FENDL-3.2), which points at the benchmark's coarse 51-bin source histogram,
+whose interval [15.002, 16.579] MeV carries 29.5 % of the neutrons uniformly, against a measured peak that falls
+steeply above 15 MeV. This is context from other people's runs and is labelled so; it is not a FARIS result and not
+part of any rule. A smoother source representation would be a new case revision with a new declared rule, not an edit
+of this one.
+
+Open points, stated as such: the experiment's `Error` column is of unspecified kind, so k = 2 on it may be strict;
+the photon spectrum is recorded and not scored; the 90 % threshold was authored before the run and is provisional.
+
+Reproduce the evidence with `make_library.py`, then `run_case.py convert` and `run_case.py run`
+(`--particles 10000000 --seed 1 --threads 3`), then `python3 validation/cases/oktavian-al-cad/analyse.py --cad ... --csg ...`.
+
 ### Cases awaiting an upstream specification
 
 `fng-streaming-onaxis`, `fng-streaming-offaxis`, `fng-streaming-heating` (OFB item 3, STEP files present) and
