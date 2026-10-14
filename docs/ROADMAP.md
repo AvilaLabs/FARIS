@@ -35,6 +35,10 @@ usability, accessibility, configurability, interoperability, reliability, securi
 quality, are in [requirements/](requirements/README.md). A phase gate is not passed while any
 of its requirements is provisional, unmet or unmeasured.
 
+**Version 1.0.0** (decided 2026-10-13): FARIS is best in class on every metric. "Best in class" is
+decided by the requirement tables, each row by its own test, never by description; the release gate of
+the [next release](NEXT_RELEASE_PLAN.md#release-gate) is the first fixed list toward it.
+
 | Phase | Result | Main dependencies |
 | --- | --- | --- |
 | F0 — Functional narrow demo | A real blanket/shield tradeoff study with transport fields, fuel/exposure/energy history, native 3D exploration, and the Core study experience | Complete the separate demo roadmap |

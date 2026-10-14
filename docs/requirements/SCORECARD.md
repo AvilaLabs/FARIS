@@ -8,18 +8,18 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1418 | 46 | 420 | 913 | 39 | 125 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
+| All requirements | 1418 | 50 | 437 | 892 | 39 | 125 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
 
 ## By category
 
 | Category | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Geometry and model](01-geometry-and-model.md) | 73 | 0 | 26 | 46 | 1 | 23 | 32 % | 29 | 8 | 43 | 4 | 6 | 12 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | 106 | 1 | 43 | 59 | 3 | 9 | 8 % | 39 | 12 | 49 | 18 | 7 | 12 |
+| [Geometry and model](01-geometry-and-model.md) | 73 | 3 | 37 | 32 | 1 | 23 | 32 % | 29 | 8 | 43 | 4 | 6 | 12 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | 106 | 1 | 47 | 55 | 3 | 9 | 8 % | 39 | 12 | 49 | 18 | 7 | 12 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 1 | 9 | 87 | 0 | 2 | 2 % | 39 | 6 | 39 | 9 | 12 | 5 |
-| [Plant systems](04-plant-systems.md) | 99 | 4 | 16 | 79 | 0 | 5 | 5 % | 46 | 17 | 26 | 5 | 19 | 6 |
+| [Plant systems](04-plant-systems.md) | 99 | 4 | 17 | 78 | 0 | 5 | 5 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 2 | 8 | 35 | 0 | 1 | 2 % | 17 | 5 | 18 | 5 | 6 | 3 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 1 | 28 | 43 | 0 | 16 | 22 % | 18 | 6 | 20 | 17 | 27 | 5 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 2 | 29 | 41 | 0 | 16 | 22 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 3 | 8 % | 15 | 7 | 15 | 3 | 7 | 0 |
 | [Usability](09-usability.md) | 73 | 0 | 21 | 49 | 3 | 2 | 3 % | 37 | 12 | 30 | 10 | 5 | 6 |
@@ -42,13 +42,13 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 39 | 225 | 162 | 19 | 80 | 18 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 496 | 2 | 132 | 344 | 18 | 26 | 5 % | 173 | 56 | 188 | 51 | 122 | 37 |
-| F3 | 66 | 1 | 6 | 59 | 0 | 2 | 3 % | 34 | 10 | 20 | 3 | 9 | 4 |
-| F4 | 173 | 3 | 29 | 139 | 2 | 5 | 3 % | 65 | 15 | 62 | 8 | 41 | 10 |
-| F5 | 33 | 1 | 6 | 26 | 0 | 2 | 6 % | 16 | 8 | 12 | 1 | 5 | 2 |
+| F1 | 445 | 41 | 226 | 159 | 19 | 80 | 18 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 496 | 3 | 138 | 337 | 18 | 26 | 5 % | 173 | 56 | 188 | 51 | 122 | 37 |
+| F3 | 66 | 1 | 7 | 58 | 0 | 2 | 3 % | 34 | 10 | 20 | 3 | 9 | 4 |
+| F4 | 173 | 3 | 30 | 138 | 2 | 5 | 3 % | 65 | 15 | 62 | 8 | 41 | 10 |
+| F5 | 33 | 1 | 7 | 25 | 0 | 2 | 6 % | 16 | 8 | 12 | 1 | 5 | 2 |
 | F6 | 175 | 0 | 20 | 155 | 0 | 2 | 1 % | 68 | 21 | 52 | 0 | 64 | 18 |
-| F7 | 30 | 0 | 2 | 28 | 0 | 8 | 27 % | 15 | 9 | 17 | 0 | 4 | 4 |
+| F7 | 30 | 1 | 9 | 20 | 0 | 8 | 27 % | 15 | 9 | 17 | 0 | 4 | 4 |
 
 ## Peer bars
 
@@ -107,23 +107,8 @@ Marked Met in the Now column, but no test declares `Verifies:` for them.
 - LEG-028 (23-compliance-and-privacy.md)
 - LEG-046 (23-compliance-and-privacy.md)
 
-## Traced but marked No (16)
+## Traced but marked No (0)
 
 A test declares `Verifies:` for them while the Now column says No; the Now column may be stale.
 
-- GEO-010 (01-geometry-and-model.md): `crates/faris-engine/src/design/tests.rs::fingerprint_failure_in_volume_and_in_centroid_fails_check_3`, `crates/faris-engine/src/design/tests.rs::solid_count_mismatch_fails_check_3`, `crates/faris-model/src/design/tests.rs::check_3_passes_on_matching_fingerprints` and 2 more
-- GEO-011 (01-geometry-and-model.md): `crates/faris-engine/src/design/corpus_tests.rs::the_design_level_defects_fail_at_the_check_that_owns_them`, `crates/faris-engine/src/design/tests.rs::a_file_with_no_declared_unit_is_read_in_the_design_unit_and_the_report_says_so`, `crates/faris-engine/src/design/tests.rs::unit_mismatch_sector_axis_and_multiple_units_fail_check_2` and 6 more
-- GEO-012 (01-geometry-and-model.md): `crates/faris-engine/src/design/binding.rs::every_volume_binds_to_its_own_solid`, `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`, `crates/faris-engine/src/design/geometry/tests.rs::a_failed_conversion_is_a_finding_and_stops` and 1 more
-- GEO-013 (01-geometry-and-model.md): `crates/faris-engine/src/design/external.rs::a_changed_product_is_never_reused`, `crates/faris-engine/src/design/external.rs::a_recorded_conversion_is_reused_only_when_hashes_and_tolerances_match`, `crates/faris-engine/src/design/external.rs::a_recorded_tessellation_is_reused_only_under_the_same_key` and 2 more
-- GEO-019 (01-geometry-and-model.md): `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`, `crates/faris-engine/src/design/geometry/tests.rs::a_tag_on_the_wrong_solid_stops_at_check_7`, `crates/faris-engine/src/design/tests.rs::a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated_without_a_geometry_toolset` and 2 more
-- GEO-020 (01-geometry-and-model.md): `crates/faris-engine/src/design/corpus_tests.rs::every_seeded_geometry_model_is_found_and_no_clean_model_raises_an_alarm`, `crates/faris-engine/src/design/exact/tests.rs::side_is_exact_at_the_largest_coordinate_differences`, `crates/faris-engine/src/design/exact/tests.rs::side_matches_the_big_integer_determinant_on_random_and_degenerate_points` and 9 more
-- GEO-021 (01-geometry-and-model.md): `crates/faris-engine/src/design/corpus_tests.rs::every_seeded_geometry_model_is_found_and_no_clean_model_raises_an_alarm`, `crates/faris-engine/src/design/exact/tests.rs::relate_known_configurations`, `crates/faris-engine/src/design/exact/tests.rs::relate_matches_the_exact_reference_for_every_sharing_pattern` and 17 more
-- GEO-023 (01-geometry-and-model.md): `crates/faris-engine/src/design/corpus_tests.rs::every_seeded_geometry_model_is_found_and_no_clean_model_raises_an_alarm`, `crates/faris-engine/src/design/corpus_tests.rs::the_committed_files_are_the_files_the_generator_hashed`, `crates/faris-engine/src/design/corpus_tests.rs::the_corpus_has_the_required_size_and_classes` and 1 more
-- GEO-025 (01-geometry-and-model.md): `crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`, `crates/faris-engine/src/design/rays.rs::a_chord_lists_its_crossings_in_order_with_their_direction`
-- GEO-026 (01-geometry-and-model.md): `crates/faris-engine/src/design/geometry/tests.rs::a_waived_overlap_is_reported_and_no_longer_blocks`, `crates/faris-model/src/design/tests.rs::a_design_without_waivers_stays_valid_and_is_written_without_the_key`, `crates/faris-model/src/design/tests.rs::a_well_formed_waiver_parses_and_resolves` and 2 more
-- GEO-027 (01-geometry-and-model.md): `crates/faris-engine/src/design/tests.rs::a_draft_with_nulls_stops_at_check_1_and_a_filled_draft_passes`, `crates/faris-model/src/design/tests.rs::unfilled_nulls_are_all_listed_by_path`
-- GEO-029 (01-geometry-and-model.md): `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`
-- GEO-032 (01-geometry-and-model.md): `crates/faris-engine/src/design/geometry/tests.rs::a_capped_deviation_says_it_measured_a_stride`, `crates/faris-engine/src/design/geometry/tests.rs::a_deviation_over_a_tenth_of_the_thickness_is_a_waivable_misrepresented_sliver`, `crates/faris-engine/src/design/geometry/tests.rs::deviation_above_the_tolerance_blocks_and_can_be_waived` and 2 more
-- GEO-039 (01-geometry-and-model.md): `crates/faris-engine/src/design/tests.rs::a_good_design_passes_checks_1_to_5_and_lists_the_rest_as_not_evaluated_without_a_geometry_toolset`, `crates/faris-engine/src/design/tests.rs::role_rules_fail_check_5_and_skip_the_audit`, `crates/faris-model/src/design/tests.rs::check_5_passes_on_the_fixture_and_lists_the_void_solid` and 1 more
-- VAL-056 (06-accuracy-and-validation.md): `validation/test_report.py::test_coverage_comes_with_its_list`
-- VAL-091 (06-accuracy-and-validation.md): `validation/test_report.py::test_one_command_writes_json_and_markdown_for_the_registered_cases`
+None.
