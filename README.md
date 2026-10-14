@@ -173,8 +173,27 @@ the decay heat of the parts around each replaced component, through
 - **Dose and remote handling.** A tested rule for timing maintenance on contact
   dose with remote handling, and material impurities bounded per ppm.
 
-Further out, and not yet scheduled: CAD geometry (through Paramak and DAGMC),
-shutdown dose. The plan and its decisions are in
+**Your own design, from CAD (on main; in the next release).** The demo's simple
+shapes are not the limit any more:
+
+- `faris design init STEP` reads your STEP file (from any CAD tool that writes STEP)
+  and writes a design file that lists every solid. You give each solid a material
+  and a role (first wall, blanket, shield, TF magnet, port plug and others), and
+  group the parts you replace together with their limits.
+- `faris design check` checks the model before anything runs: watertightness,
+  overlaps and gaps, faceting error against the CAD, lost neutrons, and whether the
+  plasma source adds up to the declared fusion power and clears the first wall.
+- `faris design transport` computes the fast-neutron flux in the parts a limit
+  applies to, makes its own weight windows (and aims down ports and ducts when the
+  patched OpenMC is present), stops at a target error, reports the highest piece as
+  well as the mean, and compares the fluence with the limit over the operating
+  history.
+- The desktop app has Design check and Design flux windows for the same steps.
+
+Not yet on a CAD design: sweeps (the geometry is fixed) and shutdown dose. See the
+[design file guide](docs/guide/design-file.md).
+
+Further out: shutdown dose. The plan and its decisions are in
 [docs/DEMO_ROADMAP.md](docs/DEMO_ROADMAP.md).
 
 Release notes are in the [changelog](CHANGELOG.md); measurable goals for every

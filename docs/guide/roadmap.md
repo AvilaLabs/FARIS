@@ -8,7 +8,7 @@ the parts around each replaced component, through [ACTINV](https://github.com/Av
 - **Faster maintenance runs.** Most of the run time is ACTINV loading its data for each short cooling run; batching them in one ACTINV process could remove most of that.
 - **Dose and remote handling.** A tested rule for timing maintenance on contact dose with remote handling, and material impurities bounded per ppm.
 
-Further out, and not yet scheduled: CAD geometry (through Paramak and DAGMC), and shutdown dose. The plan and its decisions are in the [demo roadmap](https://github.com/AvilaLabs/FARIS/blob/main/docs/DEMO_ROADMAP.md).
+Your own design from CAD is on main and in the next release: `faris design init`, `check` and `transport` take a STEP file with a design file naming each solid's material and role, and the desktop app has Design check and Design flux windows ([design file guide](design-file.md)). Not yet on a CAD design: sweeps and shutdown dose. Further out: shutdown dose. The plan and its decisions are in the [demo roadmap](https://github.com/AvilaLabs/FARIS/blob/main/docs/DEMO_ROADMAP.md).
 
 Measurable goals for every part of FARIS are in the [requirements](https://github.com/AvilaLabs/FARIS/blob/main/docs/requirements/README.md).
 
