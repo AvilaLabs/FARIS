@@ -30,6 +30,29 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def take_port_scenario(package: Path, out: Path) -> dict:
+    """The port scenario. The app part of a release package leaves it out (it is
+    in the evidence part), so it is written from the copy every port bundle
+    embeds; the two bundles must agree, and a packaged copy must match them."""
+    relative = "port/scenario.json"
+    embedded = {
+        json.loads((package / f"port/bundles/{v}.transport-bundle.json").read_text(encoding="utf-8"))
+        ["files"]["scenario.json"]
+        for v in VARIANTS
+    }
+    if len(embedded) != 1:
+        raise ValueError("the port bundles embed different scenarios")
+    text = embedded.pop()
+    packaged = package / relative
+    if packaged.exists() and packaged.read_text(encoding="utf-8") != text:
+        raise ValueError(f"{relative} differs from the scenario the port bundles embed")
+    target = out / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    data = target.read_bytes()
+    return {"path": relative, "bytes": len(data), "sha256": f"sha256:{hashlib.sha256(data).hexdigest()}"}
+
+
 def prepare(package: Path, out: Path, ensembles: Path | None = None) -> dict:
     index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
     listed = {entry["path"]: entry for entry in index["files"]}
@@ -49,7 +72,7 @@ def prepare(package: Path, out: Path, ensembles: Path | None = None) -> dict:
 
     if out.exists():
         shutil.rmtree(out)
-    core = [take("port/scenario.json")]
+    core = [take_port_scenario(package, out)]
     core += [take(f"port/bundles/{v}.transport-bundle.json") for v in VARIANTS]
     core.append(take("control/scenario.json"))
     core += [take(f"control/bundles/{v}.transport-bundle.json") for v in VARIANTS]
