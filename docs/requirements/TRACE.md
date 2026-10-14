@@ -6,18 +6,18 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 146 of 1418 requirements.
+Traced: 148 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 15 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 16 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 5 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 19 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
-| [08-performance.md](08-performance.md) | 37 | 4 |
+| [08-performance.md](08-performance.md) | 37 | 5 |
 | [09-usability.md](09-usability.md) | 73 | 2 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 1 |
 | [11-visualization.md](11-visualization.md) | 49 | 8 |
@@ -65,6 +65,7 @@ Traced: 146 of 1418 requirements.
 | NUC-004 | F1 | `crates/faris-engine/src/jobs.rs::preserves_exit_code_and_does_not_infer_a_scientific_verdict`<br>`crates/faris-engine/src/transport.rs::component_volume_must_be_explicit_not_derived_or_guessed`<br>`crates/faris-engine/src/transport.rs::validates_volume_domains_units_and_exact_echo` |
 | NUC-013 | F1 | `controls/test_lithium_capture.py::test_response_screen_passes_consistent_tally_moments`<br>`controls/test_lithium_capture.py::test_response_screen_rejects_inconsistent_h3_or_heat` |
 | NUC-017 | F2 | `crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
+| NUC-043 | F2 | `crates/faris-app/src/transport_panel.rs::production_stops_on_a_target_within_the_history_cap`<br>`crates/faris-engine/src/reactor.rs::sampling_outcome_accepts_only_stops_the_rule_can_explain`<br>`crates/faris-engine/src/reactor.rs::stop_rule_target_is_validated_and_optional`<br>`integrations/openmc/test_stop_rule_openmc.py::test_loose_target_stops_before_the_budget`<br>`integrations/openmc/test_stop_rule_openmc.py::test_unreachable_target_uses_the_budget_and_reports_it`<br>`scripts/test_reactor_stop_rule.py::test_any_count_in_range_is_accepted_and_only_the_last_file_is_kept`<br>`scripts/test_reactor_stop_rule.py::test_fixed_plan_has_no_rule_and_changes_nothing`<br>`scripts/test_reactor_stop_rule.py::test_reasons`<br>`scripts/test_reactor_stop_rule.py::test_target_sets_openmc_triggers_on_the_magnet_flux_only` |
 | NUC-046 | F1 | `crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
 | NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::run_timeout_admits_a_run_at_the_history_cap` |
 | NUC-051 | F2 | `integrations/openmc/risk_tests/test_windows_file.py::test_a_run_from_the_file_equals_a_run_with_the_windows_inline`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_the_model_file_holds_no_bounds_and_the_run_file_carries_the_ids`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
@@ -116,6 +117,7 @@ Traced: 146 of 1418 requirements.
 | UNC-084 | F1 | `crates/faris-engine/src/brief.rs::contrast_is_second_minus_first`<br>`crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
 | PERF-022 | F1 | `crates/faris-engine/src/history_ensemble/tests.rs::progress_reports_every_sample` |
 | PERF-024 | F1 | `crates/faris-engine/src/design/par.rs::cancelling_stops_the_workers_and_returns_nothing_partial`<br>`crates/faris-engine/src/history_ensemble/tests.rs::cancellation_stops_promptly_and_returns_no_partial_result` |
+| PERF-025 | F2 | `crates/faris-app/src/transport_panel.rs::both_tiers_are_valid_sampling_plans`<br>`crates/faris-app/src/transport_panel.rs::production_stops_on_a_target_within_the_history_cap`<br>`crates/faris-engine/src/reactor.rs::plans_without_a_target_read_and_write_as_before`<br>`crates/faris-engine/src/reactor.rs::sampling_outcome_accepts_only_stops_the_rule_can_explain`<br>`crates/faris-engine/src/reactor.rs::stop_rule_target_is_validated_and_optional`<br>`integrations/openmc/test_stop_rule_openmc.py::test_loose_target_stops_before_the_budget`<br>`scripts/test_reactor_stop_rule.py::test_target_sets_openmc_triggers_on_the_magnet_flux_only` |
 | PERF-027 | F1 | `crates/faris-app/src/uncertainty/tests.rs::an_unchanged_key_never_reruns`<br>`crates/faris-app/src/uncertainty/tests.rs::stored_ensembles_are_reused_only_under_an_exact_key` |
 | PERF-041 | F1 | `crates/faris-engine/src/jobs.rs::a_finished_job_records_its_peak_memory_and_the_check_made_before_it`<br>`crates/faris-engine/src/jobs.rs::a_job_projected_beyond_free_memory_is_refused_before_it_starts`<br>`crates/faris-engine/src/memory.rs::a_job_that_fits_is_admitted_and_one_that_does_not_is_refused_with_a_reason`<br>`crates/faris-engine/src/memory.rs::a_refusal_comes_from_the_injected_free_figure`<br>`crates/faris-engine/src/memory.rs::an_unreadable_free_figure_is_not_evaluated_not_guessed`<br>`crates/faris-engine/src/memory.rs::meminfo_and_proc_text_parse`<br>`crates/faris-engine/src/memory.rs::the_cap_lowers_but_never_raises_a_jobs_address_space`<br>`crates/faris-engine/src/memory.rs::this_machines_free_memory_is_readable` |
 | UX-027 | F1 | `crates/faris-app/src/study_file.rs::a_changed_view_marks_the_title_until_it_is_saved_again`<br>`crates/faris-app/src/study_file.rs::title_names_the_file_marks_changes_and_says_unsaved` |
