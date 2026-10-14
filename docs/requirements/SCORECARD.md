@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1418 | 56 | 437 | 886 | 39 | 140 | 10 % | 503 | 150 | 458 | 116 | 431 | 99 |
+| All requirements | 1418 | 57 | 436 | 886 | 39 | 141 | 10 % | 503 | 150 | 458 | 116 | 431 | 99 |
 
 ## By category
 
@@ -16,9 +16,9 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | 73 | 3 | 37 | 32 | 1 | 23 | 32 % | 29 | 8 | 43 | 4 | 6 | 12 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | 106 | 6 | 43 | 54 | 3 | 14 | 13 % | 39 | 12 | 49 | 18 | 7 | 12 |
-| [Activation, waste and materials](03-activation-and-materials.md) | 97 | 1 | 9 | 87 | 0 | 2 | 2 % | 39 | 6 | 39 | 9 | 12 | 5 |
+| [Activation, waste and materials](03-activation-and-materials.md) | 97 | 2 | 8 | 87 | 0 | 2 | 2 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 4 | 17 | 78 | 0 | 6 | 6 % | 46 | 17 | 26 | 5 | 19 | 6 |
-| [Operation and life](05-operation-and-life.md) | 45 | 2 | 10 | 33 | 0 | 4 | 9 % | 17 | 5 | 18 | 5 | 6 | 3 |
+| [Operation and life](05-operation-and-life.md) | 45 | 2 | 10 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 3 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 3 | 30 | 39 | 0 | 19 | 26 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 4 | 11 % | 15 | 7 | 15 | 3 | 7 | 0 |
@@ -42,10 +42,10 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 43 | 224 | 159 | 19 | 83 | 19 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F1 | 445 | 43 | 224 | 159 | 19 | 84 | 19 % | 132 | 31 | 107 | 53 | 186 | 24 |
 | F2 | 496 | 5 | 140 | 333 | 18 | 32 | 6 % | 173 | 56 | 188 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 3 | 5 % | 34 | 10 | 20 | 3 | 9 | 4 |
-| F4 | 173 | 3 | 32 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 10 |
+| F4 | 173 | 4 | 31 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 10 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
 | F6 | 175 | 0 | 20 | 155 | 0 | 2 | 1 % | 68 | 21 | 52 | 0 | 64 | 18 |
 | F7 | 30 | 1 | 9 | 20 | 0 | 8 | 27 % | 15 | 9 | 17 | 0 | 4 | 4 |
@@ -78,13 +78,12 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG; Diataxis; SCALE 6.3 manual; W3C
 - [Compliance and privacy](23-compliance-and-privacy.md): OpenMC; EUR-Lex
 
-## Met without a checker (24)
+## Met without a checker (23)
 
 Marked Met in the Now column, but no test declares `Verifies:` for them.
 
 - MAT-019 (03-activation-and-materials.md)
 - FUEL-006 (04-plant-systems.md)
-- OPS-001 (05-operation-and-life.md)
 - PERF-045 (08-performance.md)
 - VIS-042 (11-visualization.md)
 - COL-005 (17-collaboration.md)
