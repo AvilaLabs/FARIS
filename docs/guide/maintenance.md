@@ -153,6 +153,34 @@ A result marked *not evaluated* says why and what to try next. Common reasons:
   **All iterations** for durations that alternate.
 - A cooldown is cut short by the next restart (*window-limited*), so it is only a lower bound.
 
+## Literature durations and remote-handling limits
+
+Computed durations are one choice. FARIS also carries published ones, labelled **literature** wherever they
+appear, with the source link and the conditions they were derived under. They are inputs taken from a paper, not
+FARIS results.
+
+| Preset | Duration | Conditions |
+| --- | --- | --- |
+| EU-DEMO full blanket replacement | about 10 months | 421 modules, 4 ports, 4 remote-handling systems in parallel, 20 % contingency |
+| EU-DEMO blanket, best case | about 6 months | Best case of the paper's virtual-reality simulation |
+| EU-DEMO internal components | about 20 months | Divertor, then blanket, one after the other |
+
+All three come from Crofts and Harman, Fusion Eng. Des. 89 (2014), [arXiv:1412.4008](https://arxiv.org/pdf/1412.4008).
+The numbers of ports and systems for the second and third are not stated in the sources FARIS holds, so those
+fields are empty and say why. Check them in the paper before relying on those two.
+
+**Remote-handling constraints.** The outage length follows the number of parallel remote-handling systems, ports and
+crews. Handling time is a fixed part plus the shared work divided by the systems that can work at once, which is the
+smallest of the systems, the ports and the crews; cooling, conditioning and contingency are added. The model
+assumes the systems share the work evenly and never fail or wait for each other. Fitted to the five points in
+Table 1 of the paper (22, 11, 5.9, 4.4 and 3.2 months for 1, 2, 4, 6 and 8 systems), it stays within 10 % of each.
+The fit is a calibration to those points, not a derivation from the paper's handling sequence.
+
+**Sensitivity to each duration.** For a chosen range of each replacement duration, FARIS reruns the history at the
+low and high value of one duration at a time and reports lifetime net electricity and availability for each, largest
+effect first (a tornado). Availability here is one minus the replacement downtime over the history. Net electricity
+is absent, with the reason, when the history lacks its energy inputs.
+
 ## Limits
 
 - **Decay heat governs; contact dose does not.** With dose as the governing quantity and a threshold fixed at the

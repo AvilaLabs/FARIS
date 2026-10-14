@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1418 | 51 | 437 | 891 | 39 | 128 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
+| All requirements | 1418 | 51 | 439 | 889 | 39 | 131 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
 
 ## By category
 
@@ -18,7 +18,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Radiation transport and neutron source](02-radiation-transport.md) | 106 | 1 | 47 | 55 | 3 | 9 | 8 % | 39 | 12 | 49 | 18 | 7 | 12 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 1 | 9 | 87 | 0 | 2 | 2 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 4 | 17 | 78 | 0 | 5 | 5 % | 46 | 17 | 26 | 5 | 19 | 6 |
-| [Operation and life](05-operation-and-life.md) | 45 | 2 | 8 | 35 | 0 | 1 | 2 % | 17 | 5 | 18 | 5 | 6 | 3 |
+| [Operation and life](05-operation-and-life.md) | 45 | 2 | 10 | 33 | 0 | 4 | 9 % | 17 | 5 | 18 | 5 | 6 | 3 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 3 | 29 | 40 | 0 | 18 | 25 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 3 | 8 % | 15 | 7 | 15 | 3 | 7 | 0 |
@@ -45,7 +45,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | F1 | 445 | 41 | 226 | 159 | 19 | 80 | 18 % | 132 | 31 | 107 | 53 | 186 | 24 |
 | F2 | 496 | 4 | 138 | 336 | 18 | 29 | 6 % | 173 | 56 | 188 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 2 | 3 % | 34 | 10 | 20 | 3 | 9 | 4 |
-| F4 | 173 | 3 | 30 | 138 | 2 | 5 | 3 % | 65 | 15 | 62 | 8 | 41 | 10 |
+| F4 | 173 | 3 | 32 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 10 |
 | F5 | 33 | 1 | 7 | 25 | 0 | 2 | 6 % | 16 | 8 | 12 | 1 | 5 | 2 |
 | F6 | 175 | 0 | 20 | 155 | 0 | 2 | 1 % | 68 | 21 | 52 | 0 | 64 | 18 |
 | F7 | 30 | 1 | 9 | 20 | 0 | 8 | 27 % | 15 | 9 | 17 | 0 | 4 | 4 |

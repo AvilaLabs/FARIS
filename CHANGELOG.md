@@ -11,6 +11,12 @@ basis.
 
 ### Added
 
+- Literature maintenance-duration presets (EU-DEMO blanket 10 months, best case 6 months, internal components 20
+  months; Crofts and Harman) with their source link and conditions, each labelled literature. A condition the
+  sources FARIS holds do not state is left empty with the reason.
+- A remote-handling model: outage length against the number of parallel systems, ports and crews, within 10 % of
+  the published five-point table (1 to 8 systems), and a tornado of lifetime net electricity and availability
+  against each replacement duration. Both are engine functions; no desktop view yet.
 - `faris design transport`: the fast-neutron flux (above 0.1 MeV) in the TF magnets of a design that passed
   `faris design check`, computed on its CAD geometry and run until the mean over the coils reaches a target
   error. A run stopped by its history or time limit says how many more histories it needs.

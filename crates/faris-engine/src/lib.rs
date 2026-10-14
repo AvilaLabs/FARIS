@@ -7,6 +7,7 @@ pub mod core_evidence;
 pub mod design;
 #[cfg(test)]
 mod determinism_tests;
+pub mod duration_sensitivity;
 pub mod evidence_store;
 #[cfg(any(test, feature = "fixtures"))]
 pub mod fixtures;

@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 128 of 1418 requirements.
+Traced: 131 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -14,7 +14,7 @@ Traced: 128 of 1418 requirements.
 | [02-radiation-transport.md](02-radiation-transport.md) | 106 | 9 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
-| [05-operation-and-life.md](05-operation-and-life.md) | 45 | 1 |
+| [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 18 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
 | [08-performance.md](08-performance.md) | 37 | 3 |
@@ -78,6 +78,9 @@ Traced: 128 of 1418 requirements.
 | MAG-025 | F3 | `crates/faris-engine/src/history.rs::kth_replacement_uses_kth_duration_then_falls_back`<br>`crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
 | PWR-012 | F5 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
 | OPS-002 | F1 | `crates/faris-engine/src/history.rs::daily_snapshot_outputs_converge_under_step_refinement` |
+| OPS-031 | F4 | `crates/faris-engine/src/duration_sensitivity.rs::literature_label_travels_with_the_bar_and_bad_ranges_are_refused`<br>`crates/faris-engine/src/duration_sensitivity.rs::per_event_list_is_replaced_by_the_single_value`<br>`crates/faris-engine/src/duration_sensitivity.rs::tornado_matches_direct_runs_and_longer_outages_cost_electricity_and_availability` |
+| OPS-032 | F4 | `crates/faris-model/src/remote_handling.rs::presets_carry_the_row_values_label_link_and_conditions` |
+| OPS-033 | F4 | `crates/faris-engine/src/duration_sensitivity.rs::more_parallel_systems_shorten_the_history_outage_until_ports_cap_them`<br>`crates/faris-model/src/remote_handling.rs::model_reproduces_crofts_table1_within_ten_percent`<br>`crates/faris-model/src/remote_handling.rs::outage_shortens_with_systems_and_ports_and_crews_cap_it`<br>`crates/faris-model/src/remote_handling.rs::row_blanket_inputs_give_about_ten_months_if_table1_excludes_cooling` |
 | VAL-001 | F1 | `validation/test_manifest.py::test_evidence_class_is_required_and_closed`<br>`validation/test_scoring.py::test_rows_carry_verdicts_and_evidence_class` |
 | VAL-006 | F1 | `validation/test_matrix.py::test_the_committed_matrix_is_what_the_registry_and_manifests_generate`<br>`validation/test_scoring.py::test_no_run_record_is_not_evaluated_with_reason` |
 | VAL-014 | F1 | `crates/faris-engine/src/history.rs::delayed_recovery_restarts_only_after_release_threshold_is_reached`<br>`crates/faris-engine/src/history.rs::demountable_history_with_perturbed_rates_conserves_tritium`<br>`crates/faris-engine/src/history.rs::release_window_closes_at_the_step_bound_despite_rounding` |
