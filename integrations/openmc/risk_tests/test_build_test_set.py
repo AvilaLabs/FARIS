@@ -8,6 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_test_set as bts  # noqa: E402
 import rm_m_spec as spec  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import openmc_ci  # noqa: E402
+
 try:
     import numpy  # noqa: F401
     HAVE_NUMPY = True
@@ -118,8 +121,11 @@ class Regions(unittest.TestCase):
         self.assertEqual(pinched, len(bts.PINCHED))
 
 
-@unittest.skipUnless(HAVE_NUMPY, "numpy not available")
 class Classifier(unittest.TestCase):
+    def setUp(self):
+        if not HAVE_NUMPY:
+            openmc_ci.skip_or_fail("numpy not available")
+
     def test_straight_duct_has_sight_and_dogleg_does_not(self):
         straight = bts.model_params("large")
         dog = bts.model_params("bent-duct")

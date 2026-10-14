@@ -1,0 +1,19 @@
+# The environment of the CI job `openmc-tests` (.github/workflows/ci.yml): the OpenMC the project's
+# transport tests run against. Keep it in step with the OpenMC release the engine pins.
+name: faris-openmc-ci
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  # 0.15.3 with DAGMC (dagmc_*) and without MPI (nompi): the same variant as the development environment.
+  # Build strings in the conda-forge repodata: dagmc_nompi_py313h6424856_102 (python 3.13) and its
+  # siblings; a nodagmc_* build exists for the same version, which the dagmc_ prefix excludes.
+  - openmc=0.15.3=dagmc_nompi_*
+  - numpy
+  - scipy
+  - h5py
+  - pip
+  # Not on conda-forge; pinned to the versions of the development environment.
+  - pip:
+      - NeSST==1.1.5
+      - openmc-plasma-source==0.9.0

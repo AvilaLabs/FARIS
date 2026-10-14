@@ -340,6 +340,14 @@ python3 controls/check_history.py
 python3 -m unittest discover -s scripts -p 'test_*.py'
 ```
 
+What CI runs: the job `check` runs these commands with a plain Python (no numpy, no OpenMC), where the tests
+that need either skip. The job `openmc-tests` installs OpenMC 0.15.3 with DAGMC from conda-forge
+(`integrations/openmc/ci-environment.yml`), restores two FENDL-3.2 neutron files (H1, Fe56) from a cache and runs
+`integrations/openmc/risk_tests` and `integrations/openmc` with `FARIS_REQUIRE_OPENMC=1`, so a test that needs
+OpenMC, numpy or that data fails instead of skipping. A requirement counts as Met only when CI runs its test.
+To run those tests locally, use an OpenMC 0.15.3 Python with `openmc_plasma_source` on `PYTHONPATH` and
+`FARIS_CI_NEUTRON_DATA` set to a folder holding `H1.h5` and `Fe56.h5`.
+
 Use `--jobs 1` when compiling the graphics stack on a memory-constrained machine.
 For a headless core check, run `cargo test -p faris-model -p faris-engine -p faris-cli`.
 

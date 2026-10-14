@@ -5,8 +5,8 @@ OpenMC's own `sample_external_source`, as `faris design check` does for check 9)
 binned in (R, Z) on edges that coincide with the source mesh's voxel edges and compared by
 chi-square with the analytic emission of the same profiles, integrated on a fine (a, alpha)
 grid without the package's mesh. The tests skip, with the reason, where numpy, OpenMC or the
-package is absent; run them with the OpenMC 0.15.3 environment's python and the package on
-PYTHONPATH:
+package is absent (and fail instead when FARIS_REQUIRE_OPENMC=1, as in the CI job `openmc-tests`);
+run them with the OpenMC 0.15.3 environment's python and the package on PYTHONPATH:
 
     PYTHONPATH=<dir holding openmc_plasma_source> python3 -m unittest test_source_sampling
 """
@@ -19,6 +19,8 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import openmc_ci  # noqa: E402
 
 try:
     import numpy as np
@@ -164,8 +166,11 @@ class Chi2Survival(unittest.TestCase):
         self.assertAlmostEqual(chi2_survival(79.0, 79), 0.4788384304, places=9)
 
 
-@unittest.skipIf(SKIP, SKIP or "")
 class SampledProfile(unittest.TestCase):
+    def setUp(self):
+        if SKIP:
+            openmc_ci.skip_or_fail(SKIP)
+
     def check_closes(self, plasma, groups):
         chi2, dof, p = chi_square(plasma, groups)
         print(f"\n  chi-square {chi2:.2f} on {dof} dof, p = {p:.4f} ({groups * groups} bins)")

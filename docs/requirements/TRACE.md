@@ -6,12 +6,12 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 138 of 1418 requirements.
+Traced: 139 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 13 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 14 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
@@ -49,7 +49,7 @@ Traced: 138 of 1418 requirements.
 | GEO-022 | F1 | `crates/faris-engine/src/design/corpus_tests.rs::every_seeded_geometry_model_is_found_and_no_clean_model_raises_an_alarm`<br>`crates/faris-engine/src/design/integrity.rs::a_cavity_is_found_however_small`<br>`crates/faris-engine/src/design/integrity.rs::a_cluster_nested_in_a_cavity_is_not_counted_as_cavity_volume`<br>`crates/faris-engine/src/design/integrity.rs::a_hollow_inside_a_shell_is_a_cavity_with_a_verified_interior_point`<br>`crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/topology.rs::boundary_components_separate_clusters_and_cavity_walls`<br>`scripts/test_verify_recorded_demo.py::test_port_geometry_contract_rejects_material_in_clearance` |
 | GEO-023 | F1 | `crates/faris-engine/src/design/corpus_tests.rs::every_seeded_geometry_model_is_found_and_no_clean_model_raises_an_alarm`<br>`crates/faris-engine/src/design/corpus_tests.rs::the_committed_files_are_the_files_the_generator_hashed`<br>`crates/faris-engine/src/design/corpus_tests.rs::the_corpus_has_the_required_size_and_classes`<br>`crates/faris-engine/src/design/corpus_tests.rs::the_design_level_defects_fail_at_the_check_that_owns_them` |
 | GEO-024 | F1 | `controls/test_region_volumes.py::test_membership_samples_reproduce_analytic_fractions`<br>`crates/faris-engine/src/design/integrity.rs::a_hollow_inside_a_shell_is_a_cavity_with_a_verified_interior_point`<br>`crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/integrity.rs::sampled_volumes_agree_with_exact_volumes`<br>`crates/faris-engine/src/design/rays.rs::a_ray_that_hits_an_edge_is_redrawn_not_nudged`<br>`crates/faris-engine/src/design/rays.rs::parity_classifies_inside_outside_and_shells` |
-| GEO-025 | F2 | `crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/rays.rs::a_chord_lists_its_crossings_in_order_with_their_direction`<br>`integrations/openmc/risk_tests/test_design_transport.py::test_more_than_one_lost_in_a_million_fails_once_the_run_can_tell` |
+| GEO-025 | F2 | `crates/faris-engine/src/design/integrity.rs::clean_models_have_no_findings`<br>`crates/faris-engine/src/design/rays.rs::a_chord_lists_its_crossings_in_order_with_their_direction`<br>`integrations/openmc/risk_tests/test_design_transport.py::test_more_than_one_lost_in_a_million_fails_once_the_run_can_tell`<br>`integrations/openmc/risk_tests/test_lost_particles.py::test_a_clean_model_loses_none_and_is_not_failed`<br>`integrations/openmc/risk_tests/test_lost_particles.py::test_a_half_open_gap_loses_half_the_histories_and_fails_the_run`<br>`integrations/openmc/risk_tests/test_lost_particles.py::test_a_missing_shell_loses_every_history` |
 | GEO-026 | F1 | `crates/faris-engine/src/design/geometry/tests.rs::a_waived_overlap_is_reported_and_no_longer_blocks`<br>`crates/faris-model/src/design/tests.rs::a_design_without_waivers_stays_valid_and_is_written_without_the_key`<br>`crates/faris-model/src/design/tests.rs::a_well_formed_waiver_parses_and_resolves`<br>`crates/faris-model/src/design/tests.rs::waiver_schema_rules_name_the_item_and_the_next_step`<br>`crates/faris-model/src/design/waivers.rs::a_waiver_covers_exactly_the_finding_it_names` |
 | GEO-027 | F2 | `crates/faris-engine/src/design/tests.rs::a_draft_with_nulls_stops_at_check_1_and_a_filled_draft_passes`<br>`crates/faris-model/src/design/tests.rs::unfilled_nulls_are_all_listed_by_path` |
 | GEO-029 | F7 | `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured` |
@@ -67,7 +67,8 @@ Traced: 138 of 1418 requirements.
 | NUC-017 | F2 | `crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
 | NUC-046 | F1 | `crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
 | NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::run_timeout_admits_a_run_at_the_history_cap` |
-| NUC-053 | F2 | `integrations/openmc/risk_tests/test_design_transport.py::test_generation_and_reported_run_seeds_are_disjoint` |
+| NUC-051 | F2 | `integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
+| NUC-053 | F2 | `integrations/openmc/risk_tests/test_design_transport.py::test_generation_and_reported_run_seeds_are_disjoint`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
 | SRC-001 | F1 | `crates/faris-engine/src/design/transport.rs::design_source_rate_matches_the_reactor_path_per_megawatt`<br>`crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3`<br>`crates/faris-engine/src/transport.rs::source_strength_is_3_546e17_per_megawatt_at_17_6_mev` |
 | SRC-002 | F1 | `crates/faris-engine/src/history.rs::alpha_power_is_the_fusion_power_the_neutron_does_not_carry`<br>`crates/faris-engine/src/transport.rs::fusion_power_is_not_neutron_power` |
 | SRC-003 | F5 | `crates/faris-model/src/transport.rs::source_requires_physical_dt_energy_and_single_neutron_yield` |

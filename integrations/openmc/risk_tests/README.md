@@ -121,6 +121,11 @@ The mesh is in `r3_scenario.py`. Both methods score the ICRP-116 AP photon dose 
 
     python3 -m unittest discover -s integrations/openmc/risk_tests -p 'test_*.py'
 
+Tests that need OpenMC, numpy or nuclear data skip without them. CI's `openmc-tests` job sets
+`FARIS_REQUIRE_OPENMC=1`, which turns each such skip into a failure (`../openmc_ci.py`). `test_source_sampling.py`
+(SRC-011), `test_lost_particles.py` (GEO-025) and `test_windows_unbiased.py` (NUC-051, NUC-053) run there; the last
+reads H1 and Fe56 from the folder in `FARIS_CI_NEUTRON_DATA`.
+
 ## Workarounds recorded by the scripts
 
 OpenMC 0.15.3 on a DAGMC model needs these; `r6_worker.py` lists them per step, and the R6 rule counts any extra

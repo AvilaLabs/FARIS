@@ -45,3 +45,58 @@ jobs:
         run: python3 scripts/requirement_scorecard.py --check
       - name: Wording lint over user-facing text
         run: python3 scripts/wording_lint.py
+
+  # The tests that need OpenMC itself. A requirement counts as Met only when CI runs its test, so this job
+  # fails (instead of skipping) when OpenMC, numpy or the nuclear data is missing: FARIS_REQUIRE_OPENMC=1.
+  openmc-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FARIS_REQUIRE_OPENMC: "1"
+      OMP_NUM_THREADS: 2
+      FARIS_CI_NEUTRON_DATA: ${{ github.workspace }}/ci-data/neutron
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - name: OpenMC 0.15.3 with DAGMC (conda-forge, environment cached)
+        uses: mamba-org/setup-micromamba@v2.0.5
+        with:
+          micromamba-version: "2.3.0-0"
+          environment-file: integrations/openmc/ci-environment.yml
+          environment-name: faris-openmc-ci
+          cache-environment: true
+          cache-environment-key: openmc-0.15.3-dagmc-nompi-py313
+          init-shell: bash
+      - name: The installed OpenMC is 0.15.3 and has DAGMC
+        run: |
+          python - <<'PY'
+          import openmc, openmc.lib
+          assert openmc.__version__ == "0.15.3", openmc.__version__
+          assert openmc.lib._dagmc_enabled(), "this OpenMC was built without DAGMC"
+          print("OpenMC", openmc.__version__, "with DAGMC")
+          PY
+      # Two single-nuclide FENDL-3.2 neutron files (H1 0.1 MB, Fe56 30 MB) out of the OpenMC project's library
+      # archive (the one linked from https://openmc.org/data/). The archive is large and has no per-file download,
+      # so a cache miss streams it once and keeps only these two files; later runs restore them from the cache.
+      # openmc_ci.py checks the bytes against the recorded SHA-256 either way.
+      - name: Nuclear data cache (FENDL-3.2 H1 and Fe56)
+        id: data
+        uses: actions/cache@v4
+        with:
+          path: ci-data/neutron
+          key: fendl32-neutron-H1-Fe56-v1
+      - name: Fetch H1 and Fe56 from the FENDL-3.2 archive
+        if: steps.data.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ci-data/neutron ci-data/unpacked
+          curl -fL --retry 3 https://anl.box.com/shared/static/3cb7jetw7tmxaw6nvn77x6c578jnm2ey.xz \
+            | tar -xJ -C ci-data/unpacked --no-anchored --wildcards 'neutron/H1.h5' 'neutron/Fe56.h5'
+          cp "$(find ci-data/unpacked -path '*neutron/H1.h5')" "$(find ci-data/unpacked -path '*neutron/Fe56.h5')" ci-data/neutron/
+          rm -rf ci-data/unpacked
+          ls -l ci-data/neutron
+      - name: OpenMC-dependent tests (sampling, lost particles, windows against analogue, numpy helpers)
+        run: python -m unittest discover -s integrations/openmc/risk_tests -p 'test_*.py'
+      - name: Spike helper tests that need numpy
+        run: python -m unittest discover -s integrations/openmc -p 'test_*.py'

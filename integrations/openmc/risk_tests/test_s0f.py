@@ -5,9 +5,14 @@ Run from the repository root:
 """
 
 import math
+from pathlib import Path
+import sys
 import unittest
 
 import s0f_common as F
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import openmc_ci  # noqa: E402
 
 
 class Neighbours(unittest.TestCase):
@@ -113,10 +118,7 @@ class Production(unittest.TestCase):
 
 class LosWindows(unittest.TestCase):
     def setUp(self):
-        try:
-            import numpy  # noqa: F401
-        except ImportError:
-            self.skipTest("numpy not available")
+        openmc_ci.require_modules("numpy")
 
     def test_solid_angle_far_and_sides(self):
         import numpy as np
@@ -170,11 +172,8 @@ class FindTargetsTest(unittest.TestCase):
     """s0f_find_targets.py on synthetic maps (fact 14)."""
 
     def setUp(self):
-        try:
-            import numpy as np
-            import scipy.ndimage  # noqa: F401
-        except ImportError:
-            self.skipTest("numpy and scipy not available")
+        openmc_ci.require_modules("numpy", "scipy.ndimage")
+        import numpy as np
         import s0f_find_targets as T
         self.np, self.T = np, T
         self.ll, self.width = np.zeros(3), np.full(3, 10.0)
