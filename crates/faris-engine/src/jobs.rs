@@ -230,10 +230,63 @@ fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactU
     Ok(usage)
 }
 
-fn capture(mut stream: impl Read, limit: usize, exceeded: Arc<AtomicBool>) -> IoResult<Capture> {
+/// Longest line handed to a line callback; the rest of a longer line is dropped.
+pub const MAX_LINE_BYTES: usize = 64 * 1024;
+
+type LineCallback<'a> = &'a (dyn Fn(&str) + Sync);
+
+/// Splits a byte stream into lines for a callback, holding at most [`MAX_LINE_BYTES`].
+struct LineSplitter<'a> {
+    pending: Vec<u8>,
+    callback: LineCallback<'a>,
+}
+
+impl<'a> LineSplitter<'a> {
+    fn new(callback: LineCallback<'a>) -> Self {
+        Self {
+            pending: Vec::new(),
+            callback,
+        }
+    }
+
+    fn push(&mut self, mut chunk: &[u8]) {
+        while let Some(newline) = chunk.iter().position(|&byte| byte == b'\n') {
+            self.extend(&chunk[..newline]);
+            self.flush();
+            chunk = &chunk[newline + 1..];
+        }
+        self.extend(chunk);
+    }
+
+    fn extend(&mut self, piece: &[u8]) {
+        let room = MAX_LINE_BYTES - self.pending.len();
+        self.pending
+            .extend_from_slice(&piece[..piece.len().min(room)]);
+    }
+
+    fn flush(&mut self) {
+        (self.callback)(&String::from_utf8_lossy(&self.pending));
+        self.pending.clear();
+    }
+
+    /// Delivers a final unterminated line when the stream closes.
+    fn finish(&mut self) {
+        if !self.pending.is_empty() {
+            self.flush();
+        }
+    }
+}
+
+fn capture(
+    mut stream: impl Read,
+    limit: usize,
+    exceeded: Arc<AtomicBool>,
+    on_line: Option<LineCallback<'_>>,
+) -> IoResult<Capture> {
     let mut bytes = Vec::with_capacity(limit.min(8192));
     let mut buffer = [0u8; 8192];
     let mut truncated = false;
+    let mut lines = on_line.map(LineSplitter::new);
     loop {
         let count = stream.read(&mut buffer)?;
         if count == 0 {
@@ -241,17 +294,40 @@ fn capture(mut stream: impl Read, limit: usize, exceeded: Arc<AtomicBool>) -> Io
         }
         let remaining = limit - bytes.len();
         bytes.extend_from_slice(&buffer[..count.min(remaining)]);
+        // Lines are cut from the retained bytes only, so delivery stops at the capture limit.
+        if let Some(lines) = lines.as_mut() {
+            lines.push(&buffer[..count.min(remaining)]);
+        }
         if count > remaining {
             truncated = true;
             exceeded.store(true, Ordering::Release);
         }
     }
+    if let Some(lines) = lines.as_mut() {
+        lines.finish();
+    }
     Ok(Capture { bytes, truncated })
 }
 
 /// Execute synchronously on the calling worker with bounded wall time and logs.
-#[cfg(target_os = "linux")]
 pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult, JobError> {
+    run_job_with_lines(spec, cancellation, &|_| {})
+}
+
+/// [`run_job`] that also reports the child's stdout line by line while it runs.
+///
+/// `on_stdout_line` is called once per complete line (no trailing newline, lossy UTF-8),
+/// in order, as soon as the line is read; a final unterminated line is delivered when the
+/// stream closes. It runs on the thread that reads stdout, not the caller's thread, so it
+/// must be quick and must not panic. A line over [`MAX_LINE_BYTES`] is delivered truncated.
+/// Delivery stops at the stdout capture limit: only retained bytes are split into lines.
+/// The returned `stdout` and every status are identical to [`run_job`].
+#[cfg(target_os = "linux")]
+pub fn run_job_with_lines(
+    spec: &JobSpec,
+    cancellation: &Cancellation,
+    on_stdout_line: &(dyn Fn(&str) + Sync),
+) -> Result<JobResult, JobError> {
     use nix::{
         errno::Errno,
         sys::signal::{Signal, killpg},
@@ -359,69 +435,73 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
     let limit = spec.capture_limit_bytes;
     let out_flag = exceeded.clone();
     let err_flag = exceeded.clone();
-    let out_reader = thread::spawn(move || capture(stdout, limit, out_flag));
-    let err_reader = thread::spawn(move || capture(stderr, limit, err_flag));
+    let (outcome, cleanup, waited, out, err) = thread::scope(|scope| {
+        let out_reader =
+            scope.spawn(move || capture(stdout, limit, out_flag, Some(on_stdout_line)));
+        let err_reader = scope.spawn(move || capture(stderr, limit, err_flag, None));
 
-    let mut observed_usage: ArtifactUsage;
-    let mut next_artifact_scan = Instant::now();
-    let outcome = loop {
-        if cancellation.is_cancelled() {
-            break Ok((ExecutionStatus::Cancelled, None));
-        }
-        if exceeded.load(Ordering::Acquire) {
-            break Ok((ExecutionStatus::OutputLimit, None));
-        }
-        if start.elapsed() >= spec.timeout {
-            break Ok((ExecutionStatus::TimedOut, None));
-        }
-        if Instant::now() >= next_artifact_scan {
-            observed_usage = match artifact_usage(&artifact_roots, spec.resource_limits) {
-                Ok(usage) => usage,
-                Err(error) => break Err(error),
-            };
-            if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
-                break Ok((ExecutionStatus::FileSizeLimit, None));
+        let mut observed_usage: ArtifactUsage;
+        let mut next_artifact_scan = Instant::now();
+        let outcome: Result<_, JobError> = loop {
+            if cancellation.is_cancelled() {
+                break Ok((ExecutionStatus::Cancelled, None));
             }
-            if observed_usage.exceeded_scan_bound
-                || observed_usage.files > spec.resource_limits.artifact_file_count
-                || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
-            {
-                break Ok((ExecutionStatus::ArtifactLimit, None));
+            if exceeded.load(Ordering::Acquire) {
+                break Ok((ExecutionStatus::OutputLimit, None));
             }
-            next_artifact_scan = Instant::now() + ARTIFACT_SCAN_INTERVAL;
-        }
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                break Ok((
-                    if status.signal() == Some(Signal::SIGXFSZ as i32) {
-                        ExecutionStatus::FileSizeLimit
-                    } else if status.success() {
-                        ExecutionStatus::Succeeded
-                    } else {
-                        ExecutionStatus::Failed
-                    },
-                    status.code(),
-                ));
+            if start.elapsed() >= spec.timeout {
+                break Ok((ExecutionStatus::TimedOut, None));
             }
-            Ok(None) => thread::sleep(Duration::from_millis(10)),
-            Err(error) => break Err(JobError::Io(error)),
-        }
-    };
-    // Close pipes held by descendant processes even when the direct child exits.
-    // ESRCH means the owned group has already exited.
-    let cleanup = match killpg(pid, Signal::SIGKILL) {
-        Ok(()) | Err(Errno::ESRCH) => Ok(()),
-        Err(error) => Err(std::io::Error::from_raw_os_error(error as i32)),
-    };
-    let waited = child.wait();
-    let out = out_reader.join().map_err(|_| JobError::ReaderPanic)??;
-    let err = err_reader.join().map_err(|_| JobError::ReaderPanic)??;
+            if Instant::now() >= next_artifact_scan {
+                observed_usage = match artifact_usage(&artifact_roots, spec.resource_limits) {
+                    Ok(usage) => usage,
+                    Err(error) => break Err(error),
+                };
+                if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
+                    break Ok((ExecutionStatus::FileSizeLimit, None));
+                }
+                if observed_usage.exceeded_scan_bound
+                    || observed_usage.files > spec.resource_limits.artifact_file_count
+                    || observed_usage.bytes > spec.resource_limits.artifact_total_bytes
+                {
+                    break Ok((ExecutionStatus::ArtifactLimit, None));
+                }
+                next_artifact_scan = Instant::now() + ARTIFACT_SCAN_INTERVAL;
+            }
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    break Ok((
+                        if status.signal() == Some(Signal::SIGXFSZ as i32) {
+                            ExecutionStatus::FileSizeLimit
+                        } else if status.success() {
+                            ExecutionStatus::Succeeded
+                        } else {
+                            ExecutionStatus::Failed
+                        },
+                        status.code(),
+                    ));
+                }
+                Ok(None) => thread::sleep(Duration::from_millis(10)),
+                Err(error) => break Err(JobError::Io(error)),
+            }
+        };
+        // Close pipes held by descendant processes even when the direct child exits.
+        // ESRCH means the owned group has already exited.
+        let cleanup = match killpg(pid, Signal::SIGKILL) {
+            Ok(()) | Err(Errno::ESRCH) => Ok(()),
+            Err(error) => Err(std::io::Error::from_raw_os_error(error as i32)),
+        };
+        let waited = child.wait();
+        let out = out_reader.join().map_err(|_| JobError::ReaderPanic)??;
+        let err = err_reader.join().map_err(|_| JobError::ReaderPanic)??;
+        Ok::<_, JobError>((outcome, cleanup, waited, out, err))
+    })?;
     cleanup?;
     let (mut execution_status, exit_code) = outcome?;
     let waited = waited?;
     // Catch short-lived bursts that may finish between watchdog polls. A
     // completed job that crossed either aggregate ceiling is never succeeded.
-    observed_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
+    let observed_usage = artifact_usage(&artifact_roots, spec.resource_limits)?;
     if observed_usage.largest_file_bytes > spec.resource_limits.single_file_bytes {
         execution_status = ExecutionStatus::FileSizeLimit;
     } else if observed_usage.exceeded_scan_bound
@@ -456,7 +536,11 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
 
 /// Resource-enforced execution currently requires Linux's trusted `prlimit`.
 #[cfg(not(target_os = "linux"))]
-pub fn run_job(_spec: &JobSpec, _cancellation: &Cancellation) -> Result<JobResult, JobError> {
+pub fn run_job_with_lines(
+    _spec: &JobSpec,
+    _cancellation: &Cancellation,
+    _on_stdout_line: &(dyn Fn(&str) + Sync),
+) -> Result<JobResult, JobError> {
     Err(JobError::Invalid(
         "bounded external job execution currently requires Linux prlimit",
     ))
@@ -668,5 +752,74 @@ mod tests {
         assert_eq!(result.resource_limits, ResourceLimits::default());
         assert_eq!(result.artifact_files_observed, 0);
         assert_eq!(result.artifact_bytes_observed, 0);
+    }
+
+    fn collect_lines(spec: &JobSpec, cancellation: &Cancellation) -> (JobResult, Vec<String>) {
+        let lines = std::sync::Mutex::new(Vec::new());
+        let result = run_job_with_lines(spec, cancellation, &|line| {
+            lines.lock().unwrap().push(line.to_owned())
+        })
+        .unwrap();
+        (result, lines.into_inner().unwrap())
+    }
+
+    #[test]
+    fn stdout_lines_arrive_in_order_before_the_job_ends() {
+        let (_dir, spec) = shell("echo first; sleep 1; echo second");
+        let seen = std::sync::Mutex::new(Vec::new());
+        let result = run_job_with_lines(&spec, &Cancellation::default(), &|line| {
+            seen.lock().unwrap().push((line.to_owned(), Instant::now()));
+        })
+        .unwrap();
+        let finished = Instant::now();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        let seen = seen.into_inner().unwrap();
+        let names: Vec<_> = seen.iter().map(|(line, _)| line.as_str()).collect();
+        assert_eq!(names, ["first", "second"]);
+        assert!(finished.duration_since(seen[0].1) >= Duration::from_millis(500));
+    }
+
+    #[test]
+    fn unterminated_final_line_is_delivered() {
+        let (_dir, spec) = shell("printf 'one\\ntwo'");
+        let (result, lines) = collect_lines(&spec, &Cancellation::default());
+        assert_eq!(result.stdout, "one\ntwo");
+        assert_eq!(lines, ["one", "two"]);
+    }
+
+    #[test]
+    fn stdout_is_identical_with_and_without_a_callback() {
+        let (_dir, spec) = shell("printf 'a\\n\\nb\\nc'; printf 'warn' >&2");
+        let plain = run_job(&spec, &Cancellation::default()).unwrap();
+        let (with, lines) = collect_lines(&spec, &Cancellation::default());
+        assert_eq!(plain.stdout, with.stdout);
+        assert_eq!(plain.stderr, with.stderr);
+        assert_eq!(plain.execution_status, with.execution_status);
+        assert_eq!(lines, ["a", "", "b", "c"]);
+    }
+
+    #[test]
+    fn cancellation_works_while_lines_are_flowing() {
+        let (_dir, mut spec) = shell("while true; do echo tick; sleep 0.02; done");
+        spec.capture_limit_bytes = MAX_CAPTURE_BYTES;
+        let cancellation = Cancellation::default();
+        let remote = cancellation.clone();
+        let worker = thread::spawn(move || collect_lines(&spec, &remote));
+        thread::sleep(Duration::from_millis(300));
+        cancellation.cancel();
+        let (result, lines) = worker.join().unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Cancelled);
+        assert!(lines.len() >= 2 && lines.iter().all(|line| line == "tick"));
+    }
+
+    #[test]
+    fn over_long_line_is_truncated_for_the_callback() {
+        let (_dir, mut spec) = shell("head -c 100000 /dev/zero | tr '\\0' x; echo; echo after");
+        spec.capture_limit_bytes = 200 * 1024;
+        let (result, lines) = collect_lines(&spec, &Cancellation::default());
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].len(), MAX_LINE_BYTES);
+        assert_eq!(lines[1], "after");
     }
 }
