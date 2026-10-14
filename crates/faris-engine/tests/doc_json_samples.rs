@@ -62,21 +62,34 @@ fn maintenance_examples_parse_and_validate() {
     let dir = tempfile::tempdir().unwrap();
     let designs: serde_json::Value = serde_json::from_str(&blocks[0]).unwrap();
     for entry in designs["designs"].as_object().unwrap().values() {
-        for key in ["scenario", "physics", "history_run", "spectrum_run", "history_assumptions"] {
+        for key in [
+            "scenario",
+            "physics",
+            "history_run",
+            "spectrum_run",
+            "history_assumptions",
+        ] {
             let path = dir.path().join(entry[key].as_str().unwrap());
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, b"{}").unwrap();
         }
     }
-    let resolved = parse_designs(blocks[0].as_bytes(), dir.path()).expect("the designs example parses");
+    let resolved =
+        parse_designs(blocks[0].as_bytes(), dir.path()).expect("the designs example parses");
     assert_eq!(resolved.keys().collect::<Vec<_>>(), ["port__reference"]);
 
-    let assumptions: MaintenanceAssumptions = serde_json::from_str(&blocks[1]).expect("the assumptions example parses");
-    assumptions.validate().expect("the assumptions example validates");
+    let assumptions: MaintenanceAssumptions =
+        serde_json::from_str(&blocks[1]).expect("the assumptions example parses");
+    assumptions
+        .validate()
+        .expect("the assumptions example validates");
     // The designs example names the design the assumptions calibrate against.
     for class in assumptions.classes.values() {
         if let faris_model::maintenance::Threshold::Calibrate { design, .. } = &class.threshold {
-            assert!(resolved.contains_key(design), "{design} is not in the designs example");
+            assert!(
+                resolved.contains_key(design),
+                "{design} is not in the designs example"
+            );
         }
     }
 }

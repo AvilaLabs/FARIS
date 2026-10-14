@@ -12,10 +12,10 @@
 #       Compares two binaries you built yourself under the recipe.
 #
 # The recipe: `cargo build --release --locked -p faris-cli` with the checkout, cargo home, rustup home and
-# target directory remapped to fixed names in every path rustc embeds (panic locations, debug strings), and
-# SOURCE_DATE_EPOCH set to the commit time for any tool that reads it. Nothing else varies: there is no build
-# script or timestamp in the command-line crates, and the release profile (codegen-units = 1, thin LTO) is
-# deterministic. Only the Linux binary of `faris` is covered; `faris-app` (graphics libraries, the macOS and
+# target directory remapped to fixed names in every path rustc embeds (panic locations, debug strings),
+# FARIS_SOURCE_DIR set to nothing (an env! path is not remapped), and SOURCE_DATE_EPOCH set to the commit time
+# for any tool that reads it. There is no build script or timestamp in the command-line crates, and the
+# release profile (codegen-units = 1, thin LTO) is deterministic once no path is baked in. Only the Linux binary of `faris` is covered; `faris-app` (graphics libraries, the macOS and
 # Windows builds, signed archives) is built on a best-effort basis and is not claimed reproducible.
 #
 # The evidence file is what release_gate.py reads for --repro:
@@ -54,6 +54,9 @@ recipe() {
     echo "export RUSTFLAGS='$flags'"
     echo "export SOURCE_DATE_EPOCH=$(git -C "$tree" log -1 --format=%ct)"
     echo "export CARGO_INCREMENTAL=0"
+    # .cargo/config.toml sets this to the checkout for development builds; a set variable wins, and empty
+    # means no repository path is compiled in (env! values are not touched by --remap-path-prefix).
+    echo "export FARIS_SOURCE_DIR="
     echo "export TZ=UTC LC_ALL=C"
 }
 
@@ -74,6 +77,9 @@ write_evidence() {
         echo "reproducible: the two builds are bit for bit identical"
     else
         echo "NOT reproducible: the two builds differ (compare with diffoscope, or cmp -l and strings)" >&2
+        for f in "$a" "$b"; do
+            echo "paths of this machine inside $f: $(strings -a "$f" | grep -c -e "$HOME" -e "/tmp/" || true) lines (a path baked in by env! or a build script is the usual cause)" >&2
+        done
         return 1
     fi
 }

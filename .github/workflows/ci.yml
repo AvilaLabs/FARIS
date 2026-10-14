@@ -39,6 +39,17 @@ jobs:
         run: |
           python3 -m pip install --user pillow==12.1.1
           python3 -m unittest discover -s scripts -p 'test_*.py'
+      # Runs the handbook's commands on fixtures with the debug binary built above, parses its JSON examples with
+      # the real parsers and checks every other command against the binary's help (QA-016). About 1.5 minutes.
+      - name: Documentation samples and tutorials run
+        run: python3 scripts/doc_samples.py --faris target/debug/faris --cargo cargo --evidence doc-tests.json
+      - name: Documentation sample evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-tests-evidence
+          path: doc-tests.json
+          if-no-files-found: ignore
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
       - name: Requirement scorecard is current

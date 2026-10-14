@@ -184,9 +184,9 @@ def commands(block: Block) -> list[str]:
         if not pending and (not line.strip() or line.lstrip().startswith("#")):
             continue
         if line.endswith("\\"):
-            pending += line[:-1] + " "
+            pending += (line[:-1].strip() + " ") if pending else (line[:-1].rstrip() + " ")
             continue
-        full = (pending + line).strip()
+        full = (pending + (line.strip() if pending else line)).strip()
         pending = ""
         full = re.sub(r"\s+#\s.*$", "", full)  # trailing comment (a `#` after space)
         full = re.sub(r"\s*\[[^\]]*\]", "", full)  # optional parts: [--pack-evidence], [--workers 2]
@@ -240,9 +240,9 @@ def check_flags(binary: Binary, words: tuple[str, ...], rest: list[str]) -> list
     text = binary.help(words)
     if text is None:
         return [f"`faris {' '.join(words)}` is not a command of this binary"]
-    if binary.children(words) and not words:
-        pass
     problems = []
+    if not words and rest and not rest[0].startswith("-"):
+        problems.append(f"`{rest[0]}` is not a command of this binary")
     for token in rest:
         flag = token.split("=")[0]
         if re.fullmatch(r"--?[A-Za-z][\w-]*", flag) and not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", text):

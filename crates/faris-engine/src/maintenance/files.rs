@@ -34,14 +34,17 @@ pub const BUILDER_NOT_FOUND: &str = "activation-input builder not found. Next st
 
 /// The default builder script: `tools/build_activation_inputs.py` beside the running program's
 /// folder (a downloaded package keeps programs in `bin/` and the script in `tools/`), otherwise
-/// the script in the source repository this program was built from.
+/// the script in the source repository this program was built from. The repository's path comes from
+/// `FARIS_SOURCE_DIR` at build time (`.cargo/config.toml` sets it); a reproducible release build sets it
+/// to nothing, so no path of the builder's machine is baked into the binary (QA-063).
 pub fn default_builder() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(Path::to_path_buf));
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../scripts")
-        .join(BUILDER_FILE);
+    let repository = option_env!("FARIS_SOURCE_DIR")
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| Path::new(dir).join("scripts").join(BUILDER_FILE))
+        .unwrap_or_default();
     builder_search(exe_dir.as_deref(), &repository)
 }
 

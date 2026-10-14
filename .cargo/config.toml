@@ -1,0 +1,6 @@
+# Where the repository's scripts live, for `faris maintenance run` in a development build (see
+# crates/faris-engine/src/maintenance/files.rs). A path baked into a binary makes it differ between
+# checkouts, so scripts/repro_check.sh sets FARIS_SOURCE_DIR to nothing, which overrides this for release
+# builds (QA-063).
+[env]
+FARIS_SOURCE_DIR = { value = ".", relative = true }
