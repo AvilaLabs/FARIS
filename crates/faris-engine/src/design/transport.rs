@@ -52,7 +52,7 @@ const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 /// Names the way weight windows, the channel search and piece volumes are made. Kept results are
 /// reused only under the same name: change it whenever one of those steps changes what it writes.
-const PREPARATION_RECIPE: &str = "2026-10-14";
+const PREPARATION_RECIPE: &str = "2026-10-14b";
 const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.

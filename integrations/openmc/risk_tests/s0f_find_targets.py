@@ -16,9 +16,16 @@ from pathlib import Path
 import numpy as np
 
 
+MAP_CELLS = 2_000_000   # a map of at most this many cells (its statepoint ~50 MB): a large machine gets larger cells
+
+
 def uncollided_map(base: Path, work: Path, particles: int, cell: float, response_material: int, cutoff: float,
-                   threads: int = 4):
-    """Returns (flux[2, nx, ny, nz] for (response material, all), lower_left, width, dims)."""
+                   threads: int = 4, max_cells: int = MAP_CELLS):
+    """Returns (flux[2, nx, ny, nz] for (response material, all), lower_left, width, dims).
+
+    Cells are `cell` cm wide, or wider when the window mesh's box would need more than `max_cells` of them: on a
+    machine 1.8 times RM-M's size 10 cm cells were 7.4 million, and their statepoint alone (194 MB) took the run
+    directory past the job's disk cap."""
     import openmc
     x = base.read_text()
     j = x.index('<mesh id="9000"')
@@ -26,6 +33,7 @@ def uncollided_map(base: Path, work: Path, particles: int, cell: float, response
     get = lambda tag: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", mesh, re.S).group(1).split()]
     ll, wd, dm = np.array(get("lower_left")), np.array(get("width")), np.array(get("dimension"))
     ur = ll + wd * dm
+    cell = max(cell, float(np.prod(ur - ll) / max_cells) ** (1.0 / 3.0))
     dims = np.ceil((ur - ll) / cell).astype(int)
     width = (ur - ll) / dims
     work.mkdir(parents=True, exist_ok=True)

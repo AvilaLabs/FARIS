@@ -147,6 +147,7 @@ class WindowsDoNotBiasTheAnswer(unittest.TestCase):
 
             # 3. the windowed run, same model and source, other seed
             windowed = build_model(openmc, library, WINDOWED_RUN, WINDOWED_SEED)
+            DT.label_windows(filled)
             mesh = DT.apply_windows(openmc, windowed, filled, work / "windowed")
             started = time.monotonic()
             run_in(work / "windowed", windowed, "openmc.log", window_mesh=mesh)

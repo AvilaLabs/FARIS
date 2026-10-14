@@ -34,7 +34,9 @@ pub const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(50);
 pub struct ResourceLimits {
     pub address_space_bytes: u64,
     pub single_file_bytes: u64,
+    /// Bytes the job may add to its artifact roots (what is there when it starts does not count).
     pub artifact_total_bytes: u64,
+    /// Files the job may add to its artifact roots.
     pub artifact_file_count: u64,
 }
 
@@ -175,6 +177,17 @@ struct ArtifactUsage {
     exceeded_scan_bound: bool,
 }
 
+impl ArtifactUsage {
+    /// Bytes added since `start`; files that shrank or were removed count as nothing added.
+    fn grown_bytes(&self, start: &Self) -> u64 {
+        self.bytes.saturating_sub(start.bytes)
+    }
+
+    fn grown_files(&self, start: &Self) -> u64 {
+        self.files.saturating_sub(start.files)
+    }
+}
+
 fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactUsage, JobError> {
     use std::{collections::HashSet, fs};
     let mut seen_roots = HashSet::new();
@@ -231,10 +244,10 @@ fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactU
                 usage.files = usage.files.saturating_add(1);
                 usage.bytes = usage.bytes.saturating_add(metadata.len());
                 usage.largest_file_bytes = usage.largest_file_bytes.max(metadata.len());
-                if usage.files > limits.artifact_file_count
-                    || usage.bytes > limits.artifact_total_bytes
-                    || usage.largest_file_bytes > limits.single_file_bytes
-                {
+                // The totals are not a reason to stop counting: they cap growth from the
+                // start of the job, so both scans must count everything (the entry bound
+                // above keeps the scan finite).
+                if usage.largest_file_bytes > limits.single_file_bytes {
                     return Ok(usage);
                 }
             }
@@ -398,9 +411,10 @@ pub fn run_job_with_lines(
         artifact_roots.push(root.clone());
     }
     let initial_usage = artifact_usage(&artifact_roots, limits)?;
+    // The totals cap what the job writes, not what earlier steps left in its roots (a transport
+    // run starts beside the geometry and windows its preparation made: over 200 MB on a large
+    // machine), so only the scan bound and the single-file limit apply to what is there now.
     if initial_usage.exceeded_scan_bound
-        || initial_usage.files > limits.artifact_file_count
-        || initial_usage.bytes > limits.artifact_total_bytes
         || initial_usage.largest_file_bytes > limits.single_file_bytes
     {
         return Err(JobError::Invalid(
@@ -485,8 +499,8 @@ pub fn run_job_with_lines(
                     break Ok((ExecutionStatus::FileSizeLimit, None));
                 }
                 if observed_usage.exceeded_scan_bound
-                    || observed_usage.files > limits.artifact_file_count
-                    || observed_usage.bytes > limits.artifact_total_bytes
+                    || observed_usage.grown_files(&initial_usage) > limits.artifact_file_count
+                    || observed_usage.grown_bytes(&initial_usage) > limits.artifact_total_bytes
                 {
                     break Ok((ExecutionStatus::ArtifactLimit, None));
                 }
@@ -537,8 +551,8 @@ pub fn run_job_with_lines(
     if observed_usage.largest_file_bytes > limits.single_file_bytes {
         execution_status = ExecutionStatus::FileSizeLimit;
     } else if observed_usage.exceeded_scan_bound
-        || observed_usage.files > limits.artifact_file_count
-        || observed_usage.bytes > limits.artifact_total_bytes
+        || observed_usage.grown_files(&initial_usage) > limits.artifact_file_count
+        || observed_usage.grown_bytes(&initial_usage) > limits.artifact_total_bytes
         || observed_usage.largest_file_bytes > limits.single_file_bytes
     {
         execution_status = ExecutionStatus::ArtifactLimit;
@@ -755,6 +769,23 @@ mod tests {
         assert_eq!(result.artifact_files_observed, 2);
         assert!(dir.path().join("a").exists());
         assert!(dir.path().join("b").exists());
+    }
+
+    // Verifies: AUTO-040
+    #[test]
+    fn files_already_in_the_roots_do_not_count_against_the_total() {
+        // 64 KiB left by an earlier step, over a 48 KiB cap: the job may still add 32 KiB, and
+        // is stopped when it adds more than the cap.
+        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=8 status=none");
+        std::fs::write(dir.path().join("input"), vec![0_u8; 64 * 1024]).unwrap();
+        spec.resource_limits.artifact_total_bytes = 48 * 1024;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=16 status=none");
+        std::fs::write(dir.path().join("input"), vec![0_u8; 64 * 1024]).unwrap();
+        spec.resource_limits.artifact_total_bytes = 48 * 1024;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::ArtifactLimit);
     }
 
     #[test]

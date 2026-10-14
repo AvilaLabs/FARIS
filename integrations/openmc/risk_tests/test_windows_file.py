@@ -71,6 +71,18 @@ def write_windows(openmc, path: Path, dimension=(65, 1, 1)) -> None:
             os.environ["OPENMC_CROSS_SECTIONS"] = saved
 
 
+RUN_WINDOWS = "windows.h5"
+
+
+def labelled(filled: Path, directory: Path) -> Path:
+    """A copy of FILLED in DIRECTORY with FARIS's labels, as the window step leaves its own file."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / RUN_WINDOWS
+    target.write_bytes(filled.read_bytes())
+    DT.label_windows(target)
+    return target
+
+
 def inline_windows(openmc, model, filled: Path) -> None:
     """The old way, kept to compare against: the windows written into the model's XML."""
     window = openmc.hdf5_to_wws(str(filled))[0]
@@ -122,12 +134,12 @@ class WindowsFromAFile(unittest.TestCase):
             # No nuclear data is needed to write the model
             model = self.model(work / "cross_sections.xml")
             run = work / "solver"
-            mesh = DT.apply_windows(openmc, model, filled, run)
+            mesh = DT.apply_windows(openmc, model, labelled(filled, run), run)
             DT.export_model(model, run / "model.xml", mesh)
 
             xml = (run / "model.xml").read_text()
             self.assertLess((run / "model.xml").stat().st_size, 1_000_000)
-            self.assertGreater((run / DT.RUN_WINDOWS).stat().st_size, 1_000_000)
+            self.assertGreater((run / RUN_WINDOWS).stat().st_size, 1_000_000)
             self.assertNotIn("lower_ww_bounds", xml)
             self.assertNotIn("<weight_windows ", xml)
             self.assertIn("<weight_windows_file>windows.h5</weight_windows_file>", xml)
@@ -136,7 +148,7 @@ class WindowsFromAFile(unittest.TestCase):
             self.assertEqual(xml.count("<mesh "), 1)
             self.assertIn("<dimension>50 50 40</dimension>", xml)
 
-            with h5py.File(run / DT.RUN_WINDOWS) as stream:
+            with h5py.File(run / RUN_WINDOWS) as stream:
                 group = stream[f"weight_windows/weight_windows_{DT.WINDOW_ID}"]
                 self.assertEqual(int(group["mesh"][()]), DT.WINDOW_MESH_ID)
                 self.assertEqual(int(group["max_split"][()]), DT.MAX_SPLIT)
@@ -144,7 +156,7 @@ class WindowsFromAFile(unittest.TestCase):
                 self.assertEqual(list(stream["meshes"].attrs["ids"]), [DT.WINDOW_MESH_ID])
                 self.assertEqual(int(stream[f"meshes/mesh {DT.WINDOW_MESH_ID}"].attrs["id"]), DT.WINDOW_MESH_ID)
             # the bounds are the cache entry's, untouched, and the cache entry itself was not edited
-            made = openmc.hdf5_to_wws(str(run / DT.RUN_WINDOWS))[0]
+            made = openmc.hdf5_to_wws(str(run / RUN_WINDOWS))[0]
             original = openmc.hdf5_to_wws(str(filled))[0]
             self.assertEqual(made.id, DT.WINDOW_ID)
             self.assertEqual(made.max_split, DT.MAX_SPLIT)
@@ -185,7 +197,7 @@ class WindowsFromAFile(unittest.TestCase):
     def run_from_file(self, openmc, directory: Path, library: Path, filled: Path):
         """The slab run with the windows of `filled` read from a file in `directory`."""
         from_file = self.model(library)
-        mesh = DT.apply_windows(openmc, from_file, filled, directory)
+        mesh = DT.apply_windows(openmc, from_file, labelled(filled, directory), directory)
         DT.export_model(from_file, directory / "model.xml", mesh)
         DT.run_cli(directory, 1, "openmc.log")
         return tally_of(openmc, directory)
@@ -225,10 +237,10 @@ class WindowsFromAFile(unittest.TestCase):
             inline.export_to_model_xml(str(work / "inline-base"))
             from_file = self.model(library)
             run = work / "solver"
-            mesh = DT.apply_windows(openmc, from_file, filled, run)
+            mesh = DT.apply_windows(openmc, from_file, labelled(filled, run), run)
             DT.export_model(from_file, run / "model.xml", mesh)
 
-            original = W.read_window_file(run / DT.RUN_WINDOWS)
+            original = W.read_window_file(run / RUN_WINDOWS)
             real = W.visibility_run
             W.visibility_run = self.fake_visibility(W)
             try:
@@ -254,7 +266,7 @@ class WindowsFromAFile(unittest.TestCase):
             self.assertTrue((lower <= original[1]).all())
             self.assertTrue((lower < original[1]).any())
             # the uncapped file is untouched and the capped copy keeps FARIS's ids
-            self.assertTrue(np.array_equal(W.read_window_file(run / DT.RUN_WINDOWS)[1], original[1]))
+            self.assertTrue(np.array_equal(W.read_window_file(run / RUN_WINDOWS)[1], original[1]))
             capped = openmc.hdf5_to_wws(str(aim / "windows-capped.h5"))[0]
             self.assertEqual((capped.max_split, capped.mesh.id), (DT.MAX_SPLIT, DT.WINDOW_MESH_ID))
 
@@ -264,7 +276,7 @@ class WindowsFromAFile(unittest.TestCase):
             file_dir.mkdir()
             (inline_dir / "model.xml").write_text((work / "inline-capped.xml").read_text())
             (file_dir / "model.xml").write_text((aim / "model-aimed.xml").read_text())
-            (file_dir / DT.RUN_WINDOWS).write_bytes((aim / "windows-capped.h5").read_bytes())
+            (file_dir / RUN_WINDOWS).write_bytes((aim / "windows-capped.h5").read_bytes())
             DT.run_cli(inline_dir, 1, "openmc.log")
             DT.run_cli(file_dir, 1, "openmc.log")
             a, b = tally_of(openmc, inline_dir), tally_of(openmc, file_dir)
@@ -291,13 +303,13 @@ class WindowsFromAFile(unittest.TestCase):
             inline.export_to_model_xml(str(work / "inline-base"))
             from_file = self.model(library)
             run = work / "solver"
-            DT.export_model(from_file, run / "model.xml", DT.apply_windows(openmc, from_file, filled, run))
+            DT.export_model(from_file, run / "model.xml", DT.apply_windows(openmc, from_file, labelled(filled, run), run))
             (work / "aim").mkdir()
             counts = W.cap_model(run / "model.xml", work / "aim" / "model-aimed.xml", work / "v1", [TARGET], 40000)
             W.cap_model(work / "inline-base" / "model.xml", work / "inline-capped.xml", work / "v2", [TARGET], 40000)
             _, lower, _ = W.read_window_file(work / "aim" / "windows-capped.h5")
             xml_lower, _ = inline_bounds((work / "inline-capped.xml").read_text())
-            original = W.read_window_file(run / DT.RUN_WINDOWS)[1]
+            original = W.read_window_file(run / RUN_WINDOWS)[1]
         # the visibility tallies are summed by several threads, so allow for the order of the sums
         self.assertTrue(np.allclose(lower.ravel(), xml_lower, rtol=1e-6, atol=0.0))
         self.assertTrue((lower <= original).all())

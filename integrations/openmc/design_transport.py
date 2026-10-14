@@ -60,6 +60,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shutil
 import sys
 import time
@@ -608,6 +609,7 @@ def phase_windows(request: dict, work: Path) -> dict:
         raise RuntimeError("the random-ray run wrote no weight windows")
     filled = directory / "filled.h5"
     fill = s0f_common.fill_file(files[0], filled)
+    label_windows(filled)
     record = {"schema": "faris-design-windows/v1", "openmc": openmc.__version__, "parameters": RANDOM_RAY,
               "method": "CADIS: random-ray adjoint of the response, bins without a value filled from neighbours",
               "mesh": {"lower_left": lower, "upper_right": upper, "dimension": dimension},
@@ -690,24 +692,16 @@ def phase_volumes(request: dict, work: Path) -> dict:
     return record
 
 
-RUN_WINDOWS = "windows.h5"   # the windows a run reads, in its working directory, named by the model's <weight_windows_file>
 
 
-def apply_windows(openmc, model, filled: Path, directory: Path):
-    """Make the model read its weight windows from DIRECTORY/windows.h5 and return their mesh.
-
-    The windows are not written into the model's XML: on a large machine their bounds are hundreds of megabytes
-    of text that OpenMC must parse again at every run. The file is a copy of FILLED with FARIS's window id,
-    split limit and mesh id (FILLED itself, a cache entry, is never changed). OpenMC loads the bounds from it, and
-    takes the mesh by the id stored in it, so the mesh must be in the model: pass the returned mesh to
-    `export_model`. The model refers to the file by name, so the run must start in DIRECTORY. The window id in the
-    file's group name is only a label: OpenMC numbers a window it loads itself (1 when it is the only one)."""
+def label_windows(path: Path) -> None:
+    """Give a weight-window file FARIS's window id, split limit and mesh id, in place. The window step does this
+    to its own `filled.h5` before hashing it, so every run reads that file where it lies instead of a copy (on a
+    large machine the file is over 100 MB, and a copy per run pushed the run directory past the job's disk cap).
+    The window id in the group name is only a label: OpenMC numbers a window it loads itself."""
     import h5py
 
-    directory.mkdir(parents=True, exist_ok=True)
-    target = directory / RUN_WINDOWS
-    shutil.copyfile(filled, target)
-    with h5py.File(target, "r+") as stream:
+    with h5py.File(path, "r+") as stream:
         windows = stream["weight_windows"]
         group = windows[next(iter(windows))]
         label = f"weight_windows_{WINDOW_ID}"
@@ -720,17 +714,37 @@ def apply_windows(openmc, model, filled: Path, directory: Path):
         group["mesh"][...] = WINDOW_MESH_ID
         meshes = stream["meshes"]
         old = next(iter(meshes))
-        meshes.move(old, f"mesh {WINDOW_MESH_ID}")
+        if old != f"mesh {WINDOW_MESH_ID}":
+            meshes.move(old, f"mesh {WINDOW_MESH_ID}")
         meshes[f"mesh {WINDOW_MESH_ID}"].attrs["id"] = WINDOW_MESH_ID
         meshes.attrs["ids"] = [WINDOW_MESH_ID]
         meshes.attrs["n_meshes"] = 1
-        mesh = openmc.MeshBase.from_hdf5(meshes[f"mesh {WINDOW_MESH_ID}"])
+
+
+def window_file_name(windows: Path, directory: Path) -> str:
+    """How a run started in DIRECTORY names the weight-window file WINDOWS: a relative path, so the model does
+    not depend on where the run directory lies."""
+    return os.path.relpath(windows, directory)
+
+
+def apply_windows(openmc, model, windows: Path, directory: Path):
+    """Make the model read its weight windows from the file WINDOWS (labelled by `label_windows`) and return their
+    mesh.
+
+    The windows are not written into the model's XML: on a large machine their bounds are hundreds of megabytes
+    of text that OpenMC must parse again at every run, and they are not copied either. OpenMC loads the bounds
+    from the file and takes the mesh by the id stored in it, so the mesh must be in the model: pass the returned
+    mesh to `export_model`. The model names the file relative to DIRECTORY, where the run must start."""
+    import h5py
+
+    with h5py.File(windows, "r") as stream:
+        mesh = openmc.MeshBase.from_hdf5(stream["meshes"][f"mesh {WINDOW_MESH_ID}"])
     mesh.id = WINDOW_MESH_ID
-    # a bare name: openmc would write the path of this process's directory, and the run starts in its own
+    # a relative name: openmc would write the path of this process's directory, and the run starts in its own
     resolve = openmc.config["resolve_paths"]
     openmc.config["resolve_paths"] = False
     try:
-        model.settings.weight_windows_file = Path(RUN_WINDOWS)
+        model.settings.weight_windows_file = Path(window_file_name(windows, directory))
     finally:
         openmc.config["resolve_paths"] = resolve
     model.settings.weight_windows_on = True
@@ -892,8 +906,12 @@ def phase_run(request: dict, work: Path) -> dict:
         if mode["mode"] == "aimed":
             model_xml.unlink()
             model_xml = Path(mode["model"])
-            # The aimed model reads the same file name; what is there now is the capped copy.
-            shutil.copyfile(mode["windows"], out_dir / RUN_WINDOWS)
+            # The aimed model is this run's model; point it at the capped windows.
+            name = window_file_name(Path(mode["windows"]), out_dir)
+            text = re.sub(r"<weight_windows_file>.*?</weight_windows_file>",
+                          f"<weight_windows_file>{name}</weight_windows_file>", model_xml.read_text(), count=1,
+                          flags=re.S)
+            model_xml.write_text(text)
             os.environ.update(mode["env"])
     else:
         model.export_to_model_xml(model_xml)

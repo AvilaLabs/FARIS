@@ -116,6 +116,12 @@ basis.
 
 ### Changed
 
+- `faris design transport` on large machines: the weight windows are no longer written into `model.xml` (a
+  2000 MW model's 129 MB windows passed OpenMC's 256 MiB file limit) or copied beside it; the model names the
+  windows file by relative path. The aiming map is kept to at most 2 million cells (it was 7.4 million, 194 MB,
+  on that model). A job's total-bytes and file-count limits now count what the job writes, not the geometry and
+  windows its preparation left in the same folder. Preparation recipe `2026-10-14b`, so earlier preparations are
+  redone.
 - The reference design RM-M (`scenarios/rm-m/rm-m.faris-design.json`) now closes: its ion densities (centre,
   pedestal, separatrix) were multiplied by 1.65989, so its profiles imply the published 525 MW instead of 190.5 MW.
   The source shape is unchanged; the density is a normalisation, not a published plasma density. The file's sha256
