@@ -37,7 +37,12 @@ of its requirements is provisional, unmet or unmeasured.
 
 **Version 1.0.0** (decided 2026-10-13): FARIS is best in class on every metric. "Best in class" is
 decided by the requirement tables, each row by its own test, never by description; the release gate of
-the [next release](NEXT_RELEASE_PLAN.md#release-gate) is the first fixed list toward it.
+the [next release](NEXT_RELEASE_PLAN.md#release-gate) is the first fixed list toward it. Its scope (decided
+2026-10-13) is every requirement assigned to phases F1 and F2, in every category, with none provisional,
+unmet or unmeasured: FARIS from CAD through transport and activation to component life, on every metric.
+Phases F3 to F7 add capabilities and belong to later major versions. A requirement counts as Met only when
+CI runs its test; a test that needs a build CI cannot make counts through a sealed local run record whose
+hash the release gate checks.
 
 | Phase | Result | Main dependencies |
 | --- | --- | --- |
