@@ -260,6 +260,7 @@ faris study-file create --bundle port/bundles/reference.transport-bundle.json \
 faris study-file inspect demo.faris     # manifest summary and sizes
 faris study-file verify demo.faris      # rehash everything; exit 1 on any failure
 faris study-file unpack demo.faris out/ # bundles and files back out; refuses an existing directory
+mkdir exports                           # the export parent folder must exist
 faris study-file export demo.faris --output exports/  # PDF brief, CSV and charts, as the desktop's Export
 ```
 
