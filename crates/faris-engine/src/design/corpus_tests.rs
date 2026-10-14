@@ -37,6 +37,21 @@ struct Entry {
     /// GEO-032 as the CAD kernel measured it when the corpus was generated.
     #[serde(default)]
     deviation: Option<RecordedDeviation>,
+    /// The overlap that was built into a CAD-level model, from its analytic dimensions.
+    #[serde(default)]
+    seeded_overlap: Option<SeededOverlap>,
+    /// Each solid's CAD volume as the kernel measured it, by solid id (clean models).
+    #[serde(default)]
+    cad_volumes_m3: BTreeMap<String, f64>,
+    base: String,
+}
+
+#[derive(Deserialize)]
+struct SeededOverlap {
+    pair: [usize; 2],
+    fraction_of_smaller: f64,
+    smaller_solid_volume_m3: f64,
+    common_volume_m3: f64,
 }
 
 #[derive(Deserialize)]
@@ -58,6 +73,19 @@ struct DesignCheck {
 
 fn index() -> Index {
     serde_json::from_slice(&std::fs::read(corpus_dir().join("corpus.json")).unwrap()).unwrap()
+}
+
+/// The candidate pairs of an unimprinted model, as the mesh search finds them.
+fn candidates_of(entry: &Entry) -> Vec<overlap::Candidate> {
+    let dir = corpus_dir();
+    let bin = std::fs::read(dir.join(format!("{}.facets.bin", entry.id))).unwrap();
+    let json = std::fs::read(dir.join(format!("{}.facets.json", entry.id))).unwrap();
+    let loaded = load_facets(&bin, &json).unwrap();
+    let model = Model::new(&loaded.facets).unwrap();
+    let cancel = Cancellation::default();
+    let progress = |_: &str, _: usize, _: usize| {};
+    let ctl = Ctl::new(&cancel, &progress, 2);
+    overlap::candidate_pairs(&model, entry.chord_m, 7, &ctl).unwrap()
 }
 
 /// FARIS's blocking requirement ids for one geometry model, and whether the candidate-pair
@@ -264,4 +292,115 @@ fn the_design_level_defects_fail_at_the_check_that_owns_them() {
             entry.class
         );
     }
+}
+
+// Verifies: GEO-021
+#[test]
+fn seeded_overlaps_down_to_one_part_in_ten_thousand_are_found_by_the_recorded_boolean() {
+    let mut judged = BTreeSet::new();
+    for entry in index().models.iter().filter(|m| m.seeded_overlap.is_some()) {
+        let seeded = entry.seeded_overlap.as_ref().unwrap();
+        let run = entry.local_run.as_ref().expect("local run recorded");
+        let results: Vec<overlap::BooleanResult> =
+            serde_json::from_value(run["booleans"]["pairs"].clone()).unwrap();
+        let volumes: Vec<f64> = serde_json::from_value(run["solid_volumes_m3"].clone()).unwrap();
+        let labels: Vec<String> = (0..volumes.len()).map(|i| format!("solid-{i}")).collect();
+        let candidates = candidates_of(entry);
+        let (records, findings) =
+            overlap::boolean_findings(&candidates, &results, &volumes, &labels);
+        let [a, b] = seeded.pair;
+        let overlaps: Vec<&overlap::PairRecord> =
+            records.iter().filter(|r| r.verdict == "overlap").collect();
+        assert_eq!(overlaps.len(), 1, "{}: {records:#?}", entry.id);
+        assert_eq!(
+            (&overlaps[0].a, &overlaps[0].b),
+            (&labels[a], &labels[b]),
+            "{}",
+            entry.id
+        );
+        assert!(
+            findings.iter().all(|f| f.waivable && f.blocks()),
+            "{}",
+            entry.id
+        );
+        // The exact boolean measures what was built in, to well inside 1e-6 of it.
+        let measured = overlaps[0].common_volume_m3.unwrap();
+        assert!(
+            (measured / seeded.common_volume_m3 - 1.0).abs() < 1.0e-6,
+            "{}: measured {measured:e} against seeded {:e}",
+            entry.id,
+            seeded.common_volume_m3
+        );
+        let smaller = overlaps[0].smaller_solid_volume_m3;
+        assert!(
+            (smaller / seeded.smaller_solid_volume_m3 - 1.0).abs() < 1.0e-6,
+            "{}",
+            entry.id
+        );
+        assert!(
+            (measured / smaller / seeded.fraction_of_smaller - 1.0).abs() < 1.0e-6,
+            "{}",
+            entry.id
+        );
+        judged.insert(seeded.fraction_of_smaller.to_bits());
+    }
+    // 1e-4 (the GEO-021 target) and 1e-5 (a decade below it), on more than one base.
+    assert!(judged.contains(&1.0e-4_f64.to_bits()) && judged.contains(&1.0e-5_f64.to_bits()));
+}
+
+// Verifies: GEO-012, GEO-030
+#[test]
+fn the_volume_gate_replays_on_the_recorded_conversions_of_the_clean_models() {
+    let dir = corpus_dir();
+    let mut judged = BTreeMap::<String, (usize, usize)>::new();
+    for entry in index().models.iter().filter(|m| m.kind == "clean") {
+        let bin = std::fs::read(dir.join(format!("{}.facets.bin", entry.id))).unwrap();
+        let json = std::fs::read(dir.join(format!("{}.facets.json", entry.id))).unwrap();
+        let loaded = load_facets(&bin, &json).unwrap();
+        let model = Model::new(&loaded.facets).unwrap();
+        let stats = binding::volume_stats(&model.mesh, &loaded.facets, &loaded.manifest);
+        let rows: Vec<binding::BindingRow> = stats
+            .iter()
+            .map(|v| {
+                let id = v
+                    .material_tag
+                    .as_deref()
+                    .unwrap()
+                    .strip_prefix("mat:")
+                    .unwrap();
+                let cad = entry.cad_volumes_m3[id];
+                binding::BindingRow {
+                    volume: v.index,
+                    global_id: v.global_id,
+                    material_tag: v.material_tag.clone(),
+                    solid_id: Some(id.to_string()),
+                    faceted_volume_m3: v.faceted_volume_m3,
+                    cad_volume_m3: Some(cad),
+                    volume_relative_difference: Some(v.faceted_volume_m3 / cad - 1.0),
+                    centroid_distance_m: None,
+                    normalised_distance: None,
+                    second_best_solid_id: None,
+                    second_best_normalised_distance: None,
+                }
+            })
+            .collect();
+        assert_eq!(rows.len(), entry.cad_volumes_m3.len(), "{}", entry.id);
+        let (gate, findings) = binding::volume_gate(&rows, entry.chord_m, false);
+        let exceeded = gate
+            .solids
+            .iter()
+            .filter(|s| s.verdict == "EXCEEDED")
+            .count();
+        assert_eq!(findings.len(), exceeded, "{}", entry.id);
+        assert!(findings.iter().all(|f| f.blocks() && !f.waivable));
+        let tally = judged.entry(entry.base.clone()).or_default();
+        tally.0 += gate.solids.len();
+        tally.1 += exceeded;
+    }
+    // The boxes are planar and the port base is cylinders at a 0.1 rad deviation: every cell
+    // is within 0.1 % (worst port plug -0.0414 %). The torus fixtures are faceted at 0.5 rad on
+    // purpose, to keep the files small, and are 1.4 % to 1.6 % low: the gate must refuse them.
+    assert_eq!(judged["boxes"], (24, 0));
+    assert_eq!(judged["port"], (24, 0));
+    assert_eq!(judged["tori"], (24, 24));
 }

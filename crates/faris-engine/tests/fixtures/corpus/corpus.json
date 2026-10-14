@@ -44,6 +44,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.0009999999999999998,
+    "shell1": 0.006999999999999997,
+    "shell2": 0.01900000000000001
    }
   },
   {
@@ -88,6 +93,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.001520875,
+    "shell1": 0.010646125000000005,
+    "shell2": 0.028896624999999985
    }
   },
   {
@@ -132,6 +142,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.0021969999999999997,
+    "shell1": 0.015378999999999997,
+    "shell2": 0.04174299999999999
    }
   },
   {
@@ -176,6 +191,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.0033750000000000004,
+    "shell1": 0.023625,
+    "shell2": 0.064125
    }
   },
   {
@@ -220,6 +240,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.004913000000000001,
+    "shell1": 0.034390999999999984,
+    "shell2": 0.09334699999999997
    }
   },
   {
@@ -264,6 +289,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.007999999999999998,
+    "shell1": 0.05599999999999997,
+    "shell2": 0.15200000000000008
    }
   },
   {
@@ -308,6 +338,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.013824,
+    "shell1": 0.09676799999999999,
+    "shell2": 0.2626559999999999
    }
   },
   {
@@ -352,6 +387,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.027000000000000003,
+    "shell1": 0.189,
+    "shell2": 0.513
    }
   },
   {
@@ -396,6 +436,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.11843525281307225,
+    "shell1": 0.35530575843921686,
+    "shell2": 0.5921762640653623
    }
   },
   {
@@ -440,6 +485,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.18012521512208127,
+    "shell1": 0.5403756453662438,
+    "shell2": 0.9006260756104061
    }
   },
   {
@@ -484,6 +534,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.26020225043031997,
+    "shell1": 0.7806067512909596,
+    "shell2": 1.301011252151599
    }
   },
   {
@@ -528,6 +583,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.39971897824411917,
+    "shell1": 1.1991569347323565,
+    "shell2": 1.9985948912205942
    }
   },
   {
@@ -572,6 +632,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.5818723970706245,
+    "shell1": 1.7456171912118736,
+    "shell2": 2.90936198535312
    }
   },
   {
@@ -616,6 +681,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 0.947482022504578,
+    "shell1": 2.842446067513735,
+    "shell2": 4.737410112522898
    }
   },
   {
@@ -660,6 +730,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 1.6372489348879125,
+    "shell1": 4.911746804663736,
+    "shell2": 8.186244674439555
    }
   },
   {
@@ -704,6 +779,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "core": 3.1977518259529534,
+    "shell1": 9.593255477858852,
+    "shell2": 15.988759129764754
    }
   },
   {
@@ -748,6 +828,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.0011309733552923255,
+    "shell": 0.014869026644707671,
+    "frame": 0.020000000000000007
    }
   },
   {
@@ -792,6 +877,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.001720069101730215,
+    "shell": 0.022613930898269782,
+    "frame": 0.030417499999999997
    }
   },
   {
@@ -836,6 +926,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.0024847484615772397,
+    "shell": 0.03266725153842276,
+    "frame": 0.04394
    }
   },
   {
@@ -880,6 +975,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.0038170350741115987,
+    "shell": 0.050182964925888404,
+    "frame": 0.0675
    }
   },
   {
@@ -924,6 +1024,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.005556472094551195,
+    "shell": 0.07305152790544882,
+    "frame": 0.09825999999999999
    }
   },
   {
@@ -968,6 +1073,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.009047786842338604,
+    "shell": 0.11895221315766137,
+    "frame": 0.16000000000000006
    }
   },
   {
@@ -1012,6 +1122,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.015634575663561103,
+    "shell": 0.20554942433643889,
+    "frame": 0.27647999999999995
    }
   },
   {
@@ -1056,6 +1171,11 @@
       "complete": true
      }
     ]
+   },
+   "cad_volumes_m3": {
+    "plug": 0.03053628059289279,
+    "shell": 0.40146371940710723,
+    "frame": 0.54
    }
   },
   {
@@ -1991,6 +2111,342 @@
    },
    "design_check": {
     "fails_at": 4
+   }
+  },
+  {
+   "id": "seeded-overlap-boxes-1e-4",
+   "family": "cad",
+   "class": "overlap",
+   "base": "boxes",
+   "scale": 1.0,
+   "seed": 151,
+   "kind": "seeded",
+   "expected_requirements": [
+    "GEO-021"
+   ],
+   "subject": "unimprinted",
+   "chord_m": 0.001,
+   "files": {
+    "seeded-overlap-boxes-1e-4.facets.bin": "17d939b2422f14fb4b758da572a21d598df020c77e1dca67ebe58fe5d7d13296",
+    "seeded-overlap-boxes-1e-4.facets.json": "2a41983d0d866dedfda66310415e473d9c8f4ebfb2c530f9050bb2b42cdec9d3"
+   },
+   "mutated_from": "clean-boxes-0",
+   "seeded_overlap": {
+    "pair": [
+     0,
+     1
+    ],
+    "fraction_of_smaller": 0.0001,
+    "smaller_solid_volume_m3": 0.001000100010001,
+    "common_volume_m3": 1.0001000100010003e-07
+   },
+   "local_run": {
+    "booleans": {
+     "pairs": [
+      {
+       "a": 0,
+       "b": 1,
+       "status": "decided",
+       "common_volume_m3": 1.0001000079500955e-07,
+       "reason": null
+      },
+      {
+       "a": 0,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 1,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      }
+     ]
+    },
+    "solid_volumes_m3": [
+     0.0010001000100007948,
+     0.006999999999999997,
+     0.01900000000000001
+    ],
+    "convert": {
+     "command": "convert",
+     "chord_cm": 0.1,
+     "angular_rad": 0.1,
+     "exit_code": null,
+     "error": "ValueError: Overlapping solids in the CAD. The solids tagged ['core', 'shell1'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume.",
+     "trace_tail": [
+      "    ...<7 lines>...",
+      "    ) from e",
+      "ValueError: Overlapping solids in the CAD. The solids tagged ['core', 'shell1'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume."
+     ]
+    },
+    "tessellate": {
+     "command": "tessellate",
+     "chord_cm": 0.1,
+     "angular_rad": 0.1,
+     "exit_code": 0,
+     "problems": [],
+     "timing_seconds": {
+      "read_step": 0.02552179992198944,
+      "mesh": 0.009152072947472334,
+      "total": 0.03690305212512612
+     }
+    }
+   }
+  },
+  {
+   "id": "seeded-overlap-boxes-1e-5",
+   "family": "cad",
+   "class": "overlap",
+   "base": "boxes",
+   "scale": 1.0,
+   "seed": 151,
+   "kind": "seeded",
+   "expected_requirements": [
+    "GEO-021"
+   ],
+   "subject": "unimprinted",
+   "chord_m": 0.001,
+   "files": {
+    "seeded-overlap-boxes-1e-5.facets.bin": "57a3076c640e8419f706c0143bf08bc040c10aef2189bd985f948e0f6e192c1f",
+    "seeded-overlap-boxes-1e-5.facets.json": "04e4ebe240e3e2d3da7b57b557f0c4b5a5975a9ae336555867a1ef40c5042010"
+   },
+   "mutated_from": "clean-boxes-0",
+   "seeded_overlap": {
+    "pair": [
+     0,
+     1
+    ],
+    "fraction_of_smaller": 1e-05,
+    "smaller_solid_volume_m3": 0.0010000100001000011,
+    "common_volume_m3": 1.000010000100001e-08
+   },
+   "local_run": {
+    "booleans": {
+     "pairs": [
+      {
+       "a": 0,
+       "b": 1,
+       "status": "decided",
+       "common_volume_m3": 1.0000099773897092e-08,
+       "reason": null
+      },
+      {
+       "a": 0,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 1,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      }
+     ]
+    },
+    "solid_volumes_m3": [
+     0.0010000100000997739,
+     0.006999999999999997,
+     0.01900000000000001
+    ],
+    "convert": {
+     "command": "convert",
+     "chord_cm": 0.1,
+     "angular_rad": 0.1,
+     "exit_code": null,
+     "error": "ValueError: Overlapping solids in the CAD. The solids tagged ['core', 'shell1'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume.",
+     "trace_tail": [
+      "    ...<7 lines>...",
+      "    ) from e",
+      "ValueError: Overlapping solids in the CAD. The solids tagged ['core', 'shell1'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume."
+     ]
+    },
+    "tessellate": {
+     "command": "tessellate",
+     "chord_cm": 0.1,
+     "angular_rad": 0.1,
+     "exit_code": 0,
+     "problems": [],
+     "timing_seconds": {
+      "read_step": 0.026181980036199093,
+      "mesh": 0.008288681972771883,
+      "total": 0.03593364404514432
+     }
+    }
+   }
+  },
+  {
+   "id": "seeded-overlap-port-1e-4",
+   "family": "cad",
+   "class": "overlap",
+   "base": "port",
+   "scale": 1.0,
+   "seed": 152,
+   "kind": "seeded",
+   "expected_requirements": [
+    "GEO-021"
+   ],
+   "subject": "unimprinted",
+   "chord_m": 0.003,
+   "files": {
+    "seeded-overlap-port-1e-4.facets.bin": "fb2da01fe73f4284f03df51e188a5a683aff1f0321346d91a4f28a9d0b0c2053",
+    "seeded-overlap-port-1e-4.facets.json": "c1ff8b61f1ea9804c8933af280945cce080d66693d4f90d418f9187357c64881"
+   },
+   "mutated_from": "clean-port-0",
+   "seeded_overlap": {
+    "pair": [
+     0,
+     1
+    ],
+    "fraction_of_smaller": 0.0001,
+    "smaller_solid_volume_m3": 0.0011310864639387194,
+    "common_volume_m3": 1.1310864639387195e-07
+   },
+   "local_run": {
+    "booleans": {
+     "pairs": [
+      {
+       "a": 0,
+       "b": 1,
+       "status": "decided",
+       "common_volume_m3": 1.1310864640306682e-07,
+       "reason": null
+      },
+      {
+       "a": 0,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 1,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      }
+     ]
+    },
+    "solid_volumes_m3": [
+     0.0011310864639387287,
+     0.014869026644707671,
+     0.020000000000000007
+    ],
+    "convert": {
+     "command": "convert",
+     "chord_cm": 0.3,
+     "angular_rad": 0.1,
+     "exit_code": null,
+     "error": "ValueError: Overlapping solids in the CAD. The solids tagged ['plug', 'shell'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume.",
+     "trace_tail": [
+      "    ...<7 lines>...",
+      "    ) from e",
+      "ValueError: Overlapping solids in the CAD. The solids tagged ['plug', 'shell'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume."
+     ]
+    },
+    "tessellate": {
+     "command": "tessellate",
+     "chord_cm": 0.3,
+     "angular_rad": 0.1,
+     "exit_code": 0,
+     "problems": [],
+     "timing_seconds": {
+      "read_step": 0.020163303008303046,
+      "mesh": 0.022084632888436317,
+      "total": 0.05496567394584417
+     }
+    }
+   }
+  },
+  {
+   "id": "seeded-overlap-port-1e-5",
+   "family": "cad",
+   "class": "overlap",
+   "base": "port",
+   "scale": 1.0,
+   "seed": 152,
+   "kind": "seeded",
+   "expected_requirements": [
+    "GEO-021"
+   ],
+   "subject": "unimprinted",
+   "chord_m": 0.003,
+   "files": {
+    "seeded-overlap-port-1e-5.facets.bin": "430b969b80351e3402a4674dd79f2fceba6780663fe7b1214a21ba7552838b52",
+    "seeded-overlap-port-1e-5.facets.json": "03d108a03eefb0424904a51d0b568b64f59a04cadf1f22a6008dfa01a7db0dea"
+   },
+   "mutated_from": "clean-port-0",
+   "seeded_overlap": {
+    "pair": [
+     0,
+     1
+    ],
+    "fraction_of_smaller": 1e-05,
+    "smaller_solid_volume_m3": 0.001130984665138977,
+    "common_volume_m3": 1.130984665138977e-08
+   },
+   "local_run": {
+    "booleans": {
+     "pairs": [
+      {
+       "a": 0,
+       "b": 1,
+       "status": "decided",
+       "common_volume_m3": 1.1309846650576219e-08,
+       "reason": null
+      },
+      {
+       "a": 0,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      },
+      {
+       "a": 1,
+       "b": 2,
+       "status": "decided",
+       "common_volume_m3": 0.0,
+       "reason": null
+      }
+     ]
+    },
+    "solid_volumes_m3": [
+     0.0011309846651389763,
+     0.014869026644707671,
+     0.020000000000000007
+    ],
+    "convert": {
+     "command": "convert",
+     "chord_cm": 0.3,
+     "angular_rad": 0.1,
+     "exit_code": null,
+     "error": "ValueError: Overlapping solids in the CAD. The solids tagged ['plug', 'shell'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume.",
+     "trace_tail": [
+      "    ...<7 lines>...",
+      "    ) from e",
+      "ValueError: Overlapping solids in the CAD. The solids tagged ['plug', 'shell'] could not be told apart after imprinting. Overlapping geometry is invalid for DAGMC: a region inside two volumes has no single material, so transport through it is not well defined. Resolve the overlaps before meshing, for example by boolean-subtracting the inner solid from the outer one (outer = outer.cut(inner)) so the two share a surface instead of a volume."
+     ]
+    },
+    "tessellate": {
+     "command": "tessellate",
+     "chord_cm": 0.3,
+     "angular_rad": 0.1,
+     "exit_code": 0,
+     "problems": [],
+     "timing_seconds": {
+      "read_step": 0.02013637311756611,
+      "mesh": 0.02367135207168758,
+      "total": 0.04657789901830256
+     }
+    }
    }
   }
  ]

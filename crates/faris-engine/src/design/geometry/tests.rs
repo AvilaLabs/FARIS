@@ -300,6 +300,9 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     let g = &report.geometry;
     let conv = g.conversion.as_ref().unwrap();
     assert!(!conv.reused && conv.chord_cm == 0.1 && conv.angular_rad == 0.1);
+    let gate = g.volume_gate.as_ref().unwrap();
+    assert_eq!(gate.tolerance_source, "default");
+    assert!(gate.solids.iter().all(|s| s.verdict == "WITHIN"));
     assert_eq!(conv.volumes.len(), 2);
     assert!(conv.volumes[0].triangles > 0 && conv.volumes[0].vertices > 0);
     assert_eq!(g.binding.len(), 2);
@@ -314,6 +317,42 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     // the 13 integrity sub-checks are all listed
     assert_eq!(report.checks[2].sub_checks.len(), 13);
     assert!(report.checks[2].sub_checks.iter().all(|s| s.status == Pass));
+}
+
+// Verifies: GEO-012, GEO-030
+#[test]
+fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
+    let backend = geo();
+    let mut d = design(Vec::new());
+    assert!(d.cad.faceting_tolerance_m.is_none());
+    // the CAD volume of the shell is 0.2 % above its facets
+    d.solids[0].fingerprint.cad_volume_m3 /= 1.002;
+    let report = run_with(&d, &backend);
+    assert_eq!(statuses(&report), [(6, Pass), (7, Fail)]);
+    let finding = report.checks[1]
+        .findings
+        .iter()
+        .find(|f| f.requirement.as_deref() == Some("GEO-030"))
+        .unwrap();
+    assert!(finding.why.contains("0.1 %"), "{finding:?}");
+    let gate = report.geometry.volume_gate.as_ref().unwrap();
+    assert_eq!(gate.tolerance_source, "default");
+    assert!((gate.chord_m - DEFAULT_CHORD_M).abs() < 1e-12 && gate.limit == 0.001);
+    assert_eq!(gate.solids[0].verdict, "EXCEEDED");
+    assert_eq!(gate.solids[1].verdict, "WITHIN");
+    // the same model at a tolerance the user set is judged at 0.5 %, and the report says so
+    d.cad.faceting_tolerance_m = Some(1.0e-3);
+    let report = run_with(&d, &backend);
+    assert_eq!(
+        statuses(&report),
+        [(6, Pass), (7, Pass), (8, Pass), (9, Pass)]
+    );
+    let gate = report.geometry.volume_gate.as_ref().unwrap();
+    assert_eq!(
+        (gate.tolerance_source.as_str(), gate.limit),
+        ("design file", 0.005)
+    );
+    assert_eq!(gate.solids[0].verdict, "WITHIN");
 }
 
 // Verifies: GEO-021

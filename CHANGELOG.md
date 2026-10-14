@@ -71,6 +71,12 @@ basis.
 
 ### Changed
 
+- `faris design check` judges every solid's faceted volume against its CAD volume and lists each one as WITHIN or
+  EXCEEDED in the report, with the faceting tolerance it was converted at and whether that was the default or the
+  design file's `cad.faceting_tolerance_m`. At the default tolerance a solid more than 0.1 % off now stops the check
+  (it was 0.5 %); at a tolerance you set the limit stays 0.5 %. The message says which solid and to set a smaller
+  tolerance. The seeded-defect corpus now has overlaps of 1e-4 and 1e-5 of the smaller solid, with the overlap volume
+  OpenCASCADE measured for each.
 - The OKTAVIAN aluminium validation case now has a confirmed normalisation: the
   experimental values are the leakage current through the whole outer surface
   (MCNP surface 6) per source neutron, per unit lethargy (neutrons) or per MeV

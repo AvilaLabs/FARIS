@@ -20,8 +20,32 @@ use serde::{Deserialize, Serialize};
 
 const CHECK: u8 = 7;
 pub const VOLUME_TOLERANCE: f64 = 0.005;
+/// The per-solid volume limit when the converter runs at the default tolerance (GEO-012: the
+/// default is chosen so no cell is off by more than 0.1 %). A tolerance the user sets is judged
+/// at `VOLUME_TOLERANCE`, the limit of GEO-030 for faceted cells.
+pub const DEFAULT_VOLUME_LIMIT: f64 = 0.001;
 pub const CENTROID_FRACTION: f64 = 1.0e-3;
 pub const SECOND_BEST_FACTOR: f64 = 10.0;
+
+/// One solid's faceted volume against its CAD volume, with the verdict against the limit.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct VolumeVerdict {
+    pub solid_id: String,
+    pub relative_difference: f64,
+    /// `WITHIN` or `EXCEEDED`.
+    pub verdict: String,
+}
+
+/// The per-solid volume gate of GEO-012 and GEO-030, and the tolerance it was run at.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct VolumeGate {
+    pub chord_m: f64,
+    /// `default` (the design file gave none) or `design file`.
+    pub tolerance_source: String,
+    pub limit: f64,
+    pub largest_relative_difference: f64,
+    pub solids: Vec<VolumeVerdict>,
+}
 
 /// What the facets say about one volume.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -95,6 +119,78 @@ pub struct BindingRow {
     pub normalised_distance: Option<f64>,
     pub second_best_solid_id: Option<String>,
     pub second_best_normalised_distance: Option<f64>,
+}
+
+/// Judge every matched solid's volume error against the limit that applies to the tolerance in
+/// use: 0.1 % at the default tolerance, 0.5 % at one the user set. A solid over the limit
+/// blocks and cannot be waived.
+pub fn volume_gate(
+    rows: &[BindingRow],
+    chord_m: f64,
+    user_set: bool,
+) -> (VolumeGate, Vec<Finding>) {
+    let limit = if user_set {
+        VOLUME_TOLERANCE
+    } else {
+        DEFAULT_VOLUME_LIMIT
+    };
+    let mut findings = Vec::new();
+    let mut solids = Vec::new();
+    for row in rows {
+        let (Some(id), Some(difference)) = (&row.solid_id, row.volume_relative_difference) else {
+            continue;
+        };
+        let exceeded = difference.abs() > limit;
+        if exceeded {
+            let (source, advice) = if user_set {
+                (
+                    format!("the design file's faceting tolerance of {chord_m:.3e} m"),
+                    "Set cad.faceting_tolerance_m smaller",
+                )
+            } else {
+                (
+                    format!("the default faceting tolerance of {chord_m:.3e} m"),
+                    "Set cad.faceting_tolerance_m smaller than the default",
+                )
+            };
+            findings.push(
+                Finding::new(
+                    CHECK,
+                    format!("solid {id:?}"),
+                    format!(
+                        "its faceted volume differs from the CAD volume by {:+.4} %, beyond the {:.1} % limit at {source} (GEO-012, GEO-030)",
+                        100.0 * difference,
+                        100.0 * limit
+                    ),
+                    format!(
+                        "{advice} so the facets follow its surfaces more closely, then check again; \
+                         the report lists every solid's volume error."
+                    ),
+                )
+                .requirement("GEO-030")
+                .cells(vec![id.clone()]),
+            );
+        }
+        solids.push(VolumeVerdict {
+            solid_id: id.clone(),
+            relative_difference: difference,
+            verdict: if exceeded { "EXCEEDED" } else { "WITHIN" }.into(),
+        });
+    }
+    let largest = solids
+        .iter()
+        .map(|v| v.relative_difference.abs())
+        .fold(0.0, f64::max);
+    (
+        VolumeGate {
+            chord_m,
+            tolerance_source: if user_set { "design file" } else { "default" }.into(),
+            limit,
+            largest_relative_difference: largest,
+            solids,
+        },
+        findings,
+    )
 }
 
 #[derive(Clone, Debug)]
@@ -414,6 +510,44 @@ mod tests {
                 .findings
                 .is_empty()
         );
+    }
+
+    // Verifies: GEO-012, GEO-030
+    #[test]
+    fn the_default_tolerance_holds_every_solid_to_a_tenth_of_a_percent() {
+        let (mesh, f, m) = setup();
+        let stats = volume_stats(&mesh, &f, &m);
+        let mut design = design_for(&["a", "b", "c"], &stats);
+        // 0.2 % off: inside the 0.5 % that matches a volume to a solid, outside 0.1 %
+        design.solids[1].fingerprint.cad_volume_m3 = stats[1].faceted_volume_m3 / 1.002;
+        let out = bind(&design, &stats, mesh.diagonal() / 1e9);
+        assert!(out.findings.is_empty(), "{:#?}", out.findings);
+        let (gate, findings) = volume_gate(&out.rows, 1.0e-3, false);
+        assert_eq!(gate.tolerance_source, "default");
+        assert_eq!(gate.limit, DEFAULT_VOLUME_LIMIT);
+        let verdicts: Vec<&str> = gate.solids.iter().map(|v| v.verdict.as_str()).collect();
+        assert_eq!(verdicts, ["WITHIN", "EXCEEDED", "WITHIN"]);
+        assert!((gate.largest_relative_difference - 0.002).abs() < 1e-6);
+        assert_eq!(findings.len(), 1);
+        let f = &findings[0];
+        assert_eq!(f.requirement.as_deref(), Some("GEO-030"));
+        assert!(
+            f.why.contains("0.1 %") && f.why.contains("default"),
+            "{f:?}"
+        );
+        assert!(f.next_step.contains("cad.faceting_tolerance_m"));
+        assert!(!f.waivable && f.blocks());
+        // a tolerance the user set is judged at 0.5 %
+        let (gate, findings) = volume_gate(&out.rows, 1.0e-3, true);
+        assert_eq!(
+            (gate.limit, gate.tolerance_source.as_str()),
+            (0.005, "design file")
+        );
+        assert!(findings.is_empty());
+        // exactly on the limit is within it
+        design.solids[1].fingerprint.cad_volume_m3 = stats[1].faceted_volume_m3 / 1.0009;
+        let out = bind(&design, &stats, mesh.diagonal() / 1e9);
+        assert!(volume_gate(&out.rows, 1.0e-3, false).1.is_empty());
     }
 
     #[test]

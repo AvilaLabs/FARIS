@@ -7,6 +7,10 @@ CAD environment (cadquery, cad_to_dagmc, h5py) to regenerate the corpus:
     faris_corpus.py generate --out crates/faris-engine/tests/fixtures/corpus --work /path/scratch
     faris_corpus.py verify   --out crates/faris-engine/tests/fixtures/corpus
 
+`generate-overlaps` adds the small-overlap models (1e-4 and 1e-5 of the smaller solid) and
+`record-cad-volumes` adds each clean model's CAD volumes to an existing corpus.json, so neither
+regenerates (and re-hashes) the rest.
+
 `verify` needs only the standard library: it checks the sha256 of every committed
 file against corpus.json and that the files parse, so a hand edit is caught.
 
@@ -243,15 +247,18 @@ def _torus(R, r):
     return cq.Workplane("XY").add(cq.Solid.makeTorus(R, r))
 
 
-def build_parts(base: str, s: float, defect: str | None = None) -> list[tuple[str, object]]:
-    """The solids of a base model at scale `s`, as (id, shape). `defect` builds the CAD-level classes."""
+def build_parts(base: str, s: float, defect: str | None = None, fraction: float | None = None) -> list[tuple[str, object]]:
+    """The solids of a base model at scale `s`, as (id, shape). `defect` builds the CAD-level classes.
+
+    `fraction` sizes an overlap: the enlarged solid (core, or port plug) is grown until the volume
+    it shares with its neighbour is that fraction of its own, the smaller of the pair."""
     if base == "boxes":
         a = 100.0 * s
         core_edge = a
         if defect == "gap":
             core_edge = 0.9 * a
         if defect == "overlap":
-            core_edge = 1.2 * a
+            core_edge = 1.2 * a if fraction is None else a / (1.0 - fraction) ** (1.0 / 3.0)
         shell1_outer = 2 * a
         if defect == "sliver":
             shell1_outer = a + SLIVER_MM
@@ -286,7 +293,7 @@ def build_parts(base: str, s: float, defect: str | None = None) -> list[tuple[st
         if defect == "gap":
             plug_radius = 0.9 * radius
         if defect == "overlap":
-            plug_radius = 1.1 * radius
+            plug_radius = 1.1 * radius if fraction is None else radius / math.sqrt(1.0 - fraction)
         thickness = SLIVER_MM if defect == "sliver" else t
         shell = _box(w, w, thickness).cut(_cyl(radius, thickness * 2))
         plug = _cyl(plug_radius, thickness)
@@ -370,6 +377,13 @@ def run_deviation(step: Path, facets: Path, parts, out_dir: Path) -> dict:
         ]}
     except BaseException as error:
         return {"error": f"{type(error).__name__}: {error}"}
+
+
+def cad_volumes(step: Path, parts) -> dict:
+    """Each solid's CAD volume in m3 as the kernel measures it, by solid id (GEO-012, GEO-030)."""
+    import faris_cad
+    solids = faris_cad.inspect_step(step, "mm")["solids"]
+    return {name: row["cad_volume_m3"] for (name, _shape), row in zip(parts, solids)}
 
 
 def run_booleans(step: Path, n: int, out_dir: Path) -> dict:
@@ -474,6 +488,7 @@ def generate(out: Path, work: Path) -> None:
             names = [f"{model_id}.facets.bin", f"{model_id}.facets.json"]
             models.append(entry(model_id, "clean", None, base, s, None, "clean", [], "imprinted", hashed(out, names), chord,
                                 {"conversion": {k: result.get(k) for k in ("chord_cm", "timing_seconds")},
+                                 "cad_volumes_m3": cad_volumes(step, parts),
                                  "deviation": run_deviation(step, d / "model.facets.bin", parts, d)}))
 
     # Seeded models.
@@ -556,6 +571,80 @@ def generate(out: Path, work: Path) -> None:
     (out / "corpus.json").write_text(json.dumps(index, indent=1) + "\n")
 
 
+# Small overlaps (GEO-021 asks for detection down to 1e-4 of the smaller solid; 1e-5 is one decade
+# below the target). Added to an existing corpus without regenerating it: `generate-overlaps`.
+OVERLAP_FRACTIONS = [("1e-4", 1.0e-4), ("1e-5", 1.0e-5)]
+OVERLAP_BASES = [("boxes", 0, 151), ("port", 0, 152)]
+
+
+def seeded_common_volume_m3(base: str, s: float, fraction: float) -> tuple[float, float]:
+    """(smaller solid volume, overlap volume) in m3 from the analytic dimensions of `build_parts`."""
+    if base == "boxes":
+        core = (100.0 * s) ** 3 / (1.0 - fraction)
+        return core * 1.0e-9, core * fraction * 1.0e-9
+    w, t, radius = 400.0 * s, 100.0 * s, 60.0 * s
+    plug = math.pi * radius**2 * t / (1.0 - fraction)
+    return plug * 1.0e-9, plug * fraction * 1.0e-9
+
+
+def generate_overlaps(out: Path, work: Path) -> None:
+    import faris_cad
+    index = json.loads((out / "corpus.json").read_text())
+    ids = {f"seeded-overlap-{base}-{tag}" for base, _si, _seed in OVERLAP_BASES for tag, _f in OVERLAP_FRACTIONS}
+    models = [m for m in index["models"] if m["id"] not in ids]
+    work.mkdir(parents=True, exist_ok=True)
+    for base, si, seed in OVERLAP_BASES:
+        s = SCALES[si]
+        for tag, fraction in OVERLAP_FRACTIONS:
+            model_id = f"seeded-overlap-{base}-{tag}"
+            d = work / model_id
+            d.mkdir(parents=True, exist_ok=True)
+            parts = build_parts(base, s, "overlap", fraction)
+            step = d / f"{model_id}.step"
+            write_step(parts, step)
+            chord = chord_cm(base, s, "overlap")
+            record = {"booleans": run_booleans(step, len(parts), d)}
+            volumes = faris_cad.inspect_step(step, "mm")["solids"]
+            record["solid_volumes_m3"] = [v["cad_volume_m3"] for v in volumes]
+            conv_dir = d / "convert"
+            conv_dir.mkdir(exist_ok=True)
+            record["convert"] = run_conversion(step, parts, conv_dir, chord, angular=angular_rad(base))
+            tess_dir = d / "tess"
+            tess_dir.mkdir(exist_ok=True)
+            record["tessellate"] = run_conversion(step, parts, tess_dir, chord, imprint=False, angular=angular_rad(base))
+            if record["tessellate"].get("exit_code") != 0:
+                raise SystemExit(f"{model_id}: could not tessellate: {record['tessellate']}")
+            for ext in ("bin", "json"):
+                (out / f"{model_id}.facets.{ext}").write_bytes(Path(f"{tess_dir / 'solids'}.facets.{ext}").read_bytes())
+            names = [f"{model_id}.facets.bin", f"{model_id}.facets.json"]
+            smaller, common = seeded_common_volume_m3(base, s, fraction)
+            extra = {
+                "mutated_from": f"clean-{base}-{si}",
+                "seeded_overlap": {
+                    "pair": [0, 1], "fraction_of_smaller": fraction,
+                    "smaller_solid_volume_m3": smaller, "common_volume_m3": common,
+                },
+                "local_run": record,
+            }
+            models.append(entry(model_id, "cad", "overlap", base, s, seed, "seeded", EXPECTED["overlap"], "unimprinted", hashed(out, names), chord, extra))
+    index["models"] = models
+    (out / "corpus.json").write_text(json.dumps(index, indent=1) + "\n")
+
+
+def record_cad_volumes(out: Path, work: Path) -> None:
+    """Add each clean model's CAD volumes to an existing corpus without regenerating its files."""
+    index = json.loads((out / "corpus.json").read_text())
+    work.mkdir(parents=True, exist_ok=True)
+    for m in index["models"]:
+        if m["kind"] != "clean":
+            continue
+        parts = build_parts(m["base"], m["scale"])
+        step = work / f"{m['id']}.step"
+        write_step(parts, step)
+        m["cad_volumes_m3"] = cad_volumes(step, parts)
+    (out / "corpus.json").write_text(json.dumps(index, indent=1) + "\n")
+
+
 def verify(out: Path) -> int:
     index = json.loads((out / "corpus.json").read_text())
     bad = 0
@@ -580,10 +669,22 @@ def main(argv=None) -> int:
     g = sub.add_parser("generate")
     g.add_argument("--out", type=Path, required=True)
     g.add_argument("--work", type=Path, required=True)
+    o = sub.add_parser("generate-overlaps")
+    o.add_argument("--out", type=Path, required=True)
+    o.add_argument("--work", type=Path, required=True)
+    c = sub.add_parser("record-cad-volumes")
+    c.add_argument("--out", type=Path, required=True)
+    c.add_argument("--work", type=Path, required=True)
     v = sub.add_parser("verify")
     v.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "verify":
+        return verify(args.out)
+    if args.command == "record-cad-volumes":
+        record_cad_volumes(args.out, args.work)
+        return verify(args.out)
+    if args.command == "generate-overlaps":
+        generate_overlaps(args.out, args.work)
         return verify(args.out)
     generate(args.out, args.work)
     return verify(args.out)

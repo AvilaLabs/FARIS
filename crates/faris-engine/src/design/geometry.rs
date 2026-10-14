@@ -5,7 +5,7 @@
 //! faceting deviation, source sampling) sits behind [`Backends`], so the
 //! exact-arithmetic checks here run the same on recorded or generated models.
 
-use super::binding::{self, BindingRow};
+use super::binding::{self, BindingRow, VolumeGate};
 use super::integrity::{self, IntegrityRecord};
 use super::model::Model;
 use super::overlap::{self, BooleanResult, PairRecord};
@@ -391,6 +391,9 @@ pub struct GeometryRecords {
     pub conversion: Option<ConversionRecord>,
     pub pre_imprint: Option<PreImprintRecord>,
     pub binding: Vec<BindingRow>,
+    /// Per-solid faceted volume against the CAD volume, and the tolerance it was converted at.
+    #[serde(default)]
+    pub volume_gate: Option<VolumeGate>,
     pub integrity: Option<IntegrityRecord>,
     pub deviation: Option<DeviationRecord>,
     pub sources: Option<SourceRecord>,
@@ -850,8 +853,14 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     let diagonal = inspection
         .model_bbox_diagonal_m
         .unwrap_or(model.mesh.diagonal() * 1.0e-9);
-    let bound = binding::bind(design, &stats, diagonal);
+    let mut bound = binding::bind(design, &stats, diagonal);
     records.binding = bound.rows.clone();
+    let (gate, gate_findings) = binding::volume_gate(
+        &bound.rows,
+        chord_m,
+        design.cad.faceting_tolerance_m.is_some(),
+    );
+    bound.findings.extend(gate_findings);
     let largest = bound
         .rows
         .iter()
@@ -861,9 +870,12 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     clock(&mut records, "check 7", started);
     let mut subs7 = vec![sub("binding by volume and centroid", &[])];
     subs7[0].note = Some(format!(
-        "the largest volume difference is {:.4} % of the CAD volume",
-        100.0 * largest
+        "the largest volume difference is {:.4} % of the CAD volume; the limit is {:.1} % at the {} faceting tolerance of {chord_m:.3e} m",
+        100.0 * largest,
+        100.0 * gate.limit,
+        gate.tolerance_source
     ));
+    records.volume_gate = Some(gate.clone());
     let seven = finish(7, bound.findings, subs7, &mut waivers);
     let seven_pass = seven.status == CheckStatus::Pass;
     report.checks.push(seven);
@@ -1032,8 +1044,10 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     void_sub.note = Some(void_note);
     let mut volume_sub = sub("volume against the CAD (GEO-030)", &["GEO-030"]);
     volume_sub.note = Some(format!(
-        "checked in check 7; the largest difference is {:.4} % (limit 0.5 %)",
-        100.0 * largest
+        "checked in check 7 for every solid; the largest difference is {:.4} % (limit {:.1} % at the {} faceting tolerance)",
+        100.0 * largest,
+        100.0 * gate.limit,
+        gate.tolerance_source
     ));
     let subs8 = vec![
         sub("watertight and orientation (GEO-020)", &["GEO-020"]),

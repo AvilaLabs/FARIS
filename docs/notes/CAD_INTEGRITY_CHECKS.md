@@ -39,6 +39,10 @@ Import checks 1–5 (S1a) run first. The CAD-level overlap check (below, under
 - Default tolerances: chord 0.1 cm, angular 0.1 rad. These met GEO-030 on RM-M
   in S0 (worst −0.0148 %). A design file's `faceting_tolerance_m` overrides the
   chord value.
+- Volume gate (GEO-012, GEO-030): every matched solid's faceted volume is compared with its CAD
+  volume and listed WITHIN or EXCEEDED in the report, with the tolerance and whether it was the
+  default or the design file's. At the default tolerance the limit is 0.1 %; at a tolerance the user
+  set it is 0.5 %. A solid over the limit blocks and cannot be waived.
 - Recorded (GEO-012, GEO-013, GEO-019): tolerances, `cad_to_dagmc`, OCCT and
   mesher versions, wall time, peak memory, triangle and vertex counts per
   volume, and the h5m sha256.
