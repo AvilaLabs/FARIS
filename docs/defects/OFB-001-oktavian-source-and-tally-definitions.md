@@ -119,3 +119,5 @@ print((eff * (x[:-1] + x[1:]) / 2).sum() / 1e6)
 - Finding 3 (tally surface number) stays unconfirmed and is left out of the report.
 - Report target: eepeterson/openmc_fusion_benchmarks (issues are disabled on the fork). Draft opened for Connor
   to read and send; not posted by FARIS.
+- Reported by Connor on 2026-10-14 as https://github.com/eepeterson/openmc_fusion_benchmarks/issues/86 (findings 1
+  and 2, the two code points, and the spectrum table above).
