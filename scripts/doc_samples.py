@@ -299,6 +299,8 @@ def program_kind(first: str, args: list[str]) -> str:
                 return "app"
             return "faris"
         return "build"
+    if first.startswith("scripts/") and name.endswith(".sh"):
+        return "shell-script"
     if name.startswith("python") or first in ('"$OPENMC_PY"', "$OPENMC_PY", "/path/to/openmc-python"):
         return "python"
     if name in ("sha256sum", "tar", "xattr", "md5sum"):
@@ -391,6 +393,8 @@ class Results:
 
 def run_command(binary: Binary, root: Path, work: Path, where: str, command: str, results: Results, file: str):
     toks = tokens(command)
+    if toks[0] == "eval" and len(toks) > 1 and toks[1].startswith("$("):  # eval "$(command ...)": the command inside
+        toks = tokens(" ".join(toks[1:]).removeprefix("$(").removesuffix(")"))
     first = toks[0]
     kind = program_kind(first, toks[1:])
     label = f"{where} `{' '.join(toks[:4])}{' ...' if len(toks) > 4 else ''}`"
@@ -404,6 +408,10 @@ def run_command(binary: Binary, root: Path, work: Path, where: str, command: str
         return
     if kind in SKIP_PROGRAMS:
         results.add(label, "skipped", True, SKIP_PROGRAMS[kind])
+        return
+    if kind == "shell-script":
+        problems = check_script(root, toks)
+        results.add(label, "checked", not problems, "; ".join(problems) or "the script exists and each flag is spelled in it; not run (it builds the release binary twice)")
         return
     if kind == "python" and toks[1:3] == ["-m", "unittest"]:
         results.add(label, "skipped", True, SKIP_PROGRAMS["build"])

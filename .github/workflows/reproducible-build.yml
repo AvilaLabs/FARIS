@@ -1,8 +1,8 @@
 name: Reproducible build
 
 # Builds the Linux `faris` command-line binary twice, from two checkouts at different paths into two target
-# directories, and fails unless the SHA-256 hashes are identical (QA-063). Two release builds take about 10
-# minutes on a hosted runner, so this runs on demand and on version tags, not on every push. The evidence file
+# directories, and fails unless the SHA-256 hashes are identical (QA-063). Two release builds take 8 minutes
+# on a laptop and probably 10 to 15 on a hosted runner, so this runs on demand and on version tags, not on every push. The evidence file
 # is the --repro input of scripts/release_gate.py. faris-app is not covered (see docs/RELEASING.md).
 
 on:
