@@ -51,7 +51,7 @@ jobs:
       - name: Build the command line and the desktop app
         run: cargo build --locked -p faris-cli -p faris-app
       - name: Rust tests of the command-line crates
-        run: cargo test --locked -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
+        run: cargo test --locked --no-fail-fast -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
       - name: Command-line scenario check
         run: |
           set -euo pipefail
@@ -60,7 +60,7 @@ jobs:
           target/debug/faris$exe validate scenarios/arc-inspired/scenario.json
           target/debug/faris$exe doctor
 
-  # PLAT-003. The binary is built in Debian 11 (glibc 2.31), then run in distributions with glibc 2.31 and
+  # PLAT-003. The binary is built in Ubuntu 20.04 (glibc 2.31), then run in distributions with glibc 2.31 and
   # newer, with the highest glibc symbol version it needs recorded.
   linux-old-glibc:
     runs-on: ubuntu-24.04
@@ -74,15 +74,15 @@ jobs:
             glibc-cache/target
           key: old-glibc-${{ hashFiles('Cargo.lock', 'rust-toolchain*') }}
           restore-keys: old-glibc-
-      - name: Build faris in Debian 11 (glibc 2.31)
+      - name: Build faris in Ubuntu 20.04 (glibc 2.31)
         run: |
           set -euo pipefail
           mkdir -p glibc-cache/cargo glibc-cache/target
           docker run --rm -v "$PWD:/w" -w /w \
             -e CARGO_HOME=/w/glibc-cache/cargo -e CARGO_TARGET_DIR=/w/glibc-cache/target \
-            debian:bullseye bash -euxc '
-              apt-get update -qq
-              apt-get install -y -qq curl ca-certificates build-essential pkg-config binutils >/dev/null
+            ubuntu:20.04 bash -euxc '
+              DEBIAN_FRONTEND=noninteractive apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates build-essential pkg-config binutils >/dev/null
               ldd --version | head -n 1
               if [ ! -x /w/glibc-cache/cargo/bin/rustup ]; then
                 curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.98.1

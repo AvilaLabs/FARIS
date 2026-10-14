@@ -515,8 +515,10 @@ fn init_writes_the_draft_and_never_overwrites() {
     std::fs::write(&step, STEP_BYTES).unwrap();
     let fake = Fake::new();
     let summary = design_init(&step, None, None, &fake).unwrap();
+    // Compared canonically: the temporary directory is a symlink on macOS (/var) and has a short
+    // 8.3 name on Windows, and the draft is written beside the path as given.
     assert_eq!(
-        summary.path,
+        summary.path.canonicalize().unwrap(),
         dir.path()
             .canonicalize()
             .unwrap()
@@ -681,7 +683,8 @@ fn fake_python(dir: &Path, body: &str) -> PathBuf {
 const FIND_OUT: &str =
     "out=; prev=; for a in \"$@\"; do [ \"$prev\" = --out ] && out=$a; prev=$a; done;";
 
-#[cfg(unix)]
+// Runs the helper as a bounded job: Linux only (jobs.rs needs prlimit).
+#[cfg(target_os = "linux")]
 #[test]
 fn the_cad_helper_runs_as_a_bounded_job_and_its_report_is_read() {
     let dir = tempfile::tempdir().unwrap();
@@ -751,7 +754,8 @@ fn the_native_worker_reads_the_step_file_without_any_python() {
     }
 }
 
-#[cfg(unix)]
+// Runs the helper as a bounded job: Linux only (jobs.rs needs prlimit).
+#[cfg(target_os = "linux")]
 #[test]
 fn the_python_reader_ignores_a_worker_that_is_there() {
     let dir = tempfile::tempdir().unwrap();
@@ -777,7 +781,8 @@ fn the_python_reader_ignores_a_worker_that_is_there() {
     assert_eq!(ran.helper_sha256, sha256_hex(CAD_HELPER.as_bytes()));
 }
 
-#[cfg(unix)]
+// Runs the helper as a bounded job: Linux only (jobs.rs needs prlimit).
+#[cfg(target_os = "linux")]
 #[test]
 fn auto_falls_back_to_python_when_the_worker_does_not_answer() {
     let dir = tempfile::tempdir().unwrap();
@@ -824,7 +829,8 @@ fn auto_falls_back_to_python_when_the_worker_does_not_answer() {
     );
 }
 
-#[cfg(unix)]
+// Runs the helper as a bounded job: Linux only (jobs.rs needs prlimit).
+#[cfg(target_os = "linux")]
 #[test]
 fn a_failing_helper_is_a_tool_error_with_its_message() {
     let dir = tempfile::tempdir().unwrap();
@@ -925,7 +931,8 @@ fn without_openmc_the_audit_is_not_evaluated_with_the_reason() {
     }
 }
 
-#[cfg(unix)]
+// Runs the helper as a bounded job: Linux only (jobs.rs needs prlimit).
+#[cfg(target_os = "linux")]
 #[test]
 fn an_audit_job_that_fails_is_not_evaluated_not_pass() {
     let dir = tempfile::tempdir().unwrap();

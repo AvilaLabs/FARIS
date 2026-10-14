@@ -551,7 +551,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    // Runs the stand-in compiler as a bounded job: Linux only (jobs.rs needs prlimit).
+    #[cfg(target_os = "linux")]
     fn malformed_compiler_output_preserves_execution_without_inventing_compilation() {
         use std::os::unix::fs::PermissionsExt;
         let directory = tempfile::tempdir().unwrap();
@@ -590,7 +591,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    // Runs the stand-in compiler as a bounded job: Linux only (jobs.rs needs prlimit).
+    #[cfg(target_os = "linux")]
     fn executable_change_invalidates_core_report() {
         use std::os::unix::fs::PermissionsExt;
         let directory = tempfile::tempdir().unwrap();

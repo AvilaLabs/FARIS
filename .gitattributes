@@ -1,3 +1,6 @@
+# Tests hash fixture and scenario files, so a Windows checkout must not turn LF into CRLF.
+* text=auto eol=lf
+
 # Keep copied third-party license notices byte-exact on every platform: no
 # whitespace checks and no end-of-line conversion.
 licenses/** -whitespace -text

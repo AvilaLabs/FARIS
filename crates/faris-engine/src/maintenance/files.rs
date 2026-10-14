@@ -409,6 +409,7 @@ pub fn run_from_files_with(
     Ok(result)
 }
 
-// The tests run stand-in executables, which needs Unix file permissions.
-#[cfg(all(test, unix))]
+// The tests run stand-in executables as bounded jobs, which exist only on Linux (jobs.rs needs
+// prlimit; macOS and Windows have no equivalent yet, PLAT-004 and PLAT-005).
+#[cfg(all(test, target_os = "linux"))]
 mod tests;
