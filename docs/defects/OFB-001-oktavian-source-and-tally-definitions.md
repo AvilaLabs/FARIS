@@ -104,3 +104,18 @@ x, p = np.array(s.energy.x), np.array(s.energy.p)
 eff = p[:-1] * np.diff(x); eff /= eff.sum()
 print((eff * (x[:-1] + x[1:]) / 2).sum() / 1e6)
 ```
+
+## Verification, 2026-10-14
+
+- Findings 1 and 2 re-checked by reading `_build_source` at 653d6ab and on every branch of SteSeg's fork
+  (including `develop_2.0`): the code is unchanged everywhere. Running the function on the `oktavian_al` spec gives
+  mu from -0.00495 to 0.01745 and a mean source energy of 14.637 MeV (14.031 MeV with the weights read as bin
+  probabilities).
+- Independent spectrum run, seed 7, 3M histories each, `oktavian_a` CAD model, OpenMC 0.15.3; OFB source divided
+  by the protocol source: 0.1-1 MeV 0.723 +/- 0.017, 1-10 MeV 0.807 +/- 0.012, 10-15 MeV 1.043 +/- 0.008,
+  > 15 MeV 1.164 +/- 0.015, total 1.003 +/- 0.006. Agrees with the first run.
+- Two further code points in the same function: `return source` instead of `return sources`, and the typo
+  `source.paricle`.
+- Finding 3 (tally surface number) stays unconfirmed and is left out of the report.
+- Report target: eepeterson/openmc_fusion_benchmarks (issues are disabled on the fork). Draft opened for Connor
+  to read and send; not posted by FARIS.
