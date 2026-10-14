@@ -1933,6 +1933,43 @@ mod tests {
         );
     }
 
+    // Verifies: SRC-002
+    #[test]
+    fn alpha_power_is_the_fusion_power_the_neutron_does_not_carry() {
+        // 1 MW of fusion: the history must put 3.5/17.6 of it in the alpha, not all of it.
+        let mut a = assumptions(100.0);
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 100.0,
+            power_fraction: 1.0,
+        }];
+        a.energy.alpha_deposition_fraction = Some(1.0);
+        a.energy.transport_heat_recovery_fraction = Some(1.0);
+        a.energy.thermal_to_electric_efficiency = Some(0.4);
+        a.energy.auxiliary_power_mw_while_operating = Some(0.0);
+        a.energy.auxiliary_power_mw_while_off = Some(0.0);
+        let mut driving = rates();
+        driving.transport_deposited_heat_w = Some(ScalarRate {
+            mean: 0.8e6,
+            standard_error: Some(1.0e3),
+            unit: "W".into(),
+            response_id: "heating-total-whole-model".into(),
+        });
+        let result = run_operating_history(&a, &driving).unwrap();
+        let alpha = result
+            .snapshots
+            .iter()
+            .filter_map(|s| s.instantaneous_alpha_recovered_heat_mw)
+            .next()
+            .expect("alpha heat reported");
+        let fraction = 14.1e6 / 17.6e6;
+        assert!((alpha - (1.0 - fraction)).abs() < 1e-9, "{alpha}");
+        assert!(
+            (alpha - 1.0).abs() > 0.5,
+            "fusion power was used as alpha or neutron power"
+        );
+    }
+
     #[test]
     fn fuel_starvation_holds_off_instead_of_zero_inventory_restart_chatter() {
         let mut a = assumptions(10_000.0);

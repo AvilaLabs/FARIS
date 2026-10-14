@@ -362,8 +362,8 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         None => none("no limit declared"),
     };
     let first = match (s.first_swap_y, s.first_swap_relative_sampling) {
-        (Some(y), Some(rel)) => Cell {
-            text: format!("{y:.1} ± {:.1} y", y * rel),
+        (Some(y), Some(_)) => Cell {
+            text: two_sigma_swap_text(s, y),
             kind: StatusKind::Partial,
             label: "partial · sampling, first order".into(),
             muted: false,
@@ -410,6 +410,15 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         None => none("—"),
     };
     [swaps, first, net, breeding, flux]
+}
+
+/// The first swap with its two-standard-error band, earliest (unfavourable) edge first.
+fn two_sigma_swap_text(s: &faris_engine::brief::ArrangementSummary, y: f64) -> String {
+    match s.first_swap_two_sigma_y() {
+        Some((early, Some(late))) => format!("{y:.1} y (2σ {early:.1} to {late:.1} y)"),
+        Some((early, None)) => format!("{y:.1} y (2σ from {early:.1} y, no upper edge)"),
+        None => format!("{y:.1} y"),
+    }
 }
 
 /// Signed value with a unit; a value that rounds to zero carries no sign.
@@ -1192,6 +1201,20 @@ pub fn render_pdf(c: &PdfContent) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_first_swap_cell_shows_the_two_sigma_band_earliest_edge_first() {
+        let mut s = faris_engine::brief::ArrangementSummary {
+            recorded: true,
+            first_swap_y: Some(10.0),
+            first_swap_relative_sampling: Some(0.1),
+            ..Default::default()
+        };
+        assert_eq!(two_sigma_swap_text(&s, 10.0), "10.0 y (2σ 8.3 to 12.5 y)");
+        s.first_swap_relative_sampling = Some(0.6);
+        assert!(two_sigma_swap_text(&s, 10.0).contains("no upper edge"));
+    }
 
     #[test]
     fn first_sentence_skips_abbreviations() {

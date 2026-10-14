@@ -103,6 +103,11 @@ pub struct FluenceAssessment {
     /// Fluence over the whole history at this flux, and its standard error.
     pub history_fluence_n_m2: f64,
     pub history_fluence_standard_error_n_m2: Option<f64>,
+    /// The fluence at two standard errors below and above; the upper edge is the unfavourable one.
+    #[serde(default)]
+    pub history_fluence_low_n_m2: Option<f64>,
+    #[serde(default)]
+    pub history_fluence_high_n_m2: Option<f64>,
     pub history_calendar_years: f64,
     pub history_full_power_years: f64,
     /// full_power_seconds / calendar_seconds
@@ -111,6 +116,16 @@ pub struct FluenceAssessment {
     pub full_power_years_to_limit: Option<f64>,
     /// The same at the history's capacity factor; None when flux or capacity factor is zero.
     pub calendar_years_to_limit: Option<f64>,
+    /// "Years to limit" at two standard errors of the flux: the earliest (unfavourable) edge and
+    /// the latest, which is `None` when the flux band reaches zero. Full power, then calendar.
+    #[serde(default)]
+    pub full_power_years_to_limit_earliest: Option<f64>,
+    #[serde(default)]
+    pub full_power_years_to_limit_latest: Option<f64>,
+    #[serde(default)]
+    pub calendar_years_to_limit_earliest: Option<f64>,
+    #[serde(default)]
+    pub calendar_years_to_limit_latest: Option<f64>,
     /// Relative error of both "years to limit" values (equals the flux's relative error to first order).
     pub years_relative_error: Option<f64>,
     pub status: LimitStatus,
@@ -151,6 +166,15 @@ pub fn assess_fluence(
     } else {
         None
     };
+
+    let band_edges = |years: Option<f64>| {
+        flux_relative_error
+            .zip(years)
+            .and_then(|(e, y)| crate::comparison::crossing_time_band(y, e))
+            .map_or((None, None), |(early, late)| (Some(early), late))
+    };
+    let (fp_early, fp_late) = band_edges(full_power_years);
+    let (cal_early, cal_late) = band_edges(calendar_years);
 
     let inconclusive_next = "Run again with a smaller target error.";
     let (status, why, next_step) = if !valid {
@@ -197,11 +221,17 @@ pub fn assess_fluence(
         flux_relative_error,
         history_fluence_n_m2: fluence,
         history_fluence_standard_error_n_m2: se,
+        history_fluence_low_n_m2: se.map(|e| (fluence - BAND_SIGMAS * e).max(0.0)),
+        history_fluence_high_n_m2: se.map(|e| fluence + BAND_SIGMAS * e),
         history_calendar_years: history.calendar_seconds / SECONDS_PER_YEAR,
         history_full_power_years: history.full_power_seconds / SECONDS_PER_YEAR,
         capacity_factor,
         full_power_years_to_limit: full_power_years,
         calendar_years_to_limit: calendar_years,
+        full_power_years_to_limit_earliest: fp_early,
+        full_power_years_to_limit_latest: fp_late,
+        calendar_years_to_limit_earliest: cal_early,
+        calendar_years_to_limit_latest: cal_late,
         years_relative_error,
         status,
         why,
@@ -405,5 +435,31 @@ mod tests {
         let cf = p.full_power_seconds / p.calendar_seconds;
         assert!(cf > 0.0 && cf <= 1.0, "{cf}");
         assert!(p.calendar_seconds > 0.0);
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_margin_carries_a_two_sigma_band_and_the_verdict_uses_the_unfavourable_edge() {
+        // Mean 8 against a limit of 10 with a 25 % error: the band is 4 to 12.
+        let a = assess_fluence(8.0, Some(0.25), 10.0, &unit());
+        assert_eq!(a.history_fluence_low_n_m2, Some(4.0));
+        assert_eq!(a.history_fluence_high_n_m2, Some(12.0));
+        // The mean alone would say WITHIN; the unfavourable edge is over the limit.
+        assert_eq!(a.status, LimitStatus::Inconclusive);
+        // Years to the limit: 10 / (8 * 1.5) earliest, 10 / (8 * 0.5) latest.
+        let year = SECONDS_PER_YEAR;
+        assert!((a.full_power_years_to_limit_earliest.unwrap() * year - 10.0 / 12.0).abs() < 1e-9);
+        assert!((a.full_power_years_to_limit_latest.unwrap() * year - 10.0 / 4.0).abs() < 1e-9);
+        // WITHIN only when the unfavourable edge is under the limit.
+        let w = assess_fluence(8.0, Some(0.25), 12.5, &unit());
+        assert_eq!(w.status, LimitStatus::Within);
+        // A band that reaches zero flux has no latest edge.
+        let wide = assess_fluence(8.0, Some(0.6), 10.0, &unit());
+        assert_eq!(wide.full_power_years_to_limit_latest, None);
+        assert!(wide.full_power_years_to_limit_earliest.is_some());
+        // No error estimate: no band, and no verdict beyond INCONCLUSIVE.
+        let bare = assess_fluence(8.0, None, 100.0, &unit());
+        assert_eq!(bare.history_fluence_high_n_m2, None);
+        assert_eq!(bare.status, LimitStatus::Inconclusive);
     }
 }

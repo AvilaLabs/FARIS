@@ -10,6 +10,30 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 pub const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
+/// Energy released per D-T reaction, the convention every source rate is stored with.
+pub const D_T_ENERGY_PER_REACTION_EV: f64 = 17.6e6;
+/// Energy of the D-T neutron; the rest of the reaction energy goes to the alpha.
+pub const D_T_NEUTRON_ENERGY_EV: f64 = 14.1e6;
+
+/// Reactions per second for a fusion power and the energy released per reaction.
+/// Every source rate in FARIS comes from here.
+pub fn reaction_rate_per_s(fusion_power_mw: f64, energy_per_reaction_ev: f64) -> f64 {
+    fusion_power_mw * 1.0e6 / (energy_per_reaction_ev * ELEMENTARY_CHARGE_C)
+}
+
+/// Share of the reaction energy carried by the neutron (14.1/17.6 for D-T).
+pub fn neutron_power_fraction(neutron_energy_ev: f64, energy_per_reaction_ev: f64) -> f64 {
+    neutron_energy_ev / energy_per_reaction_ev
+}
+
+/// Neutron power in MW. Fusion power is not neutron power: the alpha keeps the rest.
+pub fn neutron_power_mw(
+    fusion_power_mw: f64,
+    neutron_energy_ev: f64,
+    energy_per_reaction_ev: f64,
+) -> f64 {
+    fusion_power_mw * neutron_power_fraction(neutron_energy_ev, energy_per_reaction_ev)
+}
 pub const MAX_TRANSPORT_ARTIFACT_BYTES: usize = faris_model::transport::MAX_ARTIFACT_BYTES;
 pub const RESPONSE_COVARIANCE_METHOD: &str = "batch-means-sample-covariance/v1";
 const COVARIANCE_SYMMETRY_TOLERANCE: f64 = 1.0e-12;
@@ -461,7 +485,10 @@ pub fn normalize_transport_artifact(
     }
     let power_w = expected.fusion_power_mw * 1.0e6;
     let reaction_energy_j = expected.source.energy_per_reaction_ev * ELEMENTARY_CHARGE_C;
-    let reaction_rate = power_w / reaction_energy_j;
+    let reaction_rate = reaction_rate_per_s(
+        expected.fusion_power_mw,
+        expected.source.energy_per_reaction_ev,
+    );
     let neutron_rate = reaction_rate * expected.source.neutrons_per_reaction;
     if !power_w.is_finite()
         || power_w <= 0.0
@@ -1618,5 +1645,38 @@ mod tests {
         let (request, mut artifact, scenario) = region_fixture();
         artifact.tallies[1].unit = RawTallyUnit::EventsPerSource;
         assert!(normalize_transport_artifact(&request, &artifact, &scenario).is_err());
+    }
+
+    // Verifies: SRC-001
+    #[test]
+    fn source_strength_is_3_546e17_per_megawatt_at_17_6_mev() {
+        // 1e6 W / (17.6e6 eV * 1.602176634e-19 J/eV), worked by hand: 3.5463e17 reactions/s.
+        let rate = reaction_rate_per_s(1.0, D_T_ENERGY_PER_REACTION_EV);
+        assert_eq!(format!("{rate:.3e}"), "3.546e17");
+        assert_eq!(format!("{rate:.2e}"), "3.55e17");
+        // The normalized receipt gives the same rate per MW and stores the convention.
+        let (r, a, s) = fixture(VolumeUnit::CubicMetre);
+        let out = normalize_transport_artifact(&r, &a, &s).unwrap();
+        let per_mw = out.source_reaction_rate_per_s / r.fusion_power_mw;
+        assert_eq!(format!("{per_mw:.3e}"), "3.546e17");
+        assert_eq!(
+            out.source.energy_per_reaction_ev,
+            D_T_ENERGY_PER_REACTION_EV
+        );
+    }
+
+    // Verifies: SRC-002
+    #[test]
+    fn fusion_power_is_not_neutron_power() {
+        let fraction = neutron_power_fraction(D_T_NEUTRON_ENERGY_EV, D_T_ENERGY_PER_REACTION_EV);
+        assert!((fraction - 14.1 / 17.6).abs() < 1e-15);
+        let neutron = neutron_power_mw(525.0, D_T_NEUTRON_ENERGY_EV, D_T_ENERGY_PER_REACTION_EV);
+        assert!((neutron - 420.596_590_909_090_9).abs() < 1e-9, "{neutron}");
+        assert!(neutron < 525.0 * 0.81 && neutron > 525.0 * 0.80);
+        // The power the source neutrons carry, from the source rate, is the neutron power.
+        let rate = reaction_rate_per_s(525.0, D_T_ENERGY_PER_REACTION_EV);
+        let carried = rate * D_T_NEUTRON_ENERGY_EV * ELEMENTARY_CHARGE_C / 1.0e6;
+        assert!((carried / neutron - 1.0).abs() < 1e-12);
+        assert!((carried / 525.0 - 1.0).abs() > 0.15);
     }
 }

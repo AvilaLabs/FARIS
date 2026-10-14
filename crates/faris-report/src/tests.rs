@@ -337,7 +337,7 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     );
 }
 
-// Verifies: INT-040, PRV-010
+// Verifies: INT-040, PRV-010, MAG-004
 #[test]
 fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     let (_guard, outcome) = exported();
@@ -351,6 +351,8 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
         "breeding_ratio_kind",
         "magnet_swaps_kind",
         "first_swap_kind",
+        "first_swap_two_sigma_earliest_year",
+        "first_swap_two_sigma_latest_year",
         "net_electricity_kind",
     ] {
         assert!(header.split(',').any(|c| c == column), "{column}");

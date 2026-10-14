@@ -9,7 +9,7 @@
 
 use crate::{
     comparison::{
-        component_replacement_spans, difference_resolved_2sigma,
+        component_replacement_spans, crossing_time_band, difference_resolved_2sigma,
         first_crossing_relative_uncertainty,
     },
     history::{HistoryResult, JULIAN_YEAR_SECONDS},
@@ -188,6 +188,15 @@ pub struct ArrangementSummary {
     pub net_twh: Option<f64>,
     pub final_tritium_kg: Option<f64>,
     pub horizon_years: f64,
+}
+
+impl ArrangementSummary {
+    /// The first swap as an earliest and a latest year at two standard errors of the driving
+    /// flux. The earliest edge is the unfavourable one; the latest is `None` when the band
+    /// reaches zero flux. `None` without a first swap or a sampling error.
+    pub fn first_swap_two_sigma_y(&self) -> Option<(f64, Option<f64>)> {
+        crossing_time_band(self.first_swap_y?, self.first_swap_relative_sampling?)
+    }
 }
 
 /// Combine one arrangement's recorded transport summary and calculated history.
@@ -908,6 +917,23 @@ mod tests {
         assert!(resolved);
         // A 31 % flux change on 14 % relative errors is within sampling noise.
         assert!(!c.flux_pct.unwrap().1);
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_first_swap_is_shown_with_a_two_sigma_band() {
+        let cell = ArrangementSummary {
+            first_swap_y: Some(10.0),
+            first_swap_relative_sampling: Some(0.1),
+            ..ArrangementSummary::default()
+        };
+        let (early, late) = cell.first_swap_two_sigma_y().unwrap();
+        assert!((early - 10.0 / 1.2).abs() < 1e-12 && (late.unwrap() - 10.0 / 0.8).abs() < 1e-12);
+        let bare = ArrangementSummary {
+            first_swap_relative_sampling: None,
+            ..cell
+        };
+        assert_eq!(bare.first_swap_two_sigma_y(), None);
     }
 
     #[test]

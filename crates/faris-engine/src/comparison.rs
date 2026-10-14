@@ -286,6 +286,25 @@ pub fn first_crossing_relative_uncertainty(flux_mean: f64, flux_se: Option<f64>)
         .then(|| se / flux_mean)
 }
 
+/// Half-width of the error band every margin against a limit is shown with, in standard errors.
+pub const MARGIN_BAND_SIGMAS: f64 = 2.0;
+
+/// The earliest and latest time a limit is reached when the flux is `MARGIN_BAND_SIGMAS` standard
+/// errors above and below its mean (time scales as 1 / flux). The earliest edge is the
+/// unfavourable one and is the one a verdict uses; the latest is `None` when the flux band
+/// reaches zero, so the limit may never be reached. `None` for an invalid time or error.
+pub fn crossing_time_band(time: f64, flux_relative_error: f64) -> Option<(f64, Option<f64>)> {
+    if !(time.is_finite() && time >= 0.0 && flux_relative_error.is_finite())
+        || flux_relative_error < 0.0
+    {
+        return None;
+    }
+    let half = MARGIN_BAND_SIGMAS * flux_relative_error;
+    let early = time / (1.0 + half);
+    let late = (half < 1.0).then(|| time / (1.0 - half));
+    Some((early, late))
+}
+
 /// Replacement outages of one component as `(start_s, end_s)` pairs, taken
 /// from `ReplacementStarted` and the following `ReplacementCompleted` event.
 /// A replacement still open at the end of the history ends at `horizon_s`.
@@ -392,6 +411,17 @@ mod tests {
             mass_kg: None,
             note: String::new(),
         }
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn crossing_time_band_gives_the_earliest_edge_first() {
+        let (early, late) = crossing_time_band(10.0, 0.25).unwrap();
+        assert!((early - 10.0 / 1.5).abs() < 1e-12);
+        assert!((late.unwrap() - 10.0 / 0.5).abs() < 1e-12);
+        assert!(crossing_time_band(10.0, 0.5).unwrap().1.is_none());
+        assert_eq!(crossing_time_band(10.0, -0.1), None);
+        assert_eq!(crossing_time_band(f64::NAN, 0.1), None);
     }
 
     // Verifies: NUC-046, UNC-084

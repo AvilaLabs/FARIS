@@ -6,14 +6,14 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 131 of 1418 requirements.
+Traced: 134 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 9 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 11 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
-| [04-plant-systems.md](04-plant-systems.md) | 99 | 5 |
+| [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 4 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 18 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 6 |
@@ -67,13 +67,16 @@ Traced: 131 of 1418 requirements.
 | NUC-017 | F2 | `crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
 | NUC-046 | F1 | `crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
 | NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::run_timeout_admits_a_run_at_the_history_cap` |
-| SRC-001 | F1 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
+| NUC-053 | F2 | `integrations/openmc/risk_tests/test_design_transport.py::test_generation_and_reported_run_seeds_are_disjoint` |
+| SRC-001 | F1 | `crates/faris-engine/src/design/transport.rs::design_source_rate_matches_the_reactor_path_per_megawatt`<br>`crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3`<br>`crates/faris-engine/src/transport.rs::source_strength_is_3_546e17_per_megawatt_at_17_6_mev` |
+| SRC-002 | F1 | `crates/faris-engine/src/history.rs::alpha_power_is_the_fusion_power_the_neutron_does_not_carry`<br>`crates/faris-engine/src/transport.rs::fusion_power_is_not_neutron_power` |
 | SRC-003 | F5 | `crates/faris-model/src/transport.rs::source_requires_physical_dt_energy_and_single_neutron_yield` |
 | SRC-018 | F1 | `crates/faris-engine/src/design/geometry/tests.rs::a_clean_model_passes_checks_6_to_9_and_records_what_was_measured`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_on_the_chamber_surface_is_not_inside`<br>`crates/faris-engine/src/design/geometry/tests.rs::a_site_outside_the_plasma_chamber_fails_check_9` |
 | ACT-009 | F2 | `scripts/test_build_activation_inputs.py::test_arbitrary_piecewise_history_keeps_flux_scaling_and_duration_per_segment`<br>`scripts/test_build_activation_inputs.py::test_ten_thousand_or_more_segments_are_accepted` |
 | MAT-018 | F4 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
 | FUEL-003 | F4 | `crates/faris-engine/src/history.rs::decay_only_history_matches_half_life_and_is_daily_decimated` |
 | FUEL-004 | F4 | `crates/faris-engine/src/history.rs::rejects_invalid_transport_bindings_before_history_execution`<br>`crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units`<br>`crates/faris-engine/src/transport.rs::validates_volume_domains_units_and_exact_echo` |
+| MAG-004 | F3 | `crates/faris-engine/src/brief.rs::the_first_swap_is_shown_with_a_two_sigma_band`<br>`crates/faris-engine/src/comparison.rs::crossing_time_band_gives_the_earliest_edge_first`<br>`crates/faris-engine/src/design/life.rs::the_margin_carries_a_two_sigma_band_and_the_verdict_uses_the_unfavourable_edge`<br>`crates/faris-engine/src/design/transport.rs::a_fluence_margin_is_shown_with_its_band_and_judged_on_the_unfavourable_edge`<br>`crates/faris-report/src/pdf.rs::the_first_swap_cell_shows_the_two_sigma_band_earliest_edge_first`<br>`crates/faris-report/src/tests.rs::comparison_sweep_and_assumption_tables_carry_units_and_kinds` |
 | MAG-020 | F3 | `crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track` |
 | MAG-025 | F3 | `crates/faris-engine/src/history.rs::kth_replacement_uses_kth_duration_then_falls_back`<br>`crates/faris-engine/src/history.rs::replaceable_trip_resets_locally_then_permanent_trip_stops` |
 | PWR-012 | F5 | `crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |

@@ -137,6 +137,8 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
         "magnet_swaps_kind".into(),
         "first_swap_year".into(),
         "first_swap_sampling_standard_error_y".into(),
+        "first_swap_two_sigma_earliest_year".into(),
+        "first_swap_two_sigma_latest_year".into(),
         "first_swap_kind".into(),
         "net_electricity_twh".into(),
         "net_electricity_kind".into(),
@@ -192,6 +194,8 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
                     .zip(s.first_swap_relative_sampling)
                     .map(|(y, r)| y * r),
             ),
+            optional(s.first_swap_two_sigma_y().map(|b| b.0)),
+            optional(s.first_swap_two_sigma_y().and_then(|b| b.1)),
             first_kind,
             optional(s.net_twh),
             kind_or(s.net_twh.is_some(), StatusKind::Conditional),

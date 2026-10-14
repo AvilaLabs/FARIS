@@ -24,6 +24,7 @@ use super::{
     sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
+use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
 use faris_model::transport::FAST_NEUTRON_ENERGY_MIN_EV;
@@ -39,9 +40,6 @@ use std::{
 pub const DESIGN_TRANSPORT_VERSION: &str = "faris-design-transport-report/v0.3";
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-transport/v3";
-/// Energy released per D-T reaction, as in the reactor transport request.
-const ENERGY_PER_REACTION_EV: f64 = 17.6e6;
-const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
 /// The fewest batches a run may stop at, as for the reactor run's sampling plan.
 const MIN_BATCHES: u64 = 30;
 /// Time the run gets beyond its sampling limit to load the geometry, look for a streaming
@@ -249,6 +247,9 @@ pub struct DesignTransportReport {
     pub response_group_id: Option<String>,
     /// Source neutrons per second, from the fusion power at 17.6 MeV per reaction.
     pub source_rate_per_s: f64,
+    /// Energy per reaction the source rate was derived with (the convention, stored).
+    #[serde(default = "default_energy_per_reaction_ev")]
+    pub energy_per_reaction_ev: f64,
     pub fusion_power_mw: f64,
     pub histories: u64,
     pub elapsed_seconds: f64,
@@ -275,6 +276,10 @@ pub struct DesignTransportReport {
     pub not_evaluated: Vec<NotEvaluated>,
 }
 
+fn default_energy_per_reaction_ev() -> f64 {
+    D_T_ENERGY_PER_REACTION_EV
+}
+
 /// Flux in n/m²/s from a track length per source neutron (cm), a source rate and a volume.
 pub fn flux_n_m2_s(cm_per_source: f64, source_rate_per_s: f64, volume_m3: f64) -> f64 {
     // cm / cm³ = 1/cm² = 1e4 /m²; the volume is 1e6 cm³ per m³.
@@ -282,7 +287,7 @@ pub fn flux_n_m2_s(cm_per_source: f64, source_rate_per_s: f64, volume_m3: f64) -
 }
 
 fn source_rate_per_s(fusion_power_mw: f64) -> f64 {
-    fusion_power_mw * 1.0e6 / (ENERGY_PER_REACTION_EV * ELEMENTARY_CHARGE_C)
+    reaction_rate_per_s(fusion_power_mw, D_T_ENERGY_PER_REACTION_EV)
 }
 
 fn tool(message: impl Into<String>) -> DesignError {
@@ -1100,6 +1105,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         energy_min_ev: worker.energy_min_ev,
         response_group_id: inputs.chosen.group_id.clone(),
         source_rate_per_s: rate,
+        energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
         fusion_power_mw: inputs.fusion_power_mw,
         histories: worker.histories,
         elapsed_seconds: worker.elapsed_seconds,
@@ -1128,6 +1134,28 @@ fn percent(relative: Option<f64>) -> String {
         || "error unknown".into(),
         |r| format!("± {:.1} %", 100.0 * r),
     )
+}
+
+/// The fluence's 2-sigma band; the verdict never says WITHIN unless the upper edge is inside.
+fn fluence_band(a: &FluenceAssessment) -> String {
+    match (a.history_fluence_low_n_m2, a.history_fluence_high_n_m2) {
+        (Some(low), Some(high)) => format!(
+            "(2-sigma band {low:.3e} to {high:.3e}; WITHIN needs the upper edge below the limit, {})",
+            percent(a.flux_relative_error)
+        ),
+        _ => "(no error band: the flux has no error estimate)".into(),
+    }
+}
+
+/// The years to the limit with their 2-sigma band; the earliest edge is the one the verdict uses.
+fn years_band(earliest: Option<f64>, latest: Option<f64>) -> String {
+    match (earliest, latest) {
+        (Some(e), Some(l)) => format!("(2-sigma band {e:.1} to {l:.1} years; earliest edge used)"),
+        (Some(e), None) => {
+            format!("(2-sigma band from {e:.1} years, no upper edge; earliest edge used)")
+        }
+        _ => "(no error band: the flux has no error estimate)".into(),
+    }
 }
 
 /// The report as text for the terminal.
@@ -1203,12 +1231,13 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     }
     let _ = writeln!(
         out,
-        "  {} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power.",
+        "  {} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power at {} MeV per reaction.",
         report.histories,
         report.elapsed_seconds,
         report.threads,
         report.source_rate_per_s,
-        report.fusion_power_mw
+        report.fusion_power_mw,
+        report.energy_per_reaction_ev / 1.0e6
     );
     let reduction = &report.variance_reduction;
     let _ = writeln!(
@@ -1242,7 +1271,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
             a.history_calendar_years,
             a.history_full_power_years,
             a.history_fluence_n_m2,
-            percent(a.flux_relative_error)
+            fluence_band(a)
         );
         if let (Some(full), Some(calendar)) =
             (a.full_power_years_to_limit, a.calendar_years_to_limit)
@@ -1250,7 +1279,10 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
             let _ = writeln!(
                 out,
                 "    Reaches the limit after {full:.1} years at full power ({calendar:.1} years of this history) {}",
-                percent(a.years_relative_error)
+                years_band(
+                    a.full_power_years_to_limit_earliest,
+                    a.full_power_years_to_limit_latest
+                )
             );
         }
         let _ = writeln!(out, "    Why: {}", a.why);
@@ -1426,5 +1458,42 @@ mod tests {
         // 525 MW at 17.6 MeV per reaction.
         let rate = source_rate_per_s(525.0);
         assert!((rate / 1.8618e20 - 1.0).abs() < 1.0e-3, "{rate:e}");
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn a_fluence_margin_is_shown_with_its_band_and_judged_on_the_unfavourable_edge() {
+        let history = PowerHistory {
+            calendar_seconds: 1.0,
+            full_power_seconds: 1.0,
+        };
+        // Mean fluence 8 against a limit of 10 looks WITHIN, but a 25 % error puts the upper
+        // edge (12) over the limit.
+        let a = assess_fluence(8.0, Some(0.25), 10.0, &history);
+        assert_eq!(a.status, LimitStatus::Inconclusive);
+        let text = format!(
+            "{} | {}",
+            fluence_band(&a),
+            years_band(
+                a.full_power_years_to_limit_earliest,
+                a.full_power_years_to_limit_latest
+            )
+        );
+        assert!(text.contains("2-sigma band 4.000e0 to 1.200e1"), "{text}");
+        assert!(text.contains("earliest edge used"), "{text}");
+        // With no error estimate the display says so rather than showing a bare margin.
+        let bare = assess_fluence(8.0, None, 10.0, &history);
+        assert!(fluence_band(&bare).contains("no error band"));
+        assert!(years_band(None, None).contains("no error band"));
+    }
+
+    // Verifies: SRC-001
+    #[test]
+    fn design_source_rate_matches_the_reactor_path_per_megawatt() {
+        assert_eq!(format!("{:.3e}", source_rate_per_s(1.0)), "3.546e17");
+        assert_eq!(
+            source_rate_per_s(525.0),
+            crate::transport::reaction_rate_per_s(525.0, 17.6e6)
+        );
     }
 }

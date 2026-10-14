@@ -166,6 +166,25 @@ class WindowHelpersTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             DT.validate_request(request)
 
+    # Verifies: NUC-053
+    def test_generation_and_reported_run_seeds_are_disjoint(self):
+        import copy as c
+        import re
+        self.assertNotEqual(DT.MGXS_SEED, DT.WINDOW_SEED)
+        for reserved in (DT.MGXS_SEED, DT.WINDOW_SEED):
+            request = c.deepcopy(REQUEST)
+            request["sampling"]["seed"] = reserved
+            with self.assertRaises(ValueError):
+                DT.validate_request(request)
+        request = c.deepcopy(REQUEST)
+        self.assertNotIn(request["sampling"]["seed"], (DT.MGXS_SEED, DT.WINDOW_SEED))
+        DT.validate_request(request)
+        # The only seeds the worker sets are the two reserved ones and the request's own, so no
+        # step can draw its histories from another step's stream.
+        source = Path(DT.__file__).read_text()
+        assigned = re.findall(r"\.seed = ([^\n]+)", source)
+        self.assertEqual(sorted(assigned), sorted(["MGXS_SEED", "WINDOW_SEED", 'int(sampling["seed"])']))
+
     def test_window_grid_reproduces_the_research_mesh_on_the_reference_model(self):
         lower, upper, dimension = DT.window_grid([-645.0, -645.0, -381.0], [645.0, 645.0, 381.0])
         self.assertEqual((lower, upper), ([-650.0, -650.0, -386.0], [650.0, 650.0, 386.0]))
