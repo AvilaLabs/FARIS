@@ -1765,6 +1765,52 @@ fn sampling_precision_summary(worker: &Value) -> Result<SamplingPrecisionSummary
     })
 }
 
+/// The precision goals of a two-pass run, each judged on the pass its response is reported from: the checks of
+/// `ids` come from the windowed pass's receipt, every other check from the analog pass's. The aggregate is
+/// recomputed from the checks taken.
+fn merged_precision_summary(
+    analog_worker: &Value,
+    windowed_worker: &Value,
+    ids: &[String],
+) -> Result<SamplingPrecisionSummary, ReactorError> {
+    let checks_of = |worker: &Value| -> Result<Vec<Value>, ReactorError> {
+        worker["sampling_precision"]["checks"]
+            .as_array()
+            .cloned()
+            .ok_or_else(|| "worker receipt is missing its precision checks".into())
+    };
+    let in_ids = |check: &Value| {
+        check["response_id"]
+            .as_str()
+            .is_some_and(|id| ids.iter().any(|i| i == id))
+    };
+    let mut checks: Vec<Value> = checks_of(analog_worker)?
+        .into_iter()
+        .filter(|check| !in_ids(check))
+        .collect();
+    let taken: Vec<Value> = checks_of(windowed_worker)?
+        .into_iter()
+        .filter(|check| in_ids(check))
+        .collect();
+    if taken.is_empty() {
+        return Err("the windowed pass has no precision check for its response".into());
+    }
+    checks.extend(taken);
+    let mut merged = analog_worker.clone();
+    merged["sampling_precision"]["all_goals_met"] = checks
+        .iter()
+        .all(|check| check["met"].as_bool() == Some(true))
+        .into();
+    merged["sampling_precision"]["checks"] = checks.into();
+    sampling_precision_summary(&merged)
+}
+
+fn read_worker_result(run_directory: &Path) -> Result<Value, ReactorError> {
+    Ok(serde_json::from_slice(&read_json_bytes(
+        &run_directory.join("solver/worker-result.json"),
+    )?)?)
+}
+
 /// What a pass needs before its input is written: the bound model, request, mesh and the identities of the tools.
 struct PassInput {
     input: ReactorInput,
@@ -2158,6 +2204,11 @@ fn run_two_passes(
                 &ids,
             )?;
             record.normalized = Some(merged);
+            record.sampling_precision_summary = Some(merged_precision_summary(
+                &read_worker_result(output)?,
+                &read_worker_result(&windowed_dir)?,
+                &ids,
+            )?);
             record.windowed_pass = Some(WindowedPass {
                 directory: WINDOWED_PASS_DIRECTORY.into(),
                 run_sha256,
@@ -2410,6 +2461,11 @@ pub fn load_reactor_run(
                 windowed.normalized.as_ref(),
                 &pass.responses,
             )?;
+            record.sampling_precision_summary = Some(merged_precision_summary(
+                &read_worker_result(parent)?,
+                &read_worker_result(&parent.join(&pass.directory))?,
+                &pass.responses,
+            )?);
             record.windowed_run = Some(Box::new(windowed));
             merged
         }
@@ -2554,6 +2610,85 @@ mod tests {
         let mut inconsistent = worker;
         inconsistent["sampling_precision"]["checks"][0]["met"] = serde_json::json!(false);
         assert!(sampling_precision_summary(&inconsistent).is_err());
+    }
+
+    // Verifies: PERF-025
+    #[test]
+    fn precision_goals_are_judged_on_the_pass_each_response_is_reported_from() {
+        let worker = |checks: serde_json::Value| {
+            serde_json::json!({"sampling_precision": {
+                "plan_id": "faris-exploratory-precision-goals/v0.1",
+                "purpose": "p", "estimator": "e",
+                "integrated_goal": 0.05, "local_goal": 0.1,
+                "all_goals_met": false,
+                "checks": checks,
+            }})
+        };
+        let check = |id: &str, quantity: &str, target: f64, observed: f64| {
+            serde_json::json!({"response_id": id, "quantity": quantity,
+                "target_relative_standard_error": target,
+                "observed_relative_standard_error": observed, "met": observed <= target})
+        };
+        let tritium = |observed| {
+            check(
+                "total-tritium-production",
+                "whole-model tritium production",
+                0.05,
+                observed,
+            )
+        };
+        let heating = |observed| {
+            check(
+                "heating-total-whole-model",
+                "whole-model deposited heating",
+                0.05,
+                observed,
+            )
+        };
+        let magnet = |observed| {
+            check(
+                STOP_RULE_RESPONSE_ID,
+                "region-average fast neutron flux",
+                0.1,
+                observed,
+            )
+        };
+        // the analog pass left the magnet flux far from its goal; the windowed pass met it and left its
+        // own (unreported) tritium far off
+        let analog = worker(serde_json::json!([
+            tritium(0.002),
+            heating(0.001),
+            magnet(0.30)
+        ]));
+        let windowed = worker(serde_json::json!([
+            tritium(0.60),
+            heating(0.40),
+            magnet(0.04)
+        ]));
+        let ids = vec![STOP_RULE_RESPONSE_ID.to_string()];
+        // judged on the analog receipt alone, the run would say unmet
+        assert_eq!(sampling_precision_summary(&analog).unwrap().checks_unmet, 1);
+        let merged = merged_precision_summary(&analog, &windowed, &ids).unwrap();
+        assert_eq!(merged.check_count, 3);
+        assert_eq!(merged.checks_unmet, 0);
+        assert!(merged.all_goals_met);
+        // whole-model figures stay the analog pass's, not the windowed pass's
+        assert_eq!(merged.whole_model_tbr_relative_standard_error, Some(0.002));
+        assert_eq!(
+            merged.whole_model_heating_relative_standard_error,
+            Some(0.001)
+        );
+        // and a windowed response that missed its goal is unmet, whatever the analog pass saw
+        let missed = worker(serde_json::json!([
+            tritium(0.60),
+            heating(0.40),
+            magnet(0.2)
+        ]));
+        let merged = merged_precision_summary(&analog, &missed, &ids).unwrap();
+        assert_eq!((merged.checks_unmet, merged.all_goals_met), (1, false));
+        // a windowed receipt without the response's check cannot be merged
+        let without = worker(serde_json::json!([tritium(0.6), heating(0.4)]));
+        assert!(merged_precision_summary(&analog, &without, &ids).is_err());
     }
 
     #[test]
