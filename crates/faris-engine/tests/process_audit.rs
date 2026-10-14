@@ -133,7 +133,7 @@ fn scan() -> BTreeMap<(String, String), usize> {
             .strip_prefix(crates)
             .unwrap()
             .to_string_lossy()
-            .into_owned();
+            .replace('\\', "/");
         for line in shipped_lines(&text) {
             for token in TOKENS {
                 let count = line.matches(token).count();

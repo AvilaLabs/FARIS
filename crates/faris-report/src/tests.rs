@@ -585,6 +585,7 @@ fn study_file_stamp_is_named_in_the_manifest_and_the_pdf_footer() {
     );
     if tool_available("pdftotext") {
         let out = Command::new("pdftotext")
+            .args(["-enc", "UTF-8"])
             .arg(outcome.folder.join("summary.pdf"))
             .arg("-")
             .output()
@@ -602,6 +603,7 @@ fn unsaved_study_says_so_in_the_pdf() {
         return;
     }
     let out = Command::new("pdftotext")
+        .args(["-enc", "UTF-8"])
         .arg(outcome.folder.join("summary.pdf"))
         .arg("-")
         .output()
@@ -1068,6 +1070,7 @@ mod ensembles {
             "pdftotext is needed to read the PDF"
         );
         let out = Command::new("pdftotext")
+            .args(["-enc", "UTF-8"])
             .args(["-f", "3", "-l", "3"])
             .arg(outcome.folder.join("summary.pdf"))
             .arg("-")
@@ -1182,6 +1185,7 @@ mod ensembles {
             .map(str::trim);
         assert_eq!(pages, Some("3"), "{info}");
         let out = Command::new("pdftotext")
+            .args(["-enc", "UTF-8"])
             .arg("-layout")
             .arg(&pdf)
             .arg("-")
@@ -1394,6 +1398,7 @@ fn the_pdf_marks_calculated_numbers_and_prints_the_legend() {
         "pdftotext is needed to read the PDF"
     );
     let out = Command::new("pdftotext")
+        .args(["-enc", "UTF-8"])
         .arg(outcome.folder.join("summary.pdf"))
         .arg("-")
         .output()
@@ -1487,6 +1492,7 @@ fn the_manifest_and_both_pdf_pages_carry_the_research_screening_statement() {
     );
     for page in ["1", "2"] {
         let out = Command::new("pdftotext")
+            .args(["-enc", "UTF-8"])
             .args(["-f", page, "-l", page])
             .arg(outcome.folder.join("summary.pdf"))
             .arg("-")

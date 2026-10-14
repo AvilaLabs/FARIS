@@ -106,9 +106,14 @@ fn poison(value: &mut Value, hostile: &[String], next: &mut usize, only_free_tex
 fn the_process_check_can_see_a_process() {
     // Without this, "no process started" below could be a blind instrument.
     let (started, _) = children::starts_a_process(|| {
-        std::process::Command::new("/bin/true").status().unwrap();
+        // /bin/true on Linux, /usr/bin/true on macOS
+        let program = ["/bin/true", "/usr/bin/true"]
+            .into_iter()
+            .find(|p| std::path::Path::new(p).exists())
+            .unwrap();
+        std::process::Command::new(program).status().unwrap();
     });
-    assert!(started, "the child-process detector did not see /bin/true");
+    assert!(started, "the child-process detector did not see a child");
 }
 
 // Verifies: SEC-001
