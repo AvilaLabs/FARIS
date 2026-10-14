@@ -182,21 +182,28 @@ class PeakTest(unittest.TestCase):
         self.assertEqual(DT.ring_edges(-10.0, 10.0, 10.0), [-10.0, 0.0, 10.0])
         self.assertEqual(DT.ring_edges(-3.0, 7.0, None), [-3.0, 7.0])
 
-    def test_the_peak_is_the_highest_track_length_per_volume(self):
+    def test_the_peak_is_the_highest_resolved_track_length_per_volume(self):
         # Three pieces over four batches: the second has less track but a smaller volume.
-        peak = DT.peak_of([40.0, 24.0, 8.0], [500.0, 150.0, 20.0], [1000.0, 400.0, 1000.0], 4)
+        peak = DT.peak_of([40.0, 24.0, 8.0], [400.5, 144.3, 16.1], [1000.0, 400.0, 1000.0], [True] * 3, 4)
         self.assertEqual(peak["index"], 1)
         self.assertAlmostEqual(peak["mean"], 6.0)
         self.assertAlmostEqual(peak["volume_cm3"], 400.0)
-        # Batch values with mean 6 and mean square 37.5: variance of the mean (37.5 - 36) / 3.
-        self.assertAlmostEqual(peak["standard_error"], (1.5 / 3.0) ** 0.5)
+        # Batch values with mean 6 and mean square 36.075: variance of the mean 0.075 / 3.
+        self.assertAlmostEqual(peak["standard_error"], 0.025 ** 0.5)
 
-    def test_slivers_are_not_ranked(self):
-        # The sliver has by far the highest ratio and is skipped.
-        peak = DT.peak_of([10.0, 9.0], [0.0, 0.0], [1000.0, 10.0], 2)
+    def test_a_piece_one_rare_score_landed_in_does_not_lead(self):
+        # Piece 0: 100 in one batch of four (mean 25, error 25). Piece 1: a steady 10 with a small error.
+        peak = DT.peak_of([100.0, 40.0], [10000.0, 400.4], [100.0, 100.0], [True, True], 4)
+        self.assertEqual(peak["index"], 1)
+        # With nothing resolved above zero, the highest mean leads.
+        peak = DT.peak_of([100.0, 40.0], [10000.0, 1600.0], [100.0, 100.0], [True, True], 4)
         self.assertEqual(peak["index"], 0)
-        self.assertIsNone(DT.peak_of([], [], [], 2))
-        self.assertIsNone(DT.peak_of([1.0], [1.0], [0.0], 2))
+
+    def test_unranked_pieces_are_skipped(self):
+        peak = DT.peak_of([10.0, 9.0], [50.1, 40.6], [1000.0, 10.0], [True, False], 2)
+        self.assertEqual(peak["index"], 0)
+        self.assertIsNone(DT.peak_of([], [], [], [], 2))
+        self.assertIsNone(DT.peak_of([1.0], [1.0], [5.0], [False], 2))
 
     def test_a_wanted_peak_holds_the_run_until_it_meets_the_target(self):
         stats = stats_of([10.0] * 5 + [10.2] * 5)

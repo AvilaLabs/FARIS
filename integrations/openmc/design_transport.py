@@ -42,7 +42,9 @@ With `peak_voxel_cm`, `volumes` runs before `run`. The peak is taken over pieces
 rings of dr by dz about the z axis, each cut by the solid, so a piece spans the solid's full
 toroidal width (null for dr or dz: its full width in that direction too). `volumes` measures
 the volume of every piece by ray tracing; `run` scores the same pieces and reports, per solid,
-the piece with the highest flux. Pieces under a quarter of the solid's largest are not ranked.
+its leading piece: the one with the highest flux after two standard errors are taken off, so
+a piece that one rare score landed in does not lead. Slivers at a solid's edge (under a quarter
+of its widest toroidal span) are not ranked.
 The run then stops only when the piece that leads at that batch is within twice the target as well
 (10 % for the default 5 %): one piece of a few litres takes many more histories than the mean.
 
@@ -90,7 +92,8 @@ PEAK_TALLY_ID = 2
 PEAK_MESH_ID = 9001
 PEAK_RAYS = 2_000_000        # rays that measure how much of each ring lies in each solid
 PEAK_TARGET_FACTOR = 2.0     # the highest piece is held to this many times the target on the mean
-PEAK_MIN_FILL = 0.25         # a piece smaller than this share of the solid's largest piece is a sliver: not ranked
+PEAK_MIN_FILL = 0.25         # a piece spanning under this share of the solid's widest toroidal angle is a sliver
+PEAK_SIGMAS = 2.0            # the leading piece is the highest after this many standard errors are taken off
 
 
 def sha256_file(path: Path) -> str:
@@ -247,40 +250,64 @@ def ring_edges(low: float, high: float, step: float | None) -> list[float]:
     return [low + i * step for i in range(count + 1)]
 
 
-def leading_piece(scored, volumes, batches: int, min_fill: float = PEAK_MIN_FILL):
-    """Relative error of the piece with the highest flux over all solids (numpy), or None when unknown.
+def ranked_pieces(volumes, r_edges, dr_dz_cells: int | None = None, min_fill: float = PEAK_MIN_FILL):
+    """Which pieces of each solid are compared (numpy): `volumes[solid, z, r]` in cm3 to a mask of that shape.
 
-    `scored[piece, solid]` holds (sum, sum of squares) of the batch values and `volumes[solid, piece]` the cm3.
+    A ring's volume grows with its radius, so volumes are compared as the toroidal angle each piece spans
+    (volume over mid-radius). A piece spanning under `min_fill` of the solid's widest is a sliver at the
+    solid's edge: its volume is poorly known and its score is noise.
     """
     import numpy as np
 
-    ranked = volumes >= min_fill * volumes.max(axis=1, keepdims=True)
-    flux = np.where(ranked, scored[:, :, 0].T / np.where(ranked, volumes, 1.0), -1.0)
-    solid, piece = np.unravel_index(int(np.argmax(flux)), flux.shape)
-    mean = scored[piece, solid, 0] / batches
-    if batches < 2 or mean <= 0.0:
-        return None
-    return math.sqrt(max(scored[piece, solid, 1] / batches - mean * mean, 0.0) / (batches - 1)) / mean
+    edges = np.asarray(r_edges, dtype=float)
+    span = volumes / (0.5 * (edges[:-1] + edges[1:]))
+    widest = span.reshape(span.shape[0], -1).max(axis=1)[:, None, None]
+    return (span > 0.0) & (span >= min_fill * widest)
 
 
-def peak_of(sums, squares, volumes, batches: int, min_fill: float = PEAK_MIN_FILL) -> dict | None:
-    """The piece of one solid with the highest track length per volume.
+def leading_piece(scored, volumes, ranked, batches: int):
+    """Relative error of the leading piece over all solids (numpy), or None when unknown.
 
-    `sums` and `squares` hold each piece's sum of batch values and of their squares, `volumes` the cm3 of the
-    piece. Slivers (under `min_fill` of the solid's largest piece) are not ranked: their volume is poorly known
-    and their score is noise. Returns the flat index, mean, standard error and volume, or None with no piece.
+    `scored[piece, solid]` holds (sum, sum of squares) of the batch values; `volumes[solid, piece]` (cm3) and
+    `ranked[solid, piece]` are flat over the pieces. The leading piece is chosen as in `peak_of`.
     """
-    largest = max(volumes, default=0.0)
-    best = None
-    for index, (total, square, volume) in enumerate(zip(sums, squares, volumes)):
-        if largest <= 0.0 or volume < min_fill * largest:
+    import numpy as np
+
+    if batches < 2 or not ranked.any():
+        return None
+    mean = scored[:, :, 0].T / batches
+    error = np.sqrt(np.maximum(scored[:, :, 1].T / batches - mean * mean, 0.0) / (batches - 1))
+    safe = np.where(ranked, volumes, 1.0)
+    bound = np.where(ranked, (mean - PEAK_SIGMAS * error) / safe, -np.inf)
+    if not bound.max() > 0.0:
+        bound = np.where(ranked, mean / safe, -np.inf)
+    solid, piece = np.unravel_index(int(np.argmax(bound)), bound.shape)
+    if mean[solid, piece] <= 0.0:
+        return None
+    return float(error[solid, piece] / mean[solid, piece])
+
+
+def peak_of(sums, squares, volumes, ranked, batches: int) -> dict | None:
+    """The leading piece of one solid, from each piece's sum of batch values, sum of their squares, volume
+    (cm3) and whether it is ranked.
+
+    The leader is the piece whose flux is highest after PEAK_SIGMAS standard errors are taken off: the highest
+    flux the run has resolved. Ranking by the mean alone would pick whichever piece a rare large score landed
+    in. With no piece resolved above zero the highest mean leads. Returns the flat index, mean, standard error
+    and volume, or None with no ranked piece.
+    """
+    best, best_key = None, None
+    for index, (total, square, volume, keep) in enumerate(zip(sums, squares, volumes, ranked)):
+        if not keep:
             continue
         mean = total / batches
-        if best is None or mean / volume > best["mean"] / best["volume_cm3"]:
-            error = None
-            if batches >= 2:
-                error = math.sqrt(max(square / batches - mean * mean, 0.0) / (batches - 1))
-            best = {"index": index, "mean": mean, "standard_error": error, "volume_cm3": volume}
+        error = None
+        if batches >= 2:
+            error = math.sqrt(max(square / batches - mean * mean, 0.0) / (batches - 1))
+        bound = (mean - PEAK_SIGMAS * (error or 0.0)) / volume if error is not None else 0.0
+        key = (bound > 0.0, bound if bound > 0.0 else mean / volume)
+        if best is None or key > best_key:
+            best, best_key = {"index": index, "mean": mean, "standard_error": error, "volume_cm3": volume}, key
     return best
 
 
@@ -789,7 +816,10 @@ def phase_run(request: dict, work: Path) -> dict:
     per_solid = [RunningSum() for _ in solids]
     peaks = [None for _ in solids]
     leading = None
-    piece_volumes = None if pieces is None else pieces["volumes_cm3"].reshape(len(solids), -1)
+    piece_volumes = piece_ranked = None
+    if pieces is not None:
+        piece_volumes = pieces["volumes_cm3"].reshape(len(solids), -1)
+        piece_ranked = ranked_pieces(pieces["volumes_cm3"], pieces["r_edges_cm"]).reshape(len(solids), -1)
     started = time.monotonic()
     reason = None
     try:
@@ -813,7 +843,7 @@ def phase_run(request: dict, work: Path) -> dict:
                     # Mesh bins run over r, then z; the solids follow as the next filter.
                     scored = np.array(openmc.lib.tallies[PEAK_TALLY_ID].results[:, 0, 1:3], dtype=float)
                     scored = scored.reshape(-1, len(solids), 2)
-                    leading = (leading_piece(scored, piece_volumes, stats.n),)
+                    leading = (leading_piece(scored, piece_volumes, piece_ranked, stats.n),)
                 reason = stop_reason(stats, sampling, elapsed, leading)
                 if reason is not None or time.monotonic() - last_report >= PROGRESS_SECONDS:
                     last_report = time.monotonic()
@@ -826,15 +856,19 @@ def phase_run(request: dict, work: Path) -> dict:
                             "elapsed_seconds": elapsed,
                         }}), flush=True)
             if pieces is not None:
+                # Every piece's sums, kept beside the result: the evidence behind the peak.
+                np.savez_compressed(out_dir / "pieces.npz", sums=scored[:, :, 0], squares=scored[:, :, 1],
+                                    batches=stats.n)
                 volumes = pieces["volumes_cm3"]
                 r_edges, z_edges = pieces["r_edges_cm"], pieces["z_edges_cm"]
                 for row in range(len(solids)):
-                    peak = peak_of(scored[:, row, 0], scored[:, row, 1], volumes[row].ravel(), stats.n)
+                    peak = peak_of(scored[:, row, 0], scored[:, row, 1], piece_volumes[row], piece_ranked[row],
+                                   stats.n)
                     if peak is not None:
                         iz, ir = divmod(peak.pop("index"), volumes.shape[2])
                         peak["r_cm"] = [float(r_edges[ir]), float(r_edges[ir + 1])]
                         peak["z_cm"] = [float(z_edges[iz]), float(z_edges[iz + 1])]
-                        peak["pieces_ranked"] = int((volumes[row] >= PEAK_MIN_FILL * volumes[row].max()).sum())
+                        peak["pieces_ranked"] = int(piece_ranked[row].sum())
                     peaks[row] = peak
             openmc.lib.simulation_finalize()
         finally:

@@ -1000,8 +1000,8 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
     let mean_relative_error = relative(worker.total.mean, worker.total.standard_error);
     if inputs.chosen.peak_voxel_m.is_some() {
         notices.push(
-            "The peak is the highest of many noisy pieces, so it leans high; its error is that \
-             of the one piece."
+            "The highest piece is the highest the run has resolved (its flux less two standard \
+             errors); a piece with few scores could be higher."
                 .into(),
         );
     }
