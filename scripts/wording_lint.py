@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Wording lint over user-facing text (requirements LEG-041, LEG-042, LEG-043, LEG-044).
+"""Wording lint over user-facing text (requirements LEG-041..044, VAL-084, VAL-090, QA-052, DSN-085).
 
 Scans Rust string literals in the crate sources, the string literals of the
-package script, and the Markdown documents users read. It does not scan
-comments, tests, docs/requirements/ or the other design documents, which name
-forbidden words in order to forbid them.
+package script, the browser page, and the Markdown documents users read. It
+does not scan comments, tests or docs/requirements/, which name forbidden words
+in order to forbid them. The design documents under docs/ that use "qualification"
+in its technical sense are scanned as advisory: their findings are printed, and
+fail only with --strict. Website copy lives in another repository; run
+`wording_lint.py --extra DIR` from there (or CI) to scan its .html and .md files.
 
 Rules (word lists are versioned in wording_lint_terms.json):
   LEG-041  claims of licensing, qualification, certification or safety approval
   LEG-042  "digital twin" and "twin"
   LEG-043  variant spellings of verdict words and kind labels
   LEG-044  internal codenames in text and in script or package file names
+  QA-052   "compliant", "certified" or "qualified" tied to NQA-1 or a regulator
+           (VAL-090 and DSN-085 are the same claims in recommendations and exports)
 
 A forbidden-claim hit is allowed when a negation word (not, no, never, nor,
 without, cannot) appears within a few words before it in the same sentence, or
@@ -23,18 +28,30 @@ Exit status 1 on any finding. Output: file:line: RULE: text.
 """
 from __future__ import annotations
 
+import argparse
+import html
 import io
 import json
 import re
 import sys
 import tokenize
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TERMS = Path(__file__).with_name("wording_lint_terms.json")
 RUST_DIRS = ["crates/*/src"]
-MARKDOWN = ["README.md", "CHANGELOG.md", "docs/USER_GUIDE.md", "docs/STUDY_EXPORT.md", "docs/guide/*.md"]
+MARKDOWN = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "docs/*.md", "docs/guide/*.md", "integrations/*/README.md"]
+# Design documents that use "qualification" and "licence" in their technical senses.
+ADVISORY_MARKDOWN = {
+    "docs/COLD_REFERENCE.md", "docs/CORE_STUDIES.md", "docs/DEMO_ACCEPTANCE.md", "docs/DEMO_INPUT_SPEC.md",
+    "docs/DEMO_ROADMAP.md", "docs/DEMO_WALKTHROUGH.md", "docs/NEXT_RELEASE_PLAN.md", "docs/NUMERICAL_CONTROLS.md",
+    "docs/OPERATING_HISTORY.md", "docs/RELEASING.md", "docs/SCIENTIFIC_BASELINE.md", "docs/STUDY_FILE.md",
+    "docs/VALIDATION.md", "integrations/avila-core/README.md",
+}
+# Third-party licence texts: they say "licensed" because that is what they are.
+SKIPPED_MARKDOWN = {"docs/THIRD_PARTY_NOTICES.md", "docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md"}
+HTML = ["crates/faris-app/index.html"]
 PYTHON_TEXT = ["scripts/package_recorded_demo.py"]
 NAME_DIRS = ["scripts"]
 
@@ -46,9 +63,10 @@ class Finding:
     rule: str
     text: str
     sentence: str
+    advisory: bool = False
 
     def render(self) -> str:
-        return f"{self.path}:{self.line}: {self.rule}: {self.text!r} in: {self.sentence[:160]}"
+        return f"{self.path}:{self.line}: {'advisory ' if self.advisory else ''}{self.rule}: {self.text!r} in: {self.sentence[:160]}"
 
 
 def load_terms(path: Path = TERMS) -> dict:
@@ -253,6 +271,9 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
     vw = terms["verdict_words"]
     variant = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(vw["variant_patterns"]) + r")(?![A-Za-z0-9])", re.I)
     synonym = re.compile(r"\b(?:" + "|".join(vw["synonyms"]) + r")\b")
+    reg = terms["regulator_claims"]
+    anchor = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(reg["anchors"]) + r")(?![A-Za-z0-9])", re.I)
+    reg_claim = re.compile(r"\b(?:" + "|".join(reg["claims"]) + r")\b", re.I)
     names_ci = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(re.escape(x) for x in terms["codenames"]["case_insensitive"])
                           + r")(?![A-Za-z0-9])", re.I)
     names_cs = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(re.escape(x) for x in terms["codenames"]["case_sensitive"])
@@ -275,6 +296,10 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
             for m in claim.finditer(sentence):
                 if not negated(sentence[:m.start()], sentence[m.end():], terms):
                     report("LEG-041", m)
+            if anchor.search(sentence):
+                for m in reg_claim.finditer(sentence):
+                    if not negated(sentence[:m.start()], sentence[m.end():], terms):
+                        report("QA-052", m)
             for m in twin.finditer(sentence):
                 report("LEG-042", m)
             canonical = set(vw["canonical_forms"])
@@ -291,6 +316,14 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
             for m in list(names_ci.finditer(sentence)) + list(names_cs.finditer(sentence)):
                 report("LEG-044", m)
     return findings
+
+
+def html_units(text: str) -> list[tuple[str, int]]:
+    """Visible text of an HTML page as (paragraph, first line); scripts, styles and tags are dropped."""
+    text = re.sub(r"(?is)<(script|style)\b.*?</\1>", lambda m: "\n" * m.group(0).count("\n"), text)
+    text = re.sub(r"(?s)<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), text)
+    text = re.sub(r"(?is)<[^>]+>", lambda m: "\n\n" if re.match(r"<(p|h\d|li|div|br|tr|section)\b", m.group(0), re.I) else " ", text)
+    return markdown_units(html.unescape(text))
 
 
 def lint_names(root: Path, terms: dict) -> list[Finding]:
@@ -311,7 +344,7 @@ def lint_names(root: Path, terms: dict) -> list[Finding]:
     return findings
 
 
-def run(root: Path = ROOT, terms: dict | None = None) -> list[Finding]:
+def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | None = None) -> list[Finding]:
     terms = terms or load_terms()
     used: set = set()
     findings: list[Finding] = []
@@ -326,10 +359,27 @@ def run(root: Path = ROOT, terms: dict | None = None) -> list[Finding]:
         path = root / name
         if path.exists():
             findings += lint_text(name, python_strings(path.read_text(encoding="utf-8")), terms, used)
+    seen: set[Path] = set()
     for pattern in MARKDOWN:
         for path in sorted(root.glob(pattern)):
             name = str(path.relative_to(root))
-            findings += lint_text(name, markdown_units(path.read_text(encoding="utf-8")), terms, used)
+            if path in seen or name in SKIPPED_MARKDOWN:
+                continue
+            seen.add(path)
+            found = lint_text(name, markdown_units(path.read_text(encoding="utf-8")), terms, used)
+            if name in ADVISORY_MARKDOWN:
+                found = [replace(f, advisory=True) for f in found]
+            findings += found
+    for name in HTML:
+        path = root / name
+        if path.exists():
+            findings += lint_text(name, html_units(path.read_text(encoding="utf-8")), terms, used)
+    for extra in extra_dirs or []:
+        for path in sorted(Path(extra).rglob("*")):
+            if path.suffix in (".md", ".html", ".htm") and path.is_file() and "node_modules" not in path.parts:
+                text = path.read_text(encoding="utf-8")
+                units = markdown_units(text) if path.suffix == ".md" else html_units(text)
+                findings += lint_text(str(path), units, terms, used)
     findings += lint_names(root, terms)
     for entry in terms["allow_list"]:
         if (entry["rule"], normalise(entry["text"])) not in used:
@@ -338,15 +388,20 @@ def run(root: Path = ROOT, terms: dict | None = None) -> list[Finding]:
     return findings
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="wording lint over user-facing text")
+    ap.add_argument("--strict", action="store_true", help="advisory findings fail too")
+    ap.add_argument("--extra", action="append", default=[], metavar="DIR", help="also scan the .md and .html files under DIR (website copy)")
+    args = ap.parse_args(argv)
     terms = load_terms()
-    findings = run(ROOT, terms)
+    findings = run(ROOT, terms, args.extra)
+    failing = [f for f in findings if args.strict or not f.advisory]
     for finding in findings:
         print(finding.render())
-    if findings:
-        print(f"wording lint: {len(findings)} finding(s) (terms version {terms['version']})", file=sys.stderr)
+    if failing:
+        print(f"wording lint: {len(failing)} failing finding(s), {len(findings) - len(failing)} advisory (terms version {terms['version']})", file=sys.stderr)
         return 1
-    print(f"wording lint: clean (terms version {terms['version']})")
+    print(f"wording lint: clean, {len(findings)} advisory (terms version {terms['version']})")
     return 0
 
 

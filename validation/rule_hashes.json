@@ -1,0 +1,61 @@
+{
+  "schema": "faris.validation-rule-hashes/1.0.0",
+  "entries": [
+    {
+      "case_id": "fng-streaming-heating",
+      "version": 1,
+      "declared": "2026-10-14",
+      "rule_sha256": "f34c6fc53823a3b53e970fd3b496565f964ff7215eee3a2f6dcae70a8f87fbee",
+      "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "fng-streaming-offaxis",
+      "version": 1,
+      "declared": "2026-10-14",
+      "rule_sha256": "f34c6fc53823a3b53e970fd3b496565f964ff7215eee3a2f6dcae70a8f87fbee",
+      "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "fng-streaming-onaxis",
+      "version": 1,
+      "declared": "2026-10-14",
+      "rule_sha256": "f34c6fc53823a3b53e970fd3b496565f964ff7215eee3a2f6dcae70a8f87fbee",
+      "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "fns-dogleg-duct",
+      "version": 1,
+      "declared": "2026-10-14",
+      "rule_sha256": "f34c6fc53823a3b53e970fd3b496565f964ff7215eee3a2f6dcae70a8f87fbee",
+      "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "iter-1d",
+      "version": 1,
+      "declared": "2026-10-09",
+      "rule_sha256": "cf7aaffb9f507285c795c03c61006dc44a4e5497154a84486bbe89ec68d7b970",
+      "manifest_last_commit": "c27ef13a6c130c91f9f3894789f84d38cc8a438d",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "oktavian-al",
+      "version": 1,
+      "declared": "2026-10-09",
+      "rule_sha256": "4749f6a1d4d1046117f30880041055f6a5eb3aba2bccf60308e39274f7ad1ef3",
+      "manifest_last_commit": "e2f1ad2c799a4c53089f7be64bde90753d978e3d",
+      "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "oktavian-al-cad",
+      "version": 1,
+      "declared": "2026-10-14",
+      "rule_sha256": "4e80675356892544476af6b091a6f3144ac9ade243fdb30d7634607a9b9957d1",
+      "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
+      "recorded": "2026-10-14"
+    }
+  ]
+}

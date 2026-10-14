@@ -1,8 +1,20 @@
 {
-  "version": 1,
-  "negation_words": ["not", "no", "never", "nor", "without", "cannot", "nothing", "none"],
+  "version": 2,
+  "negation_words": [
+    "not",
+    "no",
+    "never",
+    "nor",
+    "without",
+    "cannot",
+    "nothing",
+    "none"
+  ],
   "negation_window_words": 8,
-  "limiting_following_phrases": ["NOT_EVALUATED", "not evaluated"],
+  "limiting_following_phrases": [
+    "NOT_EVALUATED",
+    "not evaluated"
+  ],
   "limiting_following_window_words": 4,
   "forbidden_claims": [
     "licensed",
@@ -19,16 +31,72 @@
     "fully validated",
     "regulator[- ]approved"
   ],
-  "twin_terms": ["twin", "twins"],
+  "twin_terms": [
+    "twin",
+    "twins"
+  ],
   "verdict_words": {
-    "variant_patterns": ["not[-_ ]?evaluated", "inconclusive", "in-conclusive", "non-conclusive", "non_conclusive"],
-    "canonical_forms": ["NOT_EVALUATED", "not evaluated", "INCONCLUSIVE", "inconclusive"],
-    "sentence_start_forms": ["Not evaluated", "Inconclusive"],
-    "synonyms": ["PASSED", "FAILED", "PASSES", "FAILS", "UNDETERMINED", "INDETERMINATE", "Passed", "Failed"]
+    "variant_patterns": [
+      "not[-_ ]?evaluated",
+      "inconclusive",
+      "in-conclusive",
+      "non-conclusive",
+      "non_conclusive"
+    ],
+    "canonical_forms": [
+      "NOT_EVALUATED",
+      "not evaluated",
+      "INCONCLUSIVE",
+      "inconclusive"
+    ],
+    "sentence_start_forms": [
+      "Not evaluated",
+      "Inconclusive"
+    ],
+    "synonyms": [
+      "PASSED",
+      "FAILED",
+      "PASSES",
+      "FAILS",
+      "UNDETERMINED",
+      "INDETERMINATE",
+      "Passed",
+      "Failed"
+    ]
+  },
+  "regulator_claims": {
+    "anchors": [
+      "NQA-1",
+      "NRC",
+      "regulators?",
+      "regulatory",
+      "10 CFR"
+    ],
+    "claims": [
+      "compliant",
+      "compliance",
+      "complies",
+      "comply",
+      "certified",
+      "qualified",
+      "conforms",
+      "conformant"
+    ]
   },
   "codenames": {
-    "case_insensitive": ["north-star", "north star", "northstar"],
-    "case_sensitive": ["Jev", "OMNIGEN", "Aftermatter", "Astra", "McFly", "ORACLE"]
+    "case_insensitive": [
+      "north-star",
+      "north star",
+      "northstar"
+    ],
+    "case_sensitive": [
+      "Jev",
+      "OMNIGEN",
+      "Aftermatter",
+      "Astra",
+      "McFly",
+      "ORACLE"
+    ]
   },
   "allow_list": [
     {

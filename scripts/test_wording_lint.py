@@ -136,7 +136,40 @@ fn b() { "after" }
             self.assertNotIn("straight channel", (root / name).read_text(encoding="utf-8"), name)
 
     def test_repository_is_clean(self):
-        self.assertEqual([f.render() for f in lint.run()], [])
+        self.assertEqual([f.render() for f in lint.run() if not f.advisory], [])
+
+
+class RegulatorAndSourceTests(unittest.TestCase):
+    # Verifies: QA-052
+    def test_compliance_tied_to_nqa1_or_a_regulator_is_flagged(self):
+        for text in ["FARIS is NQA-1 compliant.", "The code is certified by the NRC.", "Results are qualified for regulator use."]:
+            self.assertIn("QA-052", check(text), text)
+        for text in ["FARIS maps to NQA-1 and does not comply with it.", "It is not NQA-1 compliant.", "A compliant file name."]:
+            self.assertNotIn("QA-052", check(text), text)
+
+    # Verifies: LEG-041, LEG-042, LEG-043, LEG-044
+    def test_html_text_is_scanned_and_markup_is_not(self):
+        units = lint.html_units("<html><script>var licensed = 1;</script><p class='licensed'>Fine text</p><p>A digital twin.</p></html>")
+        rules = [f.rule for f in lint.lint_text("p.html", units, TERMS)]
+        self.assertEqual(rules, ["LEG-042"])
+
+    # Verifies: LEG-041
+    def test_extra_directories_are_scanned_for_website_copy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "index.html").write_text("<p>Now licensed for use.</p>", encoding="utf-8")
+            (Path(tmp) / "empty").mkdir()
+            with tempfile.TemporaryDirectory() as root:
+                findings = lint.run(Path(root), {**TERMS, "allow_list": []}, [tmp])
+        self.assertEqual([f.rule for f in findings], ["LEG-041"])
+
+    # Verifies: LEG-041
+    def test_advisory_documents_report_without_failing(self):
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / "docs").mkdir()
+            (Path(root) / "docs" / "VALIDATION.md").write_text("A qualified range.\n", encoding="utf-8")
+            (Path(root) / "docs" / "OTHER.md").write_text("A qualified range.\n", encoding="utf-8")
+            findings = lint.run(Path(root), {**TERMS, "allow_list": []})
+        self.assertEqual(sorted((f.path, f.advisory) for f in findings), [("docs/OTHER.md", False), ("docs/VALIDATION.md", True)])
 
 
 if __name__ == "__main__":
