@@ -54,6 +54,7 @@ class Extents(unittest.TestCase):
 
 
 class Helpers(unittest.TestCase):
+    @unittest.skipUnless(FW.ACTINV_709G.is_file(), "local ACTINV 709-group data file not present")
     def test_709_group_bounds(self):
         b = FW.load_709_bounds()
         self.assertEqual(len(b), 710)
