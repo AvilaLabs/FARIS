@@ -5,6 +5,7 @@
 mod archive_panel;
 mod badge;
 mod camera;
+mod commands;
 mod compare_panel;
 mod design_check_panel;
 mod design_check_result;
@@ -276,15 +277,6 @@ impl Step {
             Step::Operate => "Operate",
             Step::Compare => "Compare",
             Step::Evidence => "Evidence",
-        }
-    }
-    fn key(self) -> egui::Key {
-        match self {
-            Step::Design => egui::Key::Num1,
-            Step::Simulate => egui::Key::Num2,
-            Step::Operate => egui::Key::Num3,
-            Step::Compare => egui::Key::Num4,
-            Step::Evidence => egui::Key::Num5,
         }
     }
 }
@@ -924,6 +916,10 @@ struct FarisApp {
     export: export_panel::ExportPanel,
     /// Screen rectangle of the 3D viewport in the last frame, for the export picture.
     viewport_rect: Option<egui::Rect>,
+    /// The 3D viewport's widget id, so a command can give it keyboard focus.
+    viewport_id: Option<egui::Id>,
+    /// Keyboard command palette (Ctrl/Cmd+K) over the command registry.
+    palette: commands::Palette,
 }
 
 impl FarisApp {
@@ -977,6 +973,8 @@ impl FarisApp {
             package: None,
             export: export_panel::ExportPanel::new(None),
             viewport_rect: None,
+            viewport_id: None,
+            palette: commands::Palette::default(),
         };
         if app.transport.has_results() {
             app.message = "Checked transport records loaded.".into();
@@ -1178,7 +1176,86 @@ impl FarisApp {
         Ok(())
     }
 
-    fn pick(&mut self, rect: egui::Rect, point: egui::Pos2) {
+    /// Back to the default view (or the slice, in the slice view).
+    fn frame_scene(&mut self) {
+        self.camera = Camera::default();
+        if self.transport.view == transport_panel::FieldView::FluxSlice
+            && let Some(record) = self
+                .transport
+                .record(&self.manifest.variants[self.variant].id)
+        {
+            self.camera.frame_bounds(
+                record.mesh.lower_left_m.map(|x| x as f32),
+                record.mesh.upper_right_m.map(|x| x as f32),
+            );
+        }
+    }
+
+    /// Keys while the 3D viewport has focus: arrows orbit (Shift pans), plus
+    /// and minus zoom, 0 resets, Enter or Space reads out the view centre.
+    fn viewport_keys(&mut self, ctx: &egui::Context, rect: egui::Rect) {
+        use egui::{Key, Modifiers};
+        let mut reset = false;
+        let mut read_out = false;
+        let camera = &mut self.camera;
+        ctx.input_mut(|input| {
+            // Shift first: `consume_key` ignores a surplus Shift.
+            for (modifiers, pan) in [(Modifiers::SHIFT, true), (Modifiers::NONE, false)] {
+                for key in [
+                    Key::ArrowLeft,
+                    Key::ArrowRight,
+                    Key::ArrowUp,
+                    Key::ArrowDown,
+                ] {
+                    if input.consume_key(modifiers, key) {
+                        camera.nudge(key, pan);
+                    }
+                }
+            }
+            for key in [Key::Plus, Key::Equals, Key::Minus] {
+                if input.consume_key(Modifiers::NONE, key) {
+                    camera.nudge(key, false);
+                }
+            }
+            reset = input.consume_key(Modifiers::NONE, Key::Num0);
+            read_out = input.consume_key(Modifiers::NONE, Key::Enter)
+                || input.consume_key(Modifiers::NONE, Key::Space);
+        });
+        if reset {
+            self.frame_scene();
+            self.message = "3D view reset to frame the scene.".into();
+        }
+        if read_out {
+            self.read_out_viewport(rect);
+        }
+    }
+
+    /// Say in the status line what the centre of the view shows.
+    fn read_out_viewport(&mut self, rect: egui::Rect) {
+        let slice = self.transport.view == transport_panel::FieldView::FluxSlice
+            && self
+                .transport
+                .record(&self.manifest.variants[self.variant].id)
+                .is_some();
+        if !self.pick(rect, rect.center()) {
+            self.message = format!(
+                "3D viewport: nothing at the centre of the view. Selected component stays {}. Camera distance {:.1} m.",
+                self.selected, self.camera.distance
+            );
+        } else if !slice {
+            let label = self.manifest.variants[self.variant]
+                .components
+                .iter()
+                .find(|c| c.id == self.selected)
+                .map_or(self.selected.clone(), |c| c.label.clone());
+            self.message = format!(
+                "3D viewport: the centre of the view shows {label} ({}), now selected. Camera distance {:.1} m.",
+                self.selected, self.camera.distance
+            );
+        }
+    }
+
+    fn pick(&mut self, rect: egui::Rect, point: egui::Pos2) -> bool {
         let (origin, direction) = self.camera.ray(rect, point);
         if self.transport.view == transport_panel::FieldView::FluxSlice
             && let Some(record) = self
@@ -1186,6 +1263,7 @@ impl FarisApp {
                 .record(&self.manifest.variants[self.variant].id)
         {
             let mesh = &record.mesh;
+            let mut hit = false;
             let y = mesh
                 .bin_center_m(mesh.dimensions[0] * self.transport.slice)
                 .expect("valid slice")[1] as f32;
@@ -1210,6 +1288,7 @@ impl FarisApp {
                         + mesh.dimensions[0]
                             * (self.transport.slice + mesh.dimensions[1] * index(2));
                     if let Some(response) = self.transport.mesh_response(&record.variant_id, bin) {
+                        hit = true;
                         self.message = format!(
                             "{} · {} · Y slice {} · bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. Qualification NOT_EVALUATED.",
                             self.manifest.scenario_id,
@@ -1221,7 +1300,7 @@ impl FarisApp {
                     }
                 }
             }
-            return;
+            return hit;
         }
         let mut nearest = f32::INFINITY;
         let mut selected = None;
@@ -1242,9 +1321,11 @@ impl FarisApp {
                 }
             }
         }
+        let hit = selected.is_some();
         if let Some(selected) = selected {
             self.selected = selected;
         }
+        hit
     }
 
     /// Double-click framing: select the component under the pointer and move
@@ -2202,19 +2283,7 @@ impl eframe::App for FarisApp {
             self.hidden.clone(),
             year_before_frame,
         );
-        if !self.tour.active && !ctx.egui_wants_keyboard_input() {
-            let chosen = ctx.input(|input| {
-                if input.modifiers.any() {
-                    return None;
-                }
-                Step::ALL
-                    .into_iter()
-                    .find(|step| input.key_pressed(step.key()))
-            });
-            if let Some(step) = chosen {
-                self.step = step;
-            }
-        }
+        self.keyboard(&ctx);
         let export_blocked = self.export_blocked();
         let mut export_clicked = false;
         let bar = egui::Panel::top("menu").show(ui, |ui| {
@@ -2538,13 +2607,9 @@ impl eframe::App for FarisApp {
                     ui.separator();
                     ui.checkbox(&mut self.cutaway, "Cutaway");
                     if ui.button("Frame scene").clicked() {
-                        self.camera = Camera::default();
-                        if self.transport.view==transport_panel::FieldView::FluxSlice
-                            && let Some(record) = self.transport.record(&self.manifest.variants[self.variant].id) {
-                            self.camera.frame_bounds(record.mesh.lower_left_m.map(|x| x as f32), record.mesh.upper_right_m.map(|x| x as f32));
-                        }
+                        self.frame_scene();
                     }
-                    let help = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select";
+                    let help = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select · Tab to the viewport, then arrows orbit, + and − zoom, Enter reads out";
                     if ui.available_width() > 450.0 {
                         ui.weak(help);
                     } else {
@@ -2570,16 +2635,21 @@ impl eframe::App for FarisApp {
                 viewport_points = [rect.width(), rect.height()];
                 self.viewport_rect = Some(rect);
                 self.tour.anchor("viewport", rect);
+                self.viewport_id = Some(response.id);
                 if response.dragged() {
                     let delta = ctx.input(|input| input.pointer.delta());
-                    if ctx.input(|input| input.modifiers.shift) {
-                        let (_, right, up, _) = self.camera.basis();
-                        let scale = self.camera.distance * 0.002;
-                        self.camera.target = camera::add(self.camera.target, camera::add(camera::scale(right, -delta.x * scale), camera::scale(up, delta.y * scale)));
-                    } else {
-                        self.camera.yaw -= delta.x * 0.008;
-                        self.camera.pitch = (self.camera.pitch + delta.y * 0.008).clamp(-1.35, 1.35);
-                    }
+                    let pan = ctx.input(|input| input.modifiers.shift);
+                    self.camera.drag(delta, pan);
+                }
+                response.widget_info(|| egui::WidgetInfo::labeled(
+                    egui::WidgetType::Other,
+                    true,
+                    "3D viewport. Arrow keys orbit, Shift and arrows pan, plus and minus zoom, 0 resets, Enter reads out the centre.",
+                ));
+                let viewport_focused = response.has_focus();
+                if viewport_focused {
+                    commands::lock_arrows(&ctx, response.id);
+                    self.viewport_keys(&ctx, rect);
                 }
                 if response.hovered() {
                     let scroll = ctx.input(|input| input.smooth_scroll_delta.y);
@@ -2632,6 +2702,15 @@ impl eframe::App for FarisApp {
                 };
                 ui.painter().add(viewport::paint(rect, shown_camera, &scene));
                 viewport::paint_labels(ui.painter(), rect, shown_camera, &scene);
+                if viewport_focused {
+                    // Focus ring and the keyboard cursor (the view centre the readout names).
+                    let color = ui.visuals().selection.stroke.color;
+                    ui.painter().rect_stroke(rect, 0.0, egui::Stroke::new(2.0, color), egui::StrokeKind::Inside);
+                    let centre = rect.center();
+                    for (a, b) in [(egui::vec2(-8.0, 0.0), egui::vec2(8.0, 0.0)), (egui::vec2(0.0, -8.0), egui::vec2(0.0, 8.0))] {
+                        ui.painter().line_segment([centre + a, centre + b], egui::Stroke::new(1.5, color));
+                    }
+                }
                 let hovered_label = hovered.and_then(|index| {
                     let id = &self.meshes.get(index)?.id;
                     self.manifest.variants[self.variant].components.iter().find(|c| &c.id == id).map(|c| c.label.clone())

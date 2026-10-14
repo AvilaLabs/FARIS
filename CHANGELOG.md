@@ -11,6 +11,14 @@ basis.
 
 ### Added
 
+- Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
+  registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a
+  registry entry (steps, open and save, export, view, component and allocation changes, timeline, the tool
+  windows, tour, interface size, and read-outs of the breeding ratio and of why a value is NOT_EVALUATED); a
+  command that cannot run says why. The 3D viewport and the timeline plot can be reached with Tab, show a focus
+  frame, and take arrow keys (orbit, Shift pans, + and − zoom, 0 resets, Enter reads out the centre; the plot
+  moves its cursor year). The digit step keys now also work while a button has focus. The new Keyboard page of
+  the handbook lists every key and is checked against the registry by a test.
 - A preview tier and a production tier for the reactor transport study. **Run quality** in the Transport panel
   replaces the two history-count choices: **Preview** is a fixed 90,000-history run that finishes in about a
   minute on two threads (the total-tritium error is stated, and the magnet fast flux is stated as roughly known),

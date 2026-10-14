@@ -6,6 +6,7 @@
 
 - [Download and verify](install.md)
 - [Take the tour](quick-start.md)
+- [Keyboard](keyboard.md)
 
 # Use the demo
 

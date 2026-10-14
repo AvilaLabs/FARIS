@@ -1531,6 +1531,25 @@ impl HistoryPanel {
         {
             *year = to_year(p.x);
         }
+        // Keyboard: with focus, the arrows move the cursor year (Shift for a
+        // year, Page keys for five, Home/End for the ends).
+        let focused = response.has_focus();
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(
+                egui::WidgetType::Other,
+                true,
+                format!(
+                    "{} plot. Left and right arrows move the cursor year.",
+                    plot.title()
+                ),
+            )
+        });
+        if focused {
+            crate::commands::lock_arrows(ui.ctx(), response.id);
+            if let Some(next) = crate::commands::plot_year_after(ui.ctx(), *year, horizon_years) {
+                *year = next;
+            }
+        }
         let cursor_x = map_x(*year);
         painter.line_segment(
             [
@@ -1564,6 +1583,28 @@ impl HistoryPanel {
                     arrangement_color(s.port, s.breeder),
                 );
             }
+        }
+
+        if focused {
+            painter.rect_stroke(
+                outer,
+                4.0,
+                egui::Stroke::new(2.0, ui.visuals().selection.stroke.color),
+                egui::StrokeKind::Inside,
+            );
+            let mut readout = format!("Plot cursor {:.2} y.", *year);
+            for s in &ordered {
+                let value = self
+                    .results
+                    .get(&s.key)
+                    .and_then(|h| snapshot_at(h, t_cursor).and_then(|snap| plot.value(h, snap)));
+                readout.push_str(&format!(
+                    " {}: {}.",
+                    arrangement_label(s.port, s.breeder),
+                    value.map_or("no value".to_string(), |v| plot.format(v))
+                ));
+            }
+            ui.label(readout);
         }
 
         // Hover.

@@ -350,7 +350,7 @@ type DialogResult = (Action, Option<PathBuf>);
 
 pub struct FileState {
     pub path: Option<PathBuf>,
-    inputs: StudyInputs,
+    pub inputs: StudyInputs,
     saved_view: Option<ViewState>,
     pub include_evidence: bool,
     runs_directory: PathBuf,
@@ -1071,32 +1071,18 @@ impl FarisApp {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
 
-        // Shortcuts and dropped files.
-        use egui::{Key, KeyboardShortcut, Modifiers};
-        let (save_as, save, open, dropped) = ctx.input_mut(|input| {
-            (
-                input.consume_shortcut(&KeyboardShortcut::new(
-                    Modifiers::COMMAND | Modifiers::SHIFT,
-                    Key::S,
-                )),
-                input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::S)),
-                input.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
-                input
-                    .raw
-                    .dropped_files
-                    .iter()
-                    .map(|f| f.path().to_path_buf())
-                    .find(|p| p.extension().is_some_and(|e| e == EXTENSION)),
-            )
+        // Dropped files. The Ctrl/Cmd+O, S and Shift+S shortcuts come from the
+        // command registry (`commands.rs`).
+        let dropped = ctx.input(|input| {
+            input
+                .raw
+                .dropped_files
+                .iter()
+                .map(|f| f.path().to_path_buf())
+                .find(|p| p.extension().is_some_and(|e| e == EXTENSION))
         });
         if let Some(path) = dropped {
             self.begin_open(ctx, path);
-        } else if save_as {
-            self.file_action(ctx, Action::SaveAs);
-        } else if save {
-            self.file_action(ctx, Action::Save);
-        } else if open {
-            self.file_action(ctx, Action::Open);
         }
 
         let current = self.view_state();

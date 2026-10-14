@@ -24,6 +24,11 @@ impl Default for Camera {
     }
 }
 
+/// A key press moves the camera as a pointer drag of this many points would.
+const KEY_STEP_POINTS: f32 = 12.5;
+/// Distance factor for one zoom-out key press.
+const KEY_ZOOM_FACTOR: f32 = 1.1;
+
 impl Camera {
     pub fn basis(&self) -> ([f32; 3], [f32; 3], [f32; 3], [f32; 3]) {
         let yaw = if self.yaw.is_finite() {
@@ -84,6 +89,46 @@ impl Camera {
         } else {
             (next, false)
         }
+    }
+
+    /// Pointer-drag motion: orbit, or pan when `pan` is set. Keyboard steps
+    /// use the same arithmetic through `nudge`.
+    pub fn drag(&mut self, delta: egui::Vec2, pan: bool) {
+        if pan {
+            let (_, right, up, _) = self.basis();
+            let per_point = self.distance * 0.002;
+            self.target = add(
+                self.target,
+                add(
+                    scale(right, -delta.x * per_point),
+                    scale(up, delta.y * per_point),
+                ),
+            );
+        } else {
+            self.yaw -= delta.x * 0.008;
+            self.pitch = (self.pitch + delta.y * 0.008).clamp(-1.35, 1.35);
+        }
+    }
+
+    /// Multiply the distance to the target, inside the allowed range.
+    pub fn zoom(&mut self, factor: f32) {
+        self.distance = (self.distance * factor).clamp(0.25, 100.0);
+    }
+
+    /// One keyboard step: arrows orbit (pan with `pan`), plus and minus zoom.
+    /// Returns whether the key means anything to the camera.
+    pub fn nudge(&mut self, key: egui::Key, pan: bool) -> bool {
+        let step = KEY_STEP_POINTS;
+        match key {
+            egui::Key::ArrowLeft => self.drag(egui::vec2(-step, 0.0), pan),
+            egui::Key::ArrowRight => self.drag(egui::vec2(step, 0.0), pan),
+            egui::Key::ArrowUp => self.drag(egui::vec2(0.0, -step), pan),
+            egui::Key::ArrowDown => self.drag(egui::vec2(0.0, step), pan),
+            egui::Key::Plus | egui::Key::Equals => self.zoom(KEY_ZOOM_FACTOR.recip()),
+            egui::Key::Minus => self.zoom(KEY_ZOOM_FACTOR),
+            _ => return false,
+        }
+        true
     }
 
     pub fn frame_bounds(&mut self, minimum: [f32; 3], maximum: [f32; 3]) {
@@ -164,6 +209,34 @@ mod tests {
         let endpoint = add(origin, scale(direction, camera.distance));
         let error = subtract(endpoint, camera.target);
         assert!(dot(error, error).sqrt() < 1e-4);
+    }
+
+    // Verifies: A11Y-001
+    #[test]
+    fn arrow_keys_move_the_camera_like_a_drag_and_plus_minus_zoom() {
+        let mut keyed = Camera::default();
+        let mut dragged = Camera::default();
+        assert!(keyed.nudge(egui::Key::ArrowRight, false));
+        dragged.drag(egui::vec2(KEY_STEP_POINTS, 0.0), false);
+        assert_eq!(keyed, dragged);
+        assert!(keyed.yaw < Camera::default().yaw);
+        let mut panned = Camera::default();
+        assert!(panned.nudge(egui::Key::ArrowUp, true));
+        assert_ne!(panned.target, Camera::default().target);
+        assert_eq!(panned.yaw, Camera::default().yaw);
+        let mut zoomed = Camera::default();
+        zoomed.nudge(egui::Key::Plus, false);
+        assert!(zoomed.distance < Camera::default().distance);
+        zoomed.nudge(egui::Key::Minus, false);
+        assert!((zoomed.distance - Camera::default().distance).abs() < 1e-4);
+        assert!(!zoomed.nudge(egui::Key::A, false));
+        // The ends of the range hold.
+        let mut limit = Camera::default();
+        for _ in 0..200 {
+            limit.nudge(egui::Key::ArrowUp, false);
+            limit.nudge(egui::Key::Plus, false);
+        }
+        assert!(limit.pitch >= -1.35 && limit.distance >= 0.25);
     }
 
     #[test]
