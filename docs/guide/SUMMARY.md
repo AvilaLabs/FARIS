@@ -5,6 +5,7 @@
 # Get started
 
 - [Download and verify](install.md)
+- [Supported platforms](platforms.md)
 - [Take the tour](quick-start.md)
 - [Keyboard](keyboard.md)
 
