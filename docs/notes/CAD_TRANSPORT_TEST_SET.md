@@ -76,6 +76,39 @@ limit of the test history (these are test machines, not designs).
    The search pays off only when sampling without it is long. Open: decide to aim from an
    estimate of the windows-only sampling time (for example a short windows-only pilot).
 
-## Addendum
+## Addendum: the large model (2026-10-14)
 
-The large model's transport result is added below when the run ends.
+Densities closed first (factor 1.34154; 1111.27 MW implied before, 2000 MW declared). The recheck took 124 s
+because it reused the earlier work.
+
+Transport took four attempts. Each of the first three stopped on the job runner's disk limits, and each was fixed
+in turn:
+
+| Run | Binary | Stopped by | Fix |
+|---|---|---|---|
+| 1 | 78c66ff | EFBIG: 129 MB of windows written as text into `model.xml`, over the 256 MiB single-file limit | windows go to an HDF5 file named by relative path (9a93ef6) |
+| 2 | 0295b75 | run folder over 512 MB: geometry, windows, a copy of the windows, and a 7.4 M-cell aiming map (194 MB) | no copy; map at most 2 M cells; the cap counts growth during the job, not what preparation left (9a93ef6) |
+| 3 | a4f1eaa | run step over 512 MB: each of five aiming targets' visibility runs left about 90 MB | each run's model and statepoint removed once read (43db3b8) |
+| 4 | 43db3b8 | no limit; cancelled by the 3400 s `timeout` wrapped around the command for this test | none needed |
+
+Run 4 used 365 MB at most. Preparation and aiming took about 8 minutes. The plan chose an aimed run with four
+targets. Sampling ran for 2.54 M histories in 2914 s.
+
+**Finding: one heavy history in the aimed run.** Over that time the error on the coil mean fell steadily to 5.5 %
+at 1.36 M histories. By 1.80 M it was 27.9 %, and it was still 20.5 % at 2.54 M. A single history or a few
+histories carried a weight that dominated the sum. The highest piece stayed between 13 and 17 %.
+
+The stop rule ends a run on the first batch at or below its target. It would have stopped this run correctly
+had 5 % been reached before the event. Had the event come later, it would have stopped with a mean that is
+biased low and an error that is too small.
+
+The stop-rule test on RM-M showed no such bias (−2.2 % ± 1.6 %). This large machine with an aimed source is a
+different case.
+
+Open, in order:
+1. Find the history and where it scored. That needs a rerun that keeps the per-batch tallies.
+2. Decide whether the aimed windows on this geometry need a lower weight ceiling.
+3. Make the stop rule refuse to stop while the batch series shows a recent jump. Candidates are the variance of
+   the variance, or the largest single batch's share of the sum, the checks MCNP's ten statistical tests make.
+
+No answer for this model is reported.
