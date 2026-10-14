@@ -19,6 +19,18 @@ basis.
   frame, and take arrow keys (orbit, Shift pans, + and − zoom, 0 resets, Enter reads out the centre; the plot
   moves its cursor year). The digit step keys now also work while a button has focus. The new Keyboard page of
   the handbook lists every key and is checked against the registry by a test.
+- Weight windows for the Production tier of the reactor study. With a Python that has OpenMC 0.16 or later
+  (`faris reactor run --window-python`, or the Window Python tool in the app, shared with the Design flux window),
+  a target-error run first makes windows aimed at the magnet fast flux (a random-ray adjoint on the study's own
+  geometry, the generator `faris design transport` already used, now one module for both) and then runs with them,
+  so the 5 % target is reached in 740,000 to 860,000 histories (5 minutes from the command, 2.5 to 3 minutes with
+  reused windows, 3 threads) instead of tens of millions. The windows serve the magnet fast flux only: the total
+  tritium is then known to 44 to 64 % instead of 0.09 %, and the result says so. The windows are kept in
+  `faris-transport-cache` by a hash of the model, materials, response, data and helper code and reused by the next
+  run (`--window-cache`, `--no-window-cache`). They are bound into the run's input by hash and checked again by
+  `faris reactor inspect`; the record and the result view say whether windows were used and, if not, why (no
+  window Python, or the helper failed: the run is then analog as before). A preview is always analog. Records
+  made before this verify unchanged. A run may no longer use the two seeds the window steps reserve.
 - A preview tier and a production tier for the reactor transport study. **Run quality** in the Transport panel
   replaces the two history-count choices: **Preview** is a fixed 90,000-history run that finishes in about a
   minute on two threads (the total-tritium error is stated, and the magnet fast flux is stated as roughly known),

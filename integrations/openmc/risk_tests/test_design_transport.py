@@ -215,7 +215,8 @@ class WindowHelpersTest(unittest.TestCase):
         DT.validate_request(request)
         # The only seeds the worker sets are the two reserved ones and the request's own, so no
         # step can draw its histories from another step's stream.
-        source = Path(DT.__file__).read_text()
+        import window_generator
+        source = Path(DT.__file__).read_text() + Path(window_generator.__file__).read_text()
         assigned = re.findall(r"\.seed = ([^\n]+)", source)
         self.assertEqual(sorted(assigned), sorted(["MGXS_SEED", "WINDOW_SEED", 'int(sampling["seed"])']))
 

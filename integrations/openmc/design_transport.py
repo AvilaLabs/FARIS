@@ -66,29 +66,18 @@ import sys
 import time
 from pathlib import Path
 
+from window_generator import (  # noqa: F401  (the tests and the other steps reach these through this module)
+    FILLER, FILLER_DENSITY_KG_M3, GROUP_EDGES_EV, MAX_SPLIT, MGXS, MGXS_SEED, RANDOM_RAY, SOURCE_ENERGY_EV,
+    WINDOW_CELL_CM, WINDOW_ID, WINDOW_MESH_ID, WINDOW_SEED, apply_windows, condense_multigroup, discard,
+    domain_source, export_model, filler_material, group_edges, label_windows, library_entries, response_lines, run_cli,
+    sha256_file, solve_windows, window_file_name, window_grid)
+
 REQUEST_SCHEMA = "faris-design-transport-request/v3"
 RESULT_SCHEMA = "faris-design-transport/v3"
 ENERGY_MAX_EV = 2.0e7
 TALLY_ID = 1
 OUTER_ID = 10_000_000
-WINDOW_MESH_ID = 9000        # streaming_aim.py reads the windows of the mesh with this id
-WINDOW_ID = 1
-FILLER = "faris-filler"      # random ray cannot cross true void; empty space gets hydrogen at 1 mg/cm3
-FILLER_DENSITY_KG_M3 = 1.0
-SOURCE_ENERGY_EV = 14.06e6
-WINDOW_CELL_CM = 25.0
-MAX_SPLIT = 1000
-# The steps that make the windows have their own fixed seeds, so that windows can be reused between runs; a run
-# may not use either seed, so it never shares a random stream with them (NUC-053).
-MGXS_SEED, WINDOW_SEED = 811_500_991, 811_500_993
 AIM_THRESHOLD_EV = 1.0e5     # the aiming helpers were built and measured for this threshold only
-# 17 groups, ten above 0.1 MeV (S0f pilot p1-fr).
-GROUP_EDGES_EV = [0.0, 0.058, 0.14, 0.28, 0.625, 4.0, 5530.0, 1.0e5, 5.0e5, 8.21e5, 1.353e6, 2.231e6, 3.679e6,
-                  6.0655e6, 1.0e7, 1.3e7, 1.5e7, 2.0e7]
-MGXS = {"method": "stochastic_slab", "correction": "P0", "nparticles": 20000, "batches": 60}
-RANDOM_RAY = {"rays": 20000, "batches": 60, "inactive": 30, "distance_inactive_cm": 500.0,
-              "distance_active_cm": 2500.0, "source_shape": "flat", "volume_estimator": "hybrid",
-              "diagonal_stabilization_rho": 1.0, "sample_method": "prng"}
 PROGRESS_SECONDS = 5.0
 # A neutron the geometry cannot place is lost. Above this share of the histories the answer is not trusted.
 LOST_FRACTION_LIMIT = 1.0e-6
@@ -100,14 +89,6 @@ PEAK_RAYS = 2_000_000        # rays that measure how much of each ring lies in e
 PEAK_TARGET_FACTOR = 2.0     # the highest piece is held to this many times the target on the mean
 PEAK_MIN_FILL = 0.25         # a piece spanning under this share of the solid's widest toroidal angle is a sliver
 PEAK_SIGMAS = 2.0            # the leading piece is the highest after this many standard errors are taken off
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with Path(path).open("rb") as stream:
-        for block in iter(lambda: stream.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -207,45 +188,6 @@ def retagged(values, names: dict[bytes, bytes], width: int) -> tuple[list[bytes]
         out.append(new.ljust(width, b"\0"))
         hits += 1
     return out, hits
-
-
-def library_entries(names: list[str], stored: list[str]) -> dict[str, str]:
-    """The multigroup library's entry for each material. The library rewrites characters such as `-`, so names
-    are compared with everything but letters and digits made equal; each must match exactly one entry."""
-    def plain(name: str) -> str:
-        return "".join(c if c.isalnum() else "_" for c in name)
-
-    out = {}
-    for name in names:
-        hits = [entry for entry in stored if plain(entry) == plain(name)]
-        if len(hits) != 1:
-            raise ValueError(f"the multigroup library has {len(hits)} entries for the material {name}")
-        out[name] = hits[0]
-    if len(set(out.values())) != len(out):
-        raise ValueError("two materials share one entry of the multigroup library")
-    return out
-
-
-def group_edges(energy_min_ev: float) -> list[float]:
-    """The group structure for a response above `energy_min_ev`: the standard edges, with the threshold added
-    as an edge if it is not one already."""
-    if energy_min_ev in GROUP_EDGES_EV:
-        return list(GROUP_EDGES_EV)
-    return sorted(GROUP_EDGES_EV + [float(energy_min_ev)])
-
-
-def response_lines(edges_ev: list[float], energy_min_ev: float) -> list[float]:
-    """One energy per group at or above the threshold, for the adjoint source: the geometric midpoint of the
-    group, or the arithmetic one for a group that starts at zero. Random ray maps each to its group."""
-    edges = edges_ev[edges_ev.index(energy_min_ev):]
-    return [math.sqrt(a * b) if a > 0.0 else 0.5 * b for a, b in zip(edges, edges[1:])]
-
-
-def window_grid(lower: list[float], upper: list[float], cell_cm: float = WINDOW_CELL_CM) -> tuple[list[float], list[float], list[int]]:
-    """A box around the model, 5 cm clear on every side, in cells of about `cell_cm`."""
-    lo = [math.floor(v - 5.0) for v in lower]
-    hi = [math.ceil(v + 5.0) for v in upper]
-    return [float(v) for v in lo], [float(v) for v in hi], [max(1, round((h - l) / cell_cm)) for l, h in zip(lo, hi)]
 
 
 def ring_edges(low: float, high: float, step: float | None) -> list[float]:
@@ -488,10 +430,7 @@ def build_model(openmc, request: dict, geometry: Path, random_ray: bool = False)
             material.temperature = entry["temperature_k"]
         materials[entry["material_id"]] = material
     if random_ray:
-        filler = openmc.Material(material_id=len(entries) + 1, name=FILLER)
-        filler.add_nuclide("H1", 1.0, percent_type="ao")
-        filler.set_density("kg/m3", FILLER_DENSITY_KG_M3)
-        materials[FILLER] = filler
+        materials[FILLER] = filler_material(openmc, len(entries) + 1)
     universe = openmc.DAGMCUniverse(str(geometry))
     box = universe.bounding_box
     radius = 1.05 * max(math.sqrt(sum(c * c for c in corner)) for corner in (box.lower_left, box.upper_right))
@@ -516,143 +455,34 @@ def response_materials(request: dict) -> list[str]:
 
 def point_source(openmc, request: dict):
     """14.06 MeV neutrons born uniformly in the plasma chamber: the source of the deterministic steps."""
-    chamber = openmc.Cell(cell_id=volume_ids(request)[request["chamber_solid_id"]])
-    return openmc.IndependentSource(energy=openmc.stats.Discrete([SOURCE_ENERGY_EV], [1.0]), particle="neutron",
-                                    constraints={"domains": [chamber]}, strength=1.0)
-
-
-def discard(directory: Path, keep: set[str]) -> None:
-    """Remove a finished step's files other than `keep`: the run directory has a size limit."""
-    for path in Path(directory).iterdir():
-        if path.is_file() and path.name not in keep:
-            path.unlink()
-
-
-def run_cli(directory: Path, threads: int, log_name: str) -> None:
-    """Run the openmc program beside this interpreter in `directory`."""
-    import subprocess
-
-    exe = Path(sys.executable).parent / "openmc"
-    with (directory / log_name).open("w") as log:
-        done = subprocess.run([str(exe), "--threads", str(threads)], cwd=directory, stdout=log, stderr=subprocess.STDOUT)
-    if done.returncode != 0:
-        tail = (directory / log_name).read_text(errors="replace")[-2000:]
-        raise RuntimeError(f"openmc exited {done.returncode} in {directory}:\n{tail}")
+    return domain_source(openmc, openmc.Cell(cell_id=volume_ids(request)[request["chamber_solid_id"]]))
 
 
 def phase_mgxs(request: dict, work: Path) -> dict:
     """Condense the library to the response's group structure on the design's materials. Writes WORK/mgxs/mgxs.h5."""
     import openmc
-    import openmc.mgxs
 
-    directory = work / "mgxs"
-    directory.mkdir(parents=True, exist_ok=True)
-    started = time.monotonic()
     edges = group_edges(float(request["response"]["energy_min_ev"]))
     geometry = geometry_copy(request, work / "geometry" / "model-rr.h5m", random_ray=True)
     model, _, _ = build_model(openmc, request, geometry, random_ray=True)
-    model.settings.source = [point_source(openmc, request)]
-    model.settings.batches = MGXS["batches"]
-    model.settings.particles = MGXS["nparticles"]
-    model.settings.seed = MGXS_SEED
-    os.environ["PATH"] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")
-    os.environ["OMP_NUM_THREADS"] = str(int(request["sampling"]["threads"]))
-    target = directory / "mgxs.h5"
-    here = os.getcwd()
-    os.chdir(directory)
-    try:
-        model.convert_to_multigroup(method=MGXS["method"], groups=openmc.mgxs.EnergyGroups(edges),
-                                    nparticles=MGXS["nparticles"], overwrite_mgxs_library=False,
-                                    mgxs_path=str(target), correction=MGXS["correction"])
-    finally:
-        os.chdir(here)
-    if not target.is_file():
-        raise RuntimeError("the multigroup step wrote no library")
-    discard(directory, keep={"mgxs.h5"})
-    record = {"schema": "faris-design-mgxs/v1", "openmc": openmc.__version__, "parameters": MGXS,
-              "group_edges_ev": edges, "mgxs_sha256": sha256_file(target),
-              "elapsed_seconds": time.monotonic() - started}
-    (directory / "record.json").write_text(json.dumps(record, indent=1) + "\n")
-    return record
+    return condense_multigroup(openmc, model, edges, point_source(openmc, request), work / "mgxs",
+                               int(request["sampling"]["threads"]))
 
 
 def phase_windows(request: dict, work: Path) -> dict:
     """Random-ray adjoint of the response and CADIS weight windows from it. Writes WORK/windows/filled.h5."""
-    import shutil
-
     import openmc
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent / "risk_tests"))
-    import s0f_common
-
-    directory = work / "windows"
-    directory.mkdir(parents=True, exist_ok=True)
-    started = time.monotonic()
-    threads = int(request["sampling"]["threads"])
     geometry = work / "geometry" / "model-rr.h5m"
     if not geometry.is_file():
         geometry_copy(request, geometry, random_ray=True)
-    library = directory / "mgxs.h5"
-    shutil.copyfile(work / "mgxs" / "mgxs.h5", library)
     model, universe, materials = build_model(openmc, request, geometry, random_ray=True)
-    # Each material points at its macroscopic entry, under its own name.
-    model.materials.cross_sections = str(library)
-    import h5py
-
-    with h5py.File(library, "r") as stored:
-        entries = library_entries([m.name for m in model.materials], list(stored.keys()))
-    for material in model.materials:
-        material.set_density("macro", 1.0)
-        material._nuclides = []
-        material._sab = []
-        material.add_macroscopic(entries[material.name])
-    settings = model.settings
-    settings.energy_mode = "multi-group"
-    settings.source = [point_source(openmc, request)]
-    settings.batches, settings.inactive = RANDOM_RAY["batches"], RANDOM_RAY["inactive"]
-    settings.particles = RANDOM_RAY["rays"]
-    settings.seed = WINDOW_SEED
-    settings.output = {"tallies": False, "summary": False}
     box = universe.bounding_box
-    lower, upper, dimension = window_grid(list(box.lower_left), list(box.upper_right))
-    mesh = openmc.RegularMesh(name="ww-mesh")
-    mesh.lower_left, mesh.upper_right, mesh.dimension = lower, upper, dimension
-    threshold = float(request["response"]["energy_min_ev"])
-    edges = group_edges(threshold)
-    lines = response_lines(edges, threshold)
-    # The response is the flux above the threshold: weight 1 in each group above it, uniform over its materials.
-    adjoint = openmc.IndependentSource(
-        energy=openmc.stats.Discrete(lines, [1.0 / len(lines)] * len(lines)), particle="neutron",
-        constraints={"domains": [materials[m] for m in response_materials(request)]}, strength=1.0)
-    settings.random_ray = {
-        "distance_inactive": RANDOM_RAY["distance_inactive_cm"], "distance_active": RANDOM_RAY["distance_active_cm"],
-        "ray_source": openmc.IndependentSource(space=openmc.stats.Box(lower, upper)),
-        "volume_estimator": RANDOM_RAY["volume_estimator"], "source_shape": RANDOM_RAY["source_shape"],
-        "adjoint": False, "sample_method": RANDOM_RAY["sample_method"],
-        "diagonal_stabilization_rho": RANDOM_RAY["diagonal_stabilization_rho"],
-        "source_region_meshes": [(mesh, [openmc.Universe(universe_id=universe.id)])],
-        "adjoint_source": [adjoint],
-    }
-    settings.weight_window_generators = [openmc.WeightWindowGenerator(
-        mesh=mesh, energy_bounds=list(edges), particle_type="neutron", method="fw_cadis",
-        max_realizations=RANDOM_RAY["batches"] - RANDOM_RAY["inactive"])]
-    model.export_to_model_xml(str(directory))
-    run_cli(directory, threads, "openmc.log")
-    files = sorted(directory.glob("weight_windows*.h5"))
-    if not files:
-        raise RuntimeError("the random-ray run wrote no weight windows")
-    filled = directory / "filled.h5"
-    fill = s0f_common.fill_file(files[0], filled)
-    label_windows(filled)
-    record = {"schema": "faris-design-windows/v1", "openmc": openmc.__version__, "parameters": RANDOM_RAY,
-              "method": "CADIS: random-ray adjoint of the response, bins without a value filled from neighbours",
-              "mesh": {"lower_left": lower, "upper_right": upper, "dimension": dimension},
-              "group_edges_ev": edges, "mgxs_sha256": sha256_file(library),
-              "weight_windows_sha256": sha256_file(files[0]), "filled_sha256": sha256_file(filled),
-              "bins_filled_per_group": fill["bins_filled_per_group"],
-              "elapsed_seconds": time.monotonic() - started}
-    (directory / "record.json").write_text(json.dumps(record, indent=1) + "\n")
-    discard(directory, keep={"filled.h5", "record.json", "openmc.log"})
+    record = solve_windows(
+        openmc, model, universe, point_source(openmc, request),
+        [materials[m] for m in response_materials(request)], float(request["response"]["energy_min_ev"]),
+        window_grid(list(box.lower_left), list(box.upper_right)), work / "mgxs" / "mgxs.h5", work / "windows",
+        int(request["sampling"]["threads"]))
     geometry.unlink()
     return record
 
@@ -726,79 +556,6 @@ def phase_volumes(request: dict, work: Path) -> dict:
     return record
 
 
-
-
-def label_windows(path: Path) -> None:
-    """Give a weight-window file FARIS's window id, split limit and mesh id, in place. The window step does this
-    to its own `filled.h5` before hashing it, so every run reads that file where it lies instead of a copy (on a
-    large machine the file is over 100 MB, and a copy per run pushed the run directory past the job's disk cap).
-    The window id in the group name is only a label: OpenMC numbers a window it loads itself."""
-    import h5py
-
-    with h5py.File(path, "r+") as stream:
-        windows = stream["weight_windows"]
-        group = windows[next(iter(windows))]
-        label = f"weight_windows_{WINDOW_ID}"
-        if group.name.rsplit("/", 1)[-1] != label:
-            windows.move(group.name.rsplit("/", 1)[-1], label)
-        windows.attrs["ids"] = [WINDOW_ID]
-        windows.attrs["n_weight_windows"] = 1
-        group = windows[label]
-        group["max_split"][...] = MAX_SPLIT
-        group["mesh"][...] = WINDOW_MESH_ID
-        meshes = stream["meshes"]
-        old = next(iter(meshes))
-        if old != f"mesh {WINDOW_MESH_ID}":
-            meshes.move(old, f"mesh {WINDOW_MESH_ID}")
-        meshes[f"mesh {WINDOW_MESH_ID}"].attrs["id"] = WINDOW_MESH_ID
-        meshes.attrs["ids"] = [WINDOW_MESH_ID]
-        meshes.attrs["n_meshes"] = 1
-
-
-def window_file_name(windows: Path, directory: Path) -> str:
-    """How a run started in DIRECTORY names the weight-window file WINDOWS: a relative path, so the model does
-    not depend on where the run directory lies."""
-    return os.path.relpath(windows, directory)
-
-
-def apply_windows(openmc, model, windows: Path, directory: Path):
-    """Make the model read its weight windows from the file WINDOWS (labelled by `label_windows`) and return their
-    mesh.
-
-    The windows are not written into the model's XML: on a large machine their bounds are hundreds of megabytes
-    of text that OpenMC must parse again at every run, and they are not copied either. OpenMC loads the bounds
-    from the file and takes the mesh by the id stored in it, so the mesh must be in the model: pass the returned
-    mesh to `export_model`. The model names the file relative to DIRECTORY, where the run must start."""
-    import h5py
-
-    with h5py.File(windows, "r") as stream:
-        mesh = openmc.MeshBase.from_hdf5(stream["meshes"][f"mesh {WINDOW_MESH_ID}"])
-    mesh.id = WINDOW_MESH_ID
-    # a relative name: openmc would write the path of this process's directory, and the run starts in its own
-    resolve = openmc.config["resolve_paths"]
-    openmc.config["resolve_paths"] = False
-    try:
-        model.settings.weight_windows_file = Path(window_file_name(windows, directory))
-    finally:
-        openmc.config["resolve_paths"] = resolve
-    model.settings.weight_windows_on = True
-    model.settings.weight_window_checkpoints = {"collision": True, "surface": True}
-    return mesh
-
-
-def export_model(model, path: Path, window_mesh=None) -> None:
-    """Write the model as one XML file, with the mesh of file-borne weight windows (from `apply_windows`) in its
-    settings: the window file names the mesh by id and OpenMC looks it up among the model's meshes."""
-    model.export_to_model_xml(str(path))
-    if window_mesh is None:
-        return
-    import xml.etree.ElementTree as ET
-
-    text = Path(path).read_text()
-    element = window_mesh.to_xml_element()
-    ET.indent(element, space="  ", level=2)
-    at = text.index("</settings>")
-    Path(path).write_text(text[:at] + "  " + ET.tostring(element, encoding="unicode") + "\n  " + text[at:])
 
 
 CAPPED_WINDOWS = "windows-capped.h5"   # in WORK/aim: the run's windows after aiming lowered them along the line of sight

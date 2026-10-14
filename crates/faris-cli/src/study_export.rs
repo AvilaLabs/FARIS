@@ -325,6 +325,7 @@ mod tests {
             normalized_spectra: None,
             sampling_precision_summary: None,
             sampling_outcome: None,
+            variance_reduction: None,
             scientific_qualification: "NOT_EVALUATED".into(),
             notice: "test".into(),
         }

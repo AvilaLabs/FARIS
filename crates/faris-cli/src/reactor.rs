@@ -4,8 +4,8 @@ use faris_engine::{
     build_manifest,
     jobs::ExecutionStatus,
     reactor::{
-        FieldMesh, MeshPreset, ReactorJob, SamplingPlan, load_physics_case, load_reactor_run,
-        run_reactor,
+        FieldMesh, MeshPreset, ReactorJob, SamplingPlan, WindowOptions, load_physics_case,
+        load_reactor_run, run_reactor,
     },
 };
 use faris_model::{LoadedScenario, transport::ResponseDomain};
@@ -54,6 +54,17 @@ pub enum ReactorCommand {
         /// boundaries of the TENDL-2025 activation library (for activation inputs).
         #[arg(long, value_parser = ["fispact-709"])]
         activation_spectra: Option<String>,
+        /// A Python with OpenMC 0.16 or later. With --target-error it makes weight windows aimed at the
+        /// magnet fast flux first, so the run needs far fewer histories; without it the run is analog and
+        /// its record says so.
+        #[arg(long)]
+        window_python: Option<PathBuf>,
+        /// Where weight windows are kept between runs [default: `faris-transport-cache` beside --output].
+        #[arg(long, requires = "window_python", conflicts_with = "no_window_cache")]
+        window_cache: Option<PathBuf>,
+        /// Make the weight windows for this run only.
+        #[arg(long, requires = "window_python")]
+        no_window_cache: bool,
     },
     /// Revalidate a saved run's exact input, artifact, volumes, and normalization.
     Inspect {
@@ -92,6 +103,9 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             target_error,
             mesh_preset,
             activation_spectra,
+            window_python,
+            window_cache,
+            no_window_cache,
         } => run_case(
             scenario,
             physics,
@@ -108,6 +122,9 @@ pub fn run(command: ReactorCommand) -> Result<(), Box<dyn std::error::Error>> {
             target_error,
             mesh_preset,
             activation_spectra,
+            window_python,
+            window_cache,
+            no_window_cache,
         ),
         ReactorCommand::Inspect { scenario, run } => inspect(scenario, run),
     }
@@ -130,6 +147,9 @@ fn run_case(
     target_error: Option<f64>,
     mesh_preset: String,
     activation_spectra: Option<String>,
+    window_python: Option<PathBuf>,
+    window_cache: Option<PathBuf>,
+    no_window_cache: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = LoadedScenario::from_bytes(&read_bounded(&scenario)?)?;
     let physics = load_physics_case(&physics, &scenario)
@@ -155,6 +175,14 @@ fn run_case(
     #[cfg(not(unix))]
     let cancellation = &interrupts;
     let output_absolute = std::path::absolute(&output)?;
+    let cache = (!no_window_cache).then(|| {
+        window_cache.unwrap_or_else(|| {
+            output_absolute
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join(faris_engine::reactor::WINDOW_CACHE_NAME)
+        })
+    });
     const ADAPTER: &[u8] = include_bytes!("../../../integrations/openmc/reactor_transport.py");
     eprintln!(
         "Running fixed-source OpenMC job ({}{} batches × {} particles; {} thread(s), {}s limit). Ctrl-C cancels the process group.",
@@ -177,6 +205,10 @@ fn run_case(
         timeout: Duration::from_secs(timeout_seconds),
         activation_spectra,
         adapter: ADAPTER,
+        windows: window_python.as_deref().map(|python| WindowOptions {
+            python,
+            cache_dir: cache.as_deref(),
+        }),
     };
     let run = run_reactor(&job, cancellation)
         .map_err(|error| std::io::Error::other(error.to_string()))?;
@@ -193,6 +225,12 @@ fn run_case(
     );
     if let Some(outcome) = &run.sampling_outcome {
         println!("{}", outcome.summary());
+    }
+    if let Some(variance) = &run.variance_reduction {
+        println!("{}", variance.summary());
+    }
+    if let Some(caveat) = run.windows_caveat() {
+        println!("{caveat}");
     }
     if execution != Some(ExecutionStatus::Succeeded) {
         let reason = run
@@ -286,6 +324,15 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "summary": outcome.summary(),
         });
     }
+    if let Some(variance) = &run.variance_reduction {
+        inspection["variance_reduction"] = serde_json::json!({
+            "mode": variance.mode,
+            "windows_reused": variance.windows_reused,
+            "generation_seconds": variance.generation_seconds,
+            "summary": variance.summary(),
+            "caveat": run.windows_caveat(),
+        });
+    }
     println!("{}", serde_json::to_string_pretty(&inspection)?);
     Ok(())
 }
@@ -318,6 +365,9 @@ mod tests {
             "--target-error",
             "--mesh-preset",
             "--activation-spectra",
+            "--window-python",
+            "--window-cache",
+            "--no-window-cache",
         ] {
             assert!(help.contains(option), "missing {option} in help: {help}");
         }

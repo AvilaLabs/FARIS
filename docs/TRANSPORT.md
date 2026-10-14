@@ -168,6 +168,22 @@ N, and that the stop is explained (target met, or the whole budget used); the wo
 the plan before accepting the artifact's history count. Without a target nothing changes: the batch count is
 exact and the receipt's stop reason is `fixed_count`.
 
+A target-error run can use weight windows (`--window-python`, the Window Python tool in the app). Before the run, the
+engine runs `reactor_windows.py` in a Python with OpenMC 0.16: it builds the run's own geometry with
+`reactor_transport.compose` (empty space filled with 1 mg/cm3 hydrogen, because random ray cannot cross void),
+condenses the library to 17 groups on the model's materials by a stochastic slab, solves the adjoint of the
+`magnets-fast-flux` response (flux above its threshold in the component it names) by random ray on a 25 cm mesh
+and writes CADIS windows (`window_generator.py`, the module `faris design transport` shares). The windows are
+kept in `faris-transport-cache` under a hash of the manifest, physics, request (without the field-mesh
+responses), cross-section file, window Python and helper code. The run directory holds the file as
+`windows.h5` and the helper's record as `windows-record.json`; `input.json` names both with their hashes
+(`variance_reduction`, absent for an analog run so earlier inputs keep their bytes), the worker refuses a file that
+does not match, reads the windows through `settings.weight_windows_file` and puts their mesh in `settings.xml`,
+and its receipt says which windows it read. `load_reactor_run` checks all three. A target-error run without a window
+Python, or whose helper fails, is analog and the run record's `variance_reduction` says why. Windows are for
+neutrons: photons born in the run are not windowed, so the heating responses gain little from them. A run may not
+use the two seeds the window steps reserve (811500991 and 811500993).
+
 A reactor run accepts 30 to 1000 batches and at most 50 million histories
 (`MAX_RUN_HISTORIES`). Wall time is bounded separately by `--timeout-seconds`
 (default 3,600 s, at most 14,400 s, `MAX_RUN_TIMEOUT_SECONDS`); a 30 million

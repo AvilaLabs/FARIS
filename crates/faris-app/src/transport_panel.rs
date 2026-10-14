@@ -1,10 +1,14 @@
-use crate::badge::{self, Kind};
+use crate::{
+    badge::{self, Kind},
+    design_tools::SharedTools,
+    settings::Tool,
+};
 use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,
     reactor::{
-        FieldMesh, MeshPreset, ReactorJob, ReactorRun, SamplingPlan, load_physics_case,
-        load_reactor_run, run_reactor,
+        FieldMesh, MeshPreset, ReactorJob, ReactorRun, SamplingPlan, WindowOptions,
+        load_physics_case, load_reactor_run, run_reactor,
     },
     transport::NormalizedTally,
 };
@@ -51,6 +55,11 @@ const PRODUCTION_TARGET: f64 = 0.05;
 /// from the 30th on.
 const PRODUCTION_BATCHES: u32 = 200;
 const PRODUCTION_PARTICLES: u32 = 250_000;
+/// With weight windows the magnet flux reaches 5 % in well under a million histories, and a run never stops
+/// before 30 batches, so the batches must be small: 1,000 of 20,000 is a 20 million history budget. Measured on
+/// the cold-coupled control, coarse mesh, 3 threads: 5 % after 30 to 40 such batches.
+const WINDOWED_PRODUCTION_BATCHES: u32 = 1_000;
+const WINDOWED_PRODUCTION_PARTICLES: u32 = 20_000;
 
 /// Threads for a run: all but one of the machine's, at most four, at least one.
 fn run_threads() -> u32 {
@@ -58,7 +67,7 @@ fn run_threads() -> u32 {
     available.saturating_sub(1).clamp(1, 4) as u32
 }
 
-fn sampling_for(tier: Tier, threads: u32) -> SamplingPlan {
+fn sampling_for(tier: Tier, threads: u32, windows: bool) -> SamplingPlan {
     match tier {
         Tier::Preview => SamplingPlan {
             batches: PREVIEW_BATCHES,
@@ -67,8 +76,16 @@ fn sampling_for(tier: Tier, threads: u32) -> SamplingPlan {
             ..SamplingPlan::default()
         },
         Tier::Production => SamplingPlan {
-            batches: PRODUCTION_BATCHES,
-            particles_per_batch: PRODUCTION_PARTICLES,
+            batches: if windows {
+                WINDOWED_PRODUCTION_BATCHES
+            } else {
+                PRODUCTION_BATCHES
+            },
+            particles_per_batch: if windows {
+                WINDOWED_PRODUCTION_PARTICLES
+            } else {
+                PRODUCTION_PARTICLES
+            },
             threads,
             target_relative_error: Some(PRODUCTION_TARGET),
             ..SamplingPlan::default()
@@ -116,6 +133,9 @@ pub struct TransportPanel {
     audit: String,
     cross_sections: String,
     runs_directory: PathBuf,
+    /// The Python with OpenMC 0.16 for Production windows, as last read from the tool paths the design windows
+    /// share (a plain string, because panels are built on a thread and handed over).
+    window_python: String,
     tier: Tier,
     mesh_preset: MeshPreset,
     pending: Option<Pending>,
@@ -212,6 +232,7 @@ impl TransportPanel {
             audit: path_text(config.audit),
             cross_sections: path_text(config.cross_sections),
             runs_directory: config.runs_directory,
+            window_python: String::new(),
             tier: Tier::default(),
             mesh_preset: MeshPreset::Coarse,
             pending: None,
@@ -221,6 +242,12 @@ impl TransportPanel {
             view: FieldView::default(),
             slice: 4,
         })
+    }
+
+    /// The Python with OpenMC 0.16 that makes weight windows, when one is set.
+    fn window_python(&self) -> Option<PathBuf> {
+        let value = self.window_python.trim();
+        (!value.is_empty()).then(|| PathBuf::from(value))
     }
 
     pub fn case(&self, variant: &str) -> Option<&PhysicsCase> {
@@ -348,7 +375,14 @@ impl TransportPanel {
         let openmc = PathBuf::from(&self.openmc);
         let audit = PathBuf::from(&self.audit);
         let cross_sections = PathBuf::from(&self.cross_sections);
-        let sampling = sampling_for(self.tier, run_threads());
+        // Only a Production run uses windows, so a Preview never waits for them.
+        let window_python = self
+            .window_python()
+            .filter(|_| self.tier == Tier::Production);
+        let sampling = sampling_for(self.tier, run_threads(), window_python.is_some());
+        let window_cache = self
+            .runs_directory
+            .join(faris_engine::reactor::WINDOW_CACHE_NAME);
         let mesh = match faris_engine::build_manifest(&scenario)
             .map_err(|e| e.to_string())
             .and_then(|m| FieldMesh::for_preset(&m, self.mesh_preset).map_err(|e| e.to_string()))
@@ -387,6 +421,10 @@ impl TransportPanel {
                     timeout: Duration::from_secs(faris_engine::reactor::MAX_RUN_TIMEOUT_SECONDS),
                     activation_spectra: None,
                     adapter: include_bytes!("../../../integrations/openmc/reactor_transport.py"),
+                    windows: window_python.as_deref().map(|python| WindowOptions {
+                        python,
+                        cache_dir: Some(&window_cache),
+                    }),
                 };
                 let result =
                     run_reactor(&job, &worker_cancellation).map_err(|error| error.to_string());
@@ -405,7 +443,10 @@ impl TransportPanel {
         }
     }
 
-    pub fn controls(&mut self, ui: &mut egui::Ui, variant: &str) {
+    pub fn controls(&mut self, ui: &mut egui::Ui, variant: &str, tools: Option<&SharedTools>) {
+        if let Some(tools) = tools {
+            self.window_python = tools.borrow().value(Tool::WindowPython);
+        }
         ui.strong("Run and review transport");
         ui.horizontal_wrapped(|ui| {
             if let Some(case) = self.case(variant) {
@@ -430,6 +471,19 @@ impl TransportPanel {
                 ui.label(label);
                 ui.add(egui::TextEdit::singleline(path).desired_width(f32::INFINITY));
             }
+            if let Some(tools) = tools {
+                ui.label("Window Python (OpenMC 0.16, for Production)");
+                let mut text = self.window_python.clone();
+                if ui
+                    .add(egui::TextEdit::singleline(&mut text).desired_width(f32::INFINITY))
+                    .changed()
+                {
+                    let mut tools = tools.borrow_mut();
+                    tools.set(Tool::WindowPython, &text);
+                    tools.flush(ui.ctx().egui_wants_keyboard_input());
+                    self.window_python = text;
+                }
+            }
             egui::ComboBox::from_id_salt("fresh-field-mesh")
                 .selected_text(match self.mesh_preset {MeshPreset::Coarse => "Whole model · coarse", MeshPreset::OutboardLocalCoarse => "Port region · coarse", MeshPreset::OutboardLocal => "Port region · fine", MeshPreset::OutboardPortWindow => "Direct port-window average"})
                 .show_ui(ui, |ui| {
@@ -446,7 +500,8 @@ impl TransportPanel {
         );
         ui.small(match self.tier {
             Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
-            Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. This can take hours; you can cancel at any time.",
+            Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (a few minutes, kept for the next run on the same model), then runs until it is known to 5 %, or until the 20 million history budget is used. You can cancel at any time.",
+            Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
         });
         if let Some(pending) = &self.pending {
             ui.horizontal(|ui| {
@@ -505,6 +560,12 @@ impl TransportPanel {
                 match &record.sampling_outcome {
                     Some(outcome) if outcome.target_relative_error.is_some() => {
                         ui.label(outcome.summary());
+                        if let Some(variance) = &record.variance_reduction {
+                            ui.label(variance.summary());
+                        }
+                        if let Some(caveat) = record.windows_caveat() {
+                            ui.label(caveat);
+                        }
                     }
                     _ => {
                         let relative = |id: &str| {
@@ -951,10 +1012,12 @@ mod tests {
     fn both_tiers_are_valid_sampling_plans() {
         for threads in [1, 4] {
             for tier in [Tier::Preview, Tier::Production] {
-                sampling_for(tier, threads).validate().unwrap();
+                for windows in [false, true] {
+                    sampling_for(tier, threads, windows).validate().unwrap();
+                }
             }
         }
-        let preview = sampling_for(Tier::Preview, 2);
+        let preview = sampling_for(Tier::Preview, 2, false);
         assert_eq!(preview.target_relative_error, None);
         assert!(
             u64::from(preview.batches) * u64::from(preview.particles_per_batch) <= 100_000,
@@ -965,14 +1028,25 @@ mod tests {
     // Verifies: PERF-025, NUC-043
     #[test]
     fn production_stops_on_a_target_within_the_history_cap() {
-        let production = sampling_for(Tier::Production, 3);
+        let production = sampling_for(Tier::Production, 3, false);
         assert_eq!(production.target_relative_error, Some(0.05));
         assert_eq!(
             u64::from(production.batches) * u64::from(production.particles_per_batch),
             faris_engine::reactor::MAX_RUN_HISTORIES
         );
         assert_eq!(tier_label(&production), "Production tier");
-        assert_eq!(tier_label(&sampling_for(Tier::Preview, 1)), "Preview tier");
+        assert_eq!(
+            tier_label(&sampling_for(Tier::Preview, 1, false)),
+            "Preview tier"
+        );
+        // With windows the batches are small, so a run can stop soon after its 30th batch.
+        let windowed = sampling_for(Tier::Production, 3, true);
+        assert_eq!(windowed.target_relative_error, Some(0.05));
+        assert!(
+            u64::from(windowed.batches) * u64::from(windowed.particles_per_batch)
+                <= faris_engine::reactor::MAX_RUN_HISTORIES
+        );
+        assert!(30 * u64::from(windowed.particles_per_batch) <= 1_000_000);
         assert_eq!(tier_label(&SamplingPlan::default()), "Fixed history count");
     }
 

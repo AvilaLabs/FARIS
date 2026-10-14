@@ -20,8 +20,8 @@ use super::life::{FluenceAssessment, LimitStatus, PowerHistory, assess_fluence, 
 use super::{
     AIM_COMMON_HELPER, AIM_TARGETS_HELPER, AIM_WINDOWS_HELPER, CAD_ADDRESS_SPACE,
     DESIGN_TRANSPORT_WORKER, DesignError, DesignIdentity, ImportReport, Launched, MAX_JSON_BYTES,
-    STREAMING_AIM_HELPER, ToolPaths, io_error, launch_python_with_lines, resolve, sha256_file,
-    sha256_hex,
+    STREAMING_AIM_HELPER, ToolPaths, WINDOW_GENERATOR_HELPER, io_error, launch_python_with_lines,
+    resolve, sha256_file, sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
 use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
@@ -52,7 +52,7 @@ const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 /// Names the way weight windows, the channel search and piece volumes are made. Kept results are
 /// reused only under the same name: change it whenever one of those steps changes what it writes.
-const PREPARATION_RECIPE: &str = "2026-10-14b";
+const PREPARATION_RECIPE: &str = "2026-10-14c";
 const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.
@@ -932,6 +932,7 @@ pub fn design_transport(
     for (path, text) in [
         (script.clone(), DESIGN_TRANSPORT_WORKER),
         (dir.join("streaming_aim.py"), STREAMING_AIM_HELPER),
+        (dir.join("window_generator.py"), WINDOW_GENERATOR_HELPER),
         (helpers.join("s0f_common.py"), AIM_COMMON_HELPER),
         (helpers.join("s0f_find_targets.py"), AIM_TARGETS_HELPER),
         (helpers.join("s0f_los_windows.py"), AIM_WINDOWS_HELPER),

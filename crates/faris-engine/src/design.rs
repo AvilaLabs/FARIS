@@ -78,6 +78,8 @@ const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
 const DESIGN_TRANSPORT_WORKER: &str =
     include_str!("../../../integrations/openmc/design_transport.py");
+const WINDOW_GENERATOR_HELPER: &str =
+    include_str!("../../../integrations/openmc/window_generator.py");
 const STREAMING_AIM_HELPER: &str = include_str!("../../../integrations/openmc/streaming_aim.py");
 const AIM_COMMON_HELPER: &str =
     include_str!("../../../integrations/openmc/risk_tests/s0f_common.py");

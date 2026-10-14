@@ -125,6 +125,12 @@ BATCH_VALUES_SCHEMA = "faris-transport-batch-values/v0.1"
 BATCH_VALUES_FILE = "transport-batch-values.json"
 BATCH_MEAN_REL_TOLERANCE = 1.0e-12
 BATCH_STD_REL_TOLERANCE = 1.0e-9
+# Weight windows made by reactor_windows.py (OpenMC 0.16) and read by this worker from the run directory. The
+# window mesh id is the one window_generator.label_windows writes into the file; a test keeps the two equal.
+WINDOW_MESH_ID = 9000
+VARIANCE_REDUCTION_KIND = "weight_windows"
+# The seeds of the window-making steps (window_generator.MGXS_SEED and WINDOW_SEED); a run may not use either (NUC-053).
+RESERVED_WINDOW_SEEDS = (811_500_991, 811_500_993)
 
 
 def domain_key(domain: dict) -> str:
@@ -324,6 +330,64 @@ def stop_rule(sampling: dict) -> dict | None:
         "max_batches": budget,
         "batch_interval": 1,
     }
+
+
+def variance_reduction_plan(inp: dict) -> dict | None:
+    """The weight-window plan of the input, or None for an analog run. It needs a target-error run: the windows
+    are aimed at the response the stop rule watches."""
+    plan = inp.get("variance_reduction")
+    if plan is None:
+        return None
+    require(plan.get("kind") == VARIANCE_REDUCTION_KIND, "unsupported variance reduction")
+    require(stop_rule(inp["sampling"]) is not None, "weight windows are for a target-error run")
+    require(plan["response_id"] == STOP_RULE_RESPONSE_ID, "the windows are aimed at another response than the one the run stops on")
+    return plan
+
+
+def windows_path(plan: dict, out: Path) -> Path:
+    """The window file of the plan, in the run directory beside the solver directory, with its hash checked."""
+    name = plan["windows_file"]
+    require(Path(name).name == name and name.endswith(".h5"), "the window file must be a plain file name in the run directory")
+    path = out.parent / name
+    require(path.is_file(), f"the window file {name} is missing from the run directory")
+    require(sha256(path) == plan["windows_sha256"], "the window file differs from the hash in the input")
+    return path
+
+
+def apply_windows(openmc, model, path: Path, out: Path):
+    """Make the model read its weight windows from the file PATH and return their mesh (see window_generator.apply_windows,
+    which writes the file). The bounds stay in the file; the model names it relative to OUT, where the run starts."""
+    import h5py
+
+    with h5py.File(path, "r") as stream:
+        mesh = openmc.MeshBase.from_hdf5(stream["meshes"][f"mesh {WINDOW_MESH_ID}"])
+    mesh.id = WINDOW_MESH_ID
+    resolve = openmc.config["resolve_paths"]
+    openmc.config["resolve_paths"] = False
+    try:
+        model.settings.weight_windows_file = Path(os.path.relpath(path, out))
+    finally:
+        openmc.config["resolve_paths"] = resolve
+    model.settings.weight_windows_on = True
+    model.settings.weight_window_checkpoints = {"collision": True, "surface": True}
+    return mesh
+
+
+def add_mesh_to_settings(path: Path, mesh) -> None:
+    """Put MESH in the settings file: the window file names its mesh by id, and OpenMC looks it up among the model's meshes."""
+    text = path.read_text()
+    element = mesh.to_xml_element()
+    ET.indent(element, space="  ", level=1)
+    at = text.index("</settings>")
+    path.write_text(text[:at] + "  " + ET.tostring(element, encoding="unicode") + "\n" + text[at:])
+
+
+def variance_reduction_receipt(inp: dict) -> dict:
+    """What the receipt says about variance reduction: the windows the run read, or that it ran analog."""
+    plan = variance_reduction_plan(inp)
+    if plan is None:
+        return {"mode": "analog"}
+    return {"mode": VARIANCE_REDUCTION_KIND, "response_id": plan["response_id"], "windows_file": plan["windows_file"], "windows_sha256": plan["windows_sha256"]}
 
 
 def apply_stop_rule(openmc, settings, tallies_by_name: dict, rule: dict | None) -> None:
@@ -799,6 +863,7 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     require(physics["source"]["angular_distribution"] == "isotropic" and physics["source"]["energy_distribution"] == "monoenergetic", "unsupported source recipe")
     require(all(physics["source"][k] == request["source"][k] for k in ("energy_per_reaction_ev", "neutron_energy_ev", "neutrons_per_reaction")), "source/request mismatch")
     require(sampling["batches"] >= 2, "at least 2 batches are required: response covariance is estimated from batch-resolved tallies")
+    require(int(sampling["seed"]) not in RESERVED_WINDOW_SEEDS, "this seed is reserved for the weight-window steps")
     require(sampling["threads"] >= 1 and sampling["batches"] >= 1 and sampling["particles_per_batch"] >= 1, "sampling values must be positive integers")
 
     material_defs = {m["id"]: m["recipe"] for m in physics["materials"]}
@@ -1205,7 +1270,11 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
         require(all(r["domain"]["mesh_id"] == mesh_meta["id"] for r in mesh_response_defs), "mesh ID mismatch")
 
     model = openmc.Model(geometry=geometry, materials=openmc.Materials([m for m in materials.values() if m is not None]), settings=settings, tallies=tallies)
+    plan = variance_reduction_plan(inp)
+    window_mesh = apply_windows(openmc, model, windows_path(plan, out), out) if plan else None
     model.export_to_xml(directory=str(out))
+    if window_mesh is not None:
+        add_mesh_to_settings(out / "settings.xml", window_mesh)
     # Exact analytic full-torus volume for component shells and the whole modeled outer torus.
     volumes_cm3 = {}
     for c in variant["components"]:
@@ -1396,7 +1465,7 @@ def main() -> int:
         stop_code, stop_words = judge_stop(rule, n_batches, achieved)
         sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": rule["response_id"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "stop_reason": stop_code, "stop_reason_text": stop_words}
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:

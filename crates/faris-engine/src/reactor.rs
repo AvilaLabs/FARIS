@@ -37,6 +37,9 @@ use std::{
     time::Duration,
 };
 
+mod windows;
+pub use windows::{VarianceReductionRecord, WINDOW_CACHE_NAME, WeightWindowsPlan, WindowOptions};
+
 pub type ReactorError = Box<dyn std::error::Error + Send + Sync>;
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_JSON_BYTES: u64 = 16 * 1024 * 1024;
@@ -447,6 +450,9 @@ pub const STOP_RULE_RESPONSE_ID: &str = "magnets-fast-flux";
 /// Fewest batches a target-error run may stop at; a relative error estimated
 /// from fewer batches is not trustworthy.
 pub const STOP_RULE_MIN_BATCHES: u32 = 30;
+/// Seeds of the two weight-window steps (`window_generator.py`). A run may not use either, so it never shares a
+/// random stream with the histories that made its windows (NUC-053).
+pub const RESERVED_WINDOW_SEEDS: [u64; 2] = [811_500_991, 811_500_993];
 /// Largest target relative error a plan may ask for.
 pub const STOP_RULE_MAX_TARGET: f64 = 0.5;
 
@@ -611,6 +617,9 @@ impl SamplingPlan {
         {
             return Err("sampling requires 30..1000 batches, 1..50M total histories, positive signed-64-bit seed and 1..32 threads".into());
         }
+        if RESERVED_WINDOW_SEEDS.contains(&self.seed) {
+            return Err("this seed is reserved for the weight-window steps; use another".into());
+        }
         if let Some(target) = self.target_relative_error
             && !(target.is_finite() && target > 0.0 && target <= STOP_RULE_MAX_TARGET)
         {
@@ -631,6 +640,9 @@ pub struct ReactorInput {
     pub cross_sections: PathBuf,
     pub openmc_executable: PathBuf,
     pub nuclear_data_digest: String,
+    /// The weight windows the run reads; absent for an analog run, so earlier inputs keep their bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variance_reduction: Option<WeightWindowsPlan>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -672,11 +684,44 @@ pub struct ReactorRun {
     /// made before the stop rule.
     #[serde(skip)]
     pub sampling_outcome: Option<SamplingOutcome>,
+    /// Whether the run used weight windows, and if not why not. Present on target-error runs made since the
+    /// windows existed; the windows themselves are bound by the input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variance_reduction: Option<VarianceReductionRecord>,
     pub scientific_qualification: String,
     pub notice: String,
 }
 
 impl ReactorRun {
+    /// Relative standard error of an integrated response, when the run has it and its mean is positive.
+    pub fn relative_error(&self, response_id: &str) -> Option<f64> {
+        let result = self
+            .normalized
+            .as_ref()?
+            .results
+            .iter()
+            .find(|r| r.response_id == response_id)?;
+        (result.integrated_mean > 0.0)
+            .then(|| result.integrated_standard_error / result.integrated_mean)
+    }
+
+    /// What weight windows cost: they are aimed at the magnet fast flux, and the other responses (tritium, heating)
+    /// are sampled less well for it. Said beside a windowed result, with the error the run actually reached.
+    pub fn windows_caveat(&self) -> Option<String> {
+        if !self
+            .variance_reduction
+            .as_ref()
+            .is_some_and(VarianceReductionRecord::uses_windows)
+        {
+            return None;
+        }
+        let tritium = self.relative_error("total-tritium-production")?;
+        Some(format!(
+            "The windows serve the magnet fast flux; other responses are sampled less well. Total tritium is known to {:.0} % here, so take the breeding ratio from a Preview or an analog run.",
+            100.0 * tritium
+        ))
+    }
+
     /// Histories the run actually sampled: the realized count of a
     /// target-error run, else the planned batches times particles.
     pub fn histories_sampled(&self) -> u64 {
@@ -733,6 +778,8 @@ pub struct ReactorJob<'a> {
     pub activation_spectra: Option<String>,
     /// Embedded worker supplied by the client. Its exact bytes are preserved.
     pub adapter: &'a [u8],
+    /// A Python with OpenMC 0.16 for weight windows. Used by target-error runs only; without it they are analog.
+    pub windows: Option<WindowOptions<'a>>,
 }
 
 pub fn read_json_bytes(path: &Path) -> Result<Vec<u8>, ReactorError> {
@@ -1604,17 +1651,39 @@ pub fn run_reactor(
         cross_sections,
         openmc_executable: openmc.clone(),
         nuclear_data_digest,
+        variance_reduction: None,
     };
+    let mut input = input;
+    let prepared = windows::prepare(
+        job,
+        &serde_json::to_value(&input)?,
+        &cross_sections_sha256,
+        cancellation,
+    )?;
+    input.variance_reduction = prepared.as_ref().and_then(|p| p.plan.clone());
+    let variance_reduction = prepared.as_ref().map(|p| p.record.clone());
     let input_bytes = serde_json::to_vec_pretty(&input)?;
     if input_bytes.len() > MAX_JSON_BYTES as usize {
         return Err("serialized reactor input exceeds 16 MiB".into());
     }
-    let mesh_preflight = mesh_payload_preflight(&request, &input.manifest, input_bytes.len())?;
+    let mesh_preflight = match mesh_payload_preflight(&request, &input.manifest, input_bytes.len())
+    {
+        Ok(preflight) => preflight,
+        Err(error) => {
+            if let Some(prepared) = &prepared {
+                prepared.discard();
+            }
+            return Err(error);
+        }
+    };
     let output = std::path::absolute(job.output)?;
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::create_dir(&output)?;
+    if let Some(prepared) = prepared {
+        prepared.install(&output)?;
+    }
     write_new(&output.join("input.json"), &input_bytes)?;
     write_new(&output.join("scenario.json"), job.scenario.source_bytes())?;
     write_new(&output.join("audit.json"), &audit_bytes)?;
@@ -1653,7 +1722,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -1869,8 +1938,16 @@ pub fn load_reactor_run(
         validate_geometry_ownership_receipt(&worker, &record.input_sha256, scenario, &physics)?;
         record.sampling_precision_summary = Some(sampling_precision_summary(&worker)?);
         record.sampling_outcome = recorded_outcome;
+        windows::verify_recorded(
+            parent,
+            &input,
+            Some(&worker),
+            record.variance_reduction.as_ref(),
+        )?;
     } else if record.adapter_sha256 == embedded_worker_sha256() {
         return Err("current worker run is missing its bound geometry-ownership receipt".into());
+    } else {
+        windows::verify_recorded(parent, &input, None, record.variance_reduction.as_ref())?;
     }
     let normalized = normalize_transport_artifact(&request, &artifact, scenario)?;
     let normalized_spectra = if request.schema_version == TRANSPORT_REQUEST_VERSION {
@@ -1974,6 +2051,7 @@ mod tests {
             timeout: Duration::from_secs(10),
             activation_spectra: None,
             adapter: no_adapter,
+            windows: None,
         };
         let error = run_reactor(&python_job, &Cancellation::default())
             .unwrap_err()
@@ -2139,6 +2217,23 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+
+    // Verifies: NUC-053
+    #[test]
+    fn a_run_may_not_use_the_seeds_of_the_window_steps() {
+        for seed in RESERVED_WINDOW_SEEDS {
+            let plan = SamplingPlan {
+                seed,
+                ..Default::default()
+            };
+            assert!(
+                plan.validate()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("reserved")
+            );
+        }
     }
 
     // Verifies: PERF-025
