@@ -1,17 +1,31 @@
 //! Bounded external execution, independent of scientific acceptance.
 //!
-//! Call from a worker, never the UI thread. On Unix each job owns a process
-//! group; cancellation terminates that group, including ordinary solver children.
-//! Linux `prlimit` applies inherited address-space and single-file limits. The
-//! runner samples owned artifact roots and terminates on aggregate limits. This
-//! is a resource-bounded execution wrapper, not a sandbox for hostile programs.
+//! Call from a worker, never the UI thread. The runner samples the working directory and any
+//! owned artifact roots and stops the job when files or bytes pass the limits, whatever the
+//! platform. The rest depends on it:
+//!
+//! - Linux: `prlimit` applies the address-space and single-file limits inside the kernel; the
+//!   job owns a process group, and cancellation kills that group, solver children included.
+//!   Memory is sampled from `/proc` for the peak.
+//! - macOS: the job owns a process group and `sh` sets `ulimit -f` before it becomes the
+//!   program. macOS does not enforce an address-space limit, so the runner sums the physical
+//!   footprint of the group (through libproc) every [`MEMORY_SAMPLE_INTERVAL`] and stops the
+//!   job with [`ExecutionStatus::MemoryLimit`] when it passes the cap. A spike shorter than
+//!   the interval can be missed.
+//! - Windows: the program is put in a job object that kills its processes when it closes.
+//!   There is no kernel single-file limit, so the artifact scan alone enforces it. The safe
+//!   job-object wrapper cannot set or read a job-wide memory limit, so the runner samples the
+//!   committed memory of the program it started (not its descendants) and stops it with
+//!   [`ExecutionStatus::MemoryLimit`] past the cap. The program runs briefly before it is
+//!   assigned to the job; a process it starts in that moment is outside the job.
+//!
+//! This is a resource-bounded execution wrapper, not a sandbox for hostile programs.
 
 use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     io::{Read, Result as IoResult},
     path::PathBuf,
-    process::{Command, Stdio},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -119,6 +133,9 @@ pub enum ExecutionStatus {
     OutputLimit,
     ArtifactLimit,
     FileSizeLimit,
+    /// The job's memory passed the cap and the runner stopped it (macOS and Windows; on
+    /// Linux the kernel refuses the allocation and the job fails instead).
+    MemoryLimit,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -142,7 +159,7 @@ pub struct JobResult {
     #[serde(default)]
     pub largest_artifact_file_bytes_observed: u64,
     /// Peak resident memory of the job and its descendants, sampled while it ran, where the
-    /// platform gives it (Linux: `/proc`). `None` means not measured, not zero.
+    /// platform gives it (Linux: `/proc`; macOS: libproc; Windows: the started program only). `None` means not measured, not zero.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peak_memory_bytes: Option<u64>,
     /// The memory check made before the job started, as a verdict line (PERF-041).
@@ -291,6 +308,10 @@ impl<'a> LineSplitter<'a> {
     }
 
     fn flush(&mut self) {
+        // Windows tools end lines with CR LF; the carriage return is not part of the line.
+        if cfg!(windows) && self.pending.last() == Some(&b'\r') {
+            self.pending.pop();
+        }
         (self.callback)(&String::from_utf8_lossy(&self.pending));
         self.pending.clear();
     }
@@ -348,19 +369,12 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
 /// must be quick and must not panic. A line over [`MAX_LINE_BYTES`] is delivered truncated.
 /// Delivery stops at the stdout capture limit: only retained bytes are split into lines.
 /// The returned `stdout` and every status are identical to [`run_job`].
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub fn run_job_with_lines(
     spec: &JobSpec,
     cancellation: &Cancellation,
     on_stdout_line: &(dyn Fn(&str) + Sync),
 ) -> Result<JobResult, JobError> {
-    use nix::{
-        errno::Errno,
-        sys::signal::{Signal, killpg},
-        unistd::Pid,
-    };
-    use std::os::unix::process::{CommandExt, ExitStatusExt};
-
     if !spec.program.is_absolute() || !spec.program.is_file() {
         return Err(JobError::Invalid(
             "program must be an explicit absolute file path",
@@ -421,15 +435,6 @@ pub fn run_job_with_lines(
             "existing artifact roots already exceed configured limits",
         ));
     }
-    let prlimit = [
-        PathBuf::from("/usr/bin/prlimit"),
-        PathBuf::from("/bin/prlimit"),
-    ]
-    .into_iter()
-    .find(|candidate| candidate.is_file())
-    .ok_or(JobError::Invalid(
-        "Linux prlimit utility is required for bounded execution",
-    ))?;
     let start = Instant::now();
     if cancellation.is_cancelled() {
         return Ok(JobResult {
@@ -448,26 +453,10 @@ pub fn run_job_with_lines(
             memory_check: memory_check.clone(),
         });
     }
-    let mut child = Command::new(prlimit)
-        .arg(format!("--as={}", limits.address_space_bytes))
-        .arg(format!("--fsize={}", limits.single_file_bytes))
-        .arg("--")
-        .arg(&spec.program)
-        .args(&spec.arguments)
-        .current_dir(&spec.working_directory)
-        .env_clear()
-        .envs(spec.environment.iter().cloned())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .process_group(0)
-        .spawn()?;
-    let pid = Pid::from_raw(
-        i32::try_from(child.id()).map_err(|_| JobError::Invalid("child PID out of range"))?,
-    );
+    let mut running = platform::Running::start(spec, &limits)?;
     let exceeded = Arc::new(AtomicBool::new(false));
-    let stdout = child.stdout.take().expect("piped child stdout");
-    let stderr = child.stderr.take().expect("piped child stderr");
+    let stdout = running.child.stdout.take().expect("piped child stdout");
+    let stderr = running.child.stderr.take().expect("piped child stderr");
     let limit = spec.capture_limit_bytes;
     let out_flag = exceeded.clone();
     let err_flag = exceeded.clone();
@@ -508,36 +497,28 @@ pub fn run_job_with_lines(
             }
             // Read before try_wait: once the child is reaped its /proc entries are gone.
             if Instant::now() >= next_memory_sample {
-                peak.observe(crate::memory::sampler::sample(
-                    pid.as_raw(),
-                    std::path::Path::new("/proc"),
-                ));
+                let sample = running.sample_memory();
+                peak.observe(sample);
+                // Where the kernel does not hold the job to its memory cap (macOS, and
+                // Windows, whose job-object cap the safe wrapper cannot set), the runner does.
+                if platform::MEMORY_CAP_BY_SAMPLING
+                    && sample.is_some_and(|(now, _)| now > limits.address_space_bytes)
+                {
+                    break Ok((ExecutionStatus::MemoryLimit, None));
+                }
                 next_memory_sample = Instant::now() + MEMORY_SAMPLE_INTERVAL;
             }
-            match child.try_wait() {
+            match running.child.try_wait() {
                 Ok(Some(status)) => {
-                    break Ok((
-                        if status.signal() == Some(Signal::SIGXFSZ as i32) {
-                            ExecutionStatus::FileSizeLimit
-                        } else if status.success() {
-                            ExecutionStatus::Succeeded
-                        } else {
-                            ExecutionStatus::Failed
-                        },
-                        status.code(),
-                    ));
+                    break Ok((platform::classify(&status), status.code()));
                 }
                 Ok(None) => thread::sleep(Duration::from_millis(10)),
                 Err(error) => break Err(JobError::Io(error)),
             }
         };
         // Close pipes held by descendant processes even when the direct child exits.
-        // ESRCH means the owned group has already exited.
-        let cleanup = match killpg(pid, Signal::SIGKILL) {
-            Ok(()) | Err(Errno::ESRCH) => Ok(()),
-            Err(error) => Err(std::io::Error::from_raw_os_error(error as i32)),
-        };
-        let waited = child.wait();
+        let cleanup = running.terminate();
+        let waited = running.child.wait();
         let out = out_reader.join().map_err(|_| JobError::ReaderPanic)??;
         let err = err_reader.join().map_err(|_| JobError::ReaderPanic)??;
         Ok::<_, JobError>((outcome, cleanup, waited, out, err, peak.bytes()))
@@ -582,28 +563,238 @@ pub fn run_job_with_lines(
     })
 }
 
-/// Resource-enforced execution currently requires Linux's trusted `prlimit`.
-#[cfg(not(target_os = "linux"))]
+/// The platform half of the runner: how the program is launched under its limits, how a running
+/// job's memory is read, and how the job and everything it started is stopped.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod platform {
+    use super::{ExecutionStatus, IoResult, JobError, JobSpec, ResourceLimits};
+    use std::process::{Child, Command, ExitStatus, Stdio};
+
+    /// A launched job. On Windows, dropping it closes the job object, which kills what is left.
+    pub struct Running {
+        pub child: Child,
+        #[cfg(unix)]
+        group: nix::unistd::Pid,
+        #[cfg(windows)]
+        job: Option<win32job::Job>,
+    }
+
+    /// The command with its working directory, environment (only the spec's) and pipes set.
+    fn configure<'a>(command: &'a mut Command, spec: &JobSpec) -> &'a mut Command {
+        command
+            .current_dir(&spec.working_directory)
+            .env_clear()
+            .envs(spec.environment.iter().cloned())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    pub use unix::*;
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    mod unix {
+        use super::*;
+        use nix::{
+            errno::Errno,
+            sys::signal::{Signal, killpg},
+            unistd::Pid,
+        };
+        use std::os::unix::process::{CommandExt, ExitStatusExt};
+
+        /// Linux holds the job to its address-space cap in the kernel.
+        #[cfg(target_os = "linux")]
+        pub const MEMORY_CAP_BY_SAMPLING: bool = false;
+        /// macOS does not enforce `RLIMIT_AS`, so the runner compares samples to the cap.
+        #[cfg(target_os = "macos")]
+        pub const MEMORY_CAP_BY_SAMPLING: bool = true;
+
+        impl Running {
+            /// Starts the program as the leader of a new process group.
+            pub fn start(spec: &JobSpec, limits: &ResourceLimits) -> Result<Self, JobError> {
+                let mut command = limited_command(spec, limits)?;
+                let child = configure(&mut command, spec).process_group(0).spawn()?;
+                let group = Pid::from_raw(
+                    i32::try_from(child.id())
+                        .map_err(|_| JobError::Invalid("child PID out of range"))?,
+                );
+                Ok(Self { child, group })
+            }
+
+            /// `(resident now, kernel high-water mark)` summed over the job's process group.
+            pub fn sample_memory(&self) -> Option<(u64, u64)> {
+                #[cfg(target_os = "linux")]
+                return crate::memory::sampler::sample(
+                    self.group.as_raw(),
+                    std::path::Path::new("/proc"),
+                );
+                #[cfg(target_os = "macos")]
+                return crate::memory::sampler::sample(self.group.as_raw());
+            }
+
+            /// SIGKILL to the whole group. ESRCH means the owned group has already exited.
+            pub fn terminate(&mut self) -> IoResult<()> {
+                match killpg(self.group, Signal::SIGKILL) {
+                    Ok(()) | Err(Errno::ESRCH) => Ok(()),
+                    Err(error) => Err(std::io::Error::from_raw_os_error(error as i32)),
+                }
+            }
+        }
+
+        pub fn classify(status: &ExitStatus) -> ExecutionStatus {
+            if status.signal() == Some(Signal::SIGXFSZ as i32) {
+                ExecutionStatus::FileSizeLimit
+            } else if status.success() {
+                ExecutionStatus::Succeeded
+            } else {
+                ExecutionStatus::Failed
+            }
+        }
+
+        /// Linux: `prlimit` applies the address-space and file-size limits to the program.
+        #[cfg(target_os = "linux")]
+        fn limited_command(spec: &JobSpec, limits: &ResourceLimits) -> Result<Command, JobError> {
+            use std::path::PathBuf;
+            let prlimit = [
+                PathBuf::from("/usr/bin/prlimit"),
+                PathBuf::from("/bin/prlimit"),
+            ]
+            .into_iter()
+            .find(|candidate| candidate.is_file())
+            .ok_or(JobError::Invalid(
+                "Linux prlimit utility is required for bounded execution",
+            ))?;
+            let mut command = Command::new(prlimit);
+            command
+                .arg(format!("--as={}", limits.address_space_bytes))
+                .arg(format!("--fsize={}", limits.single_file_bytes))
+                .arg("--")
+                .arg(&spec.program)
+                .args(&spec.arguments);
+            Ok(command)
+        }
+
+        /// macOS: a shell sets the file-size limit, then replaces itself with the program.
+        #[cfg(target_os = "macos")]
+        fn limited_command(spec: &JobSpec, limits: &ResourceLimits) -> Result<Command, JobError> {
+            let mut command = Command::new("/bin/sh");
+            command
+                .arg("-c")
+                .arg(crate::jobs::macos_shell_script(limits.single_file_bytes))
+                .arg(&spec.program)
+                .args(&spec.arguments);
+            Ok(command)
+        }
+    }
+
+    #[cfg(windows)]
+    pub const MEMORY_CAP_BY_SAMPLING: bool = true;
+
+    #[cfg(windows)]
+    impl Running {
+        /// Starts the program, then puts it in a job object that kills everything in it when
+        /// the job is closed. The program runs for a moment before it is assigned, so a
+        /// grandchild it creates in that moment is outside the job and escapes termination.
+        pub fn start(spec: &JobSpec, _limits: &ResourceLimits) -> Result<Self, JobError> {
+            use std::os::windows::io::AsRawHandle;
+            let mut limit_info = win32job::ExtendedLimitInfo::new();
+            limit_info.limit_kill_on_job_close();
+            let job = win32job::Job::create_with_limit_info(&limit_info).map_err(job_error)?;
+            let mut command = Command::new(&spec.program);
+            command.args(&spec.arguments);
+            let mut child = configure(&mut command, spec).spawn()?;
+            if let Err(error) = job.assign_process(child.as_raw_handle() as isize) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(job_error(error));
+            }
+            Ok(Self {
+                child,
+                job: Some(job),
+            })
+        }
+
+        /// `(committed now, peak committed)` of the program the job started. The safe job-object
+        /// wrapper reads no job-wide figure, so processes it started are not counted.
+        pub fn sample_memory(&self) -> Option<(u64, u64)> {
+            use std::os::windows::io::AsRawHandle;
+            let counters =
+                win32job::utils::get_process_memory_info(self.child.as_raw_handle() as isize)
+                    .ok()?;
+            Some((
+                u64::try_from(counters.private_usage).ok()?,
+                u64::try_from(counters.peak_pagefile_usage).ok()?,
+            ))
+        }
+
+        /// Closing the job object terminates every process in it.
+        pub fn terminate(&mut self) -> IoResult<()> {
+            drop(self.job.take());
+            let _ = self.child.kill();
+            Ok(())
+        }
+    }
+
+    #[cfg(windows)]
+    fn job_error(error: win32job::JobError) -> JobError {
+        JobError::Io(std::io::Error::other(error.to_string()))
+    }
+
+    #[cfg(windows)]
+    pub fn classify(status: &ExitStatus) -> ExecutionStatus {
+        if status.success() {
+            ExecutionStatus::Succeeded
+        } else {
+            ExecutionStatus::Failed
+        }
+    }
+}
+
+/// The shell script that sets the single-file limit on macOS and then becomes the program
+/// (`$0`, with the arguments after it). `ulimit -f` counts 512-byte blocks in the POSIX shell
+/// `/bin/sh` is; the count is rounded down so a file never grows past the limit, and is at
+/// least one block (the artifact scan still stops a file that outgrows a limit under 512 bytes).
+#[cfg(any(target_os = "macos", test))]
+fn macos_shell_script(single_file_bytes: u64) -> String {
+    let blocks = (single_file_bytes / 512).max(1);
+    format!("ulimit -f {blocks}; exec \"$0\" \"$@\"")
+}
+
+/// Bounded execution needs a process model this target lacks (the browser build).
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn run_job_with_lines(
     _spec: &JobSpec,
     _cancellation: &Cancellation,
     _on_stdout_line: &(dyn Fn(&str) + Sync),
 ) -> Result<JobResult, JobError> {
     Err(JobError::Invalid(
-        "bounded external job execution currently requires Linux prlimit",
+        "bounded external job execution is not available on this platform",
     ))
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 mod tests {
     use super::*;
+    /// Runs `script` in the platform's shell: `sh -c` on Unix, `cmd /C` on Windows.
     fn shell(script: &str) -> (tempfile::TempDir, JobSpec) {
         let dir = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        let (program, flag, environment) = (PathBuf::from("/bin/sh"), "-c", vec![]);
+        // Windows programs need SystemRoot to start; the runner passes nothing it was not given.
+        #[cfg(windows)]
+        let (program, flag, environment) = (
+            PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+            "/C",
+            vec![(
+                OsString::from("SystemRoot"),
+                std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+            )],
+        );
         let spec = JobSpec {
-            program: PathBuf::from("/bin/sh"),
-            arguments: vec!["-c".into(), script.into()],
+            program,
+            arguments: vec![flag.into(), script.into()],
             working_directory: dir.path().to_owned(),
-            environment: vec![],
+            environment,
             timeout: Duration::from_secs(3),
             capture_limit_bytes: 1024,
             artifact_roots: vec![],
@@ -611,29 +802,44 @@ mod tests {
         };
         (dir, spec)
     }
-    // Verifies: NUC-004
+    /// A script that runs for about 30 seconds, with a child of its own holding the pipes.
+    #[cfg(unix)]
+    const LONG_SCRIPT: &str = "/bin/sleep 30 & wait";
+    #[cfg(windows)]
+    const LONG_SCRIPT: &str = "ping -n 30 127.0.0.1 >nul";
+    /// A script that runs for about a third of a second.
+    #[cfg(unix)]
+    const BRIEF_SCRIPT: &str = "sleep 0.3";
+    #[cfg(windows)]
+    const BRIEF_SCRIPT: &str = "ping -n 2 127.0.0.1 >nul";
+
+    // Verifies: NUC-004, PLAT-004, PLAT-005
     #[test]
     fn preserves_exit_code_and_does_not_infer_a_scientific_verdict() {
-        let (_dir, spec) = shell("printf 'raw tally'; printf 'solver note' >&2; exit 7");
+        #[cfg(unix)]
+        let script = "printf 'raw tally'; printf 'solver note' >&2; exit 7";
+        #[cfg(windows)]
+        let script = "echo raw tally& echo solver note 1>&2& exit 7";
+        let (_dir, spec) = shell(script);
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::Failed);
         assert_eq!(result.exit_code, Some(7));
-        assert_eq!(result.stdout, "raw tally");
-        assert_eq!(result.stderr, "solver note");
+        assert_eq!(result.stdout.trim_end(), "raw tally");
+        assert_eq!(result.stderr.trim_end(), "solver note");
     }
-    // Verifies: AUTO-040, REL-006
+    // Verifies: AUTO-040, REL-006, PLAT-004, PLAT-005
     #[test]
     fn timeout_cleans_up_descendants_holding_the_output_pipe() {
-        let (_dir, mut spec) = shell("/bin/sleep 30 & wait");
+        let (_dir, mut spec) = shell(LONG_SCRIPT);
         spec.timeout = Duration::from_millis(80);
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::TimedOut);
         assert!(result.elapsed_seconds < 3.0);
     }
-    // Verifies: AUTO-040
+    // Verifies: AUTO-040, PLAT-004, PLAT-005
     #[test]
     fn cancellation_terminates_a_running_job() {
-        let (_dir, spec) = shell("/bin/sleep 30 & wait");
+        let (_dir, spec) = shell(LONG_SCRIPT);
         let cancellation = Cancellation::default();
         let remote = cancellation.clone();
         let worker = thread::spawn(move || run_job(&spec, &remote).unwrap());
@@ -644,16 +850,21 @@ mod tests {
             ExecutionStatus::Cancelled
         );
     }
-    // Verifies: AUTO-040, SEC-063
+    // Verifies: AUTO-040, SEC-063, PLAT-004, PLAT-005
     #[test]
     fn oversized_output_is_bounded_even_when_a_process_exits_quickly() {
-        let (_dir, mut spec) = shell("/usr/bin/head -c 4096 /dev/zero");
+        #[cfg(unix)]
+        let script = "/usr/bin/head -c 4096 /dev/zero".to_string();
+        #[cfg(windows)]
+        let script = format!("echo {}", "x".repeat(300));
+        let (_dir, mut spec) = shell(&script);
         spec.capture_limit_bytes = 64;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::OutputLimit);
         assert_eq!(result.stdout.len(), 64);
         assert!(result.stdout_truncated);
     }
+    #[cfg(target_os = "linux")]
     #[test]
     fn files_deleted_while_the_output_is_measured_do_not_fail_the_job() {
         // The OpenMC worker deletes per-batch statepoints while the runner
@@ -687,7 +898,7 @@ mod tests {
 
     #[test]
     fn pre_cancelled_job_never_launches() {
-        let (dir, spec) = shell("touch should-not-exist");
+        let (dir, spec) = shell("echo x > should-not-exist");
         let cancellation = Cancellation::default();
         cancellation.cancel();
         assert_eq!(
@@ -698,6 +909,7 @@ mod tests {
     }
 
     // Verifies: AUTO-040, SEC-061
+    #[cfg(target_os = "linux")]
     #[test]
     fn inherited_address_space_limit_bounds_child_allocation() {
         let dir = tempfile::tempdir().unwrap();
@@ -730,37 +942,81 @@ mod tests {
     }
 
     // Verifies: AUTO-040, SEC-061
+    #[cfg(unix)]
     #[test]
     fn oversized_single_file_is_killed_by_inherited_file_size_limit() {
         let dir = tempfile::tempdir().unwrap();
         let mut spec = shell("true").1;
-        spec.program = PathBuf::from("/usr/bin/dd");
-        spec.arguments = vec![
-            "if=/dev/zero".into(),
-            "of=oversized.bin".into(),
-            "bs=4096".into(),
-            "count=32".into(),
-            "status=none".into(),
-        ];
+        #[cfg(target_os = "linux")]
+        let (program, quiet) = ("/usr/bin/dd", Some("status=none"));
+        #[cfg(target_os = "macos")]
+        let (program, quiet) = ("/bin/dd", None);
+        spec.program = PathBuf::from(program);
+        spec.arguments = ["if=/dev/zero", "of=oversized.bin", "bs=4096", "count=32"]
+            .into_iter()
+            .chain(quiet)
+            .map(OsString::from)
+            .collect();
         spec.working_directory = dir.path().to_owned();
         spec.resource_limits.single_file_bytes = 64 * 1024;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::FileSizeLimit);
-        assert_eq!(
-            std::fs::metadata(dir.path().join("oversized.bin"))
-                .unwrap()
-                .len(),
-            64 * 1024
-        );
+        // The kernel stops the write at the limit; the macOS limit is whole 512-byte blocks,
+        // rounded down, so it is at most the limit and here (a multiple of 512) exactly it.
+        let written = std::fs::metadata(dir.path().join("oversized.bin"))
+            .unwrap()
+            .len();
+        assert_eq!(written, 64 * 1024);
         assert_eq!(result.artifact_files_observed, 1);
         assert_eq!(result.artifact_bytes_observed, 64 * 1024);
     }
 
+    // Verifies: AUTO-040, PLAT-004
+    #[cfg(windows)]
+    #[test]
+    fn oversized_single_file_is_caught_by_the_artifact_scan() {
+        // Windows has no kernel file-size limit: the scan stops the job after the write.
+        let (dir, mut spec) = shell(&format!(
+            "for /L %i in (1,1,300) do @echo {}>>big.txt",
+            "x".repeat(100)
+        ));
+        spec.resource_limits.single_file_bytes = 8 * 1024;
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::FileSizeLimit);
+        assert!(dir.path().join("big.txt").is_file());
+    }
+
+    #[test]
+    fn the_macos_file_size_limit_is_whole_blocks_rounded_down() {
+        assert_eq!(
+            macos_shell_script(64 * 1024),
+            "ulimit -f 128; exec \"$0\" \"$@\""
+        );
+        assert_eq!(
+            macos_shell_script(64 * 1024 + 511),
+            "ulimit -f 128; exec \"$0\" \"$@\""
+        );
+        assert_eq!(
+            macos_shell_script(10),
+            "ulimit -f 1; exec \"$0\" \"$@\"",
+            "never zero blocks, which would forbid every write"
+        );
+    }
+
+    #[test]
+    fn the_memory_limit_status_has_a_stable_name() {
+        assert_eq!(
+            serde_json::to_string(&ExecutionStatus::MemoryLimit).unwrap(),
+            "\"MEMORY_LIMIT\""
+        );
+    }
+
     // Verifies: AUTO-040
+    #[cfg(unix)]
     #[test]
     fn aggregate_artifact_bytes_are_checked_even_for_short_jobs() {
         let (dir, mut spec) = shell(
-            "dd if=/dev/zero of=a bs=4096 count=8 status=none; dd if=/dev/zero of=b bs=4096 count=8 status=none",
+            "dd if=/dev/zero of=a bs=4096 count=8 2>/dev/null; dd if=/dev/zero of=b bs=4096 count=8 2>/dev/null",
         );
         spec.resource_limits.artifact_total_bytes = 48 * 1024;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
@@ -772,25 +1028,32 @@ mod tests {
     }
 
     // Verifies: AUTO-040
+    #[cfg(unix)]
     #[test]
     fn files_already_in_the_roots_do_not_count_against_the_total() {
         // 64 KiB left by an earlier step, over a 48 KiB cap: the job may still add 32 KiB, and
         // is stopped when it adds more than the cap.
-        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=8 status=none");
+        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=8 2>/dev/null");
         std::fs::write(dir.path().join("input"), vec![0_u8; 64 * 1024]).unwrap();
         spec.resource_limits.artifact_total_bytes = 48 * 1024;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
-        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=16 status=none");
+        let (dir, mut spec) = shell("dd if=/dev/zero of=new bs=4096 count=16 2>/dev/null");
         std::fs::write(dir.path().join("input"), vec![0_u8; 64 * 1024]).unwrap();
         spec.resource_limits.artifact_total_bytes = 48 * 1024;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::ArtifactLimit);
     }
 
+    // Verifies: PLAT-004, PLAT-005
     #[test]
     fn aggregate_artifact_file_count_includes_explicit_external_roots() {
-        let (dir, mut spec) = shell("mkdir -p extra; touch a b; touch extra/c extra/d");
+        // The runner creates the explicit root `extra` before the job starts.
+        #[cfg(unix)]
+        let script = "touch a b; touch extra/c extra/d";
+        #[cfg(windows)]
+        let script = "echo.>a& echo.>b& echo.>extra\\c& echo.>extra\\d";
+        let (dir, mut spec) = shell(script);
         let extra = dir.path().join("extra");
         spec.artifact_roots = vec![extra];
         spec.resource_limits.artifact_file_count = 3;
@@ -799,6 +1062,7 @@ mod tests {
         assert_eq!(result.artifact_files_observed, 4);
     }
 
+    #[cfg(unix)]
     #[test]
     fn artifact_scanner_does_not_follow_external_symlinks() {
         let (dir, mut spec) = shell("touch local; ln -s /tmp external-link");
@@ -828,6 +1092,7 @@ mod tests {
         (result, lines.into_inner().unwrap())
     }
 
+    #[cfg(unix)]
     #[test]
     fn stdout_lines_arrive_in_order_before_the_job_ends() {
         let (_dir, spec) = shell("echo first; sleep 1; echo second");
@@ -844,6 +1109,7 @@ mod tests {
         assert!(finished.duration_since(seen[0].1) >= Duration::from_millis(500));
     }
 
+    #[cfg(unix)]
     #[test]
     fn unterminated_final_line_is_delivered() {
         let (_dir, spec) = shell("printf 'one\\ntwo'");
@@ -852,6 +1118,7 @@ mod tests {
         assert_eq!(lines, ["one", "two"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn stdout_is_identical_with_and_without_a_callback() {
         let (_dir, spec) = shell("printf 'a\\n\\nb\\nc'; printf 'warn' >&2");
@@ -863,6 +1130,7 @@ mod tests {
         assert_eq!(lines, ["a", "", "b", "c"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn cancellation_works_while_lines_are_flowing() {
         let (_dir, mut spec) = shell("while true; do echo tick; sleep 0.02; done");
@@ -877,6 +1145,7 @@ mod tests {
         assert!(lines.len() >= 2 && lines.iter().all(|line| line == "tick"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn over_long_line_is_truncated_for_the_callback() {
         let (_dir, mut spec) = shell("head -c 100000 /dev/zero | tr '\\0' x; echo; echo after");
@@ -888,16 +1157,16 @@ mod tests {
         assert_eq!(lines[1], "after");
     }
 
-    // Verifies: PERF-041
+    // Verifies: PERF-041, PLAT-004, PLAT-005
     #[test]
     fn a_finished_job_records_its_peak_memory_and_the_check_made_before_it() {
-        // 0.3 s of sleep spans several 50 ms samples of the running process group.
-        let (_dir, spec) = shell("sleep 0.3");
+        // A third of a second spans several 50 ms samples of the running job.
+        let (_dir, spec) = shell(BRIEF_SCRIPT);
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
         let peak = result
             .peak_memory_bytes
-            .expect("peak memory is measured on Linux");
+            .expect("peak memory is measured on Linux, macOS and Windows");
         assert!(peak > 0 && peak < 1 << 30, "implausible peak {peak}");
         assert!(result.memory_check.unwrap().starts_with("PASS: "));
     }
@@ -920,5 +1189,33 @@ mod tests {
             !dir.path().join("ran").exists(),
             "the job must not have started"
         );
+    }
+
+    // Verifies: PERF-041, PLAT-005
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_stops_a_job_whose_memory_passes_the_cap() {
+        // awk builds a 128 MiB string, then sleeps while still holding it.
+        let (_dir, mut spec) = shell("true");
+        spec.program = PathBuf::from("/usr/bin/awk");
+        spec.arguments = vec![
+            "BEGIN { s = \"x\"; for (i = 0; i < 27; i++) s = s s; system(\"sleep 20\") }".into(),
+        ];
+        spec.timeout = Duration::from_secs(15);
+        spec.resource_limits = ResourceLimits::with_address_space(64 << 20);
+        let result = run_job(&spec, &Cancellation::default()).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::MemoryLimit);
+        assert!(result.elapsed_seconds < 10.0);
+        assert!(result.peak_memory_bytes.is_some_and(|peak| peak > 64 << 20));
+    }
+
+    // Verifies: PLAT-004
+    #[cfg(windows)]
+    #[test]
+    fn windows_lines_arrive_without_the_carriage_return() {
+        let (_dir, spec) = shell("echo one& echo two");
+        let (result, lines) = collect_lines(&spec, &Cancellation::default());
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(lines, ["one", "two"]);
     }
 }

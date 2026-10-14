@@ -30,6 +30,13 @@ nix.workspace = true
 [target.'cfg(unix)'.dev-dependencies]
 nix = { workspace = true, features = ["resource", "time"] }
 
+# Process-group memory on macOS (safe wrapper over libproc) and kill-on-close job objects on Windows.
+[target.'cfg(target_os = "macos")'.dependencies]
+libproc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+win32job.workspace = true
+
 [features]
 # Small synthetic histories and ensembles for tests and development checks.
 # Off in every normal build.

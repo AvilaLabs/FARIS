@@ -561,6 +561,8 @@ impl TransportPanel {
                                 "artifact limit reached",
                             faris_engine::jobs::ExecutionStatus::FileSizeLimit =>
                                 "single-file limit reached",
+                            faris_engine::jobs::ExecutionStatus::MemoryLimit =>
+                                "memory limit reached",
                         })
                 ));
                 ui.small(format!(
