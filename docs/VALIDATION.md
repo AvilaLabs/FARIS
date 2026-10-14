@@ -345,6 +345,20 @@ for `fng_str`, `fng_w`, `fns_clean_w`, `fns_duct` and eleven OKTAVIAN spheres. `
 are not registered as sources; see the cases below. Other branches (`fng_dose_r2s` and siblings) hold research
 code from 2022 to 2024.
 
+What OFB changes for open items (checked 2026-10-14):
+
+- The per-cm2 question of `oktavian-al` is settled by measurement: OFB's stored experiment is the IAEA table times
+  the bin width, divided by 4 pi (19.5 cm)^2 = 4,778.362 cm2, equal in every bin of both spectra to 1e-13 (recorded in
+  the `oktavian-al-cad` manifest as `equivalence`). The CSV unit stays "per source neutron, no area factor", as confirmed.
+- VAL-023 (FNG shutdown dose rate, blocked on the SINBAD licence) is not unblocked. `develop` has no FNG shutdown dose
+  data. The branch `fng_dose_r2s` (commit 80981efc90d29f09fe2168ae0fa91e49af43d8ae, 2024-05-08) holds a digitised
+  experimental dose-rate curve (`fng_dose/analysis/experiment.txt`, 1,964 lines of cooling time in years and dose rate in
+  Sv/h) and 18 dose-rate values at cooling times from 1 h to 60 d typed into `analysis/plot_results.py`. The branch has
+  no licence file at that commit, and nothing states whether the numbers come from SINBAD (NEA terms: no redistribution,
+  Art. 1 and 4, see NEXT_RELEASE_PLAN.md), from the published papers or from a digitised figure. FARIS does not use or
+  copy them. Whether the Zenodo record 10.5281/zenodo.10660030 (CC-BY-4.0, the research data of the Peterson et al. R2S
+  paper) holds the measured values is still unchecked. Asking the authors or the NEA is Connor's call.
+
 ## Licences
 
 The harness is AGPL-3.0-only like the rest of FARIS. Reference tables inside a manifest
