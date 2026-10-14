@@ -120,6 +120,52 @@ semantics, or mark total component nuclear heating unavailable. The demo can
 still present verified neutron responses (e.g. tritium production, fast fluence)
 without calling them total heating.
 
+## Recipe status and identity (MAT-002)
+
+Every recipe above is a **candidate**. None is qualified, and none is a
+reactor material specification. The recipes the cold-data reference actually
+runs are authored surrogates, listed in [COLD_REFERENCE.md](COLD_REFERENCE.md):
+
+| Candidate | Status in the runnable cases |
+| --- | --- |
+| Tungsten armor | Natural-isotope W at 19,300 kg/m3 as a first-wall proxy. Candidate, unqualified. |
+| Inconel 718 structure | Not used. Pure iron stands in as a structural surrogate. Candidate not implemented. |
+| FLiBe blanket | Solid Li2BeF4 at a declared cold state with 90 atom% Li-6, density an authored reweighting. Not liquid FLiBe. Candidate, unqualified. |
+| Beryllium multiplier | Not a separate cell in the runnable cases. Candidate not implemented. |
+| TiH2 shield | Ideal crystalline TiH2 at 3,750 kg/m3, no porosity. Candidate, unqualified. |
+
+A material recipe is held apart from geometry and display names. In a physics
+case it is keyed by material id and carries no layer name or colour.
+`MaterialDefinition::recipe_sha256` hashes the recipe alone, so swapping one
+recipe moves only that recipe's hash; renaming a material or relabelling a layer
+moves none. The hash identifies a recipe. It does not qualify it.
+
+## Missing-data audit (MAT-006)
+
+Policy: a material or property with no data is `NOT_EVALUATED` with a reason and
+a next step, never a default value. Audit of the consumers in this repository
+(14 October 2026):
+
+- **Material temperature.** In a physics case `material_temperature_k` may be
+  `None`. Nothing fills it. Readiness reports
+  `MaterialTemperatureUnspecified` unless the case is the declared cold-data
+  numerical reference, where the gap is waived by name. Found by a search for
+  `unwrap_or` and default fills on temperature, density and similar fields in
+  the model, engine and CLI crates: none.
+- **Density.** The design path stops with "material X has no density" when
+  neither the file nor the catalog gives one. That is a refusal, not a default,
+  but it names no next step. Open item: add the next step to that message.
+- **Design-file temperature.** `temperature_k` of `null` means "the library's
+  nearest stored temperature" by the file format's own rule. It is a declared
+  selection rule, not a hidden default. The ITER_1D control likewise states its
+  293.6 K setting in its receipt.
+- **Properties beyond composition and density** (conductivity, expansion,
+  strength, creep) have no database yet (MAT-005), so no consumer can default
+  them.
+
+The audit is by reading and searching the code. It is not an automated test of
+every consumer, so MAT-006 stays partial.
+
 ## Nuclear-data and readiness gate
 
 The local candidate is OpenMC 0.15.3 / FENDL-3.2 HDF5; the read-only audit is
