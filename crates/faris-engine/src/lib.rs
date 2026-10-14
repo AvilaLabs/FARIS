@@ -1,5 +1,9 @@
 //! Shared geometry, checked transport normalization and bounded external jobs.
 
+// The browser build runs no processes and writes no stores; the code only
+// those paths use is compiled but unused there.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
+
 pub mod atomic_file;
 pub mod brief;
 pub mod case_archive;

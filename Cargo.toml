@@ -27,7 +27,7 @@ nix = { version = "=0.31.3", features = ["process", "signal"] }
 tempfile = "=3.27.0"
 signal-hook = "=0.3.18"
 eframe = { version = "=0.36.2", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
-zip = { version = "=8.6.0", default-features = false, features = ["zstd"] }
+zip = { version = "=8.6.0", default-features = false }
 flate2 = "=1.1.10"
 xz2 = { version = "=0.1.7", features = ["static"] }
 rfd = "=0.17.2"

@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::File,
-    io::Read,
+    io::{self, Read},
     path::{Path, PathBuf},
 };
 use zip::{CompressionMethod, ZipArchive};
@@ -103,6 +103,61 @@ pub fn sha256_file(path: &Path) -> std::io::Result<(String, u64)> {
         total += n as u64;
     }
     Ok((format!("{:x}", digest.finalize()), total))
+}
+
+/// One decompressed archive entry: its declared size and a reader over its
+/// content.
+struct Entry<'a> {
+    size: u64,
+    reader: Box<dyn Read + 'a>,
+}
+
+impl Entry<'_> {
+    fn size(&self) -> u64 {
+        self.size
+    }
+}
+
+impl Read for Entry<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.reader.read(buffer)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_entry<R: Read + io::Seek>(
+    archive: &mut ZipArchive<R>,
+    index: usize,
+) -> Result<Entry<'_>, zip::result::ZipError> {
+    let entry = archive.by_index(index)?;
+    Ok(Entry {
+        size: entry.size(),
+        reader: Box::new(entry),
+    })
+}
+
+/// The browser build's zip library has no zstd: the raw entry is decoded by
+/// the pure-Rust decoder.
+#[cfg(target_arch = "wasm32")]
+fn open_entry<R: Read + io::Seek>(
+    archive: &mut ZipArchive<R>,
+    index: usize,
+) -> Result<Entry<'_>, zip::result::ZipError> {
+    let entry = archive.by_index_raw(index)?;
+    let size = entry.size();
+    if entry.compression() == CompressionMethod::ZSTD {
+        let decoder = ruzstd::decoding::StreamingDecoder::new(entry)
+            .map_err(|e| zip::result::ZipError::Io(io::Error::other(e.to_string())))?;
+        Ok(Entry {
+            size,
+            reader: Box::new(decoder),
+        })
+    } else {
+        Ok(Entry {
+            size,
+            reader: Box::new(entry),
+        })
+    }
 }
 
 /// A history ensemble read back from a study file with the key it was stored
@@ -226,7 +281,7 @@ impl StudyReader {
             }
         }
         {
-            let mut entry = archive.by_index(0)?;
+            let mut entry = open_entry(&mut archive, 0)?;
             let mut text = Vec::new();
             (&mut entry)
                 .take(MIMETYPE.len() as u64 + 1)
@@ -241,7 +296,7 @@ impl StudyReader {
         let manifest_index =
             manifest_index.ok_or_else(|| StudyError::corrupt("the study file has no manifest"))?;
         let manifest_bytes = {
-            let mut entry = archive.by_index(manifest_index)?;
+            let mut entry = open_entry(&mut archive, manifest_index)?;
             let mut bytes = Vec::new();
             (&mut entry)
                 .take(MAX_MANIFEST_BYTES + 1)
@@ -473,7 +528,7 @@ impl StudyReader {
             bytes,
             reason: reason.to_owned(),
         };
-        let mut entry = match self.archive.by_index(index) {
+        let mut entry = match open_entry(&mut self.archive, index) {
             Ok(entry) => entry,
             Err(_) => return ignored(0, "the entry cannot be opened"),
         };
@@ -532,7 +587,7 @@ impl StudyReader {
         let &(index, bytes) = self.entries.get(sha256).ok_or_else(|| {
             StudyError::corrupt(format!("blob {sha256} is not recorded in the manifest"))
         })?;
-        let mut entry = self.archive.by_index(index)?;
+        let mut entry = open_entry(&mut self.archive, index)?;
         if entry.size() != bytes {
             return Err(StudyError::SizeMismatch {
                 blob: sha256.to_owned(),
@@ -662,7 +717,7 @@ impl StudyReader {
         limit: u64,
         what: &str,
     ) -> Result<Vec<u8>, StudyError> {
-        let mut entry = self.archive.by_index(entry)?;
+        let mut entry = open_entry(&mut self.archive, entry)?;
         if entry.size() > limit {
             return Err(StudyError::corrupt(format!(
                 "{what} in the file's evidence store is larger than its listing allows"

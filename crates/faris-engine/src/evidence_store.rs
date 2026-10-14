@@ -24,6 +24,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
+#[cfg(not(target_arch = "wasm32"))]
 use xz2::{
     stream::{Action, Status, Stream},
     write::XzEncoder,
@@ -337,6 +338,7 @@ fn blob_error(sha256: &str, detail: impl Into<String>) -> StoreError {
 /// bounded to `bytes` + 1, and the length, the SHA-256 and the absence of
 /// trailing data are checked at the end: what `sink` received is provisional
 /// until this returns `Ok`.
+#[cfg(not(target_arch = "wasm32"))]
 fn decode_blob(
     path: &Path,
     sha256: &str,
@@ -410,6 +412,61 @@ fn decode_blob(
     let mut probe = [0u8; 1];
     if position < length || (!eof && file.read(&mut probe).map_err(|e| io_error(path, e))? != 0) {
         return Err(blob_error(sha256, "data follows the end of the xz stream"));
+    }
+    if produced != bytes {
+        return Err(blob_error(
+            sha256,
+            format!("decompressed to {produced} bytes, index records {bytes}"),
+        ));
+    }
+    let actual = format!("{:x}", hasher.finalize());
+    if actual != sha256 {
+        return Err(blob_error(
+            sha256,
+            format!("decompressed content hashes to {actual}"),
+        ));
+    }
+    Ok(())
+}
+
+/// The browser build has no C compiler for liblzma, so blobs are decoded by the
+/// pure-Rust xz reader. The same bounds hold: output past the indexed length
+/// plus one byte is never produced, and the content must match its digest.
+#[cfg(target_arch = "wasm32")]
+fn decode_blob(
+    path: &Path,
+    sha256: &str,
+    bytes: u64,
+    mut sink: impl FnMut(&[u8]),
+) -> Result<(), StoreError> {
+    let data = fs::read(path).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            blob_error(sha256, "the blob file is missing")
+        } else {
+            io_error(path, error)
+        }
+    })?;
+    let mut reader = lzma_rust2::XzReader::new(&data[..], false);
+    let mut output = vec![0u8; CHUNK];
+    let mut hasher = Sha256::new();
+    let mut produced = 0u64;
+    loop {
+        let allowance = (bytes + 1 - produced).min(output.len() as u64) as usize;
+        let written = reader
+            .read(&mut output[..allowance])
+            .map_err(|e| blob_error(sha256, format!("xz decoding failed: {e}")))?;
+        if written == 0 {
+            break;
+        }
+        produced += written as u64;
+        if produced > bytes {
+            return Err(blob_error(
+                sha256,
+                format!("decompresses to more than the {bytes} bytes the index records"),
+            ));
+        }
+        hasher.update(&output[..written]);
+        sink(&output[..written]);
     }
     if produced != bytes {
         return Err(blob_error(
@@ -881,6 +938,7 @@ fn scan_tree(tree: &str, root: &Path) -> Result<Vec<(PathBuf, StoreFile)>, Store
     Ok(found)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn write_blob(source: &Path, entry: &StoreFile, destination: &Path) -> Result<u64, StoreError> {
     let mut input = File::open(source).map_err(|e| io_error(source, e))?;
     let output = File::create_new(destination).map_err(|e| io_error(destination, e))?;
@@ -910,6 +968,18 @@ fn write_blob(source: &Path, entry: &StoreFile, destination: &Path) -> Result<u6
     Ok(fs::metadata(destination)
         .map_err(|e| io_error(destination, e))?
         .len())
+}
+
+/// Writing a store needs the xz encoder, which the browser build does not have.
+#[cfg(target_arch = "wasm32")]
+fn write_blob(_source: &Path, _entry: &StoreFile, destination: &Path) -> Result<u64, StoreError> {
+    Err(io_error(
+        destination,
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            "writing an evidence store is not available in the browser version",
+        ),
+    ))
 }
 
 /// Create a new store at `out` from named directory trees. Blobs are written

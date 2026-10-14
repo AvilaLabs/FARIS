@@ -20,6 +20,13 @@ use std::{
 };
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
+/// Recorded text is zstd-compressed; the browser build has no zstd encoder and
+/// stores it as is (readers accept both).
+#[cfg(not(target_arch = "wasm32"))]
+const TEXT_COMPRESSION: CompressionMethod = CompressionMethod::ZSTD;
+#[cfg(target_arch = "wasm32")]
+const TEXT_COMPRESSION: CompressionMethod = CompressionMethod::Stored;
+
 /// zstd level used for recorded text unless the caller picks another. Measured on
 /// the 11-bundle demo study (154 MB of unique text): level 15 saves in about 6 s
 /// to 6.1 MB; level 19 would reach 5.0 MB but takes over two minutes.
@@ -510,7 +517,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         let mut zip = ZipWriter::new(BufWriter::with_capacity(1 << 20, temp.as_file_mut()));
         let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         let zstd = SimpleFileOptions::default()
-            .compression_method(CompressionMethod::Zstd)
+            .compression_method(TEXT_COMPRESSION)
             .compression_level(Some(draft.zstd_level));
         // The type string must be the first entry, uncompressed, so file(1) and
         // shared-mime-info can recognise it from the leading bytes.

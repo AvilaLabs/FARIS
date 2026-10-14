@@ -15,9 +15,17 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
-zip.workspace = true
 flate2.workspace = true
 tempfile.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+zip = { workspace = true, features = ["zstd"] }
+
+# The browser build has no C compiler: zstd entries are read raw and decoded
+# by the pure-Rust decoder.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+zip = { workspace = true }
+ruzstd = { version = "0.8", default-features = false, features = ["std", "hash"] }
 
 [dev-dependencies]
 faris-engine = { workspace = true, features = ["fixtures"] }
