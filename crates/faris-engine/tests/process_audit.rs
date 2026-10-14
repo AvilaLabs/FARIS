@@ -43,11 +43,13 @@ const TOKENS: [&str; 17] = [
 /// file, is never allowed: `no_reviewed_entry_takes_anything_from_file_content` fails on it.
 #[rustfmt::skip]
 const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
-    // The one process spawn of the job runner: `prlimit` at a fixed path runs the job program.
-    ("faris-engine/src/jobs.rs", "Command::new", 1, "FS", "program is an absolute tool path (S); arguments F or S"),
-    ("faris-engine/src/jobs.rs", "CommandExt", 1, "-", "process_group for the spawn above"),
+    // The process spawn of the job runner, one per platform: Linux runs `prlimit` at a fixed path,
+    // macOS runs `/bin/sh` (which sets `ulimit -f` and execs the job program), Windows starts the
+    // job program itself and assigns it to a job object.
+    ("faris-engine/src/jobs.rs", "Command::new", 3, "FS", "program is an absolute tool path (S); arguments F or S"),
+    ("faris-engine/src/jobs.rs", "CommandExt", 1, "-", "process_group for the Unix spawns above"),
     ("faris-engine/src/jobs.rs", "run_job(", 1, "-", "definition"),
-    ("faris-engine/src/jobs.rs", "run_job_with_lines(", 3, "-", "definition, forwarding call, non-Linux stub"),
+    ("faris-engine/src/jobs.rs", "run_job_with_lines(", 3, "-", "definition, forwarding call, stub for targets without processes"),
     // Callers of the job runner.
     ("faris-engine/src/core_evidence.rs", "run_job(", 1, "FS", "Core executable S; arguments F plus package paths S"),
     ("faris-engine/src/study.rs", "run_job(", 1, "FS", "Core executable S; arguments F"),

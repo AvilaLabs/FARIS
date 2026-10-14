@@ -3,7 +3,8 @@
 //! would not fit in the memory that is free, and a measured peak afterwards.
 //!
 //! The cap is an address-space limit (`RLIMIT_AS`) set on the job by the job
-//! runner. Address space is never smaller than resident memory, so a job that
+//! runner (on macOS and Windows the runner instead compares sampled memory to the same figure;
+//! see `jobs`). Address space is never smaller than resident memory, so a job that
 //! stays under the cap also stays under it in resident terms; the converse
 //! does not hold, which is why a job can be stopped by the cap while its
 //! resident size is still below it.
@@ -184,10 +185,12 @@ pub fn admit(projected_bytes: u64, policy: &MemoryPolicy) -> Admission {
 }
 
 /// Peak memory of a process group, sampled while it runs.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub mod sampler {
+    #[cfg(target_os = "linux")]
     use std::path::Path;
 
+    #[cfg(target_os = "linux")]
     /// The process group id in the text of `/proc/<pid>/stat`. The command
     /// name is in parentheses and may itself contain spaces or parentheses,
     /// so fields are counted from the last `)`.
@@ -197,6 +200,7 @@ pub mod sampler {
         rest.split_whitespace().nth(2)?.parse().ok()
     }
 
+    #[cfg(target_os = "linux")]
     /// A `kB` field from the text of `/proc/<pid>/status`, in bytes.
     pub fn parse_status_kib(text: &str, field: &str) -> Option<u64> {
         let line = text.lines().find(|l| l.starts_with(field))?;
@@ -204,6 +208,7 @@ pub mod sampler {
         kib.checked_mul(1024)
     }
 
+    #[cfg(target_os = "linux")]
     /// Resident bytes now (summed over the group) and the largest
     /// kernel-kept high-water mark of any one process in it.
     pub fn sample(group: i32, proc_root: &Path) -> Option<(u64, u64)> {
@@ -229,6 +234,33 @@ pub mod sampler {
             high_water = high_water.max(parse_status_kib(&status, "VmHWM:").unwrap_or(0));
         }
         found.then_some((resident, high_water))
+    }
+
+    /// Resident bytes now (summed over the process group, as the physical footprint, which
+    /// counts memory the system has compressed) and a high-water mark the kernel does not
+    /// keep here, so the second figure is zero.
+    #[cfg(target_os = "macos")]
+    pub fn sample(group: i32) -> Option<(u64, u64)> {
+        use libproc::{
+            pid_rusage::{RUsageInfoV2, pidrusage},
+            processes::{ProcFilter, pids_by_type},
+        };
+        let group = u32::try_from(group).ok()?;
+        let pids = pids_by_type(ProcFilter::ByProgramGroup { pgrpid: group }).ok()?;
+        let mut footprint = 0_u64;
+        let mut found = false;
+        for pid in pids {
+            let Ok(pid) = i32::try_from(pid) else {
+                continue;
+            };
+            // A process that exited between the listing and the read is simply not counted.
+            let Ok(usage) = pidrusage::<RUsageInfoV2>(pid) else {
+                continue;
+            };
+            found = true;
+            footprint = footprint.saturating_add(usage.ri_phys_footprint);
+        }
+        found.then_some((footprint, 0))
     }
 
     /// Keeps the largest figure seen.

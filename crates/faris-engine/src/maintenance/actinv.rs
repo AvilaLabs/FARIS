@@ -1090,7 +1090,6 @@ impl DecaySource for ActinvDecaySource {
     }
 }
 
-// The tests run stand-in executables as bounded jobs, which exist only on Linux (jobs.rs needs
-// prlimit; macOS and Windows have no equivalent yet, PLAT-004 and PLAT-005).
-#[cfg(all(test, target_os = "linux"))]
+// The tests run stand-in executables as bounded jobs, which need a Unix shell.
+#[cfg(all(test, unix))]
 mod tests;
