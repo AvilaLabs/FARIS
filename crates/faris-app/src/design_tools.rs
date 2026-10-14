@@ -389,7 +389,7 @@ impl ToolsModel {
                     self.find.cancel();
                 }
             });
-            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            ctx.request_repaint_after(crate::time::Duration::from_millis(250));
             return;
         }
         ui.horizontal_wrapped(|ui| {
@@ -540,11 +540,11 @@ impl ToolsModel {
         let start = crate::design_shared::trimmed(&self.value(tool))
             .map(|p| crate::design_shared::beside(&p).to_path_buf())
             .filter(|p| p.is_dir());
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-tools-dialog".into())
             .spawn(move || {
                 let mut dialog =
-                    rfd::FileDialog::new().set_title(format!("Choose the {}", tool.label()));
+                    crate::dialog::FileDialog::new().set_title(format!("Choose the {}", tool.label()));
                 if let Some(dir) = start {
                     dialog = dialog.set_directory(dir);
                 }

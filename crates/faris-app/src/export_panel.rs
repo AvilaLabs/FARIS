@@ -4,12 +4,12 @@
 //! The panel only schedules and reports. The folder contents come from
 //! `faris-report`, which formats numbers computed by `faris-engine`.
 
+use crate::time::{Duration, Instant};
 use eframe::egui;
 use faris_report::{ExportOutcome, ReportInput};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, Instant},
 };
 
 /// Tag that tells this panel's screenshot apart from the development capture.
@@ -248,10 +248,15 @@ impl ExportPanel {
                 if ui.small_button("Dismiss").clicked() {
                     dismiss = true;
                 }
+                #[cfg(not(target_arch = "wasm32"))]
                 if ui.small_button("Open folder").clicked() {
                     open_folder(folder);
                 }
-                let text = format!("Exported to {}", folder.display());
+                let text = if cfg!(target_arch = "wasm32") {
+                    format!("Downloaded {}", folder.display())
+                } else {
+                    format!("Exported to {}", folder.display())
+                };
                 ui.add(egui::Label::new(egui::RichText::new(text).small()).truncate())
                     .on_hover_text(format!(
                         "{files} files in {seconds:.1} s{}",
@@ -296,24 +301,35 @@ fn spawn_worker(ctx: &egui::Context, input: ReportInput, destination: Destinatio
     let (sender, receiver) = mpsc::channel();
     let context = ctx.clone();
     let started = Instant::now();
-    let spawned = std::thread::Builder::new()
+    let spawned = crate::thread::Builder::new()
         .name("faris-export".into())
         .spawn(move || {
             let mut input = input;
-            let parent = match destination {
-                Destination::Fixed(path) => Some(path),
-                Destination::Ask => rfd::FileDialog::new()
-                    .set_title("Choose where to create the export folder")
-                    .pick_folder(),
-            };
-            let result = match parent {
-                None => Ok(None),
-                Some(parent) => {
-                    input.generated_unix_s = faris_report::now_unix_s();
-                    faris_report::export_study(&input, &parent)
-                        .map(Some)
-                        .map_err(|e| e.to_string())
+            #[cfg(not(target_arch = "wasm32"))]
+            let result = {
+                let parent = match destination {
+                    Destination::Fixed(path) => Some(path),
+                    Destination::Ask => crate::dialog::FileDialog::new()
+                        .set_title("Choose where to create the export folder")
+                        .pick_folder(),
+                };
+                match parent {
+                    None => Ok(None),
+                    Some(parent) => {
+                        input.generated_unix_s = faris_report::now_unix_s();
+                        faris_report::export_study(&input, &parent)
+                            .map(Some)
+                            .map_err(|e| e.to_string())
+                    }
                 }
+            };
+            // The browser has no folders to write: the export is one archive,
+            // handed to the browser as a download.
+            #[cfg(target_arch = "wasm32")]
+            let result = {
+                let _ = destination;
+                input.generated_unix_s = faris_report::now_unix_s();
+                crate::web::download_export(&input).map(Some)
             };
             let _ = sender.send(result);
             context.request_repaint();
@@ -378,7 +394,8 @@ fn crop_png(
 }
 
 /// Open a folder in the desktop file manager.
-fn open_folder(folder: &Path) {
+#[cfg(not(target_arch = "wasm32"))]
+fn open_folder(folder: &std::path::Path) {
     let _ = std::process::Command::new("xdg-open")
         .arg(folder)
         .stdin(std::process::Stdio::null())

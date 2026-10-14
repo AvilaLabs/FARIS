@@ -1,4 +1,5 @@
 use crate::badge::{self, Kind};
+use crate::time::{SystemTime, UNIX_EPOCH};
 use eframe::egui;
 use faris_engine::{
     DemoManifest,
@@ -11,7 +12,6 @@ use faris_engine::{
 use std::{
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 /// Badge kind for a requirement verdict; absent or unknown states stay NOT_EVALUATED.
@@ -33,7 +33,7 @@ fn status_row(ui: &mut egui::Ui, caption: &str, kind: Kind, label: &str, explana
 }
 
 struct PendingCompilation {
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<CoreCompilation, String>>,
     variant_id: String,
@@ -43,7 +43,7 @@ struct PendingCompilation {
 }
 
 struct PendingEvidence {
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<CoreEvidenceRun, String>>,
     output: PathBuf,
@@ -192,6 +192,11 @@ impl StudyPanel {
             } else {
                 ui.spinner();
             }
+        } else if crate::browser::IS_BROWSER {
+            ui.add_enabled(false, egui::Button::new("Compile study"))
+                .on_disabled_hover_text(crate::browser::desktop_only(
+                    "Compiling a study with Avila Core",
+                ));
         } else if ui.button("Compile study").clicked() {
             self.start(ui.ctx().clone(), manifest, variant_id);
         }
@@ -281,7 +286,7 @@ impl StudyPanel {
         let worker_cancellation = cancellation.clone();
         let worker_output = output.clone();
         let (sender, receiver) = mpsc::channel();
-        match std::thread::Builder::new()
+        match crate::thread::Builder::new()
             .name("faris-core-compile".into())
             .spawn(move || {
                 let result =
@@ -465,6 +470,8 @@ impl StudyPanel {
             if let Some(pending)=&self.pending_evidence {
                 if self.reduced_motion {ui.small("Running…");} else {ui.spinner();} ui.label("Verifying artifacts and executing declared FARIS stages");
                 if ui.button("Cancel evidence").clicked(){pending.cancellation.cancel();}
+            } else if crate::browser::IS_BROWSER {
+                crate::browser::desktop_only_note(ui, "Running the bound study stages with Avila Core");
             } else {
                 let ready=run_path.is_some()&&!self.core_path.trim().is_empty()&&!self.faris_path.trim().is_empty()
                     && (!(self.selection.fuel_history||self.selection.electricity)||assumptions.is_some());
@@ -535,7 +542,7 @@ impl StudyPanel {
         let cancellation = Cancellation::default();
         let worker_cancel = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
-        let spawn = std::thread::Builder::new()
+        let spawn = crate::thread::Builder::new()
             .name("faris-core-evidence".into())
             .spawn(move || {
                 let result =

@@ -5,6 +5,7 @@
 //! run in one background thread and are recomputed (debounced, cancellable)
 //! when the selected operating assumptions change.
 
+use crate::time::{Duration, Instant};
 use crate::{
     badge::{self, Kind},
     transport_panel::TransportPanel,
@@ -22,7 +23,6 @@ use faris_engine::{
 use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
 use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, Instant},
 };
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
@@ -161,7 +161,7 @@ impl SweepPanel {
         panel.load_error = None;
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-sweep-load".into())
             .spawn(move || {
                 let _ = sender.send(loader());
@@ -289,7 +289,7 @@ impl SweepPanel {
         let context = ctx.clone();
         let assumptions = assumptions.clone();
         let rates = self.rates.clone();
-        let spawn = std::thread::Builder::new()
+        let spawn = crate::thread::Builder::new()
             .name("faris-sweep-histories".into())
             .spawn(move || {
                 let result = summarize_sweep(&rates, &assumptions, &worker_cancellation);

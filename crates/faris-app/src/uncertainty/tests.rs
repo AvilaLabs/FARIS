@@ -54,7 +54,7 @@ fn drive(
             return;
         }
         assert!(Instant::now() < deadline, "the ensembles did not finish");
-        std::thread::sleep(Duration::from_millis(20));
+        crate::thread::sleep(Duration::from_millis(20));
     }
 }
 
@@ -87,7 +87,7 @@ fn the_job_waits_for_the_quiet_period_then_runs_the_selected_arrangement_first()
         un.status("B")
     );
     assert!(!un.is_running() && log.calls().is_empty());
-    std::thread::sleep(DEBOUNCE + Duration::from_millis(50));
+    crate::thread::sleep(DEBOUNCE + Duration::from_millis(50));
     drive(&mut un, &ctx, 1, &inputs, all_ready(&["A", "B", "C"]));
     assert_eq!(log.calls(), vec!['b', 'a', 'c']);
     assert_eq!(un.runs_started(), 3);
@@ -116,7 +116,7 @@ fn an_unchanged_key_never_reruns() {
     // plan is rebuilt, every key is found in the cache, nothing runs.
     un.sync(&ctx, 2, &inputs);
     assert!(matches!(un.status("A"), Status::Ready(_)));
-    std::thread::sleep(DEBOUNCE + Duration::from_millis(50));
+    crate::thread::sleep(DEBOUNCE + Duration::from_millis(50));
     un.sync(&ctx, 2, &inputs);
     assert!(!un.is_running());
     assert_eq!(log.calls().len(), 2);
@@ -130,7 +130,7 @@ fn an_unchanged_key_never_reruns() {
     un.invalidate();
     un.sync(&ctx, 4, &inputs);
     assert!(matches!(un.status("A"), Status::Ready(_)));
-    std::thread::sleep(DEBOUNCE + Duration::from_millis(50));
+    crate::thread::sleep(DEBOUNCE + Duration::from_millis(50));
     un.sync(&ctx, 4, &inputs);
     assert!(!un.is_running());
     assert_eq!(log.calls().len(), 3);
@@ -169,7 +169,7 @@ fn an_edit_cancels_the_running_ensemble_and_nothing_partial_appears() {
         // A long ensemble: report a little progress, then wait to be cancelled.
         progress(3, 200);
         while !cancellation.is_cancelled() {
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         c.fetch_add(1, Ordering::SeqCst);
         Err(EnsembleError::Cancelled)
@@ -181,7 +181,7 @@ fn an_edit_cancels_the_running_ensemble_and_nothing_partial_appears() {
     while !matches!(un.status("A"), Status::Running { .. }) || started.load(Ordering::SeqCst) == 0 {
         un.sync(&ctx, 1, &inputs);
         assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(20));
+        crate::thread::sleep(Duration::from_millis(20));
     }
     // Progress is visible while it runs.
     loop {
@@ -192,7 +192,7 @@ fn an_edit_cancels_the_running_ensemble_and_nothing_partial_appears() {
             break;
         }
         assert!(Instant::now() < deadline);
-        std::thread::sleep(Duration::from_millis(5));
+        crate::thread::sleep(Duration::from_millis(5));
     }
     // The history is invalidated by an edit.
     un.invalidate();
@@ -202,7 +202,7 @@ fn an_edit_cancels_the_running_ensemble_and_nothing_partial_appears() {
     while saw_cancel.load(Ordering::SeqCst) == 0 {
         un.collect();
         assert!(Instant::now() < deadline, "the worker never saw the cancel");
-        std::thread::sleep(Duration::from_millis(5));
+        crate::thread::sleep(Duration::from_millis(5));
     }
     assert!(un.cache.is_empty() && un.persistable().is_empty());
 }
@@ -224,7 +224,7 @@ fn a_record_without_covariance_is_not_evaluated_at_once_without_a_job() {
     assert!(why.contains("no covariance") && next_step.starts_with("Rerun transport"));
     assert!(!un.is_running());
     // It is cached under its key: no further runs.
-    std::thread::sleep(DEBOUNCE + Duration::from_millis(50));
+    crate::thread::sleep(DEBOUNCE + Duration::from_millis(50));
     un.sync(&ctx, 1, &inputs);
     un.invalidate();
     un.sync(&ctx, 2, &inputs);
@@ -266,7 +266,7 @@ fn stored_ensembles_are_reused_only_under_an_exact_key() {
     assert_eq!(un.samples(), 200);
     un.sync(&ctx, 1, &inputs);
     assert!(matches!(un.status("A"), Status::Ready(_)));
-    std::thread::sleep(DEBOUNCE + Duration::from_millis(50));
+    crate::thread::sleep(DEBOUNCE + Duration::from_millis(50));
     un.sync(&ctx, 1, &inputs);
     assert!(!un.is_running() && log.calls().is_empty());
     assert_eq!(un.persistable().len(), 1);

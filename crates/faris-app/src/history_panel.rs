@@ -1,5 +1,6 @@
 //! Native presentation of the shared Rust history engine. No UI-owned physics.
 
+use crate::time::{Duration, Instant};
 use crate::{
     badge::{self, Kind},
     uncertainty::{SAMPLE_CHOICES, Status, Uncertainty},
@@ -30,7 +31,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, Instant},
 };
 
 mod uncertainty_view;
@@ -43,14 +43,14 @@ const DAY_S: f64 = 86_400.0;
 
 type Histories = BTreeMap<String, HistoryResult>;
 struct Pending {
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<Histories, String>>,
     assumptions: OperatingHistoryAssumptions,
 }
 
 struct PendingSensitivity {
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<HistorySensitivityResult, String>>,
     identity: String,
@@ -634,7 +634,7 @@ impl HistoryPanel {
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
-        let spawn = std::thread::Builder::new()
+        let spawn = crate::thread::Builder::new()
             .name("faris-operating-history".into())
             .spawn(move || {
                 let result = (|| {
@@ -989,7 +989,7 @@ impl HistoryPanel {
                 let context = ui.ctx().clone();
                 let grid: HistorySensitivityGrid = serde_json::from_slice(include_bytes!("../../../scenarios/arc-inspired/demo-operating-sensitivity.json"))
                     .expect("bundled sensitivity input is checked with the authored scenario");
-                match std::thread::Builder::new().name("faris-history-sensitivity".into()).spawn(move || {
+                match crate::thread::Builder::new().name("faris-history-sensitivity".into()).spawn(move || {
                     let result = run_history_sensitivity_cancellable(&worker_assumptions,&rates,&grid,&worker_cancel);
                     let _ = sender.send(result); context.request_repaint();
                 }) {

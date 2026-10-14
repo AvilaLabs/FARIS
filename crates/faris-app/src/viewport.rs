@@ -760,7 +760,7 @@ pub fn hover_component(
                 state.camera = Some(camera);
                 state.checked_at = now;
             } else if moved {
-                ctx.request_repaint_after(std::time::Duration::from_millis(60));
+                ctx.request_repaint_after(crate::time::Duration::from_millis(60));
             }
         }
     }

@@ -9,7 +9,7 @@ use image::{
     codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder},
     imageops::{self, FilterType},
 };
-use std::time::Duration;
+use crate::time::Duration;
 
 /// Tag on the screenshot command so it is not mistaken for --capture, the
 /// export panel's capture or the recorder's.

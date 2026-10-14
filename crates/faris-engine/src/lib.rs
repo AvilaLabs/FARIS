@@ -30,6 +30,7 @@ pub mod reactor;
 pub mod study;
 pub mod sweep;
 pub mod transport;
+pub mod vfs;
 
 use faris_model::math;
 use faris_model::{LoadedScenario, Penetration, Reference, ScenarioError};

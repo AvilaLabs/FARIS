@@ -3,6 +3,7 @@
 //! are encoded on a worker thread behind a bounded queue; a full queue drops
 //! and counts the frame rather than stalling the UI.
 
+use crate::thread::JoinHandle;
 use eframe::egui;
 use std::{
     io::BufWriter,
@@ -11,7 +12,6 @@ use std::{
         Arc,
         mpsc::{SyncSender, TrySendError, sync_channel},
     },
-    thread::JoinHandle,
 };
 
 pub const MAX_FRAMES: u64 = 600;
@@ -110,9 +110,9 @@ pub struct Recorder {
     fps: f64,
     seconds: f64,
     has_plan: bool,
-    started: Option<std::time::Instant>,
+    started: Option<crate::time::Instant>,
     cadence: Cadence,
-    outstanding: Option<(f64, std::time::Instant)>,
+    outstanding: Option<(f64, crate::time::Instant)>,
     tx: Option<SyncSender<Job>>,
     worker: Option<JoinHandle<u64>>,
     /// Capture time of each saved frame, in order of file index.
@@ -125,7 +125,7 @@ impl Recorder {
     pub fn new(dir: PathBuf, fps: f64, seconds: f64, has_plan: bool) -> Self {
         let (tx, rx) = sync_channel::<Job>(QUEUE_DEPTH);
         let worker_dir = dir.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = crate::thread::spawn(move || {
             let mut failed = 0;
             for job in rx {
                 if let Err(error) = write_png(&worker_dir, job.index, &job.image) {
@@ -160,7 +160,7 @@ impl Recorder {
         }
         if self.started.is_none() {
             if ready {
-                self.started = Some(std::time::Instant::now());
+                self.started = Some(crate::time::Instant::now());
             } else if plan_done {
                 // The plan ended (or timed out) before the app was ready to
                 // record: close with no frames rather than wait forever.
@@ -222,7 +222,7 @@ impl Recorder {
         if !self.stopping && !plan_done && !over_time && self.outstanding.is_none() {
             match self.cadence.poll(t) {
                 Poll::Take => {
-                    self.outstanding = Some((t, std::time::Instant::now()));
+                    self.outstanding = Some((t, crate::time::Instant::now()));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(
                         SCREENSHOT_TAG,
                     )));

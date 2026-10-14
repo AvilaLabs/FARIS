@@ -219,6 +219,13 @@ pub fn format_timestamp(unix_s: i64) -> String {
 }
 
 /// Seconds since the Unix epoch now.
+#[cfg(target_arch = "wasm32")]
+pub fn now_unix_s() -> i64 {
+    // `SystemTime::now` panics in the browser; the page's clock is read instead.
+    (js_sys::Date::now() / 1000.0) as i64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn now_unix_s() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -659,33 +666,30 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
     Ok(files)
 }
 
-/// Write the export into `<parent>/<study name>-export/`. Refuses to write
-/// into an existing folder; the files go to a temporary sibling first and the
-/// folder appears under its final name only when complete.
-pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome, ExportError> {
-    let final_dir = parent.join(folder_name(&input.study_name));
-    if final_dir.exists() {
-        return Err(ExportError::FolderExists(final_dir));
-    }
-    let prepared = prepare(input)?;
-    let files = build_files(input, &prepared)?;
+/// Every file of an export, in memory: what `export_study` writes and the
+/// browser build downloads as one archive.
+pub struct ExportFiles {
+    /// The folder name the files belong under.
+    pub folder_name: String,
+    /// `(relative path, bytes)`, the manifest last.
+    pub files: Vec<(String, Vec<u8>)>,
+    /// One record per file except the manifest, sorted by path.
+    pub records: Vec<FileRecord>,
+    pub view_image_included: bool,
+}
 
-    let staging = tempfile::Builder::new()
-        .prefix(".faris-export-")
-        .tempdir_in(parent)?;
-    let mut records = Vec::with_capacity(files.len() + 1);
-    for (path, bytes) in &files {
-        let target = staging.path().join(path);
-        if let Some(dir) = target.parent() {
-            fs::create_dir_all(dir)?;
-        }
-        faris_engine::atomic_file::write_new(&target, bytes)?;
-        records.push(FileRecord {
+/// Build the whole export in memory without touching a file system.
+pub fn export_files(input: &ReportInput) -> Result<ExportFiles, ExportError> {
+    let prepared = prepare(input)?;
+    let mut files = build_files(input, &prepared)?;
+    let mut records: Vec<FileRecord> = files
+        .iter()
+        .map(|(path, bytes)| FileRecord {
             path: path.clone(),
             sha256: sha256_hex(bytes),
             bytes: bytes.len() as u64,
-        });
-    }
+        })
+        .collect();
     records.sort_by(|a, b| a.path.cmp(&b.path));
     let manifest = Manifest {
         schema: "faris-export/1",
@@ -705,10 +709,35 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
     let mut text =
         serde_json::to_string_pretty(&manifest).map_err(|e| ExportError::Render(e.to_string()))?;
     text.push('\n');
-    faris_engine::atomic_file::write_new(
-        &staging.path().join("export-manifest.json"),
-        text.as_bytes(),
-    )?;
+    files.push(("export-manifest.json".into(), text.into_bytes()));
+    Ok(ExportFiles {
+        folder_name: folder_name(&input.study_name),
+        files,
+        records,
+        view_image_included: prepared.view_image.is_some(),
+    })
+}
+
+/// Write the export into `<parent>/<study name>-export/`. Refuses to write
+/// into an existing folder; the files go to a temporary sibling first and the
+/// folder appears under its final name only when complete.
+pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome, ExportError> {
+    let final_dir = parent.join(folder_name(&input.study_name));
+    if final_dir.exists() {
+        return Err(ExportError::FolderExists(final_dir));
+    }
+    let export = export_files(input)?;
+
+    let staging = tempfile::Builder::new()
+        .prefix(".faris-export-")
+        .tempdir_in(parent)?;
+    for (path, bytes) in &export.files {
+        let target = staging.path().join(path);
+        if let Some(dir) = target.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        faris_engine::atomic_file::write_new(&target, bytes)?;
+    }
     // The folder appears under its final name only once its entries are on disk.
     let _ = faris_engine::atomic_file::sync_directory(staging.path());
 
@@ -724,8 +753,8 @@ pub fn export_study(input: &ReportInput, parent: &Path) -> Result<ExportOutcome,
     let _ = faris_engine::atomic_file::sync_directory(parent);
     Ok(ExportOutcome {
         folder: final_dir,
-        files: records,
-        view_image_included: prepared.view_image.is_some(),
+        files: export.records,
+        view_image_included: export.view_image_included,
     })
 }
 

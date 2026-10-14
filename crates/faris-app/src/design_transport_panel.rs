@@ -4,6 +4,7 @@
 //! the result in `design_transport_result`, and the computation in the engine; this file only
 //! draws them. The window has no plots, so scrolling it never pans or zooms anything.
 
+use crate::time::{Duration};
 use crate::{
     badge::{self, Kind},
     design_shared::{missing_count_text, needs_list, path_row},
@@ -21,7 +22,6 @@ use faris_engine::design::LimitStatus;
 use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::Duration,
 };
 
 /// A finished run as the window keeps it.
@@ -143,10 +143,10 @@ impl DesignTransportPanel {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let folder = self.tools.borrow().last_folder(Window::DesignFlux);
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-design-transport-dialog".into())
             .spawn(move || {
-                let mut dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                let mut dialog = crate::dialog::FileDialog::new().set_title(dialog_title(field));
                 if let Some(folder) = folder {
                     dialog = dialog.set_directory(folder);
                 }

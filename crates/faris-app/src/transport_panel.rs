@@ -3,6 +3,7 @@ use crate::{
     design_tools::SharedTools,
     settings::Tool,
 };
+use crate::time::{Duration, SystemTime, UNIX_EPOCH};
 use eframe::egui;
 use faris_engine::{
     jobs::Cancellation,
@@ -17,7 +18,6 @@ use std::{
     collections::BTreeMap,
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
@@ -63,7 +63,7 @@ const WINDOWED_PRODUCTION_PARTICLES: u32 = 20_000;
 
 /// Threads for a run: all but one of the machine's, at most four, at least one.
 fn run_threads() -> u32 {
-    let available = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let available = crate::thread::available_parallelism().map_or(1, |n| n.get());
     available.saturating_sub(1).clamp(1, 4) as u32
 }
 
@@ -116,7 +116,7 @@ pub struct TransportConfiguration {
 }
 
 struct Pending {
-    handle: Option<std::thread::JoinHandle<()>>,
+    handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<ReactorRun, String>>,
     output: PathBuf,
@@ -127,7 +127,7 @@ pub struct TransportPanel {
     cases: BTreeMap<String, PhysicsCase>,
     records: BTreeMap<String, ReactorRun>,
     locations: BTreeMap<String, PathBuf>,
-    _replay_directories: Vec<tempfile::TempDir>,
+    _replay_directories: Vec<faris_engine::vfs::ScratchDir>,
     python: String,
     openmc: String,
     audit: String,
@@ -405,7 +405,7 @@ impl TransportPanel {
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
         self.error = None;
-        match std::thread::Builder::new()
+        match crate::thread::Builder::new()
             .name("faris-openmc-transport".into())
             .spawn(move || {
                 let job = ReactorJob {
@@ -461,64 +461,68 @@ impl TransportPanel {
                 "Cold-data surrogate. Scientific qualification: NOT_EVALUATED.",
             );
         });
-        ui.collapsing("Transport configuration", |ui| {
-            for (label, path) in [
-                ("OpenMC Python", &mut self.python),
-                ("OpenMC executable", &mut self.openmc),
-                ("Data audit JSON", &mut self.audit),
-                ("cross_sections.xml", &mut self.cross_sections),
-            ] {
-                ui.label(label);
-                ui.add(egui::TextEdit::singleline(path).desired_width(f32::INFINITY));
-            }
-            if let Some(tools) = tools {
-                ui.label("Window Python (OpenMC 0.16, for Production)");
-                let mut text = self.window_python.clone();
-                if ui
-                    .add(egui::TextEdit::singleline(&mut text).desired_width(f32::INFINITY))
-                    .changed()
-                {
-                    let mut tools = tools.borrow_mut();
-                    tools.set(Tool::WindowPython, &text);
-                    tools.flush(ui.ctx().egui_wants_keyboard_input());
-                    self.window_python = text;
+        if crate::browser::IS_BROWSER {
+            crate::browser::desktop_only_note(ui, "Running new transport (OpenMC)");
+        } else {
+            ui.collapsing("Transport configuration", |ui| {
+                for (label, path) in [
+                    ("OpenMC Python", &mut self.python),
+                    ("OpenMC executable", &mut self.openmc),
+                    ("Data audit JSON", &mut self.audit),
+                    ("cross_sections.xml", &mut self.cross_sections),
+                ] {
+                    ui.label(label);
+                    ui.add(egui::TextEdit::singleline(path).desired_width(f32::INFINITY));
                 }
-            }
-            egui::ComboBox::from_id_salt("fresh-field-mesh")
-                .selected_text(match self.mesh_preset {MeshPreset::Coarse => "Whole model · coarse", MeshPreset::OutboardLocalCoarse => "Port region · coarse", MeshPreset::OutboardLocal => "Port region · fine", MeshPreset::OutboardPortWindow => "Direct port-window average"})
-                .show_ui(ui, |ui| {
-                    for (preset, label) in [(MeshPreset::Coarse,"Whole model · 12 × 8 × 12"),(MeshPreset::OutboardLocalCoarse,"Port region · 12 × 6 × 12"),(MeshPreset::OutboardLocal,"Port region · 24 × 12 × 24"),(MeshPreset::OutboardPortWindow,"Direct port window · one bin")] {ui.selectable_value(&mut self.mesh_preset, preset, label);}
-                });
-            ui.small(format!("{} thread(s); 4 hour limit; 4 GiB process memory; 512 MiB artifacts. Mesh/request/JSON sizes are checked before spawning. Sampling precision is measured after execution.", run_threads()));
-        });
-        ui.label("Run quality");
-        ui.radio_value(&mut self.tier, Tier::Preview, "Preview · about a minute");
-        ui.radio_value(
-            &mut self.tier,
-            Tier::Production,
-            "Production · stop at 5 % on the magnet flux",
-        );
-        ui.small(match self.tier {
-            Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
-            Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (kept for the next run on the same model), runs an ordinary pass for the whole-model results (tritium, heating), then a windowed pass until the magnet flux is known to 5 % or the 20 million history budget is used. Each result is taken from the pass that is valid for it. You can cancel at any time.",
-            Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
-        });
-        if let Some(pending) = &self.pending {
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label("Transport running");
-                if ui.button("Cancel").clicked() {
-                    pending.cancellation.cancel();
+                if let Some(tools) = tools {
+                    ui.label("Window Python (OpenMC 0.16, for Production)");
+                    let mut text = self.window_python.clone();
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut text).desired_width(f32::INFINITY))
+                        .changed()
+                    {
+                        let mut tools = tools.borrow_mut();
+                        tools.set(Tool::WindowPython, &text);
+                        tools.flush(ui.ctx().egui_wants_keyboard_input());
+                        self.window_python = text;
+                    }
                 }
+                egui::ComboBox::from_id_salt("fresh-field-mesh")
+                    .selected_text(match self.mesh_preset {MeshPreset::Coarse => "Whole model · coarse", MeshPreset::OutboardLocalCoarse => "Port region · coarse", MeshPreset::OutboardLocal => "Port region · fine", MeshPreset::OutboardPortWindow => "Direct port-window average"})
+                    .show_ui(ui, |ui| {
+                        for (preset, label) in [(MeshPreset::Coarse,"Whole model · 12 × 8 × 12"),(MeshPreset::OutboardLocalCoarse,"Port region · 12 × 6 × 12"),(MeshPreset::OutboardLocal,"Port region · 24 × 12 × 24"),(MeshPreset::OutboardPortWindow,"Direct port window · one bin")] {ui.selectable_value(&mut self.mesh_preset, preset, label);}
+                    });
+                ui.small(format!("{} thread(s); 4 hour limit; 4 GiB process memory; 512 MiB artifacts. Mesh/request/JSON sizes are checked before spawning. Sampling precision is measured after execution.", run_threads()));
             });
-        } else if ui
-            .add_enabled(
-                self.readiness(variant).starts_with("Transport configured"),
-                egui::Button::new("Run transport"),
-            )
-            .clicked()
-        {
-            self.start(ui.ctx().clone(), variant);
+            ui.label("Run quality");
+            ui.radio_value(&mut self.tier, Tier::Preview, "Preview · about a minute");
+            ui.radio_value(
+                &mut self.tier,
+                Tier::Production,
+                "Production · stop at 5 % on the magnet flux",
+            );
+            ui.small(match self.tier {
+                Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
+                Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (kept for the next run on the same model), runs an ordinary pass for the whole-model results (tritium, heating), then a windowed pass until the magnet flux is known to 5 % or the 20 million history budget is used. Each result is taken from the pass that is valid for it. You can cancel at any time.",
+                Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
+            });
+            if let Some(pending) = &self.pending {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label("Transport running");
+                    if ui.button("Cancel").clicked() {
+                        pending.cancellation.cancel();
+                    }
+                });
+            } else if ui
+                .add_enabled(
+                    self.readiness(variant).starts_with("Transport configured"),
+                    egui::Button::new("Run transport"),
+                )
+                .clicked()
+            {
+                self.start(ui.ctx().clone(), variant);
+            }
         }
         if let Some(error) = &self.error {
             ui.colored_label(egui::Color32::LIGHT_RED, error);

@@ -6,6 +6,7 @@
 //! beyond that one probe. Choosing from the answers (`choose`) is a pure function, so it is
 //! tested with injected answers and no real interpreters.
 
+use crate::time::{Duration};
 use crate::settings::Tool;
 use faris_engine::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
 use serde::Deserialize;
@@ -13,7 +14,6 @@ use std::{
     collections::HashSet,
     ffi::OsString,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 /// The most interpreters asked, so a crowded machine cannot make the search long.

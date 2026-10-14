@@ -649,7 +649,7 @@ impl CheckJob {
     }
 
     #[cfg(test)]
-    pub fn cancel_acknowledged_after(&self) -> Option<std::time::Duration> {
+    pub fn cancel_acknowledged_after(&self) -> Option<crate::time::Duration> {
         self.run.cancel_acknowledged_after()
     }
 }
@@ -667,7 +667,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::design_check_result::tests::passing_report;
     use crate::design_shared::ToolState;
-    use std::time::{Duration, Instant};
+    use crate::time::{Duration, Instant};
 
     /// Files and folders every required input points at.
     fn tree() -> (tempfile::TempDir, Inputs) {
@@ -902,7 +902,7 @@ pub(crate) mod tests {
             if let Some(done) = job.poll() {
                 return Some(done);
             }
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         None
     }
@@ -937,7 +937,7 @@ pub(crate) mod tests {
             let started = Instant::now();
             while !options.cancellation.is_cancelled() {
                 assert!(started.elapsed() < Duration::from_secs(10));
-                std::thread::sleep(Duration::from_millis(2));
+                crate::thread::sleep(Duration::from_millis(2));
             }
             Err("the check was cancelled".into())
         }));
@@ -992,7 +992,7 @@ pub(crate) mod tests {
             if let Some(done) = job.poll() {
                 break done;
             }
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         };
         assert_eq!(done.summary.solids, 2);
         let mut nulls = done.null_paths.unwrap();

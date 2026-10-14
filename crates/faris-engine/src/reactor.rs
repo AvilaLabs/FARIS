@@ -936,13 +936,7 @@ pub struct ReactorJob<'a> {
 }
 
 pub fn read_json_bytes(path: &Path) -> Result<Vec<u8>, ReactorError> {
-    if !path.metadata()?.is_file() {
-        return Err("JSON input must be a regular file".into());
-    }
-    let mut bytes = Vec::new();
-    File::open(path)?
-        .take(MAX_JSON_BYTES + 1)
-        .read_to_end(&mut bytes)?;
+    let bytes = crate::vfs::read_capped(path, MAX_JSON_BYTES)?;
     if bytes.len() as u64 > MAX_JSON_BYTES {
         return Err("JSON input exceeds 16 MiB".into());
     }
@@ -960,6 +954,16 @@ pub fn load_physics_case(
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
+/// The browser build reads recorded files from memory.
+#[cfg(target_arch = "wasm32")]
+pub fn hash_file(path: &Path) -> Result<String, ReactorError> {
+    let bytes = crate::vfs::read_capped(path, MAX_FILE_BYTES)?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err("identity input must be a regular file below 512 MiB".into());
+    }
+    Ok(digest(&bytes))
+}
+#[cfg(not(target_arch = "wasm32"))]
 pub fn hash_file(path: &Path) -> Result<String, ReactorError> {
     let metadata = path.metadata()?;
     if !metadata.is_file() || metadata.len() > MAX_FILE_BYTES {

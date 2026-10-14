@@ -1,5 +1,6 @@
 //! Reopening saved studies revalidates their identities on a worker thread.
 
+use crate::time::{Duration, Instant};
 use crate::badge::{self, Kind};
 use crate::package::{SavedStore, StoreOrigin};
 use eframe::egui;
@@ -14,7 +15,6 @@ use std::{
     io::Read,
     path::{Component, Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::{Duration, Instant},
 };
 
 #[derive(Deserialize)]
@@ -26,7 +26,7 @@ struct Locations {
 }
 
 struct Pending {
-    handle: std::thread::JoinHandle<()>,
+    handle: crate::thread::JoinHandle<()>,
     receiver: Receiver<Vec<Result<SavedCaseInspection, String>>>,
     cancellation: Cancellation,
 }
@@ -184,7 +184,7 @@ impl ArchivePanel {
         let (sender, receiver) = mpsc::channel();
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
-        match std::thread::Builder::new()
+        match crate::thread::Builder::new()
             .name("faris-reopen-saved-study".into())
             .spawn(move || {
                 let _ = sender.send(work(worker_cancellation));
@@ -483,7 +483,7 @@ fn wait_for_materialization(
         if remaining.is_zero() {
             return Err("Core evidence did not finish unpacking within 10 minutes, so the saved receipts were not checked. Why: unpacking the evidence archives took longer than this limit, usually because the temporary folder is on a slow or nearly full disk. Next step: free temporary space and reopen FARIS. Everything except the saved receipts remains available.".into());
         }
-        std::thread::sleep(remaining.min(Duration::from_millis(20)));
+        crate::thread::sleep(remaining.min(Duration::from_millis(20)));
     }
 }
 
@@ -538,10 +538,10 @@ mod delivery_tests {
         let cancellation = Cancellation::default();
         let worker_cancel = cancellation.clone();
         let worker_marker = marker.clone();
-        let worker = std::thread::spawn(move || {
+        let worker = crate::thread::spawn(move || {
             wait_for_materialization(&worker_marker, &worker_cancel, Duration::from_secs(60))
         });
-        std::thread::sleep(Duration::from_millis(10));
+        crate::thread::sleep(Duration::from_millis(10));
         let started = Instant::now();
         cancellation.cancel();
         assert!(worker.join().unwrap().unwrap_err().contains("cancelled"));

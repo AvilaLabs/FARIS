@@ -214,7 +214,7 @@ impl MaintenancePanel {
     ) {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-maintenance-load".into())
             .spawn(move || {
                 let _ = sender.send(job());
@@ -235,10 +235,10 @@ impl MaintenancePanel {
         }
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-maintenance-dialog".into())
             .spawn(move || {
-                let picked = rfd::FileDialog::new()
+                let picked = crate::dialog::FileDialog::new()
                     .add_filter("Maintenance result", &["json"])
                     .set_title("Open maintenance result")
                     .pick_file();
@@ -1538,7 +1538,7 @@ mod tests {
             if !panel.is_pending() {
                 return;
             }
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            crate::thread::sleep(crate::time::Duration::from_millis(10));
         }
         panic!("the load did not finish");
     }

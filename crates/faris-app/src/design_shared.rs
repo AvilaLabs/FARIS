@@ -3,6 +3,7 @@
 //! machine (start on a worker thread, live progress, cancel, collect). Nothing here owns
 //! physics; the windows keep their own inputs and their own wording of results.
 
+use crate::time::{Instant};
 use crate::badge::Kind;
 use eframe::egui;
 use faris_engine::jobs::Cancellation;
@@ -12,7 +13,6 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, TryRecvError},
     },
-    time::Instant,
 };
 
 /// What a tool path is, what it is for and what happens without it.
@@ -339,7 +339,7 @@ impl<S: Default + Clone + Send + 'static, R: Send + 'static> Run<S, R> {
         };
         let worker_cancel = cancel.clone();
         let context = ctx.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name(thread_name.into())
             .spawn(move || {
                 let outcome = match work(worker_cancel.clone(), sink) {
@@ -423,7 +423,7 @@ impl<S: Default + Clone + Send + 'static, R: Send + 'static> Run<S, R> {
 
     /// Time since cancel was pressed, to test how quickly the panel answers.
     #[cfg(test)]
-    pub fn cancel_acknowledged_after(&self) -> Option<std::time::Duration> {
+    pub fn cancel_acknowledged_after(&self) -> Option<crate::time::Duration> {
         match &self.state {
             State::Running {
                 cancel_requested: Some(at),
@@ -437,7 +437,7 @@ impl<S: Default + Clone + Send + 'static, R: Send + 'static> Run<S, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use crate::time::Duration;
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     enum F {
@@ -537,7 +537,7 @@ mod tests {
             if let Some(done) = run.poll() {
                 return Some(done);
             }
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         None
     }
@@ -562,7 +562,7 @@ mod tests {
             let started = Instant::now();
             while !cancel.is_cancelled() {
                 assert!(started.elapsed() < Duration::from_secs(10));
-                std::thread::sleep(Duration::from_millis(2));
+                crate::thread::sleep(Duration::from_millis(2));
             }
             Err("cancelled".into())
         });

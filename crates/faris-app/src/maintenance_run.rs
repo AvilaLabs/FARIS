@@ -4,6 +4,7 @@
 //! run` calls; nothing here owns physics. The worker never touches egui state: it reports
 //! through a mutex-guarded progress record and a channel.
 
+use crate::time::{Duration, Instant};
 use crate::badge::Kind;
 use eframe::egui;
 use faris_engine::{
@@ -22,7 +23,6 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, TryRecvError},
     },
-    time::{Duration, Instant},
 };
 
 pub const ACTINV_URL: &str = "https://actinv.avilalabs.org";
@@ -450,7 +450,7 @@ impl RunPanel {
         let worker_progress = progress.clone();
         let context = ctx.clone();
         let output = plan.output.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-maintenance-run".into())
             .spawn(move || {
                 let sink = context.clone();
@@ -544,10 +544,10 @@ impl RunPanel {
         }
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-maintenance-run-dialog".into())
             .spawn(move || {
-                let dialog = rfd::FileDialog::new().set_title(match field {
+                let dialog = crate::dialog::FileDialog::new().set_title(match field {
                     Field::Designs => "Choose the maintenance designs file",
                     Field::Assumptions => "Choose the maintenance assumptions file",
                     Field::Actinv => "Choose the actinv binary",
@@ -930,7 +930,7 @@ mod tests {
             if let Some(done) = panel.poll() {
                 return Some(done);
             }
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         None
     }
@@ -1121,7 +1121,7 @@ mod tests {
         let mut panel = RunPanel::with_runner(Arc::new(move |_, cancel, _| {
             counter.fetch_add(1, Ordering::SeqCst);
             while !cancel.is_cancelled() {
-                std::thread::sleep(Duration::from_millis(2));
+                crate::thread::sleep(Duration::from_millis(2));
             }
             Err("cancelled".into())
         }));
@@ -1174,7 +1174,7 @@ mod tests {
         while panel.is_pending() {
             assert!(started.elapsed() < Duration::from_secs(10));
             panel.poll_run_for_tests();
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         assert!(panel.shows_result_for_tests());
     }

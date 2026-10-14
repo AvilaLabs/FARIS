@@ -994,42 +994,50 @@ pub fn run_history_ensemble(
     let done = AtomicUsize::new(0);
     let failed = AtomicBool::new(false);
     let results: Mutex<Vec<SampleResult>> = Mutex::new(Vec::with_capacity(total));
+    let work = || {
+        loop {
+            if cancellation.is_cancelled() || failed.load(Ordering::Acquire) {
+                break;
+            }
+            let i = next.fetch_add(1, Ordering::AcqRel);
+            if i >= total {
+                break;
+            }
+            let draw = &draws[i];
+            let sampled = with_sampled_means(rates, &draw.values);
+            let result = run_operating_history_cancellable(
+                assumptions,
+                &sampled,
+                cancellation,
+            )
+            .map(|run| {
+                (
+                    outcome_of(i as u32 + 1, &draw.values, rates, draw.rejections, &run),
+                    series_of(&run, &grid),
+                )
+            });
+            match &result {
+                Ok(_) => {
+                    let completed = done.fetch_add(1, Ordering::AcqRel) + 1;
+                    progress(completed, total);
+                }
+                Err(_) => failed.store(true, Ordering::Release),
+            }
+            results.lock().unwrap().push((i, result));
+        }
+    };
+    // The browser page has no threads: its one worker runs here.
+    #[cfg(not(target_arch = "wasm32"))]
     std::thread::scope(|scope| {
         for _ in 0..threads {
-            scope.spawn(|| {
-                loop {
-                    if cancellation.is_cancelled() || failed.load(Ordering::Acquire) {
-                        break;
-                    }
-                    let i = next.fetch_add(1, Ordering::AcqRel);
-                    if i >= total {
-                        break;
-                    }
-                    let draw = &draws[i];
-                    let sampled = with_sampled_means(rates, &draw.values);
-                    let result = run_operating_history_cancellable(
-                        assumptions,
-                        &sampled,
-                        cancellation,
-                    )
-                    .map(|run| {
-                        (
-                            outcome_of(i as u32 + 1, &draw.values, rates, draw.rejections, &run),
-                            series_of(&run, &grid),
-                        )
-                    });
-                    match &result {
-                        Ok(_) => {
-                            let completed = done.fetch_add(1, Ordering::AcqRel) + 1;
-                            progress(completed, total);
-                        }
-                        Err(_) => failed.store(true, Ordering::Release),
-                    }
-                    results.lock().unwrap().push((i, result));
-                }
-            });
+            scope.spawn(&work);
         }
     });
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = threads;
+        work();
+    }
     let mut collected = results.into_inner().unwrap();
     if cancellation.is_cancelled() {
         return Err(EnsembleError::Cancelled);

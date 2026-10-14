@@ -10,6 +10,8 @@
 //!
 //! The ranges are transport Monte Carlo sampling uncertainty only.
 
+use crate::thread::JoinHandle;
+use crate::time::{Duration, Instant};
 use eframe::egui;
 use faris_engine::{
     history::{HistoryResult, TransportDrivingRates},
@@ -29,8 +31,6 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         mpsc::{self, Receiver, TryRecvError},
     },
-    thread::JoinHandle,
-    time::{Duration, Instant},
 };
 
 /// Quiet period between the plan last changing and the job starting.
@@ -137,7 +137,7 @@ fn default_runner() -> Runner {
 /// At most half the cores, between one and four: the interface thread and the
 /// renderer keep the rest.
 fn worker_threads() -> usize {
-    std::thread::available_parallelism()
+    crate::thread::available_parallelism()
         .map_or(2, |n| n.get() / 2)
         .clamp(1, 4)
 }
@@ -417,7 +417,7 @@ impl Uncertainty {
         let runner = self.runner.clone();
         let (worker_cancel, worker_counter, context) =
             (cancellation.clone(), counter.clone(), ctx.clone());
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-history-ensemble".into())
             .spawn(move || {
                 for (position, (planned, settings)) in todo.iter().zip(&settings).enumerate() {

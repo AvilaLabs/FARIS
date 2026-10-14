@@ -52,7 +52,15 @@ pub fn marker_path() -> Option<PathBuf> {
     marker_path_from(var("XDG_CONFIG_HOME"), var("HOME"))
 }
 
+/// Record that the tour was finished or skipped. The browser build keeps the
+/// marker in local storage (a storage failure only means the tour plays again).
+#[cfg(target_arch = "wasm32")]
+pub fn write_marker(path: &Path) {
+    crate::web::storage_set(&path.to_string_lossy(), "completed");
+}
+
 /// Record that the tour was finished or skipped. Failures only log.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn write_marker(path: &Path) {
     let result = path
         .parent()

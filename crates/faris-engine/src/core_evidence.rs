@@ -19,17 +19,7 @@ const MAX_BUNDLE_BYTES: usize = 32 * 1024 * 1024;
 pub const MAX_STAGE_BYTES: usize = 64 * 1024 * 1024;
 
 pub fn read_stage(path: &Path) -> Result<Vec<u8>, ReactorError> {
-    use std::io::Read;
-    if !fs::metadata(path)?.is_file() {
-        return Err("stage input must be a regular file".into());
-    }
-    let file = fs::File::open(path)?;
-    if !file.metadata()?.is_file() {
-        return Err("stage input must be a regular file".into());
-    }
-    let mut bytes = Vec::new();
-    file.take((MAX_STAGE_BYTES + 1) as u64)
-        .read_to_end(&mut bytes)?;
+    let bytes = crate::vfs::read_capped(path, MAX_STAGE_BYTES as u64)?;
     if bytes.len() > MAX_STAGE_BYTES {
         return Err("stage envelope exceeds 64 MiB".into());
     }
@@ -97,13 +87,12 @@ impl RecordedTransportBundle {
         Ok(())
     }
 
-    pub fn materialize(&self) -> Result<tempfile::TempDir, ReactorError> {
+    pub fn materialize(&self) -> Result<crate::vfs::ScratchDir, ReactorError> {
         self.validate()?;
-        let scratch = tempfile::tempdir()?;
+        let scratch = crate::vfs::ScratchDir::new()?;
         for (name, bytes) in &self.files {
             let path = scratch.path().join(name);
-            fs::create_dir_all(path.parent().ok_or("file needs a directory")?)?;
-            write_new(&path, bytes.as_bytes())?;
+            crate::vfs::write_new(&path, bytes.as_bytes())?;
         }
         Ok(scratch)
     }
@@ -131,7 +120,7 @@ pub fn scenario_from_bundle_file(path: &Path) -> Result<LoadedScenario, String> 
 pub struct LoadedBundle {
     pub record: ReactorRun,
     pub case: faris_model::physics::PhysicsCase,
-    pub directory: tempfile::TempDir,
+    pub directory: crate::vfs::ScratchDir,
 }
 
 /// The one way a bundle file becomes a transport record, shared by the desktop

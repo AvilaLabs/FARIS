@@ -6,6 +6,7 @@
 //! computation in the engine; this file only draws them. The window has no plots, so scrolling it
 //! never pans or zooms anything.
 
+use crate::time::{Duration};
 use crate::{
     badge::{self, Kind},
     design_check_result::{
@@ -27,7 +28,6 @@ use faris_engine::design::CheckStatus;
 use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, TryRecvError},
-    time::Duration,
 };
 
 /// A finished check as the window keeps it.
@@ -209,10 +209,10 @@ impl DesignCheckPanel {
         let context = ctx.clone();
         let start = self.inputs.clone();
         let folder = self.tools.borrow().last_folder(Window::DesignCheck);
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-design-check-dialog".into())
             .spawn(move || {
-                let mut dialog = rfd::FileDialog::new().set_title(dialog_title(field));
+                let mut dialog = crate::dialog::FileDialog::new().set_title(dialog_title(field));
                 if let Some(folder) = folder {
                     dialog = dialog.set_directory(folder);
                 }

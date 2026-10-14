@@ -1,0 +1,12 @@
+# Web build for FARIS — `trunk build --release` from this directory produces
+# the browser bundle in dist/. The recorded study the page opens is copied from
+# demo/ (made by scripts/prepare_web_demo.py from a release package).
+[build]
+target = "index.html"
+release = true
+# Stable asset names: the page and the deploy layer refer to them directly.
+filehash = false
+
+[serve]
+port = 8080
+open = false

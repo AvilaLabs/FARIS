@@ -192,13 +192,13 @@ pub struct RecordedMaintenance {
 /// other content, so a file changed after launch is never loaded.
 pub fn read_verified(path: &Path, expected: &str) -> Result<Vec<u8>, String> {
     let name = path.display();
-    let size = std::fs::metadata(path)
-        .map_err(|e| format!("{name} cannot be read: {e}"))?
-        .len();
+    let size = faris_engine::vfs::file_len(path)
+        .ok_or_else(|| format!("{name} cannot be read: it is not a regular file"))?;
     if size > MAX_FILE_BYTES {
         return Err(format!("{name} is larger than the package file limit"));
     }
-    let bytes = std::fs::read(path).map_err(|e| format!("{name} cannot be read: {e}"))?;
+    let bytes =
+        faris_engine::vfs::read(path).map_err(|e| format!("{name} cannot be read: {e}"))?;
     if format!("sha256:{:x}", Sha256::digest(&bytes)) != expected {
         return Err(format!(
             "{name} differs from the package index in SHA-256; download the package again"

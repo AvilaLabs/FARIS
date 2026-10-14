@@ -16,3 +16,5 @@ customer-data/
 .DS_Store
 .wrangler/
 target-shots/
+crates/faris-app/demo/
+crates/faris-app/dist/

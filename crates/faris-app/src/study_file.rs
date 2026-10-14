@@ -3,8 +3,9 @@
 //! writing and verification live in `faris-study`; nothing here interprets
 //! physics.
 
+use crate::time::{Duration, Instant};
 use crate::{
-    Arguments, FarisApp, Session, SessionInputs, Step,
+    FarisApp, Session, SessionInputs, Step,
     badge::Kind,
     load_sweep,
     package::{SavedStore, SavedStudy, StoreOrigin},
@@ -25,7 +26,6 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, TryRecvError},
     },
-    time::{Duration, Instant},
 };
 
 pub const EXTENSION: &str = "faris";
@@ -228,7 +228,8 @@ pub struct StudyInputs {
 }
 
 impl StudyInputs {
-    pub fn from_arguments(args: &Arguments) -> Self {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn from_arguments(args: &crate::native::Arguments) -> Self {
         let arrangement = |scenario: &Option<PathBuf>, physics: &[PathBuf], bundles: &[PathBuf]| {
             (scenario.is_some() || !physics.is_empty() || !bundles.is_empty()).then(|| {
                 ArrangementDraft {
@@ -545,7 +546,7 @@ fn open_study(
     }
     let marker = (!jobs.is_empty()).then(|| workspace.path().join("materialization.json"));
     if let Some(marker) = marker.clone() {
-        std::thread::Builder::new()
+        crate::thread::Builder::new()
             .name("faris-extract-evidence".into())
             .spawn(move || {
                 let result = jobs.iter().try_for_each(|(archive, destination)| {
@@ -816,7 +817,7 @@ impl FarisApp {
             ctx.clone(),
         );
         let package_store = self.file.package_store.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-open-study".into())
             .spawn(move || {
                 let _ = sender.send(open_study(
@@ -889,7 +890,7 @@ impl FarisApp {
     ) {
         let (sender, receiver) = mpsc::channel();
         let (target, context) = (path.clone(), ctx.clone());
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-save-study".into())
             .spawn(move || {
                 draft.preview_png = capture
@@ -917,10 +918,10 @@ impl FarisApp {
         let (sender, receiver) = mpsc::channel();
         let context = ctx.clone();
         let current = self.file.path.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-file-dialog".into())
             .spawn(move || {
-                let dialog = rfd::FileDialog::new().add_filter("FARIS study", &[EXTENSION]);
+                let dialog = crate::dialog::FileDialog::new().add_filter("FARIS study", &[EXTENSION]);
                 let picked = match action {
                     Action::Open => dialog.set_title("Open study").pick_file(),
                     _ => {
@@ -1331,8 +1332,8 @@ mod tests {
 
     #[test]
     fn a_study_file_conflicts_with_the_other_input_flags() {
-        assert!(Arguments::try_parse_from(["faris-app", "study.faris"]).is_ok());
-        assert!(Arguments::try_parse_from(["faris-app", "study.faris", "--core", "x"]).is_ok());
+        assert!(crate::native::Arguments::try_parse_from(["faris-app", "study.faris"]).is_ok());
+        assert!(crate::native::Arguments::try_parse_from(["faris-app", "study.faris", "--core", "x"]).is_ok());
         for flag in [
             "--bundle",
             "--sweep-bundle",
@@ -1342,12 +1343,12 @@ mod tests {
             "--saved-study",
         ] {
             assert!(
-                Arguments::try_parse_from(["faris-app", "study.faris", flag, "x.json"]).is_err(),
+                crate::native::Arguments::try_parse_from(["faris-app", "study.faris", flag, "x.json"]).is_err(),
                 "{flag}"
             );
         }
         assert!(
-            Arguments::try_parse_from(["faris-app", "study.faris", "--step", "compare"]).is_err()
+            crate::native::Arguments::try_parse_from(["faris-app", "study.faris", "--step", "compare"]).is_err()
         );
     }
 
@@ -1356,7 +1357,7 @@ mod tests {
         let parse = |args: &[&str]| {
             let mut all = vec!["faris-app"];
             all.extend_from_slice(args);
-            StudyInputs::from_arguments(&Arguments::try_parse_from(all).unwrap())
+            StudyInputs::from_arguments(&crate::native::Arguments::try_parse_from(all).unwrap())
         };
         assert!(
             parse(&["--run", "r.json"])
@@ -1700,7 +1701,7 @@ mod tests {
         // Referenced and not beside the file, no package: opens, evidence not included.
         let referenced = dir.path().join("referenced.faris");
         write_study(&referenced, &draft).unwrap();
-        let started = std::time::Instant::now();
+        let started = crate::time::Instant::now();
         let (session, opened) = open_study(&referenced, &runs, None, &progress).unwrap();
         let seconds = started.elapsed().as_secs_f64();
         assert!(session.control.is_some());
@@ -1733,7 +1734,7 @@ mod tests {
         )
         .unwrap();
         assert!(opened.evidence_store.as_ref().unwrap().missing.is_empty());
-        let started = std::time::Instant::now();
+        let started = crate::time::Instant::now();
         let cases = reopen(&opened);
         assert_eq!(cases.len(), 4);
         println!(
@@ -1748,7 +1749,7 @@ mod tests {
         let (_, opened) = open_study(&packed, &runs, None, &progress).unwrap();
         assert_eq!(opened.evidence_store.as_ref().unwrap().found.len(), 4);
         assert!(opened.descriptors.is_empty() && opened.marker.is_none());
-        let started = std::time::Instant::now();
+        let started = crate::time::Instant::now();
         let from_file = reopen(&opened);
         println!(
             "packed store reopened in {:.1} s",

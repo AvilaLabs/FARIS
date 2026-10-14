@@ -9,7 +9,7 @@
 //! them and Space or Enter operates them. `PANEL_ACTIONS` lists each panel's
 //! primary actions and the command that carries them.
 
-use crate::{FarisApp, Step, study_file::Action};
+use crate::{FarisApp, Step, browser, study_file::Action};
 use eframe::egui::{self, Key, Modifiers};
 use faris_model::validation::{Quantity, note};
 
@@ -432,7 +432,8 @@ pub static REGISTRY: &[Command] = &[
             app.design_check.open = !app.design_check.open;
             app.message = window_message("Design check", app.design_check.open);
         },
-    ),
+    )
+    .blocked_by(|_| browser::IS_BROWSER.then(|| browser::desktop_only("The Design check window"))),
     command(
         "tools.design_flux",
         "Design flux window (toggle)",
@@ -442,7 +443,8 @@ pub static REGISTRY: &[Command] = &[
             app.design_flux.open = !app.design_flux.open;
             app.message = window_message("Design flux", app.design_flux.open);
         },
-    ),
+    )
+    .blocked_by(|_| browser::IS_BROWSER.then(|| browser::desktop_only("The Design flux window"))),
     command(
         "tour.replay",
         "Replay the guided tour",
@@ -454,6 +456,16 @@ pub static REGISTRY: &[Command] = &[
                 "Guided tour started. Right arrow or Enter go on, Left goes back, Esc skips."
                     .into();
         },
+    ),
+    // Only the browser version has this window; the desktop keyboard page does
+    // not list it.
+    #[cfg(target_arch = "wasm32")]
+    command(
+        "browser.about",
+        "About this browser version",
+        &["disclaimer", "limits", "desktop app", "what works here"],
+        None,
+        |app, _| app.notice.open_about(),
     ),
     command(
         "interface.larger",
@@ -510,6 +522,8 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ("Top bar", "Design check", "tools.design_check"),
     ("Top bar", "Design flux", "tools.design_flux"),
     ("Top bar", "Tour", "tour.replay"),
+    #[cfg(target_arch = "wasm32")]
+    ("Top bar", "Browser version menu", "browser.about"),
     ("Design step", "Port or no-port", "arrangement.swap"),
     ("Design step", "Allocation", "allocation.next"),
     ("Outliner", "Select a component", "component.next"),

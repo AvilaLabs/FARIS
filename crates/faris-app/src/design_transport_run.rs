@@ -3,6 +3,7 @@
 //! function the command line calls; nothing here owns physics. The worker never touches egui
 //! state: it reports through a mutex-guarded snapshot and a channel, as the maintenance run does.
 
+use crate::time::{Instant};
 use crate::{
     design_shared::{self, beside, trimmed},
     maintenance_run::unused_path,
@@ -21,7 +22,6 @@ use std::{
         Arc, Mutex,
         mpsc::{self, Receiver, TryRecvError},
     },
-    time::Instant,
 };
 
 /// Histories per batch, seed and threads: the command line's defaults.
@@ -565,7 +565,7 @@ impl Job {
         let worker_cancel = cancel.clone();
         let context = ctx.clone();
         let worker_dir = out_dir.clone();
-        let spawned = std::thread::Builder::new()
+        let spawned = crate::thread::Builder::new()
             .name("faris-design-transport".into())
             .spawn(move || {
                 let outcome = match runner(&plan.design, &plan.tools, &plan.options) {
@@ -664,7 +664,7 @@ impl Job {
 
     /// Time since cancel was pressed, to test how quickly the panel answers.
     #[cfg(test)]
-    pub fn cancel_acknowledged_after(&self) -> Option<std::time::Duration> {
+    pub fn cancel_acknowledged_after(&self) -> Option<crate::time::Duration> {
         match &self.state {
             State::Running {
                 cancel_requested: Some(at),
@@ -687,7 +687,7 @@ pub fn failure_text(error: &str) -> String {
 mod tests {
     use super::*;
     use crate::design_transport_result::tests::sample_report;
-    use std::time::Duration;
+    use crate::time::Duration;
 
     /// Files and folders every required input points at.
     fn tree() -> (tempfile::TempDir, RunInputs) {
@@ -916,7 +916,7 @@ mod tests {
             if let Some(done) = job.poll() {
                 return Some(done);
             }
-            std::thread::sleep(Duration::from_millis(5));
+            crate::thread::sleep(Duration::from_millis(5));
         }
         None
     }
@@ -958,7 +958,7 @@ mod tests {
             let started = Instant::now();
             while !options.cancellation.is_cancelled() {
                 assert!(started.elapsed() < Duration::from_secs(10));
-                std::thread::sleep(Duration::from_millis(2));
+                crate::thread::sleep(Duration::from_millis(2));
             }
             Err("the run was cancelled".into())
         }));
