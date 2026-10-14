@@ -132,10 +132,10 @@ Its main gaps against these targets:
 | [Reliability](18-reliability.md) | REL | 38 | 2 | 11 | 1 | 24 |
 | [Security](19-security.md) | SEC | 55 | 8 | 20 | 1 | 26 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 4 | 18 | 0 | 23 |
-| [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 21 | 1 | 52 |
+| [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 24 | 1 | 49 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 16 | 1 | 28 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 5 | 17 | 2 | 12 |
-| **Total** | | **1418** | **58** | **436** | **39** | **885** |
+| **Total** | | **1418** | **58** | **439** | **39** | **882** |
 
 Counts are generated from the tables by `scripts/requirement_trace.py`. 58 of 1418 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
