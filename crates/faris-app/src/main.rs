@@ -6,6 +6,10 @@ mod archive_panel;
 mod badge;
 mod camera;
 mod compare_panel;
+mod design_check_panel;
+mod design_check_result;
+mod design_check_run;
+mod design_shared;
 mod design_transport_panel;
 mod design_transport_result;
 mod design_transport_run;
@@ -178,6 +182,16 @@ struct Arguments {
     /// ACTINV data root, for the Maintenance window's Run section.
     #[arg(long)]
     actinv_data: Option<PathBuf>,
+    /// Open the Design check window (write a draft design file from a STEP file, and check a
+    /// design file).
+    #[arg(long)]
+    design_check: bool,
+    /// The STEP file for the Design check window.
+    #[arg(long, value_name = "STEP")]
+    check_step: Option<PathBuf>,
+    /// The design file for the Design check window.
+    #[arg(long, value_name = "DESIGN.json")]
+    check_design: Option<PathBuf>,
     /// Open the Design flux window (the neutron flux of a checked design in its magnets).
     #[arg(long)]
     design_flux: bool,
@@ -613,6 +627,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args.flux_check_report.as_deref(),
             );
             app.design_flux.open = args.design_flux;
+            app.design_check
+                .prefill(args.check_step.as_deref(), args.check_design.as_deref());
+            app.design_check.open = args.design_check;
             if let Some(path) = args.maintenance.clone() {
                 app.maintenance.load_in_background(&cc.egui_ctx, path);
             }
@@ -883,6 +900,7 @@ struct FarisApp {
     sweep: Option<sweep_panel::SweepPanel>,
     maintenance: maintenance_panel::MaintenancePanel,
     design_flux: design_transport_panel::DesignTransportPanel,
+    design_check: design_check_panel::DesignCheckPanel,
     step: Step,
     benchmark: Option<Benchmark>,
     geometry_cache: BTreeMap<String, Arc<[MeshVertex]>>,
@@ -938,6 +956,7 @@ impl FarisApp {
             sweep: None,
             maintenance: maintenance_panel::MaintenancePanel::default(),
             design_flux: design_transport_panel::DesignTransportPanel::default(),
+            design_check: design_check_panel::DesignCheckPanel::default(),
             step: Step::Design,
             benchmark: None,
             geometry_cache: BTreeMap::new(),
@@ -2208,6 +2227,13 @@ impl eframe::App for FarisApp {
                 interface_size_menu(ui);
                 ui.toggle_value(&mut self.maintenance.open, "Maintenance")
                     .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
+                let check_label = if self.design_check.is_running() {
+                    "Design check (running)"
+                } else {
+                    "Design check"
+                };
+                ui.toggle_value(&mut self.design_check.open, check_label)
+                    .on_hover_text("Write a draft design file from your STEP file, and run the nine import checks on a design file");
                 let flux_label = if self.design_flux.is_running() {
                     "Design flux (running)"
                 } else {
@@ -2251,6 +2277,11 @@ impl eframe::App for FarisApp {
         });
         let bar_bottom = bar.response.rect.bottom();
         self.maintenance.window(&ctx);
+        self.design_check.window(&ctx);
+        if let Some((design, report)) = self.design_check.take_flux_request() {
+            self.design_flux.prefill(Some(&design), Some(&report));
+            self.design_flux.open = true;
+        }
         self.design_flux.window(&ctx);
         if self.sign_in_prompt
             && !self.tour.active

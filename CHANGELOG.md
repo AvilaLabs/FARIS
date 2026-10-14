@@ -40,6 +40,12 @@ basis.
     and progress is printed while the run samples.
   - A design that gives an emissivity table or a fuel other than D-T is refused; it is never run with the
     tokamak D-T source in its place.
+- The desktop has a **Design check** window that takes a STEP file to a checked design without a terminal: it writes the
+  draft design file (`faris design init`) and says which fields are still empty, and it runs the nine import checks
+  (`faris design check`) with the stage line, elapsed time and Cancel. It shows each check's status word, every finding's
+  item, why and next step, and the measured records with their units. When all nine pass, a button opens the Design flux
+  window with the design file and report filled in. The design file itself is still edited outside the app. The Design flux
+  window now says each missing input once, beside its field.
 - The desktop has a **Design flux** window that runs `faris design transport` without a terminal: it names the tools
   the run needs and which are missing, shows the step, the errors against the target and a labelled estimate of the
   time left while it runs, offers Cancel, and shows the result with every number's error and every limit's why and next step.

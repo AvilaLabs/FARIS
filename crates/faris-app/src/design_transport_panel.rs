@@ -6,10 +6,11 @@
 
 use crate::{
     badge::{self, Kind},
+    design_shared::{missing_count_text, path_row, tools_grid},
     design_transport_result::{LimitView, ResultView, Row, result_view},
     design_transport_run::{
-        Field, Job, MIN_HISTORIES, Problem, RunInputs, RunningView, ToolState, failure_text,
-        tool_rows, validate,
+        Field, Job, MIN_HISTORIES, Problem, RunInputs, RunningView, failure_text, tool_rows,
+        validate,
     },
     maintenance_run::elapsed_text,
 };
@@ -20,8 +21,6 @@ use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
     time::Duration,
 };
-
-const FIELD_WIDTH: f32 = 520.0;
 
 /// A finished run as the window keeps it.
 struct Shown {
@@ -171,14 +170,37 @@ impl DesignTransportPanel {
         ui.weak(
             "The neutron flux in the solids a fluence limit of a checked design applies to \
              (the TF magnets above 0.1 MeV when it has none), compared with that limit over the \
-             design's operating history. Run `faris design check --report` first and keep its \
-             work folder.",
+             design's operating history. Check the design first (the Design check window, or \
+             `faris design check --report`) and keep its work folder.",
         );
+        // Show what is missing before the first click, too; checked again only when an input
+        // changed, so the disk is not asked every frame.
+        if !running
+            && self
+                .preview
+                .as_ref()
+                .is_none_or(|(inputs, _)| *inputs != self.inputs)
+        {
+            let problems = validate(&self.inputs).err().unwrap_or_default();
+            self.preview = Some((self.inputs.clone(), problems));
+        }
+        // Each problem is said once, beside its field: red after Run was pressed, grey before.
+        let (shown, kind) = if self.problems.is_empty() {
+            (
+                self.preview
+                    .as_ref()
+                    .map(|(_, p)| p.clone())
+                    .unwrap_or_default(),
+                Kind::NotEvaluated,
+            )
+        } else {
+            (self.problems.clone(), Kind::Failed)
+        };
         let mut pick = None;
         let before = self.inputs.clone();
         ui.add_enabled_ui(!running, |ui| {
-            self.files_and_tools(ui, &mut pick);
-            self.limits(ui);
+            self.files_and_tools(ui, &mut pick, &shown, kind);
+            self.limits(ui, &shown, kind);
         });
         if self.inputs != before {
             self.problems.clear();
@@ -187,25 +209,8 @@ impl DesignTransportPanel {
             self.pick_path(&ctx, field);
         }
 
-        for problem in &self.problems {
-            ui.colored_label(Kind::Failed.color(), problem.text());
-        }
-        // Show what is missing before the first click, too; checked again only when an input
-        // changed, so the disk is not asked every frame.
-        if self.problems.is_empty() && !running {
-            if self
-                .preview
-                .as_ref()
-                .is_none_or(|(inputs, _)| *inputs != self.inputs)
-            {
-                let problems = validate(&self.inputs).err().unwrap_or_default();
-                self.preview = Some((self.inputs.clone(), problems));
-            }
-            if let Some((_, problems)) = &self.preview {
-                for problem in problems {
-                    ui.colored_label(Kind::NotEvaluated.color(), problem.text());
-                }
-            }
+        if !running && !shown.is_empty() {
+            ui.colored_label(kind.color(), missing_count_text(shown.len()));
         }
 
         ui.add_space(4.0);
@@ -242,22 +247,13 @@ impl DesignTransportPanel {
         }
     }
 
-    fn files_and_tools(&mut self, ui: &mut egui::Ui, pick: &mut Option<Field>) {
-        let problems = self.problems.clone();
-        let row = |ui: &mut egui::Ui, label: &str, hint: &str, field, text: &mut String| {
-            ui.label(label).on_hover_text(hint);
-            let mut edit = ui.add_sized(
-                [FIELD_WIDTH, ui.spacing().interact_size.y],
-                egui::TextEdit::singleline(text).hint_text(hint),
-            );
-            if let Some(p) = problems.iter().find(|p| p.field == Some(field)) {
-                edit = edit.on_hover_text(p.text());
-            }
-            let _ = edit;
-            let clicked = ui.button("Browse\u{2026}").clicked();
-            ui.end_row();
-            clicked
-        };
+    fn files_and_tools(
+        &mut self,
+        ui: &mut egui::Ui,
+        pick: &mut Option<Field>,
+        shown: &[Problem],
+        kind: Kind,
+    ) {
         ui.add_space(4.0);
         egui::Grid::new("design-transport-files")
             .num_columns(3)
@@ -280,7 +276,12 @@ impl DesignTransportPanel {
                         Field::Output,
                     ),
                 ] {
-                    if row(ui, label, hint, field, self.inputs.text_mut(field)) {
+                    let note = shown
+                        .iter()
+                        .find(|p| p.field == Some(field))
+                        .map(Problem::text);
+                    let note = note.as_deref().map(|text| (kind, text));
+                    if path_row(ui, label, hint, self.inputs.text_mut(field), note) {
                         *pick = Some(field);
                     }
                 }
@@ -288,42 +289,17 @@ impl DesignTransportPanel {
         ui.add_space(6.0);
         ui.strong("Tools the run needs");
         let rows = tool_rows(&self.inputs);
-        egui::Grid::new("design-transport-tools")
-            .num_columns(3)
-            .spacing([8.0, 2.0])
-            .show(ui, |ui| {
-                for tool in &rows {
-                    let info = tool.info;
-                    if row(
-                        ui,
-                        info.label,
-                        if info.is_folder { "folder" } else { "file" },
-                        info.field,
-                        self.inputs.text_mut(info.field),
-                    ) {
-                        *pick = Some(info.field);
-                    }
-                    ui.label("");
-                    let kind = match (&tool.state, info.required()) {
-                        (ToolState::Set, _) => Kind::Calculated,
-                        (_, true) => Kind::Failed,
-                        (ToolState::Missing, false) => Kind::NotEvaluated,
-                        (ToolState::NotFound(_), false) => Kind::Failed,
-                    };
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(tool.statement())
-                                .small()
-                                .color(kind.color()),
-                        )
-                        .wrap(),
-                    );
-                    ui.end_row();
-                }
-            });
+        tools_grid(
+            ui,
+            "design-transport-tools",
+            &rows,
+            &mut self.inputs,
+            RunInputs::text_mut,
+            pick,
+        );
     }
 
-    fn limits(&mut self, ui: &mut egui::Ui) {
+    fn limits(&mut self, ui: &mut egui::Ui, shown: &[Problem], kind: Kind) {
         ui.add_space(6.0);
         ui.strong("Stop the run at");
         ui.horizontal_wrapped(|ui| {
@@ -358,6 +334,10 @@ impl DesignTransportPanel {
             .on_hover_text(
                 "Keeps weight windows and the channel search in faris-transport-cache beside the design file, so a second run on the same model starts sampling at once.",
             );
+        // The limits have no field of their own, so their problems are said here.
+        for problem in shown.iter().filter(|p| p.field.is_none()) {
+            ui.colored_label(kind.color(), problem.text());
+        }
     }
 
     fn status(&self, ui: &mut egui::Ui) {

@@ -3,7 +3,10 @@
 //! function the command line calls; nothing here owns physics. The worker never touches egui
 //! state: it reports through a mutex-guarded snapshot and a channel, as the maintenance run does.
 
-use crate::maintenance_run::unused_path;
+use crate::{
+    design_shared::{self, beside, trimmed},
+    maintenance_run::unused_path,
+};
 use eframe::egui;
 use faris_engine::{
     design::{
@@ -44,24 +47,12 @@ pub enum Field {
     OpenmcPackage,
 }
 
-/// What a tool path is, what it is for and what happens without it.
-pub struct ToolInfo {
-    pub field: Field,
-    pub label: &'static str,
-    pub purpose: &'static str,
-    /// What the run lacks when an optional path is not set; empty for a required one.
-    pub without: &'static str,
-    pub environment: Option<&'static str>,
-    pub is_folder: bool,
-}
+pub type ToolInfo = design_shared::ToolInfo<Field>;
+pub type ToolRow = design_shared::ToolRow<Field>;
+pub use design_shared::ToolState;
+pub type Problem = design_shared::Problem<Field>;
 
-impl ToolInfo {
-    pub fn required(&self) -> bool {
-        self.without.is_empty()
-    }
-}
-
-pub const TOOLS: [ToolInfo; 5] = [
+pub static TOOLS: [ToolInfo; 5] = [
     ToolInfo {
         field: Field::OpenmcPython,
         label: "OpenMC Python",
@@ -103,33 +94,6 @@ pub const TOOLS: [ToolInfo; 5] = [
         is_folder: true,
     },
 ];
-
-/// An input that stops the run: why, and what to do.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Problem {
-    /// The input at fault; `None` for the limits.
-    pub field: Option<Field>,
-    pub why: String,
-    pub next_step: String,
-}
-
-impl Problem {
-    fn new(
-        field: impl Into<Option<Field>>,
-        why: impl Into<String>,
-        next: impl Into<String>,
-    ) -> Self {
-        Self {
-            field: field.into(),
-            why: why.into(),
-            next_step: next.into(),
-        }
-    }
-
-    pub fn text(&self) -> String {
-        format!("{} Next step: {}", self.why, self.next_step)
-    }
-}
 
 /// What the user typed or picked.
 #[derive(Clone, Debug, PartialEq)]
@@ -210,65 +174,8 @@ impl RunInputs {
     }
 }
 
-fn trimmed(text: &str) -> Option<PathBuf> {
-    let text = text.trim();
-    (!text.is_empty()).then(|| PathBuf::from(text))
-}
-
-/// Where a tool path stands.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ToolState {
-    Set,
-    /// Nothing entered.
-    Missing,
-    /// Entered, but there is no such file or folder.
-    NotFound(PathBuf),
-}
-
-/// One row of the tool list: what it is, what it is for and where it stands.
-pub struct ToolRow {
-    pub info: &'static ToolInfo,
-    pub state: ToolState,
-}
-
-impl ToolRow {
-    /// A plain statement of the state: which is missing, what it is for, what to do.
-    pub fn statement(&self) -> String {
-        let info = self.info;
-        let kind = if info.is_folder { "folder" } else { "file" };
-        match (&self.state, info.required()) {
-            (ToolState::Set, _) => format!("Set. {}", info.purpose),
-            (ToolState::Missing, true) => format!(
-                "Missing. {} Next step: choose the {kind}{}.",
-                info.purpose,
-                info.environment
-                    .map(|e| format!(" or set {e} before starting FARIS"))
-                    .unwrap_or_default()
-            ),
-            (ToolState::Missing, false) => {
-                format!("Not set. {} Without it: {}", info.purpose, info.without)
-            }
-            (ToolState::NotFound(path), _) => format!(
-                "{} is not a {kind} that exists. {} Next step: choose the {kind} again.",
-                path.display(),
-                info.purpose
-            ),
-        }
-    }
-}
-
 pub fn tool_rows(inputs: &RunInputs) -> Vec<ToolRow> {
-    TOOLS
-        .iter()
-        .map(|info| {
-            let state = match trimmed(inputs.text(info.field)) {
-                None => ToolState::Missing,
-                Some(path) if path.is_dir() == info.is_folder && path.exists() => ToolState::Set,
-                Some(path) => ToolState::NotFound(path),
-            };
-            ToolRow { info, state }
-        })
-        .collect()
+    design_shared::tool_rows(&TOOLS, |field| inputs.text(field))
 }
 
 /// A checked request: what the worker runs.
@@ -277,13 +184,6 @@ pub struct RunPlan {
     pub design: PathBuf,
     pub tools: ToolPaths,
     pub options: DesignTransportOptions,
-}
-
-fn beside(design: &Path) -> &Path {
-    design
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."))
 }
 
 fn missing_file(field: Field, what: &str, next: &str) -> Problem {

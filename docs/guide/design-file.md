@@ -262,6 +262,45 @@ both. You cannot waive an open or non-manifold surface (`GEO-020`), inverted nor
 degenerate triangle, because transport is not defined for them. You also cannot waive a failed conversion
 (`GEO-012`) or source sites outside the chamber (`SRC-018`).
 
+## Check a design from the desktop
+
+Available from the next release. Open **Design check** in the top bar. The window does the two steps above without a
+terminal: it runs the same functions as `faris design init` and `faris design check` (see [Command line](cli.md)).
+You can also open it at launch with `--design-check`, with `--check-step FILE` and `--check-design FILE` to fill in the
+files.
+
+**1. Start from a STEP file.** Choose the STEP file and, if you want it elsewhere, the design file to write (empty:
+beside the STEP file, as the command line does). If the STEP file declares no length unit, choose one. Press **Read the
+STEP file**. The window then shows the path of the file it wrote, how many fields are still empty, grouped in plain words
+(the material and role of each solid, the plasma block, the operating-history link), and what else the file needs
+(materials, replacement groups, labels). The window has no editor for the design file yet: open the file in any text
+editor and fill it in as described under Step 2 above. The design file you just wrote is filled into the second section.
+
+**2. Check a design.** Choose the design file. The **work folder** and the **report** have defaults beside the design
+file (`NAME-check-work` and `NAME-check-report.json`, numbered if it exists). Unlike the command line, which uses a
+temporary folder and removes it, the window keeps the work folder: the flux step reads the conversion from it, and a second
+check reuses what matches (tick **Do everything again** to redo it all). A report is never overwritten.
+
+The list of tools says, for each tool, whether it is set, what it is for and what the check loses without it. The CAD
+Python is required. Without the OpenMC Python, the cross sections or the plasma source folder the check still runs, but
+check 5's nuclear-data audit or check 9 says `NOT_EVALUATED`, the import is not complete, and the flux cannot be run. Anything
+that stops the check is marked beside its field, once, and the button area only says how many things need fixing.
+
+While it runs, the window shows the time since you pressed **Check** and the engine's stage line (`stage: done of total`),
+with a bar for that stage only. It gives no estimate for the whole check, because its stages differ in length and the
+conversion, the STEP reading and the material audit report no count while they work. **Cancel** stops the check and the programs
+it started and writes no report; the work folder is left as it is.
+
+When the check ends, the window shows the summary line, then the nine checks, each with its status word (`PASS`, `FAIL` or
+`NOT_EVALUATED`) and, for each finding, the item, why and next step as the engine words them (a long list scrolls inside
+the window). It also shows the notices and what was measured, each with its unit: the number of solids, the conversion
+tolerance and triangle count, the largest volume difference against its gate, the faceting deviation against its tolerance,
+the source sites inside the chamber, the clearance to the first wall and the source closure with both power numbers. A
+record the engine could not measure says which check did not get there. Nothing is shown before a check has finished.
+
+When all nine checks pass, **Run the flux for this design** opens the Design flux window with this design file and this
+report already filled in.
+
 ## Run the flux from the desktop
 
 Available from the next release. Open **Design flux** in the top bar. The window runs the same computation as
