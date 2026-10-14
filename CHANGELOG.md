@@ -30,6 +30,8 @@ basis.
     geometry. With a peak, the run continues until the highest piece is within twice the target error (10 % by default).
   - The solids and the energy threshold come from the design's fluence limit (`--group` when several groups
     have one), so the response is not fixed to the TF magnets above 0.1 MeV.
+  - Neutrons the geometry cannot place are counted in every run. A run that loses more than one in a million
+    stops and says so, judges no limit, and reports where the first ten were lost.
   - Weight windows and the channel search are kept between runs on the same model (`--cache-dir`, `--no-cache`),
     and progress is printed while the run samples.
   - A design that gives an emissivity table or a fuel other than D-T is refused; it is never run with the

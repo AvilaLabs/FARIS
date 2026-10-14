@@ -87,6 +87,9 @@ RANDOM_RAY = {"rays": 20000, "batches": 60, "inactive": 30, "distance_inactive_c
               "distance_active_cm": 2500.0, "source_shape": "flat", "volume_estimator": "hybrid",
               "diagonal_stabilization_rho": 1.0, "sample_method": "prng"}
 PROGRESS_SECONDS = 5.0
+# A neutron the geometry cannot place is lost. Above this share of the histories the answer is not trusted.
+LOST_FRACTION_LIMIT = 1.0e-6
+LOST_LOCATIONS = 10          # how many lost neutrons have their position recorded
 # The peak inside a solid: rings of dr by dz about the machine axis, each cut by the solid.
 PEAK_TALLY_ID = 2
 PEAK_MESH_ID = 9001
@@ -339,6 +342,36 @@ class RunningSum:
         if se is None or self.mean <= 0.0:
             return None
         return se / self.mean
+
+
+def lost_too_many(lost: int | None, histories: int) -> bool:
+    """True when the lost share of the histories is above the limit. One loss in under a million histories is
+    above the share but is not judged until the run is long enough to tell."""
+    return bool(lost) and histories >= 1.0 / LOST_FRACTION_LIMIT and lost > LOST_FRACTION_LIMIT * histories
+
+
+def lost_count(dll) -> int | None:
+    """OpenMC's count of lost particles, or None when this build does not expose it."""
+    import ctypes
+
+    try:
+        return int(ctypes.c_int.in_dll(dll, "n_lost_particles").value)
+    except (ValueError, AttributeError):
+        return None
+
+
+def lost_positions(directory: Path) -> list[list[float]]:
+    """Where the first lost neutrons were, from the particle files OpenMC wrote in `directory` (cm)."""
+    import h5py
+
+    out = []
+    for path in sorted(Path(directory).glob("particle_*.h5"))[:LOST_LOCATIONS]:
+        try:
+            with h5py.File(path, "r") as f:
+                out.append([float(v) for v in f["xyz"][()]])
+        except (OSError, KeyError):
+            continue
+    return out
 
 
 def stop_reason(stats: RunningSum, sampling: dict, elapsed: float, peak: tuple | None = None) -> str | None:
@@ -760,6 +793,10 @@ def phase_run(request: dict, work: Path) -> dict:
     settings.output = {"tallies": False, "summary": False}
     settings.sourcepoint = {"write": False}
     settings.statepoint = {"batches": []}
+    # Lost neutrons are counted and judged here, with a result that says so, rather than by an abort.
+    settings.max_lost_particles = 2_000_000_000
+    settings.rel_max_lost_particles = 1.0
+    settings.max_write_lost_particles = LOST_LOCATIONS
 
     solids = response["solid_ids"]
     ids = volume_ids(request)
@@ -815,6 +852,7 @@ def phase_run(request: dict, work: Path) -> dict:
     stats = RunningSum()
     per_solid = [RunningSum() for _ in solids]
     peaks = [None for _ in solids]
+    lost = None
     leading = None
     piece_volumes = piece_ranked = None
     if pieces is not None:
@@ -845,6 +883,9 @@ def phase_run(request: dict, work: Path) -> dict:
                     scored = scored.reshape(-1, len(solids), 2)
                     leading = (leading_piece(scored, piece_volumes, piece_ranked, stats.n),)
                 reason = stop_reason(stats, sampling, elapsed, leading)
+                lost = lost_count(openmc.lib._dll)
+                if lost_too_many(lost, stats.n * int(sampling["particles_per_batch"])):
+                    reason = "lost_particles"
                 if reason is not None or time.monotonic() - last_report >= PROGRESS_SECONDS:
                     last_report = time.monotonic()
                     print(json.dumps({
@@ -898,6 +939,8 @@ def phase_run(request: dict, work: Path) -> dict:
         "solids": [{"solid_id": s, "mean": a.mean, "standard_error": a.standard_error, "peak": peak}
                    for s, a, peak in zip(solids, per_solid, peaks)],
         "peak_voxel_cm": response.get("peak_voxel_cm"),
+        "lost_particles": lost,
+        "lost_positions_cm": lost_positions(out_dir) if lost else [],
         "variance_reduction": {
             "mode": mode["mode"], "reason": mode["reason"], "next_step": mode["next_step"],
             "targets": [t["name"] for t in mode.get("targets", [])],
@@ -908,7 +951,12 @@ def phase_run(request: dict, work: Path) -> dict:
         "why": None,
         "next_step": None,
     }
-    if reason != "target_reached":
+    if reason == "lost_particles":
+        result["why"] = (f"{lost} of {result['histories']} neutrons could not be placed in the geometry, above the "
+                         f"limit of one in a million; the answer is not trusted.")
+        result["next_step"] = ("Look at the model where the neutrons were lost (positions are in the report) and "
+                               "run `faris design check` again: a gap or overlap there is the usual cause.")
+    elif reason != "target_reached":
         result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog", leading)
     target = out_dir / "result.json"
     with target.open("x", encoding="utf-8") as stream:

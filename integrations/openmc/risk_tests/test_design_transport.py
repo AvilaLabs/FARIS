@@ -195,6 +195,18 @@ class WindowHelpersTest(unittest.TestCase):
         self.assertNotIn("weight windows", next_step)
 
 
+class LostParticleTest(unittest.TestCase):
+    # Verifies: GEO-025
+    def test_more_than_one_lost_in_a_million_fails_once_the_run_can_tell(self):
+        self.assertFalse(DT.lost_too_many(0, 5_000_000))
+        self.assertFalse(DT.lost_too_many(None, 5_000_000))
+        self.assertFalse(DT.lost_too_many(5, 5_000_000))
+        self.assertTrue(DT.lost_too_many(6, 5_000_000))
+        # One loss in a short run is reported but not judged.
+        self.assertFalse(DT.lost_too_many(1, 600_000))
+        self.assertTrue(DT.lost_too_many(2, 1_000_000))
+
+
 class PeakTest(unittest.TestCase):
     def test_ring_edges_cover_the_range_in_whole_steps(self):
         self.assertEqual(DT.ring_edges(0.0, 12.0, 5.0), [0.0, 5.0, 10.0, 15.0])

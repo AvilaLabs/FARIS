@@ -169,6 +169,11 @@ struct WorkerResult {
     variance_reduction: VarianceReduction,
     why: Option<String>,
     next_step: Option<String>,
+    /// `None`: the OpenMC build does not expose its count.
+    #[serde(default)]
+    lost_particles: Option<u64>,
+    #[serde(default)]
+    lost_positions_cm: Vec<[f64; 3]>,
 }
 
 /// How the run was sped up, with the reason for the mode and what the user can do.
@@ -272,6 +277,12 @@ pub struct DesignTransportReport {
     /// The weight windows of an earlier run on the same model were used.
     pub windows_reused: bool,
     pub fluence_limits: Vec<FluenceLimit>,
+    /// Neutrons the geometry could not place; `None`: not counted by this OpenMC build.
+    #[serde(default)]
+    pub lost_particles: Option<u64>,
+    /// Where the first of them were lost (m).
+    #[serde(default)]
+    pub lost_positions_m: Vec<[f64; 3]>,
     pub notices: Vec<String>,
     pub not_evaluated: Vec<NotEvaluated>,
 }
@@ -1017,8 +1028,26 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
                 .into(),
         );
     }
+    match worker.lost_particles {
+        Some(0) => {}
+        Some(lost) => notices.push(format!(
+            "{lost} of {} neutrons could not be placed in the geometry (a run fails above one in a \
+             million); the first positions are in the report.",
+            worker.histories
+        )),
+        None => {}
+    }
     let mut fluence_limits = Vec::new();
     let mut not_evaluated = Vec::new();
+    if worker.lost_particles.is_none() {
+        not_evaluated.push(NotEvaluated {
+            item: "Lost neutrons".into(),
+            why:
+                "This OpenMC build does not report how many neutrons the geometry could not place."
+                    .into(),
+            next_step: "Run with OpenMC 0.15.3 or later built as a shared library.".into(),
+        });
+    }
     if inputs.windows_reused {
         notices.push("The weight windows of an earlier run on this model were used.".into());
     }
@@ -1094,6 +1123,16 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
             }
         }
     }
+    if worker.stop_reason == "lost_particles" {
+        // Too many neutrons were lost for the fluxes to be trusted: no limit is judged on them.
+        for limit in fluence_limits.drain(..) {
+            not_evaluated.push(NotEvaluated {
+                item: format!("{}: fluence limit", limit.group_id),
+                why: worker.why.clone().unwrap_or_default(),
+                next_step: worker.next_step.clone().unwrap_or_default(),
+            });
+        }
+    }
     Ok(DesignTransportReport {
         schema_version: DESIGN_TRANSPORT_VERSION.into(),
         design: inputs.design_identity,
@@ -1124,6 +1163,12 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         windows_reused: inputs.windows_reused,
         variance_reduction: worker.variance_reduction,
         fluence_limits,
+        lost_particles: worker.lost_particles,
+        lost_positions_m: worker
+            .lost_positions_cm
+            .iter()
+            .map(|p| p.map(|v| v / 100.0))
+            .collect(),
         notices,
         not_evaluated,
     })
@@ -1239,6 +1284,13 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
         report.fusion_power_mw,
         report.energy_per_reaction_ev / 1.0e6
     );
+    if let Some(lost) = report.lost_particles {
+        let _ = writeln!(
+            out,
+            "  Lost neutrons: {lost} of {} (a run fails above one in a million).",
+            report.histories
+        );
+    }
     let reduction = &report.variance_reduction;
     let _ = writeln!(
         out,
