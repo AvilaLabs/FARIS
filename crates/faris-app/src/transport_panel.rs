@@ -500,7 +500,7 @@ impl TransportPanel {
         );
         ui.small(match self.tier {
             Tier::Preview => "A fixed small run. The errors are stated beside the results; the magnet flux is only roughly known at this size.",
-            Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (a few minutes, kept for the next run on the same model), then runs until it is known to 5 %, or until the 20 million history budget is used. You can cancel at any time.",
+            Tier::Production if self.window_python().is_some() => "Makes weight windows aimed at the magnet flux first (kept for the next run on the same model), runs an ordinary pass for the whole-model results (tritium, heating), then a windowed pass until the magnet flux is known to 5 % or the 20 million history budget is used. Each result is taken from the pass that is valid for it. You can cancel at any time.",
             Tier::Production => "Runs until the magnet fast flux is known to 5 %, or until the 50 million history budget is used. Without a Window Python (OpenMC 0.16, under Transport configuration) it is analog and can take hours; you can cancel at any time.",
         });
         if let Some(pending) = &self.pending {
@@ -552,19 +552,28 @@ impl TransportPanel {
                 ));
                 ui.small(format!(
                     "{} histories",
-                    grouped(record.histories_sampled() as usize)
+                    grouped(record.histories_total() as usize)
                 ));
             });
             ui.horizontal_wrapped(|ui| {
                 ui.strong(tier_label(&record.sampling));
                 match &record.sampling_outcome {
                     Some(outcome) if outcome.target_relative_error.is_some() => {
-                        ui.label(outcome.summary());
+                        if let Some(passes) = record.passes_summary() {
+                            ui.label(passes);
+                            ui.label(format!("Analog pass: {}", outcome.summary()));
+                            if let Some(windowed) = record
+                                .windowed_run
+                                .as_deref()
+                                .and_then(|run| run.sampling_outcome.as_ref())
+                            {
+                                ui.label(format!("Windowed pass: {}", windowed.summary()));
+                            }
+                        } else {
+                            ui.label(outcome.summary());
+                        }
                         if let Some(variance) = &record.variance_reduction {
                             ui.label(variance.summary());
-                        }
-                        if let Some(caveat) = record.windows_caveat() {
-                            ui.label(caveat);
                         }
                     }
                     _ => {

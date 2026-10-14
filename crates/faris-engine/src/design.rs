@@ -80,6 +80,8 @@ const DESIGN_TRANSPORT_WORKER: &str =
     include_str!("../../../integrations/openmc/design_transport.py");
 const WINDOW_GENERATOR_HELPER: &str =
     include_str!("../../../integrations/openmc/window_generator.py");
+const BATCH_STATISTICS_HELPER: &str =
+    include_str!("../../../integrations/openmc/batch_statistics.py");
 const STREAMING_AIM_HELPER: &str = include_str!("../../../integrations/openmc/streaming_aim.py");
 const AIM_COMMON_HELPER: &str =
     include_str!("../../../integrations/openmc/risk_tests/s0f_common.py");

@@ -22,15 +22,24 @@ basis.
 - Weight windows for the Production tier of the reactor study. With a Python that has OpenMC 0.16 or later
   (`faris reactor run --window-python`, or the Window Python tool in the app, shared with the Design flux window),
   a target-error run first makes windows aimed at the magnet fast flux (a random-ray adjoint on the study's own
-  geometry, the generator `faris design transport` already used, now one module for both) and then runs with them,
-  so the 5 % target is reached in 740,000 to 860,000 histories (5 minutes from the command, 2.5 to 3 minutes with
-  reused windows, 3 threads) instead of tens of millions. The windows serve the magnet fast flux only: the total
-  tritium is then known to 44 to 64 % instead of 0.09 %, and the result says so. The windows are kept in
-  `faris-transport-cache` by a hash of the model, materials, response, data and helper code and reused by the next
-  run (`--window-cache`, `--no-window-cache`). They are bound into the run's input by hash and checked again by
+  geometry, the generator `faris design transport` already used, now one module for both). The run is then two
+  passes, because the windows are not shown to leave the other responses unbiased (the demo's total tritium was
+  known to 44 to 64 % with them, against 0.09 % without): an analog pass samples until the whole-model responses
+  (tritium, heating) are at the target, and a windowed pass in `windowed-pass/` samples the magnet fast flux until
+  it is known to 5 %. Each response is reported from the pass that is valid for it, and the record, `faris reactor
+  inspect`, the CLI summary and the result view say which. On the demo (3 threads) the magnet fast flux reached 5 %
+  in 600,000 to 940,000 windowed histories plus 300,000 analog ones: 6.4 minutes from the command, 3.4 minutes with
+  reused windows, instead of tens of millions of histories. The windows are kept in `faris-transport-cache` by a
+  hash of the model, materials, response, data and helper code and reused by the next run (`--window-cache`,
+  `--no-window-cache`). They are bound into the windowed pass's input by hash and checked again by
   `faris reactor inspect`; the record and the result view say whether windows were used and, if not, why (no
-  window Python, or the helper failed: the run is then analog as before). A preview is always analog. Records
-  made before this verify unchanged. A run may no longer use the two seeds the window steps reserve.
+  window Python, or the helper failed: the run is then one analog pass as before). A preview is always analog.
+  Records made before this verify unchanged. A run may no longer use the two seeds the window steps reserve.
+- The reactor stop rule now applies the variance-of-the-variance limit (0.1) that `faris design transport`
+  uses, from one shared module (`batch_statistics.py`). A target reached while the batches disagree no longer
+  stops the run: it goes on from its last statepoint with more batches, and if the budget runs out first the result
+  says the target was reached but is not trusted. The stop rule can watch several responses (all must reach the
+  target); the analog pass of a windowed run watches the whole-model ones.
 - A preview tier and a production tier for the reactor transport study. **Run quality** in the Transport panel
   replaces the two history-count choices: **Preview** is a fixed 90,000-history run that finishes in about a
   minute on two threads (the total-tritium error is stated, and the magnet fast flux is stated as roughly known),

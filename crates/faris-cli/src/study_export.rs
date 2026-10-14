@@ -326,6 +326,8 @@ mod tests {
             sampling_precision_summary: None,
             sampling_outcome: None,
             variance_reduction: None,
+            windowed_pass: None,
+            windowed_run: None,
             scientific_qualification: "NOT_EVALUATED".into(),
             notice: "test".into(),
         }

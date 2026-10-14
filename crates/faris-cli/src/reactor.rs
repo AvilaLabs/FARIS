@@ -160,6 +160,7 @@ fn run_case(
         seed,
         threads,
         target_relative_error: target_error,
+        watch_responses: Vec::new(),
     };
     sampling
         .validate()
@@ -229,8 +230,24 @@ fn run_case(
     if let Some(variance) = &run.variance_reduction {
         println!("{}", variance.summary());
     }
-    if let Some(caveat) = run.windows_caveat() {
-        println!("{caveat}");
+    if let Some(passes) = run.passes_summary() {
+        println!("{passes}");
+        if let Some(outcome) = run
+            .windowed_run
+            .as_deref()
+            .and_then(|windowed| windowed.sampling_outcome.as_ref())
+        {
+            println!("Windowed pass: {}", outcome.summary());
+        }
+        for id in ["magnets-fast-flux", "total-tritium-production"] {
+            if let Some(error) = run.relative_error(id) {
+                println!(
+                    "  {id}: relative error {:.2} % ({} pass)",
+                    100.0 * error,
+                    run.pass_of(id)
+                );
+            }
+        }
     }
     if execution != Some(ExecutionStatus::Succeeded) {
         let reason = run
@@ -267,6 +284,7 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
         .map(|result| {
             serde_json::json!({
                 "response_id": result.response_id,
+                "pass": run.pass_of(&result.response_id),
                 "validation": marks.get(&result.response_id),
                 "domain": result.domain,
                 "score": result.score,
@@ -321,6 +339,8 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "histories_realized": outcome.histories_realized,
             "target_relative_error": outcome.target_relative_error,
             "achieved_relative_error": outcome.achieved_relative_error,
+            "limiting_response": outcome.limiting_response,
+            "variance_of_variance": outcome.variance_of_variance,
             "summary": outcome.summary(),
         });
     }
@@ -330,7 +350,22 @@ fn inspect(scenario: PathBuf, path: PathBuf) -> Result<(), Box<dyn std::error::E
             "windows_reused": variance.windows_reused,
             "generation_seconds": variance.generation_seconds,
             "summary": variance.summary(),
-            "caveat": run.windows_caveat(),
+            "passes": run.passes_summary(),
+        });
+    }
+    if let (Some(pass), Some(windowed)) = (&run.windowed_pass, run.windowed_run.as_deref()) {
+        inspection["windowed_pass"] = serde_json::json!({
+            "directory": pass.directory,
+            "run_sha256": pass.run_sha256,
+            "responses": pass.responses,
+            "histories": windowed.histories_sampled(),
+            "sampling_outcome": windowed.sampling_outcome.as_ref().map(|outcome| serde_json::json!({
+                "batches_realized": outcome.batches_realized,
+                "histories_realized": outcome.histories_realized,
+                "achieved_relative_error": outcome.achieved_relative_error,
+                "variance_of_variance": outcome.variance_of_variance,
+                "summary": outcome.summary(),
+            })),
         });
     }
     println!("{}", serde_json::to_string_pretty(&inspection)?);

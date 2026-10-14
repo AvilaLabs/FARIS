@@ -22,6 +22,11 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 
+# the statistics shared with the design transport run sit beside this file
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import batch_statistics  # noqa: E402
+from batch_statistics import VOV_LIMIT, RunningSum  # noqa: E402
+
 SCHEMA = "faris-openmc-input/v0.1"
 ARTIFACT_SCHEMA = "faris-transport-artifact/v0.2"
 TEMP_TOLERANCE_K = 0.1
@@ -305,8 +310,13 @@ def batch_mean_covariance(columns: list[list[float]]) -> list[list[float]]:
 # Stop-rule constants. A run with a target error watches the magnet fast-flux
 # response (the Transport panel's headline) and never stops before this many
 # batches, because a relative error estimated from fewer is not trustworthy.
+# The input may name other responses to watch instead (`watch_responses`): the
+# analog pass of a windowed Production run watches the whole-model ones.
 STOP_RULE_RESPONSE_ID = "magnets-fast-flux"
 STOP_RULE_MIN_BATCHES = 30
+# After a target that is met while the variance of the variance is above its limit, the run goes on by this
+# share of the batches it has (at least one batch), until the batches settle or the budget is used.
+RESTART_GROWTH = 0.2
 
 
 def stop_rule(sampling: dict) -> dict | None:
@@ -314,7 +324,8 @@ def stop_rule(sampling: dict) -> dict | None:
 
     `batches` is the budget when a target error is given. OpenMC runs
     `min_batches` first, then checks the trigger after every batch until it is
-    met or `max_batches` is reached.
+    met or `max_batches` is reached. The run is judged on the response ids in
+    `response_ids` (all must reach the target); `response_id` is the first.
     """
     target = sampling.get("target_relative_error")
     if target is None:
@@ -323,8 +334,11 @@ def stop_rule(sampling: dict) -> dict | None:
     budget = int(sampling["batches"])
     require(math.isfinite(target) and 0.0 < target <= 0.5, "target relative error must be in (0, 0.5]")
     require(budget >= STOP_RULE_MIN_BATCHES, f"a target-error run needs a budget of at least {STOP_RULE_MIN_BATCHES} batches")
+    ids = list(sampling.get("watch_responses") or [STOP_RULE_RESPONSE_ID])
+    require(len(set(ids)) == len(ids) and all(isinstance(i, str) and i for i in ids), "the watched responses must be distinct response ids")
     return {
-        "response_id": STOP_RULE_RESPONSE_ID,
+        "response_id": ids[0],
+        "response_ids": ids,
         "target_relative_error": target,
         "min_batches": STOP_RULE_MIN_BATCHES,
         "max_batches": budget,
@@ -340,7 +354,8 @@ def variance_reduction_plan(inp: dict) -> dict | None:
         return None
     require(plan.get("kind") == VARIANCE_REDUCTION_KIND, "unsupported variance reduction")
     require(stop_rule(inp["sampling"]) is not None, "weight windows are for a target-error run")
-    require(plan["response_id"] == STOP_RULE_RESPONSE_ID, "the windows are aimed at another response than the one the run stops on")
+    require(plan["response_id"] == STOP_RULE_RESPONSE_ID and stop_rule(inp["sampling"])["response_ids"] == [STOP_RULE_RESPONSE_ID],
+            "the windows are aimed at another response than the one the run stops on")
     return plan
 
 
@@ -394,26 +409,60 @@ def apply_stop_rule(openmc, settings, tallies_by_name: dict, rule: dict | None) 
     """Configure OpenMC tally triggers; no-op for a fixed run."""
     if rule is None:
         return
-    matches = [t for name, t in tallies_by_name.items() if name == f"response-{rule['response_id']}"]
-    require(len(matches) == 1, f"a target-error run needs the {rule['response_id']} response in the request")
-    trigger = openmc.Trigger("rel_err", rule["target_relative_error"])
-    trigger.scores = list(matches[0].scores)
-    matches[0].triggers = [trigger]
+    for response_id in rule["response_ids"]:
+        matches = [t for name, t in tallies_by_name.items() if name == f"response-{response_id}"]
+        require(len(matches) == 1, f"a target-error run needs the {response_id} response in the request")
+        trigger = openmc.Trigger("rel_err", rule["target_relative_error"])
+        trigger.scores = list(matches[0].scores)
+        matches[0].triggers = [trigger]
     settings.batches = rule["min_batches"]
     settings.trigger_active = True
     settings.trigger_max_batches = rule["max_batches"]
     settings.trigger_batch_interval = rule["batch_interval"]
 
 
-def judge_stop(rule: dict | None, realized: int, achieved: float | None) -> tuple[str, str]:
-    """Why a run stopped: (code, plain words). Refuses a stop the rule cannot explain."""
+def batch_values(cumulative: list[float]) -> list[float]:
+    """The value of each batch, from the running sum read after every batch."""
+    return [total - (cumulative[i - 1] if i else 0.0) for i, total in enumerate(cumulative)]
+
+
+def guard_verdict(rule: dict, sums: dict[str, list[float]], vov_limit: float = VOV_LIMIT) -> dict:
+    """Where the watched responses stand after the batches in SUMS: the worst relative error, the worst variance of
+    the variance (batch_statistics, the same RunningSum and VOV_LIMIT the design transport run stops on), and
+    whether the target is met (every watched error within it) and settled (every VOV within its limit)."""
+    worst, worst_id, vov = None, None, None
+    for response_id in rule["response_ids"]:
+        stats = RunningSum()
+        for value in batch_values(sums[f"response-{response_id}"]):
+            stats.add(value)
+        relative = stats.relative_error
+        if relative is None:
+            worst, worst_id = None, response_id
+            break
+        if worst is None or relative > worst:
+            worst, worst_id = relative, response_id
+        spread = stats.variance_of_variance
+        if spread is not None and (vov is None or spread > vov):
+            vov = spread
+    met = worst is not None and worst <= rule["target_relative_error"] * (1.0 + 1.0e-9)
+    return {"limiting_response_id": worst_id, "relative_error": worst, "variance_of_variance": vov, "met": met,
+            "settled": vov is None or vov <= vov_limit}
+
+
+def judge_stop(rule: dict | None, realized: int, achieved: float | None, vov: float | None = None) -> tuple[str, str]:
+    """Why a run stopped: (code, plain words). Refuses a stop the rule cannot explain. A target that is met while
+    the variance of the variance is above VOV_LIMIT only stops the run at its budget, as "target_unsettled"."""
     if rule is None:
         return "fixed_count", "ran the requested number of batches"
     require(rule["min_batches"] <= realized <= rule["max_batches"], "realized batches are outside the stop-rule range")
     met = achieved is not None and achieved <= rule["target_relative_error"] * (1.0 + 1.0e-9)
-    if met:
+    settled = vov is None or vov <= VOV_LIMIT
+    if met and settled:
         return "target_met", "target error met"
     require(realized == rule["max_batches"], "OpenMC stopped before the target error was met and before the batch budget")
+    if met:
+        return "target_unsettled", (f"target error reached but the batches do not agree (variance of the variance {vov:.2f}, "
+                                    f"above {VOV_LIMIT:g}), so the error is not reliable; batch budget used up")
     return "budget_exhausted", "batch budget used up before the target error was met"
 
 
@@ -440,32 +489,45 @@ def read_scalar_sums(path: Path, names: list[str]) -> tuple[int, int, dict[str, 
         return int(f["current_batch"][()]), int(f["n_realizations"][()]), sums
 
 
-def read_batch_sums(openmc, out: Path, min_batches: int, max_batches: int, tally_names: list[str]) -> tuple[dict[str, list[float]], int]:
+def read_batch_sums(openmc, out: Path, min_batches: int, max_batches: int, tally_names: list[str],
+                    previous: tuple[dict[str, list[float]], int] | None = None) -> tuple[dict[str, list[float]], int]:
     """Read cumulative scalar tally sums from every per-batch statepoint.
 
     A fixed run has min_batches == max_batches. A target-error run stops on its
     own, so the files must cover batches 1..N exactly for some N in the range.
     Intermediate statepoints are deleted as soon as they are read; only the
     final one remains, as the rest of the worker and its checks expect.
+    A run that went on after a restart passes the sums and batch count (`previous`) of the part before it: only the
+    batches after that are read, and the statepoint of the last of those stays (it is the restart file).
     Returns the sums and N.
     """
     files = {}
     for path in out.glob("statepoint.*.h5"):
         files[int(path.name.split(".")[1])] = path
     realized = len(files)
-    require(min_batches <= realized <= max_batches, f"{realized} per-batch statepoints written; expected {min_batches}..{max_batches}")
-    require(sorted(files) == list(range(1, realized + 1)), "per-batch statepoints do not cover batches 1..N exactly")
+    first = 1
     sums = {name: [] for name in tally_names}
+    if previous is not None:
+        sums = {name: list(values) for name, values in previous[0].items()}
+        first = previous[1]
+        require(first in files, f"the restart statepoint of batch {first} is missing")
+        realized = max(files)
+        require(first < realized, "the restarted run added no batches")
+    require(min_batches <= realized <= max_batches, f"{realized} per-batch statepoints written; expected {min_batches}..{max_batches}")
+    expected = list(range(first, realized + 1)) if previous is not None else list(range(1, realized + 1))
+    require(sorted(files) == expected, "per-batch statepoints do not cover batches 1..N exactly")
     try:
-        for batch in range(1, realized + 1):
+        for batch in range(first + 1 if previous is not None else 1, realized + 1):
             current, n_realizations, values = read_scalar_sums(files[batch], tally_names)
             require(current == batch and n_realizations == batch, f"statepoint for batch {batch} has unexpected realization count")
             for name in tally_names:
                 sums[name].append(values[name])
             if batch < realized:
                 files[batch].unlink()
+        if previous is not None:
+            files[first].unlink()
     finally:
-        for batch in range(1, realized):
+        for batch in range(first, realized):
             files[batch].unlink(missing_ok=True)
     return sums, realized
 
@@ -542,25 +604,27 @@ def _terminate_solver(process: subprocess.Popen[bytes], grace_seconds: float = 5
         process.wait()
 
 
-def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log_limit: int) -> dict:
+def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log_limit: int, append: bool = False) -> dict:
     """Tee raw solver bytes to the Rust worker pipes and bounded log files.
 
     Rust owns cancellation, timeout, process-group cleanup, and its independent
     output cap. This layer retains at most ``log_limit`` bytes per stream and
-    terminates OpenMC if that local retained-log cap is exceeded.
+    terminates OpenMC if that local retained-log cap is exceeded. A restarted
+    solver (`append`) adds to the logs of the part before it, and the cap covers both.
     """
     process = subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     exceeded = threading.Event()
     tee_failed = threading.Event()
+    earlier = {name: (cwd / f"openmc.{name}.log").stat().st_size if append else 0 for name in ("stdout", "stderr")}
     stream_state: dict[str, dict] = {
-        "stdout": {"bytes_seen": 0, "bytes_saved": 0, "truncated": False, "error": None},
-        "stderr": {"bytes_seen": 0, "bytes_saved": 0, "truncated": False, "error": None},
+        "stdout": {"bytes_seen": earlier["stdout"], "bytes_saved": earlier["stdout"], "truncated": False, "error": None},
+        "stderr": {"bytes_seen": earlier["stderr"], "bytes_saved": earlier["stderr"], "truncated": False, "error": None},
     }
 
     def pump(name: str, source, parent_stream, log_path: Path) -> None:
         state = stream_state[name]
         try:
-            with log_path.open("wb") as log:
+            with log_path.open("ab" if append else "wb") as log:
                 while True:
                     # BufferedReader.read(n) may wait for n bytes or EOF;
                     # read1 forwards whatever is currently available so Rust
@@ -1291,6 +1355,45 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     return model, response_by_tally, mesh_tally, expected if mesh_tally else {}, volumes_cm3, component_volume_se_cm3, whole_volume_cm3, mesh_bin_volume_cm3, component_cells, spectrum_tallies, plasma, mesh_index_audit, penetration_volume_audit, geometry_ownership_audit, region_volume_cm3
 
 
+def sample_until_settled(openmc, out: Path, command: list[str], env: dict[str, str], rule: dict | None, budget: int,
+                         tally_names: list[str], xml_hashes: dict[str, str], vov_limit: float = VOV_LIMIT):
+    """Run OpenMC in OUT and read its per-batch sums. When the run stops on its target with the variance of the
+    variance of a watched response above `vov_limit`, the target is not believed: the run goes on from its last
+    statepoint with RESTART_GROWTH more batches (at least one), repeatedly, until the batches settle or the budget
+    is used. `xml_hashes` (the hashes of the exported XML) is updated for every settings file written.
+
+    Returns (solver output capture of the last part, cumulative batch sums, batches run, restarts)."""
+    min_batches = rule["min_batches"] if rule else budget
+
+    def solve(arguments: list[str], append: bool) -> dict:
+        result = run_solver_streaming(command + arguments, out, env, MAX_SOLVER_LOG_BYTES, append)
+        require(result["stop_reason"] is None, result["stop_reason"] or "solver output forwarding failed")
+        require(result["return_code"] == 0, f"OpenMC exited {result['return_code']}; inspect bounded output logs")
+        log = (out / "openmc.stdout.log").read_bytes() + b"\n" + (out / "openmc.stderr.log").read_bytes()
+        require(not re.search(rb"(?i)particle\s+\d+\s+was lost|lost particles?", log), "OpenMC reported lost particles")
+        return result
+
+    solver_output = solve([], False)
+    batch_sums, n_batches = read_batch_sums(openmc, out, min_batches, budget, tally_names)
+    restarts = []
+    while rule is not None and n_batches < budget:
+        verdict = guard_verdict(rule, batch_sums, vov_limit)
+        if not (verdict["met"] and not verdict["settled"]):
+            break
+        more = min(budget, n_batches + max(1, math.ceil(RESTART_GROWTH * n_batches)))
+        settings_xml = out / "settings.xml"
+        text = settings_xml.read_text()
+        require(len(re.findall(r"<batches>\d+</batches>", text)) == 1, "settings.xml has no single batches element to extend")
+        settings_xml.write_text(re.sub(r"<batches>\d+</batches>", f"<batches>{more}</batches>", text))
+        xml_hashes["settings.xml"] = sha256(settings_xml)
+        restarts.append({"from_batch": n_batches, "to_batch": more, "variance_of_variance": verdict["variance_of_variance"],
+                         "settings_sha256": xml_hashes["settings.xml"]})
+        restart_file = next(path.name for path in out.glob("statepoint.*.h5") if int(path.name.split(".")[1]) == n_batches)
+        solver_output = solve(["-r", restart_file], True)
+        batch_sums, n_batches = read_batch_sums(openmc, out, min_batches, budget, tally_names, (batch_sums, n_batches))
+    return solver_output, batch_sums, n_batches, restarts
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
@@ -1329,15 +1432,10 @@ def main() -> int:
         run_env = os.environ.copy()
         run_env["OMP_NUM_THREADS"] = str(int(inp["sampling"]["threads"]))
         run_env.setdefault("OPENBLAS_NUM_THREADS", "1")
-        solver_output = run_solver_streaming(command, out, run_env, MAX_SOLVER_LOG_BYTES)
-        require(solver_output["stop_reason"] is None, solver_output["stop_reason"] or "solver output forwarding failed")
-        require(solver_output["return_code"] == 0, f"OpenMC exited {solver_output['return_code']}; inspect bounded output logs")
-        log = (out / "openmc.stdout.log").read_bytes() + b"\n" + (out / "openmc.stderr.log").read_bytes()
-        require(not re.search(rb"(?i)particle\s+\d+\s+was lost|lost particles?", log), "OpenMC reported lost particles")
         rule = stop_rule(inp["sampling"])
         budget = int(inp["sampling"]["batches"])
-        min_batches = rule["min_batches"] if rule else budget
-        batch_sums, n_batches = read_batch_sums(openmc, out, min_batches, budget, list(response_by_tally))
+        solver_output, batch_sums, n_batches, restarts = sample_until_settled(
+            openmc, out, command, run_env, rule, budget, list(response_by_tally), exported_xml_hashes)
         statepoints = sorted(out.glob("statepoint.*.h5"))
         require(statepoints, "OpenMC produced no statepoint")
         require(len(statepoints) == 1, "expected exactly one final statepoint")
@@ -1458,14 +1556,20 @@ def main() -> int:
             (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
         require(after_export_xml_hashes == exported_xml_hashes, "OpenMC export XML changed during solver execution")
-        achieved = None
+        achieved, limiting, vov = None, None, None
         if rule is not None:
-            target_tally = next(t for t in raw_tallies if t["response_id"] == rule["response_id"])
-            achieved = target_tally["standard_error"] / abs(target_tally["mean"]) if target_tally["mean"] != 0.0 else None
-        stop_code, stop_words = judge_stop(rule, n_batches, achieved)
-        sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": rule["response_id"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "stop_reason": stop_code, "stop_reason_text": stop_words}
+            errors = []
+            for response_id in rule["response_ids"]:
+                tally = next(t for t in raw_tallies if t["response_id"] == response_id)
+                errors.append((tally["standard_error"] / abs(tally["mean"]) if tally["mean"] != 0.0 else None, response_id))
+            # the least precise watched response limits the run; one that scored nothing means the target is unknown
+            unknown = [response_id for error, response_id in errors if error is None]
+            achieved, limiting = (None, unknown[0]) if unknown else max(errors)
+            vov = guard_verdict(rule, batch_sums)["variance_of_variance"]
+        stop_code, stop_words = judge_stop(rule, n_batches, achieved, vov)
+        sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": limiting, "watched_responses": rule["response_ids"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "variance_of_variance": vov, "variance_of_variance_limit": VOV_LIMIT if rule else None, "restarts": restarts, "stop_reason": stop_code, "stop_reason_text": stop_words}
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"batch_statistics_sha256":sha256(Path(batch_statistics.__file__)),"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:

@@ -175,14 +175,34 @@ condenses the library to 17 groups on the model's materials by a stochastic slab
 `magnets-fast-flux` response (flux above its threshold in the component it names) by random ray on a 25 cm mesh
 and writes CADIS windows (`window_generator.py`, the module `faris design transport` shares). The windows are
 kept in `faris-transport-cache` under a hash of the manifest, physics, request (without the field-mesh
-responses), cross-section file, window Python and helper code. The run directory holds the file as
-`windows.h5` and the helper's record as `windows-record.json`; `input.json` names both with their hashes
-(`variance_reduction`, absent for an analog run so earlier inputs keep their bytes), the worker refuses a file that
-does not match, reads the windows through `settings.weight_windows_file` and puts their mesh in `settings.xml`,
-and its receipt says which windows it read. `load_reactor_run` checks all three. A target-error run without a window
-Python, or whose helper fails, is analog and the run record's `variance_reduction` says why. Windows are for
-neutrons: photons born in the run are not windowed, so the heating responses gain little from them. A run may not
-use the two seeds the window steps reserve (811500991 and 811500993).
+responses), cross-section file, window Python and helper code.
+
+The windows serve one response, and on the demo they left the total tritium heavy-tailed (relative error 44 to
+64 % against 0.09 % analog, a variance of the variance of 0.35 to 0.87; one of three windowed runs differed from
+analog by more than 2 sigma and the pooled difference was -2.6 sigma). So a windowed run is two passes
+(`run_two_passes`): the run directory is an analog pass with the stop rule watching the whole-model responses
+(`analog_watch`: tritium and the heating family; 30 to 100 batches of 10,000, its own seed), and
+`windowed-pass/` is a complete run of its own (input, worker, solver directory, `windows.h5`,
+`windows-record.json`, `run.json`) that watches the magnet fast flux with the windows. `run.json` of the analog
+pass is the record of the run: its `normalized` result is the analog pass's with the `magnets-fast-flux` result
+replaced by the windowed pass's (`merge_windowed`; the passes are independent random streams, so the sampling
+covariance between the replaced response and any other is set to zero and its variance is its own pass's), and
+`windowed_pass` names the directory, the hash of its `run.json` and the responses taken from it. `input.json` of
+the windowed pass names the windows and their record with hashes (`variance_reduction`, absent for an analog
+run so earlier inputs keep their bytes); the worker refuses a file that does not match, reads the windows through
+`settings.weight_windows_file` and puts their mesh in `settings.xml`, and its receipt says which windows it read.
+`load_reactor_run` loads and checks the windowed pass as a run of its own, requires it to describe the same
+model, data and mesh, recomputes the merge and compares it with the saved result. A target-error run without a
+window Python, or whose helper fails, is a single analog pass and the run record's `variance_reduction` says why.
+Windows are for neutrons: photons born in the run are not windowed. A run may not use the two seeds the window
+steps reserve (811500991 and 811500993).
+
+The stop rule applies the variance-of-the-variance limit of `batch_statistics.py` (0.1, shared with
+`faris design transport`; the worker writes a copy beside itself and its receipt carries the copy's hash). When
+the watched responses are at the target and a variance of the variance is above the limit, the worker goes on
+from the last statepoint (`openmc -r`) with 20 % more batches (at least one) until the batches settle or the
+budget is used. The receipt records the restarts, the worst variance of the variance and the limit it used; a
+target reached while unsettled at the budget is `target_unsettled`, which Rust reads back and refuses to call met.
 
 A reactor run accepts 30 to 1000 batches and at most 50 million histories
 (`MAX_RUN_HISTORIES`). Wall time is bounded separately by `--timeout-seconds`

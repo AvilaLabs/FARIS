@@ -38,6 +38,7 @@ use std::{
 };
 
 mod windows;
+use windows::Prepared;
 pub use windows::{VarianceReductionRecord, WINDOW_CACHE_NAME, WeightWindowsPlan, WindowOptions};
 
 pub type ReactorError = Box<dyn std::error::Error + Send + Sync>;
@@ -433,6 +434,10 @@ pub struct SamplingPlan {
     /// the stop rule existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_relative_error: Option<f64>,
+    /// The responses a target-error run watches, all of which must reach the target. Empty means the magnet
+    /// fast flux alone. The analog pass of a windowed Production run watches the whole-model responses.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub watch_responses: Vec<String>,
 }
 impl Default for SamplingPlan {
     fn default() -> Self {
@@ -442,6 +447,7 @@ impl Default for SamplingPlan {
             seed: 123_456_789,
             threads: 1,
             target_relative_error: None,
+            watch_responses: Vec::new(),
         }
     }
 }
@@ -462,8 +468,15 @@ pub enum StopReason {
     /// A fixed run did the batches it was asked for.
     FixedCount,
     TargetMet,
+    /// The error reached the target, but the batches disagree (variance of the variance above
+    /// [`VOV_LIMIT`]), so the error is not believed; only possible when the batch budget is used up.
+    TargetUnsettled,
     BudgetExhausted,
 }
+
+/// A target is not accepted while the variance of the variance of the batch values is above this (MCNP's check).
+/// The same limit as `batch_statistics.VOV_LIMIT`, which the worker applies; the worker's receipt carries it.
+pub const VOV_LIMIT: f64 = 0.1;
 
 /// What a run actually sampled, read from the hash-bound worker receipt.
 #[derive(Clone, Debug, PartialEq)]
@@ -471,32 +484,52 @@ pub struct SamplingOutcome {
     pub batches_realized: u32,
     pub histories_realized: u64,
     pub target_relative_error: Option<f64>,
-    /// Relative standard error of the watched response, when a target was set.
+    /// Relative standard error of the watched response, when a target was set. With several watched responses,
+    /// that of the least precise.
     pub achieved_relative_error: Option<f64>,
+    /// The watched response that limited the run (the least precise one).
+    pub limiting_response: Option<String>,
+    /// Variance of the variance of the batch values of the watched responses (the worst), when known.
+    pub variance_of_variance: Option<f64>,
     pub stop_reason: StopReason,
 }
 
 impl SamplingOutcome {
+    /// What the limiting response is called in a sentence.
+    fn limiting_label(&self) -> String {
+        match self.limiting_response.as_deref() {
+            None | Some(STOP_RULE_RESPONSE_ID) => "magnet fast flux".into(),
+            Some(id) => format!("the least precise watched response ({id})"),
+        }
+    }
+
     /// One plain sentence for the result view.
     pub fn summary(&self) -> String {
         let histories = self.histories_realized;
+        let what = self.limiting_label();
         match (
             self.stop_reason,
             self.target_relative_error,
             self.achieved_relative_error,
         ) {
             (StopReason::TargetMet, Some(target), Some(achieved)) => format!(
-                "Stopped after {histories} histories because the target was met: magnet fast flux {:.1}% (target {:.1}%).",
+                "Stopped after {histories} histories because the target was met: {what} {:.1}% (target {:.1}%).",
                 achieved * 100.0,
                 target * 100.0
             ),
+            (StopReason::TargetUnsettled, Some(target), Some(achieved)) => format!(
+                "Target not trusted: {what} reached {:.1}% (target {:.1}%) after {histories} histories, but the batches do not agree (variance of the variance {:.2}, above {VOV_LIMIT}), so the error itself is not reliable. Run longer.",
+                achieved * 100.0,
+                target * 100.0,
+                self.variance_of_variance.unwrap_or(f64::NAN)
+            ),
             (StopReason::BudgetExhausted, Some(target), Some(achieved)) => format!(
-                "Target not met: magnet fast flux {:.1}% after {histories} histories (target {:.1}%). The run used up its budget; run longer or use more threads.",
+                "Target not met: {what} {:.1}% after {histories} histories (target {:.1}%). The run used up its budget; run longer or use more threads.",
                 achieved * 100.0,
                 target * 100.0
             ),
             (StopReason::BudgetExhausted, Some(target), None) => format!(
-                "Target not met: the magnet fast flux scored nothing in {histories} histories (target {:.1}%). Run longer.",
+                "Target not met: {what} scored nothing in {histories} histories (target {:.1}%). Run longer.",
                 target * 100.0
             ),
             _ => format!("Ran the requested {histories} histories."),
@@ -544,9 +577,23 @@ pub fn sampling_outcome(
         .ok_or_else(|| bad("histories are missing"))?;
     let target = raw.get("target_relative_error").and_then(Value::as_f64);
     let achieved = raw.get("achieved_relative_error").and_then(Value::as_f64);
+    // Receipts from before the variance guard have neither field: no guard was applied to them.
+    let vov = raw.get("variance_of_variance").and_then(Value::as_f64);
+    let limiting_response = raw
+        .get("target_response_id")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if let Some(limit) = raw
+        .get("variance_of_variance_limit")
+        .and_then(Value::as_f64)
+        && limit != VOV_LIMIT
+    {
+        return Err(bad("was judged against another variance-of-variance limit"));
+    }
     let reason = match raw.get("stop_reason").and_then(Value::as_str) {
         Some("fixed_count") => StopReason::FixedCount,
         Some("target_met") => StopReason::TargetMet,
+        Some("target_unsettled") => StopReason::TargetUnsettled,
         Some("budget_exhausted") => StopReason::BudgetExhausted,
         _ => return Err(bad("stop reason is unknown")),
     };
@@ -561,7 +608,15 @@ pub fn sampling_outcome(
         Some(target) => {
             (STOP_RULE_MIN_BATCHES..=plan.batches).contains(&batches_realized)
                 && match reason {
-                    StopReason::TargetMet => achieved.is_some_and(|v| v <= target * (1.0 + 1e-9)),
+                    StopReason::TargetMet => {
+                        achieved.is_some_and(|v| v <= target * (1.0 + 1e-9))
+                            && vov.is_none_or(|v| v <= VOV_LIMIT)
+                    }
+                    StopReason::TargetUnsettled => {
+                        batches_realized == plan.batches
+                            && achieved.is_some_and(|v| v <= target * (1.0 + 1e-9))
+                            && vov.is_some_and(|v| v > VOV_LIMIT)
+                    }
                     StopReason::BudgetExhausted => {
                         batches_realized == plan.batches
                             && achieved.is_none_or(|v| v > target * (1.0 + 1e-9))
@@ -580,6 +635,8 @@ pub fn sampling_outcome(
         histories_realized,
         target_relative_error: target,
         achieved_relative_error: achieved,
+        limiting_response,
+        variance_of_variance: vov,
         stop_reason: reason,
     }))
 }
@@ -625,6 +682,18 @@ impl SamplingPlan {
         {
             return Err("target relative error must be above 0 and at most 0.5".into());
         }
+        let mut seen = std::collections::BTreeSet::new();
+        if !self.watch_responses.is_empty()
+            && (self.target_relative_error.is_none()
+                || !self
+                    .watch_responses
+                    .iter()
+                    .all(|id| !id.is_empty() && seen.insert(id)))
+        {
+            return Err(
+                "watched responses need a target error and must be distinct response ids".into(),
+            );
+        }
         Ok(())
     }
 }
@@ -643,6 +712,67 @@ pub struct ReactorInput {
     /// The weight windows the run reads; absent for an analog run, so earlier inputs keep their bytes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variance_reduction: Option<WeightWindowsPlan>,
+}
+
+/// The windowed pass of a two-pass run: where it is, which of its results the record reports, and its hash.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WindowedPass {
+    /// Plain directory name inside the run directory; it holds a complete run (input.json, run.json, ...).
+    pub directory: String,
+    /// Hash of that pass's run.json.
+    pub run_sha256: String,
+    /// The responses reported from the windowed pass; every other one is reported from the analog pass.
+    pub responses: Vec<String>,
+}
+
+/// Replace the results of `ids` in the analog pass's normalized result by those of the windowed pass. The
+/// passes are independent random streams, so the sampling covariance between a replaced response and any other
+/// is zero, and the replaced response's variance is that of its own pass.
+fn merge_windowed(
+    analog: Option<&NormalizedTransportResult>,
+    windowed: Option<&NormalizedTransportResult>,
+    ids: &[String],
+) -> Result<NormalizedTransportResult, ReactorError> {
+    let (Some(analog), Some(windowed)) = (analog, windowed) else {
+        return Err("both passes need a normalized result to be merged".into());
+    };
+    let mut merged = analog.clone();
+    for id in ids {
+        let taken = windowed
+            .results
+            .iter()
+            .find(|r| &r.response_id == id)
+            .ok_or_else(|| format!("the windowed pass has no result for {id}"))?;
+        let slot = merged
+            .results
+            .iter_mut()
+            .find(|r| &r.response_id == id)
+            .ok_or_else(|| format!("the analog pass has no result for {id}"))?;
+        if slot.domain != taken.domain || slot.score != taken.score || slot.unit != taken.unit {
+            return Err(format!("the two passes define {id} differently").into());
+        }
+        *slot = taken.clone();
+        if let Some(covariance) = merged.response_covariance.as_mut()
+            && let Some(at) = covariance.response_ids.iter().position(|r| r == id)
+        {
+            let n = covariance.response_ids.len();
+            let own = windowed
+                .response_covariance
+                .as_ref()
+                .and_then(|w| {
+                    let j = w.response_ids.iter().position(|r| r == id)?;
+                    w.integrated.get(j * w.response_ids.len() + j).copied()
+                })
+                .unwrap_or(math::powi(taken.integrated_standard_error, 2));
+            for k in 0..n {
+                covariance.integrated[at * n + k] = 0.0;
+                covariance.integrated[k * n + at] = 0.0;
+            }
+            covariance.integrated[at * n + at] = own;
+        }
+    }
+    Ok(merged)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -688,6 +818,13 @@ pub struct ReactorRun {
     /// windows existed; the windows themselves are bound by the input.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variance_reduction: Option<VarianceReductionRecord>,
+    /// Set when the run is two passes (weight windows): the pass that sampled the responses the windows serve.
+    /// Every other response in `normalized` comes from this run's own (analog) pass. Absent on every other run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub windowed_pass: Option<WindowedPass>,
+    /// The windowed pass as a run of its own, loaded from `windowed_pass`; not part of run.json.
+    #[serde(skip)]
+    pub windowed_run: Option<Box<ReactorRun>>,
     pub scientific_qualification: String,
     pub notice: String,
 }
@@ -705,21 +842,36 @@ impl ReactorRun {
             .then(|| result.integrated_standard_error / result.integrated_mean)
     }
 
-    /// What weight windows cost: they are aimed at the magnet fast flux, and the other responses (tritium, heating)
-    /// are sampled less well for it. Said beside a windowed result, with the error the run actually reached.
-    pub fn windows_caveat(&self) -> Option<String> {
-        if !self
-            .variance_reduction
-            .as_ref()
-            .is_some_and(VarianceReductionRecord::uses_windows)
-        {
-            return None;
+    /// Which pass a response of this run comes from: `"windowed"` for the responses the weight windows serve,
+    /// `"analog"` for the rest. A run without windows is analog throughout.
+    pub fn pass_of(&self, response_id: &str) -> &'static str {
+        match &self.windowed_pass {
+            Some(pass) if pass.responses.iter().any(|r| r == response_id) => "windowed",
+            _ => "analog",
         }
-        let tritium = self.relative_error("total-tritium-production")?;
+    }
+
+    /// One plain sentence naming the pass each kind of response comes from, with the histories each pass took;
+    /// `None` for a run of one pass.
+    pub fn passes_summary(&self) -> Option<String> {
+        let pass = self.windowed_pass.as_ref()?;
+        let windowed = self.windowed_run.as_deref()?;
         Some(format!(
-            "The windows serve the magnet fast flux; other responses are sampled less well. Total tritium is known to {:.0} % here, so take the breeding ratio from a Preview or an analog run.",
-            100.0 * tritium
+            "Two passes. Analog pass ({} histories): every response except {}. Windowed pass ({} histories): {}.",
+            self.histories_sampled(),
+            pass.responses.join(", "),
+            windowed.histories_sampled(),
+            pass.responses.join(", ")
         ))
+    }
+
+    /// Histories of every pass of the run: its own and those of its windowed pass.
+    pub fn histories_total(&self) -> u64 {
+        self.histories_sampled()
+            + self
+                .windowed_run
+                .as_deref()
+                .map_or(0, ReactorRun::histories_sampled)
     }
 
     /// Histories the run actually sampled: the realized count of a
@@ -762,6 +914,7 @@ fn legacy_preflight_serialization_method() -> String {
     "compact-json-v1".into()
 }
 
+#[derive(Clone)]
 pub struct ReactorJob<'a> {
     pub scenario: &'a LoadedScenario,
     pub physics: &'a PhysicsCase,
@@ -1314,6 +1467,12 @@ fn check_geometric_volumes(
     Ok(())
 }
 
+/// The batch statistics the worker imports (`batch_statistics.py`, shared with the design transport run), written
+/// beside the worker; the worker's receipt carries the hash of the copy it used.
+const BATCH_STATISTICS_HELPER: &str =
+    include_str!("../../../integrations/openmc/batch_statistics.py");
+const BATCH_STATISTICS_FILE: &str = "batch_statistics.py";
+
 fn embedded_worker_sha256() -> String {
     digest(include_bytes!(
         "../../../integrations/openmc/reactor_transport.py"
@@ -1606,11 +1765,22 @@ fn sampling_precision_summary(worker: &Value) -> Result<SamplingPrecisionSummary
     })
 }
 
-pub fn run_reactor(
-    job: &ReactorJob<'_>,
-    cancellation: &Cancellation,
-) -> Result<ReactorRun, ReactorError> {
-    job.sampling.validate()?;
+/// What a pass needs before its input is written: the bound model, request, mesh and the identities of the tools.
+struct PassInput {
+    input: ReactorInput,
+    audit_bytes: Vec<u8>,
+    physics: PhysicsCase,
+    request: TransportRequest,
+    mesh: FieldMesh,
+    python: PathBuf,
+    openmc: PathBuf,
+    python_sha256: String,
+    openmc_sha256: String,
+    cross_sections_sha256: String,
+}
+
+fn build_pass(job: &ReactorJob<'_>, sampling: &SamplingPlan) -> Result<PassInput, ReactorError> {
+    sampling.validate()?;
     validate_run_timeout(job.timeout)?;
     let python = canonicalize_required_input(job.python, "Python interpreter")?;
     let openmc = canonicalize_required_input(job.openmc, "OpenMC executable")?;
@@ -1646,20 +1816,49 @@ pub fn run_reactor(
         manifest: build_manifest(job.scenario)?,
         physics: physics.clone(),
         request: request.clone(),
-        sampling: job.sampling.clone(),
+        sampling: sampling.clone(),
         mesh: mesh.clone(),
         cross_sections,
         openmc_executable: openmc.clone(),
         nuclear_data_digest,
         variance_reduction: None,
     };
-    let mut input = input;
-    let prepared = windows::prepare(
-        job,
-        &serde_json::to_value(&input)?,
-        &cross_sections_sha256,
-        cancellation,
-    )?;
+    Ok(PassInput {
+        input,
+        audit_bytes,
+        physics,
+        request,
+        mesh,
+        python,
+        openmc,
+        python_sha256,
+        openmc_sha256,
+        cross_sections_sha256,
+    })
+}
+
+/// Run one pass in the directory `output`: write its input and files, run the worker, import and check what it
+/// produced. The record is returned unwritten (`write_run_record`), so a caller can still complete it.
+fn execute_pass(
+    job: &ReactorJob<'_>,
+    sampling: &SamplingPlan,
+    output: &Path,
+    built: PassInput,
+    prepared: Option<Prepared>,
+    cancellation: &Cancellation,
+) -> Result<ReactorRun, ReactorError> {
+    let PassInput {
+        mut input,
+        audit_bytes,
+        physics,
+        request,
+        mesh,
+        python,
+        openmc,
+        python_sha256,
+        openmc_sha256,
+        cross_sections_sha256,
+    } = built;
     input.variance_reduction = prepared.as_ref().and_then(|p| p.plan.clone());
     let variance_reduction = prepared.as_ref().map(|p| p.record.clone());
     let input_bytes = serde_json::to_vec_pretty(&input)?;
@@ -1676,7 +1875,7 @@ pub fn run_reactor(
             return Err(error);
         }
     };
-    let output = std::path::absolute(job.output)?;
+    let output = std::path::absolute(output)?;
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -1689,10 +1888,14 @@ pub fn run_reactor(
     write_new(&output.join("audit.json"), &audit_bytes)?;
     let worker = output.join("reactor_transport.py");
     write_new(&worker, job.adapter)?;
+    write_new(
+        &output.join(BATCH_STATISTICS_FILE),
+        BATCH_STATISTICS_HELPER.as_bytes(),
+    )?;
     let mut environment = vec![
         (
             OsString::from("OMP_NUM_THREADS"),
-            job.sampling.threads.to_string().into(),
+            sampling.threads.to_string().into(),
         ),
         ("OPENBLAS_NUM_THREADS".into(), "1".into()),
         ("PYTHONDONTWRITEBYTECODE".into(), "1".into()),
@@ -1722,7 +1925,7 @@ pub fn run_reactor(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:job.sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,windowed_pass:None,windowed_run:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -1744,10 +1947,10 @@ pub fn run_reactor(
                 &physics,
             )?;
             let precision_summary = sampling_precision_summary(&worker)?;
-            let outcome = sampling_outcome(&worker, &job.sampling)?;
+            let outcome = sampling_outcome(&worker, sampling)?;
             let raw_bytes = read_json_bytes(&output.join("solver/transport-artifact.json"))?;
             let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
-            if artifact.histories != expected_histories(&job.sampling, outcome.as_ref())?
+            if artifact.histories != expected_histories(sampling, outcome.as_ref())?
                 || artifact.solver.digest != format!("sha256:{}", record.openmc_sha256)
                 || artifact.nuclear_data.digest != input.nuclear_data_digest
             {
@@ -1802,11 +2005,226 @@ pub fn run_reactor(
             Err(error) => record.import_error = Some(error.to_string()),
         }
     }
+    Ok(record)
+}
+
+pub fn run_reactor(
+    job: &ReactorJob<'_>,
+    cancellation: &Cancellation,
+) -> Result<ReactorRun, ReactorError> {
+    let built = build_pass(job, &job.sampling)?;
+    let prepared = windows::prepare(
+        job,
+        &serde_json::to_value(&built.input)?,
+        &built.cross_sections_sha256,
+        cancellation,
+    )?;
+    let output = std::path::absolute(job.output)?;
+    // Windows serve one response, so a windowed run is two passes (see `run_two_passes`); without windows, or
+    // for a fixed-count Preview, it is one.
+    if prepared.as_ref().is_some_and(|p| p.plan.is_some()) {
+        let prepared = prepared.unwrap_or_else(|| unreachable!("checked above"));
+        return run_two_passes(job, built, prepared, &output, cancellation);
+    }
+    let record = execute_pass(job, &job.sampling, &output, built, prepared, cancellation)?;
+    write_run_record(&output, &record)?;
+    Ok(record)
+}
+
+fn write_run_record(output: &Path, record: &ReactorRun) -> Result<(), ReactorError> {
     write_new(
         &output.join("run.json"),
-        &serde_json::to_vec_pretty(&record)?,
+        &serde_json::to_vec_pretty(record)?,
     )?;
+    Ok(())
+}
+
+/// Directory of the windowed pass, inside the run directory of the analog pass.
+pub const WINDOWED_PASS_DIRECTORY: &str = "windowed-pass";
+
+/// The response ids the analog pass of a windowed run watches: every whole-model response (tritium and the
+/// heating family), which an analog run of modest size resolves far below the target. The responses deep in the
+/// blanket stack (the coil layer, the vessel) are not watched: an analog pass cannot reach the target on them,
+/// and they are reported with the error the pass reached.
+pub fn analog_watch(request: &TransportRequest) -> Vec<String> {
+    request
+        .responses
+        .iter()
+        .filter(|r| matches!(r.domain, faris_model::transport::ResponseDomain::WholeModel))
+        .map(|r| r.id.clone())
+        .collect()
+}
+
+/// Largest batch the analog pass of a windowed run uses, and its budget in batches; it stops at the 30th batch
+/// when its watched responses are at the target by then.
+const ANALOG_PASS_PARTICLES: u32 = 10_000;
+const ANALOG_PASS_BATCHES: u32 = 100;
+
+/// Sampling of the analog pass of a windowed Production run: the same target error, watching the whole-model
+/// responses, in small batches. Its seed differs from the windowed pass's, so the passes are independent.
+fn analog_pass_sampling(windowed: &SamplingPlan, watch: Vec<String>) -> SamplingPlan {
+    SamplingPlan {
+        batches: ANALOG_PASS_BATCHES,
+        particles_per_batch: ANALOG_PASS_PARTICLES,
+        seed: other_seed(windowed.seed),
+        threads: windowed.threads,
+        target_relative_error: windowed.target_relative_error,
+        watch_responses: watch,
+    }
+}
+
+/// A seed for the other pass: next to this one, and not a reserved one.
+fn other_seed(seed: u64) -> u64 {
+    let mut other = seed.wrapping_add(7_919) % (i64::MAX as u64);
+    while other == 0 || other == seed || RESERVED_WINDOW_SEEDS.contains(&other) {
+        other = other.wrapping_add(1) % (i64::MAX as u64);
+    }
+    other
+}
+
+impl<'a> ReactorJob<'a> {
+    fn for_pass(&self, output: &'a Path, sampling: SamplingPlan) -> ReactorJob<'a> {
+        ReactorJob {
+            output,
+            sampling,
+            ..self.clone()
+        }
+    }
+}
+
+/// A Production run with weight windows. The windows are aimed at the magnet fast flux and are not shown to leave
+/// the other responses unbiased at this precision (the demo's total tritium was far noisier with them), so each
+/// response is taken from the pass that is valid for it:
+///
+/// - the analog pass (this run directory) samples the whole model until the whole-model responses are at the
+///   target; every response but the magnet fast flux is reported from it;
+/// - the windowed pass (`windowed-pass/`, a complete run of its own) samples the magnet fast flux with the
+///   windows; that response is reported from it.
+///
+/// The record says which; loading it checks both passes and the merge.
+fn run_two_passes(
+    job: &ReactorJob<'_>,
+    built: PassInput,
+    prepared: Prepared,
+    output: &Path,
+    cancellation: &Cancellation,
+) -> Result<ReactorRun, ReactorError> {
+    let variance = prepared.record.clone();
+    let watch = analog_watch(&built.request);
+    if watch.is_empty() {
+        prepared.discard();
+        return Err("the request has no whole-model response for the analog pass to watch".into());
+    }
+    let analog_sampling = analog_pass_sampling(&job.sampling, watch);
+    let analog_built = build_pass(job, &analog_sampling)?;
+    let analog_job = job.for_pass(output, analog_sampling.clone());
+    let mut record = match execute_pass(
+        &analog_job,
+        &analog_sampling,
+        output,
+        analog_built,
+        None,
+        cancellation,
+    ) {
+        Ok(record) => record,
+        Err(error) => {
+            prepared.discard();
+            return Err(error);
+        }
+    };
+    let windowed_dir = output.join(WINDOWED_PASS_DIRECTORY);
+    let windowed_job = job.for_pass(&windowed_dir, job.sampling.clone());
+    let windowed = if record.import_error.is_none() && record.normalized.is_some() {
+        execute_pass(
+            &windowed_job,
+            &job.sampling,
+            &windowed_dir,
+            built,
+            Some(prepared),
+            cancellation,
+        )
+    } else {
+        prepared.discard();
+        Err("the analog pass did not produce a result".into())
+    };
+    match windowed {
+        Ok(windowed) if windowed.import_error.is_none() && windowed.normalized.is_some() => {
+            write_run_record(&windowed_dir, &windowed)?;
+            let run_sha256 = hash_file(&windowed_dir.join("run.json"))?;
+            let ids = vec![STOP_RULE_RESPONSE_ID.to_string()];
+            let merged = merge_windowed(
+                record.normalized.as_ref(),
+                windowed.normalized.as_ref(),
+                &ids,
+            )?;
+            record.normalized = Some(merged);
+            record.windowed_pass = Some(WindowedPass {
+                directory: WINDOWED_PASS_DIRECTORY.into(),
+                run_sha256,
+                responses: ids,
+            });
+            record.variance_reduction = Some(variance);
+            record.windowed_run = Some(Box::new(windowed));
+        }
+        Ok(windowed) => {
+            // The windowed pass ran but its import failed: its record is kept for inspection, the run fails.
+            write_run_record(&windowed_dir, &windowed)?;
+            record.import_error = Some(format!(
+                "the windowed pass of the magnet fast flux failed: {}. The analog pass is in this run directory; run again",
+                windowed
+                    .import_error
+                    .as_deref()
+                    .unwrap_or("it produced no result")
+            ));
+        }
+        Err(error) => {
+            record.import_error = Some(format!(
+                "the windowed pass of the magnet fast flux failed: {error}. The analog pass is in this run directory; run again"
+            ));
+        }
+    }
+    write_run_record(output, &record)?;
     Ok(record)
+}
+
+/// Load and check the windowed pass of a two-pass run: its directory is a plain name, its run.json matches the
+/// recorded hash, it is a complete run that verifies on its own, it used weight windows, and it describes the same
+/// model, data and mesh as the analog pass that holds it.
+fn load_windowed_pass(
+    parent: &Path,
+    pass: &WindowedPass,
+    analog: &ReactorRun,
+    scenario: &LoadedScenario,
+) -> Result<ReactorRun, ReactorError> {
+    if Path::new(&pass.directory)
+        .file_name()
+        .and_then(|n| n.to_str())
+        != Some(pass.directory.as_str())
+        || pass.directory != WINDOWED_PASS_DIRECTORY
+        || pass.responses != [STOP_RULE_RESPONSE_ID]
+    {
+        return Err("the recorded windowed pass is not one this build knows".into());
+    }
+    let path = parent.join(&pass.directory).join("run.json");
+    if hash_file(&path)? != pass.run_sha256 {
+        return Err("the recorded windowed pass differs from its hash".into());
+    }
+    let windowed = load_reactor_run(&path, scenario)?;
+    if !windowed
+        .variance_reduction
+        .as_ref()
+        .is_some_and(VarianceReductionRecord::uses_windows)
+        || windowed.windowed_pass.is_some()
+        || windowed.variant_id != analog.variant_id
+        || windowed.physics_sha256 != analog.physics_sha256
+        || windowed.cross_sections_sha256 != analog.cross_sections_sha256
+        || windowed.openmc_sha256 != analog.openmc_sha256
+        || windowed.mesh != analog.mesh
+        || windowed.sampling.target_relative_error != analog.sampling.target_relative_error
+    {
+        return Err("the windowed pass does not match the analog pass that holds it".into());
+    }
+    Ok(windowed)
 }
 
 /// Load locally recorded outputs and recheck exact request/normalization against
@@ -1943,11 +2361,27 @@ pub fn load_reactor_run(
             &input,
             Some(&worker),
             record.variance_reduction.as_ref(),
+            record.windowed_pass.is_some(),
         )?;
+        // A worker that carries the shared batch statistics says which copy it used.
+        if let Some(used) = worker
+            .get("batch_statistics_sha256")
+            .and_then(Value::as_str)
+            && (used != digest(BATCH_STATISTICS_HELPER.as_bytes())
+                || hash_file(&parent.join(BATCH_STATISTICS_FILE))? != used)
+        {
+            return Err("the recorded batch statistics differ from this build's".into());
+        }
     } else if record.adapter_sha256 == embedded_worker_sha256() {
         return Err("current worker run is missing its bound geometry-ownership receipt".into());
     } else {
-        windows::verify_recorded(parent, &input, None, record.variance_reduction.as_ref())?;
+        windows::verify_recorded(
+            parent,
+            &input,
+            None,
+            record.variance_reduction.as_ref(),
+            record.windowed_pass.is_some(),
+        )?;
     }
     let normalized = normalize_transport_artifact(&request, &artifact, scenario)?;
     let normalized_spectra = if request.schema_version == TRANSPORT_REQUEST_VERSION {
@@ -1967,6 +2401,20 @@ pub fn load_reactor_run(
         None
     };
     check_geometric_volumes(&normalized, scenario, &mesh)?;
+    // Two-pass run: the responses of the windowed pass come from its own recorded run, checked in full.
+    let normalized = match record.windowed_pass.clone() {
+        Some(pass) => {
+            let windowed = load_windowed_pass(parent, &pass, &record, scenario)?;
+            let merged = merge_windowed(
+                Some(&normalized),
+                windowed.normalized.as_ref(),
+                &pass.responses,
+            )?;
+            record.windowed_run = Some(Box::new(windowed));
+            merged
+        }
+        None => normalized,
+    };
     if record.normalized.as_ref() != Some(&normalized) {
         let saved = serde_json::to_value(&record.normalized)?;
         let checked = serde_json::to_value(&normalized)?;
@@ -2217,6 +2665,214 @@ mod tests {
             .validate()
             .is_err()
         );
+    }
+
+    fn normalized_with(
+        magnet: (f64, f64),
+        tritium: (f64, f64),
+        covariance: Vec<f64>,
+    ) -> NormalizedTransportResult {
+        let tally = |id: &str, domain: ResponseDomain, score: ScoreDefinition, mean: (f64, f64)| {
+            NormalizedTally {
+                response_id: id.into(),
+                domain,
+                score,
+                estimator: TallyEstimator::Tracklength,
+                mean: mean.0,
+                standard_error: mean.1,
+                unit: PhysicalUnit::NeutronsPerSquareMetreSecond,
+                integrated_mean: mean.0,
+                integrated_standard_error: mean.1,
+                integrated_unit: PhysicalUnit::NeutronMetresPerSecond,
+                volume_m3: 1.0,
+                volume_standard_error_m3: 0.0,
+            }
+        };
+        NormalizedTransportResult {
+            schema_version: "faris-normalized-transport/v0.1".into(),
+            scenario_id: "s".into(),
+            scenario_sha256: "a".repeat(64),
+            variant_id: "v".into(),
+            source: faris_model::transport::DtSource {
+                energy_per_reaction_ev: 17.6e6,
+                neutron_energy_ev: 14.1e6,
+                neutrons_per_reaction: 1.0,
+                distribution_id: "d".into(),
+            },
+            solver: ToolIdentity {
+                name: "OpenMC".into(),
+                version: "0.15.3".into(),
+                digest: format!("sha256:{}", "1".repeat(64)),
+            },
+            nuclear_data: ToolIdentity {
+                name: "data".into(),
+                version: "1".into(),
+                digest: format!("sha256:{}", "2".repeat(64)),
+            },
+            histories: 1000,
+            source_reaction_rate_per_s: 1.0,
+            source_neutron_rate_per_s: 1.0,
+            results: vec![
+                tally(
+                    STOP_RULE_RESPONSE_ID,
+                    ResponseDomain::Component {
+                        component_id: "magnets".into(),
+                    },
+                    ScoreDefinition::Flux,
+                    magnet,
+                ),
+                tally(
+                    "total-tritium-production",
+                    ResponseDomain::WholeModel,
+                    ScoreDefinition::Flux,
+                    tritium,
+                ),
+            ],
+            response_covariance: Some(crate::transport::ResponseCovariance {
+                method: "batch-means-sample-covariance/v1".into(),
+                batches: 30,
+                response_ids: vec![
+                    STOP_RULE_RESPONSE_ID.into(),
+                    "total-tritium-production".into(),
+                ],
+                integrated: covariance,
+            }),
+        }
+    }
+
+    // Verifies: NUC-051, PERF-025
+    #[test]
+    fn a_merged_result_takes_each_response_from_the_pass_valid_for_it() {
+        let analog = normalized_with(
+            (1.0e15, 3.0e14),
+            (2.4e20, 2.0e17),
+            vec![9.0e28, 1.0e32, 1.0e32, 4.0e34],
+        );
+        let windowed = normalized_with(
+            (1.37e15, 6.0e13),
+            (6.0e20, 4.0e20),
+            vec![3.6e27, 5.0e33, 5.0e33, 1.6e41],
+        );
+        let ids = vec![STOP_RULE_RESPONSE_ID.to_string()];
+        let merged = merge_windowed(Some(&analog), Some(&windowed), &ids).unwrap();
+        let by_id = |id: &str| merged.results.iter().find(|r| r.response_id == id).unwrap();
+        // the magnet flux is the windowed pass's, the tritium stays the analog pass's
+        assert_eq!(by_id(STOP_RULE_RESPONSE_ID).integrated_mean, 1.37e15);
+        assert_eq!(by_id("total-tritium-production").integrated_mean, 2.4e20);
+        assert_eq!(
+            by_id("total-tritium-production").integrated_standard_error,
+            2.0e17
+        );
+        // the passes are independent: no covariance across them, each response keeps its own variance
+        let covariance = merged.response_covariance.as_ref().unwrap();
+        assert_eq!(covariance.integrated, vec![3.6e27, 0.0, 0.0, 4.0e34]);
+        // a pass that defines the response differently, or lacks it, cannot be merged
+        let mut other = windowed.clone();
+        other.results[0].unit = PhysicalUnit::Watts;
+        assert!(merge_windowed(Some(&analog), Some(&other), &ids).is_err());
+        assert!(merge_windowed(Some(&analog), None, &ids).is_err());
+        assert!(merge_windowed(Some(&analog), Some(&windowed), &["nope".to_string()]).is_err());
+    }
+
+    #[test]
+    fn the_analog_pass_watches_the_whole_model_responses_with_its_own_seed() {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics: PhysicsCase = serde_json::from_slice(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.reference.physics.json"
+        ))
+        .unwrap();
+        let (request, _) = request_for_case_with_mesh(
+            &scenario,
+            &physics,
+            FieldMesh::for_preset(&build_manifest(&scenario).unwrap(), MeshPreset::Coarse).unwrap(),
+        )
+        .unwrap();
+        let watch = analog_watch(&request);
+        assert!(watch.contains(&"total-tritium-production".to_string()));
+        assert!(watch.contains(&"heating-total-whole-model".to_string()));
+        assert!(!watch.contains(&STOP_RULE_RESPONSE_ID.to_string()));
+        assert!(
+            watch
+                .iter()
+                .all(|id| id.ends_with("whole-model") || id == "total-tritium-production")
+        );
+        let windowed = SamplingPlan {
+            batches: 1000,
+            particles_per_batch: 20_000,
+            seed: 42,
+            threads: 3,
+            target_relative_error: Some(0.05),
+            watch_responses: Vec::new(),
+        };
+        let analog = analog_pass_sampling(&windowed, watch.clone());
+        analog.validate().unwrap();
+        assert_ne!(analog.seed, windowed.seed);
+        assert_eq!(analog.target_relative_error, Some(0.05));
+        assert_eq!(analog.watch_responses, watch);
+        for seed in [1, 42, RESERVED_WINDOW_SEEDS[0] - 7_919, i64::MAX as u64 - 3] {
+            let other = other_seed(seed);
+            assert!(other != seed && other > 0 && other <= i64::MAX as u64);
+            assert!(!RESERVED_WINDOW_SEEDS.contains(&other));
+        }
+    }
+
+    #[test]
+    fn watched_responses_need_a_target_and_are_distinct() {
+        let plan = |target, watch: &[&str]| SamplingPlan {
+            target_relative_error: target,
+            watch_responses: watch.iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        };
+        assert!(plan(Some(0.05), &["a", "b"]).validate().is_ok());
+        assert!(plan(None, &["a"]).validate().is_err());
+        assert!(plan(Some(0.05), &["a", "a"]).validate().is_err());
+        assert!(plan(Some(0.05), &[""]).validate().is_err());
+        // plans without watched responses write exactly as before
+        let json = serde_json::to_string(&plan(Some(0.05), &[])).unwrap();
+        assert!(!json.contains("watch"));
+    }
+
+    // Verifies: NUC-043
+    #[test]
+    fn a_target_is_not_met_while_the_batches_disagree() {
+        let plan = SamplingPlan {
+            batches: 100,
+            target_relative_error: Some(0.05),
+            ..Default::default()
+        };
+        let with = |batches: u64, reason: &str, achieved: f64, vov: f64| {
+            let mut value = outcome_json(batches, reason, Some(achieved));
+            value["sampling_outcome"]["variance_of_variance"] = vov.into();
+            value["sampling_outcome"]["variance_of_variance_limit"] = VOV_LIMIT.into();
+            value["sampling_outcome"]["target_response_id"] = "total-tritium-production".into();
+            value
+        };
+        let met = sampling_outcome(&with(40, "target_met", 0.04, 0.02), &plan)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            met.limiting_response.as_deref(),
+            Some("total-tritium-production")
+        );
+        assert!(met.summary().contains("total-tritium-production"));
+        // met with a VOV above the limit may not stop early, and may not be called met
+        assert!(sampling_outcome(&with(40, "target_met", 0.04, 0.3), &plan).is_err());
+        assert!(sampling_outcome(&with(40, "target_unsettled", 0.04, 0.3), &plan).is_err());
+        let unsettled = sampling_outcome(&with(100, "target_unsettled", 0.04, 0.3), &plan)
+            .unwrap()
+            .unwrap();
+        assert_eq!(unsettled.stop_reason, StopReason::TargetUnsettled);
+        assert!(unsettled.summary().contains("not reliable"));
+        // unsettled needs a VOV above the limit and an error within the target
+        assert!(sampling_outcome(&with(100, "target_unsettled", 0.04, 0.05), &plan).is_err());
+        assert!(sampling_outcome(&with(100, "target_unsettled", 0.08, 0.3), &plan).is_err());
+        // another limit than ours is refused
+        let mut other = with(40, "target_met", 0.04, 0.02);
+        other["sampling_outcome"]["variance_of_variance_limit"] = 0.5.into();
+        assert!(sampling_outcome(&other, &plan).is_err());
     }
 
     // Verifies: NUC-053

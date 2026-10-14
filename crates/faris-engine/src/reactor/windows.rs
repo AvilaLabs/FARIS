@@ -20,6 +20,7 @@ use std::{
 };
 
 const REACTOR_WINDOWS: &str = include_str!("../../../../integrations/openmc/reactor_windows.py");
+const BATCH_STATISTICS: &str = include_str!("../../../../integrations/openmc/batch_statistics.py");
 const WINDOW_GENERATOR: &str = include_str!("../../../../integrations/openmc/window_generator.py");
 const WINDOW_FILL_HELPER: &str =
     include_str!("../../../../integrations/openmc/risk_tests/s0f_common.py");
@@ -339,6 +340,10 @@ fn generate(
             work.join("window_generator.py"),
             WINDOW_GENERATOR.as_bytes(),
         ),
+        (
+            work.join("batch_statistics.py"),
+            BATCH_STATISTICS.as_bytes(),
+        ),
         (helpers.join("s0f_common.py"), WINDOW_FILL_HELPER.as_bytes()),
         (work.join("reactor_transport.py"), job.adapter),
     ] {
@@ -430,13 +435,21 @@ pub fn verify_recorded(
     input: &Value,
     worker: Option<&Value>,
     record: Option<&VarianceReductionRecord>,
+    holds_windowed_pass: bool,
 ) -> Result<Option<WeightWindowsPlan>, ReactorError> {
     let plan = match input.get("variance_reduction") {
         None | Some(Value::Null) => None,
         Some(value) => Some(serde_json::from_value::<WeightWindowsPlan>(value.clone())?),
     };
-    match (&plan, record.map(VarianceReductionRecord::uses_windows)) {
-        (Some(_), Some(true)) | (None, None | Some(false)) => {}
+    // The analog pass of a two-pass run reads no windows itself, but its record says the run used them.
+    match (
+        &plan,
+        record.map(VarianceReductionRecord::uses_windows),
+        holds_windowed_pass,
+    ) {
+        (Some(_), Some(true), false)
+        | (None, None | Some(false), false)
+        | (None, Some(true), true) => {}
         _ => return Err("the run record and its input disagree about weight windows".into()),
     }
     let Some(plan) = plan else {
@@ -528,25 +541,56 @@ mod tests {
         };
         let worker = serde_json::json!({"variance_reduction": {"mode": KIND, "windows_sha256": digest(b"w")}});
         assert!(
-            verify_recorded(dir.path(), &input, Some(&worker), Some(&record))
+            verify_recorded(dir.path(), &input, Some(&worker), Some(&record), false)
                 .unwrap()
                 .is_some()
         );
         // A worker that read other windows, a changed file, a record that claims analog: each is refused.
         let wrong = serde_json::json!({"variance_reduction": {"mode": "analog"}});
-        assert!(verify_recorded(dir.path(), &input, Some(&wrong), Some(&record)).is_err());
+        assert!(verify_recorded(dir.path(), &input, Some(&wrong), Some(&record), false).is_err());
         let analog_record = VarianceReductionRecord {
             mode: "analog".into(),
             ..record.clone()
         };
-        assert!(verify_recorded(dir.path(), &input, Some(&worker), Some(&analog_record)).is_err());
+        assert!(
+            verify_recorded(
+                dir.path(),
+                &input,
+                Some(&worker),
+                Some(&analog_record),
+                false
+            )
+            .is_err()
+        );
         std::fs::write(dir.path().join(WINDOWS_FILE), b"changed").unwrap();
-        assert!(verify_recorded(dir.path(), &input, Some(&worker), Some(&record)).is_err());
+        assert!(verify_recorded(dir.path(), &input, Some(&worker), Some(&record), false).is_err());
         // Records before windows existed have neither.
         assert_eq!(
-            verify_recorded(dir.path(), &serde_json::json!({}), None, None).unwrap(),
+            verify_recorded(dir.path(), &serde_json::json!({}), None, None, false).unwrap(),
             None
         );
+    }
+
+    // Verifies: PERF-025
+    #[test]
+    fn the_analog_pass_of_a_two_pass_run_reads_no_windows_but_its_record_says_the_run_used_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let record = VarianceReductionRecord {
+            mode: KIND.into(),
+            reason: String::new(),
+            windows_reused: Some(true),
+            generation_seconds: Some(0.0),
+        };
+        let input = serde_json::json!({});
+        assert!(verify_recorded(dir.path(), &input, None, Some(&record), true).is_ok());
+        // without the windowed pass beside it, the same record contradicts its input
+        assert!(verify_recorded(dir.path(), &input, None, Some(&record), false).is_err());
+        // and a holder that claims a windowed pass but says analog is refused
+        let analog = VarianceReductionRecord {
+            mode: "analog".into(),
+            ..record
+        };
+        assert!(verify_recorded(dir.path(), &input, None, Some(&analog), true).is_err());
     }
 
     #[test]
