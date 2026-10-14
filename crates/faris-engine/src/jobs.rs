@@ -632,10 +632,13 @@ mod platform {
                 return crate::memory::sampler::sample(self.group.as_raw());
             }
 
-            /// SIGKILL to the whole group. ESRCH means the owned group has already exited.
+            /// SIGKILL to the whole group. ESRCH means the owned group has already exited; macOS
+            /// answers EPERM instead when the group holds only exited, unreaped processes.
             pub fn terminate(&mut self) -> IoResult<()> {
                 match killpg(self.group, Signal::SIGKILL) {
                     Ok(()) | Err(Errno::ESRCH) => Ok(()),
+                    #[cfg(target_os = "macos")]
+                    Err(Errno::EPERM) => Ok(()),
                     Err(error) => Err(std::io::Error::from_raw_os_error(error as i32)),
                 }
             }
@@ -751,12 +754,13 @@ mod platform {
 }
 
 /// The shell script that sets the single-file limit on macOS and then becomes the program
-/// (`$0`, with the arguments after it). `ulimit -f` counts 512-byte blocks in the POSIX shell
-/// `/bin/sh` is; the count is rounded down so a file never grows past the limit, and is at
-/// least one block (the artifact scan still stops a file that outgrows a limit under 512 bytes).
+/// (`$0`, with the arguments after it). macOS `/bin/sh` counts `ulimit -f` in 1024-byte blocks
+/// (measured on the macOS 14 and 15 runners: 128 blocks let a file reach 128 KiB); the count is
+/// rounded down so a file never grows past the limit, and is at least one block (the artifact
+/// scan still stops a file that outgrows a limit under 1024 bytes).
 #[cfg(any(target_os = "macos", test))]
 fn macos_shell_script(single_file_bytes: u64) -> String {
-    let blocks = (single_file_bytes / 512).max(1);
+    let blocks = (single_file_bytes / 1024).max(1);
     format!("ulimit -f {blocks}; exec \"$0\" \"$@\"")
 }
 
@@ -806,12 +810,12 @@ mod tests {
     #[cfg(unix)]
     const LONG_SCRIPT: &str = "/bin/sleep 30 & wait";
     #[cfg(windows)]
-    const LONG_SCRIPT: &str = "ping -n 30 127.0.0.1 >nul";
+    const LONG_SCRIPT: &str = r"C:\Windows\System32\PING.EXE -n 30 127.0.0.1 >nul";
     /// A script that runs for about a third of a second.
     #[cfg(unix)]
     const BRIEF_SCRIPT: &str = "sleep 0.3";
     #[cfg(windows)]
-    const BRIEF_SCRIPT: &str = "ping -n 2 127.0.0.1 >nul";
+    const BRIEF_SCRIPT: &str = r"C:\Windows\System32\PING.EXE -n 2 127.0.0.1 >nul";
 
     // Verifies: NUC-004, PLAT-004, PLAT-005
     #[test]
@@ -961,8 +965,8 @@ mod tests {
         spec.resource_limits.single_file_bytes = 64 * 1024;
         let result = run_job(&spec, &Cancellation::default()).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::FileSizeLimit);
-        // The kernel stops the write at the limit; the macOS limit is whole 512-byte blocks,
-        // rounded down, so it is at most the limit and here (a multiple of 512) exactly it.
+        // The kernel stops the write at the limit; the macOS limit is whole 1024-byte blocks,
+        // rounded down, so it is at most the limit and here (a multiple of 1024) exactly it.
         let written = std::fs::metadata(dir.path().join("oversized.bin"))
             .unwrap()
             .len();
@@ -990,11 +994,11 @@ mod tests {
     fn the_macos_file_size_limit_is_whole_blocks_rounded_down() {
         assert_eq!(
             macos_shell_script(64 * 1024),
-            "ulimit -f 128; exec \"$0\" \"$@\""
+            "ulimit -f 64; exec \"$0\" \"$@\""
         );
         assert_eq!(
-            macos_shell_script(64 * 1024 + 511),
-            "ulimit -f 128; exec \"$0\" \"$@\""
+            macos_shell_script(64 * 1024 + 1023),
+            "ulimit -f 64; exec \"$0\" \"$@\""
         );
         assert_eq!(
             macos_shell_script(10),
