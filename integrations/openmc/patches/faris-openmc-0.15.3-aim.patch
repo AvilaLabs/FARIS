@@ -388,7 +388,7 @@ index b536ae588..60c600f7b 100644
    // Force calculation of cross-sections by setting last energy to zero
    if (settings::run_CE) {
 diff --git a/src/weight_windows.cpp b/src/weight_windows.cpp
-index 9333800bc..9631f8796 100644
+index 9333800bc..640fc8507 100644
 --- a/src/weight_windows.cpp
 +++ b/src/weight_windows.cpp
 @@ -1,4 +1,9 @@
@@ -401,15 +401,19 @@ index 9333800bc..9631f8796 100644
  
  #include <algorithm>
  #include <cassert>
-@@ -90,6 +95,21 @@ void apply_weight_windows(Particle& p)
+@@ -90,6 +95,25 @@ void apply_weight_windows(Particle& p)
    if (!weight_window.is_valid())
      return;
  
 +  // With collision aiming on (FARIS patch), a particle headed at the aperture
-+  // plays no window game until it passes the aperture: scalar windows cannot
-+  // see that its direction is important, and a roulette on the way would undo
-+  // the aiming.
-+  if (collision_aim_on() && aperture_pdf(p.r(), p.u()) > 0.0)
++  // plays no window game while it flies through void towards it: scalar
++  // windows cannot see that its direction is important, and a roulette on the
++  // way would undo the aiming. Inside material it plays the windows as usual:
++  // a heavy particle in a response solid next to an aperture must be split, or
++  // its track-length score carries its whole weight (FARIS-010).
++  if (collision_aim_on() &&
++      (p.material() == MATERIAL_VOID || p.material() == C_NONE) &&
++      aperture_pdf(p.r(), p.u()) > 0.0)
 +    return;
 +
 +  // With OPENMC_WW_SKIP_VOID=1 (FARIS patch), no splitting or roulette at birth
@@ -423,7 +427,7 @@ index 9333800bc..9631f8796 100644
    // Normalize weight windows based on particle's starting weight
    // and the value of the weight window the particle was born in.
    weight_window.scale(p.wgt_born() / p.wgt_ww_born());
-@@ -139,12 +159,328 @@ void apply_weight_windows(Particle& p)
+@@ -139,12 +163,328 @@ void apply_weight_windows(Particle& p)
  
    } else if (weight <= weight_window.lower_weight) {
      // if the particle weight is below the window, play Russian roulette
