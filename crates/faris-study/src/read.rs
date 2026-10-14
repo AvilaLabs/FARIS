@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::File,
-    io::{self, Read},
+    io::{self, Read, Seek},
     path::{Path, PathBuf},
 };
 use zip::{CompressionMethod, ZipArchive};
@@ -32,8 +32,11 @@ const MAX_ENTRIES: usize = 100_000;
 
 /// Entry names straight from the central directory. The zip library keeps only
 /// the last of two entries with one name, so duplicates must be found here.
-fn central_directory_names(file: &mut File, file_bytes: u64) -> Result<Vec<Vec<u8>>, StudyError> {
-    use std::io::{Seek, SeekFrom};
+fn central_directory_names(
+    file: &mut (impl Read + Seek),
+    file_bytes: u64,
+) -> Result<Vec<Vec<u8>>, StudyError> {
+    use std::io::SeekFrom;
     let damaged = || StudyError::corrupt("the study file's central directory is damaged");
     let tail_len = file_bytes.min(65_557);
     file.seek(SeekFrom::Start(file_bytes - tail_len))
@@ -86,6 +89,20 @@ fn central_directory_names(file: &mut File, file_bytes: u64) -> Result<Vec<Vec<u
         return Err(damaged());
     }
     Ok(names)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn open_source(path: &Path) -> std::io::Result<(Source, u64)> {
+    let file = File::open(path)?;
+    let bytes = file.metadata()?.len();
+    Ok((file, bytes))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn open_source(path: &Path) -> std::io::Result<(Source, u64)> {
+    let bytes: std::sync::Arc<[u8]> = faris_engine::vfs::read(path)?.into();
+    let length = bytes.len() as u64;
+    Ok((std::io::Cursor::new(bytes), length))
 }
 
 /// SHA-256 (lowercase hex) and length of a file, streamed.
@@ -180,8 +197,15 @@ pub struct BlobInfo {
     pub compressed: bool,
 }
 
+/// What a study file is read from: the file itself, or in the browser the
+/// bytes the page was given.
+#[cfg(not(target_arch = "wasm32"))]
+type Source = File;
+#[cfg(target_arch = "wasm32")]
+type Source = std::io::Cursor<std::sync::Arc<[u8]>>;
+
 pub struct StudyReader {
-    archive: ZipArchive<File>,
+    archive: ZipArchive<Source>,
     pub manifest: Manifest,
     /// Blob digest to (zip entry index, recorded size).
     entries: BTreeMap<String, (usize, u64)>,
@@ -221,12 +245,7 @@ impl StudyReader {
     /// when read (`read_blob`) or all at once (`verify`).
     pub fn open(path: &Path) -> Result<Self, StudyError> {
         let context = || format!("cannot open {}", path.display());
-        let file = File::open(path).map_err(|e| StudyError::io(context(), e))?;
-        let file_bytes = file
-            .metadata()
-            .map_err(|e| StudyError::io(context(), e))?
-            .len();
-        let mut file = file;
+        let (mut file, file_bytes) = open_source(path).map_err(|e| StudyError::io(context(), e))?;
         let directory_names = central_directory_names(&mut file, file_bytes)?;
         let mut archive = ZipArchive::new(file)?;
         if archive.len() > MAX_ENTRIES || directory_names.len() > MAX_ENTRIES {
@@ -846,12 +865,7 @@ impl StudyReader {
         package_store: Option<&Path>,
     ) -> Result<Materialized, StudyError> {
         let write = |path: &Path, bytes: &[u8]| -> Result<(), StudyError> {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    StudyError::io(format!("cannot create {}", parent.display()), e)
-                })?;
-            }
-            std::fs::write(path, bytes)
+            faris_engine::vfs::write_file(path, bytes)
                 .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e))
         };
         let manifest = self.manifest.clone();
@@ -924,10 +938,8 @@ impl StudyReader {
         if record.trailing_newline {
             json.push(b'\n');
         }
-        std::fs::create_dir_all(directory)
-            .map_err(|e| StudyError::io(format!("cannot create {}", directory.display()), e))?;
         let path = directory.join(format!("{}.transport-bundle.json", record.name));
-        std::fs::write(&path, json)
+        faris_engine::vfs::write_file(&path, &json)
             .map_err(|e| StudyError::io(format!("cannot write {}", path.display()), e))?;
         Ok(path)
     }
@@ -938,6 +950,12 @@ impl StudyReader {
         near: Option<&Path>,
         package_store: Option<&Path>,
     ) -> Result<Option<StoreEvidenceState>, StudyError> {
+        // The browser build reads no evidence stores: it shows the recorded
+        // transport and history, and leaves the Core evidence to the desktop.
+        if cfg!(target_arch = "wasm32") {
+            let _ = (destination, near, package_store);
+            return Ok(None);
+        }
         let Some(layer) = self.manifest.layers.evidence_store.clone() else {
             return Ok(None);
         };
@@ -991,9 +1009,7 @@ impl StudyReader {
                 EvidenceMode::Packed => {
                     let path = destination.join("evidence").join(&archive.file_name);
                     let bytes = self.read_blob(&archive.sha256)?;
-                    std::fs::create_dir_all(path.parent().expect("has parent"))
-                        .map_err(|e| StudyError::io("cannot create the evidence directory", e))?;
-                    std::fs::write(&path, bytes).map_err(|e| {
+                    faris_engine::vfs::write_file(&path, &bytes).map_err(|e| {
                         StudyError::io(format!("cannot write {}", path.display()), e)
                     })?;
                     state.available.push(EvidenceFile { archive, path });

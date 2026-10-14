@@ -7,6 +7,8 @@
 //! the link to it.
 
 use eframe::egui;
+use faris_engine::{history_ensemble::HistoryEnsemble, history_uncertainty::EnsembleKey};
+use serde::{Deserialize, Serialize};
 
 /// Where the desktop app is downloaded.
 pub const DESKTOP_URL: &str = "https://github.com/AvilaLabs/FARIS/releases";
@@ -45,6 +47,35 @@ pub const CARD_PARAGRAPHS: [&str; 3] = [
     "It cannot run new transport, check CAD designs, or run ACTINV or Avila Core. Those need the desktop app.",
     "Your files stay in this browser tab; nothing is uploaded. Signing in with your Avila Labs account is optional.",
 ];
+
+/// The uncertainty ranges the browser version shows. A browser page has no
+/// threads, so the ensembles are calculated by the desktop app beforehand
+/// (`--write-web-ensembles`) and read here; each is used only where its key
+/// equals the key of the loaded inputs.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrecomputedEnsembles {
+    pub schema: String,
+    pub ensembles: Vec<PrecomputedEnsemble>,
+}
+
+pub const ENSEMBLES_SCHEMA: &str = "faris-web-ensembles/v1";
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrecomputedEnsemble {
+    pub scenario_sha256: String,
+    pub variant: String,
+    pub key: EnsembleKey,
+    pub ensemble: HistoryEnsemble,
+}
+
+/// Why an uncertainty range is missing in the browser version.
+pub fn ensemble_unavailable() -> String {
+    format!(
+        "The uncertainty range for these inputs is not calculated in the browser version: only the recorded study's own ranges are included. Open the desktop app to calculate it for other inputs. Get it at {DESKTOP_URL}"
+    )
+}
 
 /// What the card asked for this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +195,49 @@ mod tests {
             assert!(reason.contains(DESKTOP_URL));
             assert!(reason.contains("needs the desktop app"));
         }
+    }
+
+    #[test]
+    fn precomputed_ranges_survive_the_file_and_still_match_their_key() {
+        use faris_engine::{
+            fixtures::{assumptions, rates_with_covariance, settings},
+            history::run_operating_history,
+            history_ensemble::run_history_ensemble,
+            jobs::Cancellation,
+        };
+        let history =
+            run_operating_history(&assumptions(), &rates_with_covariance(0.06, 0.4, 'a')).unwrap();
+        let key = EnsembleKey::new(&history.driving_rates, &history.assumptions, 20).unwrap();
+        let ensemble = run_history_ensemble(
+            &history.driving_rates,
+            &history.assumptions,
+            &settings(20, key.seed),
+            &Cancellation::default(),
+            &|_, _| {},
+        )
+        .unwrap();
+        let file = PrecomputedEnsembles {
+            schema: ENSEMBLES_SCHEMA.into(),
+            ensembles: vec![PrecomputedEnsemble {
+                scenario_sha256: "s".into(),
+                variant: "reference".into(),
+                key: key.clone(),
+                ensemble,
+            }],
+        };
+        let read: PrecomputedEnsembles =
+            serde_json::from_slice(&serde_json::to_vec(&file).unwrap()).unwrap();
+        assert_eq!(read.schema, ENSEMBLES_SCHEMA);
+        assert_eq!(read.ensembles[0].key, key);
+        assert!(key.describes(&read.ensembles[0].ensemble));
+    }
+
+    #[test]
+    fn the_unavailable_reason_says_why_and_what_to_do() {
+        let reason = ensemble_unavailable();
+        assert!(reason.contains("not calculated in the browser version"));
+        assert!(reason.contains("desktop app"));
+        assert!(reason.contains(DESKTOP_URL));
     }
 
     #[test]

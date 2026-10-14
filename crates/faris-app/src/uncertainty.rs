@@ -407,6 +407,15 @@ impl Uncertainty {
         if todo.is_empty() {
             return;
         }
+        // The browser page has no threads: ranges it was not given are shown
+        // as unavailable, with the reason, instead of freezing the page.
+        if crate::browser::IS_BROWSER {
+            for planned in &todo {
+                self.failures
+                    .insert(planned.key.clone(), crate::browser::ensemble_unavailable());
+            }
+            return;
+        }
         let cancellation = Cancellation::default();
         let counter = Arc::new(Counter::default());
         let (sender, receiver) = mpsc::channel();

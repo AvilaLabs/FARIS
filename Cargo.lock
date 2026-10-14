@@ -1029,6 +1029,7 @@ version = "0.2.0"
 dependencies = [
  "faris-engine",
  "faris-model",
+ "js-sys",
  "krilla",
  "krilla-svg",
  "resvg",

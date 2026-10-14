@@ -49,6 +49,15 @@ pub fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
     crate::atomic_file::write_new(path, bytes)
 }
 
+/// Write a file, creating its folders and replacing what was there.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, bytes)
+}
+
 #[cfg(target_arch = "wasm32")]
 mod table {
     use super::*;
@@ -116,6 +125,12 @@ pub fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
     table::put_new(path, bytes)
 }
 
+#[cfg(target_arch = "wasm32")]
+pub fn write_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    table::put(path, bytes.to_vec());
+    Ok(())
+}
+
 /// Browser only: make `bytes` readable at `path`.
 #[cfg(target_arch = "wasm32")]
 pub fn install(path: &Path, bytes: Vec<u8>) {
@@ -143,6 +158,20 @@ impl ScratchDir {
         Ok(Self {
             dir: tempfile::tempdir()?,
         })
+    }
+
+    /// A scratch folder inside `parent`, whose name starts with `prefix`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn new_in(parent: &Path, prefix: &str) -> io::Result<Self> {
+        std::fs::create_dir_all(parent)?;
+        Ok(Self {
+            dir: tempfile::Builder::new().prefix(prefix).tempdir_in(parent)?,
+        })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn new_in(_parent: &Path, _prefix: &str) -> io::Result<Self> {
+        Self::new()
     }
 
     #[cfg(target_arch = "wasm32")]

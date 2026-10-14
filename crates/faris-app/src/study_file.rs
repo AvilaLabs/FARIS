@@ -312,7 +312,7 @@ struct OpenedStudy {
     /// History ensembles stored in the file, offered to the history panel;
     /// each is used only where its key equals the key of the loaded inputs.
     ensembles: Vec<faris_study::StoredEnsemble>,
-    workspace: tempfile::TempDir,
+    workspace: faris_engine::vfs::ScratchDir,
 }
 
 type OpenResult = Result<(Session, OpenedStudy), String>;
@@ -359,7 +359,7 @@ pub struct FileState {
     /// opened file's referenced trees are looked for after the folder beside it.
     pub package_store: Option<PathBuf>,
     /// Keeps an opened study's unpacked files (and extracted evidence) alive.
-    workspace: Option<tempfile::TempDir>,
+    workspace: Option<faris_engine::vfs::ScratchDir>,
     task: Task,
     dialog: Option<Receiver<DialogResult>>,
     auto_open: Option<PathBuf>,
@@ -464,11 +464,7 @@ fn open_study(
     set_progress(progress, "Verifying the file…");
     let mut reader = StudyReader::open(path).map_err(|e| e.to_string())?;
     let file_bytes = reader.file_bytes;
-    std::fs::create_dir_all(runs_directory)
-        .map_err(|e| format!("cannot create {}: {e}", runs_directory.display()))?;
-    let workspace = tempfile::Builder::new()
-        .prefix("faris-study-")
-        .tempdir_in(runs_directory)
+    let workspace = faris_engine::vfs::ScratchDir::new_in(runs_directory, "faris-study-")
         .map_err(|e| {
             format!(
                 "cannot create a workspace in {}: {e}",
@@ -510,7 +506,13 @@ fn open_study(
     let mut descriptors = Vec::new();
     let mut jobs: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
-    for file in &files.evidence.available {
+    // The browser version leaves the saved Core evidence to the desktop app.
+    let saved_evidence = if crate::browser::IS_BROWSER {
+        &[][..]
+    } else {
+        &files.evidence.available[..]
+    };
+    for file in saved_evidence {
         let key = (
             file.archive.arrangement.clone(),
             file.archive.allocation.clone(),
@@ -799,11 +801,15 @@ impl FarisApp {
         self.message = status_line(&opened.path, "Opened", opened.file_bytes, &summary);
         self.file.path = Some(opened.path);
         self.file.inputs = opened.inputs;
+        if crate::browser::IS_BROWSER {
+            self.file.inputs.unsaveable =
+                Some(crate::browser::desktop_only("Saving a .faris study file"));
+        }
         self.file.evidence = opened.evidence;
         self.file.saved_view = Some(self.view_state());
     }
 
-    fn begin_open(&mut self, ctx: &egui::Context, path: PathBuf) {
+    pub(crate) fn begin_open(&mut self, ctx: &egui::Context, path: PathBuf) {
         if self.file.is_busy() && self.file.auto_open.is_none() {
             return;
         }
@@ -911,6 +917,22 @@ impl FarisApp {
         }
     }
 
+    /// The browser's picker takes the place of the system dialog; saving a study
+    /// file is a desktop feature there.
+    #[cfg(target_arch = "wasm32")]
+    fn start_dialog(&mut self, ctx: &egui::Context, action: Action) {
+        if self.file.is_busy() {
+            return;
+        }
+        match action {
+            Action::Open => crate::web::pick_study(ctx.clone()),
+            Action::Save | Action::SaveAs => {
+                self.message = crate::browser::desktop_only("Saving a .faris study file");
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn start_dialog(&mut self, ctx: &egui::Context, action: Action) {
         if self.file.is_busy() {
             return;
@@ -1074,17 +1096,30 @@ impl FarisApp {
 
         // Dropped files. The Ctrl/Cmd+O, S and Shift+S shortcuts come from the
         // command registry (`commands.rs`).
-        let dropped = ctx.input(|input| {
-            input
-                .raw
-                .dropped_files
-                .iter()
-                .map(|f| f.path().to_path_buf())
-                .find(|p| p.extension().is_some_and(|e| e == EXTENSION))
-        });
-        if let Some(path) = dropped {
-            self.begin_open(ctx, path);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let dropped = ctx.input(|input| {
+                input
+                    .raw
+                    .dropped_files
+                    .iter()
+                    .map(|f| f.path().to_path_buf())
+                    .find(|p| p.extension().is_some_and(|e| e == EXTENSION))
+            });
+            if let Some(path) = dropped {
+                self.begin_open(ctx, path);
+            }
         }
+        // In the browser a dropped file's bytes arrive asynchronously; they are
+        // read in `web.rs` and opened from there.
+        #[cfg(target_arch = "wasm32")]
+        ctx.input(|input| {
+            for file in &input.raw.dropped_files {
+                if file.path().extension().is_some_and(|e| e == EXTENSION) {
+                    crate::web::read_dropped(file.clone(), ctx.clone());
+                }
+            }
+        });
 
         let current = self.view_state();
         if self.file.saved_view.is_none() && !self.file.is_busy() {

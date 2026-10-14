@@ -197,6 +197,10 @@ pub(crate) struct Arguments {
     /// Guided tour on launch: auto plays it once, until finished or skipped.
     #[arg(long, value_enum, default_value_t = tour::TourMode::Auto)]
     pub(crate) tour: tour::TourMode,
+    /// Development: calculate the history uncertainty ensembles of the study and
+    /// write them to this file for the browser version, without a window.
+    #[arg(long, hide = true, value_name = "FILE")]
+    pub(crate) write_web_ensembles: Option<PathBuf>,
     /// Start the tour at this stop (1-based); for captures.
     #[arg(long, value_parser = clap::value_parser!(u32).range(1..=tour::STOPS.len() as i64))]
     pub(crate) tour_stop: Option<u32>,
@@ -227,7 +231,7 @@ impl Arguments {
 }
 
 /// The study inputs that the command-line flags (or package mode) supply.
-fn session_inputs_from(args: &Arguments, runs_directory: &Path) -> SessionInputs {
+pub(crate) fn session_inputs_from(args: &Arguments, runs_directory: &Path) -> SessionInputs {
     SessionInputs {
         scenario: args.scenario.clone(),
         physics: args.physics.clone(),
@@ -391,6 +395,9 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| PathBuf::from("runs"));
     if let Some(report) = args.check_package.clone() {
         return check_package(&args, package_session, &runs_directory, &report);
+    }
+    if let Some(out) = args.write_web_ensembles.clone() {
+        return crate::web_ensembles::write(&args, &runs_directory, &out);
     }
     if args
         .benchmark_seconds

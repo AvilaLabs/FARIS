@@ -57,3 +57,12 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.adler2]
 opt-level = 3
+
+# The history engine and its arithmetic are the hot loops of the uncertainty
+# ensembles; keep them fast in debug builds too.
+[profile.dev.package.faris-engine]
+opt-level = 3
+[profile.dev.package.faris-model]
+opt-level = 3
+[profile.dev.package.libm]
+opt-level = 3

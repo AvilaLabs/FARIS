@@ -30,7 +30,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def prepare(package: Path, out: Path) -> dict:
+def prepare(package: Path, out: Path, ensembles: Path | None = None) -> dict:
     index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
     listed = {entry["path"]: entry for entry in index["files"]}
 
@@ -57,6 +57,11 @@ def prepare(package: Path, out: Path) -> dict:
     maintenance = None
     if index.get("maintenance"):
         maintenance = take(index["maintenance"]["result"])
+    ranges = None
+    if ensembles is not None:
+        target = out / "ensembles.json"
+        shutil.copyfile(ensembles, target)
+        ranges = {"path": "ensembles.json", "bytes": target.stat().st_size}
     manifest = {
         "schema": "faris-web-demo/v1",
         "package_schema": index["schema_version"],
@@ -64,6 +69,7 @@ def prepare(package: Path, out: Path) -> dict:
         "core": [{"path": f["path"], "bytes": f["bytes"]} for f in core],
         "sweep": [{"path": f["path"], "bytes": f["bytes"]} for f in sweep],
         "maintenance": maintenance and {k: maintenance[k] for k in ("path", "sha256", "bytes")},
+        "ensembles": ranges,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n", encoding="utf-8")
     return manifest
@@ -73,7 +79,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("package", type=Path, help="unpacked release package folder")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--ensembles",
+        type=Path,
+        help="uncertainty ranges written by `faris-app --package PACKAGE --write-web-ensembles FILE`",
+    )
     args = parser.parse_args()
-    result = prepare(args.package, args.out)
+    result = prepare(args.package, args.out, args.ensembles)
     total = sum(f["bytes"] for key in ("core", "sweep") for f in result[key])
     print(f"{len(result['core'])} core + {len(result['sweep'])} sweep files, {total} bytes -> {args.out}")

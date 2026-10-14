@@ -40,6 +40,9 @@ struct DemoManifest {
     sweep: Vec<DemoFile>,
     /// The recorded maintenance result, if the study carries one.
     maintenance: Option<DemoMaintenance>,
+    /// The history uncertainty ranges calculated beforehand.
+    #[serde(default)]
+    ensembles: Option<DemoFile>,
 }
 
 #[derive(Deserialize)]
@@ -196,6 +199,16 @@ impl FarisApp {
         if verify_requested() {
             self.publish_status();
         }
+        let requests: Vec<_> = OPEN_REQUESTS
+            .lock()
+            .map(|mut queue| std::mem::take(&mut *queue))
+            .unwrap_or_default();
+        for request in requests {
+            match request {
+                Ok(path) => self.begin_open(ctx, path),
+                Err(error) => self.message = error,
+            }
+        }
         let ready = SWEEP_READY.lock().ok().and_then(|mut slot| slot.take());
         match ready {
             Some(Ok(paths)) => {
@@ -215,6 +228,63 @@ impl FarisApp {
             None => {}
         }
     }
+}
+
+/// Study files the picker or a drop has read, waiting to be opened.
+static OPEN_REQUESTS: Mutex<Vec<Result<PathBuf, String>>> = Mutex::new(Vec::new());
+
+/// Where an uploaded file is kept in memory. Its bytes never leave the tab.
+fn upload_path(name: &str) -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || matches!(c, '.' | '-' | '_') { c } else { '_' })
+        .collect();
+    PathBuf::from(format!(
+        "/upload/{}/{safe}",
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+fn queue_open(request: Result<PathBuf, String>, ctx: &egui::Context) {
+    if let Ok(mut queue) = OPEN_REQUESTS.lock() {
+        queue.push(request);
+    }
+    ctx.request_repaint();
+}
+
+/// Ask the browser for a study file and queue it for opening.
+pub fn pick_study(ctx: egui::Context) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let Some(handle) = rfd::AsyncFileDialog::new()
+            .add_filter("FARIS study", &["faris"])
+            .pick_file()
+            .await
+        else {
+            return;
+        };
+        let name = handle.file_name();
+        let bytes = handle.read().await;
+        let path = upload_path(&name);
+        faris_engine::vfs::install(&path, bytes);
+        queue_open(Ok(path), &ctx);
+    });
+}
+
+/// Read a file dropped on the page and queue it for opening.
+pub fn read_dropped(file: egui::DroppedFileHandle, ctx: egui::Context) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let name = file.path().to_string_lossy().into_owned();
+        match file.bytes_async().await {
+            Ok(bytes) => {
+                let path = upload_path(&name);
+                faris_engine::vfs::install(&path, bytes);
+                queue_open(Ok(path), &ctx);
+            }
+            Err(error) => queue_open(Err(format!("{name} could not be read: {error}")), &ctx),
+        }
+    });
 }
 
 /// Trigger a browser download for in-memory bytes.
@@ -305,8 +375,31 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
         manifest: reactor,
         control,
         transport,
-        history,
+        mut history,
     } = build_session(inputs)?;
+    if let Some(file) = &manifest.ensembles {
+        load_files(std::slice::from_ref(file), "Loading the uncertainty ranges").await?;
+        let path = demo_path(&file.path);
+        let bytes = faris_engine::vfs::read(&path).map_err(|e| e.to_string())?;
+        faris_engine::vfs::remove(&path);
+        let ranges: crate::browser::PrecomputedEnsembles = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("the uncertainty ranges are unreadable: {e}"))?;
+        if ranges.schema != crate::browser::ENSEMBLES_SCHEMA {
+            return Err(format!("unknown uncertainty file version {:?}", ranges.schema));
+        }
+        history.restore_ensembles(
+            ranges
+                .ensembles
+                .into_iter()
+                .map(|e| faris_study::StoredEnsemble {
+                    scenario_sha256: e.scenario_sha256,
+                    variant: e.variant,
+                    key: e.key,
+                    ensemble: e.ensemble,
+                })
+                .collect(),
+        );
+    }
     // The checked records are in memory now; free the raw bundle files.
     for file in &manifest.core {
         if file.path.ends_with(".transport-bundle.json") {
