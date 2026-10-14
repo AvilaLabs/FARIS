@@ -9,14 +9,18 @@
 
 use crate::{
     comparison::{
-        component_replacement_spans, crossing_time_band, difference_resolved_2sigma,
-        first_crossing_relative_uncertainty,
+        MARGIN_BAND_SIGMAS, component_replacement_spans, crossing_time_band,
+        difference_resolved_2sigma, first_crossing_relative_uncertainty, replacement_count_band,
     },
     history::{HistoryResult, JULIAN_YEAR_SECONDS},
+    history_ensemble::{EnsembleStatus, HistoryEnsemble},
+    output_uncertainty::{COUNT_BAND_BASIS, OutputUncertainty},
     reactor::ReactorRun,
 };
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
 use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
+use serde::Serialize;
+use std::collections::BTreeMap;
 
 /// What kind of statement a value or result is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +168,19 @@ pub const BRIEF_OUTPUTS: &[Output] = &[
         "magnets_replaceable",
         "whether the authored limit class allows swaps",
     ),
+    calculated("swaps_two_sigma", Quantity::Fluence),
+    not_calculated(
+        "uncertainty",
+        "the uncertainty state of the other fields, not a result",
+    ),
+    not_calculated(
+        "swaps_band",
+        "whether two swap counts' bands separate, a verdict on numbers already tagged",
+    ),
+    not_calculated(
+        "first_swap_band",
+        "whether two first-swap times' bands separate, a verdict on numbers already tagged",
+    ),
     not_calculated("horizon_years", "authored operating-history horizon"),
     not_calculated("recorded", "whether a transport record is loaded"),
     not_calculated(
@@ -217,18 +234,24 @@ pub fn transport_summary(run: &ReactorRun) -> TransportSummary {
 
 /// Numbers for one arrangement. None means the source was not recorded or not
 /// calculated; nothing is filled in.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct ArrangementSummary {
     pub recorded: bool,
     pub breeding: Option<(f64, f64)>,
     pub breeding_is_total: bool,
     pub magnet_flux: Option<(f64, f64)>,
     pub swaps: Option<usize>,
+    /// Fewest and most swaps at two standard errors of the driving flux, to first order; `None`
+    /// without a swap count or a flux error.
+    pub swaps_two_sigma: Option<(usize, usize)>,
     pub first_swap_y: Option<f64>,
     pub first_swap_relative_sampling: Option<f64>,
     pub net_twh: Option<f64>,
     pub final_tritium_kg: Option<f64>,
     pub horizon_years: f64,
+    /// The uncertainty state of every number above, by field name: an interval with its basis,
+    /// or why there is none and what to do next.
+    pub uncertainty: BTreeMap<String, OutputUncertainty>,
 }
 
 impl ArrangementSummary {
@@ -237,6 +260,151 @@ impl ArrangementSummary {
     /// reaches zero flux. `None` without a first swap or a sampling error.
     pub fn first_swap_two_sigma_y(&self) -> Option<(f64, Option<f64>)> {
         crossing_time_band(self.first_swap_y?, self.first_swap_relative_sampling?)
+    }
+
+    /// Fill the uncertainty state of each number from what the summary holds. A transport
+    /// value carries its 2-sigma sampling band; swap count and first swap carry the first-order
+    /// flux band when there is a flux error; the plant outputs say why a single history has no
+    /// interval. Nothing is invented: a value that is absent says so.
+    fn fill_uncertainty(&mut self) {
+        let no_flux_error = || {
+            OutputUncertainty::none(
+                "the flux that drives the magnet limit has no standard error in the transport record",
+                "record the transport run with batch statistics so the flux carries a standard error",
+            )
+        };
+        let tally = |value: Option<(f64, f64)>, what: &str| match value {
+            Some((m, se)) => OutputUncertainty::interval(
+                m - MARGIN_BAND_SIGMAS * se,
+                Some(m + MARGIN_BAND_SIGMAS * se),
+                "2 sigma Monte Carlo sampling error of the tally; no nuclear data or model uncertainty",
+            ),
+            None => OutputUncertainty::absent(what),
+        };
+        let swaps = match (self.swaps, self.swaps_two_sigma) {
+            (None, _) => OutputUncertainty::absent("the swap count"),
+            (Some(_), Some((fewest, most))) => {
+                OutputUncertainty::interval(fewest as f64, Some(most as f64), COUNT_BAND_BASIS)
+            }
+            (Some(_), None) => no_flux_error(),
+        };
+        let first = match (self.first_swap_y, self.first_swap_two_sigma_y()) {
+            (None, _) => OutputUncertainty::absent("the first swap"),
+            (Some(_), Some((early, late))) => OutputUncertainty::interval(
+                early,
+                late,
+                "2 sigma of the driving flux carried onto the crossing time (time scales as 1/flux); first order, sampling only, calendar outages not re-timed",
+            ),
+            (Some(_), None) => no_flux_error(),
+        };
+        let plant = |value: Option<f64>, what: &str| match value {
+            Some(_) => OutputUncertainty::deterministic(),
+            None => OutputUncertainty::absent(what),
+        };
+        self.uncertainty = [
+            ("breeding", tally(self.breeding, "the breeding ratio")),
+            ("magnet_flux", tally(self.magnet_flux, "the magnet flux")),
+            ("swaps", swaps),
+            (
+                "swaps_two_sigma",
+                OutputUncertainty::none(
+                    "it is itself the 2 sigma range of the swap count",
+                    "nothing to do; it is the interval of the swap count",
+                ),
+            ),
+            ("first_swap_y", first),
+            (
+                "first_swap_relative_sampling",
+                OutputUncertainty::none(
+                    "it is itself the relative sampling error of the driving flux",
+                    "nothing to do; it is the input of the first-swap band",
+                ),
+            ),
+            ("net_twh", plant(self.net_twh, "net electricity")),
+            (
+                "final_tritium_kg",
+                plant(self.final_tritium_kg, "the final tritium"),
+            ),
+            (
+                "horizon_years",
+                OutputUncertainty::none(
+                    "it is the authored operating horizon, not a result",
+                    "nothing to do; change the horizon in the assumptions",
+                ),
+            ),
+        ]
+        .into_iter()
+        .map(|(name, state)| (name.to_owned(), state))
+        .collect();
+    }
+
+    /// Replace the single-history state of the plant outputs by the ensemble range when the
+    /// ensemble was evaluated: net electricity, final tritium and the swap count take the P5 to
+    /// P95 range of the samples. A quantity the ensemble does not summarise keeps its state.
+    pub fn attach_ensemble(&mut self, ensemble: &HistoryEnsemble) {
+        if ensemble.status != EnsembleStatus::Evaluated {
+            return;
+        }
+        let Some(summary) = &ensemble.summary else {
+            return;
+        };
+        let basis = format!(
+            "P5 to P95 of {} history ensemble samples; transport Monte Carlo sampling uncertainty only (not nuclear data, model or assumption uncertainty)",
+            ensemble.samples_accepted
+        );
+        // The swap count is a discrete output: its P5 and P95 are the smallest counts whose
+        // cumulative share of the samples reaches 5 % and 95 %.
+        if let Some(counts) = summary
+            .discrete
+            .iter()
+            .find(|d| d.name == "replacements:magnets")
+            && self.uncertainty.contains_key("swaps")
+        {
+            let mut shares: Vec<(u32, f64)> = counts
+                .categories
+                .iter()
+                .filter_map(|(count, share)| Some((count.parse().ok()?, share.fraction)))
+                .collect();
+            shares.sort_by_key(|(count, _)| *count);
+            let (mut cumulative, mut low, mut high) = (0.0, None, None);
+            for (count, share) in shares {
+                cumulative += share;
+                if low.is_none() && cumulative >= 0.05 - 1e-12 {
+                    low = Some(count);
+                }
+                if high.is_none() && cumulative >= 0.95 - 1e-12 {
+                    high = Some(count);
+                }
+            }
+            if let (Some(low), Some(high)) = (low, high) {
+                self.uncertainty.insert(
+                    "swaps".to_owned(),
+                    OutputUncertainty::interval(
+                        f64::from(low),
+                        Some(f64::from(high)),
+                        basis.clone(),
+                    ),
+                );
+            }
+        }
+        for (field, output, scale) in [
+            ("net_twh", "cumulative_net_electricity_mwh", 1.0e6),
+            ("final_tritium_kg", "final_available_tritium_kg", 1.0),
+        ] {
+            let Some(row) = summary.continuous.iter().find(|c| c.name == output) else {
+                continue;
+            };
+            if self.uncertainty.contains_key(field) && row.n > 0 {
+                self.uncertainty.insert(
+                    field.to_owned(),
+                    OutputUncertainty::interval(
+                        row.p5.value / scale,
+                        Some(row.p95.value / scale),
+                        basis.clone(),
+                    ),
+                );
+            }
+        }
     }
 }
 
@@ -247,7 +415,9 @@ pub fn summarize_arrangement(
     history: Option<&HistoryResult>,
 ) -> ArrangementSummary {
     let Some(summary) = transport else {
-        return ArrangementSummary::default();
+        let mut empty = ArrangementSummary::default();
+        empty.fill_uncertainty();
+        return empty;
     };
     let mut cell = ArrangementSummary {
         recorded: true,
@@ -268,6 +438,7 @@ pub fn summarize_arrangement(
         {
             let spans = component_replacement_spans(&h.events, "magnets", horizon_s);
             cell.swaps = Some(spans.len());
+            cell.swaps_two_sigma = replacement_count_band(h, "magnets");
             cell.first_swap_y = spans.first().map(|(s, _)| s / JULIAN_YEAR_SECONDS);
             cell.first_swap_relative_sampling = first_crossing_flux(h)
                 .and_then(|r| first_crossing_relative_uncertainty(r.mean, r.standard_error));
@@ -277,6 +448,7 @@ pub fn summarize_arrangement(
             cell.final_tritium_kg = Some(last.available_tritium_kg);
         }
     }
+    cell.fill_uncertainty();
     cell
 }
 
@@ -289,6 +461,40 @@ pub struct Contrast {
     pub swaps: Option<i64>,
     pub first_swap_y: Option<f64>,
     pub net_twh: Option<f64>,
+    /// Whether the two 2-sigma bands of the swap counts separate; `None` when not assessed.
+    pub swaps_band: Option<BandVerdict>,
+    /// The same for the first-swap years.
+    pub first_swap_band: Option<BandVerdict>,
+}
+
+/// Whether the 2-sigma bands of two compared values separate. A difference counts as resolved
+/// only when the unfavourable edge of one lies beyond the favourable edge of the other.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BandVerdict {
+    Separated,
+    Overlapping,
+    /// At least one side has no flux error, so there is no band to compare.
+    NoBand,
+}
+
+impl BandVerdict {
+    /// The clause a sentence about the difference carries; empty when the bands separate.
+    pub fn note(self) -> &'static str {
+        match self {
+            BandVerdict::Separated => "",
+            BandVerdict::Overlapping => " (within 2σ bands, not resolved)",
+            BandVerdict::NoBand => " (no flux error, no band)",
+        }
+    }
+}
+
+fn bands_separate(a: (f64, Option<f64>), b: (f64, Option<f64>)) -> BandVerdict {
+    let before = |x: (f64, Option<f64>), y: (f64, Option<f64>)| x.1.is_some_and(|late| late < y.0);
+    if before(a, b) || before(b, a) {
+        BandVerdict::Separated
+    } else {
+        BandVerdict::Overlapping
+    }
 }
 
 fn percent_change(from: f64, to: f64) -> Option<f64> {
@@ -310,6 +516,24 @@ pub fn contrast(from: &ArrangementSummary, to: &ArrangementSummary) -> Contrast 
         swaps: from.swaps.zip(to.swaps).map(|(a, b)| b as i64 - a as i64),
         first_swap_y: from.first_swap_y.zip(to.first_swap_y).map(|(a, b)| b - a),
         net_twh: from.net_twh.zip(to.net_twh).map(|(a, b)| b - a),
+        swaps_band: from.swaps.zip(to.swaps).map(|_| {
+            match from.swaps_two_sigma.zip(to.swaps_two_sigma) {
+                Some((a, b)) => bands_separate(
+                    (a.0 as f64, Some(a.1 as f64)),
+                    (b.0 as f64, Some(b.1 as f64)),
+                ),
+                None => BandVerdict::NoBand,
+            }
+        }),
+        first_swap_band: from.first_swap_y.zip(to.first_swap_y).map(|_| {
+            match from
+                .first_swap_two_sigma_y()
+                .zip(to.first_swap_two_sigma_y())
+            {
+                Some((a, b)) => bands_separate(a, b),
+                None => BandVerdict::NoBand,
+            }
+        }),
     }
 }
 
@@ -349,21 +573,23 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
     {
         worse_first = d < 0.0;
         tail.push(format!(
-            "{} the first magnet swap {:.1} years {}",
+            "{} the first magnet swap {:.1} years {}{}",
             if d < 0.0 { "brings" } else { "pushes" },
             d.abs(),
-            if d < 0.0 { "earlier" } else { "later" }
+            if d < 0.0 { "earlier" } else { "later" },
+            c.first_swap_band.map_or("", BandVerdict::note)
         ));
     }
     if let Some(d) = c.swaps {
+        let band = c.swaps_band.map_or("", BandVerdict::note);
         tail.push(match d {
-            0 => format!("leaves the swap count over {horizon_years:.0} years unchanged"),
+            0 => format!("leaves the swap count over {horizon_years:.0} years unchanged{band}"),
             d if d > 0 => format!(
-                "adds {} over {horizon_years:.0} years",
+                "adds {} over {horizon_years:.0} years{band}",
                 plural(d.unsigned_abs(), "swap")
             ),
             d => format!(
-                "removes {} over {horizon_years:.0} years",
+                "removes {} over {horizon_years:.0} years{band}",
                 plural(d.unsigned_abs(), "swap")
             ),
         });
@@ -390,14 +616,15 @@ pub fn allocation_takeaway(c: &Contrast, shift_cm: f64, horizon_years: f64) -> O
 pub fn port_takeaway(c: &Contrast, horizon_years: f64) -> Option<String> {
     let swaps = c.swaps?;
     let net = c.net_twh?;
+    let band = c.swaps_band.map_or("", BandVerdict::note);
     let swap_clause = match swaps {
-        0 => format!("leaves the magnet swap count over {horizon_years:.0} years unchanged"),
+        0 => format!("leaves the magnet swap count over {horizon_years:.0} years unchanged{band}"),
         d if d > 0 => format!(
-            "adds {} over {horizon_years:.0} years",
+            "adds {} over {horizon_years:.0} years{band}",
             plural(d.unsigned_abs(), "magnet swap")
         ),
         d => format!(
-            "removes {} over {horizon_years:.0} years",
+            "removes {} over {horizon_years:.0} years{band}",
             plural(d.unsigned_abs(), "magnet swap")
         ),
     };
@@ -849,7 +1076,7 @@ pub fn caveats(context: &CaveatContext) -> Vec<Caveat> {
     add(
         StatusKind::Partial,
         "Two-sigma flags and first-swap uncertainty",
-        "Flags compare differences with 2·√(SE₁²+SE₂²) of independent runs with distinct seeds; covariance is not modelled. The first-swap uncertainty is the relative flux error carried onto the crossing time (first order, sampling only), a lower bound.".into(),
+        "Flags compare differences with 2·√(SE₁²+SE₂²) of independent runs with distinct seeds; covariance is not modelled. The first-swap and swap-count bands are the flux error on the crossing time (first order, sampling only), a lower bound.".into(),
         "Propagate joint Monte Carlo uncertainty through the histories, with replicate runs or paired seeds, and add volume and nuclear-data uncertainty.",
     );
     add(
@@ -966,6 +1193,8 @@ mod tests {
             net_twh: _,
             final_tritium_kg: _,
             horizon_years: _,
+            swaps_two_sigma: _,
+            uncertainty: _,
         } = ArrangementSummary::default();
         let Contrast {
             breeding_pct: _,
@@ -973,6 +1202,8 @@ mod tests {
             swaps: _,
             first_swap_y: _,
             net_twh: _,
+            swaps_band: _,
+            first_swap_band: _,
         } = Contrast::default();
         let crate::sweep::HistorySummary {
             magnets_replaceable: _,
@@ -981,6 +1212,7 @@ mod tests {
             magnet_permanent_limit_years: _,
             net_electricity_twh: _,
             final_available_tritium_kg: _,
+            uncertainty: _,
         } = crate::sweep::HistorySummary {
             magnets_replaceable: true,
             magnet_replacements: 0,
@@ -988,6 +1220,7 @@ mod tests {
             magnet_permanent_limit_years: None,
             net_electricity_twh: None,
             final_available_tritium_kg: 0.0,
+            uncertainty: Default::default(),
         };
         let fields = [
             "magnets_replaceable",
@@ -1011,6 +1244,10 @@ mod tests {
             "horizon_years",
             "breeding_pct",
             "flux_pct",
+            "swaps_two_sigma",
+            "uncertainty",
+            "swaps_band",
+            "first_swap_band",
         ];
         for field in fields {
             assert!(
@@ -1243,5 +1480,182 @@ mod tests {
         assert_eq!(magnet_limit(&h, Some(3.0e11)), Some((2.5e11, false)));
         let same = regional_history([(1.0e10, 1.0e8); 3], [3.0e11; 3]);
         assert_eq!(magnet_limit(&same, Some(3.0e11)), Some((3.0e11, true)));
+    }
+
+    fn fixture_summary() -> ArrangementSummary {
+        let rates = crate::fixtures::rates_without_covariance(0.05, 'a');
+        let h =
+            crate::history::run_operating_history(&crate::fixtures::assumptions(), &rates).unwrap();
+        let transport = TransportSummary {
+            breeder_h3_per_source: Some((1.1, 0.002)),
+            total_h3_per_source: Some((1.3, 0.003)),
+            magnet_flux: Some((1.0e14, 5.0e12)),
+            nuclear_heat_w: Some((9.0e8, 1.0e7)),
+        };
+        summarize_arrangement(Some(&transport), Some(&h))
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn every_number_of_the_arrangement_summary_has_an_interval_or_a_reason() {
+        let s = fixture_summary();
+        // The fixture fills every field, so the audit sees them all.
+        assert!(s.swaps.is_some() && s.first_swap_y.is_some() && s.swaps_two_sigma.is_some());
+        assert!(s.net_twh.is_some() && s.final_tritium_kg.is_some() && s.breeding.is_some());
+        crate::output_uncertainty::tests::assert_every_number_has_a_state(
+            &serde_json::to_value(&s).unwrap(),
+            &s.uncertainty,
+            &["uncertainty"],
+        );
+        // Plant outputs of a single history say why they have no interval.
+        for field in ["net_twh", "final_tritium_kg"] {
+            assert!(!s.uncertainty[field].has_interval(), "{field}");
+        }
+        // Counts, times and transport tallies carry an interval.
+        for field in ["swaps", "first_swap_y", "breeding", "magnet_flux"] {
+            assert!(s.uncertainty[field].has_interval(), "{field}");
+        }
+        // An unrecorded arrangement still says why each number is absent.
+        let empty = summarize_arrangement(None, None);
+        assert!(empty.uncertainty.values().all(|u| !u.has_interval()));
+        assert!(empty.uncertainty.keys().eq(s.uncertainty.keys()));
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn a_flux_without_an_error_estimate_says_so_instead_of_showing_a_bare_count() {
+        let mut rates = crate::fixtures::rates_without_covariance(0.05, 'a');
+        for rate in rates.component_average_flux_n_m2_s.values_mut() {
+            rate.standard_error = None;
+        }
+        let h =
+            crate::history::run_operating_history(&crate::fixtures::assumptions(), &rates).unwrap();
+        let s = summarize_arrangement(Some(&TransportSummary::default()), Some(&h));
+        assert!(s.swaps.is_some() && s.swaps_two_sigma.is_none());
+        for field in ["swaps", "first_swap_y"] {
+            let text = s.uncertainty[field].text(1);
+            assert!(
+                text.contains("no standard error") && text.contains("next step"),
+                "{text}"
+            );
+        }
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn an_evaluated_ensemble_replaces_the_reason_with_its_range() {
+        let mut s = fixture_summary();
+        assert!(!s.uncertainty["net_twh"].has_interval());
+        let ensemble = crate::fixtures::ensemble(20, 3, 'a');
+        s.attach_ensemble(&ensemble);
+        for field in ["net_twh", "final_tritium_kg", "swaps"] {
+            let OutputUncertainty::Interval {
+                lower,
+                upper,
+                basis,
+            } = &s.uncertainty[field]
+            else {
+                panic!("{field} kept its reason");
+            };
+            assert!(lower <= &upper.unwrap(), "{field}");
+            assert!(basis.contains("ensemble") && basis.contains("sampling uncertainty only"));
+        }
+        // A not-evaluated ensemble changes nothing.
+        let mut other = fixture_summary();
+        let mut failed = ensemble;
+        failed.status = EnsembleStatus::NotEvaluated {
+            why: "x".into(),
+            next_step: "y".into(),
+        };
+        other.attach_ensemble(&failed);
+        assert_eq!(other, fixture_summary());
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_swap_count_carries_a_two_sigma_range_and_a_difference_needs_separated_bands() {
+        let s = fixture_summary();
+        let (fewest, most) = s.swaps_two_sigma.unwrap();
+        let swaps = s.swaps.unwrap();
+        assert!(fewest <= swaps && swaps <= most, "{fewest} {swaps} {most}");
+        // Overlapping ranges are not called a difference; separated ranges are.
+        let near = ArrangementSummary {
+            swaps: Some(5),
+            swaps_two_sigma: Some((4, 6)),
+            ..ArrangementSummary::default()
+        };
+        let overlapping = ArrangementSummary {
+            swaps: Some(6),
+            swaps_two_sigma: Some((5, 7)),
+            ..ArrangementSummary::default()
+        };
+        let far = ArrangementSummary {
+            swaps: Some(9),
+            swaps_two_sigma: Some((8, 10)),
+            ..ArrangementSummary::default()
+        };
+        assert_eq!(
+            contrast(&near, &overlapping).swaps_band,
+            Some(BandVerdict::Overlapping)
+        );
+        assert_eq!(
+            contrast(&near, &far).swaps_band,
+            Some(BandVerdict::Separated)
+        );
+        let bare = ArrangementSummary {
+            swaps: Some(9),
+            ..ArrangementSummary::default()
+        };
+        assert_eq!(contrast(&near, &bare).swaps_band, Some(BandVerdict::NoBand));
+        // The sentence says so, and says nothing extra when the bands separate.
+        let c = |band| Contrast {
+            breeding_pct: Some((1.3, true)),
+            swaps: Some(1),
+            swaps_band: band,
+            ..Contrast::default()
+        };
+        assert!(
+            allocation_takeaway(&c(Some(BandVerdict::Overlapping)), 10.0, 30.0)
+                .unwrap()
+                .contains("within 2σ bands")
+        );
+        assert!(
+            allocation_takeaway(&c(Some(BandVerdict::NoBand)), 10.0, 30.0)
+                .unwrap()
+                .contains("no flux error, no band")
+        );
+        assert!(
+            !allocation_takeaway(&c(Some(BandVerdict::Separated)), 10.0, 30.0)
+                .unwrap()
+                .contains("band")
+        );
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn first_swap_bands_that_overlap_are_not_called_earlier() {
+        let early = ArrangementSummary {
+            first_swap_y: Some(5.0),
+            first_swap_relative_sampling: Some(0.1),
+            ..ArrangementSummary::default()
+        };
+        let later = ArrangementSummary {
+            first_swap_y: Some(5.5),
+            first_swap_relative_sampling: Some(0.1),
+            ..ArrangementSummary::default()
+        };
+        let far = ArrangementSummary {
+            first_swap_y: Some(9.0),
+            first_swap_relative_sampling: Some(0.1),
+            ..ArrangementSummary::default()
+        };
+        assert_eq!(
+            contrast(&early, &later).first_swap_band,
+            Some(BandVerdict::Overlapping)
+        );
+        assert_eq!(
+            contrast(&early, &far).first_swap_band,
+            Some(BandVerdict::Separated)
+        );
     }
 }

@@ -11,6 +11,7 @@ use crate::{
         run_operating_history_cancellable,
     },
     jobs::Cancellation,
+    output_uncertainty::{COUNT_BAND_BASIS, OutputUncertainty},
     reactor::ReactorRun,
 };
 use faris_model::math;
@@ -114,7 +115,7 @@ pub fn transport_point(run: &ReactorRun, variant: &Variant) -> Result<TransportP
 }
 
 /// Values read from one calculated operating history.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct HistorySummary {
     /// False when the assumptions class the magnets as permanent (no swaps modelled).
     pub magnets_replaceable: bool,
@@ -125,6 +126,10 @@ pub struct HistorySummary {
     /// None when the history has no energy result.
     pub net_electricity_twh: Option<f64>,
     pub final_available_tritium_kg: f64,
+    /// The uncertainty state of each number above, by field name. The replacement times and
+    /// count carry the first-order 2 sigma band of the driving flux; the plant outputs carry the
+    /// reason a single history has no interval.
+    pub uncertainty: std::collections::BTreeMap<String, OutputUncertainty>,
 }
 
 pub fn summarize_history(history: &HistoryResult, component_id: &str) -> HistorySummary {
@@ -157,7 +162,50 @@ pub fn summarize_history(history: &HistoryResult, component_id: &str) -> History
         .flatten()
         .map(|t| t / JULIAN_YEAR_SECONDS);
     let last = history.snapshots.last();
+    let trip_band_years = |kind: EventKind| {
+        history
+            .events
+            .iter()
+            .filter(|e| e.kind == kind && e.component_id.as_deref() == Some(component_id))
+            .min_by(|a, b| a.time_s.total_cmp(&b.time_s))
+            .and_then(|e| e.trip.as_ref())
+            .map(|t| t.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS))
+    };
+    let count_band = crate::comparison::replacement_count_band(history, component_id).map_or_else(
+        || {
+            OutputUncertainty::none(
+                "the flux that drives a limit of this component has no standard error in the transport record",
+                "record the transport run with batch statistics so the flux carries a standard error",
+            )
+        },
+        |(fewest, most)| {
+            OutputUncertainty::interval(fewest as f64, Some(most as f64), COUNT_BAND_BASIS)
+        },
+    );
+    let uncertainty = [
+        ("magnet_replacements", count_band),
+        (
+            "first_magnet_replacement_years",
+            trip_band_years(EventKind::ReplacementStarted)
+                .unwrap_or_else(|| OutputUncertainty::absent("the first magnet replacement")),
+        ),
+        (
+            "magnet_permanent_limit_years",
+            trip_band_years(EventKind::ServiceLimitReached)
+                .filter(|_| permanent)
+                .unwrap_or_else(|| OutputUncertainty::absent("the permanent magnet limit")),
+        ),
+        ("net_electricity_twh", OutputUncertainty::deterministic()),
+        (
+            "final_available_tritium_kg",
+            OutputUncertainty::deterministic(),
+        ),
+    ]
+    .into_iter()
+    .map(|(name, state)| (name.to_owned(), state))
+    .collect();
     HistorySummary {
+        uncertainty,
         magnets_replaceable: !permanent,
         magnet_permanent_limit_years: limit_years,
         magnet_replacements: starts.len() as u32,
@@ -472,6 +520,7 @@ mod tests {
                 first_magnet_replacement_years: Some(3.0),
                 net_electricity_twh: twh,
                 final_available_tritium_kg: 1.0,
+                uncertainty: Default::default(),
             })
         };
         let findings = history_findings(&points, &[summary(2, Some(30.0)), summary(3, Some(28.5))]);
@@ -561,5 +610,46 @@ mod tests {
             nuclear_data_digest: format!("sha256:{}", "2".repeat(64)),
             covariance: None,
         }
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn every_number_of_the_history_summary_has_an_interval_or_a_reason() {
+        let rates = crate::fixtures::rates_without_covariance(0.05, 'a');
+        let run =
+            crate::history::run_operating_history(&crate::fixtures::assumptions(), &rates).unwrap();
+        let summary = summarize_history(&run, "magnets");
+        assert!(
+            summary.magnet_replacements > 0 && summary.first_magnet_replacement_years.is_some()
+        );
+        // The permanent-limit year is absent for replaceable magnets, and says so.
+        assert!(summary.magnet_permanent_limit_years.is_none());
+        crate::output_uncertainty::tests::assert_every_number_has_a_state(
+            &serde_json::to_value(&summary).unwrap(),
+            &summary.uncertainty,
+            &["uncertainty"],
+        );
+        let u = &summary.uncertainty;
+        assert!(
+            u["magnet_replacements"].has_interval()
+                && u["first_magnet_replacement_years"].has_interval()
+        );
+        assert!(
+            !u["net_electricity_twh"].has_interval()
+                && !u["final_available_tritium_kg"].has_interval()
+        );
+        assert!(
+            u["magnet_permanent_limit_years"]
+                .text(1)
+                .contains("no value")
+        );
+        // The first replacement band is in years, earliest first, and brackets the mean.
+        let crate::output_uncertainty::OutputUncertainty::Interval { lower, upper, .. } =
+            &u["first_magnet_replacement_years"]
+        else {
+            unreachable!()
+        };
+        let first = summary.first_magnet_replacement_years.unwrap();
+        assert!(*lower <= first && first <= upper.unwrap_or(f64::INFINITY));
     }
 }

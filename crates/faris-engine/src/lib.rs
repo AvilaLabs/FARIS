@@ -20,6 +20,7 @@ pub mod jobs;
 pub mod maintenance;
 pub mod memory;
 pub mod mesh;
+pub mod output_uncertainty;
 pub mod presets;
 pub mod reactor;
 pub mod study;

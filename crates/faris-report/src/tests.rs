@@ -337,6 +337,145 @@ fn history_csv_has_long_format_headers_and_every_snapshot() {
     );
 }
 
+/// The rows of a CSV table as cells, header first.
+fn cells(csv: &str) -> Vec<Vec<String>> {
+    csv.lines()
+        .map(|l| {
+            // The tables quote only text; split on commas outside quotes.
+            let mut out = Vec::new();
+            let (mut cell, mut quoted) = (String::new(), false);
+            for ch in l.chars() {
+                match ch {
+                    '"' => quoted = !quoted,
+                    ',' if !quoted => out.push(std::mem::take(&mut cell)),
+                    _ => cell.push(ch),
+                }
+            }
+            out.push(cell);
+            out
+        })
+        .collect()
+}
+
+// Verifies: MAG-004, MAT-018
+#[test]
+fn the_replacement_table_gives_each_trip_its_limit_value_and_band() {
+    let (_guard, outcome) = exported();
+    let rows = cells(&table(&outcome.folder, "data/replacements.csv"));
+    let column = |name: &str| rows[0].iter().position(|c| c == name).unwrap();
+    assert!(rows.len() > 2, "the 12-year history replaces the magnets");
+    for row in &rows[1..] {
+        assert_eq!(row[column("component")], "magnets");
+        assert_eq!(row[column("outcome")], "replaced");
+        assert_eq!(
+            row[column("criterion")],
+            "energy_integrated_component_average_neutron_flux"
+        );
+        assert_eq!(row[column("unit")], "neutrons/m²");
+        assert_eq!(row[column("limit")].parse::<f64>().unwrap(), 1.5e22);
+        let reached: f64 = row[column("accumulated_value")].parse().unwrap();
+        assert!((reached - 1.5e22).abs() <= 1e-9 * 1.5e22);
+        let year: f64 = row[column("trip_year")].parse().unwrap();
+        // The 15 % flux error gives a band with the earliest edge first.
+        let early: f64 = row[column("two_sigma_earliest_year")].parse().unwrap();
+        assert!(early <= year, "{early} {year}");
+        let late = &row[column("two_sigma_latest_year")];
+        assert!(
+            late.is_empty() || late.parse::<f64>().unwrap() >= year,
+            "{late}"
+        );
+        assert!(row[column("time_uncertainty")].contains("2 sigma"));
+    }
+}
+
+// Verifies: UNC-080
+#[test]
+fn every_number_the_export_states_has_an_interval_or_a_reason() {
+    let (_guard, outcome) = exported();
+    let rows = cells(&table(&outcome.folder, "data/uncertainty.csv"));
+    assert_eq!(
+        rows[0],
+        [
+            "arrangement",
+            "table",
+            "field",
+            "state",
+            "lower",
+            "upper",
+            "basis_or_reason",
+            "next_step"
+        ]
+    );
+    for row in &rows[1..] {
+        match row[3].as_str() {
+            "interval" => {
+                assert!(
+                    row[4].parse::<f64>().is_ok() && !row[6].is_empty(),
+                    "{row:?}"
+                )
+            }
+            "no interval" => assert!(!row[6].is_empty() && !row[7].is_empty(), "{row:?}"),
+            other => panic!("unknown state {other}"),
+        }
+    }
+    for arrangement in Arrangement::ORDER {
+        let has = |table: &str, field: &str| {
+            rows.iter()
+                .any(|r| r[0] == arrangement.id() && r[1] == table && r[2] == field)
+        };
+        // Every numeric field of the comparison summary.
+        for field in [
+            "breeding",
+            "magnet_flux",
+            "swaps",
+            "swaps_two_sigma",
+            "first_swap_y",
+            "first_swap_relative_sampling",
+            "net_twh",
+            "final_tritium_kg",
+            "horizon_years",
+        ] {
+            assert!(has("summary", field), "{} {field}", arrangement.id());
+        }
+        // Every numeric column of histories.csv, whose own header is fixed.
+        let history = table(&outcome.folder, "data/histories.csv");
+        for column in history.lines().next().unwrap().split(',').skip(1) {
+            // Validation columns are states, not numbers.
+            if column != "state" && !column.ends_with("_validation") {
+                assert!(
+                    has("histories.csv", column),
+                    "{} {column}",
+                    arrangement.id()
+                );
+            }
+        }
+    }
+    // A single history's net electricity says why it has no interval.
+    let net = rows
+        .iter()
+        .find(|r| r[1] == "summary" && r[2] == "net_twh")
+        .unwrap();
+    assert_eq!(net[3], "no interval");
+    assert!(net[6].contains("deterministic") && net[7].contains("ensemble"));
+    // The comparison table carries the swap range and the states beside the numbers.
+    let comparison = cells(&table(&outcome.folder, "data/comparison.csv"));
+    let at = |name: &str| comparison[0].iter().position(|c| c == name).unwrap();
+    for row in &comparison[1..] {
+        let fewest: usize = row[at("magnet_swaps_two_sigma_fewest")].parse().unwrap();
+        let most: usize = row[at("magnet_swaps_two_sigma_most")].parse().unwrap();
+        let swaps: usize = row[at("magnet_swaps")].parse().unwrap();
+        assert!(fewest <= swaps && swaps <= most, "{fewest} {swaps} {most}");
+        assert!(row[at("net_electricity_uncertainty")].starts_with("no interval, because"));
+        assert!(row[at("first_swap_uncertainty")].contains("2 sigma"));
+    }
+    let differences = cells(&table(&outcome.folder, "data/differences.csv"));
+    let at = |name: &str| differences[0].iter().position(|c| c == name).unwrap();
+    for row in &differences[1..] {
+        assert!(row[at("magnet_swaps_change_bands")].contains("bands"));
+        assert!(row[at("net_electricity_change_uncertainty")].contains("no interval"));
+    }
+}
+
 // Verifies: INT-040, PRV-010, MAG-004
 #[test]
 fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
@@ -1097,6 +1236,9 @@ fn column_quantity(file: &str, column: &str) -> Option<Option<faris_model::valid
     let q = |q| Some(Some(q));
     match (file, column) {
         (_, c) if c.ends_with("_validation") || c.ends_with("_kind") => no,
+        // Uncertainty states and band verdicts are words about numbers already classed.
+        (_, c) if c.ends_with("_uncertainty") || c.ends_with("_bands") => no,
+        (_, "magnet_swaps_two_sigma_fewest" | "magnet_swaps_two_sigma_most") => q(Fluence),
         (_, "arrangement" | "state" | "variant_id" | "comparison" | "port" | "allocation") => no,
         (_, "calendar_year" | "blanket_m" | "shield_m" | "horizon_years" | "transport_seed") => no,
         (_, "transport_source_histories" | "transport_recorded" | "history_kind") => no,

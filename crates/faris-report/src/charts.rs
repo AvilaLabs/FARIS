@@ -1078,6 +1078,7 @@ mod tests {
                     magnet_permanent_limit_years: None,
                     net_electricity_twh: Some(33.0 + 0.1 * f64::from(i)),
                     final_available_tritium_kg: 3.0,
+                    uncertainty: Default::default(),
                 })
             })
             .collect();

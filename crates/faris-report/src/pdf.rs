@@ -10,7 +10,7 @@ use crate::{
 };
 use faris_engine::{
     brief::{
-        AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
+        AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, BandVerdict, Caveat, Contrast,
         REFERENCE_BLANKET_M, StatusKind, StudyComparison,
     },
     history_ensemble::output_quantity,
@@ -388,9 +388,17 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
     };
     let swaps = match s.swaps {
         Some(n) => Cell {
-            text: n.to_string(),
+            text: match s.swaps_two_sigma {
+                Some((fewest, most)) => format!("{n} (2σ {fewest} to {most})"),
+                None => n.to_string(),
+            },
             kind: StatusKind::Conditional,
-            label: "conditional".into(),
+            label: if s.swaps_two_sigma.is_some() {
+                "conditional · 2σ, first order"
+            } else {
+                "conditional · no flux error"
+            }
+            .into(),
             muted: false,
         },
         None => none("no limit declared"),
@@ -405,7 +413,7 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         (Some(y), None) => Cell {
             text: format!("{y:.1} y"),
             kind: StatusKind::Conditional,
-            label: "conditional".into(),
+            label: "conditional · no flux error".into(),
             muted: false,
         },
         (None, _) if s.swaps == Some(0) => Cell {
@@ -420,7 +428,16 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         Some(v) => Cell {
             text: format!("{v:.2}"),
             kind: StatusKind::Conditional,
-            label: "conditional".into(),
+            label: if s
+                .uncertainty
+                .get("net_twh")
+                .is_some_and(|u| u.has_interval())
+            {
+                "conditional · ensemble range"
+            } else {
+                "conditional · no interval"
+            }
+            .into(),
             muted: false,
         },
         None => none("—"),
@@ -488,13 +505,29 @@ fn delta_cells(c: &Contrast) -> [Option<(String, StatusKind, &'static str)>; 5] 
             )
         })
     };
-    let cond = |text: String| Some((text, StatusKind::Conditional, "conditional"));
+    let banded = |text: String, band: Option<BandVerdict>| {
+        let (kind, label) = match band {
+            Some(BandVerdict::Separated) => (StatusKind::Checked, "beyond 2σ bands"),
+            Some(BandVerdict::Overlapping) => (StatusKind::Partial, "within 2σ bands"),
+            Some(BandVerdict::NoBand) => (StatusKind::Conditional, "conditional · no band"),
+            None => (StatusKind::Conditional, "conditional"),
+        };
+        Some((text, kind, label))
+    };
     [
         sampled(c.breeding_pct, 2),
         sampled(c.flux_pct, 1),
-        c.swaps.and_then(|v| cond(signed(v as f64, 0, ""))),
-        c.first_swap_y.and_then(|v| cond(signed(v, 1, "y"))),
-        c.net_twh.and_then(|v| cond(signed(v, 2, "TWh"))),
+        c.swaps
+            .and_then(|v| banded(signed(v as f64, 0, ""), c.swaps_band)),
+        c.first_swap_y
+            .and_then(|v| banded(signed(v, 1, "y"), c.first_swap_band)),
+        c.net_twh.map(|v| {
+            (
+                signed(v, 2, "TWh"),
+                StatusKind::Conditional,
+                "conditional · no interval",
+            )
+        }),
     ]
 }
 

@@ -52,6 +52,47 @@ transport record; one recorded before they existed fails closed at the first
 limit that names them. The other presets keep their authored energy-integrated
 magnet triggers (metric `energy_integrated_component_average_neutron_flux`).
 
+**Replacement events and their reason.** The service-limit, replacement-start and
+replacement-completion events of one trip each carry a `trip` record: `criterion`
+(the limit metric that was reached first), `response_id` (the response, hence the
+region, whose limit it was), `accumulated_value` (the fluence that track held at
+the trip, in `unit`), `limit` and `unit`. If two limits of a component are reached
+in the same step the one that sorts first by class, component and response ID is
+named, and the component is tripped once. Replacing a component resets only that
+component's tracks; every other component's accumulated fluence is unchanged
+across the event. The field is optional, so histories written before it existed
+still read, and events outside a trip carry none. The history schema string
+(`faris-history-result/v0.1`) is not bumped: the fields are additive and the
+recorded-demo verifiers check the string.
+
+**Band on the replacement time.** `trip.time_uncertainty_s` is the earliest and
+latest time of the trip, in seconds, when the flux that drives the limit is two
+standard errors above and below its mean, or the reason there is no band (the
+flux has no standard error in the transport record). It is first order: the time
+to a limit scales as 1/flux, applied to the operating time since the component
+was installed, and mapped back to calendar time on the mean run's schedule. For
+the later edge, the component's own replacement outage is counted as running (the
+plant would not yet have stopped). It holds the mean run's planned outages, other
+components' replacements and fuel state fixed, so it ignores the shift in those
+that a different flux would cause, and it ignores nuclear data, model and
+authored-input uncertainty. The earliest edge is the unfavourable one. A latest
+edge is absent when the flux band reaches zero or falls after the horizon, and
+the basis text says which. The swap count in the brief is shown with the fewest
+and most swaps at the same band (`comparison::replacement_count_band`), and a
+difference between two arrangements is called resolved only when those bands
+separate.
+
+**Uncertainty of every output.** `HistoryResult.snapshot_uncertainty` states, for
+each numeric snapshot field, why a single history gives it no interval. The
+summaries the brief and the sweep read (`ArrangementSummary`, `HistorySummary`)
+and the paired-comparison differences carry an `uncertainty` table in the same
+form (`OutputUncertainty`): an interval with its basis, or "no interval, because
+..." with a next step. Net electricity, availability, tritium and energy of a
+single history have no interval because the transport sampling error is not
+propagated through a single history; run the history ensemble and the brief takes
+the P5 to P95 range from it. The export writes the states to `data/uncertainty.csv`
+and each replacement or permanent stop, with its band, to `data/replacements.csv`.
+
 A sampled component flux of exactly zero is accepted as a finite tally result, including when its standard error is also zero. It is not interpreted as proof that the physical flux is exactly zero, and it supplies no statistical upper bound. Such a response can still drive the deterministic example ledger, but service-limit conclusions for it are not qualified.
 
 The energy ledger keeps thermal quantities separate from electrical conversion. It uses the D-T reaction energy less primary-neutron energy as charged-particle birth energy, multiplied by an explicitly authored alpha deposition fraction. Neutron heat comes only from the identified whole-model heating response; in this demonstration tally, neutron and photon deposited heating are grouped by the transport score. An explicit `transport_heat_recovery_fraction` selects the part used in the conditional energy ledger. The Rust/API property names say `transport_deposited_heat_w` and `transport_recovered_heat`; older serialized spellings deserialize through explicit aliases. The heat terms are not a coolant or thermal-cycle calculation. A user-authored thermal-to-electric efficiency maps selected thermal power to gross electric power. Auxiliary electric load remains signed in net power during off periods; cumulative gross, auxiliary, and net electricity are recorded separately. Missing thermal/auxiliary assumptions or missing whole-model heating leave those outputs unavailable rather than silently substituting values.

@@ -316,9 +316,15 @@ fn prepare(input: &ReportInput) -> Result<Prepared, ExportError> {
                 .iter()
                 .find(|a| a.arrangement == *arrangement)
         })
-        .map(|a| ArrangementData {
-            summary: summarize_arrangement(a.transport.as_ref(), a.history.as_ref()),
-            input: a.clone(),
+        .map(|a| {
+            let mut summary = summarize_arrangement(a.transport.as_ref(), a.history.as_ref());
+            if let EnsembleInput::Ready(ensemble) = &a.ensemble {
+                summary.attach_ensemble(ensemble);
+            }
+            ArrangementData {
+                summary,
+                input: a.clone(),
+            }
         })
         .collect();
     let cell = |port: bool, breeder: bool| {
@@ -583,6 +589,14 @@ fn build_files(input: &ReportInput, p: &Prepared) -> Result<Vec<(String, Vec<u8>
     files.push((
         "data/comparison.csv".into(),
         tables::with_statement(tables::comparison_csv(&order)).into_bytes(),
+    ));
+    files.push((
+        "data/replacements.csv".into(),
+        tables::with_statement(tables::replacements_csv(&order)).into_bytes(),
+    ));
+    files.push((
+        "data/uncertainty.csv".into(),
+        tables::with_statement(tables::uncertainty_csv(&order)).into_bytes(),
     ));
     files.push((
         "data/differences.csv".into(),

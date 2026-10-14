@@ -9,13 +9,14 @@ use crate::{
 use faris_engine::history_ensemble::{UNCLASSIFIED_OUTPUT, output_quantity};
 use faris_engine::{
     brief::{
-        AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, Caveat, Contrast,
-        REFERENCE_BLANKET_M, StatusKind, StudyComparison,
+        ArrangementSummary, AssumptionRow, BLANKET_PLUS_SHIELD_M, BREEDER_BLANKET_M, BandVerdict,
+        Caveat, Contrast, REFERENCE_BLANKET_M, StatusKind, StudyComparison,
     },
     comparison::{OperatingState, classify_operating_state},
-    history::{JULIAN_YEAR_SECONDS, limit_exposure_n_m2},
+    history::{EventKind, JULIAN_YEAR_SECONDS, limit_exposure_n_m2},
     history_ensemble::{EnsembleStatus, HistoryEnsemble, SampleOutcome, nominal_sample},
     history_uncertainty::{SCOPE_LINE, outcome_category},
+    output_uncertainty::OutputUncertainty,
     sweep::{HistorySummary, TransportPoint, difference_resolved},
 };
 use faris_model::RESEARCH_SCREENING_STATEMENT;
@@ -175,6 +176,26 @@ pub fn histories_csv(arrangements: &[&ArrangementData]) -> String {
     out
 }
 
+/// The uncertainty state of one summary number as a cell: the interval and its basis, or the
+/// reason it has none and the next step. Never blank for a field the summary knows.
+fn state_text(summary: &ArrangementSummary, field: &str, decimals: usize) -> String {
+    summary
+        .uncertainty
+        .get(field)
+        .map_or_else(String::new, |u| u.text(decimals))
+}
+
+fn band_text(band: Option<BandVerdict>) -> &'static str {
+    match band {
+        Some(BandVerdict::Separated) => "2 sigma bands separate",
+        Some(BandVerdict::Overlapping) => "2 sigma bands overlap, not resolved",
+        Some(BandVerdict::NoBand) => "no band, a flux has no standard error",
+        None => "",
+    }
+}
+
+const NET_DIFFERENCE_REASON: &str = "it is a difference of two deterministic histories and the joint transport sampling error of the pair is not propagated (next step: run the history ensemble for both arrangements)";
+
 fn kind_or(value_present: bool, kind: StatusKind) -> String {
     if value_present {
         kind.label().into()
@@ -220,6 +241,12 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
         "horizon_years".into(),
         "transport_seed".into(),
         "transport_source_histories".into(),
+        "magnet_swaps_two_sigma_fewest".into(),
+        "magnet_swaps_two_sigma_most".into(),
+        "magnet_swaps_uncertainty".into(),
+        "first_swap_uncertainty".into(),
+        "net_electricity_uncertainty".into(),
+        "final_usable_tritium_uncertainty".into(),
     ];
     header.extend(validation_headers(&COMPARISON_QUANTITIES));
     let mut out = row(&header);
@@ -287,6 +314,14 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
             data.input
                 .sampling
                 .map_or_else(String::new, |x| x.histories.to_string()),
+            s.swaps_two_sigma
+                .map_or_else(String::new, |b| b.0.to_string()),
+            s.swaps_two_sigma
+                .map_or_else(String::new, |b| b.1.to_string()),
+            state_text(s, "swaps", 0),
+            state_text(s, "first_swap_y", 2),
+            state_text(s, "net_twh", 3),
+            state_text(s, "final_tritium_kg", 4),
         ];
         cells.extend(validation_cells(&COMPARISON_QUANTITIES));
         out.push_str(&row(&cells));
@@ -320,6 +355,9 @@ pub fn differences_csv(study: &StudyComparison) -> String {
         "first_swap_change_y".into(),
         "net_electricity_change_twh".into(),
         "history_kind".into(),
+        "magnet_swaps_change_bands".into(),
+        "first_swap_change_bands".into(),
+        "net_electricity_change_uncertainty".into(),
     ];
     header.extend(validation_headers(&DIFFERENCES_QUANTITIES));
     let mut out = row(&header);
@@ -348,6 +386,13 @@ pub fn differences_csv(study: &StudyComparison) -> String {
             optional(c.first_swap_y),
             optional(c.net_twh),
             StatusKind::Conditional.label().into(),
+            band_text(c.swaps_band).into(),
+            band_text(c.first_swap_band).into(),
+            if c.net_twh.is_some() {
+                format!("no interval, because {}", NET_DIFFERENCE_REASON)
+            } else {
+                String::new()
+            },
         ];
         cells.extend(validation_cells(&DIFFERENCES_QUANTITIES));
         out.push_str(&row(&cells));
@@ -384,6 +429,11 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
         "net_electricity_twh".into(),
         "final_usable_tritium_kg".into(),
         "history_kind".into(),
+        "magnet_swaps_uncertainty".into(),
+        "first_swap_uncertainty".into(),
+        "permanent_limit_uncertainty".into(),
+        "net_electricity_uncertainty".into(),
+        "final_usable_tritium_uncertainty".into(),
     ];
     header.extend(validation_headers(&SWEEP_QUANTITIES));
     let mut out = row(&header);
@@ -414,11 +464,22 @@ pub fn sweep_csv(points: &[TransportPoint], summaries: &[Option<HistorySummary>]
             optional(s.and_then(|s| s.net_electricity_twh)),
             optional(s.map(|s| s.final_available_tritium_kg)),
             kind_or(s.is_some(), StatusKind::Conditional),
+            sweep_state(s, "magnet_replacements", 0),
+            sweep_state(s, "first_magnet_replacement_years", 2),
+            sweep_state(s, "magnet_permanent_limit_years", 2),
+            sweep_state(s, "net_electricity_twh", 3),
+            sweep_state(s, "final_available_tritium_kg", 4),
         ];
         cells.extend(validation_cells(&SWEEP_QUANTITIES));
         out.push_str(&row(&cells));
     }
     out
+}
+
+fn sweep_state(summary: Option<&HistorySummary>, field: &str, decimals: usize) -> String {
+    summary
+        .and_then(|s| s.uncertainty.get(field))
+        .map_or_else(String::new, |u| u.text(decimals))
 }
 
 /// The evaluated ensemble of an arrangement, if it has one.
@@ -870,6 +931,147 @@ pub(crate) fn ensemble_comparison_csv(comparisons: &[ContrastComparison]) -> Str
                 ));
                 cells.push(String::new());
                 out.push_str(&row(&cells));
+            }
+        }
+    }
+    out
+}
+
+/// Every replacement or permanent stop with the limit that governed it and the 2-sigma band of
+/// its time. The band is first order in the driving flux error; a trip with no flux error says so.
+pub fn replacements_csv(arrangements: &[&ArrangementData]) -> String {
+    let mut out = row(&[
+        "arrangement".into(),
+        "component".into(),
+        "outcome".into(),
+        "trip_year".into(),
+        "two_sigma_earliest_year".into(),
+        "two_sigma_latest_year".into(),
+        "time_uncertainty".into(),
+        "criterion".into(),
+        "response_id".into(),
+        "accumulated_value".into(),
+        "limit".into(),
+        "unit".into(),
+    ]);
+    for data in arrangements {
+        let Some(history) = &data.input.history else {
+            continue;
+        };
+        for event in history
+            .events
+            .iter()
+            .filter(|e| e.kind == EventKind::ServiceLimitReached)
+        {
+            let Some(trip) = &event.trip else { continue };
+            let replaced = history.events.iter().any(|e| {
+                e.kind == EventKind::ReplacementStarted
+                    && e.component_id == event.component_id
+                    && e.time_s == event.time_s
+            });
+            let years = trip.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS);
+            let (early, late) = match &years {
+                OutputUncertainty::Interval { lower, upper, .. } => (Some(*lower), *upper),
+                OutputUncertainty::NoInterval { .. } => (None, None),
+            };
+            out.push_str(&row(&[
+                data.input.arrangement.id().into(),
+                event.component_id.clone().unwrap_or_default(),
+                if replaced {
+                    "replaced"
+                } else {
+                    "permanent stop"
+                }
+                .into(),
+                number(event.time_s / JULIAN_YEAR_SECONDS),
+                optional(early),
+                optional(late),
+                years.text(3),
+                trip.criterion.clone(),
+                trip.response_id.clone(),
+                number(trip.accumulated_value),
+                number(trip.limit),
+                trip.unit.clone(),
+            ]));
+        }
+    }
+    out
+}
+
+/// Numeric columns of `histories.csv` and the snapshot field each one is read from.
+const HISTORIES_COLUMNS: [(&str, &str); 7] = [
+    ("calendar_year", "time_s"),
+    ("magnet_fluence_n_m2", "component_fluence_n_m2"),
+    ("magnet_limit_fluence_n_m2", "limit_fluence_n_m2"),
+    ("blanket_fluence_n_m2", "component_fluence_n_m2"),
+    ("usable_tritium_kg", "available_tritium_kg"),
+    ("net_electricity_twh", "cumulative_net_electricity_mwh"),
+    ("magnet_swaps", "component_replacements"),
+];
+
+/// The uncertainty state of every number the summary and the snapshots carry: an interval with
+/// its basis, or the reason there is none and what to do next.
+pub fn uncertainty_csv(arrangements: &[&ArrangementData]) -> String {
+    let mut out = row(&[
+        "arrangement".into(),
+        "table".into(),
+        "field".into(),
+        "state".into(),
+        "lower".into(),
+        "upper".into(),
+        "basis_or_reason".into(),
+        "next_step".into(),
+    ]);
+    for data in arrangements {
+        let id = data.input.arrangement.id();
+        let snapshot = data.input.history.as_ref().map(|h| &h.snapshot_uncertainty);
+        // The columns of histories.csv, each with the state of the snapshot field it holds.
+        let columns: Option<std::collections::BTreeMap<String, OutputUncertainty>> =
+            snapshot.map(|states| {
+                HISTORIES_COLUMNS
+                    .iter()
+                    .filter_map(|(column, field)| {
+                        Some(((*column).to_owned(), states.get(*field)?.clone()))
+                    })
+                    .collect()
+            });
+        let tables = [
+            ("summary", Some(&data.summary.uncertainty)),
+            ("snapshot", snapshot),
+            ("histories.csv", columns.as_ref()),
+        ];
+        for (table, states) in tables {
+            for (name, state) in states.into_iter().flatten() {
+                let (kind, lower, upper, basis, next) = match state {
+                    OutputUncertainty::Interval {
+                        lower,
+                        upper,
+                        basis,
+                    } => (
+                        "interval",
+                        number(*lower),
+                        optional(*upper),
+                        basis.clone(),
+                        String::new(),
+                    ),
+                    OutputUncertainty::NoInterval { why, next_step } => (
+                        "no interval",
+                        String::new(),
+                        String::new(),
+                        why.clone(),
+                        next_step.clone(),
+                    ),
+                };
+                out.push_str(&row(&[
+                    id.into(),
+                    table.into(),
+                    name.clone(),
+                    kind.into(),
+                    lower,
+                    upper,
+                    basis,
+                    next,
+                ]));
             }
         }
     }

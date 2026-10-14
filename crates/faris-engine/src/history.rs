@@ -1,6 +1,8 @@
 //! Deterministic, event-aware operating-history ledger.
 
+use crate::comparison::{MARGIN_BAND_SIGMAS, first_crossing_relative_uncertainty};
 use crate::jobs::Cancellation;
+use crate::output_uncertainty::OutputUncertainty;
 use crate::transport::{NormalizedTally, NormalizedTransportResult, PhysicalUnit};
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions, ServiceLimit};
 use faris_model::math;
@@ -644,7 +646,33 @@ pub struct HistoryEvent {
     pub response_id: Option<String>,
     pub mass_kg: Option<f64>,
     pub note: String,
+    /// For the service-limit and replacement events of a trip, the limit that governed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trip: Option<LimitTrip>,
 }
+
+/// The limit that tripped a component: which criterion, the accumulated value when it was
+/// reached, the limit, and when the trip could have happened given the flux error. Every
+/// service-limit, replacement-start and replacement-completion event of one trip carries the
+/// same record.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LimitTrip {
+    /// The limit metric that was reached first, for example the fast-flux region average.
+    pub criterion: String,
+    /// The response whose limit it was; names the region of the component.
+    pub response_id: String,
+    /// Fluence the tripping track had accumulated at the trip, in `unit`.
+    pub accumulated_value: f64,
+    pub limit: f64,
+    pub unit: String,
+    /// Earliest and latest trip time in seconds at two standard errors of the driving flux (the
+    /// earliest edge is the unfavourable one), or why there is no band.
+    pub time_uncertainty_s: OutputUncertainty,
+}
+
+/// What the trip-time band holds fixed and leaves out; carried in the band's basis.
+const TRIP_BAND_BASIS: &str = "2 sigma of the flux that drives this limit, to first order (time to the limit scales as 1/flux); the mean run's schedule, outages and other replacements are held fixed; no nuclear data, model or authored-input uncertainty";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -703,6 +731,65 @@ pub struct HistoryResult {
     pub snapshots: Vec<HistorySnapshot>,
     pub energy_unavailable_reason: Option<String>,
     pub notice: String,
+    /// The uncertainty state of every numeric field of a snapshot, by field name. Replacement
+    /// times carry their own bands on the events. Absent in histories made before it existed.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub snapshot_uncertainty: BTreeMap<String, OutputUncertainty>,
+}
+
+/// Why a numeric snapshot field has no interval, by field name; every field is listed so a new
+/// one cannot appear without an uncertainty state.
+pub fn snapshot_uncertainty() -> BTreeMap<String, OutputUncertainty> {
+    let echo = |what: &str| {
+        OutputUncertainty::none(
+            format!("{what}, not a calculated result"),
+            "nothing to do; change the authored assumption to change it",
+        )
+    };
+    let check = OutputUncertainty::none(
+        "numerical residual of the ledger check, not a physical estimate",
+        "nothing to do; it must stay within the history's mass-balance tolerance",
+    );
+    let count = OutputUncertainty::none(
+        "a count of replacements in the mean run; its 2 sigma range needs the flux error of each limit",
+        "see the time band on each replacement event and the replacement-count range in the brief, or run the history ensemble",
+    );
+    [
+        ("time_s", echo("the ledger clock")),
+        ("power_fraction", echo("the authored power schedule")),
+        ("component_replacements", count),
+        ("mass_balance_residual_kg", check),
+    ]
+    .into_iter()
+    .map(|(name, state)| (name.to_owned(), state))
+    .chain(
+        [
+            "available_tritium_kg",
+            "in_process_tritium_kg",
+            "cumulative_production_kg",
+            "cumulative_import_kg",
+            "cumulative_burn_kg",
+            "cumulative_processing_loss_kg",
+            "cumulative_decay_kg",
+            "cumulative_full_power_seconds",
+            "cumulative_fusion_energy_mwh",
+            "instantaneous_transport_recovered_heat_mw",
+            "instantaneous_alpha_recovered_heat_mw",
+            "instantaneous_gross_electricity_mw",
+            "instantaneous_auxiliary_electricity_mw",
+            "instantaneous_net_electricity_mw",
+            "cumulative_transport_recovered_heat_mwh",
+            "cumulative_alpha_recovered_heat_mwh",
+            "cumulative_gross_electricity_mwh",
+            "cumulative_auxiliary_electricity_mwh",
+            "cumulative_net_electricity_mwh",
+            "component_fluence_n_m2",
+            "limit_fluence_n_m2",
+        ]
+        .into_iter()
+        .map(|name| (name.to_owned(), OutputUncertainty::deterministic())),
+    )
+    .collect()
 }
 
 /// Every numeric field of a calculated history, of a paired comparison of two and of a parameter
@@ -941,16 +1028,110 @@ struct ComponentState {
     down_until: f64,
     replacement_count: u32,
     tripped: bool,
+    /// Full-power seconds of the component's operating curve when it was last installed.
+    curve_anchor_s: f64,
 }
 
 /// Flux driving a limit's exposure track, at reference power. Limits were
 /// checked against the rates before the run, so the lookups cannot miss.
-fn limit_flux_mean(rates: &TransportDrivingRates, limit: &ServiceLimit) -> f64 {
+fn limit_flux_rate<'a>(rates: &'a TransportDrivingRates, limit: &ServiceLimit) -> &'a ScalarRate {
     if limit.metric == FAST_FLUX_REGION_METRIC {
-        rates.region_flux_n_m2_s[&limit.response_id].rate.mean
+        &rates.region_flux_n_m2_s[&limit.response_id].rate
     } else {
-        rates.component_average_flux_n_m2_s[&limit.component_id].mean
+        &rates.component_average_flux_n_m2_s[&limit.component_id]
     }
+}
+
+fn limit_flux_mean(rates: &TransportDrivingRates, limit: &ServiceLimit) -> f64 {
+    limit_flux_rate(rates, limit).mean
+}
+
+/// Full-power seconds a component's schedule delivers, as a piecewise-linear curve of calendar
+/// time. It is the curve the run had, except that the component's own replacement outage counts
+/// as running, so a trip that comes later than in the mean run can be placed in time.
+#[derive(Clone)]
+struct OperatingCurve {
+    /// (time, cumulative full-power seconds) at the end of each stretch of constant power.
+    knots: Vec<(f64, f64)>,
+    /// Power fraction of the stretch ending at `knots[i + 1]`.
+    powers: Vec<f64>,
+}
+
+impl OperatingCurve {
+    fn new() -> Self {
+        Self {
+            knots: vec![(0.0, 0.0)],
+            powers: Vec::new(),
+        }
+    }
+
+    fn end_s(&self) -> f64 {
+        self.knots[self.knots.len() - 1].1
+    }
+
+    fn push(&mut self, end_time_s: f64, power: f64) {
+        let (t, f) = self.knots[self.knots.len() - 1];
+        if end_time_s <= t {
+            return;
+        }
+        let end = (end_time_s, f + power * (end_time_s - t));
+        if self.powers.last() == Some(&power) {
+            *self.knots.last_mut().unwrap() = end;
+        } else {
+            self.knots.push(end);
+            self.powers.push(power);
+        }
+    }
+
+    /// Calendar time at which the curve reaches `target_s` full-power seconds; None after its end.
+    fn time_at(&self, target_s: f64) -> Option<f64> {
+        if target_s <= 0.0 {
+            return Some(0.0);
+        }
+        let i = self.knots.partition_point(|k| k.1 < target_s);
+        if i >= self.knots.len() {
+            return None;
+        }
+        let (t0, f0) = self.knots[i - 1];
+        Some(t0 + (target_s - f0) / self.powers[i - 1])
+    }
+}
+
+/// A trip waiting for its time band, which needs the operating curve to the horizon.
+struct PendingTrip {
+    component_id: String,
+    trip_time_s: f64,
+    /// Full-power seconds the component had run since it was installed, and the curve value then.
+    exposure_s: f64,
+    anchor_s: f64,
+    flux_relative_error: Option<f64>,
+    event_indices: Vec<usize>,
+}
+
+/// Earliest and latest trip time at two standard errors of the driving flux, or why not.
+fn trip_time_band(trip: &PendingTrip, curve: &OperatingCurve) -> OutputUncertainty {
+    let Some(r) = trip.flux_relative_error else {
+        return OutputUncertainty::none(
+            "the flux that drives this limit has no standard error in the transport record",
+            "record the transport run with batch statistics so the flux carries a standard error",
+        );
+    };
+    let half = MARGIN_BAND_SIGMAS * r;
+    let early = curve
+        .time_at(trip.anchor_s + trip.exposure_s / (1.0 + half))
+        .map_or(trip.trip_time_s, |t| t.min(trip.trip_time_s));
+    let (late, note) = if half < 1.0 {
+        match curve.time_at(trip.anchor_s + trip.exposure_s / (1.0 - half)) {
+            Some(t) => (Some(t.max(trip.trip_time_s)), ""),
+            None => (None, "; the latest edge falls after the horizon"),
+        }
+    } else {
+        (
+            None,
+            "; the flux band reaches zero, so the limit may never be reached",
+        )
+    };
+    OutputUncertainty::interval(early, late, format!("{TRIP_BAND_BASIS}{note}"))
 }
 
 /// The fluence a component has accumulated toward its service limits, as one
@@ -1105,6 +1286,7 @@ fn push_event(
         response_id: None,
         mass_kg,
         note: note.into(),
+        trip: None,
     });
     Ok(())
 }
@@ -1181,6 +1363,12 @@ pub fn run_operating_history_cancellable(
             release_s: assumptions.initial_in_process_release_s,
         });
     }
+    let mut curves: BTreeMap<String, OperatingCurve> = rates
+        .component_average_flux_n_m2_s
+        .keys()
+        .map(|id| (id.clone(), OperatingCurve::new()))
+        .collect();
+    let mut pending_trips: Vec<PendingTrip> = Vec::new();
     let mut components: BTreeMap<String, ComponentState> = rates
         .component_average_flux_n_m2_s
         .keys()
@@ -1199,6 +1387,7 @@ pub fn run_operating_history_cancellable(
                     down_until: 0.0,
                     replacement_count: 0,
                     tripped: false,
+                    curve_anchor_s: 0.0,
                 },
             )
         })
@@ -1273,6 +1462,7 @@ pub fn run_operating_history_cancellable(
                 state.down_until = 0.0;
                 state.replacement_count += 1;
                 state.tripped = false;
+                state.curve_anchor_s = curves[component_id].end_s();
                 push_event(
                     &mut events,
                     time,
@@ -1675,6 +1865,25 @@ pub fn run_operating_history_cancellable(
                 *v += off_aux * off_duration / 3600.0;
             }
         }
+        // Each component's operating curve for the trip-time bands: the delivered power, or the
+        // scheduled power while only that component's own replacement holds the plant down.
+        for (id, curve) in &mut curves {
+            let only_own_outage = scheduled_power > 0.0
+                && !permanent_limit
+                && outage.is_none()
+                && !fuel_unavailable
+                && components
+                    .iter()
+                    .all(|(other, s)| (other == id) == (s.down_until > time + 1e-9));
+            let power = if requested > 0.0 {
+                requested
+            } else if only_own_outage {
+                scheduled_power
+            } else {
+                0.0
+            };
+            curve.push(time + dt, power);
+        }
         let mut ordered_limits: Vec<&ServiceLimit> = assumptions.service_limits.iter().collect();
         ordered_limits.sort_by(|a, b| {
             let rank = |c: ComponentClass| {
@@ -1697,6 +1906,7 @@ pub fn run_operating_history_cancellable(
                 if limit_fluence(state, limit) + 1e-10 * limit.limit >= limit.limit
                     && !state.tripped
                 {
+                    let accumulated_value = limit_fluence(state, limit);
                     *limit_fluence_mut(state, limit) = limit.limit;
                     state.tripped = true;
                     push_event(
@@ -1710,9 +1920,32 @@ pub fn run_operating_history_cancellable(
                             limit.metric, limit.unit, limit.response_id
                         ),
                     )?;
+                    let trip = LimitTrip {
+                        criterion: limit.metric.clone(),
+                        response_id: limit.response_id.clone(),
+                        accumulated_value,
+                        limit: limit.limit,
+                        unit: limit.unit.clone(),
+                        // Filled in once the operating curve is complete.
+                        time_uncertainty_s: OutputUncertainty::deterministic(),
+                    };
                     if let Some(event) = events.last_mut() {
                         event.response_id = Some(limit.response_id.clone());
+                        event.trip = Some(trip.clone());
                     }
+                    let flux = limit_flux_rate(rates, limit);
+                    let curve = &curves[&limit.component_id];
+                    pending_trips.push(PendingTrip {
+                        component_id: limit.component_id.clone(),
+                        trip_time_s: time + active_duration,
+                        exposure_s: curve.end_s() - state.curve_anchor_s,
+                        anchor_s: state.curve_anchor_s,
+                        flux_relative_error: first_crossing_relative_uncertainty(
+                            flux.mean,
+                            flux.standard_error,
+                        ),
+                        event_indices: vec![events.len() - 1],
+                    });
                     match limit.class {
                         ComponentClass::Permanent => {
                             permanent_limit = true;
@@ -1736,6 +1969,12 @@ pub fn run_operating_history_cancellable(
                                     None,
                                     format!("declared replacement outage for {duration} s"),
                                 )?;
+                                if let Some(event) = events.last_mut() {
+                                    event.trip = Some(trip);
+                                }
+                                if let Some(pending) = pending_trips.last_mut() {
+                                    pending.event_indices.push(events.len() - 1);
+                                }
                             }
                         }
                     }
@@ -1749,6 +1988,29 @@ pub fn run_operating_history_cancellable(
             return Err("fuel inventory became negative; limiting event handling failed".into());
         }
         time += dt;
+    }
+    for pending in &pending_trips {
+        let band = trip_time_band(pending, &curves[&pending.component_id]);
+        for &index in &pending.event_indices {
+            if let Some(trip) = events[index].trip.as_mut() {
+                trip.time_uncertainty_s = band.clone();
+            }
+        }
+    }
+    // A completed replacement names the trip it answers: the latest start of that component.
+    for index in 0..events.len() {
+        if events[index].kind != EventKind::ReplacementCompleted {
+            continue;
+        }
+        let trip = events[..index]
+            .iter()
+            .rev()
+            .find(|e| {
+                e.kind == EventKind::ReplacementStarted
+                    && e.component_id == events[index].component_id
+            })
+            .and_then(|e| e.trip.clone());
+        events[index].trip = trip;
     }
     let outcome = if permanent_limit {
         HistoryOutcome::PermanentComponentLimit
@@ -1765,6 +2027,7 @@ pub fn run_operating_history_cancellable(
         integration_segment_count: Some(segments), integration_segment_limit: Some(MAX_HISTORY_SEGMENTS),
         processing_model: Some(HISTORY_PROCESSING_MODEL_ID.into()),
         energy_unavailable_reason,
+        snapshot_uncertainty: snapshot_uncertainty(),
         notice: "Conditional deterministic history from the exact recorded transport driving rates and authored assumptions. Monte Carlo standard errors and assumption/model uncertainty are retained as provenance but not propagated into a qualified bound. No service-life or net-electricity claim is qualified.".into(),
     })
 }
@@ -2420,7 +2683,7 @@ mod tests {
         assert_eq!(off.instantaneous_net_electricity_mw, Some(-5.0));
     }
 
-    // Verifies: MAG-025
+    // Verifies: MAG-025, OPS-001
     #[test]
     fn replaceable_trip_resets_locally_then_permanent_trip_stops() {
         let mut a = assumptions(100.0);
@@ -2591,6 +2854,7 @@ mod tests {
         a.validate().unwrap();
     }
 
+    // Verifies: OPS-001
     #[test]
     fn simultaneous_import_outage_and_operation_stop_have_stable_order() {
         let mut a = assumptions(100.0);
@@ -2841,6 +3105,489 @@ mod tests {
         );
         r.region_flux_n_m2_s.clear();
         assert_eq!(r.covariance_entries().len(), 2);
+    }
+
+    /// `regional_case` with a relative flux standard error on every flux (None: no estimate).
+    fn regional_case_with_error(
+        fluxes: [f64; 3],
+        relative_error: Option<f64>,
+    ) -> (OperatingHistoryAssumptions, TransportDrivingRates) {
+        let (a, mut r) = regional_case(fluxes);
+        for rate in r.component_average_flux_n_m2_s.values_mut() {
+            rate.standard_error = relative_error.map(|e| e * rate.mean);
+        }
+        for region in r.region_flux_n_m2_s.values_mut() {
+            region.rate.standard_error = relative_error.map(|e| e * region.rate.mean);
+        }
+        (a, r)
+    }
+
+    fn trip_of(run: &HistoryResult, kind: EventKind, nth: usize) -> (f64, LimitTrip) {
+        let e = run
+            .events
+            .iter()
+            .filter(|e| e.kind == kind)
+            .nth(nth)
+            .unwrap();
+        (e.time_s, e.trip.clone().expect("event carries its trip"))
+    }
+
+    fn band_edges(trip: &LimitTrip) -> (f64, Option<f64>) {
+        match &trip.time_uncertainty_s {
+            OutputUncertainty::Interval { lower, upper, .. } => (*lower, *upper),
+            other => panic!("expected an interval, got {other:?}"),
+        }
+    }
+
+    // Verifies: MAT-018
+    #[test]
+    fn every_replacement_event_stores_criterion_value_limit_and_unit() {
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.05));
+        let run = run_operating_history(&a, &r).unwrap();
+        for kind in [
+            EventKind::ServiceLimitReached,
+            EventKind::ReplacementStarted,
+            EventKind::ReplacementCompleted,
+        ] {
+            let (_, trip) = trip_of(&run, kind.clone(), 0);
+            assert_eq!(trip.criterion, FAST_FLUX_REGION_METRIC);
+            assert_eq!(trip.response_id, "r-port");
+            assert_eq!(trip.unit, "neutrons/m²");
+            assert_eq!(trip.limit, 3.0e11);
+            assert!(
+                (trip.accumulated_value - trip.limit).abs() <= 1e-9 * trip.limit,
+                "{kind:?} {}",
+                trip.accumulated_value
+            );
+        }
+        // The same record is serialised with the event.
+        let json = serde_json::to_value(&run.events).unwrap();
+        let started = json
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["kind"] == "replacement_started")
+            .unwrap();
+        assert_eq!(started["trip"]["criterion"], FAST_FLUX_REGION_METRIC);
+        assert_eq!(started["trip"]["limit"], 3.0e11);
+        assert_eq!(started["trip"]["unit"], "neutrons/m²");
+        assert!(started["trip"]["accumulated_value"].is_number());
+        // Events that are not part of a trip carry none and write no field.
+        let first = &json.as_array().unwrap()[0];
+        assert!(first.get("trip").is_none());
+        // A legacy event without the field still reads.
+        let legacy = r#"{"time_s":1.0,"order":0,"kind":"imported","component_id":null,"mass_kg":null,"note":"x"}"#;
+        assert!(
+            serde_json::from_str::<HistoryEvent>(legacy)
+                .unwrap()
+                .trip
+                .is_none()
+        );
+    }
+
+    fn two_component_case() -> HistoryResult {
+        let mut a = assumptions(100.0);
+        a.maximum_step_s = 10.0;
+        a.snapshot_interval_s = 5.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: 100.0,
+            power_fraction: 1.0,
+        }];
+        let limit_of = |component: &str, class, limit: f64| ServiceLimit {
+            component_id: component.into(),
+            class,
+            response_id: format!("flux-{component}"),
+            metric: ENERGY_INTEGRATED_FLUX_METRIC.into(),
+            unit: "neutrons/m²".into(),
+            limit,
+            replacement_duration_s: (class == ComponentClass::Replaceable).then_some(10.0),
+            replacement_durations_s: None,
+            provenance: "test".into(),
+        };
+        a.service_limits = vec![
+            limit_of("blanket", ComponentClass::Replaceable, 1.0e11),
+            limit_of("divertor", ComponentClass::Replaceable, 2.5e11),
+            limit_of("magnet", ComponentClass::Permanent, 9.0e11),
+        ];
+        let mut r = rates();
+        for (id, flux) in [
+            ("blanket", 1.0e10),
+            ("divertor", 1.0e10),
+            ("magnet", 1.3e10),
+        ] {
+            r.component_average_flux_n_m2_s
+                .insert(id.into(), scalar(flux, &format!("flux-{id}")));
+        }
+        run_operating_history(&a, &r).unwrap()
+    }
+
+    // Verifies: MAT-018, OPS-001
+    #[test]
+    fn replacing_one_component_leaves_every_other_component_bit_identical() {
+        let run = two_component_case();
+        let (start_s, trip) = trip_of(&run, EventKind::ReplacementStarted, 0);
+        assert_eq!(trip.response_id, "flux-blanket");
+        let (done_s, _) = trip_of(&run, EventKind::ReplacementCompleted, 0);
+        assert!((start_s - 10.0).abs() < 1e-6 && (done_s - 20.0).abs() < 1e-6);
+        let at = |t: f64| {
+            run.snapshots
+                .iter()
+                .find(|s| (s.time_s - t).abs() < 1e-6)
+                .unwrap()
+        };
+        // The snapshots at the trip, mid-outage and at the completion of the replacement.
+        let (before, during, after) = (at(start_s), at(15.0), at(done_s));
+        assert!(before.component_fluence_n_m2["blanket"] > 0.0);
+        assert_eq!(after.component_fluence_n_m2["blanket"], 0.0);
+        assert_eq!(after.component_replacements["blanket"], 1);
+        for other in ["divertor", "magnet"] {
+            for s in [during, after] {
+                assert_eq!(
+                    s.component_fluence_n_m2[other].to_bits(),
+                    before.component_fluence_n_m2[other].to_bits(),
+                    "{other} fluence moved across the replacement of the blanket"
+                );
+                assert_eq!(
+                    s.component_replacements[other],
+                    before.component_replacements[other]
+                );
+            }
+        }
+        assert!(before.component_fluence_n_m2["divertor"] > 0.0);
+        // After the outage the others resume from their own values, not from zero.
+        let resumed = at(25.0);
+        assert!(
+            resumed.component_fluence_n_m2["divertor"] > after.component_fluence_n_m2["divertor"]
+        );
+        // The divertor trips on its own limit later, and only it is replaced then.
+        let divertor = run
+            .events
+            .iter()
+            .find(|e| {
+                e.kind == EventKind::ReplacementStarted
+                    && e.component_id.as_deref() == Some("divertor")
+            })
+            .and_then(|e| e.trip.as_ref())
+            .expect("the divertor is replaced on its own limit");
+        assert_eq!(divertor.response_id, "flux-divertor");
+        assert_eq!(divertor.limit, 2.5e11);
+    }
+
+    // Verifies: MAT-018
+    #[test]
+    fn with_two_limits_on_a_component_the_event_names_the_one_reached_first() {
+        for (region_flux, whole_limit, expected, expected_time) in [
+            // Region limit 3e11 at 2e10 n/m²/s: 15 s. Whole-component 5e11 at 1e10: 50 s.
+            (2.0e10, 5.0e11, FAST_FLUX_REGION_METRIC, 15.0),
+            // Whole-component 1.2e11 at 1e10: 12 s. Region limit at 1e10: 30 s.
+            (1.0e10, 1.2e11, ENERGY_INTEGRATED_FLUX_METRIC, 12.0),
+        ] {
+            let (mut a, mut r) = regional_case([region_flux, 1.0e9, 1.0e9]);
+            a.service_limits.retain(|l| l.response_id == "r-inboard");
+            a.service_limits.push(ServiceLimit {
+                component_id: "magnet".into(),
+                class: ComponentClass::Replaceable,
+                response_id: "flux-magnet".into(),
+                metric: ENERGY_INTEGRATED_FLUX_METRIC.into(),
+                unit: "neutrons/m²".into(),
+                limit: whole_limit,
+                replacement_duration_s: Some(10.0),
+                replacement_durations_s: None,
+                provenance: "test".into(),
+            });
+            r.region_flux_n_m2_s.retain(|id, _| id == "r-inboard");
+            let run = run_operating_history(&a, &r).unwrap();
+            for kind in [
+                EventKind::ServiceLimitReached,
+                EventKind::ReplacementStarted,
+            ] {
+                let (time_s, trip) = trip_of(&run, kind, 0);
+                assert_eq!(trip.criterion, expected);
+                assert!((time_s - expected_time).abs() < 1e-6, "{time_s}");
+                assert!((trip.accumulated_value - trip.limit).abs() <= 1e-9 * trip.limit);
+            }
+            let reached = run
+                .events
+                .iter()
+                .find(|e| e.kind == EventKind::ServiceLimitReached)
+                .unwrap();
+            assert!(reached.note.contains(expected), "{}", reached.note);
+        }
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn trip_time_band_is_the_two_sigma_flux_band_and_the_earliest_edge_comes_first() {
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.05));
+        let run = run_operating_history(&a, &r).unwrap();
+        // First trip at 10 s of full power: time scales as 1/flux, so 10/1.1 and 10/0.9 s.
+        let (time_s, trip) = trip_of(&run, EventKind::ReplacementStarted, 0);
+        let (early, late) = band_edges(&trip);
+        assert!((time_s - 10.0).abs() < 1e-6);
+        assert!((early - 10.0 / 1.1).abs() < 1e-6, "{early}");
+        assert!((late.unwrap() - 10.0 / 0.9).abs() < 1e-6, "{late:?}");
+        // The band survives the 10 s replacement outage: the second trip comes 10 s of operation
+        // after the new component starts at 20 s, and its band is measured from there.
+        let (time_s, trip) = trip_of(&run, EventKind::ReplacementStarted, 1);
+        let (early, late) = band_edges(&trip);
+        assert!((time_s - 30.0).abs() < 1e-6);
+        assert!((early - (20.0 + 10.0 / 1.1)).abs() < 1e-6, "{early}");
+        assert!(
+            (late.unwrap() - (20.0 + 10.0 / 0.9)).abs() < 1e-6,
+            "{late:?}"
+        );
+        // Every edge pair is ordered and the basis says what it leaves out.
+        for e in run.events.iter().filter_map(|e| e.trip.as_ref()) {
+            let (early, late) = band_edges(e);
+            assert!(early <= late.unwrap_or(f64::INFINITY));
+            let OutputUncertainty::Interval { basis, .. } = &e.time_uncertainty_s else {
+                unreachable!()
+            };
+            assert!(basis.contains("2 sigma") && basis.contains("held fixed"));
+        }
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn trip_time_band_follows_the_schedule_when_an_outage_precedes_the_trip() {
+        let (mut a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.05));
+        a.planned_outages = vec![faris_model::history::TimeInterval {
+            start_s: 4.0,
+            end_s: 6.0,
+            reason: "test outage".into(),
+        }];
+        let run = run_operating_history(&a, &r).unwrap();
+        // 10 s of operation take until 12 s of calendar time; the band shifts with it.
+        let (time_s, trip) = trip_of(&run, EventKind::ReplacementStarted, 0);
+        let (early, late) = band_edges(&trip);
+        assert!((time_s - 12.0).abs() < 1e-6, "{time_s}");
+        assert!((early - (2.0 + 10.0 / 1.1)).abs() < 1e-6, "{early}");
+        assert!(
+            (late.unwrap() - (2.0 + 10.0 / 0.9)).abs() < 1e-6,
+            "{late:?}"
+        );
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn trip_time_band_has_no_late_edge_past_the_horizon_or_with_a_zero_flux_edge() {
+        // A flux band that reaches zero (25 % error, 2 sigma = 50 %): 2 sigma half-width 0.5 < 1,
+        // so the late edge exists; at 50 % it reaches zero and the limit may never be reached.
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.5));
+        let run = run_operating_history(&a, &r).unwrap();
+        let (_, trip) = trip_of(&run, EventKind::ReplacementStarted, 0);
+        let (early, late) = band_edges(&trip);
+        assert!((early - 5.0).abs() < 1e-6, "{early}");
+        assert_eq!(late, None);
+        let OutputUncertainty::Interval { basis, .. } = &trip.time_uncertainty_s else {
+            unreachable!()
+        };
+        assert!(basis.contains("reaches zero"));
+        // A late edge beyond the 100 s horizon is open, not a made-up time.
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.45));
+        let run = run_operating_history(&a, &r).unwrap();
+        let last = run
+            .events
+            .iter()
+            .rfind(|e| e.kind == EventKind::ReplacementStarted)
+            .unwrap();
+        let (_, late) = band_edges(last.trip.as_ref().unwrap());
+        assert_eq!(late, None);
+        let OutputUncertainty::Interval { basis, .. } =
+            &last.trip.as_ref().unwrap().time_uncertainty_s
+        else {
+            unreachable!()
+        };
+        assert!(basis.contains("after the horizon"));
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn trip_time_band_says_so_when_the_flux_has_no_standard_error() {
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], None);
+        let run = run_operating_history(&a, &r).unwrap();
+        for e in run.events.iter().filter_map(|e| e.trip.as_ref()) {
+            let OutputUncertainty::NoInterval { why, next_step } = &e.time_uncertainty_s else {
+                panic!("a bare trip time: {e:?}");
+            };
+            assert!(why.contains("no standard error") && !next_step.is_empty());
+        }
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn the_band_does_not_change_any_simulated_time() {
+        // The same history with and without a flux error trips at the same times.
+        let times = |error| {
+            let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], error);
+            let run = run_operating_history(&a, &r).unwrap();
+            run.events
+                .iter()
+                .map(|e| (e.time_s, e.kind.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(times(None), times(Some(0.2)));
+    }
+
+    // Verifies: MAG-004
+    #[test]
+    fn replacement_count_range_uses_the_latest_and_earliest_edges() {
+        use crate::comparison::replacement_count_band;
+        // Trips at 10, 30, 50, 70 and 90 s; at 30 % flux error the fifth is still inside a 107 s
+        // horizon at its late edge (105 s), and the part-used sixth component, 70 % through its
+        // limit, reaches it at the early edge.
+        let (mut a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.3));
+        a.horizon_s = 107.0;
+        a.operation[0].end_s = 107.0;
+        let run = run_operating_history(&a, &r).unwrap();
+        let starts = run
+            .events
+            .iter()
+            .filter(|e| e.kind == EventKind::ReplacementStarted)
+            .count();
+        assert_eq!(starts, 5);
+        assert_eq!(replacement_count_band(&run, "magnet"), Some((5, 6)));
+        // At the 100 s horizon the fifth late edge (105 s) is outside it, so one fewer is certain.
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.3));
+        let run = run_operating_history(&a, &r).unwrap();
+        assert_eq!(replacement_count_band(&run, "magnet"), Some((4, 5)));
+        // Without a flux error there is no range to give.
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], None);
+        let run = run_operating_history(&a, &r).unwrap();
+        assert_eq!(replacement_count_band(&run, "magnet"), None);
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn every_numeric_snapshot_field_has_an_uncertainty_state() {
+        let (a, r) = regional_case_with_error([2.5e10, 5.0e9, 3.0e10], Some(0.05));
+        let run = run_operating_history(&a, &r).unwrap();
+        let snapshot = serde_json::to_value(run.snapshots.last().unwrap()).unwrap();
+        crate::output_uncertainty::tests::assert_every_number_has_a_state(
+            &snapshot,
+            &run.snapshot_uncertainty,
+            &[],
+        );
+        // The state is part of the serialised history and a history without it still reads.
+        let mut json = serde_json::to_value(&run).unwrap();
+        assert!(
+            json["snapshot_uncertainty"]["cumulative_net_electricity_mwh"]["why"]
+                .as_str()
+                .unwrap()
+                .contains("deterministic")
+        );
+        json.as_object_mut().unwrap().remove("snapshot_uncertainty");
+        let legacy: HistoryResult = serde_json::from_value(json).unwrap();
+        assert!(legacy.snapshot_uncertainty.is_empty());
+    }
+
+    // Verifies: OPS-001
+    #[test]
+    fn thirty_year_schedule_gives_replacements_outages_a_permanent_stop_and_persistent_inventory() {
+        let horizon = 30.0 * JULIAN_YEAR_SECONDS;
+        let year = JULIAN_YEAR_SECONDS;
+        let mut a = assumptions(horizon);
+        a.maximum_step_s = 86_400.0;
+        a.snapshot_interval_s = 30.0 * 86_400.0;
+        a.initial_available_tritium_kg = 1.0;
+        a.operation = vec![faris_model::history::PowerPeriod {
+            start_s: 0.0,
+            end_s: horizon,
+            power_fraction: 1.0,
+        }];
+        // One authored schedule: an annual 30-day outage, a replaceable blanket and a permanent magnet.
+        a.planned_outages = (0..30)
+            .map(|y| faris_model::history::TimeInterval {
+                start_s: f64::from(y) * year + 0.5 * year,
+                end_s: f64::from(y) * year + 0.5 * year + 30.0 * 86_400.0,
+                reason: "annual maintenance".into(),
+            })
+            .collect();
+        let limit_of = |component: &str, class, limit: f64| ServiceLimit {
+            component_id: component.into(),
+            class,
+            response_id: format!("flux-{component}"),
+            metric: ENERGY_INTEGRATED_FLUX_METRIC.into(),
+            unit: "neutrons/m²".into(),
+            limit,
+            replacement_duration_s: (class == ComponentClass::Replaceable)
+                .then_some(90.0 * 86_400.0),
+            replacement_durations_s: None,
+            provenance: "test".into(),
+        };
+        a.service_limits = vec![
+            limit_of("blanket", ComponentClass::Replaceable, 8.0e17),
+            limit_of("magnet", ComponentClass::Permanent, 6.0e18),
+        ];
+        let mut r = rates();
+        r.breeder_h3_per_source_neutron.mean = 1.1;
+        for id in ["blanket", "magnet"] {
+            r.component_average_flux_n_m2_s
+                .insert(id.into(), scalar(1.0e10, &format!("flux-{id}")));
+        }
+        let run = run_operating_history(&a, &r).unwrap();
+        // The event list holds outages, replacements and the permanent stop, in time order.
+        let count = |kind: EventKind| run.events.iter().filter(|e| e.kind == kind).count();
+        assert!(count(EventKind::PlannedOutageStarted) >= 10);
+        let started = count(EventKind::ReplacementStarted);
+        assert!(started >= 2);
+        assert!(count(EventKind::ReplacementCompleted) >= started - 1);
+        assert!(run.events.windows(2).all(|w| w[0].time_s <= w[1].time_s));
+        let permanent: Vec<_> = run
+            .events
+            .iter()
+            .filter(|e| {
+                e.kind == EventKind::ServiceLimitReached
+                    && e.component_id.as_deref() == Some("magnet")
+            })
+            .collect();
+        assert_eq!(permanent.len(), 1);
+        assert!(run.events.iter().all(|e| {
+            e.kind != EventKind::ReplacementStarted || e.component_id.as_deref() == Some("blanket")
+        }));
+        assert_eq!(run.outcome, HistoryOutcome::PermanentComponentLimit);
+        // Replacement resets only the named component.
+        let done = run
+            .events
+            .iter()
+            .find(|e| e.kind == EventKind::ReplacementCompleted)
+            .unwrap();
+        let at_done = run
+            .snapshots
+            .iter()
+            .find(|s| (s.time_s - done.time_s).abs() < 1e-6)
+            .unwrap();
+        assert_eq!(at_done.component_fluence_n_m2["blanket"], 0.0);
+        assert!(at_done.component_fluence_n_m2["magnet"] > 0.0);
+        assert_eq!(at_done.component_replacements["magnet"], 0);
+        // The permanent limit persists to the horizon: no operation after it.
+        let stop_s = permanent[0].time_s;
+        assert!(stop_s < horizon);
+        let after: Vec<_> = run
+            .snapshots
+            .iter()
+            .filter(|s| s.time_s > stop_s + 1.0)
+            .collect();
+        assert!(
+            !after.is_empty()
+                && after
+                    .iter()
+                    .all(|s| !s.operating && s.power_fraction == 0.0)
+        );
+        assert_eq!(run.snapshots.last().unwrap().time_s, horizon);
+        // Site inventory is one continuous ledger through every replacement and outage.
+        assert!(run.snapshots.windows(2).all(|w| {
+            w[1].cumulative_production_kg >= w[0].cumulative_production_kg
+                && w[1].cumulative_burn_kg >= w[0].cumulative_burn_kg
+                && w[1].cumulative_full_power_seconds >= w[0].cumulative_full_power_seconds
+        }));
+        assert!(
+            run.snapshots
+                .iter()
+                .all(|s| s.mass_balance_residual_kg.abs() <= run.mass_balance_tolerance_kg)
+        );
+        assert!(at_done.cumulative_production_kg > 0.0 && at_done.cumulative_burn_kg > 0.0);
     }
 }
 

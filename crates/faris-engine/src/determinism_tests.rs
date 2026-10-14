@@ -16,8 +16,13 @@ const DEMO_ASSUMPTIONS: &str =
     include_str!("../../../scenarios/arc-inspired/demo-operating-assumptions.json");
 const RATES: &str = include_str!("../tests/fixtures/determinism_rates.json");
 
-/// The 30-year demo history on the checked-in control reference rates.
+/// The 30-year demo history on the checked-in control reference rates, without the uncertainty
+/// fields added later (trip records and the snapshot uncertainty table). It is the digest the
+/// history had before they existed, so equality shows the added fields changed no result.
 const HISTORY_SHA256: &str = "b12eb936d6b6219dd7346fa3c1660736de1465732c3cff7699d94361ecc0b8af";
+/// The same history with every field, trip records and uncertainty states included.
+const HISTORY_FULL_SHA256: &str =
+    "242412686b8c33b5c12732a8b84aa0d267cb9d3a18b8d72d03620b12ca5d1d91";
 /// Eight sampled histories of the small synthetic fixture, seed 20261008.
 const ENSEMBLE_SHA256: &str = "5896ab4ad906a6211d26d39ccf57f7b254433710c44770c5d7c4703fb45f8fd8";
 
@@ -34,7 +39,11 @@ fn determinism_operating_history_digest() {
     let assumptions: OperatingHistoryAssumptions = serde_json::from_str(DEMO_ASSUMPTIONS).unwrap();
     let rates: TransportDrivingRates = serde_json::from_str(RATES).unwrap();
     let history = run_operating_history(&assumptions, &rates).expect("the demo history runs");
-    assert_eq!(digest(&history), HISTORY_SHA256);
+    assert_eq!(digest(&history), HISTORY_FULL_SHA256);
+    let mut original = history.clone();
+    original.snapshot_uncertainty.clear();
+    original.events.iter_mut().for_each(|e| e.trip = None);
+    assert_eq!(digest(&original), HISTORY_SHA256);
 }
 
 #[test]

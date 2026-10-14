@@ -19,6 +19,12 @@ basis.
   range, validated but out of range, code-to-code only or not validated, with the why and next step once per
   quantity (`data/validation.csv` in an export). Today every quantity is not validated. The design transport
   report is now `faris-design-transport-report/v0.4`; older reports still read. The desktop panels do not show it yet.
+- Replacement events store the criterion, the value reached, the limit and its unit, and the earliest and latest
+  time of the trip at two standard errors of the driving flux (first order; the reason when the flux has no
+  error). The brief and the sweep show the swap count and first swap with the same band and call a difference
+  resolved only when the bands separate. Every history, brief and sweep number carries an interval or the reason
+  it has none; the export adds `data/replacements.csv` and `data/uncertainty.csv` and appends uncertainty
+  columns to the existing tables. New fields are optional, so older files still read.
 - Literature maintenance-duration presets (EU-DEMO blanket 10 months, best case 6 months, internal components 20
   months; Crofts and Harman) with their source link and conditions, each labelled literature. A condition the
   sources FARIS holds do not state is left empty with the reason.

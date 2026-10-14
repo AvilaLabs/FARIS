@@ -1,6 +1,7 @@
 //! Descriptive paired operating-history comparisons with no uncertainty shortcut.
 use crate::history::{HistoryResult, TransportDrivingRates};
 use crate::jobs::Cancellation;
+use crate::output_uncertainty::OutputUncertainty;
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
 
@@ -171,6 +172,9 @@ pub struct HistoryDifferences {
     pub burned_tritium_kg_right_minus_left: f64,
     pub full_power_seconds_right_minus_left: f64,
     pub net_electricity_mwh_right_minus_left: Option<f64>,
+    /// The uncertainty state of each difference above, by field name.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub uncertainty: std::collections::BTreeMap<String, OutputUncertainty>,
 }
 
 impl PairedHistoryComparison {
@@ -256,6 +260,18 @@ pub fn compare_histories_cancellable(
             .cumulative_net_electricity_mwh
             .zip(l.cumulative_net_electricity_mwh)
             .map(|(a, b)| a - b),
+        uncertainty: [
+            "produced_tritium_kg_right_minus_left",
+            "burned_tritium_kg_right_minus_left",
+            "full_power_seconds_right_minus_left",
+            "net_electricity_mwh_right_minus_left",
+        ]
+        .into_iter()
+        .map(|name| (name.to_owned(), OutputUncertainty::none(
+            "a difference of two deterministic histories; the joint transport sampling error of the pair is not propagated",
+            "run the history ensemble for both variants and compare the ensembles",
+        )))
+        .collect(),
     };
     let summarize =
         |run: HistoryResult, final_snapshot: &crate::history::HistorySnapshot| HistoryRunSummary {
@@ -317,6 +333,74 @@ pub fn crossing_time_band(time: f64, flux_relative_error: f64) -> Option<(f64, O
     let early = time / (1.0 + half);
     let late = (half < 1.0).then(|| time / (1.0 - half));
     Some((early, late))
+}
+
+/// The fewest and most replacements of a component within the horizon at two standard errors of
+/// the driving flux, to first order. The fewest counts the replacements whose latest edge is
+/// still inside the horizon. The most counts every replacement of the mean run (all can only come
+/// earlier) and one more when the exposure accumulated toward the next limit at the horizon, raised
+/// by the same band, reaches it. It holds the mean run's schedule, outages and other replacements
+/// fixed, so a shifted outage that gains or loses operating time near the horizon is not counted.
+/// `None` when a replacement's flux has no standard error.
+pub fn replacement_count_band(
+    history: &HistoryResult,
+    component_id: &str,
+) -> Option<(usize, usize)> {
+    use crate::history::EventKind;
+    use faris_model::history::ComponentClass;
+    let horizon_s = history.assumptions.horizon_s;
+    let mut started = 0usize;
+    let mut completed = 0usize;
+    let mut fewest = 0usize;
+    for event in history
+        .events
+        .iter()
+        .filter(|e| e.component_id.as_deref() == Some(component_id))
+    {
+        match event.kind {
+            EventKind::ReplacementStarted => {
+                started += 1;
+                match &event.trip.as_ref()?.time_uncertainty_s {
+                    OutputUncertainty::Interval {
+                        upper: Some(late), ..
+                    } if *late <= horizon_s => fewest += 1,
+                    OutputUncertainty::Interval { .. } => {}
+                    OutputUncertainty::NoInterval { .. } => return None,
+                }
+            }
+            EventKind::ReplacementCompleted => completed += 1,
+            _ => {}
+        }
+    }
+    let mut most = started;
+    // An open replacement at the horizon has used its trip; otherwise the component is running.
+    if started == completed
+        && let Some(last) = history.snapshots.last()
+    {
+        let rates = &history.driving_rates;
+        let near_next = history
+            .assumptions
+            .service_limits
+            .iter()
+            .filter(|l| l.component_id == component_id && l.class == ComponentClass::Replaceable)
+            .try_fold(false, |near, limit| {
+                let (fluence, flux) = if limit.metric == crate::history::FAST_FLUX_REGION_METRIC {
+                    (
+                        last.limit_fluence_n_m2.get(&limit.response_id).copied()?,
+                        &rates.region_flux_n_m2_s.get(&limit.response_id)?.rate,
+                    )
+                } else {
+                    (
+                        last.component_fluence_n_m2.get(component_id).copied()?,
+                        rates.component_average_flux_n_m2_s.get(component_id)?,
+                    )
+                };
+                let r = first_crossing_relative_uncertainty(flux.mean, flux.standard_error)?;
+                Some(near || fluence * (1.0 + MARGIN_BAND_SIGMAS * r) >= limit.limit)
+            })?;
+        most += usize::from(near_next);
+    }
+    Some((fewest.min(started), most.max(started)))
 }
 
 /// Replacement outages of one component as `(start_s, end_s)` pairs, taken
@@ -424,6 +508,7 @@ mod tests {
             response_id: None,
             mass_kg: None,
             note: String::new(),
+            trip: None,
         }
     }
 
@@ -557,5 +642,26 @@ mod tests {
         assert_eq!(state(false, 42.0), OperatingState::FuelLimited);
         assert_eq!(state(false, 47.0), OperatingState::Stopped);
         assert_eq!(state(false, 105.0), OperatingState::PlannedOutage);
+    }
+
+    // Verifies: UNC-080
+    #[test]
+    fn every_difference_of_a_paired_comparison_has_a_reason_it_has_no_interval() {
+        let a = crate::fixtures::assumptions();
+        let rates = crate::fixtures::rates_without_covariance(0.05, 'a');
+        let mut other = rates.clone();
+        other.breeder_h3_per_source_neutron.mean *= 1.1;
+        let c = compare_histories(&a, "left", &rates, "right", &other, "breeding").unwrap();
+        crate::output_uncertainty::tests::assert_every_number_has_a_state(
+            &serde_json::to_value(&c.differences).unwrap(),
+            &c.differences.uncertainty,
+            &["uncertainty"],
+        );
+        assert!(
+            c.differences
+                .uncertainty
+                .values()
+                .all(|u| !u.has_interval())
+        );
     }
 }
