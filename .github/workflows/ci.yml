@@ -14,8 +14,8 @@ jobs:
       CARGO_BUILD_JOBS: 1
       RUST_TEST_THREADS: 1
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           toolchain: 1.98.1
           components: rustfmt, clippy
@@ -25,6 +25,12 @@ jobs:
       # faris-occt builds OpenCASCADE from source (about 90 minutes); it has its own gate, see crates/faris-occt/README.md.
       - run: cargo clippy --workspace --exclude faris-occt --all-targets --locked -- -D warnings
       - run: cargo test --workspace --exclude faris-occt --locked
+      # Documentation of the library crates must build without a rustdoc warning (QA-039). faris-app is left out:
+      # its documentation build would compile the whole graphics stack a second time.
+      - name: Rust documentation builds without warnings
+        run: cargo doc --workspace --exclude faris-occt --exclude faris-app --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
       # The fuzz entries (fuzz/entries, outside the workspace) run on the seed corpus and plain inputs, so a
       # parser change that panics fails here without a fuzzer. It reuses this job's build directory.
       - name: Fuzz entries survive the seed corpus
@@ -51,7 +57,7 @@ jobs:
         run: python3 scripts/doc_samples.py --faris target/debug/faris --cargo cargo --evidence doc-tests.json
       - name: Documentation sample evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: doc-tests-evidence
           path: doc-tests.json
@@ -66,6 +72,82 @@ jobs:
         run: python3 scripts/platform_table.py --check
       - name: Defect log lint
         run: python3 scripts/defect_log.py
+      - name: Tracked files stay small and hold no nuclear data
+        run: python3 scripts/check_repository_size.py
+
+  # Every commit of a pull request from a fork carries a Signed-off-by line whose address is the author's
+  # (LEG-005; the policy is in CONTRIBUTING.md). Branches of this repository are not checked.
+  sign-off:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Commits are signed off by their authors
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          status=0
+          for commit in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git show -s --format='%ae' "$commit")
+            if ! git show -s --format='%B' "$commit" | grep -i '^Signed-off-by: ' | grep -qiF "<${author}>"; then
+              echo "::error::Commit $commit has no Signed-off-by line for $author. Amend it with git commit -s --amend (see CONTRIBUTING.md)."
+              status=1
+            fi
+          done
+          exit $status
+
+  # RustSec advisories against Cargo.lock (QA-039). A vulnerability fails the job; the two "unmaintained"
+  # notices (rustybuzz, ttf-parser) are warnings and do not.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: cargo-audit
+      - run: cargo audit
+
+  # Reopens the recorded demo study from the v0.2.0 release package: rehashes the package index, reopens the
+  # saved Core cases against the package's own pinned executables, and checks that a tampered copy is rejected
+  # (QA-022). The package is the one web.yml downloads; the script is the copy inside the package, because the
+  # repository's script reads the newest package schema. About 20 seconds after the download. Linux only here;
+  # the other platforms run the package check in release-smoke.yml. Run time goes to the job summary.
+  recorded-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download the recorded demo package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p demo-package
+          gh release download v0.2.0 -R AvilaLabs/FARIS \
+            -p 'FARIS-0.2.0-linux-x86_64.tar.gz' -p 'FARIS-0.2.0-evidence.tar.gz' -p SHA256SUMS -D demo-package
+          (cd demo-package && grep -E 'FARIS-0.2.0-(linux-x86_64|evidence).tar.gz' SHA256SUMS | sha256sum -c -)
+          tar -xzf demo-package/FARIS-0.2.0-linux-x86_64.tar.gz -C demo-package
+          tar -xzf demo-package/FARIS-0.2.0-evidence.tar.gz -C demo-package
+      - name: Rehash, reopen and tamper-check the package
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          demo-package/FARIS-0.2.0/verify.sh > recorded-demo.json
+          grep -q '"tamper_control": "EXPECTED_REJECTION"' recorded-demo.json
+          echo "Recorded demo verification: $(( $(date +%s) - start )) s" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Recorded demo verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: recorded-demo-evidence
+          path: recorded-demo.json
+          if-no-files-found: ignore
 
   # The tests that need OpenMC itself. A requirement counts as Met only when CI runs its test, so this job
   # fails (instead of skipping) when OpenMC, numpy or the nuclear data is missing: FARIS_REQUIRE_OPENMC=1.
@@ -80,9 +162,9 @@ jobs:
       run:
         shell: bash -el {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: OpenMC 0.15.3 with DAGMC (conda-forge, environment cached)
-        uses: mamba-org/setup-micromamba@v2.0.5
+        uses: mamba-org/setup-micromamba@b09ef9b599704322748535812ca03efb2625677b # v2.0.5
         with:
           micromamba-version: "2.3.0-0"
           environment-file: integrations/openmc/ci-environment.yml
@@ -104,7 +186,7 @@ jobs:
       # openmc_ci.py checks the bytes against the recorded SHA-256 either way.
       - name: Nuclear data cache (FENDL-3.2 H1 and Fe56)
         id: data
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ci-data/neutron
           key: fendl32-neutron-H1-Fe56-v1

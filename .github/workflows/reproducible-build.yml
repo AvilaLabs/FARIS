@@ -2,11 +2,13 @@ name: Reproducible build
 
 # Builds the Linux `faris` command-line binary twice, from two checkouts at different paths into two target
 # directories, and fails unless the SHA-256 hashes are identical (QA-063). Two release builds take 8 minutes
-# on a laptop and probably 10 to 15 on a hosted runner, so this runs on demand and on version tags, not on every push. The evidence file
+# on a laptop and probably 10 to 15 on a hosted runner, so this runs on demand, weekly on Monday and on version tags, not on every push. The evidence file
 # is the --repro input of scripts/release_gate.py. faris-app is not covered (see docs/RELEASING.md).
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
   push:
     tags:
       - "v*"
@@ -19,15 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           toolchain: 1.98.1
       - name: Two builds, two paths, one hash
         run: scripts/repro_check.sh --work "$RUNNER_TEMP/repro" --evidence repro.json
       - name: Reproducible-build evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: repro-evidence
           path: repro.json

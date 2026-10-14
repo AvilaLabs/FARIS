@@ -18,6 +18,7 @@ on:
       - "Cargo.lock"
       - "book.toml"
       - "docs/guide/**"
+      - "docs/licence-footer.js"
       - "scripts/web_smoke.mjs"
       - "scripts/prepare_web_demo.py"
       - ".github/workflows/web.yml"
@@ -143,7 +144,7 @@ jobs:
           rm -rf crates/faris-app/dist/docs
           cp -R dist/docs crates/faris-app/dist/docs
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
@@ -161,7 +162,7 @@ jobs:
           WEB_URL=http://127.0.0.1:8080/ timeout 180s node scripts/web_smoke.mjs
 
       - name: Upload complete web bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: faris-web
           path: crates/faris-app/dist
