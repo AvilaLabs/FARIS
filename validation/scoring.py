@@ -237,7 +237,7 @@ def score_case(manifest: dict, record: dict | None, current: Identity, bootstrap
                              "no FARIS run record exists for this case", "run the case runner and seal a run record") for d in manifest["detectors"]]
         return _finish(manifest, base, None)
     run_identity = check_run_record(record, case_id)
-    base["run"] = {"run_id": record["run_id"], "record_sha256": record["record_sha256"], "identity": run_identity.as_dict()}
+    base["run"] = {"run_id": record["run_id"], "record_sha256": record["record_sha256"], "run_date": record.get("run_date"), "identity": run_identity.as_dict()}
     differs = run_identity.differences(current)
     results = {r["detector_id"]: r for r in record["results"]}
     for det in manifest["detectors"]:

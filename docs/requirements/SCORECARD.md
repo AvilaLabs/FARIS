@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1418 | 50 | 437 | 892 | 39 | 125 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
+| All requirements | 1418 | 51 | 437 | 891 | 39 | 128 | 9 % | 503 | 150 | 458 | 116 | 431 | 99 |
 
 ## By category
 
@@ -19,7 +19,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 1 | 9 | 87 | 0 | 2 | 2 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 4 | 17 | 78 | 0 | 5 | 5 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 2 | 8 | 35 | 0 | 1 | 2 % | 17 | 5 | 18 | 5 | 6 | 3 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 2 | 29 | 41 | 0 | 16 | 22 % | 18 | 6 | 20 | 17 | 27 | 5 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 3 | 29 | 40 | 0 | 18 | 25 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 6 | 10 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 3 | 8 % | 15 | 7 | 15 | 3 | 7 | 0 |
 | [Usability](09-usability.md) | 73 | 0 | 21 | 49 | 3 | 2 | 3 % | 37 | 12 | 30 | 10 | 5 | 6 |
@@ -34,7 +34,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 7 | 4 | 8 | 1 | 27 | 3 |
 | [Security](19-security.md) | 55 | 8 | 20 | 26 | 1 | 6 | 11 % | 14 | 3 | 7 | 0 | 36 | 10 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 18 | 23 | 0 | 0 | 0 % | 5 | 2 | 6 | 1 | 33 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 21 | 52 | 1 | 0 | 0 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 21 | 52 | 1 | 1 | 1 % | 16 | 13 | 23 | 7 | 34 | 7 |
 | [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 0 | 0 % | 13 | 1 | 22 | 11 | 4 | 2 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 5 | 17 | 12 | 2 | 5 | 14 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 41 | 226 | 159 | 19 | 80 | 18 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 496 | 3 | 138 | 337 | 18 | 26 | 5 % | 173 | 56 | 188 | 51 | 122 | 37 |
+| F2 | 496 | 4 | 138 | 336 | 18 | 29 | 6 % | 173 | 56 | 188 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 2 | 3 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 3 | 30 | 138 | 2 | 5 | 3 % | 65 | 15 | 62 | 8 | 41 | 10 |
 | F5 | 33 | 1 | 7 | 25 | 0 | 2 | 6 % | 16 | 8 | 12 | 1 | 5 | 2 |
@@ -107,8 +107,9 @@ Marked Met in the Now column, but no test declares `Verifies:` for them.
 - LEG-028 (23-compliance-and-privacy.md)
 - LEG-046 (23-compliance-and-privacy.md)
 
-## Traced but marked No (0)
+## Traced but marked No (2)
 
 A test declares `Verifies:` for them while the Now column says No; the Now column may be stale.
 
-None.
+- VAL-050 (06-accuracy-and-validation.md): `validation/test_matrix.py::test_every_calculated_quantity_has_a_row`
+- QA-070 (21-quality-assurance.md): `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`, `scripts/test_release_gate.py::test_an_unmet_requirement_fails_the_gate_and_the_exit_code_is_nonzero`, `scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver` and 5 more

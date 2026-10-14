@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+import hashlib
 import json
 import sys
 import tempfile
@@ -57,6 +58,36 @@ class Report(unittest.TestCase):
             self.assertEqual({c["case_id"] for c in suite["cases"]}, {p.parent.name for p in R.discover()})
             self.assertTrue((Path(d) / "report.md").read_text(encoding="utf-8").startswith("# FARIS validation report"))
             self.assertEqual(suite["coverage"]["scored"], 0)
+
+    # Verifies: VAL-091
+    def test_report_carries_every_section_and_records_its_hash(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as d2:
+            record = Path(d) / "record.json"
+            record.write_text(json.dumps({"version": "x"}), encoding="utf-8")
+            self.assertEqual(R.main(["report", "--out", d, "--release-record", str(record)]), 0)
+            self.assertEqual(R.main(["report", "--out", d2]), 0)
+            suite = json.loads((Path(d) / "report.json").read_text(encoding="utf-8"))
+            for key in ("methods", "matrix", "cases", "qualified_ranges", "known_issues", "last_run"):
+                self.assertTrue(suite[key], key)
+            self.assertTrue(all("distribution" in cls for c in suite["cases"] for cls in c["classes"].values()))
+            text = (Path(d) / "report.md").read_text(encoding="utf-8")
+            for heading in ("## Methods", "## V&V matrix", "## Known issues", "## Qualified ranges", "## Last run of each benchmark"):
+                self.assertIn(heading, text)
+            rec = json.loads(record.read_text(encoding="utf-8"))
+            self.assertEqual(rec["version"], "x")
+            self.assertEqual(rec["vv_report_sha256"], hashlib.sha256((Path(d) / "report.json").read_bytes()).hexdigest())
+            self.assertIn(rec["vv_report_sha256"], (Path(d) / "report.sha256").read_text(encoding="utf-8"))
+            # The same inputs give the same bytes, so the recorded hash identifies the report.
+            self.assertEqual((Path(d) / "report.json").read_bytes(), (Path(d2) / "report.json").read_bytes())
+
+    # Verifies: VAL-091
+    def test_last_run_date_comes_from_the_run_record(self):
+        m = manifest()
+        record = run_record(m, [1.0] * 6)
+        self.assertEqual(R.build_suite([m], {"fixture": record}, IDENT)["last_run"]["fixture"], "run date not recorded in the run record")
+        from validation.scoring import seal_run_record
+        dated = seal_run_record(dict(record, run_date="2026-10-12"))
+        self.assertEqual(R.build_suite([m], {"fixture": dated}, IDENT)["last_run"]["fixture"], "2026-10-12")
 
     def test_registered_cases_with_a_synthetic_record_score_and_go_stale(self):
         m = load_manifest(R.CASES_DIR / "oktavian-al" / "manifest.json")

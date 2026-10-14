@@ -1,0 +1,21 @@
+{
+  "schema": "faris.validation-quantities/1.0.0",
+  "note": "The calculated quantities of requirement VAL-050 and the registered benchmark responses that cover each. A quantity with an empty list has no benchmark and is shown as not validated. Add a benchmark here only when a case in validation/cases has a response class that really measures the quantity.",
+  "quantities": [
+    {"id": "tbr", "label": "tritium breeding ratio", "kind": "calculated", "benchmarks": []},
+    {"id": "heating", "label": "nuclear heating", "kind": "calculated", "benchmarks": []},
+    {"id": "flux", "label": "neutron flux", "kind": "calculated", "benchmarks": [
+      {"case_id": "oktavian-al", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere, not an interior flux"},
+      {"case_id": "iter-1d", "response_class": "neutron_flux", "scope": "track-length flux per material cell in a one-dimensional ITER model"}
+    ]},
+    {"id": "fluence", "label": "fluence", "kind": "calculated", "benchmarks": []},
+    {"id": "dpa", "label": "displacements per atom", "kind": "calculated", "benchmarks": []},
+    {"id": "gas_production", "label": "gas production", "kind": "calculated", "benchmarks": []},
+    {"id": "activation", "label": "activation", "kind": "calculated", "benchmarks": []},
+    {"id": "decay_heat", "label": "decay heat", "kind": "calculated", "benchmarks": []},
+    {"id": "shutdown_dose_rate", "label": "shutdown dose rate", "kind": "calculated", "benchmarks": []},
+    {"id": "tritium_inventory", "label": "tritium inventory", "kind": "calculated", "benchmarks": []},
+    {"id": "availability", "label": "availability", "kind": "calculated", "benchmarks": []},
+    {"id": "net_electric_power", "label": "net electric power", "kind": "calculated", "benchmarks": []}
+  ]
+}

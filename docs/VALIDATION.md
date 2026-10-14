@@ -15,7 +15,8 @@ and never from a hand edit (VAL-006).
 | --- | --- |
 | `validation/scoring.py` | compatibility rule, C/E distribution, bootstrap bias, aggregation refusal, run-record hashing, stale marking |
 | `validation/manifest.py` | manifest schema, validator, upstream file hash check |
-| `validation/report.py` | per-case and suite report, JSON and Markdown; one command |
+| `validation/report.py` | per-case and suite report, JSON and Markdown; one command; the release V&V report (VAL-091) |
+| `validation/matrix.py`, `quantities.json`, `matrix.json` | the V&V matrix, generated from the quantity registry and manifests; its blank-cell check (VAL-051) |
 | `validation/cases/<case-id>/manifest.json` | one case: source, licence, file hashes, detectors, rule, not-covered list |
 | `validation/cases/<case-id>/build_manifest.py` | regenerates the manifest from a read-only upstream checkout |
 | `validation/cases/<case-id>/run_case.py` | case runner that builds and runs OpenMC (OKTAVIAN only so far) |
@@ -26,6 +27,8 @@ report with:
 ```sh
 python3 -m validation report --out DIR [--runs RUNS_DIR --identity identity.json]
 ```
+
+The report also carries the methods, the V&V matrix, the qualified ranges, the known issues and the last run date of each case. Add `--release-record FILE` to write its SHA-256 into the release record. The release gate that checks the matrix and the report is described in [RELEASING.md](RELEASING.md).
 
 `RUNS_DIR` holds `<case-id>.run.json` records. `identity.json` is the current
 `library_sha256`, `code_version` and `adapter_sha256`. Without run records every case
