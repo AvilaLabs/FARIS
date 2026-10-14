@@ -159,7 +159,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
                     "faris_version": env!("CARGO_PKG_VERSION"), "optional_tools": tools,
-                    "note": "PATH presence only; no solver executed. The absorber numerical control accepts explicit tool paths. Reactor transport and Core execution are not implemented.",
+                    "note": "PATH presence only; no tool executed. Commands that run a tool take its path as a flag (faris reactor run, faris design check and transport, faris evidence run, faris control absorber); the desktop app's Find tools searches environments as well as PATH.",
                 }))?
             );
         }
