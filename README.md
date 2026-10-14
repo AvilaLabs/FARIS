@@ -130,9 +130,9 @@ Save the study with Ctrl+S (File menu) and use **Export…** in the top bar for
 the PDF brief, CSV tables and charts. The [user guide](docs/USER_GUIDE.md)
 covers each step, the uncertainty results and the command line in detail,
 and the [handbook](https://faris.avilalabs.org/docs/) covers the whole demo
-chapter by chapter. Its source is in `docs/guide`; `mdbook build`, then
-`scripts/prepare_web.py` and `npx wrangler@4 deploy --config wrangler.jsonc`
-publish it.
+chapter by chapter. Its source is in `docs/guide`; it is published together with the browser
+version from the `faris-web` build of `.github/workflows/web.yml` through
+`deploy/web/sync.sh`.
 
 ## Reading the results
 
