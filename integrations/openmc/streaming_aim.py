@@ -5,7 +5,8 @@
 
 `plan` returns one of two modes, always with the reason and the next step:
 
-- "aimed": the model's windows are capped along the line of sight from the response outward, and the run aims its
+- "aimed": the model's windows (the HDF5 file its <weight_windows_file> names, beside the model) are capped along
+  the line of sight from the response outward, into WORK/windows-capped.h5, and the run aims its
   source and its elastic collisions at the duct exit and inlet. This needs an OpenMC built with
   patches/faris-openmc-0.15.3-aim.patch.
 - "windows-only": the model runs as it is, with its own windows. Chosen when the OpenMC library lacks the patch,
@@ -77,7 +78,8 @@ def tidy(directory: Path) -> None:
 def plan(model: Path, work: Path, library: Path | None, response_material: int = 4,
          particles: int = 10_000_000, keep_runs: bool = True) -> dict:
     """Decide the mode for `model` (one XML file with its windows on mesh 9000) and prepare an aimed run if one
-    is possible. Writes WORK/plan.json and, for an aimed run, WORK/model-aimed.xml. With `keep_runs` false the
+    is possible. Writes WORK/plan.json and, for an aimed run, WORK/model-aimed.xml and WORK/windows-capped.h5, the
+    windows the aimed run must read in place of the model's own. With `keep_runs` false the
     helper runs' bulky files are removed as soon as each step has read them."""
     work.mkdir(parents=True, exist_ok=True)
     out = choose(aiming_supported(library), None)
@@ -94,7 +96,7 @@ def plan(model: Path, work: Path, library: Path | None, response_material: int =
             counts = W.cap_model(model, aimed, work / "visibility", targets)
             if not keep_runs:
                 tidy(work / "visibility")
-            out = {"mode": "aimed", "model": str(aimed), "env": aim_env(T.aperture_spec(targets, SOURCE_BETA)),
+            out = {"mode": "aimed", "model": str(aimed), "windows": counts.get("windows"), "env": aim_env(T.aperture_spec(targets, SOURCE_BETA)),
                    "reason": ("Neutrons reach the response through a duct without a collision (through the void "
                               "or thin material); the run aims at the duct's exit and inlet."),
                    "next_step": "Run the aimed model with the variables given, on the patched OpenMC.",

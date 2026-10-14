@@ -52,7 +52,7 @@ const MGXS_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const WINDOWS_TIMEOUT: Duration = Duration::from_secs(60 * 60);
 /// Names the way weight windows, the channel search and piece volumes are made. Kept results are
 /// reused only under the same name: change it whenever one of those steps changes what it writes.
-const PREPARATION_RECIPE: &str = "2026-10-13";
+const PREPARATION_RECIPE: &str = "2026-10-14";
 const VOLUMES_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 /// Where a run is: a step that prepares it, or sampling with the error reached so far.
@@ -665,9 +665,9 @@ fn restore_windows(entry: &Path, dir: &Path) -> Result<bool, DesignError> {
     let plan = entry.join("aim").join("plan.json");
     if plan.is_file() {
         copy_file(&plan, &dir.join("aim-kept").join("plan.json"))?;
-        let block = entry.join("aim").join("windows-block.xml");
-        if block.is_file() {
-            copy_file(&block, &dir.join("aim-kept").join("windows-block.xml"))?;
+        let capped = entry.join("aim").join("windows-capped.h5");
+        if capped.is_file() {
+            copy_file(&capped, &dir.join("aim-kept").join("windows-capped.h5"))?;
         }
     }
     Ok(true)
@@ -712,11 +712,11 @@ fn keep_for_later(dir: &Path, entry: &Path, windows_reused: bool) -> Result<(), 
     // The worker writes these only after a search of its own.
     let plan = dir.join("aim").join("plan.json");
     if plan.is_file() {
-        let block = dir.join("aim").join("windows-block.xml");
-        if block.is_file() {
-            copy_file(&block, &entry.join("aim").join("windows-block.xml"))?;
+        let capped = dir.join("aim").join("windows-capped.h5");
+        if capped.is_file() {
+            copy_file(&capped, &entry.join("aim").join("windows-capped.h5"))?;
         } else {
-            let _ = std::fs::remove_file(entry.join("aim").join("windows-block.xml"));
+            let _ = std::fs::remove_file(entry.join("aim").join("windows-capped.h5"));
         }
         copy_file(&plan, &entry.join("aim").join("plan.json"))?;
     }

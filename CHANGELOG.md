@@ -224,6 +224,14 @@ basis.
   cadquery, which FARIS does not install. Conversion and the later checks 6 to 9
   are reported as not evaluated. See [The design file](docs/guide/design-file.md).
 
+### Fixed
+
+- Large machines no longer fail writing their weight windows: `faris design transport` died with "File too large"
+  on a machine 1.8 times the reference size, because the windows' bounds (475,695 voxels, 17 groups) were written
+  into the model file as text and passed the job runner's 256 MiB file limit. The run now hands OpenMC the windows as
+  an HDF5 file (the model file stays under a megabyte), and the aiming step caps the bounds in that file. Results
+  are unchanged to the last digit for a given seed. Kept window caches from before are not reused and are made again.
+
 ## 0.2.0 — 2026-10-08
 
 Replacement outages computed from activation. FARIS can now work out how long

@@ -17,6 +17,9 @@ capped, so the chain response -> exit -> inlet -> walls is consistent.
 
     python s0f_los_windows.py BASE_MODEL_XML OUT_MODEL_XML --work DIR [--particles 2000000]
 
+BASE_MODEL_XML holds its windows inline, or names a windows HDF5 file beside it (a FARIS design-transport run, which
+writes its windows that way); then the capped windows are written to windows-capped.h5 beside OUT_MODEL_XML.
+
 (Fact 12's first version ray-marched with openmc.lib.find_material; solid_angle() remains as a check of P in void.)
 """
 import argparse
@@ -187,22 +190,34 @@ def visibility_run(base: Path, work: Path, target, groups: np.ndarray, mesh_xml:
     return mean, np.where(mean > 0, sd / np.where(mean > 0, mean, 1.0), np.inf)
 
 
-def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 2_000_000) -> dict:
-    """Write `out`: `base` with its windows capped from each target in turn. Returns counts for the record."""
-    targets = TARGETS if targets is None else targets
-    x = base.read_text()
-    j = x.index('<mesh id="9000"')
-    mesh_xml = x[j:x.index("</mesh>", j) + len("</mesh>")]
+def read_window_file(path: Path):
+    """(energy bounds, lower, upper) of the first window of a weight-windows HDF5 file; the bounds are
+    (n_groups, n_voxels) with the x index running fastest, the layout `flat_index` assumes."""
+    import h5py
+    with h5py.File(path, "r") as f:
+        group = f["weight_windows"][next(iter(f["weight_windows"]))]
+        return group["energy_bounds"][()], group["lower_ww_bounds"][()], group["upper_ww_bounds"][()]
+
+
+def write_window_file(src: Path, dst: Path, lower: np.ndarray, upper: np.ndarray) -> None:
+    """A copy of the window file `src` at `dst` with new bounds (same shape); `src` is not changed."""
+    import shutil
+    import h5py
+    shutil.copyfile(src, dst)
+    with h5py.File(dst, "r+") as f:
+        group = f["weight_windows"][next(iter(f["weight_windows"]))]
+        group["lower_ww_bounds"][...] = lower
+        group["upper_ww_bounds"][...] = upper
+
+
+def capped_bounds(base: Path, work: Path, targets, particles: int, bounds, lower, upper, mesh_xml: str):
+    """The windows' lower and upper bounds lowered from each target in turn (the mesh is `mesh_xml`, an element of
+    `base`). Returns (new lower, new upper, record counts)."""
     get = lambda tag, s: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S).group(1).split()]
     dims = [int(v) for v in get("dimension", mesh_xml)]
     lower_left, width = get("lower_left", mesh_xml), get("width", mesh_xml)
-    i = x.index('<weight_windows id="1">')
-    k = x.index("</weight_windows>", i)
-    ww = x[i:k]
-    bounds = np.array(get("energy_bounds", ww))
     n_e, n_vox = len(bounds) - 1, int(np.prod(dims))
-    lower = np.array(get("lower_ww_bounds", ww)).reshape(n_e, n_vox)
-    upper = np.array(get("upper_ww_bounds", ww)).reshape(n_e, n_vox)
+    lower, upper = np.asarray(lower).reshape(n_e, n_vox), np.asarray(upper).reshape(n_e, n_vox)
     ratio = np.where(lower > 0, upper / np.where(lower > 0, lower, 1.0), 0.0)
     g0 = int(np.searchsorted(bounds, E_MIN))          # first group above the cut-off
     groups = bounds[g0:]
@@ -222,15 +237,50 @@ def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 
               f"{float(np.median(before[m] / new[g0:][m])) if m.any() else 1.0:.3g}", flush=True)
     m = new < lower
     new_up = np.where(m, new * ratio, upper)
-    print(f"total: lowered {int(m.sum())} of {int((lower > 0).sum())} positive bounds; factor median "
-          f"{float(np.median(lower[m] / new[m])):.3g}, 99th percentile {float(np.percentile(lower[m] / new[m], 99)):.3g}")
+    if m.any():
+        print(f"total: lowered {int(m.sum())} of {int((lower > 0).sum())} positive bounds; factor median "
+              f"{float(np.median(lower[m] / new[m])):.3g}, 99th percentile "
+              f"{float(np.percentile(lower[m] / new[m], 99)):.3g}")
+    else:
+        print(f"total: lowered none of {int((lower > 0).sum())} positive bounds")
+    return new, new_up, {"lowered": int(m.sum()), "positive": int((lower > 0).sum())}
+
+
+def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 2_000_000) -> dict:
+    """Write `out`: `base` with its windows capped from each target in turn. Returns counts for the record.
+
+    If `base` names its windows in a <weight_windows_file> (the file of a FARIS run, found beside `base`), the
+    capped windows are written to `windows-capped.h5` beside `out`, a copy of that file with new bounds, and `out`
+    is `base` unchanged: the aimed run reads the capped file under the name `base` gives. The counts then hold the
+    file's path under "windows". If `base` holds its windows inline (the research models of protocols 1 to 5),
+    `out` holds the capped windows inline and "windows" is None."""
+    targets = TARGETS if targets is None else targets
+    x = base.read_text()
+    j = x.index('<mesh id="9000"')
+    mesh_xml = x[j:x.index("</mesh>", j) + len("</mesh>")]
+    named = re.search(r"<weight_windows_file>(.*?)</weight_windows_file>", x, re.S)
+    if named is not None:
+        source = base.parent / named.group(1).strip()
+        bounds, lower, upper = read_window_file(source)
+        new, new_up, counts = capped_bounds(base, work, targets, particles, bounds, lower, upper, mesh_xml)
+        capped = out.parent / "windows-capped.h5"
+        write_window_file(source, capped, new, new_up)
+        out.write_text(x)
+        return {**counts, "windows": str(capped)}
+    get = lambda tag, s: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S).group(1).split()]
+    i = x.index('<weight_windows id="1">')
+    k = x.index("</weight_windows>", i)
+    ww = x[i:k]
+    bounds = np.array(get("energy_bounds", ww))
+    new, new_up, counts = capped_bounds(base, work, targets, particles, bounds, get("lower_ww_bounds", ww),
+                                        get("upper_ww_bounds", ww), mesh_xml)
     fmt = lambda a: " ".join(repr(float(v)) for v in a.ravel())
     ww2 = re.sub(r"<lower_ww_bounds>.*?</lower_ww_bounds>", f"<lower_ww_bounds>{fmt(new)}</lower_ww_bounds>", ww,
                  flags=re.S)
     ww2 = re.sub(r"<upper_ww_bounds>.*?</upper_ww_bounds>", f"<upper_ww_bounds>{fmt(new_up)}</upper_ww_bounds>", ww2,
                  flags=re.S)
     out.write_text(x[:i] + ww2 + x[k:])
-    return {"lowered": int(m.sum()), "positive": int((lower > 0).sum())}
+    return {**counts, "windows": None}
 
 
 def main() -> int:

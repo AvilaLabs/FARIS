@@ -32,7 +32,8 @@ With "windows", `mgxs` and `windows` run first and `run` uses what they leave in
 directory. `mgxs` condenses the library to 17 groups, ten of them above 0.1 MeV, on the
 materials of the design (OpenMC 0.15.3). `windows` solves the adjoint problem of the
 response by random ray on a 25 cm grid and writes weight windows from it (CADIS; this needs
-OpenMC 0.16 or later). `run` then splits and roulettes on those windows. If the OpenMC
+OpenMC 0.16 or later). `run` then splits and roulettes on those windows, which it hands to OpenMC as an HDF5
+file (WORK/solver/windows.h5), never as XML text: on a large machine the bounds are hundreds of megabytes. If the OpenMC
 library `run` loads was built with the aiming patch, it also looks for duct openings
 that neutrons cross on their way from the source to the response without a collision, and aims at them (streaming_aim.py); otherwise the windows are
 used as they are. Either way the result says which mode ran and why. This is the recipe of
@@ -59,6 +60,7 @@ import hashlib
 import json
 import math
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -688,32 +690,75 @@ def phase_volumes(request: dict, work: Path) -> dict:
     return record
 
 
-def apply_windows(openmc, model, filled: Path) -> None:
-    window = openmc.hdf5_to_wws(str(filled))[0]
-    window.id, window.max_split = WINDOW_ID, MAX_SPLIT
-    window.mesh.id = WINDOW_MESH_ID
-    model.settings.weight_windows = [window]
+RUN_WINDOWS = "windows.h5"   # the windows a run reads, in its working directory, named by the model's <weight_windows_file>
+
+
+def apply_windows(openmc, model, filled: Path, directory: Path):
+    """Make the model read its weight windows from DIRECTORY/windows.h5 and return their mesh.
+
+    The windows are not written into the model's XML: on a large machine their bounds are hundreds of megabytes
+    of text that OpenMC must parse again at every run. The file is a copy of FILLED with FARIS's window id,
+    split limit and mesh id (FILLED itself, a cache entry, is never changed). OpenMC loads the bounds from it, and
+    takes the mesh by the id stored in it, so the mesh must be in the model: pass the returned mesh to
+    `export_model`. The model refers to the file by name, so the run must start in DIRECTORY. The window id in the
+    file's group name is only a label: OpenMC numbers a window it loads itself (1 when it is the only one)."""
+    import h5py
+
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / RUN_WINDOWS
+    shutil.copyfile(filled, target)
+    with h5py.File(target, "r+") as stream:
+        windows = stream["weight_windows"]
+        group = windows[next(iter(windows))]
+        label = f"weight_windows_{WINDOW_ID}"
+        if group.name.rsplit("/", 1)[-1] != label:
+            windows.move(group.name.rsplit("/", 1)[-1], label)
+        windows.attrs["ids"] = [WINDOW_ID]
+        windows.attrs["n_weight_windows"] = 1
+        group = windows[label]
+        group["max_split"][...] = MAX_SPLIT
+        group["mesh"][...] = WINDOW_MESH_ID
+        meshes = stream["meshes"]
+        old = next(iter(meshes))
+        meshes.move(old, f"mesh {WINDOW_MESH_ID}")
+        meshes[f"mesh {WINDOW_MESH_ID}"].attrs["id"] = WINDOW_MESH_ID
+        meshes.attrs["ids"] = [WINDOW_MESH_ID]
+        meshes.attrs["n_meshes"] = 1
+        mesh = openmc.MeshBase.from_hdf5(meshes[f"mesh {WINDOW_MESH_ID}"])
+    mesh.id = WINDOW_MESH_ID
+    # a bare name: openmc would write the path of this process's directory, and the run starts in its own
+    resolve = openmc.config["resolve_paths"]
+    openmc.config["resolve_paths"] = False
+    try:
+        model.settings.weight_windows_file = Path(RUN_WINDOWS)
+    finally:
+        openmc.config["resolve_paths"] = resolve
     model.settings.weight_windows_on = True
     model.settings.weight_window_checkpoints = {"collision": True, "surface": True}
+    return mesh
 
 
-WINDOW_BLOCK = ('<weight_windows id="%d">' % WINDOW_ID, "</weight_windows>")
+def export_model(model, path: Path, window_mesh=None) -> None:
+    """Write the model as one XML file, with the mesh of file-borne weight windows (from `apply_windows`) in its
+    settings: the window file names the mesh by id and OpenMC looks it up among the model's meshes."""
+    model.export_to_model_xml(str(path))
+    if window_mesh is None:
+        return
+    import xml.etree.ElementTree as ET
+
+    text = Path(path).read_text()
+    element = window_mesh.to_xml_element()
+    ET.indent(element, space="  ", level=2)
+    at = text.index("</settings>")
+    Path(path).write_text(text[:at] + "  " + ET.tostring(element, encoding="unicode") + "\n  " + text[at:])
 
 
-def window_block(xml: str) -> str:
-    """The weight-window element of a model file, as text."""
-    start = xml.index(WINDOW_BLOCK[0])
-    return xml[start:xml.index(WINDOW_BLOCK[1], start) + len(WINDOW_BLOCK[1])]
-
-
-def with_window_block(xml: str, block: str) -> str:
-    """`xml` with its weight-window element replaced by `block`."""
-    return xml.replace(window_block(xml), block, 1)
+CAPPED_WINDOWS = "windows-capped.h5"   # in WORK/aim: the run's windows after aiming lowered them along the line of sight
 
 
 def reuse_aim(model_xml: Path, work: Path, supported: bool) -> dict | None:
     """A plan kept from an earlier run on the same geometry, materials, response and windows (WORK/aim-kept), if
-    it was made for the same kind of OpenMC build. An aimed plan's capped windows are put into this run's model."""
+    it was made for the same kind of OpenMC build. An aimed plan's capped windows file is put beside this run's."""
     kept = work / "aim-kept"
     if not (kept / "plan.json").is_file():
         return None
@@ -721,17 +766,23 @@ def reuse_aim(model_xml: Path, work: Path, supported: bool) -> dict | None:
     if plan.get("library_supported") != supported:
         return None
     if plan["mode"] == "aimed":
+        if not (kept / CAPPED_WINDOWS).is_file():
+            return None
         aimed = work / "aim" / "model-aimed.xml"
         aimed.parent.mkdir(parents=True, exist_ok=True)
-        aimed.write_text(with_window_block(model_xml.read_text(), (kept / "windows-block.xml").read_text()))
+        # The aimed model differs from this run's only in the windows file it is given when it runs.
+        aimed.write_text(model_xml.read_text())
+        shutil.copyfile(kept / CAPPED_WINDOWS, work / "aim" / CAPPED_WINDOWS)
         plan["model"] = str(aimed)
+        plan["windows"] = str(work / "aim" / CAPPED_WINDOWS)
     plan["reused"] = True
     return plan
 
 
 def plan_aim(request: dict, model_xml: Path, work: Path, material_numbers: dict) -> dict:
     """Ask streaming_aim.py whether this run can aim; always returns a plan with its reason and next step.
-    The plan and an aimed plan's capped windows are left in WORK/aim for the engine to keep."""
+    The plan and an aimed plan's capped windows file (WORK/aim/windows-capped.h5) are left in WORK/aim for the
+    engine to keep."""
     import openmc.lib
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -760,8 +811,6 @@ def plan_aim(request: dict, model_xml: Path, work: Path, material_numbers: dict)
     plan["library_supported"] = supported
     plan["reused"] = False
     (work / "aim" / "plan.json").write_text(json.dumps(plan, indent=1))
-    if plan["mode"] == "aimed":
-        (work / "aim" / "windows-block.xml").write_text(window_block(Path(plan["model"]).read_text()))
     return plan
 
 
@@ -834,8 +883,8 @@ def phase_run(request: dict, work: Path) -> dict:
         windows_record = json.loads((work / "windows" / "record.json").read_text())
         if sha256_file(filled) != windows_record["filled_sha256"]:
             raise RuntimeError("the weight windows do not match their record")
-        apply_windows(openmc, model, filled)
-        model.export_to_model_xml(model_xml)
+        window_mesh = apply_windows(openmc, model, filled, out_dir)
+        export_model(model, model_xml, window_mesh)
         numbers = {name: material.id for name, material in materials.items()}
         aim_started = time.monotonic()
         mode = plan_aim(request, model_xml, work, numbers)
@@ -843,6 +892,8 @@ def phase_run(request: dict, work: Path) -> dict:
         if mode["mode"] == "aimed":
             model_xml.unlink()
             model_xml = Path(mode["model"])
+            # The aimed model reads the same file name; what is there now is the capped copy.
+            shutil.copyfile(mode["windows"], out_dir / RUN_WINDOWS)
             os.environ.update(mode["env"])
     else:
         model.export_to_model_xml(model_xml)

@@ -152,12 +152,29 @@ class WindowHelpersTest(unittest.TestCase):
         self.assertAlmostEqual(everything[0], 0.029)
         self.assertTrue(all(a < b for a, b in zip(everything, everything[1:])))
 
-    def test_window_block_is_replaced_whole(self):
-        xml = '<model><settings><weight_windows id="1"><a>1</a></weight_windows><x/></settings></model>'
-        block = DT.window_block(xml)
-        self.assertEqual(block, '<weight_windows id="1"><a>1</a></weight_windows>')
-        new = DT.with_window_block(xml, '<weight_windows id="1"><a>2</a></weight_windows>')
-        self.assertEqual(new, xml.replace("<a>1</a>", "<a>2</a>"))
+    def test_a_kept_aimed_plan_brings_its_capped_windows_file_and_the_runs_model(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as scratch:
+            work = Path(scratch)
+            kept = work / "aim-kept"
+            kept.mkdir()
+            (kept / "plan.json").write_text(json.dumps({"mode": "aimed", "library_supported": True, "env": {}}))
+            model = work / "solver" / "model.xml"
+            model.parent.mkdir()
+            model.write_text("<model>this run</model>")
+            # a plan kept without its windows file cannot be used
+            self.assertIsNone(DT.reuse_aim(model, work, True))
+            (kept / DT.CAPPED_WINDOWS).write_bytes(b"capped windows")
+            plan = DT.reuse_aim(model, work, True)
+            self.assertTrue(plan["reused"])
+            self.assertEqual(Path(plan["model"]).read_text(), "<model>this run</model>")
+            self.assertEqual(Path(plan["windows"]).read_bytes(), b"capped windows")
+            self.assertEqual(Path(plan["windows"]), work / "aim" / DT.CAPPED_WINDOWS)
+            # another kind of OpenMC build does not reuse it
+            self.assertIsNone(DT.reuse_aim(model, work, False))
 
     def test_the_window_seeds_are_reserved(self):
         import copy as c

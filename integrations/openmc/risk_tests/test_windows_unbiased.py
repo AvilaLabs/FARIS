@@ -87,9 +87,9 @@ def window_mesh(openmc):
     return mesh
 
 
-def run_in(directory: Path, model, log: str, threads: int = THREADS):
+def run_in(directory: Path, model, log: str, threads: int = THREADS, window_mesh=None):
     directory.mkdir(parents=True, exist_ok=True)
-    model.export_to_model_xml(str(directory))
+    DT.export_model(model, directory / "model.xml", window_mesh)
     DT.run_cli(directory, threads, log)
 
 
@@ -147,9 +147,9 @@ class WindowsDoNotBiasTheAnswer(unittest.TestCase):
 
             # 3. the windowed run, same model and source, other seed
             windowed = build_model(openmc, library, WINDOWED_RUN, WINDOWED_SEED)
-            DT.apply_windows(openmc, windowed, filled)
+            mesh = DT.apply_windows(openmc, windowed, filled, work / "windowed")
             started = time.monotonic()
-            run_in(work / "windowed", windowed, "openmc.log")
+            run_in(work / "windowed", windowed, "openmc.log", window_mesh=mesh)
             windowed_seconds = time.monotonic() - started
             w, w_error = read_tally(openmc, work / "windowed", WINDOWED_RUN["batches"])
 

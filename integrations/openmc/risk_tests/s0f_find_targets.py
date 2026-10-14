@@ -34,6 +34,7 @@ def uncollided_map(base: Path, work: Path, particles: int, cell: float, response
     s = re.sub(r"<batches>\d+</batches>", "<batches>10</batches>", s, count=1)
     s = re.sub(r"<weight_windows id.*?</weight_windows>", "", s, flags=re.S)
     s = re.sub(r"<weight_windows_on>.*?</weight_windows_on>", "", s, flags=re.S)
+    s = re.sub(r"<weight_windows_file>.*?</weight_windows_file>", "", s, flags=re.S)
     s = re.sub(r"<weight_window_checkpoints>.*?</weight_window_checkpoints>", "", s, flags=re.S)
     s = re.sub(r"<state_point>.*?</state_point>", "", s, flags=re.S)
     s = re.sub(r"<energy_neutron>.*?</energy_neutron>", f"<energy_neutron>{cutoff}</energy_neutron>", s, flags=re.S)
