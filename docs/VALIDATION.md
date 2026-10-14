@@ -197,6 +197,55 @@ Uses the identities already registered in `references/iter-1d-reference.json`
 (VAL-044). It has two detectors, one per declared response class, and no reference
 values: until a second code is run the case is NOT_EVALUATED with that reason.
 
+## Registered sources
+
+### OpenMC-Fusion-Benchmarks (OFB)
+
+Segantin, Pettinari, Shimwell and Peterson, "OpenMC Fusion Benchmarks", Fusion Science and Technology
+2026, doi 10.1080/15361055.2026.2664345. An open set of fusion neutronics benchmarks with an OpenMC
+specification, STEP geometry, a results database of OpenMC and MCNP runs, and a Python package that builds,
+runs and post-processes them. FARIS reads it as a source of inputs and cross-checks. It does not take OFB's
+results as its own (VAL-036), and it does not run OFB's package: the case runner builds the model itself from the
+pinned files.
+
+| Repository | Pinned commit | Retrieved | Licence |
+| --- | --- | --- | --- |
+| https://github.com/eepeterson/openmc_fusion_benchmarks, branch `develop` | `653d6aba04d993d2915a4e4e983e2a2119fa0e27` (2026-04-08) | 2026-10-14 | MIT, Copyright (c) 2025 MIT PSFC |
+| https://github.com/SteSeg/openmc_fusion_benchmarks-lfs (OFB submodule `lfs`) | `dace719d46c76c3b9f24a98ebf9f85ce1b8092a7` (2025-06-11) | 2026-10-14 | MIT, Copyright (c) 2025 Stefano Segantin |
+| the same OFB repository, branch `master` (older layout, read for the inventory below only) | `c47fc573a7e2a9ca11a8958dc67155b1146adf51` (2025-03-21) | 2026-10-14 | MIT, as `develop` |
+
+Licence attribution: the MIT licence requires its copyright notice and permission notice in "all copies or
+substantial portions of the Software". FARIS copies no OFB source code. The case manifests hold the sha256 of
+the OFB files they use, small numeric tables extracted from the OFB specification (the OKTAVIAN source
+histogram, tally edges and material compositions) with the attribution "from OpenMC-Fusion-Benchmarks,
+Copyright (c) 2025 MIT PSFC, MIT licence, commit 653d6ab", and nothing else. The licence texts are the files
+`LICENSE` and `lfs/LICENSE` in the pinned commits (sha256 `1da773db...` and `0a103dd5...`). The STEP files are
+fetched with `git lfs pull` (or from `media.githubusercontent.com` at the pinned submodule commit) into a cache
+directory and are not stored in this repository; the LFS object id of each file is its sha256 and the manifests
+record it.
+
+What `develop` at the pinned commit contains:
+
+- `src/openmc_fusion_benchmarks/benchmarks/oktavian_al/specifications.yaml` is the only benchmark
+  specification. The schema is `benchmarks/benchmark_schema.yaml`.
+- `src/openmc_fusion_benchmarks/results_database/oktavian_al/` holds `experiment.h5`, three OpenMC 0.14.0 CSG
+  runs (ENDF/B-VIII.0, FENDL-3.2, JEFF-3.3) and four MCNP 6.1.1b CSG runs (ENDF/B-VIII.0, JEFF-3.3, JENDL-4.0,
+  TENDL-2017). There are no CAD-geometry results in the database, although the OFB documentation shows CAD runs.
+- `lfs/benchmarks/` holds STEP files for `oktavian` (`oktavian_a.step`, `oktavian_a.gltf`), `oktavian_al`,
+  `fng_str_onaxis`, `fng_str_offaxis` and `fng_str_heating`.
+- No data for FNG, FNS or the ITER port plug, and no results for any other sphere.
+
+Planned upstream (`benchmark_list.txt`, not yet specified in `develop`): FNS clean benchmarks (neutron and photon
+spectra, heating and dosimetry in Be, V, Fe, Cu and W assemblies); the FNS dogleg duct streaming benchmark; the
+FNG streaming benchmark; the ITER port plug computational benchmark (a shutdown dose rate code comparison); the
+FNG shutdown dose rate benchmark (19 decay times after 2 days of irradiation); an ITER E-Lite model.
+
+The older `master` branch (layout before 2025-03-28, commit above) holds CSG models and `experiment.h5` files
+for `fng_str`, `fng_w`, `fns_clean_w`, `fns_duct` and eleven OKTAVIAN spheres. `develop` deleted them
+(2025-03-28 and 2025-12-01). Their provenance and redistribution status are not stated in the repository, so they
+are not registered as sources; see the cases below. Other branches (`fng_dose_r2s` and siblings) hold research
+code from 2022 to 2024.
+
 ## Licences
 
 The harness is AGPL-3.0-only like the rest of FARIS. Reference tables inside a manifest
