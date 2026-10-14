@@ -32,9 +32,10 @@ basis.
   resolved only when the bands separate. Every history, brief and sweep number carries an interval or the reason
   it has none; the export adds `data/replacements.csv` and `data/uncertainty.csv` and appends uncertainty
   columns to the existing tables. New fields are optional, so older files still read.
-- Literature maintenance-duration presets (EU-DEMO blanket 10 months, best case 6 months, internal components 20
-  months; Crofts and Harman) with their source link and conditions, each labelled literature. A condition the
-  sources FARIS holds do not state is left empty with the reason.
+- Literature maintenance-duration presets from Crofts and Harman (arXiv:1412.4008, read in full): replacing all
+  EU-DEMO blankets and divertor cassettes takes 7.9, 5.2 or 24 months of outage with 4, 8 or 1 remote-handling
+  systems (Table 1 handling time plus the paper's 1 month cooling and 1 month conditioning), each with its source
+  link, page and conditions, labelled literature. The paper states no contingency percentage, and the presets say so.
 - A remote-handling model: outage length against the number of parallel systems, ports and crews, within 10 % of
   the published five-point table (1 to 8 systems), and a tornado of lifetime net electricity and availability
   against each replacement duration. Both are engine functions; no desktop view yet.

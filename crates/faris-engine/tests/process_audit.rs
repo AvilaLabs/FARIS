@@ -61,6 +61,7 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-cli/src/control.rs", "run_job(", 2, "FS", "Python S; script embedded F (Linux and other targets)"),
     // Other spawns.
     ("faris-occt-client/src/client.rs", "Command::new", 1, "FS", "worker program S (FARIS_OCCT_WORKER or beside the executable); two scratch paths F"),
+    ("faris-app/src/tool_finder.rs", "run_job(", 1, "S", "Find tools: the program is a Python interpreter found on PATH, in conda/mamba environment folders, ~/.venvs or a search folder the user added; arguments are fixed (`-I -c` and the embedded probe); bounded time, memory and output"),
     ("faris-app/src/export_panel.rs", "Command::new", 1, "FS", "xdg-open F; one argument, the export folder FARIS just made under a user-chosen parent, name sanitised"),
     ("faris-app/src/export_panel.rs", "xdg-open", 1, "F", "same call"),
     // Build script, runs at compile time on the builder's machine.

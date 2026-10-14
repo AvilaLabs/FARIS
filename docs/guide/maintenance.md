@@ -159,15 +159,18 @@ Computed durations are one choice. FARIS also carries published ones, labelled *
 appear, with the source link and the conditions they were derived under. They are inputs taken from a paper, not
 FARIS results.
 
-| Preset | Duration | Conditions |
+| Preset | Whole outage | Conditions |
 | --- | --- | --- |
-| EU-DEMO full blanket replacement | about 10 months | 421 modules, 4 ports, 4 remote-handling systems in parallel, 20 % contingency |
-| EU-DEMO blanket, best case | about 6 months | Best case of the paper's virtual-reality simulation |
-| EU-DEMO internal components | about 20 months | Divertor, then blanket, one after the other |
+| EU-DEMO blankets and divertor, 4 remote-handling systems | 7.9 months | 5.9 months of handling (Table 1, p. 5; the paper's "about 6 months") + 1 month cooling + 1 month conditioning and pump-down (Sec. 5.2) |
+| EU-DEMO blankets and divertor, 8 systems | 5.2 months | 3.2 months of handling, the shortest in Table 1, + the same 2 months |
+| EU-DEMO blankets and divertor, 1 system | 24 months | 22 months of handling, one system working all 16 sectors in turn (about 1,000 hours per sector, p. 4), + the same 2 months |
 
-All three come from Crofts and Harman, Fusion Eng. Des. 89 (2014), [arXiv:1412.4008](https://arxiv.org/pdf/1412.4008).
-The numbers of ports and systems for the second and third are not stated in the sources FARIS holds, so those
-fields are empty and say why. Check them in the paper before relying on those two.
+All three come from Crofts and Harman, Fusion Eng. Des. 89 (2014), [arXiv:1412.4008](https://arxiv.org/pdf/1412.4008),
+read in full. Each replaces all blanket segments and divertor cassettes of the 2012 EU-DEMO (5 segments and 3 cassettes
+in each of 16 sectors) through all 16 upper and 16 divertor ports; replacing the blankets alone takes as long, because
+the divertor must come out first (p. 4). The handling months already include the paper's equipment-failure recovery
+(about 20 % of the total, p. 5), transporter delays and shift and operator productivity. The paper states no
+percentage contingency, so the presets add none and say so.
 
 **Remote-handling constraints.** The outage length follows the number of parallel remote-handling systems, ports and
 crews. Handling time is a fixed part plus the shared work divided by the systems that can work at once, which is the

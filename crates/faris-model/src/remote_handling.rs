@@ -101,55 +101,75 @@ impl MaintenancePreset {
     }
 }
 
-const NOT_IN_REPO_RH: &str = "the requirement row does not state it and the paper has not been read for this case; confirm in arXiv:1412.4008 before use";
+const NO_CONTINGENCY: &str = "the paper states no percentage contingency; its handling times already include equipment-failure recovery (about 20 % of the total, p. 5) and transporter delays (Table 1)";
 
-/// The three presets OPS-032 names, as the requirement row states them (values via search of
-/// Crofts et al.; the row marks them unverified against the paper's full text).
+/// Months Crofts and Harman add around the handling time: "a 1 month cooling period before
+/// remote handing operations begin and a 1 month period to condition and pump-down before
+/// start-up" (arXiv:1412.4008, Sec. 5.2, p. 5).
+pub const CROFTS_COOLING_MONTHS: f64 = 1.0;
+pub const CROFTS_CONDITIONING_MONTHS: f64 = 1.0;
+
+/// What every Crofts and Harman campaign replaces: all blankets and divertor cassettes through
+/// all sixteen upper and sixteen divertor ports, five blanket segments and three cassettes per
+/// sector (Sec. 2 and 4). Replacing only the blankets takes as long, because the divertor
+/// must come out first (p. 4).
+const CROFTS_SCOPE: &str = "all blanket segments and divertor cassettes of EU-DEMO (2012), through all 16 upper and 16 divertor ports";
+
+/// One campaign from Table 1 of Crofts and Harman (p. 5) with the paper's cooling and
+/// conditioning months (Sec. 5.2) added, so the duration is the whole outage. The handling
+/// months include the paper's recovery and transporter delays and its shift and operator
+/// productivity factors.
+fn crofts_campaign(
+    id: &'static str,
+    title: &'static str,
+    systems: u32,
+    conditions: &'static str,
+) -> MaintenancePreset {
+    let handling = CROFTS_TABLE1_MONTHS
+        .iter()
+        .find(|(s, _)| *s == systems)
+        .map(|(_, m)| *m)
+        .expect("a Table 1 row");
+    MaintenancePreset {
+        id,
+        title,
+        label: LITERATURE_LABEL,
+        duration_months: CROFTS_COOLING_MONTHS + handling + CROFTS_CONDITIONING_MONTHS,
+        scope: CROFTS_SCOPE,
+        parallel_systems: Condition::stated(systems),
+        ports: Condition::stated(32),
+        // 16 sectors x (5 blanket segments + 3 divertor cassettes).
+        modules: Condition::stated(128),
+        contingency_fraction: Condition::missing(NO_CONTINGENCY),
+        conditions,
+        citation: CROFTS_CITATION,
+        source_link: Condition::stated(CROFTS_LINK),
+    }
+}
+
+/// The three presets OPS-032 names, read from the paper's full text (arXiv:1412.4008, read
+/// 2026-10-14): Table 1 handling months at 4, 8 and 1 remote-handling systems, plus one
+/// month of cooling and one of conditioning (Sec. 5.2).
 pub fn maintenance_presets() -> Vec<MaintenancePreset> {
-    let link = Condition::stated(CROFTS_LINK);
     vec![
-        MaintenancePreset {
-            id: "demo-blanket-full",
-            title: "EU-DEMO full blanket replacement",
-            label: LITERATURE_LABEL,
-            duration_months: 10.0,
-            scope: "all blanket modules",
-            parallel_systems: Condition::stated(4),
-            ports: Condition::stated(4),
-            modules: Condition::stated(421),
-            contingency_fraction: Condition::stated(0.20),
-            conditions: "421 modules through 4 ports with 4 remote-handling systems in parallel, including 20 % contingency",
-            citation: CROFTS_CITATION,
-            source_link: link.clone(),
-        },
-        MaintenancePreset {
-            id: "demo-blanket-best-case",
-            title: "EU-DEMO blanket replacement, best case",
-            label: LITERATURE_LABEL,
-            duration_months: 6.0,
-            scope: "all blanket modules",
-            parallel_systems: Condition::missing(NOT_IN_REPO_RH),
-            ports: Condition::missing(NOT_IN_REPO_RH),
-            modules: Condition::missing(NOT_IN_REPO_RH),
-            contingency_fraction: Condition::missing(NOT_IN_REPO_RH),
-            conditions: "best case found in the paper's virtual-reality simulation of the handling sequence",
-            citation: CROFTS_CITATION,
-            source_link: link.clone(),
-        },
-        MaintenancePreset {
-            id: "demo-internals",
-            title: "EU-DEMO internal components (divertor then blanket)",
-            label: LITERATURE_LABEL,
-            duration_months: 20.0,
-            scope: "divertor, then blanket, replaced one after the other",
-            parallel_systems: Condition::missing(NOT_IN_REPO_RH),
-            ports: Condition::missing(NOT_IN_REPO_RH),
-            modules: Condition::missing(NOT_IN_REPO_RH),
-            contingency_fraction: Condition::missing(NOT_IN_REPO_RH),
-            conditions: "divertor and blanket handled sequentially, about 20 months in total",
-            citation: CROFTS_CITATION,
-            source_link: link,
-        },
+        crofts_campaign(
+            "demo-blanket-divertor-4",
+            "EU-DEMO blankets and divertor, 4 remote-handling systems",
+            4,
+            "5.9 months of handling with 4 systems in parallel, each working 4 sectors (Table 1, p. 5; the paper's \"about 6 months\", p. 4), plus 1 month of cooling and 1 month of conditioning and pump-down (Sec. 5.2)",
+        ),
+        crofts_campaign(
+            "demo-blanket-divertor-8",
+            "EU-DEMO blankets and divertor, 8 systems (shortest in the paper)",
+            8,
+            "3.2 months of handling with 8 systems in parallel, each working 2 sectors (Table 1, p. 5), plus 1 month of cooling and 1 month of conditioning and pump-down (Sec. 5.2)",
+        ),
+        crofts_campaign(
+            "demo-blanket-divertor-1",
+            "EU-DEMO blankets and divertor, 1 system (longest in the paper)",
+            1,
+            "22 months of handling with one system working all 16 sectors in turn (Table 1, p. 5; about 1,000 hours per sector, p. 4), plus 1 month of cooling and 1 month of conditioning and pump-down (Sec. 5.2)",
+        ),
     ]
 }
 
@@ -284,48 +304,41 @@ mod tests {
 
     // Verifies: OPS-032
     #[test]
-    fn presets_carry_the_row_values_label_link_and_conditions() {
+    fn presets_carry_the_paper_values_label_link_and_conditions() {
         let p = maintenance_presets();
         let by = |id: &str| p.iter().find(|x| x.id == id).unwrap();
-        assert_eq!(by("demo-blanket-full").duration_months, 10.0);
-        assert_eq!(by("demo-blanket-best-case").duration_months, 6.0);
-        assert_eq!(by("demo-internals").duration_months, 20.0);
-        let full = by("demo-blanket-full");
-        assert_eq!(full.parallel_systems.value, Some(4));
-        assert_eq!(full.ports.value, Some(4));
-        assert_eq!(full.modules.value, Some(421));
-        assert_eq!(full.contingency_fraction.value, Some(0.20));
+        // Table 1 handling months plus 1 month cooling and 1 month conditioning (Sec. 5.2).
+        assert!((by("demo-blanket-divertor-4").duration_months - 7.9).abs() < 1e-9);
+        assert!((by("demo-blanket-divertor-8").duration_months - 5.2).abs() < 1e-9);
+        assert!((by("demo-blanket-divertor-1").duration_months - 24.0).abs() < 1e-9);
+        for (id, systems) in [
+            ("demo-blanket-divertor-4", 4),
+            ("demo-blanket-divertor-8", 8),
+            ("demo-blanket-divertor-1", 1),
+        ] {
+            let x = by(id);
+            assert_eq!(x.parallel_systems.value, Some(systems));
+            assert_eq!(x.ports.value, Some(32));
+            assert_eq!(x.modules.value, Some(128));
+            // The paper states no percentage contingency, and the preset says so.
+            assert!(x.contingency_fraction.value.is_none());
+            assert!(
+                x.contingency_fraction
+                    .missing_reason
+                    .unwrap()
+                    .contains("p. 5")
+            );
+        }
         for x in &p {
             assert_eq!(x.label, "literature");
             assert_eq!(x.source_link.value, Some(CROFTS_LINK));
             assert_eq!(x.input_label().text(), "literature");
-            // A condition is empty only with its reason beside it.
-            for (empty, reason) in [
-                (
-                    x.parallel_systems.value.is_none(),
-                    x.parallel_systems.missing_reason,
-                ),
-                (x.ports.value.is_none(), x.ports.missing_reason),
-                (x.modules.value.is_none(), x.modules.missing_reason),
-                (
-                    x.contingency_fraction.value.is_none(),
-                    x.contingency_fraction.missing_reason,
-                ),
-            ] {
-                assert_eq!(empty, reason.is_some(), "{}", x.id);
-            }
+            assert!(x.conditions.contains("Table 1") && x.conditions.contains("Sec. 5.2"));
             let json = serde_json::to_string(x).unwrap();
             assert!(json.contains("\"label\":\"literature\""));
         }
-        // The two presets whose systems and ports the row does not state say so.
-        assert!(
-            by("demo-blanket-best-case")
-                .parallel_systems
-                .value
-                .is_none()
-        );
-        assert!(by("demo-internals").ports.missing_reason.is_some());
-        assert!((full.duration_s() - 10.0 * 30.4375 * 86_400.0).abs() < 1e-6);
+        let four = by("demo-blanket-divertor-4");
+        assert!((four.duration_s() - 7.9 * 30.4375 * 86_400.0).abs() < 1e-6);
         assert!(maintenance_preset("nope").is_none());
     }
 
@@ -374,17 +387,25 @@ mod tests {
 
     // Verifies: OPS-033
     #[test]
-    fn row_blanket_inputs_give_about_ten_months_if_table1_excludes_cooling() {
-        // The paper's 10 months (4 systems, 4 ports, 20 % contingency) is matched only if
-        // Table 1 leaves out the 1 month cooling and 1 month conditioning; whether it does is
-        // not confirmed, so this checks consistency, not reproduction.
-        let m = RemoteHandling {
-            cooling_months: 1.0,
-            conditioning_months: 1.0,
-            contingency_fraction: 0.20,
-            ..RemoteHandling::crofts_table1_fit()
-        };
-        let got = m.outage_months().unwrap();
-        assert!((got - 10.0).abs() / 10.0 <= 0.10, "{got}");
+    fn model_with_the_papers_cooling_and_conditioning_gives_the_presets() {
+        // The fitted handling model plus the paper's own 1 + 1 months reproduces each preset's
+        // whole outage within 10 %.
+        for preset in maintenance_presets() {
+            let systems = preset.parallel_systems.value.unwrap();
+            let m = RemoteHandling {
+                cooling_months: CROFTS_COOLING_MONTHS,
+                conditioning_months: CROFTS_CONDITIONING_MONTHS,
+                ..RemoteHandling::crofts_table1_fit()
+            }
+            .with_systems(systems)
+            .with_ports(systems);
+            let got = m.outage_months().unwrap();
+            let want = preset.duration_months;
+            assert!(
+                (got - want).abs() / want <= 0.10,
+                "{}: {got} vs {want}",
+                preset.id
+            );
+        }
     }
 }

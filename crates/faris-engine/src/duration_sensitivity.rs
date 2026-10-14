@@ -267,14 +267,14 @@ mod tests {
     fn literature_label_travels_with_the_bar_and_bad_ranges_are_refused() {
         let a = two_replaceable();
         let rates = rates_without_covariance(0.0, 'a');
-        let preset = maintenance_preset("demo-blanket-full").unwrap();
+        let preset = maintenance_preset("demo-blanket-divertor-4").unwrap();
         let mut r = range("magnets", 2.0, 10.0);
         r.label = preset.input_label();
         let t = duration_tornado(&a, &rates, &[r]).unwrap();
         assert_eq!(t.bars[0].label.text(), "literature");
         let json = serde_json::to_string(&t).unwrap();
         assert!(json.contains("https://arxiv.org/pdf/1412.4008"));
-        assert!(json.contains("demo-blanket-full"));
+        assert!(json.contains("demo-blanket-divertor-4"));
         let swapped = duration_tornado(&a, &rates, &[range("magnets", 10.0, 2.0)]);
         assert!(swapped.unwrap_err().contains("low above high"));
         let unknown = duration_tornado(&a, &rates, &[range("nope", 1.0, 2.0)]);
