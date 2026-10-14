@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Windows native spike: OpenMC + DAGMC (double-down/Embree) + MOAB + HDF5 on Windows x64
 
 Branch `windows-native-spike`, 2026-10-10 and 2026-10-11. Nothing here is

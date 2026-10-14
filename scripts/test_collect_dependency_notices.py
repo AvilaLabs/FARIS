@@ -135,6 +135,16 @@ class DeclaredOnlyTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("SPDX license text changed", result.stderr)
 
+    def test_every_pinned_upstream_text_matches_its_recorded_hash(self):
+        # Verifies: LEG-014
+        supplements = ROOT / "licenses/upstream-rust"
+        records = json.loads((supplements / "manifest.json").read_text())
+        self.assertTrue(records)
+        for record in records:
+            self.assertTrue(record["url"].endswith(record["name"]), record["url"])
+            data = (supplements / record["file"]).read_bytes()
+            self.assertEqual(hashlib.sha256(data).hexdigest(), record["sha256"], record["file"])
+
     def test_spdx_expression_parsing(self):
         spec = importlib.util.spec_from_file_location("collect", SCRIPT)
         module = importlib.util.module_from_spec(spec)

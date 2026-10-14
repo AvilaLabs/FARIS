@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Reading the numbers
 
 Every value in FARIS carries a badge that says what kind of number it is. Hover a badge to see why it applies and what would settle it.

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Transport levers on stand-in models (stage S0c)
 
 Status: protocol frozen 2026-10-10, before any S0c run. Results are appended in a section below; this protocol is never

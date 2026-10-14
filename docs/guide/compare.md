@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Compare and the allocation sweep
 
 Press 4 to open the Compare step. The bottom panel shows **Compare the four recorded arrangements**. Drag the panel's top edge to resize it.

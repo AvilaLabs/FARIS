@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Releasing
 
 This page describes the checks before a release. `scripts/make_release.py` builds the downloads from a verified
@@ -94,7 +95,7 @@ scripts/repro_check.sh --work /scratch/repro --evidence repro.json
 This builds from the current checkout and from a fresh `git worktree` of the same commit, into two target
 directories, and writes the `--repro` evidence of the release gate. It needs a clean tree and takes two
 release builds (3.7 minutes each on a laptop with three jobs; expect 10 to 15 minutes on a hosted runner). The `Reproducible build` workflow runs it
-on version tags and by hand, and uploads `repro.json`. If the hashes differ, compare the two binaries with
+on version tags, every Monday and by hand, and uploads `repro.json`. If the hashes differ, compare the two binaries with
 `diffoscope`, or with `cmp -l` and `strings`, and look for a path, a timestamp or a hash of a path.
 
 Not covered: `faris-app` (graphics libraries and system packages that differ between builders), the macOS and

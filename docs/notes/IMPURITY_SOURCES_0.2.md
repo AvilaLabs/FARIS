@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Impurity specification sources for FARIS surrogate materials
 
 Compiled 2026-10-05 from public web sources for the FARIS 0.2 activation plan (docs/DEMO_ROADMAP.md, "Decisions for 0.2"). No numbers invented. Each table is tagged:

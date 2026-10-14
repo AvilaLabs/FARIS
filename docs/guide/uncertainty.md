@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Uncertainty ensembles
 
 An ensemble carries the Monte Carlo sampling uncertainty of the transport through the 30-year history. You see it on the Operate step, under **Uncertainty in the history**.

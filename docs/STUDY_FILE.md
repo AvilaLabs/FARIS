@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Study files (`.faris`)
 
 A `.faris` file is one study: the arrangements, the recorded transport, the

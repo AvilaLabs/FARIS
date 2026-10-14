@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Operate: the 30-year history
 
 Press 3 to open the Operate step. It edits the operating assumptions and recalculates the 30-year history of every arrangement and, when present, of the allocation sweep. The history follows magnet and blanket exposure, replacement outages, tritium inventory and net electricity.

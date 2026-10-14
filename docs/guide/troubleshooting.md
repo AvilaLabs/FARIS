@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Troubleshooting
 
 ## The app will not start

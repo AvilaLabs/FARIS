@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # FARIS demo acceptance status
 
 **Evidence snapshot:** 2026-10-01. The scoped functional/numerical demo is complete for the documented cold

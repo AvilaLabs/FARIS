@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Design file format `faris-design/v0.1` (stage S1)
 
 Status: design, 2026-10-09. Plan: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),

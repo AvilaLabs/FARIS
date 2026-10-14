@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # CAD integrity checks (stage S1b)
 
 Status: design, 2026-10-10. Plan: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),

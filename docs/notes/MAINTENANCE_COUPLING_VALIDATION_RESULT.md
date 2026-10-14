@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Result: does the maintenance coupling result hold up?
 
 Recorded 2026-10-06. Protocol: `docs/notes/MAINTENANCE_COUPLING_VALIDATION.md` (frozen in `b3d70b7`; Amendment 1

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Install, import and repair: plan to be the easiest tool in its class
 
 Status: scope approved by Connor 2026-10-10. Data delivery is free; what may be hosted is in section 2. Parent: [NEXT_RELEASE_PLAN.md](../NEXT_RELEASE_PLAN.md),

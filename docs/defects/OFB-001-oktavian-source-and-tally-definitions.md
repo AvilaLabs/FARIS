@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # OFB-001: the OpenMC-Fusion-Benchmarks OKTAVIAN source is not isotropic and its energy weights are read as densities; the CAD tally names a surface id that is not the leakage surface
 
 Status: drafted, not reported. Verification and significance: see [README.md](README.md). Found 2026-10-14 while building

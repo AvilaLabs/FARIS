@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Nuclear data
 
 Transport needs nuclear data that FARIS does not ship: the files are large and their redistribution terms are not

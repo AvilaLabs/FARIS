@@ -1,0 +1,8 @@
+# Files that other tests compare against change only with an owner's review (QA-037).
+# Turn on "Require review from Code Owners" in the branch protection rule for this to bind.
+/crates/*/tests/fixtures/ @Connoravila1
+/references/ @Connoravila1
+/validation/ @Connoravila1
+/scripts/wording_lint_terms.json @Connoravila1
+/.github/ @Connoravila1
+/LICENSE @Connoravila1

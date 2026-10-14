@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Run your own transport
 
 You do not need this to explore the recorded study. Use it to run new fixed-source transport yourself, for example to record a case with your own seed or history count. It uses the same engine from the command line and from the desktop.

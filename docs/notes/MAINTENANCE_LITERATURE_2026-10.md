@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Literature: maintenance downtime and activation, 2026-10
 
 Recorded 2026-10-06 for the maintenance coupling validation (`docs/notes/MAINTENANCE_COUPLING_VALIDATION.md`). Three

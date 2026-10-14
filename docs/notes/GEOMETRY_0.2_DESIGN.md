@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Transport geometry for 0.2: design and build slices
 
 Recorded 2026-10-05. Decision and dimension choices: docs/DEMO_ROADMAP.md, "First step: a more realistic

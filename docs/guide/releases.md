@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Releases
 
 FARIS follows [semantic versioning](https://semver.org/) from 0.1.0. Before 1.0, a minor version may change file formats or the command line. The changelog lists such changes under **Changed**, with what to do.

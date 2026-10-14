@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Method
 
 This chapter summarises what FARIS computes. The repository documents each part in full. It links to them at the end.

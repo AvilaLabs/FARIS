@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Coupled thermal Li-6 capture control
 
 This is a separate OpenMC numerical control for checking the coupled neutron,

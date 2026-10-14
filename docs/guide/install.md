@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Download and verify
 
 ## Requirements
@@ -79,6 +80,12 @@ Nothing is written inside the package. Runs that FARIS generates go to a folder 
 | Windows | `%LOCALAPPDATA%\FARIS\recorded-demo-runs\<folder>` |
 
 `--runs-directory DIR` chooses another folder. It must be outside the package.
+
+## Source code and licences
+
+FARIS is released under the GNU Affero General Public License, version 3 only (AGPL-3.0-only). You may ask for the exact source of any build you received. Each package names the commit it was built from in `SOURCE_PROVENANCE.md` (the FARIS repository and commit, and the Avila Core repository and commit), and `faris --version` prints the version. Fetch that commit from the [source repository](https://github.com/AvilaLabs/FARIS) to get the Corresponding Source. The package's `licenses/` folder holds the licence text of FARIS and of Avila Core, and the notices for every library linked into the programs. [External tools and their licences](external-tools.md) lists the tools FARIS calls but does not ship.
+
+The package index (`package-index.json`) also lists the SHA-256 of every program, so that you can tell the build you run from the one a release names. The app does not yet show a source link of its own, and `faris --version` prints no commit.
 
 ## Build from source
 

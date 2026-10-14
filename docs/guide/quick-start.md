@@ -1,3 +1,4 @@
+<!-- kind: tutorial -->
 # Take the tour
 
 ## Start the app
@@ -7,6 +8,25 @@ Open `bin/faris-app` from the package folder (see [Download and verify](install.
 Use **Next** (or the Right arrow, or Enter) and **Back** (Left arrow) to move. Choose **Skip tour** (or press Esc) to leave. Finishing or skipping writes a marker file, so the tour does not play again. The marker is `tour-completed`. On Linux it is in a `faris` folder under `$XDG_CONFIG_HOME`, or under `~/.config` when that is not set. On macOS it is in `~/Library/Application Support/FARIS`, and on Windows in `%APPDATA%\FARIS`.
 
 Choose **Tour** in the top bar to replay it. Start the app with `--tour always` or `--tour never` to override the default.
+
+## The twelve stops
+
+Each stop of the tour has a page here that goes further. The tour text itself lives in the app.
+
+| Stop | Read more |
+| --- | --- |
+| A fusion plant, through time | [Welcome](index.md), [Scope and limits](scope.md) |
+| Five steps | [The five steps](#the-five-steps) |
+| The reactor | [Design](design.md) |
+| Two choices | [Design](design.md) |
+| Real transport | [Simulate](simulate.md), [Run your own transport](transport.md) |
+| Where the neutrons go | [Simulate](simulate.md) |
+| Thirty years in one plot | [Operate](operate.md) |
+| Ask what if | [Operate](operate.md), [Uncertainty ensembles](uncertainty.md) |
+| The answer | [Compare and the allocation sweep](compare.md) |
+| Honest labels | [Reading the numbers](results.md) |
+| Evidence you can check | [Evidence and Avila Core receipts](evidence.md) |
+| That's the tour | [Study files](study-files.md), [Export](export.md) |
 
 ## The five steps
 

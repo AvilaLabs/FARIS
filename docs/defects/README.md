@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Upstream defect drafts
 
 Defects FARIS found in tools it depends on. **None has been reported upstream.** Each needs two things before Connor

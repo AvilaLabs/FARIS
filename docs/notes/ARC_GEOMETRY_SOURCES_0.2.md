@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # ARC published geometry: sources for FARIS upgrade
 
 Compiled 2026-10-05 by web research. "READ" = read by me in the source (PDF text or rendered figure). "SECOND" = secondhand (search-result snippet only).

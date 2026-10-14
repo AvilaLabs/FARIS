@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # CAD transport risk tests (stage S0)
 
 Status: protocol frozen 2026-10-09, before any run. Results are appended in a

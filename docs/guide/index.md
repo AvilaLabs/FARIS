@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Welcome to FARIS
 
 FARIS, the Fusion Analysis and Reactor Integration Simulator, follows a fusion plant from 3D neutron transport to thirty years of operation. It shows how a blanket and shield design changes tritium breeding, magnet exposure, component replacements and net electricity year by year, and how sure those numbers are.
@@ -35,7 +36,7 @@ The study asks one question: what changes when you move thickness from the neutr
 
 [Download and verify](install.md) the package for Linux, Windows or macOS, then [take the tour](quick-start.md). You do not need OpenMC, nuclear data or a network connection to explore the recorded study.
 
-Then read one chapter for each step of the workspace: [Design](design.md), [Simulate](simulate.md), [Operate](operate.md), [Compare](compare.md) and [Evidence](evidence.md). Read [Reading the numbers](results.md) and [Scope and limits](scope.md) before you quote any result.
+Then read one chapter for each step of the workspace: [Design](design.md), [Simulate](simulate.md), [Operate](operate.md), [Compare](compare.md) and [Evidence](evidence.md). Read [Reading the numbers](results.md), [Scope and limits](scope.md) and [Known limitations](limitations.md) before you quote any result.
 
 ## Find help
 

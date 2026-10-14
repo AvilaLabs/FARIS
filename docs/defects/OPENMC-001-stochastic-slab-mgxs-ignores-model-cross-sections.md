@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # OPENMC-001: `convert_to_multigroup(method="stochastic_slab")` ignores `model.materials.cross_sections` (0.16.0)
 
 Status: drafted, not reported. Verification and significance: see [README.md](README.md). Found by the S0 risk tests (R6) and reproduced in S0b D6. Draft for an issue against

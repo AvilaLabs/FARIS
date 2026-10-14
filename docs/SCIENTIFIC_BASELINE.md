@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # FARIS M1 scientific baseline
 
 Status: baseline recommendation, 2026-09-30. No FARIS transport result has been

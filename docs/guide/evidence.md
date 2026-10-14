@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Evidence and Avila Core receipts
 
 Press 5 to open the Evidence step. It shows what Avila Core checked.

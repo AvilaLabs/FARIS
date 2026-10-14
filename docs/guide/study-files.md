@@ -1,3 +1,4 @@
+<!-- kind: how-to -->
 # Study files (.faris)
 
 A `.faris` file is one saved study. It holds both arrangements (with and without the port), the recorded transport, the allocation sweep, the operating assumptions, any finished uncertainty ensembles, and the view you left open: the step, preset, what-if values, year, field view, history tab, and selected arrangement and allocation.

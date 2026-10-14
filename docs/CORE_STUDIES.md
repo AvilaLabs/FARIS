@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Generated Avila Core studies
 
 FARIS generates a contract and registry from the selected analyses and calls an

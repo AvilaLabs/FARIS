@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # ITER_1D OpenMC reference execution
 
 This control prepares and runs the local IAEA-NDS ITER_1D OpenMC model with

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Computed maintenance durations in FARIS 0.2: design
 
 Recorded 2026-10-08. Basis: the maintenance coupling test (`docs/notes/MAINTENANCE_COUPLING_RESULT.md`) and its

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # The browser version
 
 The browser version of FARIS runs at [faris.avilalabs.org](https://faris.avilalabs.org). It opens the recorded demo study in a browser tab, with nothing to download or install.

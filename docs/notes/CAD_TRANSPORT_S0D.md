@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Targeted weight windows on RM-M (stage S0d)
 
 Status: protocol frozen 2026-10-10, before any S0d run. Results are appended in a section below; this protocol is never

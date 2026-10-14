@@ -8,16 +8,20 @@
 # Installs, under ${XDG_DATA_HOME:-~/.local/share}:
 #   mime/packages/avila-labs-faris-study.xml   MIME type application/vnd.avila-labs.faris-study
 #   applications/faris.desktop                 "Open with FARIS" entry running <app> %f
-#   icons/hicolor/256x256/apps/faris.png       the application icon
+#   icons/hicolor/256x256/apps/faris.png       the application icon (raster)
+#   icons/hicolor/scalable/apps/faris.svg      the same icon at any larger size
 # then refreshes the MIME and desktop databases. Nothing outside that
-# directory is touched; --uninstall removes exactly these three files.
+# directory is touched; --uninstall removes exactly these four files.
 set -euo pipefail
 
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 mime_xml="$data_home/mime/packages/avila-labs-faris-study.xml"
 desktop_file="$data_home/applications/faris.desktop"
 icon_file="$data_home/icons/hicolor/256x256/apps/faris.png"
-icon_source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../crates/faris-app/assets/faris-icon-256.png"
+icon_svg_file="$data_home/icons/hicolor/scalable/apps/faris.svg"
+assets="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../crates/faris-app/assets"
+icon_source="$assets/faris-icon-256.png"
+icon_svg_source="$assets/faris.svg"
 
 refresh() {
     if command -v update-mime-database >/dev/null; then
@@ -33,9 +37,9 @@ refresh() {
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-    rm -f -- "$mime_xml" "$desktop_file" "$icon_file"
+    rm -f -- "$mime_xml" "$desktop_file" "$icon_file" "$icon_svg_file"
     refresh
-    echo "Removed $mime_xml, $desktop_file and $icon_file"
+    echo "Removed $mime_xml, $desktop_file, $icon_file and $icon_svg_file"
     exit 0
 fi
 
@@ -56,9 +60,12 @@ case "$app" in
         ;;
 esac
 
-mkdir -p "$(dirname "$mime_xml")" "$(dirname "$desktop_file")" "$(dirname "$icon_file")"
+mkdir -p "$(dirname "$mime_xml")" "$(dirname "$desktop_file")" "$(dirname "$icon_file")" "$(dirname "$icon_svg_file")"
 if [ -f "$icon_source" ]; then
     cp -- "$icon_source" "$icon_file"
+fi
+if [ -f "$icon_svg_source" ]; then
+    cp -- "$icon_svg_source" "$icon_svg_file"
 fi
 
 cat >"$mime_xml" <<'XML'
@@ -67,6 +74,7 @@ cat >"$mime_xml" <<'XML'
   <mime-type type="application/vnd.avila-labs.faris-study">
     <comment>FARIS study</comment>
     <comment xml:lang="en">FARIS study</comment>
+    <icon name="faris"/>
     <!-- A zip container whose first entry, "mimetype", is stored uncompressed:
          30 bytes of local header, then the name and the type string. -->
     <magic priority="60">
@@ -92,4 +100,4 @@ MimeType=application/vnd.avila-labs.faris-study;
 DESKTOP
 
 refresh
-echo "Installed $mime_xml, $desktop_file and $icon_file"
+echo "Installed $mime_xml, $desktop_file, $icon_file and $icon_svg_file"

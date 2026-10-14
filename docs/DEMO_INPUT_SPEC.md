@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # M1 cold-data demonstration input specification
 
 **Status:** executable candidate for a bounded, conditional neutronics comparison.

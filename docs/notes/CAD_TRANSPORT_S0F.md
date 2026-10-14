@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Why RM-M's magnet response resists weight windows (stage S0f)
 
 Status: diagnostics and pilots recorded 2026-10-11, before any S0f protocol. Nothing here is a rule outcome: every run

@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Keyboard
 
 Every action in FARIS can be reached and run from the keyboard. This page lists the keys. On macOS, read Ctrl as Cmd.

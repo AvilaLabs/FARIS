@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Streaming variance reduction: what the literature says (2026-10-12)
 
 A literature pass made after S0f protocol 3 (`CAD_TRANSPORT_S0F.md`), to replace spike-by-spike fixes with a designed

@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # CAD to answer: the open-pipeline baseline (UX-079)
 
 Status: protocol frozen 2026-10-11, before any baseline run. Results are appended in a section below; this protocol is

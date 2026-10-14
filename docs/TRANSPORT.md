@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Fixed-source transport boundary
 
 Status: strict input/artifact types and checked Rust normalization are implemented.

@@ -13,6 +13,7 @@ create-missing = false
 default-theme = "rust"
 preferred-dark-theme = "navy"
 mathjax-support = true
+additional-js = ["docs/licence-footer.js"]
 git-repository-url = "https://github.com/AvilaLabs/FARIS"
 edit-url-template = "https://github.com/AvilaLabs/FARIS/edit/main/{path}"
 site-url = "/docs/"

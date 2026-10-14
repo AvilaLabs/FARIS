@@ -1,3 +1,4 @@
+<!-- kind: explanation -->
 # Release package for 0.1.1: split download and native launcher
 
 Recorded 2026-10-06. 0.1.1 keeps the 0.1.0 study, results and `.faris` format. It changes how the study is
