@@ -37,7 +37,9 @@ try {
   page.on("pageerror", error => problems.push(`page error: ${error.message}`));
   page.on("console", message => {
     const text = message.text();
-    const expected = /api\.avilalabs\.org|net::ERR_FAILED/.test(text);
+    // The signed-out account check answers 401 (and fails CORS when served locally); both are expected.
+    const source = (message.location() && message.location().url) || "";
+    const expected = /api\.avilalabs\.org|net::ERR_FAILED/.test(text) || /api\.avilalabs\.org/.test(source);
     if (!expected && (message.type() === "error" || /panicked/.test(text))) problems.push(`console ${message.type()}: ${text}`);
   });
   await page.goto(url.href);
