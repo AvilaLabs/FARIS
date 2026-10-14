@@ -385,6 +385,16 @@ pub fn collect_points(
     Ok(rows.into_iter().unzip())
 }
 
+/// One sweep point's operating history, summarised for the magnets.
+pub fn summarize_point(
+    rates: &TransportDrivingRates,
+    assumptions: &OperatingHistoryAssumptions,
+    cancellation: &Cancellation,
+) -> Result<HistorySummary, String> {
+    run_operating_history_cancellable(assumptions, rates, cancellation)
+        .map(|history| summarize_history(&history, MAGNET_COMPONENT))
+}
+
 /// One operating history per sweep point, summarised for the magnets.
 pub fn summarize_sweep(
     rates: &[TransportDrivingRates],
@@ -393,10 +403,7 @@ pub fn summarize_sweep(
 ) -> Result<Vec<HistorySummary>, String> {
     rates
         .iter()
-        .map(|rates| {
-            run_operating_history_cancellable(assumptions, rates, cancellation)
-                .map(|history| summarize_history(&history, MAGNET_COMPONENT))
-        })
+        .map(|rates| summarize_point(rates, assumptions, cancellation))
         .collect()
 }
 

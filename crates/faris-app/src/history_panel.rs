@@ -42,11 +42,19 @@ const MAX_PLOT_POINTS: usize = 1500;
 const DAY_S: f64 = 86_400.0;
 
 type Histories = BTreeMap<String, HistoryResult>;
+#[cfg(target_arch = "wasm32")]
+type HistorySteps =
+    crate::steps::Steps<(String, String, TransportDrivingRates), (String, HistoryResult)>;
 struct Pending {
     handle: Option<crate::thread::JoinHandle<()>>,
     cancellation: Cancellation,
     receiver: Receiver<Result<Histories, String>>,
     assumptions: OperatingHistoryAssumptions,
+    /// The browser runs one arrangement's history per frame, then sends the lot.
+    #[cfg(target_arch = "wasm32")]
+    steps: Option<HistorySteps>,
+    #[cfg(target_arch = "wasm32")]
+    sender: mpsc::Sender<Result<Histories, String>>,
 }
 
 struct PendingSensitivity {
@@ -516,6 +524,16 @@ impl HistoryPanel {
                 ctx.request_repaint();
             }
         }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(pending) = self.pending.as_mut()
+            && let Some(steps) = pending.steps.as_mut()
+        {
+            if let Some(done) = steps.advance() {
+                pending.steps = None;
+                let _ = pending.sender.send(done.map(|v| v.into_iter().collect()));
+            }
+            ctx.request_repaint();
+        }
         let Some(pending) = &self.pending else {
             return;
         };
@@ -633,35 +651,54 @@ impl HistoryPanel {
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
-        let context = ctx.clone();
-        let spawn = crate::thread::Builder::new()
-            .name("faris-operating-history".into())
-            .spawn(move || {
-                let result = (|| {
-                    let mut results = BTreeMap::new();
-                    for (id, _, rates) in prepared {
-                        let history = run_operating_history_cancellable(
-                            &assumptions,
-                            &rates,
-                            &worker_cancellation,
-                        )?;
-                        results.insert(id, history);
-                    }
-                    Ok(results)
-                })();
-                let _ = sender.send(result);
-                context.request_repaint();
-            });
-        match spawn {
-            Ok(handle) => {
-                self.pending = Some(Pending {
-                    handle: Some(handle),
-                    cancellation,
-                    receiver,
-                    assumptions: self.assumptions.clone().expect("validated assumptions"),
-                })
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let context = ctx.clone();
+            let spawn = crate::thread::Builder::new()
+                .name("faris-operating-history".into())
+                .spawn(move || {
+                    let result = (|| {
+                        let mut results = BTreeMap::new();
+                        for (id, _, rates) in prepared {
+                            let history = run_operating_history_cancellable(
+                                &assumptions,
+                                &rates,
+                                &worker_cancellation,
+                            )?;
+                            results.insert(id, history);
+                        }
+                        Ok(results)
+                    })();
+                    let _ = sender.send(result);
+                    context.request_repaint();
+                });
+            match spawn {
+                Ok(handle) => {
+                    self.pending = Some(Pending {
+                        handle: Some(handle),
+                        cancellation,
+                        receiver,
+                        assumptions: self.assumptions.clone().expect("validated assumptions"),
+                    })
+                }
+                Err(e) => self.error = Some(e.to_string()),
             }
-            Err(e) => self.error = Some(e.to_string()),
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let steps = crate::steps::Steps::new(prepared, move |(id, _, rates)| {
+                run_operating_history_cancellable(&assumptions, &rates, &worker_cancellation)
+                    .map(|history| (id, history))
+            });
+            self.pending = Some(Pending {
+                handle: None,
+                cancellation,
+                receiver,
+                assumptions: self.assumptions.clone().expect("validated assumptions"),
+                steps: Some(steps),
+                sender,
+            });
+            ctx.request_repaint();
         }
     }
 
@@ -978,6 +1015,8 @@ impl HistoryPanel {
             if let Some(pending) = &self.pending_sensitivity {
                 ui.spinner();
                 if ui.button("Cancel sensitivity").clicked() { pending.cancellation.cancel(); }
+            } else if crate::browser::IS_BROWSER {
+                crate::browser::desktop_only_note(ui, "Running the 27 sensitivity histories");
             } else if ui.add_enabled(self.assumptions.is_some() && self.rates.contains_key(&identity) && !self.edited && self.pending.is_none(), egui::Button::new("Run sensitivity for current arrangement")).clicked() {
                 let assumptions = self.assumptions.clone().expect("enabled assumptions");
                 let rates = self.rates[&identity].clone();

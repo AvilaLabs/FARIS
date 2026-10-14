@@ -174,7 +174,7 @@ impl TransportPanel {
         }
         let mut records = BTreeMap::new();
         let mut locations = BTreeMap::new();
-        let mut replay_directories = Vec::new();
+        let replay_directories = Vec::new();
         for path in config.runs {
             let record = load_reactor_run(&path, &scenario).map_err(|e| e.to_string())?;
             let input_path = path
@@ -202,26 +202,7 @@ impl TransportPanel {
             locations.insert(record.variant_id.clone(), path);
             records.insert(record.variant_id.clone(), record);
         }
-        for path in config.bundles {
-            let loaded = faris_engine::core_evidence::load_recorded_bundle(&path, &scenario)?;
-            let (record, case, directory) = (loaded.record, loaded.case, loaded.directory);
-            if records.contains_key(&record.variant_id) {
-                return Err("Duplicate transport record for an arrangement.".into());
-            }
-            if let Some(configured) = cases.get(&case.variant_id)
-                && serde_json::to_value(configured).map_err(|e| e.to_string())?
-                    != serde_json::to_value(&case).map_err(|e| e.to_string())?
-            {
-                return Err(
-                    "Configured physics differs from the recorded bundle's bound physics.".into(),
-                );
-            }
-            cases.entry(case.variant_id.clone()).or_insert(case);
-            locations.insert(record.variant_id.clone(), directory.path().join("run.json"));
-            records.insert(record.variant_id.clone(), record);
-            replay_directories.push(directory);
-        }
-        Ok(Self {
+        let mut panel = Self {
             scenario,
             cases,
             records,
@@ -241,7 +222,35 @@ impl TransportPanel {
             revision: 0,
             view: FieldView::default(),
             slice: 4,
-        })
+        };
+        for path in config.bundles {
+            panel.add_bundle(path)?;
+        }
+        Ok(panel)
+    }
+
+    /// Check a recorded transport bundle against the scenario and add its
+    /// record. The browser adds them one per frame.
+    pub fn add_bundle(&mut self, path: PathBuf) -> Result<(), String> {
+        let loaded = faris_engine::core_evidence::load_recorded_bundle(&path, &self.scenario)?;
+        let (record, case, directory) = (loaded.record, loaded.case, loaded.directory);
+        if self.records.contains_key(&record.variant_id) {
+            return Err("Duplicate transport record for an arrangement.".into());
+        }
+        if let Some(configured) = self.cases.get(&case.variant_id)
+            && serde_json::to_value(configured).map_err(|e| e.to_string())?
+                != serde_json::to_value(&case).map_err(|e| e.to_string())?
+        {
+            return Err(
+                "Configured physics differs from the recorded bundle's bound physics.".into(),
+            );
+        }
+        self.cases.entry(case.variant_id.clone()).or_insert(case);
+        self.locations
+            .insert(record.variant_id.clone(), directory.path().join("run.json"));
+        self.records.insert(record.variant_id.clone(), record);
+        self._replay_directories.push(directory);
+        Ok(())
     }
 
     /// The Python with OpenMC 0.16 that makes weight windows, when one is set.

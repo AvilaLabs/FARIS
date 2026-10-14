@@ -49,7 +49,8 @@ def prepare(package: Path, out: Path, ensembles: Path | None = None) -> dict:
 
     if out.exists():
         shutil.rmtree(out)
-    core = [take(f"port/bundles/{v}.transport-bundle.json") for v in VARIANTS]
+    core = [take("port/scenario.json")]
+    core += [take(f"port/bundles/{v}.transport-bundle.json") for v in VARIANTS]
     core.append(take("control/scenario.json"))
     core += [take(f"control/bundles/{v}.transport-bundle.json") for v in VARIANTS]
     core.append(take("operating-assumptions.json"))

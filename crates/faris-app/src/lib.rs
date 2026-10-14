@@ -41,6 +41,8 @@ type Suite = avila_account::ui_desktop::DesktopSuite;
 #[cfg(target_arch = "wasm32")]
 type Suite = avila_account::ui_web::WebSuite;
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+mod steps;
 mod thread;
 mod time;
 mod uncertainty;
@@ -246,6 +248,30 @@ fn load_sweep(
             physics: Vec::new(),
             runs: Vec::new(),
             bundles: paths.to_vec(),
+            runs_directory: runs_directory.to_path_buf(),
+        },
+    )?;
+    Ok((panel, scenario))
+}
+
+/// The sweep's panel with no records yet and the scenario its first bundle
+/// carries; the browser adds the bundles one frame at a time.
+#[cfg(target_arch = "wasm32")]
+fn start_sweep(
+    first: &std::path::Path,
+    runs_directory: &std::path::Path,
+) -> Result<(transport_panel::TransportPanel, LoadedScenario), String> {
+    let scenario = scenario_from_bundle(first).map_err(|e| e.to_string())?;
+    let panel = transport_panel::TransportPanel::new(
+        scenario.clone(),
+        transport_panel::TransportConfiguration {
+            python: None,
+            openmc: None,
+            audit: None,
+            cross_sections: None,
+            physics: Vec::new(),
+            runs: Vec::new(),
+            bundles: Vec::new(),
             runs_directory: runs_directory.to_path_buf(),
         },
     )?;
@@ -1610,7 +1636,21 @@ impl eframe::App for FarisApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         #[cfg(target_arch = "wasm32")]
-        self.poll_web(&ctx);
+        {
+            self.poll_web(&ctx);
+            // Pending work is advanced by frames in the browser; never wait for input.
+            if self.history.is_pending()
+                || self.sweep.as_ref().is_some_and(|s| s.is_pending())
+                || self.file.is_busy()
+                || self.maintenance.is_pending()
+            {
+                ctx.request_repaint();
+            } else if self.started.elapsed() < crate::time::Duration::from_secs(20) {
+                // A frame the browser dropped while the page was starting
+                // (surface, scale or size changes) must not wait for input.
+                ctx.request_repaint_after(crate::time::Duration::from_millis(250));
+            }
+        }
         let year_before_frame = self.year.to_bits();
         if self.frames == 0 {
             eprintln!(

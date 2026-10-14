@@ -7,11 +7,32 @@
 pub use std::thread::{Builder, JoinHandle, available_parallelism, sleep, spawn};
 
 #[cfg(target_arch = "wasm32")]
-pub use browser::{Builder, JoinHandle, available_parallelism, sleep, spawn};
+pub use browser::{Builder, JoinHandle, available_parallelism, sleep, slow_jobs, spawn};
 
 #[cfg(target_arch = "wasm32")]
 mod browser {
-    use std::{io, num::NonZeroUsize, time::Duration};
+    use std::{io, num::NonZeroUsize, sync::Mutex, time::Duration};
+
+    /// Jobs that held the page for 100 ms or more: (name, milliseconds).
+    static SLOW_JOBS: Mutex<Vec<(String, u32)>> = Mutex::new(Vec::new());
+
+    pub fn slow_jobs() -> Vec<(String, u32)> {
+        SLOW_JOBS.lock().map(|v| v.clone()).unwrap_or_default()
+    }
+
+    fn timed<T>(name: &str, job: impl FnOnce() -> T) -> std::thread::Result<T> {
+        let started = web_time::Instant::now();
+        // A panic in the job is caught as a thread's would be, so the
+        // panel reports it instead of the page stopping.
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
+        let ms = started.elapsed().as_millis() as u32;
+        if ms >= 100
+            && let Ok(mut slow) = SLOW_JOBS.lock()
+        {
+            slow.push((name.to_owned(), ms));
+        }
+        result
+    }
 
     pub struct JoinHandle<T> {
         result: std::thread::Result<T>,
@@ -27,13 +48,16 @@ mod browser {
     }
 
     #[derive(Default)]
-    pub struct Builder;
+    pub struct Builder {
+        name: String,
+    }
 
     impl Builder {
         pub fn new() -> Self {
-            Self
+            Self::default()
         }
-        pub fn name(self, _name: String) -> Self {
+        pub fn name(mut self, name: String) -> Self {
+            self.name = name;
             self
         }
         pub fn spawn<F, T>(self, job: F) -> io::Result<JoinHandle<T>>
@@ -41,10 +65,9 @@ mod browser {
             F: FnOnce() -> T + Send + 'static,
             T: Send + 'static,
         {
-            // A panic in the job is caught as a thread's would be, so the
-            // panel reports it instead of the page stopping.
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
-            Ok(JoinHandle { result })
+            Ok(JoinHandle {
+                result: timed(&self.name, job),
+            })
         }
     }
 
@@ -54,7 +77,7 @@ mod browser {
         T: Send + 'static,
     {
         JoinHandle {
-            result: std::panic::catch_unwind(std::panic::AssertUnwindSafe(job)),
+            result: timed("unnamed", job),
         }
     }
 

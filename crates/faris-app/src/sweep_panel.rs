@@ -11,13 +11,15 @@ use crate::{
     transport_panel::TransportPanel,
 };
 use eframe::egui;
+#[cfg(not(target_arch = "wasm32"))]
+use faris_engine::sweep::summarize_sweep;
 use faris_engine::{
     DemoManifest, build_manifest,
     history::TransportDrivingRates,
     jobs::Cancellation,
     sweep::{
         Estimate, HistorySummary, TransportPoint, collect_points, history_findings,
-        summarize_sweep, transport_findings,
+        transport_findings,
     },
 };
 use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
@@ -31,6 +33,19 @@ struct Pending {
     cancellation: Cancellation,
     receiver: Receiver<Result<Vec<HistorySummary>, String>>,
     key: String,
+    /// The browser runs one point's history per frame, then sends the lot.
+    #[cfg(target_arch = "wasm32")]
+    steps: Option<crate::steps::Steps<TransportDrivingRates, HistorySummary>>,
+    #[cfg(target_arch = "wasm32")]
+    sender: mpsc::Sender<Result<Vec<HistorySummary>, String>>,
+}
+
+/// The browser checks the sweep's bundles one per frame.
+#[cfg(target_arch = "wasm32")]
+pub struct LoadSteps {
+    first: Option<(std::path::PathBuf, std::path::PathBuf)>,
+    paths: std::collections::VecDeque<std::path::PathBuf>,
+    started: Option<(TransportPanel, LoadedScenario)>,
 }
 
 type Loaded = Result<(TransportPanel, LoadedScenario), String>;
@@ -38,6 +53,8 @@ type Loaded = Result<(TransportPanel, LoadedScenario), String>;
 pub struct SweepPanel {
     /// Bundles are validated off the UI thread; `Some` until the load ends.
     loading: Option<Receiver<Loaded>>,
+    #[cfg(target_arch = "wasm32")]
+    stepping: Option<LoadSteps>,
     /// Keeps the materialized replay directories alive for the session.
     _transport: Option<TransportPanel>,
     manifest: Option<DemoManifest>,
@@ -133,6 +150,8 @@ impl SweepPanel {
     pub fn new(loaded: Result<(TransportPanel, LoadedScenario), String>) -> Self {
         let mut panel = Self {
             loading: None,
+            #[cfg(target_arch = "wasm32")]
+            stepping: None,
             _transport: None,
             manifest: None,
             load_error: None,
@@ -172,6 +191,56 @@ impl SweepPanel {
         panel
     }
 
+    /// Check the sweep's bundles one per frame (browser); the view shows progress.
+    #[cfg(target_arch = "wasm32")]
+    pub fn load_stepwise(
+        paths: Vec<std::path::PathBuf>,
+        runs_directory: std::path::PathBuf,
+    ) -> Self {
+        let mut panel = Self::new(Err(String::new()));
+        panel.load_error = None;
+        panel.stepping = Some(LoadSteps {
+            first: paths.first().cloned().map(|p| (p, runs_directory)),
+            paths: paths.into(),
+            started: None,
+        });
+        panel
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn step_load(&mut self, ctx: &egui::Context) -> bool {
+        let Some(load) = self.stepping.as_mut() else {
+            return false;
+        };
+        ctx.request_repaint();
+        let result = if let Some((first, runs)) = load.first.take() {
+            crate::start_sweep(&first, &runs).map(|started| load.started = Some(started))
+        } else if let Some(path) = load.paths.pop_front() {
+            match load.started.as_mut() {
+                Some((panel, _)) => {
+                    let added = panel.add_bundle(path.clone());
+                    // The panel holds the parsed record; free the raw file.
+                    faris_engine::vfs::remove(&path);
+                    added
+                }
+                None => Err("The sweep has no scenario.".into()),
+            }
+        } else {
+            let done = self.stepping.take().and_then(|l| l.started);
+            match done {
+                Some(loaded) => self.install(Ok(loaded)),
+                None => self.load_error = Some("The sweep has no records.".into()),
+            }
+            return false;
+        };
+        if let Err(error) = result {
+            self.stepping = None;
+            self.load_error = Some(error);
+            return false;
+        }
+        true
+    }
+
     fn install(&mut self, loaded: Loaded) {
         let panel = self;
         match loaded.and_then(|(transport, scenario)| {
@@ -201,7 +270,14 @@ impl SweepPanel {
     }
 
     pub fn is_pending(&self) -> bool {
-        self.pending.is_some() || self.loading.is_some()
+        self.pending.is_some() || self.loading.is_some() || self.is_stepping()
+    }
+
+    fn is_stepping(&self) -> bool {
+        #[cfg(target_arch = "wasm32")]
+        return self.stepping.is_some();
+        #[cfg(not(target_arch = "wasm32"))]
+        false
     }
 
     /// Blanket thickness (m) of the selected allocation, once the points load;
@@ -232,6 +308,13 @@ impl SweepPanel {
         ctx: &egui::Context,
         assumptions: Option<&OperatingHistoryAssumptions>,
     ) {
+        #[cfg(target_arch = "wasm32")]
+        if self.step_load(ctx) {
+            return;
+        }
+        if self.is_stepping() {
+            return;
+        }
         if let Some(receiver) = &self.loading {
             match receiver.try_recv() {
                 Ok(loaded) => {
@@ -284,29 +367,56 @@ impl SweepPanel {
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
         let (sender, receiver) = mpsc::channel();
-        let context = ctx.clone();
         let assumptions = assumptions.clone();
         let rates = self.rates.clone();
-        let spawn = crate::thread::Builder::new()
-            .name("faris-sweep-histories".into())
-            .spawn(move || {
-                let result = summarize_sweep(&rates, &assumptions, &worker_cancellation);
-                let _ = sender.send(result);
-                context.request_repaint();
-            });
-        match spawn {
-            Ok(_) => {
-                self.pending = Some(Pending {
-                    cancellation,
-                    receiver,
-                    key,
-                })
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let context = ctx.clone();
+            let spawn = crate::thread::Builder::new()
+                .name("faris-sweep-histories".into())
+                .spawn(move || {
+                    let result = summarize_sweep(&rates, &assumptions, &worker_cancellation);
+                    let _ = sender.send(result);
+                    context.request_repaint();
+                });
+            match spawn {
+                Ok(_) => {
+                    self.pending = Some(Pending {
+                        cancellation,
+                        receiver,
+                        key,
+                    })
+                }
+                Err(error) => self.history_error = Some(error.to_string()),
             }
-            Err(error) => self.history_error = Some(error.to_string()),
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let steps = crate::steps::Steps::new(rates, move |rates| {
+                faris_engine::sweep::summarize_point(&rates, &assumptions, &worker_cancellation)
+            });
+            self.pending = Some(Pending {
+                cancellation,
+                receiver,
+                key,
+                steps: Some(steps),
+                sender,
+            });
+            ctx.request_repaint();
         }
     }
 
     fn poll(&mut self, ctx: &egui::Context) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(pending) = self.pending.as_mut()
+            && let Some(steps) = pending.steps.as_mut()
+        {
+            if let Some(done) = steps.advance() {
+                pending.steps = None;
+                let _ = pending.sender.send(done);
+            }
+            ctx.request_repaint();
+        }
         let Some(pending) = &self.pending else {
             return;
         };
@@ -329,7 +439,7 @@ impl SweepPanel {
     /// The sweep as the export needs it, once its records are loaded and the
     /// histories are current. Summaries are empty while they are not.
     pub fn export_data(&self) -> Option<faris_report::SweepInput> {
-        if self.loading.is_some() || self.points.is_empty() {
+        if self.loading.is_some() || self.is_stepping() || self.points.is_empty() {
             return None;
         }
         let current = self.histories_ready() && self.pending.is_none() && self.seen_key.is_none();
@@ -350,7 +460,7 @@ impl SweepPanel {
     /// `preset_label` names the operating assumptions the history statements
     /// are conditional on.
     pub fn view(&mut self, ui: &mut egui::Ui, preset_label: &str) {
-        if self.loading.is_some() {
+        if self.loading.is_some() || self.is_stepping() {
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.weak("Loading allocation sweep bundles\u{2026}");

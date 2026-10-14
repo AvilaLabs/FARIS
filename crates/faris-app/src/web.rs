@@ -20,6 +20,35 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 use wasm_bindgen_futures::JsFuture;
 
+/// The page's context, so a dropped frame can ask for the next one.
+static SURFACE_CONTEXT: Mutex<Option<egui::Context>> = Mutex::new(None);
+static DROPPED_FRAMES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// What to do when the browser gives no surface to draw on (typically after
+/// the canvas size or the display scale changed). The default drops the frame
+/// and draws nothing more until some input arrives, which leaves the page
+/// looking frozen; this asks for the next frame at once.
+fn on_surface_status(
+    status: &eframe::wgpu::CurrentSurfaceTexture,
+) -> eframe::egui_wgpu::SurfaceErrorAction {
+    use eframe::egui_wgpu::SurfaceErrorAction as Action;
+    use eframe::wgpu::CurrentSurfaceTexture as Status;
+    let action = match status {
+        Status::Outdated => Action::Reconfigure,
+        Status::Lost => Action::RecreateSurface,
+        _ => Action::SkipFrame,
+    };
+    if !matches!(status, Status::Occluded) {
+        DROPPED_FRAMES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if let Ok(held) = SURFACE_CONTEXT.lock()
+            && let Some(ctx) = held.as_ref()
+        {
+            ctx.request_repaint();
+        }
+    }
+    action
+}
+
 /// The uncertainty ranges that came with the bundled study, kept so a study the
 /// user opens whose inputs are the same (same key) shows them too.
 static DEMO_ENSEMBLES: Mutex<Vec<faris_study::StoredEnsemble>> = Mutex::new(Vec::new());
@@ -195,8 +224,12 @@ impl FarisApp {
             "historyPending": self.history.is_pending(),
             "pairedLoaded": self.paired.is_some(),
             "sweepStarted": self.sweep.is_some(),
+            "sweepPending": self.sweep.as_ref().is_some_and(|s| s.is_pending()),
+            "sweepReady": self.sweep.as_ref().is_some_and(|s| !s.is_pending()),
+            "droppedFrames": DROPPED_FRAMES.load(std::sync::atomic::Ordering::Relaxed),
             "allocations": self.manifest.variants.len(),
             "message": self.message,
+            "slowJobs": crate::thread::slow_jobs(),
         });
         let _ = js_sys::Reflect::set(
             &window,
@@ -225,17 +258,8 @@ impl FarisApp {
         match ready {
             Some(Ok(paths)) => {
                 let runs = PathBuf::from("/faris-runs");
-                self.sweep = Some(sweep_panel::SweepPanel::load_in_background(
-                    ctx,
-                    move || {
-                        let loaded = crate::load_sweep(&paths, &runs);
-                        // The panel holds the parsed records; free the raw files.
-                        for path in &paths {
-                            faris_engine::vfs::remove(path);
-                        }
-                        loaded
-                    },
-                ));
+                self.sweep = Some(sweep_panel::SweepPanel::load_stepwise(paths, runs));
+                ctx.request_repaint();
             }
             Some(Err(error)) => {
                 self.message = format!("The allocation sweep could not be loaded: {error}");
@@ -377,27 +401,38 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
     if manifest.schema != "faris-web-demo/v1" {
         return Err(format!("unknown study list version {:?}", manifest.schema));
     }
+    mark("boot: manifest read");
     load_files(&manifest.core, "Loading the recorded study").await?;
+    mark("boot: files fetched");
     set_loading("Checking the recorded transport…");
     // Let the page paint the message before the (synchronous) checks run.
     yield_to_page().await;
 
     let runs = PathBuf::from("/faris-runs");
     let mut inputs = SessionInputs::empty(runs.clone());
-    inputs.bundle = ["reference", "breeder-emphasis"]
-        .map(|v| demo_path(&format!("port/bundles/{v}.transport-bundle.json")))
-        .to_vec();
+    // The bundles are checked one at a time below, with the page painting between.
+    inputs.scenario = Some(demo_path("port/scenario.json"));
     inputs.control_scenario = Some(demo_path("control/scenario.json"));
-    inputs.control_bundle = ["reference", "breeder-emphasis"]
-        .map(|v| demo_path(&format!("control/bundles/{v}.transport-bundle.json")))
-        .to_vec();
     inputs.assumptions = Some(demo_path("operating-assumptions.json"));
     let Session {
         manifest: reactor,
-        control,
-        transport,
+        mut control,
+        mut transport,
         mut history,
     } = build_session(inputs)?;
+    for variant in ["reference", "breeder-emphasis"] {
+        transport.add_bundle(demo_path(&format!(
+            "port/bundles/{variant}.transport-bundle.json"
+        )))?;
+        yield_to_page().await;
+        if let Some((_, panel)) = control.as_mut() {
+            panel.add_bundle(demo_path(&format!(
+                "control/bundles/{variant}.transport-bundle.json"
+            )))?;
+            yield_to_page().await;
+        }
+    }
+    mark("boot: session built");
     if let Some(file) = &manifest.ensembles {
         load_files(std::slice::from_ref(file), "Loading the uncertainty ranges").await?;
         let path = demo_path(&file.path);
@@ -454,10 +489,11 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
     let sweep_files = manifest.sweep;
 
     let slot: Arc<Mutex<Option<(egui::Context, f64)>>> = Arc::new(Mutex::new(None));
-    let options = eframe::WebOptions {
+    let mut options = eframe::WebOptions {
         depth_buffer: 32,
         ..Default::default()
     };
+    options.wgpu_options.on_surface_status = Arc::new(on_surface_status);
     let creator_slot = slot.clone();
     eframe::WebRunner::new()
         .start(
@@ -468,10 +504,14 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
                     "the 3D viewport needs WebGPU or WebGL2, and this browser offers neither",
                 )?;
                 viewport::initialize(state);
+                if let Ok(mut held) = SURFACE_CONTEXT.lock() {
+                    *held = Some(cc.egui_ctx.clone());
+                }
                 let mut visuals = egui::Visuals::dark();
                 visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
                 visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
                 cc.egui_ctx.set_visuals(visuals);
+                mark("boot: creating the app");
                 let mut app = FarisApp::new(
                     reactor,
                     None,
@@ -535,6 +575,13 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+/// A named point on the page's performance timeline, for the smoke test.
+fn mark(name: &str) {
+    if let Some(performance) = web_sys::window().and_then(|w| w.performance()) {
+        let _ = performance.mark(name);
+    }
 }
 
 /// Resolve on the next browser task, so queued painting happens first.
