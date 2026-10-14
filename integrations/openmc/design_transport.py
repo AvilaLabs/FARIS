@@ -33,8 +33,8 @@ directory. `mgxs` condenses the library to 17 groups, ten of them above 0.1 MeV,
 materials of the design (OpenMC 0.15.3). `windows` solves the adjoint problem of the
 response by random ray on a 25 cm grid and writes weight windows from it (CADIS; this needs
 OpenMC 0.16 or later). `run` then splits and roulettes on those windows. If the OpenMC
-library `run` loads was built with the aiming patch, it also looks for a straight channel
-from the source to the response and aims at it (streaming_aim.py); otherwise the windows are
+library `run` loads was built with the aiming patch, it also looks for duct openings
+that neutrons cross on their way from the source to the response without a collision, and aims at them (streaming_aim.py); otherwise the windows are
 used as they are. Either way the result says which mode ran and why. This is the recipe of
 docs/notes/CAD_TRANSPORT_S0F.md (pilot p1-fr, protocols 4 and 5).
 

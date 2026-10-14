@@ -95,7 +95,8 @@ def plan(model: Path, work: Path, library: Path | None, response_material: int =
             if not keep_runs:
                 tidy(work / "visibility")
             out = {"mode": "aimed", "model": str(aimed), "env": aim_env(T.aperture_spec(targets, SOURCE_BETA)),
-                   "reason": "A straight channel from the source to the response was found.",
+                   "reason": ("Neutrons reach the response through a duct without a collision (through the void "
+                              "or thin material); the run aims at the duct's exit and inlet."),
                    "next_step": "Run the aimed model with the variables given, on the patched OpenMC.",
                    "targets": [{"name": n, "centre": list(map(float, c)), "u": list(map(float, u)),
                                 "v": list(map(float, v)), "normal": list(map(float, nr))}

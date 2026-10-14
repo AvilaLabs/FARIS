@@ -89,7 +89,7 @@ pub static TOOLS: [ToolInfo; 5] = [
         field: Field::OpenmcPackage,
         label: "OpenMC package folder (optional)",
         purpose: "A folder holding an openmc package used in place of the interpreter's own, such as a build with the aiming patch.",
-        without: "The run cannot aim at a straight channel from the plasma to the magnets.",
+        without: "The run cannot aim at a duct that streams neutrons from the plasma to the magnets; results are the same, only slower.",
         environment: None,
         is_folder: true,
     },
