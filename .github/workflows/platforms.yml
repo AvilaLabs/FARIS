@@ -1,0 +1,112 @@
+name: Platforms
+
+# Evidence for the support table in docs/guide/platforms.md (PLAT-001, -003, -004, -005): the command-line
+# crates are built and tested on each hosted runner that stands for a Tier 1 or Tier 2 row, the desktop app
+# is built there (it is not started: hosted runners have no display), and the Linux command-line binary is
+# built on glibc 2.31 and run on four distributions. Ubuntu 24.04 on x86_64 is the `check` job of ci.yml,
+# which runs the whole workspace; it is not repeated here. scripts/platform_table.py checks that every row of
+# the table names a job that exists in these workflows.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  native:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Ubuntu 24.04 aarch64", runner: ubuntu-24.04-arm }
+          - { name: "Windows Server 2022 x86_64", runner: windows-2022 }
+          - { name: "Windows Server 2025 x86_64", runner: windows-2025 }
+          - { name: "macOS 14 arm64", runner: macos-14 }
+          - { name: "macOS 15 arm64", runner: macos-15 }
+          - { name: "macOS 15 Intel x86_64", runner: macos-15-intel }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUST_TEST_THREADS: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: platforms-${{ matrix.runner }}
+      - name: Native desktop dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libxkbcommon-dev libwayland-dev poppler-utils
+      - name: Build the command line and the desktop app
+        run: cargo build --locked -p faris-cli -p faris-app
+      - name: Rust tests of the command-line crates
+        run: cargo test --locked -p faris-model -p faris-engine -p faris-report -p faris-study -p faris-cli
+      - name: Command-line scenario check
+        run: |
+          set -euo pipefail
+          exe=""; if [ "$RUNNER_OS" = Windows ]; then exe=.exe; fi
+          target/debug/faris$exe --version
+          target/debug/faris$exe validate scenarios/arc-inspired/scenario.json
+          target/debug/faris$exe doctor
+
+  # PLAT-003. The binary is built in Debian 11 (glibc 2.31), then run in distributions with glibc 2.31 and
+  # newer, with the highest glibc symbol version it needs recorded.
+  linux-old-glibc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            glibc-cache/cargo
+            glibc-cache/target
+          key: old-glibc-${{ hashFiles('Cargo.lock', 'rust-toolchain*') }}
+          restore-keys: old-glibc-
+      - name: Build faris in Debian 11 (glibc 2.31)
+        run: |
+          set -euo pipefail
+          mkdir -p glibc-cache/cargo glibc-cache/target
+          docker run --rm -v "$PWD:/w" -w /w \
+            -e CARGO_HOME=/w/glibc-cache/cargo -e CARGO_TARGET_DIR=/w/glibc-cache/target \
+            debian:bullseye bash -euxc '
+              apt-get update -qq
+              apt-get install -y -qq curl ca-certificates build-essential pkg-config binutils >/dev/null
+              ldd --version | head -n 1
+              if [ ! -x /w/glibc-cache/cargo/bin/rustup ]; then
+                curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.98.1
+              fi
+              . /w/glibc-cache/cargo/env
+              cargo build --release --locked -p faris-cli
+            '
+          mkdir -p out
+          cp glibc-cache/target/release/faris out/faris
+      - name: Highest glibc symbol version the binary needs
+        run: |
+          set -euo pipefail
+          need=$(objdump -T out/faris | grep -o 'GLIBC_[0-9][0-9.]*' | sort -Vu | tail -n 1)
+          echo "highest glibc symbol version: $need" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$(printf '%s\n' "$need" GLIBC_2.31 | sort -V | tail -n 1)" = GLIBC_2.31
+      - name: Run the binary on glibc 2.31 and newer
+        run: |
+          set -euo pipefail
+          for image in debian:bullseye ubuntu:20.04 ubuntu:24.04 ubuntu:26.04; do
+            echo "::group::$image"
+            docker run --rm -v "$PWD:/w:ro" -w /w "$image" bash -euc '
+              ldd --version | head -n 1
+              out/faris --version
+              out/faris validate scenarios/arc-inspired/scenario.json
+            '
+            echo "::endgroup::"
+          done
