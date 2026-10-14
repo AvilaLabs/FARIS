@@ -8,8 +8,10 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
-# Outside the FARIS workspace: normal builds and tests never see it.
+# Outside the FARIS workspace: normal builds and tests never see it. `entries` is its own
+# workspace (buildable offline for CI), so it is excluded here.
 [workspace]
+exclude = ["entries"]
 
 [dependencies]
 libfuzzer-sys = "0.4"

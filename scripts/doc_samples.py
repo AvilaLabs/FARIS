@@ -62,6 +62,7 @@ SKIP_PROGRAMS = {
     "package": "unpacks or verifies a downloaded release archive; the release-smoke workflow runs that on a real release",
     "download": "downloads data from an outside site; no network use in CI",
     "assign": "sets the path of the reader's own OpenMC; nothing to run",
+    "fuzz": "a libFuzzer run needs the nightly toolchain and runs until stopped; scripts/fuzz_all.sh runs every target",
 }
 
 # (file, first words of the command) -> reason. Empty: no sample is expected to fail.
@@ -107,6 +108,10 @@ FRAGMENTS = {
         "formula (the ledger identity in words; its terms are prose names, not field names)", [], []),
     ("docs/STUDY_EXPORT.md", "faris_report::export_study(&ReportInput { study_file: Option<StudyFileStamp>,"): (
         "signature outline", ["export_study", "ReportInput", "study_file", "view_image", "StudyFileStamp"], ["crates/faris-report/src"]),
+    ("docs/FUZZING.md", "{"): (
+        "example of the fuzz evidence file, with a placeholder commit and toolchain",
+        ["schema_version", "seconds_per_target_requested", "executions", "crashes", "exit_status"],
+        ["scripts/fuzz_all.sh", "scripts/release_gate.py"]),
     ("docs/STUDY_FILE.md", '"layers": {'): (
         "JSON outline with `|` between alternatives", ["evidence_store", "mode", "trees", "arrangement", "allocation",
                                                         "kind", "tree", "files", "path", "sha256", "bytes"], ["crates/faris-study/src"]),
@@ -289,6 +294,8 @@ def program_kind(first: str, args: list[str]) -> str:
     name = Path(first).name
     if first.startswith(("OPENMC_PY=", "OPENMC_EXE=")):
         return "assign"
+    if first.startswith("RUSTUP_TOOLCHAIN=") and args[:2] == ["cargo", "fuzz"]:
+        return "fuzz"
     if name == "faris":
         return "faris"
     if name in ("faris-app",):
