@@ -207,7 +207,7 @@ class WindowsFromAFile(unittest.TestCase):
         the bounds far from it."""
         import numpy as np
 
-        def visibility_run(base, work, target, groups, mesh_xml, particles, threads=4):
+        def visibility_run(base, work, target, groups, mesh_xml, particles, threads=4, keep=True):
             n_vox = int(re.search(r"<dimension>(\d+)", mesh_xml).group(1))
             x = (np.arange(n_vox) + 0.5)
             prob = 1.0 / (1.0 + (x - 62.0) ** 2 / 100.0)
@@ -306,7 +306,10 @@ class WindowsFromAFile(unittest.TestCase):
             DT.export_model(from_file, run / "model.xml", DT.apply_windows(openmc, from_file, labelled(filled, run), run))
             (work / "aim").mkdir()
             counts = W.cap_model(run / "model.xml", work / "aim" / "model-aimed.xml", work / "v1", [TARGET], 40000)
-            W.cap_model(work / "inline-base" / "model.xml", work / "inline-capped.xml", work / "v2", [TARGET], 40000)
+            W.cap_model(work / "inline-base" / "model.xml", work / "inline-capped.xml", work / "v2", [TARGET], 40000,
+                        keep=False)
+            # without keep, each target's run leaves no model, statepoint or summary behind
+            left = sorted(p.name for p in (work / "v2").rglob("*") if p.is_file())
             _, lower, _ = W.read_window_file(work / "aim" / "windows-capped.h5")
             xml_lower, _ = inline_bounds((work / "inline-capped.xml").read_text())
             original = W.read_window_file(run / RUN_WINDOWS)[1]
@@ -315,6 +318,7 @@ class WindowsFromAFile(unittest.TestCase):
         self.assertTrue((lower <= original).all())
         self.assertEqual(lower.shape, original.shape)
         self.assertIn("lowered", counts)
+        self.assertFalse([n for n in left if n.endswith(".h5") or n == "model.xml"], left)
 
 
 if __name__ == "__main__":

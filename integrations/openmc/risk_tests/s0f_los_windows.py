@@ -137,9 +137,10 @@ def cap_bounds(lower: np.ndarray, w_t: np.ndarray, prob: np.ndarray, rel_err: np
 
 
 def visibility_run(base: Path, work: Path, target, groups: np.ndarray, mesh_xml: str, particles: int,
-                   threads: int = 4):
+                   threads: int = 4, keep: bool = True):
     """Uncollided flux on the window mesh from a cosine-law source on the target; returns (mean, rel_err) arrays of
-    shape (n_groups_above_cutoff, n_voxels)."""
+    shape (n_groups_above_cutoff, n_voxels). With `keep` false the run's model and statepoint are removed once
+    read (on a large machine each target's run leaves over 100 MB)."""
     import subprocess
     import openmc
     name, c, u, v, n = target
@@ -187,6 +188,9 @@ def visibility_run(base: Path, work: Path, target, groups: np.ndarray, mesh_xml:
         t = sp.get_tally(name="uncollided")
         mean = t.get_values(value="mean").reshape(len(groups) - 1, -1)
         sd = t.get_values(value="std_dev").reshape(len(groups) - 1, -1)
+    if not keep:
+        for path in (work / "model.xml", work / "statepoint.10.h5", work / "summary.h5"):
+            path.unlink(missing_ok=True)
     return mean, np.where(mean > 0, sd / np.where(mean > 0, mean, 1.0), np.inf)
 
 
@@ -210,7 +214,8 @@ def write_window_file(src: Path, dst: Path, lower: np.ndarray, upper: np.ndarray
         group["upper_ww_bounds"][...] = upper
 
 
-def capped_bounds(base: Path, work: Path, targets, particles: int, bounds, lower, upper, mesh_xml: str):
+def capped_bounds(base: Path, work: Path, targets, particles: int, bounds, lower, upper, mesh_xml: str,
+                  keep: bool = True):
     """The windows' lower and upper bounds lowered from each target in turn (the mesh is `mesh_xml`, an element of
     `base`). Returns (new lower, new upper, record counts)."""
     get = lambda tag, s: [float(t) for t in re.search(rf"<{tag}>(.*?)</{tag}>", s, re.S).group(1).split()]
@@ -225,7 +230,7 @@ def capped_bounds(base: Path, work: Path, targets, particles: int, bounds, lower
     new = lower.copy()
     for target in targets:
         name, c, u, v, n = target
-        mean, rel = visibility_run(base, work / name, target, groups, mesh_xml, particles)
+        mean, rel = visibility_run(base, work / name, target, groups, mesh_xml, particles, keep=keep)
         prob = reach_probability(mean, target_area(u, v), 1.0 / (len(groups) - 1), volume)
         w_t = aperture_bound(new.ravel(), (np.asarray(c), np.asarray(u), np.asarray(v)), lower_left, width, dims,
                              n_e, normal=np.asarray(n))[g0:]
@@ -246,7 +251,7 @@ def capped_bounds(base: Path, work: Path, targets, particles: int, bounds, lower
     return new, new_up, {"lowered": int(m.sum()), "positive": int((lower > 0).sum())}
 
 
-def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 2_000_000) -> dict:
+def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 2_000_000, keep: bool = True) -> dict:
     """Write `out`: `base` with its windows capped from each target in turn. Returns counts for the record.
 
     If `base` names its windows in a <weight_windows_file> (the file of a FARIS run, found beside `base`), the
@@ -262,7 +267,7 @@ def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 
     if named is not None:
         source = base.parent / named.group(1).strip()
         bounds, lower, upper = read_window_file(source)
-        new, new_up, counts = capped_bounds(base, work, targets, particles, bounds, lower, upper, mesh_xml)
+        new, new_up, counts = capped_bounds(base, work, targets, particles, bounds, lower, upper, mesh_xml, keep)
         capped = out.parent / "windows-capped.h5"
         write_window_file(source, capped, new, new_up)
         out.write_text(x)
@@ -273,7 +278,7 @@ def cap_model(base: Path, out: Path, work: Path, targets=None, particles: int = 
     ww = x[i:k]
     bounds = np.array(get("energy_bounds", ww))
     new, new_up, counts = capped_bounds(base, work, targets, particles, bounds, get("lower_ww_bounds", ww),
-                                        get("upper_ww_bounds", ww), mesh_xml)
+                                        get("upper_ww_bounds", ww), mesh_xml, keep)
     fmt = lambda a: " ".join(repr(float(v)) for v in a.ravel())
     ww2 = re.sub(r"<lower_ww_bounds>.*?</lower_ww_bounds>", f"<lower_ww_bounds>{fmt(new)}</lower_ww_bounds>", ww,
                  flags=re.S)

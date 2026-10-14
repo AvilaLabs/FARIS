@@ -93,7 +93,7 @@ def plan(model: Path, work: Path, library: Path | None, response_material: int =
         out = choose(True, targets)
         if out is None:
             aimed = work / "model-aimed.xml"
-            counts = W.cap_model(model, aimed, work / "visibility", targets)
+            counts = W.cap_model(model, aimed, work / "visibility", targets, keep=keep_runs)
             if not keep_runs:
                 tidy(work / "visibility")
             out = {"mode": "aimed", "model": str(aimed), "windows": counts.get("windows"), "env": aim_env(T.aperture_spec(targets, SOURCE_BETA)),
