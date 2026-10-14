@@ -185,6 +185,7 @@ class WindowsOnCsgDoNotBiasTheAnswer(unittest.TestCase):
 
     # Verifies: NUC-051, PERF-025
     def test_windows_from_openmc_magic_agree_with_analog(self):
+        # Stochastic: seed ANALOG_SEED; |z| < 3; expected: the analog run of the same model (seed ANALOG_SEED), compared with the windowed run (seed WINDOWED_SEED) by agree(); the windows use WINDOW_SEED
         import openmc
 
         with tempfile.TemporaryDirectory() as scratch:
@@ -212,6 +213,7 @@ class WindowsOnCsgDoNotBiasTheAnswer(unittest.TestCase):
 
     # Verifies: NUC-051, PERF-025
     def test_windows_from_the_studys_generator_agree_with_analog(self):
+        # Stochastic: seed ANALOG_SEED; |z| < 3; expected: the analog run of the same model (seed ANALOG_SEED), compared with the windowed run (seed WINDOWED_SEED) by agree(); the windows use WINDOW_SEED
         python = window_python()
         with tempfile.TemporaryDirectory() as scratch:
             work = Path(scratch)

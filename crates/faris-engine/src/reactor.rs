@@ -663,8 +663,14 @@ pub fn validate_run_timeout(timeout: Duration) -> Result<(), ReactorError> {
 
 impl SamplingPlan {
     pub fn validate(&self) -> Result<(), ReactorError> {
-        if self.batches < STOP_RULE_MIN_BATCHES
-            || self.batches > 1000
+        if self.batches < STOP_RULE_MIN_BATCHES {
+            return Err(format!(
+                "{} batches is too few for a meaningful standard error: the error is estimated from the spread between batches, so at least {STOP_RULE_MIN_BATCHES} are needed. Set the batch count to {STOP_RULE_MIN_BATCHES} or more (at most 1000)",
+                self.batches
+            )
+            .into());
+        }
+        if self.batches > 1000
             || self.particles_per_batch == 0
             || u64::from(self.batches) * u64::from(self.particles_per_batch) > MAX_RUN_HISTORIES
             || self.seed == 0
@@ -2740,6 +2746,35 @@ mod tests {
         const { assert!(MAX_RUN_TIMEOUT_SECONDS >= 2 * 68 * 60 * MAX_RUN_HISTORIES / 30_000_000) };
     }
 
+    // Verifies: NUC-048
+    #[test]
+    fn fewer_than_thirty_batches_are_refused_with_the_reason_and_the_next_step() {
+        for batches in [0, 1, 29] {
+            let error = SamplingPlan {
+                batches,
+                ..Default::default()
+            }
+            .validate()
+            .unwrap_err()
+            .to_string();
+            assert!(
+                error.contains(&format!("{batches} batches is too few"))
+                    && error.contains("standard error")
+                    && error.contains("at least 30")
+                    && error.contains("Set the batch count to 30 or more"),
+                "{error}"
+            );
+        }
+        assert!(
+            SamplingPlan {
+                batches: 30,
+                ..Default::default()
+            }
+            .validate()
+            .is_ok()
+        );
+    }
+
     #[test]
     fn sampling_plan_rejects_unbounded_or_unusable_work() {
         assert_eq!(
@@ -3219,5 +3254,321 @@ mod tests {
                 package_content_upper_bound_bytes: 6_366_548,
             }
         );
+    }
+
+    /// A tiny stand-in for a local library: one file per nuclide and per element, and the audit
+    /// that describes them, with every datum the binding reads. The files are not real data.
+    struct SyntheticLibrary {
+        dir: tempfile::TempDir,
+        audit: Value,
+    }
+
+    impl SyntheticLibrary {
+        fn new(physics: &PhysicsCase) -> Self {
+            let dir = tempfile::tempdir().unwrap();
+            let cross_sections = dir.path().join("cross_sections.xml");
+            std::fs::write(&cross_sections, b"<cross_sections/>").unwrap();
+            let mut neutron = serde_json::Map::new();
+            let mut photon = serde_json::Map::new();
+            for m in &physics.materials {
+                let MaterialRecipe::NuclideMixture { nuclides, .. } = &m.recipe else {
+                    continue;
+                };
+                for n in nuclides {
+                    let name = &n.nuclide;
+                    let file = format!("{name}.h5");
+                    std::fs::write(dir.path().join(&file), name.as_bytes()).unwrap();
+                    neutron.insert(
+                        name.clone(),
+                        serde_json::json!({
+                            "readable_by_openmc_data_api": true,
+                            "nuclide_name_in_hdf5": name,
+                            "reactions": {"301": {"present": true}},
+                            "relative_path": file,
+                            "size_bytes": name.len(),
+                            "sha256": digest(name.as_bytes()),
+                            "temperatures_k": [293.6],
+                        }),
+                    );
+                    let element: String = name
+                        .chars()
+                        .take_while(|c| c.is_ascii_alphabetic())
+                        .collect();
+                    let file = format!("{element}-photon.h5");
+                    std::fs::write(dir.path().join(&file), element.as_bytes()).unwrap();
+                    photon.insert(
+                        element.clone(),
+                        serde_json::json!({
+                            "library_entry_present": true,
+                            "readable_by_h5py": true,
+                            "atomic_relaxation_populated": true,
+                            "relative_path": file,
+                            "size_bytes": element.len(),
+                            "sha256": digest(element.as_bytes()),
+                        }),
+                    );
+                }
+            }
+            let audit = serde_json::json!({
+                "schema": "faris.openmc-library-audit/1.0.0",
+                "cross_sections_xml": {"sha256": hash_file(&cross_sections).unwrap()},
+                "neutron_library": neutron,
+                "photon_atomic_library": photon,
+            });
+            Self { dir, audit }
+        }
+
+        fn cross_sections(&self) -> PathBuf {
+            self.dir.path().join("cross_sections.xml")
+        }
+    }
+
+    fn reference_case() -> (LoadedScenario, PhysicsCase) {
+        let scenario = LoadedScenario::from_bytes(include_bytes!(
+            "../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics = load_physics_case(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scenarios/arc-inspired/cold-coupled-control.reference.physics.json"
+            )),
+            &scenario,
+        )
+        .unwrap();
+        (scenario, physics)
+    }
+
+    // Verifies: NUC-062
+    #[test]
+    fn a_missing_photon_element_refuses_the_run_and_names_the_element() {
+        let (scenario, physics) = reference_case();
+        let library = SyntheticLibrary::new(&physics);
+        let cross_sections = library.cross_sections();
+        let bound = bind_audited_library(&physics, &scenario, &library.audit, &cross_sections);
+        assert!(bound.is_ok(), "{:?}", bound.err());
+        let elements: Vec<String> = library.audit["photon_atomic_library"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        // Every element of the model is needed: removing any one refuses, naming that element.
+        assert_eq!(elements.len(), 8);
+        for element in &elements {
+            let mut audit = library.audit.clone();
+            audit["photon_atomic_library"]
+                .as_object_mut()
+                .unwrap()
+                .remove(element);
+            let error = bind_audited_library(&physics, &scenario, &audit, &cross_sections)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(element.as_str()), "{element}: {error}");
+        }
+        // An element present but without populated atomic relaxation is a readiness gap, not a silent run.
+        let mut audit = library.audit.clone();
+        audit["photon_atomic_library"]["Fe"]["atomic_relaxation_populated"] = false.into();
+        let error = bind_audited_library(&physics, &scenario, &audit, &cross_sections)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("atomic-relaxation"), "{error}");
+    }
+
+    // Verifies: NUC-026
+    #[test]
+    fn a_nuclide_without_heating_or_a_readable_file_is_refused_by_name() {
+        let (scenario, physics) = reference_case();
+        let library = SyntheticLibrary::new(&physics);
+        let cross_sections = library.cross_sections();
+        let refused = |audit: &Value| {
+            bind_audited_library(&physics, &scenario, audit, &cross_sections)
+                .unwrap_err()
+                .to_string()
+        };
+        let mut audit = library.audit.clone();
+        audit["neutron_library"]["W184"]["reactions"]["301"]["present"] = false.into();
+        let error = refused(&audit);
+        assert!(
+            error.contains("MT=301") && error.contains("W184"),
+            "{error}"
+        );
+        let mut audit = library.audit.clone();
+        audit["neutron_library"]
+            .as_object_mut()
+            .unwrap()
+            .remove("Li6");
+        let error = refused(&audit);
+        assert!(error.contains("Li6"), "{error}");
+        let mut audit = library.audit.clone();
+        audit["neutron_library"]["Be9"]["sha256"] = "0".repeat(64).into();
+        let error = refused(&audit);
+        assert!(error.contains("Be9"), "{error}");
+    }
+
+    // Verifies: NUC-014, NUC-071
+    #[test]
+    fn every_heating_response_names_its_convention_and_particle_scope() {
+        let (scenario, physics) = reference_case();
+        let (request, _) = request_for_case(&scenario, &physics).unwrap();
+        let value = serde_json::to_value(&request).unwrap();
+        let heating: Vec<&Value> = value["responses"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["score"]["kind"] == "heating")
+            .collect();
+        assert!(heating.len() >= 5);
+        // Every heating number is asked for with its convention and the particles that deposit it.
+        let scopes: BTreeSet<&str> = heating
+            .iter()
+            .map(|r| {
+                assert_eq!(r["score"]["convention"], "heating");
+                r["score"]["particle_scope"].as_str().unwrap()
+            })
+            .collect();
+        assert_eq!(
+            scopes,
+            BTreeSet::from(["total", "neutron", "photon", "electron", "positron"])
+        );
+        // The second convention exists in the request type but this inventory cannot provide it,
+        // and asking for it is refused with the way out rather than answered with the first.
+        let mut local = request.clone();
+        for r in &mut local.responses {
+            if let ScoreDefinition::Heating { convention, .. } = &mut r.score {
+                *convention = HeatingConvention::HeatingLocal;
+            }
+        }
+        let error = local.validate_against(&scenario).unwrap_err();
+        assert!(
+            error.contains("heating-local is unavailable") && error.contains("coupled heating"),
+            "{error}"
+        );
+    }
+
+    // Verifies: NUC-061
+    #[test]
+    fn the_bound_inventory_names_both_libraries_it_mixes() {
+        let (scenario, physics) = reference_case();
+        let library = SyntheticLibrary::new(&physics);
+        let cross_sections = library.cross_sections();
+        let bound =
+            bind_audited_library(&physics, &scenario, &library.audit, &cross_sections).unwrap();
+        let NuclearDataSelection::Inventory { name, version, .. } = &bound.nuclear_data else {
+            panic!("the audited library binds as an inventory");
+        };
+        for label in [name, version] {
+            assert!(
+                label.contains("FENDL-3.2") && label.contains("ENDF/B-VII.1"),
+                "{label}"
+            );
+        }
+    }
+
+    /// A job whose "Python" is a shell script, so the run, its exit code and its files can be faked.
+    #[cfg(unix)]
+    fn run_with_fake_worker(script: &str) -> (ReactorRun, tempfile::TempDir) {
+        use std::os::unix::fs::PermissionsExt;
+        let (scenario, physics) = reference_case();
+        let library = SyntheticLibrary::new(&physics);
+        let audit = library.dir.path().join("audit.json");
+        std::fs::write(&audit, library.audit.to_string()).unwrap();
+        let python = library.dir.path().join("python");
+        std::fs::write(&python, format!("#!/bin/sh\n{script}\n")).unwrap();
+        std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let openmc = library.dir.path().join("openmc");
+        std::fs::write(&openmc, b"not a solver").unwrap();
+        let output = library.dir.path().join("run");
+        let cross_sections = library.cross_sections();
+        let job = ReactorJob {
+            scenario: &scenario,
+            physics: &physics,
+            audit: &audit,
+            cross_sections: &cross_sections,
+            python: &python,
+            openmc: &openmc,
+            output: &output,
+            sampling: SamplingPlan::default(),
+            mesh: None,
+            timeout: Duration::from_secs(30),
+            activation_spectra: None,
+            adapter: b"fake worker",
+            windows: None,
+        };
+        let record = run_reactor(&job, &Cancellation::default()).unwrap();
+        (record, library.dir)
+    }
+
+    // Verifies: NUC-004
+    #[cfg(unix)]
+    #[test]
+    fn injected_solver_faults_are_never_a_result_or_a_pass() {
+        // Exit code: the failure is kept as the execution status and nothing is imported.
+        let (record, _dir) = run_with_fake_worker("exit 3");
+        let execution = record.execution.as_ref().unwrap();
+        assert_eq!(execution.execution_status, ExecutionStatus::Failed);
+        assert_eq!(execution.exit_code, Some(3));
+        assert!(record.normalized.is_none() && record.raw_artifact_sha256.is_none());
+        assert_eq!(record.scientific_qualification, "NOT_EVALUATED");
+        // A clean exit with no artifacts, a truncated worker result and an empty one all fail the import.
+        let faults = [
+            "exit 0",
+            "mkdir -p \"$5\"; printf '{\"execution_status\": \"COMPL' > \"$5/worker-result.json\"",
+            "mkdir -p \"$5\"; printf '{}' > \"$5/worker-result.json\"",
+        ];
+        for script in faults {
+            let (record, _dir) = run_with_fake_worker(script);
+            let execution = record.execution.as_ref().unwrap();
+            assert_eq!(execution.execution_status, ExecutionStatus::Succeeded);
+            let reason = record.import_error.as_deref().unwrap_or_default();
+            assert!(
+                !reason.is_empty(),
+                "{script}: an inconsistent run needs a reason"
+            );
+            assert!(record.normalized.is_none() && record.raw_artifact_sha256.is_none());
+            assert_eq!(record.scientific_qualification, "NOT_EVALUATED");
+        }
+    }
+
+    // Verifies: NUC-007
+    #[cfg(unix)]
+    #[test]
+    fn a_run_receipt_carries_every_binding_and_a_missing_one_blocks_reuse() {
+        let (scenario, _) = reference_case();
+        let (record, dir) = run_with_fake_worker("exit 0");
+        let receipt = serde_json::to_value(&record).unwrap();
+        // Code (solver, interpreter, worker), data (library, audit, physics), geometry and source
+        // (scenario, the whole input), seed and threads are all recorded; the variance-reduction record exists
+        // only for a windowed run.
+        let bindings = [
+            "python_sha256",
+            "openmc_sha256",
+            "adapter_sha256",
+            "cross_sections_sha256",
+            "audit_sha256",
+            "physics_sha256",
+            "scenario_sha256",
+            "input_sha256",
+            "sampling",
+        ];
+        for field in bindings {
+            assert!(receipt.get(field).is_some(), "receipt lacks {field}");
+        }
+        assert!(receipt["sampling"]["seed"].is_u64() && receipt["sampling"]["threads"].is_u64());
+        for field in bindings {
+            let mut damaged = receipt.clone();
+            damaged.as_object_mut().unwrap().remove(field);
+            assert!(
+                serde_json::from_value::<ReactorRun>(damaged).is_err(),
+                "a receipt without {field} must not load"
+            );
+        }
+        // A receipt whose input file was changed after the run does not load either.
+        let run_json = dir.path().join("run/run.json");
+        std::fs::write(dir.path().join("run/input.json"), b"{}").unwrap();
+        let error = load_reactor_run(&run_json, &scenario)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("input digest differs"), "{error}");
     }
 }

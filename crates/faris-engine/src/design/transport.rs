@@ -1681,6 +1681,22 @@ mod tests {
         assert_eq!(chosen.energy_min_ev, FAST_NEUTRON_ENERGY_MIN_EV);
     }
 
+    // Verifies: NUC-008
+    #[test]
+    fn the_cache_key_follows_the_library_and_the_window_interpreter() {
+        let request = serde_json::json!({"solids": [1], "materials": [2], "chamber_solid_id": "p",
+            "response": {"solid_ids": ["a"], "energy_min_ev": 1.0e5}});
+        let key = |library: &str, python: Option<&str>| {
+            cache_key(&request, "h", library, python.map(Path::new))
+        };
+        let reference = key("lib1", Some("/py/a"));
+        assert_eq!(reference, key("lib1", Some("/py/a")));
+        // A changed library hash or interpreter never finds the old entry.
+        assert_ne!(reference, key("lib2", Some("/py/a")));
+        assert_ne!(reference, key("lib1", Some("/py/b")));
+        assert_ne!(reference, key("lib1", None));
+    }
+
     #[test]
     fn the_cache_key_follows_the_model_and_the_response() {
         let request = serde_json::json!({"solids": [1], "materials": [2], "chamber_solid_id": "p",

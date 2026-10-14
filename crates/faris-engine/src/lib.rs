@@ -19,6 +19,7 @@ pub mod fixtures;
 pub mod geometry;
 pub mod history;
 pub mod history_ensemble;
+pub mod history_refinement;
 pub mod history_uncertainty;
 pub mod jobs;
 pub mod maintenance;

@@ -503,6 +503,105 @@ mod tests {
         assert_eq!(reference, key(&sampled, "d1", "/p", b"w"));
     }
 
+    /// Every value of the model the windows are made for, as the reference case writes it.
+    fn reference_input() -> Value {
+        let scenario = faris_model::LoadedScenario::from_bytes(include_bytes!(
+            "../../../../scenarios/arc-inspired/cold-coupled-control.scenario.json"
+        ))
+        .unwrap();
+        let physics = super::super::load_physics_case(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scenarios/arc-inspired/cold-coupled-control.reference.physics.json"
+            )),
+            &scenario,
+        )
+        .unwrap();
+        let (request, _) = super::super::request_for_case(&scenario, &physics).unwrap();
+        serde_json::json!({
+            "manifest": crate::build_manifest(&scenario).unwrap(),
+            "physics": physics,
+            "request": request,
+        })
+    }
+
+    /// Paths (key or index lists) of every number, string and boolean in a JSON value.
+    fn leaf_paths(value: &Value, path: &mut Vec<String>, out: &mut Vec<Vec<String>>) {
+        match value {
+            Value::Object(map) => {
+                for (key, v) in map {
+                    path.push(key.clone());
+                    leaf_paths(v, path, out);
+                    path.pop();
+                }
+            }
+            Value::Array(items) => {
+                for (i, v) in items.iter().enumerate() {
+                    path.push(i.to_string());
+                    leaf_paths(v, path, out);
+                    path.pop();
+                }
+            }
+            Value::Null => {}
+            _ => out.push(path.clone()),
+        }
+    }
+
+    fn at_path<'a>(value: &'a mut Value, path: &[String]) -> &'a mut Value {
+        path.iter().fold(value, |v, step| match v {
+            Value::Array(items) => &mut items[step.parse::<usize>().unwrap()],
+            _ => &mut v[step.as_str()],
+        })
+    }
+
+    // Verifies: NUC-057
+    #[test]
+    fn changing_any_geometry_material_or_source_value_changes_the_cache_key() {
+        let base = reference_input();
+        let key = |input: &Value| cache_key(input, "data", Path::new("/p"), b"worker");
+        let reference = key(&base);
+        let mut paths = Vec::new();
+        leaf_paths(&base, &mut Vec::new(), &mut paths);
+        // The windows do not depend on the field-mesh responses (see `solid_request`); every other
+        // value must reach the key.
+        let mesh_response = |path: &[String]| {
+            path.first().map(String::as_str) == Some("request")
+                && path.get(1).map(String::as_str) == Some("responses")
+                && base["request"]["responses"][path[2].parse::<usize>().unwrap()]["domain"]["kind"]
+                    == "mesh"
+        };
+        let (mut tested, mut false_reuse) = (0, Vec::new());
+        for path in paths.iter().filter(|p| !mesh_response(p)) {
+            let mut mutated = base.clone();
+            let leaf = at_path(&mut mutated, path);
+            *leaf = match leaf.clone() {
+                Value::Bool(b) => Value::Bool(!b),
+                Value::String(s) => Value::String(format!("{s}-changed")),
+                number => serde_json::json!(number.as_f64().unwrap() * 1.0000001 + 1.0e-9),
+            };
+            tested += 1;
+            if key(&mutated) == reference {
+                false_reuse.push(path.join("/"));
+            }
+        }
+        assert!(tested > 200, "only {tested} values reached the key test");
+        assert!(
+            false_reuse.is_empty(),
+            "stale windows reused after a change of {false_reuse:?}"
+        );
+        // The three kinds of change the requirement names, spelled out on named values.
+        let mut geometry = base.clone();
+        geometry["manifest"]["major_radius_m"] =
+            (base["manifest"]["major_radius_m"].as_f64().unwrap() * 1.001).into();
+        let mut material = base.clone();
+        material["physics"]["materials"][0]["recipe"]["density_kg_m3"] = 1.0.into();
+        let mut source = base.clone();
+        source["request"]["fusion_power_mw"] = 1.0.into();
+        for changed in [&geometry, &material, &source] {
+            assert_ne!(key(changed), reference);
+        }
+    }
+
     #[test]
     fn a_cache_entry_counts_only_when_its_file_matches_its_record() {
         let dir = tempfile::tempdir().unwrap();

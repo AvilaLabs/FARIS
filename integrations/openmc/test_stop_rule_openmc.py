@@ -89,6 +89,7 @@ class StopRuleThroughOpenMC(unittest.TestCase):
 
     # Verifies: PERF-025, NUC-043
     def test_loose_target_stops_before_the_budget(self):
+        # Stochastic: seed 11; structural; expected: none, the test checks the stop rule's batch count and verdict code
         realized, achieved, (code, _) = self.run_sampling({"batches": 150, "target_relative_error": 0.03})
         self.assertGreaterEqual(realized, 30)
         self.assertLess(realized, 150)
@@ -97,6 +98,7 @@ class StopRuleThroughOpenMC(unittest.TestCase):
 
     # Verifies: NUC-043
     def test_unreachable_target_uses_the_budget_and_reports_it(self):
+        # Stochastic: seed 11; structural; expected: none, the test checks the stop rule's batch count and verdict code
         realized, achieved, (code, words) = self.run_sampling({"batches": 40, "target_relative_error": 1.0e-6})
         self.assertEqual(realized, 40)
         self.assertGreater(achieved, 1.0e-6)
@@ -104,6 +106,8 @@ class StopRuleThroughOpenMC(unittest.TestCase):
         self.assertIn("budget", words)
 
     def test_fixed_run_is_unchanged(self):
+
+        # Stochastic: seed 11; structural; expected: none, the test checks the stop rule's batch count and verdict code
         realized, _, (code, _) = self.run_sampling({"batches": 35})
         self.assertEqual((realized, code), (35, "fixed_count"))
 
