@@ -6,12 +6,12 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 141 of 1418 requirements.
+Traced: 142 of 1418 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 23 |
-| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 14 |
+| [02-radiation-transport.md](02-radiation-transport.md) | 106 | 15 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 2 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 5 |
@@ -67,8 +67,9 @@ Traced: 141 of 1418 requirements.
 | NUC-017 | F2 | `crates/faris-engine/src/transport.rs::regional_fast_flux_normalizes_per_region_volume_with_volume_error` |
 | NUC-046 | F1 | `crates/faris-engine/src/comparison.rs::two_sigma_resolution_uses_combined_standard_error`<br>`crates/faris-engine/src/sweep.rs::resolution_uses_combined_standard_error` |
 | NUC-048 | F2 | `controls/test_pure_absorber_sphere.py::test_rejects_invalid_cli_values`<br>`crates/faris-engine/src/reactor.rs::run_timeout_admits_a_run_at_the_history_cap` |
-| NUC-051 | F2 | `integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
+| NUC-051 | F2 | `integrations/openmc/risk_tests/test_windows_file.py::test_a_run_from_the_file_equals_a_run_with_the_windows_inline`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_the_model_file_holds_no_bounds_and_the_run_file_carries_the_ids`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
 | NUC-053 | F2 | `integrations/openmc/risk_tests/test_design_transport.py::test_generation_and_reported_run_seeds_are_disjoint`<br>`integrations/openmc/risk_tests/test_windows_unbiased.py::test_windowed_and_analogue_fast_flux_agree_within_three_sigma` |
+| NUC-055 | F2 | `integrations/openmc/risk_tests/test_windows_file.py::test_cap_model_with_a_real_visibility_run_agrees_between_the_two_paths`<br>`integrations/openmc/risk_tests/test_windows_file.py::test_capped_windows_in_the_file_are_the_bounds_the_xml_path_wrote` |
 | SRC-001 | F1 | `crates/faris-engine/src/design/transport.rs::design_source_rate_matches_the_reactor_path_per_megawatt`<br>`crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3`<br>`crates/faris-engine/src/transport.rs::source_strength_is_3_546e17_per_megawatt_at_17_6_mev` |
 | SRC-002 | F1 | `crates/faris-engine/src/history.rs::alpha_power_is_the_fusion_power_the_neutron_does_not_carry`<br>`crates/faris-engine/src/transport.rs::fusion_power_is_not_neutron_power` |
 | SRC-003 | F5 | `crates/faris-model/src/transport.rs::source_requires_physical_dt_energy_and_single_neutron_yield` |
