@@ -33,6 +33,27 @@ or authenticate the asserted solver run. Scientific qualification remains
 `NOT_EVALUATED`. Only a subsequent owned adapter and independently reviewed
 evidence can bind an actual solver result to these records.
 
+## Source recipe
+
+The source every ARC-inspired physics case declares (`source` in
+`scenarios/arc-inspired/*.physics.json`) is one authored recipe, stated here so
+no reader has to infer it:
+
+| Part | Recipe | Kind label |
+| --- | --- | --- |
+| Strength | Nominal fusion power from the scenario's `operating_plan.fusion_power_mw` (525 MW), turned into reactions per second by the reaction energy. Fusion power is not neutron power. | Authored. The figure follows the published ARC heat-exhaust study but is a scenario input. |
+| Reaction energy | 17.6 MeV per D-T reaction, exactly one neutron per reaction. | Authored assumption (D-T convention). |
+| Energy | Monoenergetic, 14.1 MeV neutron. | Authored assumption. |
+| Spatial profile | Uniform by volume in the scenario's circular plasma torus. | Authored assumption. Not ARC source phase space. |
+| Angle | Isotropic. | Authored assumption. |
+
+The physics case holds one `provenance` label for the whole source
+(`authored_assumption` or `literature_input` with a reference and locator), and
+validation refuses a source without it. No part is labelled calculated, because
+none is computed from an imported profile. Separate per-part labels (one each
+for strength, profile, energy and angle) are not stored yet; today they share
+the source's single label.
+
 ## Dimensional normalization
 
 With fusion power `P_f` in MW, declared reaction energy `Q` in eV, and the exact

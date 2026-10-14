@@ -19,7 +19,9 @@ pub const MAX_ASSUMPTIONS: usize = 256;
 /// Metadata temperatures may use a rounded library label; this tolerance does
 /// not imply interpolation or establish physical-temperature validity.
 pub const NUCLEAR_DATA_TEMPERATURE_LABEL_TOLERANCE_K: f64 = 0.1;
-const FRACTION_SUM_TOLERANCE: f64 = 1.0e-8;
+/// Atom fractions of one material must sum to 1 within this tolerance (GEO-043).
+/// Same value as the design file's fraction check.
+pub const FRACTION_SUM_TOLERANCE: f64 = crate::design::FRACTION_SUM_TOLERANCE;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -44,6 +46,17 @@ pub struct PhysicsCase {
 pub struct MaterialDefinition {
     pub id: String,
     pub recipe: MaterialRecipe,
+}
+
+impl MaterialDefinition {
+    /// SHA-256 of the recipe alone (GEO-042, MAT-002): not the id, and nothing
+    /// from the geometry or the display names, so swapping a recipe changes
+    /// only that recipe's hash.
+    pub fn recipe_sha256(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let bytes = serde_json::to_vec(&self.recipe).expect("a recipe serialises to JSON");
+        format!("sha256:{:x}", Sha256::digest(&bytes))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -267,6 +280,23 @@ impl PhysicsCase {
             return Err(fail(
                 "selected variant component count is outside the supported bound".into(),
             ));
+        }
+        let assigned: BTreeSet<&str> = self
+            .component_assignments
+            .iter()
+            .map(|a| a.component_id.as_str())
+            .collect();
+        let unassigned: Vec<&str> = variant
+            .layers
+            .iter()
+            .map(|layer| layer.id.as_str())
+            .filter(|id| !assigned.contains(id))
+            .collect();
+        if !unassigned.is_empty() {
+            return Err(fail(format!(
+                "no material or explicit void is assigned to component(s): {}; assign one to each before running",
+                unassigned.join(", ")
+            )));
         }
         if self.component_assignments.len() != variant.layers.len() {
             return Err(fail(
@@ -1015,6 +1045,121 @@ mod tests {
             *nuclear_data_temperature_k = f64::NAN;
         }
         assert!(c.validate_against(&loaded).is_err());
+    }
+
+    // Verifies: GEO-040
+    #[test]
+    fn an_unassigned_layer_blocks_the_run_and_is_named() {
+        let (c, loaded) = case();
+        for layer in &loaded.scenario.variants[0].layers {
+            let mut injected = c.clone();
+            injected
+                .component_assignments
+                .retain(|a| a.component_id != layer.id);
+            let error = injected.validate_against(&loaded).unwrap_err().to_string();
+            assert!(
+                error.contains(&layer.id),
+                "{} not named in: {error}",
+                layer.id
+            );
+            assert!(error.contains("assign one"), "{error}");
+            // The readiness report cannot be drawn up for a model with a gap either.
+            assert!(injected.readiness_diagnostics(&loaded).is_err());
+        }
+        // Two gaps are both named.
+        let mut injected = c.clone();
+        injected
+            .component_assignments
+            .retain(|a| a.component_id != "blanket" && a.component_id != "magnets");
+        let error = injected.validate_against(&loaded).unwrap_err().to_string();
+        assert!(
+            error.contains("blanket") && error.contains("magnets"),
+            "{error}"
+        );
+        // An explicit void counts as an assignment.
+        c.validate_against(&loaded).unwrap();
+        assert!(
+            c.component_assignments
+                .iter()
+                .any(|a| a.material_id == "void")
+        );
+    }
+
+    // Verifies: GEO-043
+    #[test]
+    fn atom_fractions_must_sum_to_one_within_the_stated_tolerance() {
+        assert_eq!(FRACTION_SUM_TOLERANCE, 1.0e-9);
+        let two_nuclides = |first: f64, second: f64| {
+            let (mut c, loaded) = case();
+            if let MaterialRecipe::NuclideMixture { nuclides, .. } = &mut c.materials[0].recipe {
+                *nuclides = vec![
+                    NuclideAtomFraction {
+                        nuclide: "Fe56".into(),
+                        atom_fraction: first,
+                    },
+                    NuclideAtomFraction {
+                        nuclide: "C12".into(),
+                        atom_fraction: second,
+                    },
+                ];
+            }
+            c.validate_against(&loaded)
+        };
+        // Inside the tolerance, from either side.
+        for offset in [0.0, 5.0e-10, -5.0e-10, 9.0e-10, -9.0e-10] {
+            two_nuclides(0.25, 0.75 + offset).unwrap_or_else(|e| panic!("{offset}: {e}"));
+        }
+        // Outside it, with the sum and the limit in the message.
+        for offset in [2.0e-9, -2.0e-9, 1.0e-6, -1.0e-3] {
+            let error = two_nuclides(0.25, 0.75 + offset).unwrap_err().to_string();
+            assert!(error.contains("must sum to 1 within"), "{offset}: {error}");
+        }
+        // Negative, zero, non-finite and over-unity fractions never get as far as the sum.
+        for bad in [-0.25, 0.0, f64::NAN, f64::INFINITY, 1.5] {
+            assert!(two_nuclides(bad, 1.0 - bad).is_err(), "{bad}");
+            assert!(two_nuclides(0.25, bad).is_err(), "{bad}");
+        }
+        // A deterministic sweep of splits that sum to 1 in floating point is always accepted.
+        for i in 1..1000 {
+            let first = f64::from(i) / 1000.0;
+            two_nuclides(first, 1.0 - first).unwrap();
+        }
+    }
+
+    // Verifies: GEO-042
+    // Verifies: MAT-002
+    #[test]
+    fn a_recipe_hash_changes_only_when_that_recipe_changes() {
+        let (c, loaded) = case();
+        let before: Vec<String> = c.materials.iter().map(|m| m.recipe_sha256()).collect();
+        assert!(
+            before
+                .iter()
+                .all(|h| h.starts_with("sha256:") && h.len() == 71)
+        );
+        // Swap one recipe: only that recipe's hash moves.
+        let mut swapped = c.clone();
+        swapped.materials[1].recipe = mixture("Li7", 2000.0, Some(600.0), 600.0);
+        let after: Vec<String> = swapped
+            .materials
+            .iter()
+            .map(|m| m.recipe_sha256())
+            .collect();
+        for (i, (a, b)) in before.iter().zip(&after).enumerate() {
+            assert_eq!(a == b, i != 1, "material {i}");
+        }
+        // Renaming the material and relabelling or recolouring a layer leaves every recipe hash alone.
+        let mut renamed = c.clone();
+        renamed.materials[1].id = "renamed".into();
+        let mut scenario = loaded.scenario.clone();
+        for variant in &mut scenario.variants {
+            variant.layers[1].label = "Breeder blanket".into();
+            variant.layers[1].color = "#123456".into();
+        }
+        scenario.validate().unwrap();
+        assert_eq!(renamed.materials[1].recipe_sha256(), before[1]);
+        // Two materials with the same recipe share a hash: the hash names the recipe, not the entry.
+        assert_eq!(before[0], before[2]);
     }
 
     #[test]

@@ -14,6 +14,8 @@ use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::Path};
 
 pub const SCENARIO_VERSION: &str = "faris-scenario/v0.1";
+/// Most layers one radial build may hold (GEO-002).
+pub const MAX_LAYERS_PER_VARIANT: usize = 64;
 
 /// The statement every FARIS output carries (requirement LEG-040). Defined
 /// here once; exports, charts and the desktop all read this constant.
@@ -225,8 +227,12 @@ impl Scenario {
             if !variant_ids.insert(&variant.id) {
                 return Err(invalid(format!("duplicate variant id: {}", variant.id)));
             }
-            if variant.layers.is_empty() {
-                return Err(invalid("variant layers must be nonempty"));
+            if variant.layers.is_empty() || variant.layers.len() > MAX_LAYERS_PER_VARIANT {
+                return Err(invalid(format!(
+                    "{}: a radial build holds 1 to {MAX_LAYERS_PER_VARIANT} layers, found {}",
+                    variant.id,
+                    variant.layers.len()
+                )));
             }
             let mut layer_ids = BTreeSet::new();
             for layer in &variant.layers {
@@ -458,5 +464,248 @@ mod tests {
         loaded.scenario.operating_plan.fusion_power_mw *= 2.0;
         assert!(loaded.scenario.validate().is_ok());
         assert!(loaded.validate_identity().is_err());
+    }
+
+    /// Small deterministic generator so the sweeps below repeat exactly.
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0 >> 11
+        }
+        fn unit(&mut self) -> f64 {
+            self.next() as f64 / (1u64 << 53) as f64
+        }
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+    }
+
+    /// A build of `n` layers, named and ordered by index, summing to the scenario's radial build.
+    fn build_with_layers(base: &Scenario, n: usize, rng: &mut Lcg) -> Scenario {
+        let mut scenario = base.clone();
+        let weights: Vec<f64> = (0..n).map(|_| 0.05 + rng.unit()).collect();
+        let total: f64 = weights.iter().sum();
+        let layers: Vec<Layer> = (0..n)
+            .map(|i| Layer {
+                id: format!("layer-{i}"),
+                label: format!("Layer {i} \u{3b2}"),
+                material_id: format!("material-{}", rng.below(5)),
+                thickness_m: weights[i] / total * base.geometry.radial_build_m,
+                color: format!("#{:06x}", rng.below(0x100_0000)),
+            })
+            .collect();
+        scenario.variants.truncate(1);
+        scenario.variants[0].layers = layers;
+        scenario
+    }
+
+    // Verifies: GEO-002
+    #[test]
+    fn a_radial_build_holds_one_to_sixty_four_layers() {
+        let base = LoadedScenario::from_bytes(CASE).unwrap().scenario;
+        let mut rng = Lcg(7);
+        for n in [1, 2, 63, 64] {
+            build_with_layers(&base, n, &mut rng).validate().unwrap();
+        }
+        for n in [0, 65, 200] {
+            let error = build_with_layers(&base, n, &mut rng)
+                .validate()
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains("1 to 64 layers"), "{error}");
+        }
+    }
+
+    // Verifies: GEO-002
+    #[test]
+    fn ten_thousand_random_builds_round_trip_with_no_differences() {
+        let base = LoadedScenario::from_bytes(CASE).unwrap().scenario;
+        let mut rng = Lcg(20_261_014);
+        for _ in 0..10_000 {
+            let n = 1 + rng.below(MAX_LAYERS_PER_VARIANT as u64) as usize;
+            let scenario = build_with_layers(&base, n, &mut rng);
+            let bytes = serde_json::to_vec_pretty(&scenario).unwrap();
+            let loaded = LoadedScenario::from_bytes(&bytes).unwrap();
+            let before = &scenario.variants[0].layers;
+            let after = &loaded.scenario.variants[0].layers;
+            assert_eq!(before.len(), after.len());
+            for (a, b) in before.iter().zip(after) {
+                assert_eq!(
+                    (&a.id, &a.label, &a.material_id, &a.color),
+                    (&b.id, &b.label, &b.material_id, &b.color)
+                );
+                // Bit-exact: the study file loses nothing from a thickness.
+                assert_eq!(a.thickness_m.to_bits(), b.thickness_m.to_bits());
+            }
+        }
+    }
+
+    /// The geometry rules written out independently of `validate`, for the sweep below.
+    fn geometry_is_valid(s: &Scenario) -> bool {
+        let g = &s.geometry;
+        let in_domain = |v: f64| v.is_finite() && (1e-6..=10_000.0).contains(&v);
+        in_domain(g.major_radius_m)
+            && in_domain(g.plasma_minor_radius_m)
+            && in_domain(g.radial_build_m)
+            && g.plasma_to_first_wall_gap_m.is_finite()
+            && (0.0..=10_000.0).contains(&g.plasma_to_first_wall_gap_m)
+            && g.major_radius_m
+                > g.plasma_minor_radius_m + g.plasma_to_first_wall_gap_m + g.radial_build_m
+            && s.variants.iter().all(|v| {
+                v.layers
+                    .iter()
+                    .all(|l| l.thickness_m.is_finite() && l.thickness_m > 0.0)
+                    && (v.layers.iter().map(|l| l.thickness_m).sum::<f64>() - g.radial_build_m)
+                        .abs()
+                        <= 1e-9
+            })
+    }
+
+    fn random_dimension(rng: &mut Lcg, nominal: f64) -> f64 {
+        match rng.below(12) {
+            0 => f64::NAN,
+            1 => f64::INFINITY,
+            2 => f64::NEG_INFINITY,
+            3 => 0.0,
+            4 => -nominal * rng.unit(),
+            5 => 1e-7 * rng.unit(),
+            6 => 10_000.0 * (1.0 + 2.0 * rng.unit()),
+            7 => nominal * (0.5 + 3.0 * rng.unit()),
+            _ => nominal * (0.9 + 0.2 * rng.unit()),
+        }
+    }
+
+    // Verifies: GEO-004
+    #[test]
+    fn a_million_random_parameter_sets_never_panic_and_invalid_ones_are_all_rejected() {
+        let base = LoadedScenario::from_bytes(CASE).unwrap().scenario;
+        let mut s = base.clone();
+        let mut rng = Lcg(0xFA21_5004);
+        let (mut valid, mut rejected) = (0u32, 0u32);
+        for _ in 0..1_000_000 {
+            s.geometry = base.geometry.clone();
+            for (v, b) in s.variants.iter_mut().zip(&base.variants) {
+                for (l, bl) in v.layers.iter_mut().zip(&b.layers) {
+                    l.thickness_m = bl.thickness_m;
+                }
+            }
+            for _ in 0..1 + rng.below(3) {
+                match rng.below(5) {
+                    0 => s.geometry.major_radius_m = random_dimension(&mut rng, 3.3),
+                    1 => s.geometry.plasma_minor_radius_m = random_dimension(&mut rng, 1.0),
+                    2 => s.geometry.plasma_to_first_wall_gap_m = random_dimension(&mut rng, 0.08),
+                    3 => s.geometry.radial_build_m = random_dimension(&mut rng, 1.2),
+                    _ => {
+                        let v = rng.below(2) as usize;
+                        let l = rng.below(6) as usize;
+                        s.variants[v].layers[l].thickness_m = random_dimension(&mut rng, 0.2);
+                    }
+                }
+            }
+            let build = s.geometry.radial_build_m;
+            if rng.below(2) == 0 && build > 0.0 && build.is_finite() {
+                // Make the layers agree with the build so the later rules are reached.
+                for v in &mut s.variants {
+                    let sum: f64 = v.layers.iter().map(|l| l.thickness_m).sum();
+                    if sum.is_finite() && sum > 0.0 {
+                        for l in &mut v.layers {
+                            l.thickness_m *= build / sum;
+                        }
+                    }
+                }
+            }
+            let expected = geometry_is_valid(&s);
+            let got = s.validate().is_ok();
+            assert_eq!(got, expected, "{:?} {:?}", s.geometry, s.variants[0].layers);
+            if got {
+                valid += 1;
+            } else {
+                rejected += 1;
+            }
+        }
+        // The sweep reaches both outcomes in volume.
+        assert!(valid > 10_000 && rejected > 10_000, "{valid} {rejected}");
+    }
+
+    // Verifies: GEO-009
+    #[test]
+    fn every_reference_geometry_cites_a_source_and_states_what_it_omits() {
+        let page = include_str!("../../../docs/REFERENCE_GEOMETRIES.md");
+        let sections: Vec<&str> = page.split("\n## ").skip(1).collect();
+        assert!(sections.len() >= 3, "{} reference sets", sections.len());
+        for section in sections {
+            let title = section.lines().next().unwrap();
+            let line_of = |label: &str| {
+                let start = section
+                    .find(label)
+                    .unwrap_or_else(|| panic!("{title}: no {label} line"));
+                // A bullet runs to the next blank line or the next bullet.
+                let rest = &section[start..];
+                let end = rest[2..].find("\n- ").map_or(rest.len(), |i| i + 2);
+                rest[..end].to_string()
+            };
+            let citation = line_of("**Citation");
+            assert!(citation.contains("]("), "{title}: citation has no link");
+            let omits = line_of("**Omits:**");
+            assert!(omits.len() > 80, "{title}: omissions not stated");
+        }
+        // The two scenario-backed sets carry their citations in the scenario file itself.
+        let loaded = LoadedScenario::from_bytes(CASE).unwrap();
+        assert!(
+            loaded
+                .scenario
+                .references
+                .iter()
+                .all(|r| r.url.starts_with("https://"))
+        );
+    }
+
+    // Verifies: GEO-004
+    #[test]
+    fn an_invalid_dimension_names_the_parameter_and_the_rule() {
+        let base = LoadedScenario::from_bytes(CASE).unwrap().scenario;
+        type Edit = fn(&mut Scenario);
+        let cases: [(&str, Edit, &str); 5] = [
+            (
+                "major_radius_m",
+                |s| s.geometry.major_radius_m = -1.0,
+                "positive",
+            ),
+            (
+                "plasma_minor_radius_m",
+                |s| s.geometry.plasma_minor_radius_m = f64::NAN,
+                "finite",
+            ),
+            (
+                "radial_build_m",
+                |s| s.geometry.radial_build_m = 0.0,
+                "positive",
+            ),
+            (
+                "layer.thickness_m",
+                |s| s.variants[0].layers[2].thickness_m = -0.1,
+                "positive",
+            ),
+            (
+                "plasma_to_first_wall_gap_m",
+                |s| s.geometry.plasma_to_first_wall_gap_m = -0.01,
+                "0 to 10000",
+            ),
+        ];
+        for (name, edit, rule) in cases {
+            let mut s = base.clone();
+            edit(&mut s);
+            let error = s.validate().unwrap_err().to_string();
+            assert!(error.contains(name) && error.contains(rule), "{error}");
+        }
+        // Outer edge at or beyond the major radius: the torus would intersect itself.
+        let mut s = base.clone();
+        s.geometry.major_radius_m = 2.28;
+        let error = s.validate().unwrap_err().to_string();
+        assert!(error.contains("non-self-intersecting torus"), "{error}");
     }
 }
