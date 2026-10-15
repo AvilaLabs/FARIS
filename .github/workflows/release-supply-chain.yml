@@ -1,0 +1,44 @@
+name: Release supply chain
+
+# The release-only supply-chain files (SEC-030): a software bill of materials in SPDX 2.3 and CycloneDX 1.5 and
+# the licence check, built from the locked dependency graph of the tagged commit. The files are uploaded as an
+# artifact; attach them to the release by hand with the release notes (docs/RELEASING.md). Nothing is published
+# from here.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: 1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: 1.98.1
+      - name: Locked dependency graph
+        run: |
+          cargo fetch --locked
+          cargo metadata --locked --offline --format-version 1 > metadata.json
+      - name: Dependency licences fit AGPL-3.0
+        run: python3 scripts/check_licences.py --metadata metadata.json
+      # SOURCE_DATE_EPOCH is the commit time, so a rerun of the same commit gives the same bytes.
+      - name: Generate and validate the SBOM
+        run: |
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) python3 scripts/generate_sbom.py \
+            --metadata metadata.json --out sbom
+          sha256sum sbom/* | tee sbom/SHA256SUMS
+      - name: SBOM files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom/
+          if-no-files-found: error

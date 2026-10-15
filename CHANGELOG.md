@@ -4,6 +4,12 @@ FARIS follows [semantic versioning](https://semver.org/) from 0.1.0. Before
 1.0 a minor version may change file formats or the command line; such changes
 are listed here under **Changed** with what to do.
 
+Each version lists what was **Added**, **Changed**, **Deprecated**, **Removed**, **Fixed** and, for
+vulnerabilities, **Security**. A change that can alter a published number is listed first under
+**Numerical changes**, with the size of the change where it was measured; `scripts/check_changelog.py` checks
+the layout. Breaking changes link a migration guide
+([policy](docs/MIGRATION_GUIDE_TEMPLATE.md), [deprecations](docs/DEPRECATION_POLICY.md)).
+
 Research screening only. FARIS results are not a licensing, safety or design
 basis.
 
@@ -11,6 +17,17 @@ basis.
 
 ### Added
 
+- Release and security documents. `SECURITY.md` says how to report a vulnerability privately and what to expect
+  ([process](docs/SECURITY_PROCESS.md), [threat model](docs/THREAT_MODEL.md)). `CITATION.cff` and a
+  [How to cite](docs/guide/cite.md) page say how to cite FARIS. A [glossary](docs/glossary.md), a generated
+  [command-line reference](docs/guide/cli-reference.md) covering every command and option, and a generated
+  [known-issues page](docs/KNOWN_ISSUES.md) join the handbook. A draft
+  [export-control statement](docs/EXPORT_CONTROL.md) is waiting for owner and counsel review; it is not final.
+- Every release will carry a software bill of materials in SPDX 2.3 and CycloneDX 1.5 form, listing all crates,
+  the bundled fonts and the programs, and generated release notes that list the release gate result and any change
+  that can alter a published number. CI now fails on a dependency licence that is not compatible with AGPL-3.0,
+  on an unwaived advisory (including unmaintained crates), on a broken link in the documents, and on a command-line
+  reference that does not match the program's help.
 - Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
   registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a
   registry entry (steps, open and save, export, view, component and allocation changes, timeline, the tool
@@ -152,6 +169,15 @@ basis.
   for all jobs). Before a job starts FARIS compares the cap with the memory free now, less a reserve
   (`FARIS_MEMORY_MARGIN_MB`, default 1024), and refuses the job with the numbers and what to do if it would not fit.
   Where the system gives free memory (Linux), a finished job's result records its peak memory and the check made.
+- The design file `faris-design/v0.1` and import checks 1 to 5 for a STEP model.
+  `faris design init MODEL.step` (and `faris-app --design-init MODEL.step`) writes
+  a draft that lists every solid with its fingerprint and leaves every material,
+  role and plasma value null. `faris design check DESIGN.json` runs the checks
+  (schema and nulls, STEP hash, unit and extent, solid count and fingerprints,
+  ids and references, roles, materials and the nuclear-data audit) and writes a
+  JSON report. A separate CAD process reads the STEP file; it needs a Python with
+  cadquery, which FARIS does not install. Conversion and the later checks 6 to 9
+  are reported as not evaluated. See [The design file](docs/guide/design-file.md).
 
 ### Changed
 
@@ -267,18 +293,6 @@ basis.
   of a 30-year history and an ensemble, and Clippy rejects the std methods.
   Results recorded earlier are unchanged: all sixteen recorded histories
   recompute byte for byte.
-
-### Added
-
-- The design file `faris-design/v0.1` and import checks 1 to 5 for a STEP model.
-  `faris design init MODEL.step` (and `faris-app --design-init MODEL.step`) writes
-  a draft that lists every solid with its fingerprint and leaves every material,
-  role and plasma value null. `faris design check DESIGN.json` runs the checks
-  (schema and nulls, STEP hash, unit and extent, solid count and fingerprints,
-  ids and references, roles, materials and the nuclear-data audit) and writes a
-  JSON report. A separate CAD process reads the STEP file; it needs a Python with
-  cadquery, which FARIS does not install. Conversion and the later checks 6 to 9
-  are reported as not evaluated. See [The design file](docs/guide/design-file.md).
 
 ### Fixed
 

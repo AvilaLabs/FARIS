@@ -78,7 +78,7 @@ def fuzz_evidence(**changes):
 def make_root(d: Path, now="Met", traced=True, matrix=None):
     write(d / "docs" / "NEXT_RELEASE_PLAN.md", PLAN)
     write(d / "docs" / "requirements" / "01-a.md", "".join(row(r, now) for r in ("AAA-001", "AAA-002", "BBB-001", "GEO-010")))
-    ids = "AAA-001, AAA-002, BBB-001" if traced else "AAA-001"
+    ids = "AAA-001, AAA-002, BBB-001, GEO-010" if traced else "AAA-001"
     write(d / "scripts" / "test_fixture.py", f"{MARK}{ids}\ndef test_x():\n    pass\n")
     good_suite(d)
     if matrix:
@@ -336,6 +336,91 @@ class ReleaseGate(unittest.TestCase):
         without = {k: v for k, v in good_suite(self.d / "tree").items() if k != "model_matrix"}
         out, record = make_report(self.d, without)
         self.assertIn("lacks model_matrix", results(rg.Gate(self.d, vv_report=out, release_record=record, commit=COMMIT, terms=TERMS))[name][1])
+
+    # Verifies: QA-071
+    def test_a_met_requirement_without_a_test_marker_fails_the_gate(self):
+        make_root(self.d, now="Met", traced=False)
+        passed, reason = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))["every Met requirement has a test marker"]
+        self.assertFalse(passed)
+        self.assertIn("1 of 4 Met requirements have a test marker; none for AAA-002, BBB-001, GEO-010", reason)
+        make_root(self.d / "ok", now="Met")
+        self.assertTrue(results(rg.Gate(self.d / "ok", commit=COMMIT, terms=TERMS))["every Met requirement has a test marker"][0])
+        make_root(self.d / "partial", now="Partial", traced=False)  # a Partial row needs no marker for this condition
+        self.assertTrue(results(rg.Gate(self.d / "partial", commit=COMMIT, terms=TERMS))["every Met requirement has a test marker"][0])
+
+    def waiver_file(self, **fields):
+        waiver = {"condition": "QA-016", "owner": "Connor", "reason": "doc job down", "expiry": str(TODAY + timedelta(days=30)), **fields}
+        write(self.d / "docs" / "release-waivers.json", json.dumps({"waivers": [{k: v for k, v in waiver.items() if v is not None}]}))
+
+    # Verifies: QA-072
+    def test_a_waiver_needs_owner_reason_and_an_unexpired_date_within_ninety_days(self):
+        make_root(self.d)
+        name = "gate waivers are complete and unexpired"
+        self.assertTrue(results(rg.Gate(self.d, commit=COMMIT, today=TODAY, terms=TERMS))[name][0])  # no file: no waivers
+        self.waiver_file()
+        self.assertTrue(results(rg.Gate(self.d, commit=COMMIT, today=TODAY, terms=TERMS))[name][0])
+        for fields, text in (({"owner": None}, "owner"), ({"reason": " "}, "reason"), ({"expiry": str(TODAY - timedelta(days=1))}, "expired"),
+                             ({"expiry": str(TODAY + timedelta(days=91))}, "90 days"), ({"condition": "no such condition"}, "not a condition"),
+                             ({"condition": "QA-083"}, "cannot be waived")):
+            self.waiver_file(**fields)
+            passed, reason = results(rg.Gate(self.d, commit=COMMIT, today=TODAY, terms=TERMS))[name]
+            self.assertFalse(passed, fields)
+            self.assertIn(text, reason)
+
+    # Verifies: QA-072
+    def test_a_valid_waiver_turns_a_failing_condition_into_waived_and_an_invalid_one_does_not(self):
+        make_root(self.d)
+        inputs = passing_inputs(self.d)
+        write(inputs["doc_tests"], json.dumps({"commit": COMMIT, "checks": [{"name": "x", "verdict": "FAIL"}]}))
+        self.assertFalse(results(rg.Gate(self.d, **inputs))["documentation tests pass"][0])
+        self.waiver_file()
+        res = rg.run_gate(rg.Gate(self.d, **inputs))
+        waived = next(r for r in res if r[1] == "documentation tests pass")
+        self.assertTrue(waived[0])
+        self.assertIn("WAIVED by Connor until", waived[3])
+        self.assertIn("WAIVED  documentation tests pass", rg.render(res))
+        self.assertIn("release gate: PASS", rg.render(res))
+        self.waiver_file(expiry=str(TODAY - timedelta(days=1)))  # expired: the condition fails again, and so does the waiver check
+        res = results(rg.Gate(self.d, **inputs))
+        self.assertFalse(res["documentation tests pass"][0])
+        self.assertFalse(res["gate waivers are complete and unexpired"][0])
+
+    # Verifies: PLAT-073
+    def test_repository_checks_run_every_script_fail_on_a_failing_one_and_on_a_missing_input(self):
+        make_root(self.d)
+        for name, _, _ in rg.REPO_CHECKS:
+            self.assertTrue(name)
+        scripts = self.d / "scripts"
+        for script in ("requirement_scorecard.py", "requirement_trace.py", "requirement_lint.py", "source_lint.py",
+                       "check_repository_size.py", "check_audit.py", "check_links.py", "check_glossary.py", "check_changelog.py",
+                       "check_deprecations.py", "known_issues.py", "check_citation.py"):
+            write(scripts / script, "print('ok: fixture')\n")
+        write(scripts / "check_changelog.py", "import sys\nprint('changelog: broken heading')\nsys.exit(1)\n")
+        gate = rg.Gate(self.d, commit=COMMIT, terms=TERMS, repo_checks=True)
+        # cargo metadata and the faris binary are not available in the fixture tree: those checks must FAIL, not pass
+        gate.cargo = "definitely-not-a-cargo"
+        res = results(gate)
+        self.assertTrue(res["requirement scorecard is current"][0])
+        self.assertTrue(res["glossary lint"][0])
+        self.assertFalse(res["changelog layout"][0])
+        self.assertIn("changelog: broken heading", res["changelog layout"][1])
+        for name in ("SBOM generates and validates", "dependency licences fit AGPL-3.0", "dependency notices are current"):
+            self.assertFalse(res[name][0], name)
+        passed, reason = res["command-line reference is current"]
+        self.assertFalse(passed)
+        self.assertIn("--faris", reason)
+        self.assertEqual(len(res), len(rg.CONDITIONS) + len(rg.REPO_CHECKS))
+
+    # Verifies: PLAT-073
+    def test_the_command_exits_nonzero_when_a_repository_check_fails_and_can_skip_them(self):
+        make_root(self.d)
+        argv = ["--root", str(self.d), "--commit", COMMIT]
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(rg.main(argv), 1)
+        self.assertIn("FAIL  requirement scorecard is current", out.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            rg.main(argv + ["--no-repo-checks"])
+        self.assertNotIn("scorecard", out.getvalue())
 
     def test_wording_lint_findings_fail_the_gate(self):
         make_root(self.d)

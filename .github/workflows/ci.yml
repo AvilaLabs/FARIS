@@ -62,6 +62,24 @@ jobs:
           name: doc-tests-evidence
           path: doc-tests.json
           if-no-files-found: ignore
+      # Every command and option is in the reference, generated from the binary's own help (DOC-021).
+      - name: Command-line reference is current
+        run: python3 scripts/cli_reference.py --faris target/debug/faris --check
+      - name: Documentation links resolve, glossary, changelog, deprecations, citation and known-issues page
+        run: |
+          python3 scripts/check_links.py
+          python3 scripts/check_glossary.py
+          python3 scripts/check_changelog.py
+          python3 scripts/check_deprecations.py
+          python3 scripts/check_citation.py
+          python3 scripts/known_issues.py --check
+      # Every dependency's licence fits AGPL-3.0 under scripts/licence_policy.json (LEG-003), and the SBOM builds and
+      # validates (SEC-030). The release workflow attaches the SBOM files to the release.
+      - name: Dependency licences and SBOM
+        run: |
+          cargo metadata --locked --offline --format-version 1 > metadata.json
+          python3 scripts/check_licences.py --metadata metadata.json
+          python3 scripts/generate_sbom.py --metadata metadata.json --out sbom
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
       - name: Requirement scorecard is current
@@ -108,8 +126,10 @@ jobs:
           done
           exit $status
 
-  # RustSec advisories against Cargo.lock (QA-039). A vulnerability fails the job; the two "unmaintained"
-  # notices (rustybuzz, ttf-parser) are warnings and do not.
+  # RustSec advisories against Cargo.lock (QA-039, SEC-031). A vulnerability, an unmaintained, unsound or yanked
+  # crate fails the job unless scripts/audit_allowlist.json waives it with an owner, a reason and an expiry within
+  # 90 days; an expired or unused waiver fails too. cargo-deny would add banned crates, duplicate-version rules and
+  # a registry allow list in one config; the licence part is scripts/check_licences.py in the check job.
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -118,7 +138,7 @@ jobs:
       - uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
         with:
           tool: cargo-audit
-      - run: cargo audit
+      - run: python3 scripts/check_audit.py
 
   # Reopens the recorded demo study from the v0.2.0 release package: rehashes the package index, reopens the
   # saved Core cases against the package's own pinned executables, and checks that a tampered copy is rejected

@@ -25,6 +25,7 @@
 - [Study files (.faris)](study-files.md)
 - [Export a brief, tables and charts](export.md)
 - [Command line](cli.md)
+- [Command-line reference](cli-reference.md)
 - [Settings](settings.md)
 - [Run your own transport](transport.md)
 - [Nuclear data](nuclear-data.md)
@@ -42,5 +43,6 @@
 # About
 
 - [Releases](releases.md)
+- [How to cite FARIS](cite.md)
 - [Where FARIS is going](roadmap.md)
 - [Avila Labs account (optional)](account.md)

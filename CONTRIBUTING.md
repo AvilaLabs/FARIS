@@ -40,6 +40,26 @@ may allow them with a stated reason. The `determinism_` tests pin the digests
 of a 30-year history and a small ensemble; CI runs them on all four desktop
 platforms (`cargo test --release -p faris-engine determinism_`).
 
+## Every fix comes with a regression test
+
+A change that fixes a defect adds a test that fails without the fix and passes with it, in the same pull request
+(QA-085). For a defect of severity S1 to S3 the entry in `docs/defects/faris-defects.json` names that test in
+`regression_test` as `path/to/file::test_name`, and `scripts/defect_log.py` (run in CI) fails when the file or the
+test name is missing. Show the test failing first: run it before applying the fix, and say so in the pull request.
+A fix for which no test is possible says why in the pull request, and a reviewer decides whether that is
+acceptable. A cosmetic (S4) fix needs a test only when one is cheap. The pull request template has a box for this.
+
+Other things CI checks on every push, and how to run them: `python3 scripts/check_links.py` (documentation links),
+`python3 scripts/check_glossary.py`, `python3 scripts/check_changelog.py`, `python3 scripts/check_deprecations.py`,
+`python3 scripts/check_citation.py`, `python3 scripts/known_issues.py --check`, `python3 scripts/check_audit.py`
+(advisories; a waiver goes in `scripts/audit_allowlist.json` with owner, reason and an expiry within 90 days),
+and, with `cargo metadata --locked --offline --format-version 1 > metadata.json`,
+`python3 scripts/check_licences.py --metadata metadata.json` (a new licence goes in `scripts/licence_policy.json`
+only with its text in `licenses/`). After changing a command or an option, regenerate the reference with
+`python3 scripts/cli_reference.py --faris target/debug/faris`. A change that breaks something users have follows
+`docs/DEPRECATION_POLICY.md` and `docs/MIGRATION_GUIDE_TEMPLATE.md`, and a change that can alter a published number
+goes under **Numerical changes** in the changelog.
+
 ## Licence of contributions and sign-off
 
 A contribution is accepted under the licence of the project, AGPL-3.0-only, and under no other terms. By sending one

@@ -45,7 +45,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("-D warnings", text)
         self.assertIn("cargo doc --workspace", text)
         self.assertRegex(text, r"(?m)^  audit:\s*$")
-        self.assertIn("cargo audit", text)
+        self.assertIn("scripts/check_audit.py", text)
         self.assertIn("scripts/check_repository_size.py", text)
         self.assertRegex(text, r"(?m)^  sign-off:\s*$")
         self.assertRegex(text, r"(?m)^  recorded-demo:\s*$")
