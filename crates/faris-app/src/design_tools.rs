@@ -60,6 +60,8 @@ pub struct ToolsModel {
     writable: bool,
     settings: Settings,
     env: BTreeMap<Tool, (&'static str, String)>,
+    /// The environment variables the settings registry names, as they were at start.
+    registry_env: BTreeMap<&'static str, OsString>,
     /// Said until the user dismisses it: the settings file was unreadable.
     notice: Option<String>,
     save_error: Option<String>,
@@ -91,6 +93,11 @@ impl ToolsModel {
             Some(l) => (l.settings, l.notice, l.writable),
             None => (Settings::default(), None, true),
         };
+        let registry_env: BTreeMap<&'static str, OsString> = faris_model::settings::REGISTRY
+            .iter()
+            .filter_map(|d| d.env)
+            .filter_map(|name| env(name).map(|v| (name, v)))
+            .collect();
         let mut from_env = BTreeMap::new();
         for tool in Tool::ALL {
             if let Some(name) = tool.environment()
@@ -104,6 +111,7 @@ impl ToolsModel {
             writable,
             settings,
             env: from_env,
+            registry_env,
             notice,
             save_error: None,
             dirty: false,
@@ -140,6 +148,21 @@ impl ToolsModel {
         } else {
             Source::Empty
         }
+    }
+
+    /// The layer that supplies a tool's value, as badge text and hover text (CFG-002).
+    pub fn origin(&self, tool: Tool) -> Option<(&'static str, String)> {
+        let env = |name: &str| self.registry_env.get(name).cloned();
+        let file = self.path.clone().unwrap_or_default();
+        let resolved = self.settings.resolve(&file, &env);
+        let entry = settings::find(&resolved, &format!("tools.{}", tool.key()))?;
+        let mut hover = settings::origin_hover(&entry.origin);
+        if self.path.is_none() {
+            hover.push_str(
+                " No settings folder is available, so nothing is kept after FARIS closes.",
+            );
+        }
+        Some((settings::origin_badge(&entry.origin), hover))
     }
 
     /// Sets what the user typed or accepted. A value from the environment cannot be changed here.
@@ -226,6 +249,11 @@ impl ToolsModel {
         };
         if !self.writable {
             return;
+        }
+        // Other parts of the program (the interface size) write the shared `values` section
+        // themselves; take theirs as they are so this save never puts back an older copy.
+        if let Some(on_disk) = settings::read_values(&path) {
+            self.settings.other.insert("values".into(), on_disk);
         }
         self.save_error = settings::save(&path, &self.settings).err().map(|e| {
             format!(
@@ -342,6 +370,7 @@ impl ToolsModel {
                     let source = self.source(tool);
                     let from_env = matches!(source, Source::Environment(_));
                     let mut text = self.value(tool);
+                    let origin = self.origin(tool);
                     let note = match &source {
                         Source::Environment(name) => Some(format!(
                             "From the environment variable {name}, set before FARIS started, so it wins \
@@ -363,6 +392,7 @@ impl ToolsModel {
                         &mut text,
                         note.as_deref().map(|n| (Kind::Partial, n)),
                         !from_env,
+                        origin.as_ref().map(|(b, h)| (*b, h.as_str())),
                     ) {
                         *browse = Some(tool);
                     }
@@ -657,6 +687,51 @@ mod tests {
             &env_of(env),
             false,
         )
+    }
+
+    // Verifies: CFG-002
+    #[test]
+    fn every_tool_names_the_layer_that_supplies_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_at(dir.path(), &[("FARIS_CAD_PYTHON", "/env/python")]);
+        model.set(Tool::OpenmcPython, "/opt/omc/python");
+        for tool in Tool::ALL {
+            let (badge, hover) = model.origin(tool).expect("every tool has an origin");
+            assert!(
+                !badge.is_empty() && hover.contains("Supplied by"),
+                "{tool:?}"
+            );
+        }
+        assert_eq!(model.origin(Tool::CadPython).unwrap().0, "environment");
+        assert!(
+            model
+                .origin(Tool::CadPython)
+                .unwrap()
+                .1
+                .contains("FARIS_CAD_PYTHON")
+        );
+        let saved = model.origin(Tool::OpenmcPython).unwrap();
+        assert_eq!(saved.0, "user file");
+        assert!(saved.1.contains(settings::FILE_NAME));
+        assert_eq!(model.origin(Tool::CrossSections).unwrap().0, "default");
+    }
+
+    // Verifies: UX-060
+    #[test]
+    fn saving_tools_does_not_put_back_an_older_interface_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut model = model_at(dir.path(), &[]);
+        model.set(Tool::CadPython, "/a/python");
+        model.flush(false);
+        let file = dir.path().join("faris").join(settings::FILE_NAME);
+        // The size is saved by another part of the program while this model is open.
+        crate::interface_prefs::save(&file, 1.5);
+        model.set(Tool::WindowPython, "/w/python");
+        model.flush(false);
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(written["values"]["ui.scale"], 1.5);
+        assert_eq!(written["tools"]["window_python"], "/w/python");
     }
 
     #[test]

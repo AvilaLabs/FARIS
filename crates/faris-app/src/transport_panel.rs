@@ -467,7 +467,7 @@ impl TransportPanel {
                 ui,
                 Kind::Conditional,
                 "cold-data surrogate · NOT_EVALUATED",
-                "Cold-data surrogate. Scientific qualification: NOT_EVALUATED.",
+                &crate::not_evaluated::NOT_QUALIFIED.line(),
             );
         });
         if crate::browser::IS_BROWSER {
@@ -766,29 +766,33 @@ impl TransportPanel {
         }
     }
 
-    pub fn field_legend(&self, ui: &mut egui::Ui) {
-        let (lower, upper, label) = match self.view {
-            FieldView::Materials => return,
-            FieldView::ComponentFlux | FieldView::FluxSlice => (10.0, 20.0, "neutrons/m²/s"),
-            FieldView::NuclearHeating => (0.0, 8.0, "W/m³"),
-            FieldView::ComponentFluence => (18.0, 28.0, "neutrons/m²"),
+    /// The legend of the current field view. `values` are the plotted values (`None`: no result
+    /// recorded), from which the clamp and zero counts are made (VIS-025, VIS-026).
+    pub fn field_legend(&self, ui: &mut egui::Ui, values: &[Option<f64>]) {
+        let Some(scale) = field_scale(self.view) else {
+            return;
         };
+        let (lower, upper) = (scale.lower, scale.upper);
+        let counts = scale_counts(values, &scale);
+        let text = legend_text(&scale, &counts);
         let note = if self.view == FieldView::ComponentFluence {
             "Gray = zero sampled-mean fluence · no-track scores give no upper bound · magenta = unavailable. Conditional point history; uncertainty is not propagated."
         } else {
             "Gray = nonpositive sampled score · desaturated = >30% relative SE · magenta = unavailable. Limits saturate the color scale."
         };
         ui.horizontal_wrapped(|ui| {
-            ui.small(format!("{label} · log₁₀, fixed across arrangements"));
-            ui.small("(details)").on_hover_text(note);
+            ui.small(&text.header);
+            crate::badge::note(ui, "(details)", note);
         });
         let decades = (upper - lower) as usize;
         let bar_width = 360.0_f32.min(ui.available_width().max(120.0));
         let (rect, response) =
-            ui.allocate_exact_size(egui::vec2(bar_width + 34.0, 30.0), egui::Sense::hover());
-        response.on_hover_text(format!(
-            "Values at or below 10^{lower:.0} and at or above 10^{upper:.0} saturate at the ends of the scale."
-        ));
+            ui.allocate_exact_size(egui::vec2(bar_width + 34.0, 30.0), egui::Sense::click());
+        crate::badge::explain(response, |ui| {
+            ui.label(format!(
+                "Values at or below 10^{lower:.0} and at or above 10^{upper:.0} saturate at the ends of the scale."
+            ));
+        });
         let bar = egui::Rect::from_min_size(
             rect.min + egui::vec2(17.0, 0.0),
             egui::vec2(bar_width, 10.0),
@@ -846,8 +850,35 @@ impl TransportPanel {
                 );
             }
         }
+        // Clamp markers at the ends of the bar: a triangle where values outside the limits are
+        // drawn at the end colour, so saturation is never silent.
+        let marker_color = egui::Color32::from_gray(230);
+        if counts.below > 0 {
+            let (x, y) = (bar.left() - 8.0, bar.center().y);
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(x - 4.0, y),
+                    egui::pos2(x + 3.0, y - 5.0),
+                    egui::pos2(x + 3.0, y + 5.0),
+                ],
+                marker_color,
+                egui::Stroke::NONE,
+            ));
+        }
+        if counts.above > 0 {
+            let (x, y) = (bar.right() + 8.0, bar.center().y);
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(x + 4.0, y),
+                    egui::pos2(x - 3.0, y - 5.0),
+                    egui::pos2(x - 3.0, y + 5.0),
+                ],
+                marker_color,
+                egui::Stroke::NONE,
+            ));
+        }
         ui.horizontal_wrapped(|ui| {
-            for (color, text, hover) in [
+            for (color, swatch_text, hover) in [
                 (
                     to_color32(NONPOSITIVE_COLOR),
                     "no sampled score",
@@ -866,10 +897,13 @@ impl TransportPanel {
             ] {
                 let (swatch, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
                 ui.painter().rect_filled(swatch, 2.0, color);
-                ui.small(text).on_hover_text(hover);
+                crate::badge::note(ui, swatch_text, hover);
                 ui.add_space(6.0);
             }
         });
+        for line in &text.notes {
+            ui.small(line);
+        }
     }
 
     pub fn spectra(&self, ui: &mut egui::Ui, variant: &str, component: &str) {
@@ -914,6 +948,131 @@ impl Drop for TransportPanel {
             }
         }
     }
+}
+
+/// What a field view's colour scale is: the quantity, its unit and kind, and the log limits.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldScale {
+    pub quantity: &'static str,
+    pub unit: &'static str,
+    /// The kind of statement the plotted values are.
+    pub kind: Kind,
+    pub lower: f64,
+    pub upper: f64,
+}
+
+/// The scale of a view; `None` for the materials view, which plots no quantity. The limits are
+/// the ones the 3D view colours with (the `flux_color` and `scalar_color` calls in `rebuild`).
+pub fn field_scale(view: FieldView) -> Option<FieldScale> {
+    let transport = |quantity, unit, lower, upper| FieldScale {
+        quantity,
+        unit,
+        kind: Kind::Calculated,
+        lower,
+        upper,
+    };
+    match view {
+        FieldView::Materials => None,
+        FieldView::ComponentFlux => Some(transport(
+            "Mean component flux",
+            "neutrons/m²/s",
+            10.0,
+            20.0,
+        )),
+        FieldView::FluxSlice => Some(transport(
+            "Spatial neutron flux",
+            "neutrons/m²/s",
+            10.0,
+            20.0,
+        )),
+        FieldView::NuclearHeating => Some(transport("Nuclear heat deposition", "W/m³", 0.0, 8.0)),
+        FieldView::ComponentFluence => Some(FieldScale {
+            quantity: "Accumulated component fluence",
+            unit: "neutrons/m²",
+            kind: Kind::Conditional,
+            lower: 18.0,
+            upper: 28.0,
+        }),
+    }
+}
+
+/// How the plotted values sit against a scale.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScaleCounts {
+    /// Values with a result (the unavailable ones are not counted).
+    pub total: usize,
+    /// At or below zero: drawn gray, because a log scale cannot show them.
+    pub nonpositive: usize,
+    /// Positive but at or below the lower limit: drawn at the lowest colour.
+    pub below: usize,
+    /// At or above the upper limit: drawn at the highest colour.
+    pub above: usize,
+    /// No result recorded: drawn magenta.
+    pub unavailable: usize,
+}
+
+/// Counts the values against the scale. A value exactly at a limit counts as clamped, as the
+/// end of the scale is where it is drawn.
+pub fn scale_counts(values: &[Option<f64>], scale: &FieldScale) -> ScaleCounts {
+    let mut counts = ScaleCounts::default();
+    for value in values {
+        let Some(v) = value else {
+            counts.unavailable += 1;
+            continue;
+        };
+        counts.total += 1;
+        if *v <= 0.0 || !v.is_finite() {
+            counts.nonpositive += 1;
+        } else if v.log10() <= scale.lower {
+            counts.below += 1;
+        } else if v.log10() >= scale.upper {
+            counts.above += 1;
+        }
+    }
+    counts
+}
+
+/// The words of a legend, made from the scale and the counts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LegendText {
+    /// Quantity, unit, kind, scale type and explicit limits.
+    pub header: String,
+    /// The zero and clamp statements, one per line.
+    pub notes: Vec<String>,
+}
+
+pub fn legend_text(scale: &FieldScale, counts: &ScaleCounts) -> LegendText {
+    let header = format!(
+        "{} · {} · kind: {} · log₁₀ scale from 10^{:.0} (minimum) to 10^{:.0} (maximum), same limits in every arrangement and panel",
+        scale.quantity,
+        scale.unit,
+        scale.kind.default_label(),
+        scale.lower,
+        scale.upper
+    );
+    let mut notes = vec![format!(
+        "{} of {} cells or components are at or below zero and drawn gray: a log scale cannot show zero, so the scale starts at 10^{:.0} {} and zero is not placed on it.",
+        counts.nonpositive, counts.total, scale.lower, scale.unit
+    )];
+    if counts.below > 0 {
+        notes.push(format!(
+            "◂ {} at or below 10^{:.0} {} are drawn at the lowest colour (clamped).",
+            counts.below, scale.lower, scale.unit
+        ));
+    }
+    if counts.above > 0 {
+        notes.push(format!(
+            "▸ {} at or above 10^{:.0} {} are drawn at the highest colour (clamped).",
+            counts.above, scale.upper, scale.unit
+        ));
+    }
+    if counts.unavailable > 0 {
+        notes.push(format!(
+            "{} have no recorded result and are drawn magenta.",
+            counts.unavailable
+        ));
+    }
+    LegendText { header, notes }
 }
 
 /// Fixed physical scale across arrangements. Low-precision bins are desaturated;
@@ -1124,6 +1283,79 @@ mod colormap_tests {
                 .sum();
             assert!(distance > 0.25);
         }
+    }
+
+    // Verifies: VIS-025
+    #[test]
+    fn every_field_legend_names_quantity_unit_kind_scale_limits_and_swatches() {
+        let views = [
+            FieldView::ComponentFlux,
+            FieldView::FluxSlice,
+            FieldView::NuclearHeating,
+            FieldView::ComponentFluence,
+        ];
+        for view in views {
+            let scale = field_scale(view).expect("a plotted view has a scale");
+            let text = legend_text(&scale, &ScaleCounts::default());
+            assert!(text.header.contains(scale.quantity), "{view:?}");
+            assert!(text.header.contains(scale.unit), "{view:?}");
+            assert!(text.header.contains("kind: "), "{view:?}");
+            assert!(text.header.contains("log"), "{view:?}");
+            assert!(
+                text.header
+                    .contains(&format!("10^{:.0} (minimum)", scale.lower))
+            );
+            assert!(
+                text.header
+                    .contains(&format!("10^{:.0} (maximum)", scale.upper))
+            );
+            assert!(text.header.contains("same limits in every arrangement"));
+        }
+        assert_eq!(field_scale(FieldView::Materials), None);
+        // The limits are the ones the colours use.
+        assert_eq!(field_scale(FieldView::ComponentFlux).unwrap().upper, 20.0);
+        assert_eq!(field_scale(FieldView::NuclearHeating).unwrap().lower, 0.0);
+    }
+
+    // Verifies: VIS-025, VIS-026
+    #[test]
+    fn clamped_and_zero_values_are_counted_and_named() {
+        let scale = field_scale(FieldView::ComponentFlux).unwrap();
+        let values = [
+            Some(0.0),
+            Some(-1.0),
+            Some(1.0e5),  // positive, below the lower limit
+            Some(1.0e10), // exactly at the lower limit
+            Some(1.0e15), // inside
+            Some(1.0e20), // exactly at the upper limit
+            Some(1.0e25), // above
+            None,
+        ];
+        let counts = scale_counts(&values, &scale);
+        assert_eq!(
+            counts,
+            ScaleCounts {
+                total: 7,
+                nonpositive: 2,
+                below: 2,
+                above: 2,
+                unavailable: 1
+            }
+        );
+        let text = legend_text(&scale, &counts);
+        let all = text.notes.join("\n");
+        assert!(
+            all.contains("2 of 7 cells or components are at or below zero"),
+            "{all}"
+        );
+        assert!(all.contains("scale starts at 10^10"), "{all}");
+        assert!(all.contains("◂ 2 at or below 10^10"), "{all}");
+        assert!(all.contains("▸ 2 at or above 10^20"), "{all}");
+        assert!(all.contains("1 have no recorded result"), "{all}");
+        // Nothing clamped: no clamp line, but the zero statement stays (even for zero zeros).
+        let quiet = legend_text(&scale, &scale_counts(&[Some(1.0e15)], &scale));
+        assert_eq!(quiet.notes.len(), 1);
+        assert!(quiet.notes[0].contains("0 of 1 cells"));
     }
 
     // Verifies: VIS-032

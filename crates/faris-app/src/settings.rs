@@ -7,6 +7,7 @@
 //! and replaced by an empty one, with a notice for the user.
 
 use faris_engine::atomic_file;
+use faris_model::settings::{self as shared, Layers, Origin, Resolved, UserSettings};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -141,6 +142,109 @@ impl Settings {
     pub fn has_any_tool(&self) -> bool {
         Tool::ALL.iter().any(|t| self.tool(*t).is_some())
     }
+
+    /// A shared setting kept in the file's `values` section (for example `ui.scale`), as text.
+    pub fn value(&self, key: &str) -> Option<String> {
+        match self.other.get("values")?.get(key)? {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        }
+    }
+
+    /// Checks `text` against the shared registry and stores it, the way `faris config set` does.
+    pub fn set_value(&mut self, key: &str, text: &str) -> Result<(), String> {
+        let mut check = UserSettings::default();
+        check.set(key, text)?;
+        // The checked value in its stored form, as the file holds it.
+        let stored = check.get(key).unwrap_or_default();
+        let json = match shared::lookup(key).map(|d| d.value_type) {
+            Some(shared::ValueType::Int { .. }) => stored.parse::<i64>().ok().map(Into::into),
+            Some(shared::ValueType::Float { .. }) => stored.parse::<f64>().ok().map(Into::into),
+            _ => Some(serde_json::Value::String(stored.into())),
+        }
+        .ok_or_else(|| {
+            format!("{key}: {stored} cannot be stored. Next step: give another value.")
+        })?;
+        self.values_mut().insert(key.into(), json);
+        Ok(())
+    }
+
+    /// Removes a shared setting so the environment or the default applies again.
+    pub fn unset_value(&mut self, key: &str) {
+        if let Some(serde_json::Value::Object(values)) = self.other.get_mut("values") {
+            values.remove(key);
+        }
+    }
+
+    fn values_mut(&mut self) -> &mut serde_json::Map<String, serde_json::Value> {
+        let section = self
+            .other
+            .entry("values".into())
+            .or_insert_with(|| serde_json::Value::Object(Default::default()));
+        if !section.is_object() {
+            *section = serde_json::Value::Object(Default::default());
+        }
+        section.as_object_mut().expect("made an object above")
+    }
+
+    /// This file as the shared settings layer reads it: the tool paths and the `values` section.
+    /// An entry the registry refuses is left out (the command line reports it).
+    pub fn as_shared(&self) -> UserSettings {
+        let mut out = UserSettings::default();
+        for tool in Tool::ALL {
+            if let Some(path) = self.tool(tool) {
+                let _ = out.set(&format!("tools.{}", tool.key()), path);
+            }
+        }
+        if let Some(serde_json::Value::Object(values)) = self.other.get("values") {
+            for key in values.keys() {
+                if let Some(text) = self.value(key) {
+                    let _ = out.set(key, &text);
+                }
+            }
+        }
+        out
+    }
+
+    /// Every shared setting resolved through the layers (default, this file, environment), each
+    /// with the layer that supplied it (CFG-002). A bad environment value is passed over, not
+    /// fatal: the desktop must start, and the command line reports the problem.
+    pub fn resolve(&self, file: &Path, env: &dyn Fn(&str) -> Option<OsString>) -> Vec<Resolved> {
+        let user = self.as_shared();
+        let with = |env: &dyn Fn(&str) -> Option<OsString>| {
+            Layers {
+                file: &user,
+                file_path: file,
+                env,
+                flags: &[],
+            }
+            .resolve_all()
+        };
+        with(env).or_else(|_| with(&|_| None)).unwrap_or_default()
+    }
+}
+
+/// The interface size setting (UX-060).
+pub const UI_SCALE: &str = "ui.scale";
+
+/// The resolved entry for `key`.
+pub fn find<'a>(resolved: &'a [Resolved], key: &str) -> Option<&'a Resolved> {
+    resolved.iter().find(|r| r.key == key)
+}
+
+/// Short badge text for where a setting comes from.
+pub fn origin_badge(origin: &Origin) -> &'static str {
+    origin.layer()
+}
+
+/// Hover text for the badge: the layer with its file or variable, and the order of the layers.
+pub fn origin_hover(origin: &Origin) -> String {
+    format!(
+        "Supplied by the {}. The order is: command-line flag, environment variable, your \
+         settings file, built-in default; the first one that sets the value wins.",
+        origin.describe()
+    )
 }
 
 /// What reading the file gave.
@@ -212,6 +316,12 @@ pub fn load(path: &Path) -> Loaded {
             )
         }
     }
+}
+
+/// The `values` section as it is on disk now, if the file has one and can be read.
+pub fn read_values(path: &Path) -> Option<serde_json::Value> {
+    let root: serde_json::Value = serde_json::from_slice(&std::fs::read(path).ok()?).ok()?;
+    root.get("values").cloned()
 }
 
 /// `settings.json` -> `settings.json.bad`.
@@ -310,6 +420,30 @@ mod tests {
         assert_eq!(written["values"]["memory.cap_mb"], 4096);
         assert_eq!(written["values"]["ui.theme"], "dark");
         assert_eq!(written["tools"]["cad_python"], "/opt/cad/bin/python");
+    }
+
+    // Verifies: CFG-002
+    #[test]
+    fn shared_values_resolve_with_their_layer_and_are_checked() {
+        let mut settings = Settings::default();
+        settings.set_value(UI_SCALE, " 1.25 ").unwrap();
+        assert!(settings.set_value(UI_SCALE, "9").is_err());
+        assert!(settings.set_value("no.such", "1").is_err());
+        assert_eq!(settings.value(UI_SCALE).as_deref(), Some("1.25"));
+        settings.set_tool(Tool::CadPython, "/f/python");
+        let file = Path::new("/cfg/settings.json");
+        let env = |n: &str| (n == "FARIS_CROSS_SECTIONS").then(|| OsString::from("/x.xml"));
+        let resolved = settings.resolve(file, &env);
+        let origin = |key: &str| find(&resolved, key).unwrap().origin.layer();
+        assert_eq!(origin(UI_SCALE), "user file");
+        assert_eq!(origin("tools.cad_python"), "user file");
+        assert_eq!(origin("tools.cross_sections"), "environment");
+        assert_eq!(origin("ui.theme"), "default");
+        settings.unset_value(UI_SCALE);
+        assert_eq!(settings.value(UI_SCALE), None);
+        // A bad environment value does not stop the desktop; the file's values still resolve.
+        let bad = |n: &str| (n == "FARIS_MEMORY_CAP_MB").then(|| OsString::from("lots"));
+        assert!(!settings.resolve(file, &bad).is_empty());
     }
 
     #[test]

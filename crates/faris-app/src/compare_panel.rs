@@ -93,7 +93,7 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     } else {
                         "Breeder H3 / source"
                     })
-                    .on_hover_text("Tritium atoms produced per source neutron, ± one Monte Carlo standard error. Cold-data surrogate; scientific qualification NOT_EVALUATED.");
+                    .on_hover_text(format!("Tritium atoms produced per source neutron, ± one Monte Carlo standard error. Cold-data surrogate. {}", crate::not_evaluated::NOT_QUALIFIED.line()));
                     ui.monospace(pair(cell.breeding, 4));
                     ui.end_row();
                     ui.label("Magnet mean flux")
@@ -379,12 +379,25 @@ fn not_evaluated_pair(
     match (not_evaluated_text(a), not_evaluated_text(b)) {
         (None, None) => None,
         (Some(x), Some(y)) if x == y => Some((
-            format!("No uncertainty range for this comparison: {}", x.0),
+            format!(
+                "No uncertainty range for this comparison: NOT_EVALUATED ({}). Why: {}",
+                crate::not_evaluated::ENSEMBLE_UNEVALUATED,
+                x.0
+            ),
             format!("Next step: {}", x.1),
         )),
         (x, y) => {
             let part = |name: &str, r: Option<(&str, &str)>| {
-                r.map(|(why, next)| format!("{name}: {why}. Next step: {next}."))
+                r.map(|(why, next)| {
+                    format!(
+                        "{name}: {}",
+                        crate::not_evaluated::Reason::engine(
+                            crate::not_evaluated::ENSEMBLE_UNEVALUATED,
+                            why,
+                            next
+                        )
+                    )
+                })
             };
             let texts: Vec<String> = [part(contrast.a_name, x), part(contrast.b_name, y)]
                 .into_iter()
@@ -498,7 +511,7 @@ pub fn compare_view(
             ui.set_max_width((ui.clip_rect().width() - 24.0).max(600.0));
             ui.horizontal_wrapped(|ui| {
                 ui.strong("Compare the four recorded arrangements");
-                badge::kind_badge(ui, Kind::Conditional, "Transport rows are cold-data surrogate Monte Carlo results (qualification NOT_EVALUATED). History rows are conditional on the authored operating assumptions currently selected.");
+                badge::kind_badge(ui, Kind::Conditional, &format!("Transport rows are cold-data surrogate Monte Carlo results. {} History rows are conditional on the authored operating assumptions currently selected.", crate::not_evaluated::NOT_QUALIFIED.line()));
                 if history.is_stale() {
                     ui.colored_label(egui::Color32::YELLOW, "Histories belong to earlier inputs; recalculating.");
                 }

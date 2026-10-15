@@ -867,10 +867,14 @@ impl FarisApp {
             });
         match tally {
             Some((mean, error)) => format!(
-                "Tritium breeding, {}: {mean:.4} ± {error:.4} H3 per source neutron (one Monte Carlo standard error). Scientific qualification NOT_EVALUATED.",
-                crate::allocation_text(variant)
+                "Tritium breeding, {}: {mean:.4} ± {error:.4} H3 per source neutron (one Monte Carlo standard error). {}",
+                crate::allocation_text(variant),
+                crate::not_evaluated::NOT_QUALIFIED.line()
             ),
-            None => "Tritium breeding ratio: NOT_EVALUATED for this arrangement because no transport result is loaded. Press 2 for Simulate and run transport, or open a study file with recorded results.".into(),
+            None => format!(
+                "Tritium breeding ratio: {}",
+                crate::not_evaluated::NO_TRANSPORT_RESULT.line()
+            ),
         }
     }
 }

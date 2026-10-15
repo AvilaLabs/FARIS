@@ -579,6 +579,9 @@ fn check_running_ui(ui: &mut egui::Ui, view: &CheckRunning) {
         );
         ui.weak("The bar is this stage only, not the whole check.");
     }
+    if let Some(remaining) = &view.progress.stage_remaining {
+        ui.label(remaining);
+    }
     ui.weak(&view.progress.stages_seen);
     ui.weak(NO_ESTIMATE);
 }

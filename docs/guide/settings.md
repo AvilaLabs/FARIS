@@ -14,7 +14,7 @@ A setting takes the first value found, looking from the strongest layer to the w
 
 `faris config get KEY --show-origin` names the layer, and the variable or file, that supplied the value. `faris config list` does it for every setting.
 
-Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The two `ui` settings are stored and reported, and the desktop does not read them yet.
+Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. `ui.theme` is stored and reported, and the desktop does not read it yet.
 
 ## Your settings file
 
@@ -48,5 +48,5 @@ The table is checked against the program's list of settings by a test, so it can
 | `tools.core_executable` | path | not set | - | `FARIS_CORE_EXECUTABLE` | The Avila Core program that compiles and runs studies; when unset, the one on PATH. |
 | `memory.cap_mb` | whole number 1 to 4194304 | not set | MiB | `FARIS_MEMORY_CAP_MB` | Address-space cap applied to every external job; when unset, no cap is applied and a job is checked against the memory that is free. |
 | `memory.margin_mb` | whole number 1 to 4194304 | `1024` | MiB | `FARIS_MEMORY_MARGIN_MB` | Memory kept free for the rest of the machine when the free-memory check is made before a job starts. |
-| `ui.scale` | number 0.5 to 4 | `1` | x | - | Interface size as a multiple of the desktop's own scaling. Reserved for the desktop, which does not read it yet. |
+| `ui.scale` | number 0.5 to 4 | `1` | x | - | Interface size as a multiple of the desktop's own scaling. The desktop reads it at start and saves it when you change the size; its size menu offers 0.75 to 2. |
 | `ui.theme` | one of system, light, dark | `system` | - | - | Colour theme. Reserved for the desktop, which does not read it yet. |

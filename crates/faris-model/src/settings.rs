@@ -185,7 +185,7 @@ pub static REGISTRY: &[SettingDef] = &[
         Some("1"),
         "x",
         None,
-        "Interface size as a multiple of the desktop's own scaling. Reserved for the desktop, which does not read it yet.",
+        "Interface size as a multiple of the desktop's own scaling. The desktop reads it at start and saves it when you change the size; its size menu offers 0.75 to 2.",
     ),
     def(
         "ui.theme",
