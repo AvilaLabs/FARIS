@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 63 | 491 | 829 | 36 | 267 | 19 % | 504 | 150 | 459 | 116 | 431 | 98 |
+| All requirements | 1419 | 63 | 508 | 812 | 36 | 285 | 20 % | 504 | 150 | 459 | 116 | 431 | 98 |
 
 ## By category
 
@@ -29,21 +29,21 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 19 | 55 | 0 | 9 | 12 % | 35 | 8 | 25 | 1 | 20 | 4 |
 | [Interoperability](14-interoperability.md) | 59 | 1 | 21 | 34 | 3 | 10 | 17 % | 24 | 11 | 14 | 1 | 24 | 3 |
 | [Design workflows](15-design-workflows.md) | 75 | 3 | 20 | 52 | 0 | 5 | 7 % | 19 | 9 | 19 | 0 | 40 | 4 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 6 | 18 | 16 | 2 | 15 | 36 % | 11 | 4 | 7 | 0 | 25 | 4 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 6 | 19 | 15 | 2 | 16 | 38 % | 11 | 4 | 7 | 0 | 25 | 4 |
 | [Collaboration](17-collaboration.md) | 40 | 1 | 7 | 32 | 0 | 3 | 8 % | 6 | 1 | 10 | 1 | 25 | 1 |
 | [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 7 | 4 | 8 | 1 | 27 | 3 |
-| [Security](19-security.md) | 55 | 9 | 23 | 22 | 1 | 13 | 24 % | 14 | 3 | 7 | 0 | 36 | 10 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 23 | 18 | 0 | 6 | 13 % | 5 | 2 | 6 | 1 | 33 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 34 | 38 | 1 | 20 | 26 % | 16 | 13 | 23 | 7 | 34 | 7 |
-| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 19 | 25 | 1 | 9 | 20 % | 13 | 1 | 22 | 11 | 4 | 2 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 3 | 19 | 12 | 2 | 8 | 22 % | 13 | 3 | 2 | 1 | 21 | 2 |
+| [Security](19-security.md) | 55 | 9 | 28 | 17 | 1 | 18 | 33 % | 14 | 3 | 7 | 0 | 36 | 10 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 24 | 17 | 0 | 7 | 16 % | 5 | 2 | 6 | 1 | 33 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 36 | 36 | 1 | 22 | 29 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 24 | 20 | 1 | 15 | 33 % | 13 | 1 | 22 | 11 | 4 | 2 |
+| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 3 | 22 | 9 | 2 | 11 | 31 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
 ## By phase
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 45 | 250 | 133 | 17 | 158 | 36 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 9 | 169 | 302 | 17 | 84 | 17 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F1 | 445 | 45 | 264 | 119 | 17 | 173 | 39 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 497 | 9 | 172 | 299 | 17 | 87 | 18 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 3 | 5 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 4 | 31 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |

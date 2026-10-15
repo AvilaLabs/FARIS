@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 267 of 1419 requirements.
+Traced: 285 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -25,14 +25,14 @@ Traced: 267 of 1419 requirements.
 | [13-automation-and-extensibility.md](13-automation-and-extensibility.md) | 74 | 9 |
 | [14-interoperability.md](14-interoperability.md) | 59 | 10 |
 | [15-design-workflows.md](15-design-workflows.md) | 75 | 5 |
-| [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 15 |
+| [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 16 |
 | [17-collaboration.md](17-collaboration.md) | 40 | 3 |
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
-| [19-security.md](19-security.md) | 55 | 13 |
-| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 6 |
-| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 20 |
-| [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 9 |
-| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 8 |
+| [19-security.md](19-security.md) | 55 | 18 |
+| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 7 |
+| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 22 |
+| [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 15 |
+| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 11 |
 
 ## Traced requirements
 
@@ -236,6 +236,7 @@ Traced: 267 of 1419 requirements.
 | PRV-014 | F1 | `crates/faris-engine/src/core_evidence.rs::completed_workflow_keeps_physical_not_evaluated_and_refuses_missing_receipts`<br>`crates/faris-engine/src/study.rs::missing_data_never_becomes_a_compilation_or_physical_result` |
 | PRV-021 | F1 | `crates/faris-engine/src/history_ensemble/tests.rs::identical_for_any_thread_count` |
 | PRV-030 | F1 | `crates/faris-report/src/tests.rs::study_file_stamp_is_named_in_the_manifest_and_the_pdf_footer`<br>`crates/faris-report/src/tests.rs::unsaved_study_says_so_in_the_pdf` |
+| PRV-036 | F1 | `scripts/test_docs_policy.py::test_invalid_files_are_rejected_with_the_reason`<br>`scripts/test_docs_policy.py::test_the_repository_changelog_passes` |
 | PRV-040 | F1 | `crates/faris-app/src/study_file.rs::a_package_session_can_record_its_saved_studies_as_store_trees`<br>`crates/faris-cli/tests/study_file.rs::evidence_is_referenced_by_default_and_packed_on_request`<br>`crates/faris-cli/tests/study_file.rs::store_evidence_is_referenced_by_default_and_packed_on_request`<br>`crates/faris-study/src/store_tests.rs::packed_store_evidence_round_trips_as_a_verifiable_store`<br>`crates/faris-study/src/store_tests.rs::referenced_store_evidence_records_listings_without_bytes`<br>`crates/faris-study/src/tests.rs::packed_evidence_is_stored_and_restored`<br>`crates/faris-study/src/tests.rs::referenced_evidence_records_hashes_without_the_bytes` |
 | PRV-041 | F1 | `crates/faris-app/src/study_file.rs::missing_referenced_evidence_explains_why_and_the_next_step`<br>`crates/faris-app/src/study_file.rs::missing_store_trees_explain_why_and_the_next_step` |
 | PRV-042 | F1 | `crates/faris-app/src/study_file.rs::missing_referenced_evidence_explains_why_and_the_next_step`<br>`crates/faris-app/src/study_file.rs::missing_store_trees_explain_why_and_the_next_step`<br>`crates/faris-cli/tests/study_file.rs::store_evidence_is_referenced_by_default_and_packed_on_request`<br>`crates/faris-study/src/store_tests.rs::a_changed_listing_extra_or_missing_trees_and_both_layers_are_refused`<br>`crates/faris-study/src/store_tests.rs::referenced_store_evidence_records_listings_without_bytes`<br>`crates/faris-study/src/store_tests.rs::tampered_packed_stores_are_refused`<br>`crates/faris-study/src/tests.rs::packing_needs_the_archives_and_checks_them`<br>`crates/faris-study/src/tests.rs::referenced_evidence_records_hashes_without_the_bytes` |
@@ -257,17 +258,23 @@ Traced: 267 of 1419 requirements.
 | SEC-011 | F1 | `scripts/test_source_lint.py::test_a_comparison_with_a_truncated_digest_is_found`<br>`scripts/test_source_lint.py::test_digest_slices_are_listed_unless_allow_listed` |
 | SEC-020 | F1 | `scripts/test_fuzz_seed.py::test_every_fuzz_target_gets_seeds_from_the_repository` |
 | SEC-021 | F1 | `scripts/test_release_gate.py::test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash` |
-| SEC-031 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
+| SEC-030 | F1 | `scripts/test_generate_sbom.py::test_bundled_fonts_are_listed_with_their_hashes`<br>`scripts/test_generate_sbom.py::test_checksums_licences_and_dependencies_are_carried`<br>`scripts/test_generate_sbom.py::test_output_is_reproducible_for_a_fixed_timestamp_and_main_writes_both_files`<br>`scripts/test_generate_sbom.py::test_the_repository_fonts_are_all_listed`<br>`scripts/test_generate_sbom.py::test_validation_catches_a_missing_identifier_and_a_missing_dependency_section` |
+| SEC-031 | F1 | `scripts/test_check_audit.py::test_a_valid_waiver_covers_unmaintained_and_yanked_findings`<br>`scripts/test_check_audit.py::test_expired_incomplete_overlong_and_unused_waivers_fail`<br>`scripts/test_check_audit.py::test_the_repository_allowlist_is_complete_and_within_the_ninety_day_rule`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | SEC-033 | F1 | `scripts/test_workflows.py::test_every_action_is_pinned_by_full_commit_hash_with_its_version_in_a_comment`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | SEC-037 | F2 | `scripts/test_repro_check.py::test_equal_binaries_write_evidence_the_release_gate_accepts` |
+| SEC-039 | F1 | `scripts/test_check_licences.py::test_the_repository_policy_is_well_formed_and_fails_a_gpl2_only_dependency` |
 | SEC-061 | F1 | `crates/faris-engine/src/jobs.rs::inherited_address_space_limit_bounds_child_allocation`<br>`crates/faris-engine/src/jobs.rs::only_the_address_space_may_be_raised_and_only_to_the_ceiling`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_killed_by_inherited_file_size_limit` |
 | SEC-063 | F2 | `crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly` |
+| SEC-073 | F1 | `scripts/test_docs_policy.py::test_the_advisory_process_covers_cve_release_notes_and_a_regression_test` |
+| SEC-074 | F1 | `scripts/test_docs_policy.py::test_every_threat_maps_to_an_existing_requirement_or_a_listed_accepted_risk` |
+| SEC-076 | F1 | `scripts/test_docs_policy.py::test_every_threat_maps_to_an_existing_requirement_or_a_listed_accepted_risk` |
 | PLAT-004 | F2 | `crates/faris-engine/src/jobs.rs::a_finished_job_records_its_peak_memory_and_the_check_made_before_it`<br>`crates/faris-engine/src/jobs.rs::aggregate_artifact_file_count_includes_explicit_external_roots`<br>`crates/faris-engine/src/jobs.rs::cancellation_terminates_a_running_job`<br>`crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_caught_by_the_artifact_scan`<br>`crates/faris-engine/src/jobs.rs::preserves_exit_code_and_does_not_infer_a_scientific_verdict`<br>`crates/faris-engine/src/jobs.rs::timeout_cleans_up_descendants_holding_the_output_pipe`<br>`crates/faris-engine/src/jobs.rs::windows_lines_arrive_without_the_carriage_return` |
 | PLAT-005 | F2 | `crates/faris-engine/src/jobs.rs::a_finished_job_records_its_peak_memory_and_the_check_made_before_it`<br>`crates/faris-engine/src/jobs.rs::aggregate_artifact_file_count_includes_explicit_external_roots`<br>`crates/faris-engine/src/jobs.rs::cancellation_terminates_a_running_job`<br>`crates/faris-engine/src/jobs.rs::macos_stops_a_job_whose_memory_passes_the_cap`<br>`crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly`<br>`crates/faris-engine/src/jobs.rs::preserves_exit_code_and_does_not_infer_a_scientific_verdict`<br>`crates/faris-engine/src/jobs.rs::timeout_cleans_up_descendants_holding_the_output_pipe` |
 | PLAT-013 | F1 | `crates/faris-app/src/native.rs::a_graphics_failure_names_the_cause_and_a_next_step` |
 | PLAT-023 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
 | PLAT-024 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
-| PLAT-073 | F1 | `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition` |
+| PLAT-034 | F1 | `scripts/test_docs_policy.py::test_missing_inputs_refuse_to_produce_notes`<br>`scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line` |
+| PLAT-073 | F1 | `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`<br>`scripts/test_release_gate.py::test_repository_checks_run_every_script_fail_on_a_failing_one_and_on_a_missing_input`<br>`scripts/test_release_gate.py::test_the_command_exits_nonzero_when_a_repository_check_fails_and_can_skip_them` |
 | QA-001 | F1 | `scripts/test_requirement_lint.py::test_committed_tables_have_no_errors`<br>`scripts/test_requirement_lint.py::test_good_row_is_clean`<br>`scripts/test_requirement_lint.py::test_met_needs_a_test_unless_audit`<br>`scripts/test_requirement_lint.py::test_missing_phase_and_verification_fail`<br>`scripts/test_requirement_lint.py::test_phase_forms`<br>`scripts/test_requirement_lint.py::test_wrong_cell_count_and_empty_cell` |
 | QA-008 | F1 | `scripts/test_requirement_lint.py::test_removed_id_needs_a_tombstone`<br>`scripts/test_requirement_lint.py::test_reused_and_revived_ids`<br>`scripts/test_requirement_lint.py::test_rewording_keeps_the_id`<br>`scripts/test_requirement_lint.py::test_table_ids_reads_live_and_struck`<br>`scripts/test_requirement_lint.py::test_unchanged_is_clean` |
 | QA-009 | F2 | `scripts/test_requirement_scorecard.py::test_counts` |
@@ -280,10 +287,12 @@ Traced: 267 of 1419 requirements.
 | QA-052 | F1 | `scripts/test_wording_lint.py::test_compliance_tied_to_nqa1_or_a_regulator_is_flagged` |
 | QA-063 | F2 | `scripts/test_repro_check.py::test_different_binaries_exit_1_and_the_gate_rejects_the_evidence`<br>`scripts/test_repro_check.py::test_equal_binaries_write_evidence_the_release_gate_accepts`<br>`scripts/test_repro_check.py::test_the_recipe_remaps_checkout_cargo_rustup_and_target_and_pins_the_epoch` |
 | QA-070 | F2 | `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`<br>`scripts/test_release_gate.py::test_an_unmet_requirement_fails_the_gate_and_the_exit_code_is_nonzero`<br>`scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver`<br>`scripts/test_release_gate.py::test_evidence_must_name_the_commit_and_every_check_must_pass`<br>`scripts/test_release_gate.py::test_missing_evidence_fails_and_never_passes_by_default`<br>`scripts/test_release_gate.py::test_reproducible_build_needs_equal_hashes`<br>`scripts/test_release_gate.py::test_the_gate_ids_are_parsed_from_the_plan`<br>`scripts/test_release_gate.py::test_trace_gap_and_unknown_marker_fail` |
-| QA-071 | F2 | `scripts/test_requirement_lint.py::test_met_needs_a_test_unless_audit` |
-| QA-072 | F2 | `scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver` |
+| QA-071 | F2 | `scripts/test_release_gate.py::test_a_met_requirement_without_a_test_marker_fails_the_gate`<br>`scripts/test_requirement_lint.py::test_met_needs_a_test_unless_audit` |
+| QA-072 | F2 | `scripts/test_release_gate.py::test_a_valid_waiver_turns_a_failing_condition_into_waived_and_an_invalid_one_does_not`<br>`scripts/test_release_gate.py::test_a_waiver_needs_owner_reason_and_an_unexpired_date_within_ninety_days`<br>`scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver` |
+| QA-074 | F2 | `scripts/test_docs_policy.py::test_missing_inputs_refuse_to_produce_notes`<br>`scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line`<br>`scripts/test_docs_policy.py::test_the_main_command_writes_the_file_for_the_repository_unreleased_section_inputs` |
 | QA-080 | F1 | `scripts/test_defect_log.py::test_a_complete_entry_passes`<br>`scripts/test_defect_log.py::test_duplicate_ids_and_a_missing_list_are_reported`<br>`scripts/test_defect_log.py::test_each_required_field_is_checked`<br>`scripts/test_defect_log.py::test_every_problem_is_listed_and_the_exit_status_follows`<br>`scripts/test_defect_log.py::test_open_and_wont_fix_entries`<br>`scripts/test_defect_log.py::test_the_real_log_passes`<br>`scripts/test_defect_log.py::test_the_regression_test_must_exist`<br>`scripts/test_defect_log.py::test_values_are_checked` |
-| QA-085 | F1 | `scripts/test_defect_log.py::test_the_regression_test_must_exist` |
+| QA-082 | F1 | `scripts/test_docs_policy.py::test_the_committed_page_equals_a_fresh_generation` |
+| QA-085 | F1 | `scripts/test_defect_log.py::test_the_regression_test_must_exist`<br>`scripts/test_docs_policy.py::test_release_documents_exist_and_the_migration_template_has_before_and_after`<br>`scripts/test_docs_policy.py::test_the_defect_log_lint_already_rejects_a_fixed_defect_without_an_existing_test` |
 | QA-090 | F1 | `scripts/test_check_repository_size.py::test_small_tree_passes`<br>`scripts/test_nuclear_data_policy.py::test_a_listed_file_is_refused_when_large_changed_or_without_provenance`<br>`scripts/test_nuclear_data_policy.py::test_the_tracked_files_meet_the_rule`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | QA-091 | F2 | `validation/test_checks.py::test_the_tree_passes_its_own_checks`<br>`validation/test_checks.py::test_vendored_upstream_file_is_found` |
 | QA-092 | F2 | `crates/faris-study/src/fixture_tests.rs::every_archived_fixture_opens_verifies_and_matches_its_summary` |
@@ -292,11 +301,18 @@ Traced: 267 of 1419 requirements.
 | DOC-002 | F1 | `crates/faris-app/src/commands.rs::the_keyboard_page_lists_every_shortcut_and_command` |
 | DOC-009 | F1 | `scripts/test_doc_pages.py::test_limitations_rows_name_a_requirement_that_exists` |
 | DOC-020 | F1 | `scripts/test_doc_samples.py::test_a_runnable_command_is_executed_and_a_failing_one_fails_the_check` |
-| DOC-021 | F1 | `scripts/test_doc_samples.py::test_a_flag_the_binary_does_not_have_fails` |
+| DOC-021 | F1 | `scripts/test_doc_samples.py::test_a_flag_the_binary_does_not_have_fails`<br>`scripts/test_docs_policy.py::test_a_binary_that_fails_is_an_error_not_an_empty_page`<br>`scripts/test_docs_policy.py::test_contributing_states_the_regression_test_rule_and_the_template_has_the_checkbox`<br>`scripts/test_docs_policy.py::test_examples_come_from_the_handbook_and_missing_ones_are_listed` |
+| DOC-026 | F1 | `scripts/test_check_links.py::test_a_missing_file_a_missing_anchor_and_an_escape_from_the_repository_fail`<br>`scripts/test_check_links.py::test_external_links_are_only_syntax_checked_and_never_fetched`<br>`scripts/test_check_links.py::test_heading_slugs_follow_the_github_rule`<br>`scripts/test_check_links.py::test_html_anchors_count_and_code_is_ignored`<br>`scripts/test_check_links.py::test_reference_definitions_and_autolinks_are_checked`<br>`scripts/test_check_links.py::test_the_repositorys_own_documents_have_no_broken_link` |
+| DOC-034 | F2 | `scripts/test_docs_policy.py::test_a_long_definition_a_duplicate_and_a_missing_link_fail` |
 | DOC-037 | F1 | `scripts/test_doc_pages.py::test_the_handbook_adds_the_licence_footer_to_every_page` |
+| DOC-040 | F1 | `scripts/test_docs_policy.py::test_layout_rules` |
+| DOC-041 | F1 | `scripts/test_docs_policy.py::test_security_policy_has_a_private_channel_and_the_stated_targets` |
 | DOC-042 | F2 | `crates/faris-study/src/fixture_tests.rs::every_archived_fixture_opens_verifies_and_matches_its_summary` |
+| DOC-043 | F2 | `scripts/test_docs_policy.py::test_a_valid_entry_passes_and_the_two_minor_release_rule_is_enforced`<br>`scripts/test_docs_policy.py::test_missing_replacement_reached_removal_and_unknown_announcement_fail` |
 | DOC-056 | F2 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row` |
+| DOC-060 | F1 | `scripts/test_docs_policy.py::test_invalid_files_are_rejected_with_the_reason` |
 | DOC-062 | F1 | `scripts/test_export_lint.py::test_a_claim_in_an_export_and_a_missing_twin_statement_are_found`<br>`scripts/test_export_lint.py::test_a_clean_export_has_no_finding_except_the_stamp`<br>`scripts/test_export_lint.py::test_the_statement_must_be_the_first_line`<br>`scripts/test_source_lint.py::test_the_tree_has_no_failing_finding` |
+| LEG-003 | F1 | `scripts/test_check_licences.py::test_an_exception_matches_the_exact_expression_and_unused_ones_fail`<br>`scripts/test_check_licences.py::test_missing_and_unparseable_licences_fail`<br>`scripts/test_check_licences.py::test_older_slash_separators_and_exceptions_with_with`<br>`scripts/test_check_licences.py::test_the_repository_policy_is_well_formed_and_fails_a_gpl2_only_dependency` |
 | LEG-005 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | LEG-014 | F1 | `scripts/test_collect_dependency_notices.py::test_spdx_expression_parsing` |
 | LEG-016 | F1 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row` |
@@ -305,3 +321,5 @@ Traced: 267 of 1419 requirements.
 | LEG-042 | F1 | `scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_twin_is_flagged`<br>`scripts/test_wording_lint.py::test_twin_only_in_allow_listed_sentence` |
 | LEG-043 | F1 | `scripts/test_wording_lint.py::test_canonical_words_and_ordinary_english_are_clean`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_title_case_only_allowed_at_sentence_start`<br>`scripts/test_wording_lint.py::test_variant_spellings_are_flagged` |
 | LEG-044 | F1 | `scripts/test_wording_lint.py::test_codenames_are_flagged`<br>`scripts/test_wording_lint.py::test_codenames_are_whole_word_and_case_sensitive`<br>`scripts/test_wording_lint.py::test_file_names_are_checked`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not` |
+| LEG-050 | F1 | `scripts/test_docs_policy.py::test_the_export_control_statement_is_marked_as_a_draft_and_claims_no_review` |
+| LEG-052 | F1 | `scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line`<br>`scripts/test_docs_policy.py::test_the_export_control_statement_is_marked_as_a_draft_and_claims_no_review` |

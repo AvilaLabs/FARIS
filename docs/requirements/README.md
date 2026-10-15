@@ -127,15 +127,15 @@ Its main gaps against these targets:
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 0 | 19 | 0 | 55 |
 | [Interoperability](14-interoperability.md) | INT | 59 | 1 | 21 | 3 | 34 |
 | [Design workflows](15-design-workflows.md) | DSN | 75 | 3 | 20 | 0 | 52 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 6 | 18 | 2 | 16 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 6 | 19 | 2 | 15 |
 | [Collaboration](17-collaboration.md) | COL | 40 | 1 | 7 | 0 | 32 |
 | [Reliability](18-reliability.md) | REL | 38 | 2 | 11 | 1 | 24 |
-| [Security](19-security.md) | SEC | 55 | 9 | 23 | 1 | 22 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 4 | 23 | 0 | 18 |
-| [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 34 | 1 | 38 |
-| [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 19 | 1 | 25 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 19 | 2 | 12 |
-| **Total** | | **1419** | **63** | **491** | **36** | **829** |
+| [Security](19-security.md) | SEC | 55 | 9 | 28 | 1 | 17 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 4 | 24 | 0 | 17 |
+| [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 36 | 1 | 36 |
+| [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
+| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 22 | 2 | 9 |
+| **Total** | | **1419** | **63** | **508** | **36** | **812** |
 
 Counts are generated from the tables by `scripts/requirement_trace.py`. 63 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
