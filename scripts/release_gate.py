@@ -18,7 +18,21 @@ Conditions read from the repository (--root, default this checkout):
   its verification evidence exists, and every evidence record has exactly one class (VAL-001);
 - neither matrix is stale: both equal a regeneration from the registry, models, case manifests, rules and model
   source files in the tree (VAL-037, `python3 -m validation matrix` and `python3 -m validation models`);
-- wording lint is clean.
+- wording lint is clean;
+- every requirement marked Met anywhere in the tables has a Verifies: marker in a test (QA-071);
+- the waivers file docs/release-waivers.json is complete and unexpired (QA-072).
+
+A condition that fails can be waived for one release by an entry in docs/release-waivers.json:
+{"waivers": [{"condition": NAME OR ID, "owner": ..., "reason": ..., "expiry": "YYYY-MM-DD"}]}. The waiver needs
+all three fields, must not be expired, and must expire within 90 days. A waived condition prints WAIVED with the
+original failure and counts as passing; an open S1 defect (QA-083) and the waiver check itself cannot be waived.
+
+Repository checks (PLAT-073). Unless --no-repo-checks is given, the gate also runs every check that CI runs on
+the tree and a few that need a build: the requirement scorecard, trace and table lints, source lint, repository
+size, link check, glossary, changelog, deprecations, known-issues page, citation file, the licence policy, the
+advisory check, the SBOM generation and validation, the current notices, and the command-line reference
+(--faris BINARY). Each is one script run with this checkout as the working directory; a failing script, a script
+that cannot run and a missing input (no --faris) all FAIL.
 
 The verdicts of the V&V report are re-derived from its case records: a matrix cell that differs from the
 derivation, or a row that claims validation without a case record with a PASS or FAIL verdict, fails (VAL-006).
@@ -50,6 +64,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -82,12 +97,16 @@ class Gate:
         self.vv_report: Path | None = None
         self.release_record: Path | None = None
         self.evidence = {name: None for name in ("tests", "perf", "defects", "fuzz", "repro", "doc_tests")}
+        self.repo_checks = False  # the command line turns these on; run_gate on a fixture tree leaves them off
+        self.faris: Path | None = None
+        self.cargo = "cargo"
+        self._metadata: dict[str, Path] = {}
         for source in (vars(args) if args else {}, overrides):
             for key, value in source.items():
                 if key in self.evidence:
                     self.evidence[key] = Path(value) if value else None
-                elif key in ("today", "commit", "terms", "matrix", "vv_report", "release_record") and value is not None:
-                    setattr(self, key, Path(value) if key in ("matrix", "vv_report", "release_record") else value)
+                elif key in ("today", "commit", "terms", "matrix", "vv_report", "release_record", "faris", "cargo", "repo_checks") and value is not None:
+                    setattr(self, key, Path(value) if key in ("matrix", "vv_report", "release_record", "faris") else value)
         if self.matrix is None:
             self.matrix = self.root / "validation" / "matrix.json"
         if self.commit is None:
@@ -408,6 +427,160 @@ def waiver_problem(waiver, today: date) -> str | None:
     return None
 
 
+def check_met_rows_traced(g: Gate):
+    """QA-071: a requirement marked Met must have a test that names it. Whether that test passes is the
+    "all tests pass" condition, whose evidence is the test run of the same commit."""
+    status = read_statuses(g.root)
+    named, _ = read_markers(g.root)
+    met = sorted(i for i, st in status.items() if st == "Met")
+    untraced = [i for i in met if i not in named]
+    if untraced:
+        return False, f"{len(met) - len(untraced)} of {len(met)} Met requirements have a test marker; none for " + ", ".join(untraced)
+    return True, f"all {len(met)} Met requirements have a test marker"
+
+
+WAIVERS = Path("docs") / "release-waivers.json"
+UNWAIVABLE = {"QA-083", "QA-072"}
+
+
+def read_waivers(root: Path) -> list[dict]:
+    path = root / WAIVERS
+    if not path.is_file():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    waivers = data.get("waivers") if isinstance(data, dict) else None
+    if not isinstance(waivers, list):
+        raise ValueError(f'{WAIVERS} must be {{"waivers": [...]}}')
+    return waivers
+
+
+def check_waivers(g: Gate):
+    """QA-072: every waiver of a gate condition has owner, reason and expiry, is unexpired and expires within
+    90 days, and names a condition of this gate that may be waived."""
+    waivers = read_waivers(g.root)
+    known = {c[0] for c in CONDITIONS} | {c[1] for c in CONDITIONS} | {c[0] for c in REPO_CHECKS} | {c[1] for c in REPO_CHECKS}
+    problems = []
+    for w in waivers:
+        label = w.get("condition", "?") if isinstance(w, dict) else "?"
+        why = waiver_problem(w, g.today)
+        if why:
+            problems.append(f"waiver for {label}: {why}")
+        elif not str(w.get("condition") or "").strip():
+            problems.append("a waiver names no condition")
+        elif w["condition"] not in known:
+            problems.append(f"waiver names {w['condition']!r}, which is not a condition of this gate")
+        elif w["condition"] in UNWAIVABLE:
+            problems.append(f"{w['condition']} cannot be waived")
+    if problems:
+        return False, "; ".join(problems)
+    return True, f"{len(waivers)} waivers, all complete, unexpired and within {MAX_WAIVER_DAYS} days"
+
+
+# --- repository checks (PLAT-073): scripts run with the checkout as working directory --------------------
+
+def _metadata(g: Gate, platform: str | None = None) -> Path:
+    """`cargo metadata --locked --offline` of the checkout, written once per run (and per platform filter)."""
+    key = platform or "all"
+    if key not in g._metadata:
+        argv = [*g.cargo.split(), "metadata", "--locked", "--offline", "--format-version", "1"]
+        if platform:
+            argv += ["--filter-platform", platform]
+        out = subprocess.run(argv, cwd=g.root, capture_output=True, text=True, timeout=600)
+        if out.returncode != 0:
+            raise ValueError(f"{' '.join(argv)} failed: {out.stderr.strip()[-300:]}")
+        tmp = Path(tempfile.mkdtemp(prefix="release-gate-")) / f"metadata-{key}.json"
+        tmp.write_text(out.stdout, encoding="utf-8")
+        g._metadata[key] = tmp
+    return g._metadata[key]
+
+
+def _script(name: str, *args: str):
+    return lambda g: [sys.executable, str(g.root / "scripts" / name), *args]
+
+
+def _sbom(g: Gate):
+    out = tempfile.mkdtemp(prefix="release-gate-sbom-")
+    return [sys.executable, str(g.root / "scripts" / "generate_sbom.py"), "--metadata", str(_metadata(g)), "--out", out, "--root", str(g.root)]
+
+
+def _licences(g: Gate):
+    return [sys.executable, str(g.root / "scripts" / "check_licences.py"), "--metadata", str(_metadata(g))]
+
+
+def _cli(g: Gate):
+    if g.faris is None:
+        raise ValueError("no faris binary given (--faris); the command-line reference cannot be compared with its help")
+    return [sys.executable, str(g.root / "scripts" / "cli_reference.py"), "--faris", str(g.faris), "--root", str(g.root), "--check"]
+
+
+def _notices(g: Gate):
+    """docs/THIRD_PARTY_NOTICES.md equals a fresh collection for the Linux graph (the file's own recipe)."""
+    out = Path(tempfile.mkdtemp(prefix="release-gate-notices-")) / "notices.md"
+    run = subprocess.run([sys.executable, str(g.root / "scripts" / "collect_dependency_notices.py"),
+                          "--metadata", str(_metadata(g, "x86_64-unknown-linux-gnu")), "--output", str(out)],
+                         cwd=g.root, capture_output=True, text=True, timeout=900)
+    if run.returncode != 0:
+        return False, "could not collect the notices: " + (run.stderr.strip().splitlines() or ["no message"])[-1]
+    if out.read_bytes() != (g.root / "docs" / "THIRD_PARTY_NOTICES.md").read_bytes():
+        return False, "docs/THIRD_PARTY_NOTICES.md differs from a fresh collection for the Linux graph; regenerate it"
+    return True, "docs/THIRD_PARTY_NOTICES.md equals a fresh collection for the Linux graph"
+
+
+# (name, ident, builder). A builder returns the argv of a script that exits non-zero on a problem, or a
+# (passed, reason) pair.
+REPO_CHECKS = (
+    ("requirement scorecard is current", "QA-009", _script("requirement_scorecard.py", "--check")),
+    ("requirement trace is current", "QA-002", _script("requirement_trace.py", "--check")),
+    ("requirement tables follow the table rules", "QA-001", _script("requirement_lint.py")),
+    ("source rules for the calculation crates", "QA-039", _script("source_lint.py")),
+    ("tracked files stay small", "QA-090", _script("check_repository_size.py")),
+    ("dependency licences fit AGPL-3.0", "LEG-003", _licences),
+    ("no unwaived advisory", "SEC-031", _script("check_audit.py")),
+    ("SBOM generates and validates", "SEC-030", _sbom),
+    ("dependency notices are current", "LEG-001", _notices),
+    ("documentation links resolve", "DOC-026", _script("check_links.py")),
+    ("glossary lint", "DOC-034", _script("check_glossary.py")),
+    ("changelog layout", "DOC-040", _script("check_changelog.py")),
+    ("deprecation register", "DOC-043", _script("check_deprecations.py")),
+    ("known-issues page is current", "QA-082", _script("known_issues.py", "--check")),
+    ("citation file is valid", "PRV-036", _script("check_citation.py")),
+    ("command-line reference is current", "DOC-021", _cli),
+)
+
+
+def run_repo_check(g: Gate, name: str, ident: str, build) -> tuple[bool, str, str, str]:
+    try:
+        plan = build(g)
+        if isinstance(plan, tuple):
+            return plan[0], name, ident, plan[1]
+        if not Path(plan[1]).is_file():
+            return False, name, ident, f"{Path(plan[1]).name} does not exist in this tree"
+        out = subprocess.run(plan, cwd=g.root, capture_output=True, text=True, timeout=1800)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        return False, name, ident, str(e) if isinstance(e, ValueError) else f"could not run ({type(e).__name__}: {e})"
+    lines = [l for l in (out.stdout + "\n" + out.stderr).splitlines() if l.strip()]
+    detail = lines[-1].strip() if lines else f"exit {out.returncode}, no output"
+    if out.returncode != 0 and len(lines) > 1:
+        detail = f"{lines[0].strip()} (and {len(lines) - 1} more lines); {detail}"
+    return out.returncode == 0, name, ident, detail
+
+
+def apply_waivers(g: Gate, results: list) -> list:
+    """A failed, waivable condition with a valid waiver is reported WAIVED and counts as passing."""
+    try:
+        waivers = [w for w in read_waivers(g.root) if isinstance(w, dict) and not waiver_problem(w, g.today)]
+    except (ValueError, OSError):
+        return results  # the waiver condition reports the unreadable file
+    out = []
+    for passed, name, ident, reason in results:
+        waiver = next((w for w in waivers if w.get("condition") in (name, ident)), None)
+        if not passed and waiver and ident not in UNWAIVABLE:
+            reason = f"WAIVED by {waiver['owner']} until {waiver['expiry']} ({waiver['reason']}); the condition fails: {reason}"
+            passed = True
+        out.append((passed, name, ident, reason))
+    return out
+
+
 CONDITIONS = (
     ("gate requirements Met", "NEXT_RELEASE_PLAN", check_gate_ids_met),
     ("requirement-to-test trace complete", "QA-002", check_trace),
@@ -423,6 +596,8 @@ CONDITIONS = (
     ("fuzz clean", "QA-033", check_fuzz),
     ("reproducible build", "QA-063", check_repro),
     ("documentation tests pass", "QA-016", _checks("doc_tests", "documentation-test evidence")),
+    ("every Met requirement has a test marker", "QA-071", check_met_rows_traced),
+    ("gate waivers are complete and unexpired", "QA-072", check_waivers),
 )
 
 
@@ -434,11 +609,14 @@ def run_gate(g: Gate) -> list[tuple[bool, str, str, str]]:
         except (ValueError, OSError, KeyError, TypeError, AttributeError) as e:
             passed, reason = False, str(e) if isinstance(e, ValueError) else f"could not be checked ({type(e).__name__}: {e})"
         results.append((passed, name, ident, reason))
-    return results
+    if g.repo_checks:
+        results += [run_repo_check(g, name, ident, build) for name, ident, build in REPO_CHECKS]
+    return apply_waivers(g, results)
 
 
 def render(results) -> str:
-    lines = [f"{'PASS' if p else 'FAIL'}  {name} ({ident}): {reason}" for p, name, ident, reason in results]
+    lines = [f"{'WAIVED' if p and reason.startswith('WAIVED') else 'PASS' if p else 'FAIL'}  {name} ({ident}): {reason}"
+             for p, name, ident, reason in results]
     ok = sum(1 for r in results if r[0])
     lines.append(f"release gate: {'PASS' if ok == len(results) else 'FAIL'}, {ok} of {len(results)} conditions pass")
     return "\n".join(lines) + "\n"
@@ -458,8 +636,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repro", type=Path, help="reproducible-build evidence")
     ap.add_argument("--doc-tests", dest="doc_tests", type=Path, help="documentation test evidence")
     ap.add_argument("--archive", type=Path, help="also write the output here, for the release record")
+    ap.add_argument("--faris", type=Path, help="the faris binary, for the command-line reference check")
+    ap.add_argument("--cargo", default="cargo", help="the cargo command (default: cargo)")
+    ap.add_argument("--no-repo-checks", dest="no_repo_checks", action="store_true",
+                    help="skip the repository scripts (scorecard, links, SBOM, licences, ...); for fixture trees")
     args = ap.parse_args(argv)
-    results = run_gate(Gate(args.root, args))
+    results = run_gate(Gate(args.root, args, repo_checks=not args.no_repo_checks))
     text = render(results)
     sys.stdout.write(text)
     if args.archive:

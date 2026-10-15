@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use FARIS in published work, please cite it using these metadata. Results are research screening only."
+type: software
+title: "FARIS"
+abstract: "A fusion plant design tool: 3D neutron transport, activation and a 30-year operating history, with the uncertainty carried through and the evidence for each number recorded."
+version: 0.2.0
+date-released: 2026-10-08
+license: AGPL-3.0-only
+repository-code: "https://github.com/AvilaLabs/FARIS"
+url: "https://avilalabs.org"
+authors:
+  - family-names: Avila
+    given-names: Connor
+    affiliation: "Avila Labs"
+keywords:
+  - fusion
+  - neutron transport
+  - tritium breeding
+  - Monte Carlo
+  - activation

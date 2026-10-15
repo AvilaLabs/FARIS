@@ -1,0 +1,20 @@
+{
+  "waivers": [
+    {
+      "id": "RUSTSEC-2026-0206",
+      "package": "rustybuzz",
+      "owner": "Connor Avila",
+      "reason": "Unmaintained notice, no vulnerability. rustybuzz is a dependency of krilla and usvg (PDF and SVG output). Re-check when those crates move to a maintained shaper.",
+      "added": "2026-10-15",
+      "expiry": "2027-01-10"
+    },
+    {
+      "id": "RUSTSEC-2026-0192",
+      "package": "ttf-parser",
+      "owner": "Connor Avila",
+      "reason": "Unmaintained notice, no vulnerability. ttf-parser is used directly by faris-report and through fontdb, usvg and rustybuzz. Re-check when a maintained parser replaces it.",
+      "added": "2026-10-15",
+      "expiry": "2027-01-10"
+    }
+  ]
+}

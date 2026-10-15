@@ -157,6 +157,9 @@ class RepositoryHandbook(unittest.TestCase):
         for b in blocks:
             if b.path in ds.LISTING_FILES or b.lang in ("python",):
                 continue
+            if b.path in ds.GENERATED_FILES:
+                self.assertEqual(b.lang, "text", b.name)
+                continue
             if b.lang in ("", "bash", "sh"):
                 self.assertTrue(ds.commands(b), b.name)
             elif b.lang == "json" and (b.path, b.first) not in ds.FRAGMENTS:

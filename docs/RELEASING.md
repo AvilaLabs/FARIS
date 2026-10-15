@@ -44,6 +44,45 @@ CI step on ordinary commits: it fails until the gate requirements are Met, which
 wired in as a step of the release job, after the test, performance, fuzz and build jobs have written their
 evidence files.
 
+### One command (PLAT-073)
+
+The gate also runs the repository checks that CI runs, plus the ones that need a build, so one command is the whole
+checklist. Add `--faris` for the command-line reference and `--cargo` if cargo is not on the path:
+
+```sh
+python3 scripts/release_gate.py --faris target/release/faris --vv-report vv --release-record release-record.json \
+    --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
+    --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
+```
+
+The extra conditions are: every requirement marked Met has a test marker (QA-071); the waivers file is complete and
+unexpired (QA-072); the requirement scorecard, trace and table lint are current; source lint; repository size;
+dependency licences (`scripts/check_licences.py`); advisories (`scripts/check_audit.py`, needs the RustSec database);
+the SBOM generates and validates; `docs/THIRD_PARTY_NOTICES.md` equals a fresh collection for the Linux graph;
+documentation links; the glossary; the changelog layout; the deprecation register; the known-issues page; the citation
+file; and the command-line reference. `--no-repo-checks` skips them, for tests on fixture trees.
+
+### Waivers (QA-072)
+
+A gate condition that cannot pass for one release is waived in `docs/release-waivers.json`:
+
+```json
+{"waivers": [{"condition": "QA-033", "owner": "Connor Avila", "reason": "fuzz farm down; run on the next tag", "expiry": "2026-12-01"}]}
+```
+
+`condition` is a condition's name or its ID as the gate prints it. All three of owner, reason and expiry are required;
+the expiry must not have passed and must be within 90 days of the run. The waived line prints as `WAIVED` with the
+original failure, and the file is archived with the release record. An open S1 defect (QA-083) and the waiver check
+itself cannot be waived. A waiver that is not needed any more is deleted.
+
+### Release notes, SBOM and the files to attach
+
+After the gate, `python3 scripts/release_notes.py --version X.Y.Z --release-record release-record.json --gate
+gate-output.txt --out notes.md` writes the notes (`docs/RELEASE_NOTES_TEMPLATE.md` says what they contain). The
+`Release supply chain` workflow builds `faris.spdx.json` and `faris.cdx.json` for the tag (`scripts/generate_sbom.py`);
+attach them to the release. Update `CITATION.cff` and `docs/guide/cite.md` to the new version, and add the version's
+section to `CHANGELOG.md`.
+
 An open S1 defect is never waived (QA-083). An open S2 defect needs a waiver with owner, reason and an expiry
 date within 90 days (QA-072).
 
