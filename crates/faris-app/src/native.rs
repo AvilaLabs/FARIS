@@ -509,7 +509,21 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
             cc.egui_ctx.all_styles_mut(crate::apply_text_sizes);
-            cc.egui_ctx.set_zoom_factor(args.interface_scale);
+            // An explicit --interface-scale wins; otherwise the size saved last time.
+            // Scripted runs (capture, recording, checks) always use the option.
+            let scripted = args.capture.is_some()
+                || args.record_frames.is_some()
+                || interface_check.is_some()
+                || args.benchmark_seconds.is_some();
+            let scale = if scripted || args.interface_scale != crate::interface_prefs::DEFAULT_SCALE
+            {
+                args.interface_scale
+            } else {
+                crate::interface_prefs::path()
+                    .and_then(|path| crate::interface_prefs::load(&path))
+                    .unwrap_or(args.interface_scale)
+            };
+            cc.egui_ctx.set_zoom_factor(scale);
             let sweep = (!args.sweep_bundle.is_empty()).then(|| {
                 let (paths, runs) = (args.sweep_bundle.clone(), runs_directory.clone());
                 sweep_panel::SweepPanel::load_in_background(&cc.egui_ctx, move || {

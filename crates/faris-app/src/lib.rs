@@ -22,6 +22,8 @@ mod dialog;
 mod export_panel;
 mod history_panel;
 mod interface_check;
+#[cfg(not(target_arch = "wasm32"))]
+mod interface_prefs;
 mod maintenance_panel;
 mod maintenance_run;
 mod package;
@@ -315,6 +317,19 @@ fn scenario_from_bundle(
     )?)
 }
 
+/// Keep the chosen interface size for the next start, or forget it (UX-060).
+fn remember_interface_size(scale: Option<f32>) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = interface_prefs::path() {
+        match scale {
+            Some(scale) => interface_prefs::save(&path, scale.clamp(0.75, 2.0)),
+            None => interface_prefs::reset(&path),
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = scale;
+}
+
 fn interface_size_menu(ui: &mut egui::Ui) {
     let current = ui.ctx().zoom_factor();
     ui.menu_button(format!("Interface size: {:.0}%", current * 100.0), |ui| {
@@ -328,12 +343,25 @@ fn interface_size_menu(ui: &mut egui::Ui) {
                 .clicked()
             {
                 ui.ctx().set_zoom_factor(scale);
+                remember_interface_size(Some(scale));
                 ui.close();
             }
         }
         ui.separator();
         egui::gui_zoom::zoom_menu_buttons(ui);
+        if (ui.ctx().zoom_factor() - current).abs() > 0.001 {
+            remember_interface_size(Some(ui.ctx().zoom_factor()));
+        }
         ui.separator();
+        if ui
+            .button("Reset to default size")
+            .on_hover_text("Return to 100 % and forget the size saved for the next start.")
+            .clicked()
+        {
+            ui.ctx().set_zoom_factor(1.0);
+            remember_interface_size(None);
+            ui.close();
+        }
         ui.label("100% follows your desktop's display scaling.");
     })
     .response

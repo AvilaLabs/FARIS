@@ -532,6 +532,34 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     assert_eq!(differences.lines().count(), 5);
 }
 
+// Verifies: VIS-036
+#[test]
+fn comparison_csv_gives_every_sampled_value_its_standard_error_and_scope() {
+    let (_guard, outcome) = exported();
+    let rows = cells(&table(&outcome.folder, "data/comparison.csv"));
+    let column = |name: &str| rows[0].iter().position(|c| c == name).unwrap();
+    let mut checked = 0;
+    for row in &rows[1..] {
+        for (value, error) in [
+            (
+                "breeding_ratio_h3_per_source_neutron",
+                "breeding_ratio_standard_error",
+            ),
+            ("magnet_flux_n_m2_s", "magnet_flux_standard_error_n_m2_s"),
+        ] {
+            if !row[column(value)].is_empty() {
+                assert!(!row[column(error)].is_empty(), "{} lacks {error}", row[0]);
+                assert!(row[column(error)].parse::<f64>().unwrap() >= 0.0);
+                checked += 1;
+            }
+        }
+        if !row[column("breeding_ratio_h3_per_source_neutron")].is_empty() {
+            assert!(!row[column("breeding_ratio_scope")].is_empty());
+        }
+    }
+    assert!(checked >= 4, "{checked}");
+}
+
 // Verifies: INT-009
 #[test]
 fn manifest_hashes_match_the_files() {

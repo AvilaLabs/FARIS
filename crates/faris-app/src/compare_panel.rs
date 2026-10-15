@@ -190,6 +190,33 @@ fn sampled_badge(resolved: bool) -> (Kind, &'static str, &'static str) {
     }
 }
 
+/// Chance of a difference of pure noise lying beyond 2σ (two-sided, normal).
+const TWO_SIGMA_FALSE_FLAG_RATE: f64 = 0.0455;
+
+/// Counts the 2σ screening flags in a set of contrasts and says how many flags
+/// chance alone would raise (VIS-035). Returns (comparisons, flagged).
+fn flag_counts(contrasts: &[&Contrast]) -> (usize, usize) {
+    let flags = contrasts
+        .iter()
+        .flat_map(|c| [c.breeding_pct, c.flux_pct])
+        .flatten();
+    let (compared, flagged) = flags.fold((0, 0), |(n, f), (_, beyond)| {
+        (n + 1, f + usize::from(beyond))
+    });
+    (compared, flagged)
+}
+
+fn flag_count_note(compared: usize, flagged: usize) -> String {
+    if compared == 0 {
+        return "No 2σ comparisons yet: record transport for both arrangements of a pair to see them.".into();
+    }
+    format!(
+        "{compared} comparisons were checked at 2σ and {flagged} were flagged beyond sampling noise. About {:.0} % of comparisons of pure noise are flagged at 2σ, so about {:.1} of these {compared} would be flagged by chance alone.",
+        100.0 * TWO_SIGMA_FALSE_FLAG_RATE,
+        compared as f64 * TWO_SIGMA_FALSE_FLAG_RATE
+    )
+}
+
 fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
     ui.label(title);
     delta_cell(
@@ -546,6 +573,13 @@ pub fn compare_view(
                     contrast_row(ui, "Port − No port · reference", &study.port_reference);
                     contrast_row(ui, "Port − No port · breeder-heavy", &study.port_breeder);
                 });
+            let (compared, flagged) = flag_counts(&[
+                &study.allocation_with_port,
+                &study.allocation_no_port,
+                &study.port_reference,
+                &study.port_breeder,
+            ]);
+            ui.small(flag_count_note(compared, flagged));
 
             ui.add_space(10.0);
             let sentences = &study.takeaways;
@@ -591,6 +625,23 @@ mod tests {
     use super::*;
 
     // Verifies: UNC-009
+    // Verifies: VIS-035
+    #[test]
+    fn the_flag_note_counts_comparisons_and_expected_false_flags() {
+        let flagged = Contrast {
+            breeding_pct: Some((1.0, true)),
+            flux_pct: Some((2.0, false)),
+            ..Default::default()
+        };
+        let none = Contrast::default();
+        let counts = flag_counts(&[&flagged, &flagged, &none, &none]);
+        assert_eq!(counts, (4, 2));
+        let note = flag_count_note(counts.0, counts.1);
+        assert!(note.contains("4 comparisons") && note.contains("2 were flagged"));
+        assert!(note.contains("about 0.2 of these 4"), "{note}");
+        assert!(flag_count_note(0, 0).contains("No 2σ comparisons"));
+    }
+
     #[test]
     fn a_relative_error_above_ten_percent_is_low_statistics() {
         assert!(is_low_statistics((1.0e18, 0.496e18)));
