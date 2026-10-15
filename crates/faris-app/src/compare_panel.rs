@@ -41,8 +41,27 @@ fn build_cell(history: &HistoryPanel, panel: Option<&TransportPanel>, variant: &
     )
 }
 
+/// A tally whose relative standard error is above this is dominated by rare
+/// histories and is labelled low-statistics (UNC-009).
+const LOW_STATISTICS_RELATIVE_ERROR: f64 = 0.10;
+
+fn is_low_statistics((mean, se): (f64, f64)) -> bool {
+    mean != 0.0 && se.is_finite() && se / mean.abs() > LOW_STATISTICS_RELATIVE_ERROR
+}
+
+fn low_statistics_note((mean, se): (f64, f64)) -> String {
+    format!(
+        "The relative standard error is {:.0} %, above {:.0} %, because few histories reach this region. Treat the value as indicative. Next step: run the Production tier, which samples until the magnet flux is known to 5 %.",
+        100.0 * se / mean.abs(),
+        100.0 * LOW_STATISTICS_RELATIVE_ERROR
+    )
+}
+
+/// Shown where a value is missing; the hover text beside it says why.
+const NOT_RECORDED: &str = "not recorded";
+
 fn pair(value: Option<(f64, f64)>, decimals: usize) -> String {
-    value.map_or("—".into(), |(m, se)| {
+    value.map_or(NOT_RECORDED.into(), |(m, se)| {
         format!("{m:.decimals$} ± {se:.decimals$}")
     })
 }
@@ -79,9 +98,14 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     ui.end_row();
                     ui.label("Magnet mean flux")
                         .on_hover_text("Component-average neutron flux in the magnet envelope at reference power, ± one sampling standard error. Volume and model/data uncertainty are separate.");
-                    ui.monospace(match cell.magnet_flux {
-                        Some((m, se)) => format!("{} ± {} n/m²/s", fmt_sig(m), fmt_sig(se)),
-                        None => "—".into(),
+                    ui.horizontal(|ui| {
+                        ui.monospace(match cell.magnet_flux {
+                            Some((m, se)) => format!("{} ± {} n/m²/s", fmt_sig(m), fmt_sig(se)),
+                            None => NOT_RECORDED.into(),
+                        });
+                        if let Some(value) = cell.magnet_flux.filter(|v| is_low_statistics(*v)) {
+                            badge::badge(ui, Kind::Partial, "low statistics", &low_statistics_note(value));
+                        }
                     });
                     ui.end_row();
                     let horizon = if cell.horizon_years > 0.0 { cell.horizon_years } else { 30.0 };
@@ -106,7 +130,7 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                             ui.monospace(format!("{y:.1} y"));
                         }
                         (None, _) => {
-                            ui.weak(if cell.swaps == Some(0) { "none in horizon" } else { "—" });
+                            ui.weak(if cell.swaps == Some(0) { "none in horizon" } else { NOT_RECORDED });
                         }
                     });
                     ui.end_row();
@@ -117,14 +141,14 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                             badge::kind_badge(ui, Kind::Conditional, "Signed net of gross output and auxiliary load under authored energy assumptions; not a plant estimate.");
                         }
                         None => {
-                            ui.weak("—");
+                            ui.weak(NOT_RECORDED);
                         }
                     });
                     ui.end_row();
                     ui.label("Final usable tritium");
                     ui.monospace(
                         cell.final_tritium_kg
-                            .map_or("—".into(), |v| format!("{v:.2} kg")),
+                            .map_or(NOT_RECORDED.into(), |v| format!("{v:.2} kg")),
                     );
                     ui.end_row();
                 });
@@ -150,7 +174,7 @@ fn delta_cell(
             }
         }
         None => {
-            ui.weak("—").on_hover_text(none_hint);
+            ui.weak(NOT_RECORDED).on_hover_text(none_hint);
         }
     });
 }
@@ -164,6 +188,33 @@ fn sampled_badge(resolved: bool) -> (Kind, &'static str, &'static str) {
     } else {
         (Kind::Partial, "within 2σ sampling noise", NOISE_NOTE)
     }
+}
+
+/// Chance of a difference of pure noise lying beyond 2σ (two-sided, normal).
+const TWO_SIGMA_FALSE_FLAG_RATE: f64 = 0.0455;
+
+/// Counts the 2σ screening flags in a set of contrasts and says how many flags
+/// chance alone would raise (VIS-035). Returns (comparisons, flagged).
+fn flag_counts(contrasts: &[&Contrast]) -> (usize, usize) {
+    let flags = contrasts
+        .iter()
+        .flat_map(|c| [c.breeding_pct, c.flux_pct])
+        .flatten();
+    let (compared, flagged) = flags.fold((0, 0), |(n, f), (_, beyond)| {
+        (n + 1, f + usize::from(beyond))
+    });
+    (compared, flagged)
+}
+
+fn flag_count_note(compared: usize, flagged: usize) -> String {
+    if compared == 0 {
+        return "No 2σ comparisons yet: record transport for both arrangements of a pair to see them.".into();
+    }
+    format!(
+        "{compared} comparisons were checked at 2σ and {flagged} were flagged beyond sampling noise. About {:.0} % of comparisons of pure noise are flagged at 2σ, so about {:.1} of these {compared} would be flagged by chance alone.",
+        100.0 * TWO_SIGMA_FALSE_FLAG_RATE,
+        compared as f64 * TWO_SIGMA_FALSE_FLAG_RATE
+    )
 }
 
 fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
@@ -180,8 +231,13 @@ fn contrast_row(ui: &mut egui::Ui, title: &str, c: &Contrast) {
         c.flux_pct.map(|(_, r)| sampled_badge(r)),
         "Needs a recorded magnet flux for both arrangements.",
     );
-    let conditional =
-        |present: bool| present.then_some((Kind::Conditional, "conditional", CONDITIONAL_NOTE));
+    let conditional = |present: bool| {
+        present.then_some((
+            Kind::Conditional,
+            Kind::Conditional.default_label(),
+            CONDITIONAL_NOTE,
+        ))
+    };
     delta_cell(
         ui,
         c.swaps.map(|v| format!("{v:+}")),
@@ -403,7 +459,7 @@ fn paired_bars(
                 painter.text(
                     egui::pos2(bar_left + 6.0, y + row_h / 2.0),
                     egui::Align2::LEFT_CENTER,
-                    "—",
+                    NOT_RECORDED,
                     egui::FontId::proportional(12.0),
                     egui::Color32::GRAY,
                 );
@@ -517,6 +573,13 @@ pub fn compare_view(
                     contrast_row(ui, "Port − No port · reference", &study.port_reference);
                     contrast_row(ui, "Port − No port · breeder-heavy", &study.port_breeder);
                 });
+            let (compared, flagged) = flag_counts(&[
+                &study.allocation_with_port,
+                &study.allocation_no_port,
+                &study.port_reference,
+                &study.port_breeder,
+            ]);
+            ui.small(flag_count_note(compared, flagged));
 
             ui.add_space(10.0);
             let sentences = &study.takeaways;
@@ -555,4 +618,36 @@ pub fn compare_view(
             ui.separator();
             after(ui);
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Verifies: UNC-009
+    // Verifies: VIS-035
+    #[test]
+    fn the_flag_note_counts_comparisons_and_expected_false_flags() {
+        let flagged = Contrast {
+            breeding_pct: Some((1.0, true)),
+            flux_pct: Some((2.0, false)),
+            ..Default::default()
+        };
+        let none = Contrast::default();
+        let counts = flag_counts(&[&flagged, &flagged, &none, &none]);
+        assert_eq!(counts, (4, 2));
+        let note = flag_count_note(counts.0, counts.1);
+        assert!(note.contains("4 comparisons") && note.contains("2 were flagged"));
+        assert!(note.contains("about 0.2 of these 4"), "{note}");
+        assert!(flag_count_note(0, 0).contains("No 2σ comparisons"));
+    }
+
+    #[test]
+    fn a_relative_error_above_ten_percent_is_low_statistics() {
+        assert!(is_low_statistics((1.0e18, 0.496e18)));
+        assert!(!is_low_statistics((1.0e18, 0.05e18)));
+        assert!(!is_low_statistics((1.0e18, 0.1e18)));
+        assert!(!is_low_statistics((0.0, 1.0)));
+        assert!(low_statistics_note((1.0, 0.5)).contains("50 %"));
+    }
 }

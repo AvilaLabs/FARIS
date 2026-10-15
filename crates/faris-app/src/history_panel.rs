@@ -852,7 +852,7 @@ impl HistoryPanel {
                     egui::pos2(x, marker.top() + 5.0),
                     egui::Align2::CENTER_TOP,
                     format!("{} literature", fmt_sci(lit)),
-                    egui::FontId::proportional(10.0),
+                    egui::FontId::proportional(11.0),
                     color,
                 );
                 if differs(limit.limit, lit)
@@ -1045,7 +1045,7 @@ impl HistoryPanel {
                         for point in &result.points {
                             ui.label(format!("{:.2}",point.recovery_fraction)); ui.label(format!("{:.1}",point.delay_multiplier)); ui.label(format!("{:.1}",point.service_limit_multiplier));
                             ui.label(format!("{:.4}",point.final_snapshot.cumulative_full_power_seconds/JULIAN_YEAR_SECONDS));
-                            ui.label(point.final_snapshot.cumulative_net_electricity_mwh.map_or_else(||"—".into(),|v|format!("{:.4}",v/1e6)));ui.end_row();
+                            ui.label(point.final_snapshot.cumulative_net_electricity_mwh.map_or_else(||"not recorded".into(),|v|format!("{:.4}",v/1e6)));ui.end_row();
                         }
                     });
                 });
@@ -1144,7 +1144,7 @@ impl HistoryPanel {
                 let color = arrangement_color(s.port, s.breeder);
                 let visible = !self.hidden.contains(&s.key);
                 let is_active = s.key == active;
-                let glyph = if s.port { "—" } else { "- -" };
+                let glyph = if s.port { "\u{2014}" } else { "- -" };
                 let mut text = egui::RichText::new(format!(
                     "{glyph} {}",
                     arrangement_label(s.port, s.breeder)
@@ -1667,9 +1667,9 @@ impl HistoryPanel {
                         .get(&s.key)
                         .and_then(|h| snapshot_at(h, t).and_then(|snap| plot.value(h, snap)));
                     ui.horizontal(|ui| {
-                        ui.colored_label(color, if s.port { "—" } else { "- -" });
+                        ui.colored_label(color, if s.port { "\u{2014}" } else { "- -" });
                         ui.label(arrangement_label(s.port, s.breeder));
-                        ui.strong(value.map_or("—".to_string(), |v| plot.format(v)));
+                        ui.strong(value.map_or("not recorded".to_string(), |v| plot.format(v)));
                     });
                     self.band_hover(ui, &s.key, plot, hover_year, color);
                     let spans = self
@@ -1978,7 +1978,7 @@ pub fn fmt_sci(v: f64) -> String {
         return "0".into();
     }
     if !v.is_finite() {
-        return "—".into();
+        return "not finite".into();
     }
     let sign = if v < 0.0 { "−" } else { "" };
     let a = v.abs();

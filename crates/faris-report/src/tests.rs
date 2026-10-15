@@ -532,6 +532,34 @@ fn comparison_sweep_and_assumption_tables_carry_units_and_kinds() {
     assert_eq!(differences.lines().count(), 5);
 }
 
+// Verifies: VIS-036
+#[test]
+fn comparison_csv_gives_every_sampled_value_its_standard_error_and_scope() {
+    let (_guard, outcome) = exported();
+    let rows = cells(&table(&outcome.folder, "data/comparison.csv"));
+    let column = |name: &str| rows[0].iter().position(|c| c == name).unwrap();
+    let mut checked = 0;
+    for row in &rows[1..] {
+        for (value, error) in [
+            (
+                "breeding_ratio_h3_per_source_neutron",
+                "breeding_ratio_standard_error",
+            ),
+            ("magnet_flux_n_m2_s", "magnet_flux_standard_error_n_m2_s"),
+        ] {
+            if !row[column(value)].is_empty() {
+                assert!(!row[column(error)].is_empty(), "{} lacks {error}", row[0]);
+                assert!(row[column(error)].parse::<f64>().unwrap() >= 0.0);
+                checked += 1;
+            }
+        }
+        if !row[column("breeding_ratio_h3_per_source_neutron")].is_empty() {
+            assert!(!row[column("breeding_ratio_scope")].is_empty());
+        }
+    }
+    assert!(checked >= 4, "{checked}");
+}
+
 // Verifies: INT-009
 #[test]
 fn manifest_hashes_match_the_files() {
@@ -771,6 +799,51 @@ fn a_partial_study_exports_with_explained_gaps() {
         assert!(line.matches(',').count() >= 3, "{line}");
     }
     assert!(outcome.folder.join("summary.pdf").is_file());
+}
+
+// Verifies: L10N-011
+#[test]
+fn numbers_in_every_table_use_a_dot_and_no_grouping() {
+    // Rust formatting never reads the locale; this pins the written form.
+    for value in [0.5, 1234567.891, -2.5e-9, 6.02e23, 1.0e300] {
+        let written = tables::number(value);
+        assert!(
+            !written.contains([',', ' ', '\u{a0}', '\u{202f}']),
+            "{written}"
+        );
+        assert_eq!(written.parse::<f64>().unwrap(), value);
+    }
+    let (_guard, outcome) = exported();
+    let mut checked = 0;
+    for relative in fs::read_dir(outcome.folder.join("data"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "csv"))
+    {
+        let csv = fs::read_to_string(&relative).unwrap();
+        let rows = cells(
+            &csv.lines()
+                .filter(|l| !l.starts_with('#'))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        let width = rows[0].len();
+        for row in &rows {
+            // A comma used as a decimal mark would add a column.
+            assert_eq!(row.len(), width, "{relative:?}: {row:?}");
+            for cell in row {
+                let grouped = cell.len() > 4
+                    && cell
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || " ,\u{a0}.".contains(c))
+                    && cell.contains([' ', ',', '\u{a0}']);
+                assert!(!grouped, "{relative:?}: grouped number {cell}");
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 100);
+    assert_eq!(format_timestamp(FIXTURE_UNIX_S), "2026-09-21T14:13:20Z");
 }
 
 #[test]

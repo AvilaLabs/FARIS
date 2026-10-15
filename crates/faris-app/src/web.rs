@@ -511,6 +511,7 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
                 visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
                 visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
                 cc.egui_ctx.set_visuals(visuals);
+                cc.egui_ctx.all_styles_mut(crate::apply_text_sizes);
                 mark("boot: creating the app");
                 let mut app = FarisApp::new(
                     reactor,

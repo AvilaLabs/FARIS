@@ -22,6 +22,8 @@ mod dialog;
 mod export_panel;
 mod history_panel;
 mod interface_check;
+#[cfg(not(target_arch = "wasm32"))]
+mod interface_prefs;
 mod maintenance_panel;
 mod maintenance_run;
 mod package;
@@ -59,6 +61,28 @@ mod web_ensembles;
 #[cfg(not(target_arch = "wasm32"))]
 pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
     native::main()
+}
+
+/// Navigation help beside the viewport: every drag has a key equivalent (UX-037).
+pub(crate) const VIEWPORT_HELP: &str = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select · Tab to the viewport, then arrows orbit, Shift and arrows pan, + and − zoom, 0 resets, Enter reads out";
+
+#[cfg(test)]
+mod audit;
+
+/// Smallest text anywhere in the interface, and the size of body text (A11Y-021).
+pub(crate) const MIN_TEXT_PX: f32 = 11.0;
+pub(crate) const BODY_TEXT_PX: f32 = 13.0;
+
+/// Raise egui's default text styles (small text is 9 px, body 12.5 px) to the
+/// minimums above; larger styles are left alone.
+pub(crate) fn apply_text_sizes(style: &mut egui::Style) {
+    for (text_style, font) in &mut style.text_styles {
+        let floor = match text_style {
+            egui::TextStyle::Body | egui::TextStyle::Button => BODY_TEXT_PX,
+            _ => MIN_TEXT_PX,
+        };
+        font.size = font.size.max(floor);
+    }
 }
 
 use crate::time::Instant;
@@ -293,6 +317,19 @@ fn scenario_from_bundle(
     )?)
 }
 
+/// Keep the chosen interface size for the next start, or forget it (UX-060).
+fn remember_interface_size(scale: Option<f32>) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = interface_prefs::path() {
+        match scale {
+            Some(scale) => interface_prefs::save(&path, scale.clamp(0.75, 2.0)),
+            None => interface_prefs::reset(&path),
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = scale;
+}
+
 fn interface_size_menu(ui: &mut egui::Ui) {
     let current = ui.ctx().zoom_factor();
     ui.menu_button(format!("Interface size: {:.0}%", current * 100.0), |ui| {
@@ -306,12 +343,25 @@ fn interface_size_menu(ui: &mut egui::Ui) {
                 .clicked()
             {
                 ui.ctx().set_zoom_factor(scale);
+                remember_interface_size(Some(scale));
                 ui.close();
             }
         }
         ui.separator();
         egui::gui_zoom::zoom_menu_buttons(ui);
+        if (ui.ctx().zoom_factor() - current).abs() > 0.001 {
+            remember_interface_size(Some(ui.ctx().zoom_factor()));
+        }
         ui.separator();
+        if ui
+            .button("Reset to default size")
+            .on_hover_text("Return to 100 % and forget the size saved for the next start.")
+            .clicked()
+        {
+            ui.ctx().set_zoom_factor(1.0);
+            remember_interface_size(None);
+            ui.close();
+        }
         ui.label("100% follows your desktop's display scaling.");
     })
     .response
@@ -1249,7 +1299,7 @@ impl FarisApp {
             badge::badge(
                 ui,
                 badge::Kind::Authored,
-                "authored",
+                badge::Kind::Authored.default_label(),
                 "Scenario inputs authored for this ARC-inspired study; tunable, not measured.",
             );
         });
@@ -1283,7 +1333,7 @@ impl FarisApp {
                 badge::badge(
                     ui,
                     badge::Kind::Literature,
-                    "literature",
+                    badge::Kind::Literature.default_label(),
                     "Cited sources for scenario inputs. Linking a source does not qualify the value.",
                 );
             }
@@ -2132,7 +2182,7 @@ impl eframe::App for FarisApp {
                     if ui.button("Frame scene").clicked() {
                         self.frame_scene();
                     }
-                    let help = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select · Tab to the viewport, then arrows orbit, + and − zoom, Enter reads out";
+                    let help = VIEWPORT_HELP;
                     if ui.available_width() > 450.0 {
                         ui.weak(help);
                     } else {
