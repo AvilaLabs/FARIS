@@ -16,7 +16,7 @@ fn put(path: &Path, bytes: &[u8]) {
 
 /// A store with the saved studies `port/reference` and `control/reference`.
 /// Some content is shared between the trees, as it is in a package.
-fn make_store(dir: &Path, name: &str) -> PathBuf {
+pub(crate) fn make_store(dir: &Path, name: &str) -> PathBuf {
     let src = dir.join(format!("{name}-src"));
     let mut trees = Vec::new();
     for pair in ["port-reference", "control-reference"] {
@@ -43,7 +43,7 @@ fn make_store(dir: &Path, name: &str) -> PathBuf {
     out
 }
 
-fn drafts(store: &Path) -> Vec<EvidenceStoreDraft> {
+pub(crate) fn drafts(store: &Path) -> Vec<EvidenceStoreDraft> {
     let opened = EvidenceStore::open(store).unwrap();
     let mut out = Vec::new();
     for (arrangement, allocation) in [("port", "reference"), ("control", "reference")] {

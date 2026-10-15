@@ -1,0 +1,26 @@
+{
+  "blob_count": 6,
+  "blob_sha256": [
+    "0b7ab6a52a99554acba77129b280f8d5e9e7b6548e0cf1643b76b2863ab41bd2",
+    "254173b91d2b03c277aff117c58561af78740dc4584b17252c6c53f4a091aac7",
+    "693163abecc25baa47932ce29f7351850abd835a0ed11bdbe10698174d6cf4fa",
+    "8ba6bdf03c796c10c76cdeb567a1736c0af2d43ac20f10f9823a51c5080fe90e",
+    "acaace40981e1c71562de1c7203a23f3c69b0166daa5c1ccac40131395a25523",
+    "b2295033ddcbf5646444da733e93637ecb46899ff6f3ba740c39d1c253a794fc"
+  ],
+  "created_by": "FARIS 0.2.0",
+  "entries": [
+    "blobs/0b7ab6a52a99554acba77129b280f8d5e9e7b6548e0cf1643b76b2863ab41bd2",
+    "blobs/254173b91d2b03c277aff117c58561af78740dc4584b17252c6c53f4a091aac7",
+    "blobs/693163abecc25baa47932ce29f7351850abd835a0ed11bdbe10698174d6cf4fa",
+    "blobs/8ba6bdf03c796c10c76cdeb567a1736c0af2d43ac20f10f9823a51c5080fe90e",
+    "blobs/acaace40981e1c71562de1c7203a23f3c69b0166daa5c1ccac40131395a25523",
+    "blobs/b2295033ddcbf5646444da733e93637ecb46899ff6f3ba740c39d1c253a794fc",
+    "manifest.json",
+    "mimetype"
+  ],
+  "evidence_mode": "none",
+  "format": "faris-study/1",
+  "has_preview": false,
+  "record_count": 1
+}

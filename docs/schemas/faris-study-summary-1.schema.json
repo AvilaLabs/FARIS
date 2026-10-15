@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:avila-labs:faris:schema:study-summary:1",
+  "title": "Summary of a verified study file (scripts/read_study_file.py --summary; crates/faris-study/tests/fixtures/*.summary.json)",
+  "description": "What two independent readers must agree on for one file: the format string, the sorted blob digests, the sorted entry names and the number of records (bundles, ensembles, evidence archives and evidence-store trees).",
+  "type": "object",
+  "required": ["format", "created_by", "blob_count", "blob_sha256", "entries", "record_count", "evidence_mode", "has_preview"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "type": "string" },
+    "created_by": { "type": "string" },
+    "blob_count": { "type": "integer", "minimum": 0 },
+    "blob_sha256": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+    "entries": { "type": "array", "items": { "type": "string" } },
+    "record_count": { "type": "integer", "minimum": 0 },
+    "evidence_mode": { "enum": ["none", "archives-packed", "archives-referenced", "store-packed", "store-referenced"] },
+    "has_preview": { "type": "boolean" }
+  }
+}

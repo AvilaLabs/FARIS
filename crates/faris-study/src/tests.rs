@@ -179,7 +179,7 @@ fn crc32(bytes: &[u8]) -> u32 {
 }
 
 /// A zip of stored entries, with whatever names and contents are given.
-fn raw_zip(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
+pub(crate) fn raw_zip(entries: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut out = Vec::new();
     let mut central = Vec::new();
     for (name, data) in entries {
@@ -450,7 +450,7 @@ fn verification_failures_are_distinguished_from_input_errors() {
 
 // ----- evidence layer -----
 
-fn evidence_draft(dir: &Path, pack: bool) -> (StudyDraft, Vec<EvidenceArchive>) {
+pub(crate) fn evidence_draft(dir: &Path, pack: bool) -> (StudyDraft, Vec<EvidenceArchive>) {
     let mut d = draft(dir);
     let case = archive_file(dir, "reference-case.tar.gz", b"case archive bytes");
     let workspace = archive_file(
@@ -837,14 +837,14 @@ fn real_demo_inputs_round_trip_with_sizes() {
 // ---------------------------------------------------------------------------
 // Derived history ensembles
 
-mod ensembles {
+pub(crate) mod ensembles {
     use super::*;
     use faris_engine::fixtures::{assumptions, ensemble, rates_with_covariance};
     use faris_engine::history_ensemble::{EnsembleStatus, HistoryEnsemble};
     use faris_engine::history_uncertainty::EnsembleKey;
     use std::sync::Arc;
 
-    fn key(samples: u32, artifact: char) -> EnsembleKey {
+    pub(crate) fn key(samples: u32, artifact: char) -> EnsembleKey {
         EnsembleKey::new(
             &rates_with_covariance(0.06, 0.4, artifact),
             &assumptions(),
@@ -854,12 +854,16 @@ mod ensembles {
     }
 
     /// An ensemble of `samples` samples with the key that describes it.
-    fn stored(samples: u32, artifact: char) -> (EnsembleKey, HistoryEnsemble) {
+    pub(crate) fn stored(samples: u32, artifact: char) -> (EnsembleKey, HistoryEnsemble) {
         let k = key(samples, artifact);
         (k.clone(), ensemble(samples, k.seed, artifact))
     }
 
-    fn ensemble_draft(variant: &str, key: EnsembleKey, value: HistoryEnsemble) -> EnsembleDraft {
+    pub(crate) fn ensemble_draft(
+        variant: &str,
+        key: EnsembleKey,
+        value: HistoryEnsemble,
+    ) -> EnsembleDraft {
         EnsembleDraft {
             scenario_sha256: "a".repeat(64),
             variant: variant.into(),
@@ -1046,7 +1050,7 @@ const BATCH_VALUES: &str = "solver/transport-batch-values.json";
 
 /// A bundle written the way the OpenMC adapter now writes it: the optional
 /// per-batch values file sits beside the other recorded outputs.
-fn write_bundle_with_batch_values(dir: &Path, name: &str, tag: &str) -> PathBuf {
+pub(crate) fn write_bundle_with_batch_values(dir: &Path, name: &str, tag: &str) -> PathBuf {
     let mut bundle = bundle(tag);
     bundle.files.insert(
         BATCH_VALUES.into(),
@@ -1267,7 +1271,7 @@ fn tar_gzip_bomb_is_refused_by_the_total_limit_without_expanding_it() {
 
 /// Bytes that begin like a PNG of the given size; the reader checks only the
 /// header, so the rest is a recognisable filler.
-fn fake_png(width: u32, height: u32, filler: usize) -> Vec<u8> {
+pub(crate) fn fake_png(width: u32, height: u32, filler: usize) -> Vec<u8> {
     let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13];
     png.extend_from_slice(b"IHDR");
     png.extend_from_slice(&width.to_be_bytes());

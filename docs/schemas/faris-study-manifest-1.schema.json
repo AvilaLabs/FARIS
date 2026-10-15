@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:avila-labs:faris:schema:study-manifest:1",
+  "title": "FARIS study file manifest (manifest.json), format faris-study/1",
+  "description": "The manifest of a .faris study file. Unknown properties are allowed everywhere: minor versions add fields, and a reader ignores what it does not know (docs/STUDY_FILE.md). Digests are lowercase hexadecimal SHA-256 without a prefix.",
+  "type": "object",
+  "required": ["format", "blobs"],
+  "properties": {
+    "format": {
+      "description": "faris-study/<major>[.<minor>...]. A reader refuses any major other than 1, naming the version.",
+      "type": "string",
+      "pattern": "^faris-study/1(\\.[0-9]+)*$"
+    },
+    "created_by": { "description": "The FARIS version that wrote the file.", "type": "string" },
+    "arrangements": {
+      "type": "object",
+      "properties": {
+        "port": { "oneOf": [{ "$ref": "#/$defs/arrangement" }, { "type": "null" }] },
+        "control": { "oneOf": [{ "$ref": "#/$defs/arrangement" }, { "type": "null" }] }
+      }
+    },
+    "sweep": { "type": "array", "items": { "$ref": "#/$defs/bundle" } },
+    "assumptions": { "description": "Digest of the operating-assumption file blob.", "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "view": { "$ref": "#/$defs/view" },
+    "layers": {
+      "type": "object",
+      "description": "Core evidence is recorded as layers.evidence (archives) or layers.evidence_store (store trees), never both. A writer may emit evidence as null.",
+      "properties": {
+        "evidence": { "oneOf": [{ "$ref": "#/$defs/evidenceLayer" }, { "type": "null" }] },
+        "evidence_store": { "oneOf": [{ "$ref": "#/$defs/evidenceStoreLayer" }, { "type": "null" }] }
+      },
+      "not": {
+        "required": ["evidence", "evidence_store"],
+        "properties": { "evidence": { "type": "object" }, "evidence_store": { "type": "object" } }
+      }
+    },
+    "ensembles": { "type": "array", "items": { "$ref": "#/$defs/ensemble" } },
+    "blobs": { "description": "One record per distinct blobs/<sha256> entry.", "type": "array", "items": { "$ref": "#/$defs/blob" } }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "safeName": {
+      "description": "One path component: letters, digits, dot, underscore, hyphen; 1 to 128 characters; not . or ..",
+      "type": "string",
+      "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]{1,128}$"
+    },
+    "relativePath": {
+      "description": "One to four safeName components joined by /.",
+      "type": "string",
+      "pattern": "^(?!\\.{1,2}/)[A-Za-z0-9._-]{1,128}(/[A-Za-z0-9._-]{1,128}){0,3}$"
+    },
+    "arrangementName": { "enum": ["port", "control"] },
+    "archiveKind": { "enum": ["case", "workspace"] },
+    "mode": { "enum": ["packed", "referenced"] },
+    "blob": {
+      "type": "object",
+      "required": ["sha256", "bytes", "media_type", "encoding"],
+      "properties": {
+        "sha256": { "$ref": "#/$defs/digest" },
+        "bytes": { "description": "Size of the uncompressed blob.", "type": "integer", "minimum": 0 },
+        "media_type": { "type": "string" },
+        "encoding": { "description": "Only verbatim is defined in format 1; array-f64-le and array-f32-le are reserved and a reader refuses them.", "const": "verbatim" }
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "required": ["name", "schema_version", "notice", "files"],
+      "properties": {
+        "name": { "$ref": "#/$defs/safeName" },
+        "schema_version": { "type": "string" },
+        "notice": { "type": "string" },
+        "files": { "description": "Member file name to blob digest.", "type": "object", "additionalProperties": { "$ref": "#/$defs/digest" } },
+        "trailing_newline": { "type": "boolean", "default": false }
+      }
+    },
+    "arrangement": {
+      "type": "object",
+      "properties": {
+        "scenario": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "physics": { "type": "array", "items": { "$ref": "#/$defs/digest" } },
+        "bundles": { "type": "array", "items": { "$ref": "#/$defs/bundle" } }
+      }
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "step": { "type": "string" },
+        "preset": { "type": ["string", "null"] },
+        "what_if": { "description": "The edited operating-assumption values; an object, or null.", "type": ["object", "null"] },
+        "year": { "type": "number" },
+        "field_view": { "type": "string" },
+        "history_tab": { "type": "string" },
+        "arrangement": { "type": "string" },
+        "allocation": { "type": "string" },
+        "sweep_blanket_m": { "type": ["number", "null"] }
+      }
+    },
+    "evidenceLayer": {
+      "type": "object",
+      "required": ["mode", "archives"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/mode" },
+        "archives": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["arrangement", "allocation", "kind", "file_name", "sha256", "bytes"],
+            "properties": {
+              "arrangement": { "$ref": "#/$defs/arrangementName" },
+              "allocation": { "$ref": "#/$defs/safeName" },
+              "kind": { "$ref": "#/$defs/archiveKind" },
+              "file_name": { "$ref": "#/$defs/relativePath" },
+              "sha256": { "$ref": "#/$defs/digest" },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "evidenceStoreLayer": {
+      "type": "object",
+      "required": ["mode", "trees"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/mode" },
+        "trees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["arrangement", "allocation", "kind", "tree", "files"],
+            "properties": {
+              "arrangement": { "$ref": "#/$defs/arrangementName" },
+              "allocation": { "$ref": "#/$defs/safeName" },
+              "kind": { "$ref": "#/$defs/archiveKind" },
+              "tree": { "$ref": "#/$defs/safeName" },
+              "files": {
+                "description": "Every file of the tree, sorted by path.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["path", "sha256", "bytes"],
+                  "properties": {
+                    "path": { "type": "string" },
+                    "sha256": { "$ref": "#/$defs/digest" },
+                    "bytes": { "type": "integer", "minimum": 0 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ensemble": {
+      "type": "object",
+      "required": ["blob", "scenario_sha256", "variant", "key"],
+      "properties": {
+        "blob": { "$ref": "#/$defs/digest" },
+        "scenario_sha256": { "type": "string" },
+        "variant": { "type": "string" },
+        "key": {
+          "type": "object",
+          "required": ["method", "history_model", "samples", "seed", "rates_sha256", "assumptions_sha256"],
+          "properties": {
+            "method": { "type": "string" },
+            "history_model": { "type": "string" },
+            "samples": { "type": "integer", "minimum": 0 },
+            "seed": { "description": "A 64-bit whole number written as text, so no reader rounds it through a float.", "type": "string", "pattern": "^[0-9]{1,20}$" },
+            "rates_sha256": { "$ref": "#/$defs/digest" },
+            "assumptions_sha256": { "$ref": "#/$defs/digest" }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

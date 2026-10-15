@@ -16,6 +16,8 @@ mod tar;
 mod write;
 
 #[cfg(test)]
+mod fixture_tests;
+#[cfg(test)]
 mod hostile_tests;
 #[cfg(test)]
 mod kill_tests;
@@ -26,6 +28,7 @@ pub(crate) mod tests;
 
 pub use descriptor::{DescriptorEvidence, descriptor_evidence, evidence_from_descriptor};
 pub use error::StudyError;
+pub(crate) use manifest::KNOWN_MANIFEST_FIELDS;
 pub use manifest::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
     ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode,
@@ -43,7 +46,7 @@ pub use store_layer::{
 pub use tar::{ExtractReport, RecordedTreeManifest, extract_recorded_tree, extract_tar_gz};
 pub use write::{
     ArrangementDraft, DEFAULT_ZSTD_LEVEL, EnsembleDraft, EvidenceDraft, StudyDraft, WriteReport,
-    write_study,
+    write_study, write_study_preserving,
 };
 
 use sha2::{Digest, Sha256};

@@ -1,0 +1,16 @@
+{
+  "blob_count": 1,
+  "blob_sha256": [
+    "bb157861a164e35cdde9d726b0af9ce2765a8f530c35d9e45732b94ee65e9557"
+  ],
+  "created_by": "faris 1.9.0",
+  "entries": [
+    "blobs/bb157861a164e35cdde9d726b0af9ce2765a8f530c35d9e45732b94ee65e9557",
+    "manifest.json",
+    "mimetype"
+  ],
+  "evidence_mode": "none",
+  "format": "faris-study/1.4",
+  "has_preview": false,
+  "record_count": 0
+}
