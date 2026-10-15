@@ -18,6 +18,8 @@ and never from a hand edit (VAL-006).
 | `validation/manifest.py` | manifest schema, validator, upstream file hash check |
 | `validation/report.py` | per-case and suite report, JSON and Markdown; one command; the release V&V report (VAL-091) |
 | `validation/matrix.py`, `quantities.json`, `matrix.json` | the V&V matrix, generated from the quantity registry and manifests; its blank-cell check (VAL-051) |
+| `validation/models.py`, `models.json`, `model_matrix.json` | the model matrix: one row per model FARIS reports, with its verification evidence, the validation state of its quantities and what is not covered; its lint and staleness check (VAL-001, VAL-037) |
+| `validation/checks.py` | rule-hash, range-hash, not-covered, provenance and code-to-code lints |
 | `validation/cases/<case-id>/manifest.json` | one case: source, licence, file hashes, detectors, rule, not-covered list |
 | `validation/cases/<case-id>/build_manifest.py` | regenerates the manifest from a read-only upstream checkout |
 | `validation/cases/<case-id>/run_case.py` | case runner that builds and runs OpenMC (OKTAVIAN only so far) |
@@ -37,13 +39,54 @@ is reported NOT_EVALUATED.
 
 ## Evidence classes (VAL-001)
 
-Every manifest and every report row carries exactly one class.
+Every manifest, every report row, every matrix row and every item of verification evidence in the model matrix
+carries exactly one class. A matrix row for a quantity with no benchmark has no evidence and carries the class
+`none`, which is allowed nowhere else; `check_matrix` and `check_model_matrix` reject a blank, unknown or second label.
 
 | Class | Meaning |
 | --- | --- |
 | `verification` | an equation solved correctly against an analytic or manufactured answer |
 | `code-to-code` | agreement with another code; shared nuclear data and geometry are listed, and it never counts toward "validated" (VAL-041) |
 | `experiment` | agreement with a measurement |
+| `plant-reproduction` | agreement with the recorded behaviour of a plant or a published plant design; no case uses it yet |
+
+## The model matrix and the release lint (VAL-001, VAL-006, VAL-037, VAL-053, VAL-091)
+
+`matrix.json` has one row per quantity and benchmark. `model_matrix.json` is the other view: one row per model or
+response FARIS reports (transport and its normalisation, design transport, the operating history, the summaries, the
+independent controls, uncertainty ensembles, maintenance durations, geometry checks). Each row states
+
+- the outputs it reports and their quantities, read from the Rust output catalogues (`pub const NAME: &[Output]`)
+  that classify every number FARIS reports, not typed;
+- its verification evidence: tests and controls from `models.json`, each with one evidence class and a check that the
+  named test exists in the named file;
+- its validation evidence: the status of each of its quantities, taken from `matrix.json`, with the benchmark ids;
+- its status (the weakest state among its quantities, a failing benchmark first), the reason and the next step;
+- what is not covered, and the hashes of the source files it was generated from.
+
+Both files are generated, never edited:
+
+```sh
+python3 -m validation matrix            # matrix.json
+python3 -m validation models            # lint, then model_matrix.json
+python3 -m validation models --check    # lint and staleness; writes nothing
+```
+
+The lint fails when a catalogue reports calculated numbers but no model claims it, when a model's quantity is not in
+the registry, when a quantity of the Rust `Quantity` enum has no registry row, when a named test or control does not
+exist, or when an evidence item has no single class. A developer who adds a calculated output in Rust therefore adds
+its quantity and its model row in the same change.
+
+A row is STALE when anything it was generated from has changed: a source file of the model, a case manifest, the
+quantity registry, the models file, or the rules. `scripts/release_gate.py` regenerates both files from the tree and
+refuses the release while they differ from the committed ones, naming the row and the file. Regeneration is
+deliberate: change the code, rerun the affected benchmarks, then regenerate and commit. The gate also re-derives the
+report's matrix from its case records (VAL-006): a hand-edited cell, a verdict count that is not the tally of its
+detector rows, or a row that claims validation without a case record that has a PASS or FAIL verdict fails the gate.
+
+What this does not do yet: the source hash is a hash of the model's files, not of the compiled kernel; a run record
+carries library, code version and adapter hashes (see below) but is not read from an Avila Core store receipt; no
+number on screen links to its matrix row (VAL-053) beyond the validation state beside it (VAL-054).
 
 ## The rule (VAL-027, VAL-028)
 

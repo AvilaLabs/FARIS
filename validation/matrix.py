@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from .manifest import load_manifest
-from .scoring import DEFAULT_BOOTSTRAP_SEED, Identity, ValidationError
+from .scoring import DEFAULT_BOOTSTRAP_SEED, EVIDENCE_CLASSES, Identity, ValidationError
 
 HERE = Path(__file__).resolve().parent
 QUANTITIES = HERE / "quantities.json"
@@ -129,6 +129,12 @@ def check_matrix(matrix: dict, registry: dict | None = None) -> list[str]:
                 problems.append(f"{label}: blank cell {cell}")
         if row.get("status") not in STATUSES:
             problems.append(f"{label}: status {row.get('status')!r} is not one of {', '.join(STATUSES)}")
+        # VAL-001: exactly one class per record; "none" is only for a quantity with no record at all.
+        if row.get("benchmark_id") == "none":
+            if row.get("evidence_class") != "none":
+                problems.append(f"{label}: a quantity with no benchmark has no evidence, so its class must be 'none'")
+        elif row.get("evidence_class") not in EVIDENCE_CLASSES:
+            problems.append(f"{label}: evidence class {row.get('evidence_class')!r} is not exactly one of {', '.join(EVIDENCE_CLASSES)}")
         if row.get("benchmark_id") == "none" and row.get("status") != NOT_VALIDATED:
             problems.append(f"{label}: a quantity with no benchmark must be labelled {NOT_VALIDATED!r}")
         seen.add(row.get("quantity"))
@@ -140,6 +146,48 @@ def check_matrix(matrix: dict, registry: dict | None = None) -> list[str]:
     for q in wanted:
         if q not in seen:
             problems.append(f"quantity {q} has no matrix row")
+    return problems
+
+
+def check_claims(matrix: dict, cases: list[dict], registry: dict) -> list[str]:
+    """VAL-006: every verdict in the matrix is the one derived from the case records, never a hand edit.
+
+    The matrix is rebuilt from the scored cases and compared cell by cell. A row that claims validation must
+    rest on a case with a run record and at least one PASS or FAIL verdict in its response class, and each
+    case's verdict counts must equal the tally of its detector rows.
+    """
+    problems = []
+    for c in cases:
+        for name, cls in c.get("classes", {}).items():
+            tally: dict[str, int] = {}
+            for r in c.get("rows", []):
+                if r.get("response_class") == name:
+                    tally[r["verdict"]] = tally.get(r["verdict"], 0) + 1
+            if {k: v for k, v in cls.get("verdict_counts", {}).items() if v} != tally:
+                problems.append(f"case {c.get('case_id')}/{name}: verdict counts do not equal the tally of its detector verdicts")
+        for r in c.get("rows", []):
+            if r.get("verdict") in ("PASS", "FAIL") and (c.get("run") is None or r.get("ce") is None):
+                problems.append(f"case {c.get('case_id')}/{r.get('detector_id')}: verdict {r['verdict']} without a run record and a C/E value")
+    by_id = {c["case_id"]: c for c in cases}
+    for i, row in enumerate(matrix.get("rows", [])):
+        label = f"row {i + 1} ({row.get('quantity')}, {row.get('benchmark_id')})"
+        if str(row.get("status", "")).startswith("validated"):
+            case_id, _, response = str(row.get("benchmark_id", "")).partition("/")
+            case = by_id.get(case_id)
+            counts = ((case or {}).get("classes", {}).get(response) or {}).get("verdict_counts", {})
+            if case is None or case.get("run") is None or counts.get("PASS", 0) + counts.get("FAIL", 0) == 0:
+                problems.append(f"{label}: claims {row['status']!r} without a case record with a PASS or FAIL verdict")
+    try:
+        derived = build_matrix(registry, cases)
+    except ValidationError as e:
+        return problems + [str(e)]
+    have_rows = matrix.get("rows", [])
+    if len(derived["rows"]) != len(have_rows):
+        problems.append(f"matrix has {len(have_rows)} rows but the case records give {len(derived['rows'])}")
+    for i, (have, want) in enumerate(zip(have_rows, derived["rows"])):
+        for cell in sorted(set(have) | set(want)):
+            if have.get(cell) != want.get(cell):
+                problems.append(f"row {i + 1} ({want.get('quantity')}, {want.get('benchmark_id')}): cell {cell} differs from the value derived from the case records (hand edit?)")
     return problems
 
 

@@ -1,0 +1,119 @@
+{
+  "schema": "faris.validation-models/1.0.0",
+  "note": "Every model or response FARIS reports, with the verification evidence behind it. A model that reports numbers names the Rust output catalogues (pub const NAME: &[Output]) that list them; `python3 -m validation models` reads those catalogues, so a calculated output added in Rust without a row here, or a catalogue no model claims, fails the lint. Validation evidence is never written here: it is derived from validation/matrix.json. Each evidence item has exactly one class (verification, code-to-code, experiment, plant-reproduction). Every test or control named here must exist.",
+  "models": [
+    {
+      "id": "transport-normalisation",
+      "label": "Fixed-source neutron and photon transport (OpenMC adapter) and its normalisation to per-second, per-volume and per-source-neutron values",
+      "page": "docs/TRANSPORT.md",
+      "catalogues": ["NORMALIZED_OUTPUTS"],
+      "quantities": [],
+      "by_score_quantities": ["flux", "heating", "tbr", "gas_production", "activation"],
+      "sources": ["crates/faris-engine/src/transport.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/transport.rs", "name": "power_and_units_scale_exactly_and_cm3_equals_m3", "what": "unit and power scaling of the tally conversion is exact"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/transport.rs", "name": "regional_fast_flux_normalizes_per_region_volume_with_volume_error", "what": "regional flux normalisation divides by the region volume and carries its error"},
+        {"class": "verification", "kind": "control", "file": "controls/test_pure_absorber_sphere.py", "name": "test_exact_values_and_path_length_identity", "what": "one-group pure-absorber sphere against its analytic answer"},
+        {"class": "verification", "kind": "control", "file": "controls/test_transport_arithmetic.py", "name": "test_each_seeded_unit_slip_is_detected", "what": "an independent recomputation of the conversion table catches seeded unit slips"}
+      ],
+      "not_covered": ["transport physics itself: OpenMC and the nuclear data library are external and are not verified by these tests", "photon heating and dose responses", "any geometry that is not a recorded run"]
+    },
+    {
+      "id": "design-transport",
+      "label": "Transport on an authored design: source, window variance reduction, flux and fluence limits on the design's components",
+      "page": "docs/guide/transport.md",
+      "catalogues": ["DESIGN_TRANSPORT_OUTPUTS"],
+      "quantities": [],
+      "sources": ["crates/faris-engine/src/design/transport.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/transport.rs", "name": "flux_conversion_has_the_right_units", "what": "the flux conversion of a design run has the stated units"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/transport.rs", "name": "a_total_fluence_limit_scores_all_energies", "what": "a total fluence limit scores all energies"}
+      ],
+      "not_covered": ["the transport physics of the external solver", "variance-reduction bias against an analog run on a plant-scale design"]
+    },
+    {
+      "id": "operating-history",
+      "label": "Operating history: fuel, decay, processing, exposure, replacement and energy over the plant life",
+      "page": "docs/OPERATING_HISTORY.md",
+      "catalogues": ["HISTORY_OUTPUTS"],
+      "quantities": [],
+      "sources": ["crates/faris-engine/src/history.rs", "crates/faris-engine/src/comparison.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/history.rs", "name": "decay_only_history_matches_half_life_and_is_daily_decimated", "what": "tritium decay against the analytic half-life"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/history.rs", "name": "demountable_history_with_perturbed_rates_conserves_tritium", "what": "tritium is conserved through replacement events with perturbed rates"},
+        {"class": "verification", "kind": "control", "file": "controls/test_check_history.py", "name": "test_recorded_engine_histories_close_in_decimals", "what": "independent decimal recomputation of recorded engine histories"}
+      ],
+      "not_covered": ["tritium permeation, losses to structures and processing efficiency beyond the authored inputs", "agreement with a plant or a published fuel-cycle code"]
+    },
+    {
+      "id": "summary-brief",
+      "label": "Brief summaries and study comparisons built from a history and a transport record",
+      "page": "docs/guide/results.md",
+      "catalogues": ["BRIEF_OUTPUTS"],
+      "quantities": [],
+      "sources": ["crates/faris-engine/src/brief.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/brief.rs", "name": "every_field_of_the_summaries_is_classed", "what": "every numeric field of a summary is classed as calculated or not"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/brief.rs", "name": "contrast_is_second_minus_first", "what": "the contrast of two cases is the second minus the first"}
+      ],
+      "not_covered": ["the summaries add no physics; they restate the history and transport records and inherit their validation state"]
+    },
+    {
+      "id": "independent-controls",
+      "label": "Independent numerical controls: the pure-absorber sphere and the coupled lithium capture control",
+      "page": "docs/NUMERICAL_CONTROLS.md",
+      "catalogues": [],
+      "quantities": [],
+      "reports": "a pass or fail of an analytic or independently recomputed check, not a calculated quantity",
+      "sources": ["controls/pure_absorber_sphere.py", "controls/check_lithium_capture.py"],
+      "verification": [
+        {"class": "verification", "kind": "control", "file": "controls/test_pure_absorber_sphere.py", "name": "test_exact_values_and_path_length_identity", "what": "analytic pure-absorber answer"},
+        {"class": "verification", "kind": "control", "file": "controls/test_lithium_capture.py", "what": "lithium capture control checker"}
+      ],
+      "not_covered": ["a narrow chain only: source setup, one group, tally conversion; it says nothing about energy-dependent physics"]
+    },
+    {
+      "id": "uncertainty-ensemble",
+      "label": "Uncertainty ensembles: sampling the batch covariance through the operating history",
+      "page": "docs/guide/uncertainty.md",
+      "catalogues": [],
+      "quantities": [],
+      "reports": "intervals and probabilities on the history outputs, which carry their own quantities",
+      "sources": ["crates/faris-engine/src/history_ensemble.rs", "crates/faris-engine/src/output_uncertainty.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/history_ensemble/tests.rs", "name": "zero_covariance_reproduces_deterministic_history_exactly", "what": "zero covariance reproduces the deterministic history"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/history_ensemble/tests.rs", "name": "drawn_moments_match_mean_and_covariance", "what": "sampled draws have the stated mean and covariance"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/history_ensemble/tests.rs", "name": "identical_for_any_thread_count", "what": "the ensemble is the same for any thread count"}
+      ],
+      "not_covered": ["nuclear-data and model uncertainty are not modelled"]
+    },
+    {
+      "id": "maintenance-durations",
+      "label": "Computed maintenance durations and cooldown",
+      "page": "docs/guide/maintenance.md",
+      "catalogues": [],
+      "quantities": [],
+      "reports": "durations of maintenance steps in days, which are not one of the registry quantities",
+      "sources": ["crates/faris-engine/src/maintenance.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/tests.rs", "name": "cooldown_matches_the_reference", "what": "cooldown against a reference computation"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/tests.rs", "name": "calibrated_loop_converges_and_lengthens_cooldowns_with_age", "what": "the coupling loop converges"}
+      ],
+      "not_covered": ["no independent benchmark of maintenance durations", "shutdown dose rate is not computed"]
+    },
+    {
+      "id": "geometry-checks",
+      "label": "Geometry checks on an authored design: closure, overlaps, slivers, volumes",
+      "page": "docs/guide/design-file.md",
+      "catalogues": [],
+      "quantities": [],
+      "reports": "findings with measured sizes (gaps, overlaps, volumes), not a calculated quantity of the registry",
+      "sources": ["crates/faris-engine/src/design/integrity.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/integrity.rs", "name": "sampled_volumes_agree_with_exact_volumes", "what": "sampled volumes against exact volumes"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/integrity.rs", "name": "overlapping_solids_are_found_by_triangles_sampling_and_chords", "what": "seeded overlaps are found by three independent methods"}
+      ],
+      "not_covered": ["tolerances are authored, with no equations behind them"]
+    }
+  ]
+}

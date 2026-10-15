@@ -24,8 +24,9 @@ import sys
 from pathlib import Path
 
 from . import matrix as matrix_mod
+from . import models as models_mod
 from .manifest import load_manifest, manifest_sha256
-from .scoring import Identity, ValidationError, score_case, DEFAULT_BOOTSTRAP_SEED, MIN_BOOTSTRAP_RESAMPLES
+from .scoring import EVIDENCE_CLASSES, Identity, ValidationError, score_case, DEFAULT_BOOTSTRAP_SEED, MIN_BOOTSTRAP_RESAMPLES
 
 HERE = Path(__file__).resolve().parent
 CASES_DIR = HERE / "cases"
@@ -47,8 +48,8 @@ def load_records(manifests: list[dict], runs: Path | None) -> dict[str, dict]:
 
 
 def build_suite(manifests: list[dict], records: dict[str, dict], current: Identity | None, seed: int = DEFAULT_BOOTSTRAP_SEED,
-                registry: dict | None = None) -> dict:
-    """With a quantity `registry` the suite also carries the V&V matrix (VAL-050)."""
+                registry: dict | None = None, root: Path | None = None) -> dict:
+    """With a quantity `registry` the suite also carries the V&V matrix (VAL-050); with a repository `root` also the model matrix."""
     cases = []
     for m in manifests:
         record = records.get(m["case_id"])
@@ -78,6 +79,8 @@ def build_suite(manifests: list[dict], records: dict[str, dict], current: Identi
     }
     if registry is not None:
         suite["matrix"] = matrix_mod.build_matrix(registry, cases)
+        if root is not None:
+            suite["model_matrix"] = models_mod.build_model_matrix(root, suite["matrix"])
     return suite
 
 
@@ -120,6 +123,12 @@ def render_markdown(suite: dict) -> str:
         lines += ["## V&V matrix", "", "| Quantity | Benchmark | Status | Bias | Last run | Reason | Next step |", "| --- | --- | --- | --- | --- | --- | --- |"]
         for r in suite["matrix"]["rows"]:
             lines.append("| " + " | ".join(str(r[k]).replace("|", "/") for k in ("quantity", "benchmark_id", "status", "bias", "last_run", "reason", "next_step")) + " |")
+        lines.append("")
+    if "model_matrix" in suite:
+        lines += ["## Model matrix", "", "Every model FARIS reports, with its verification evidence and the validation state of the quantities it reports.", "",
+                  "| Model | Verification evidence | Quantities | Status | Not covered |", "| --- | --- | --- | --- | --- |"]
+        for r in suite["model_matrix"]["rows"]:
+            lines.append("| " + " | ".join(str(c).replace("|", "/") for c in (r["model"], r["verification_status"], ", ".join(r["quantities"]) or "none", r["status"], r["not_covered"])) + " |")
         lines.append("")
     lines += ["## Last run of each benchmark", ""] + [f"- {k}: {v}" for k, v in suite["last_run"].items()] + [""]
     lines += ["## Known issues", ""]
@@ -188,7 +197,7 @@ def lint_report(suite: dict) -> list[str]:
             if cls.get("distribution") and c["classes"][name]["detectors"] == 0:
                 problems.append(f"{c['case_id']}/{name}: distribution without detectors")
         for r in c["rows"]:
-            if r.get("evidence_class") not in ("verification", "code-to-code", "experiment"):
+            if r.get("evidence_class") not in EVIDENCE_CLASSES:
                 problems.append(f"{c['case_id']}/{r['detector_id']}: row has no evidence class")
             if r["verdict"] in ("NOT_EVALUATED", "INCONCLUSIVE", "STALE") and not (r.get("why") and r.get("next_step")):
                 problems.append(f"{c['case_id']}/{r['detector_id']}: {r['verdict']} without why and next step")
@@ -202,9 +211,12 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["matrix"]:
         return matrix_mod.main(argv[1:])
+    if argv[:1] == ["models"]:
+        return models_mod.main(argv[1:])
     ap = argparse.ArgumentParser(prog="python3 -m validation", description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("matrix", help="write only the V&V matrix (python3 -m validation matrix --help)")
+    sub.add_parser("models", help="write the model matrix, or --check it for staleness (python3 -m validation models --help)")
     rp = sub.add_parser("report", help="score every case and write report.json and report.md")
     rp.add_argument("--out", type=Path, required=True)
     rp.add_argument("--cases", type=Path, default=CASES_DIR)
@@ -217,8 +229,9 @@ def main(argv: list[str] | None = None) -> int:
     records = load_records(manifests, args.runs)
     current = Identity.from_dict(json.loads(args.identity.read_text(encoding="utf-8"))) if args.identity else None
     registry = matrix_mod.load_registry()
-    suite = build_suite(manifests, records, current, args.seed, registry)
-    problems = lint_report(suite) + matrix_mod.check_matrix(suite["matrix"], registry)
+    suite = build_suite(manifests, records, current, args.seed, registry, models_mod.ROOT)
+    problems = (lint_report(suite) + matrix_mod.check_matrix(suite["matrix"], registry) + matrix_mod.check_claims(suite["matrix"], suite["cases"], registry)
+                + models_mod.lint_models(models_mod.ROOT) + models_mod.check_model_matrix(suite["model_matrix"]))
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 
 PASS, FAIL, INCONCLUSIVE, NOT_EVALUATED, STALE = "PASS", "FAIL", "INCONCLUSIVE", "NOT_EVALUATED", "STALE"
 VERDICTS = (PASS, FAIL, INCONCLUSIVE, NOT_EVALUATED, STALE)
-EVIDENCE_CLASSES = ("verification", "code-to-code", "experiment")
+EVIDENCE_CLASSES = ("verification", "code-to-code", "experiment", "plant-reproduction")
 COVARIANCE_KINDS = ("independent", "correlation", "shared_normalisation", "explicit", "unknown")
 RUN_KIND, LITERATURE_KIND = "faris-run", "literature"
 MIN_DETECTORS_FOR_BIAS = 5

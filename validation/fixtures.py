@@ -38,3 +38,43 @@ def run_record(manifest_: dict, calc: list[float], u_mc: float = 0.001, identity
 
 def clone(x):
     return copy.deepcopy(x)
+
+
+RUST_CATALOGUE = '''use faris_model::validation::{calculated, not_calculated, Output, Quantity};
+
+pub const FIXTURE_OUTPUTS: &[Output] = &[
+    calculated("flux_n_m2_s", Quantity::Flux),
+    calculated("breeding", Quantity::Tbr),
+    not_calculated("histories", "count of source neutrons run"),
+];
+
+#[test]
+fn the_fixture_conserves_particles() {}
+'''
+FIXTURE_REGISTRY = {"schema": "faris.validation-quantities/1.0.0", "quantities": [
+    {"id": "flux", "label": "flux", "kind": "calculated", "benchmarks": [{"case_id": "fixture", "response_class": "flux", "scope": "fixture flux"}]},
+    {"id": "tbr", "label": "tbr", "kind": "calculated", "benchmarks": []}]}
+FIXTURE_MODELS = {"schema": "faris.validation-models/1.0.0", "models": [{
+    "id": "fixture-model", "label": "fixture model", "page": "docs/fixture.md", "catalogues": ["FIXTURE_OUTPUTS"], "quantities": [],
+    "sources": ["crates/fx/src/lib.rs"],
+    "verification": [{"class": "verification", "kind": "test", "file": "crates/fx/src/lib.rs", "name": "the_fixture_conserves_particles", "what": "conservation"}],
+    "not_covered": ["everything else"]}]}
+
+
+def write_tree(root) -> dict:
+    """A small repository tree (registry, one case, one model, its Rust catalogue) with both matrices generated from it.
+
+    Returns the suite, built without a run record."""
+    import json
+    from pathlib import Path
+    from . import report
+    root = Path(root)
+    files = {"validation/quantities.json": json.dumps(FIXTURE_REGISTRY), "validation/models.json": json.dumps(FIXTURE_MODELS),
+             "validation/cases/fixture/manifest.json": json.dumps(manifest()), "crates/fx/src/lib.rs": RUST_CATALOGUE, "docs/fixture.md": "# fixture\n"}
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    suite = report.build_suite([manifest()], {}, None, registry=FIXTURE_REGISTRY, root=root)
+    (root / "validation" / "matrix.json").write_text(json.dumps(suite["matrix"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (root / "validation" / "model_matrix.json").write_text(json.dumps(suite["model_matrix"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return suite
