@@ -154,7 +154,7 @@ fn shown(value: &Option<String>) -> &str {
 
 fn config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     settings::default_path().ok_or_else(|| {
-        "cannot find your configuration folder: none of XDG_CONFIG_HOME, HOME (Linux, macOS) or \
+        "cannot find your configuration folder: none of FARIS_CONFIG_DIR, XDG_CONFIG_HOME, HOME (Linux, macOS) or \
          APPDATA (Windows) is set. Next step: set one of them."
             .into()
     })

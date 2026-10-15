@@ -254,12 +254,16 @@ impl Platform {
 
 /// The per-user configuration folder for FARIS: `$XDG_CONFIG_HOME/faris` or `~/.config/faris`
 /// (Linux), `~/Library/Application Support/faris` (macOS), `%APPDATA%\faris` (Windows).
+/// `FARIS_CONFIG_DIR`, when set to an absolute folder, replaces all of these on every platform.
 /// `None` when the variables that name it are unset.
 pub fn config_dir_with(
     platform: Platform,
     var: &dyn Fn(&str) -> Option<OsString>,
 ) -> Option<PathBuf> {
     let nonempty = |name: &str| var(name).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if let Some(folder) = nonempty("FARIS_CONFIG_DIR").filter(|p| p.is_absolute()) {
+        return Some(folder);
+    }
     let base = match platform {
         Platform::Linux => nonempty("XDG_CONFIG_HOME")
             .filter(|p| p.is_absolute())

@@ -18,7 +18,7 @@ Today the memory settings take effect in the command line. The six tool paths in
 
 ## Your settings file
 
-It is one JSON file in your per-user configuration folder, the same folder the desktop uses: `~/.config/faris/settings.json` (or under `$XDG_CONFIG_HOME`) on Linux, `~/Library/Application Support/faris/settings.json` on macOS, `%APPDATA%\faris\settings.json` on Windows. `faris config path` prints the exact path.
+It is one JSON file in your per-user configuration folder, the same folder the desktop uses: `~/.config/faris/settings.json` (or under `$XDG_CONFIG_HOME`) on Linux, `~/Library/Application Support/faris/settings.json` on macOS, `%APPDATA%\faris\settings.json` on Windows. Set `FARIS_CONFIG_DIR` to an absolute folder to use that folder instead, on every platform. `faris config path` prints the exact path.
 
 The file carries a `schema` number. FARIS refuses a file from a newer version, and an unknown setting name, with a message that says why and what to do; it never ignores them. Every problem in the file, in an environment variable or in a flag is reported in one message, and nothing starts until they are fixed. `faris config` itself still runs, so you can repair the file with it.
 

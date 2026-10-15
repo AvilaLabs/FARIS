@@ -612,13 +612,17 @@ impl Platform {
 }
 
 /// The per-user configuration folder for FARIS: `$XDG_CONFIG_HOME/faris` or `~/.config/faris`
-/// (Linux), `~/Library/Application Support/faris` (macOS), `%APPDATA%\faris` (Windows). The same
+/// (Linux), `~/Library/Application Support/faris` (macOS), `%APPDATA%\faris` (Windows).
+/// `FARIS_CONFIG_DIR`, when set to an absolute folder, replaces all of these on every platform. The same
 /// folder the desktop uses. `None` when the variables that name it are unset.
 pub fn config_dir_with(
     platform: Platform,
     var: &dyn Fn(&str) -> Option<OsString>,
 ) -> Option<PathBuf> {
     let nonempty = |name: &str| var(name).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if let Some(folder) = nonempty("FARIS_CONFIG_DIR").filter(|p| p.is_absolute()) {
+        return Some(folder);
+    }
     let base = match platform {
         Platform::Linux => nonempty("XDG_CONFIG_HOME")
             .filter(|p| p.is_absolute())
@@ -914,14 +918,17 @@ mod tests {
 
     #[test]
     fn config_folder_follows_the_platform() {
+        // Absolute on the host, so the test means the same on Linux, macOS and Windows.
+        let root = std::env::temp_dir();
+        let (x, h) = (root.join("x"), root.join("h"));
         let var = |name: &str| match name {
-            "XDG_CONFIG_HOME" => Some(OsString::from("/x")),
-            "HOME" => Some(OsString::from("/h")),
+            "XDG_CONFIG_HOME" => Some(x.clone().into_os_string()),
+            "HOME" => Some(h.clone().into_os_string()),
             _ => None,
         };
         assert_eq!(
             config_dir_with(Platform::Linux, &var),
-            Some(PathBuf::from("/x/faris"))
+            Some(x.join("faris"))
         );
         assert_eq!(
             config_dir_with(Platform::Linux, &no_env),
@@ -930,7 +937,18 @@ mod tests {
         );
         assert_eq!(
             config_dir_with(Platform::MacOs, &var),
-            Some(PathBuf::from("/h/Library/Application Support/faris"))
+            Some(h.join("Library").join("Application Support").join("faris"))
         );
+        let chosen = root.join("chosen");
+        let with_override = |name: &str| match name {
+            "FARIS_CONFIG_DIR" => Some(chosen.clone().into_os_string()),
+            other => var(other),
+        };
+        for platform in [Platform::Linux, Platform::MacOs, Platform::Windows] {
+            assert_eq!(
+                config_dir_with(platform, &with_override),
+                Some(chosen.clone())
+            );
+        }
     }
 }

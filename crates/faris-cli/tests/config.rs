@@ -5,7 +5,7 @@ use std::{path::Path, process::Command};
 fn faris(config_home: &Path, args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_faris"))
         .args(args)
-        .env("XDG_CONFIG_HOME", config_home)
+        .env("FARIS_CONFIG_DIR", config_home.join("faris"))
         .env_remove("FARIS_MEMORY_CAP_MB")
         .env_remove("FARIS_MEMORY_MARGIN_MB")
         .env_remove("FARIS_CAD_READER")
@@ -81,7 +81,7 @@ fn environment_wins_over_the_file_and_set_says_so() {
     faris(home.path(), &["config", "set", "memory.cap_mb", "100"]);
     let got = Command::new(env!("CARGO_BIN_EXE_faris"))
         .args(["config", "get", "memory.cap_mb", "--show-origin"])
-        .env("XDG_CONFIG_HOME", home.path())
+        .env("FARIS_CONFIG_DIR", home.path().join("faris"))
         .env("FARIS_MEMORY_CAP_MB", "300")
         .output()
         .unwrap();
