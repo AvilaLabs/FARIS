@@ -3,10 +3,12 @@ use faris_engine::build_manifest;
 use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
+mod adapters;
 mod config;
 mod control;
 mod design;
 mod evidence;
+mod exit;
 mod history;
 mod maintenance;
 mod reactor;
@@ -19,7 +21,8 @@ mod transport;
 #[command(
     name = "faris",
     version,
-    about = "Fusion Analysis and Reactor Integration Simulator"
+    about = "Fusion Analysis and Reactor Integration Simulator",
+    after_help = exit::help_table()
 )]
 struct Arguments {
     #[command(subcommand)]
@@ -59,15 +62,26 @@ enum Command {
     },
     /// Validate a scenario without running physics.
     Validate { scenario: PathBuf },
-    /// Export geometry metadata and explicit evaluation status.
+    /// Export geometry metadata (--scenario), or a study's PDF brief, CSV and charts (--study).
     Export {
+        /// Scenario to write the geometry manifest for.
+        #[arg(long, required_unless_present = "study", conflicts_with = "study")]
+        scenario: Option<PathBuf>,
+        /// A .faris study file: writes the same export folder as the desktop's export
+        /// (the 3D view is not captured on the command line).
         #[arg(long)]
-        scenario: PathBuf,
+        study: Option<PathBuf>,
+        /// The manifest file for --scenario; the folder to create the export in for --study.
         #[arg(long)]
         output: PathBuf,
     },
-    /// Inspect optional tool availability without executing tools.
+    /// Inspect optional tool availability and file hashes without executing tools.
     Doctor,
+    /// List the external tools FARIS can drive with version, hash and health.
+    Adapters {
+        #[command(subcommand)]
+        command: adapters::AdaptersCommand,
+    },
     /// Execute independently specified mathematical controls through the job runner.
     Control {
         #[command(subcommand)]
@@ -96,24 +110,20 @@ enum Command {
 }
 
 fn main() -> std::process::ExitCode {
-    match run(Arguments::parse()) {
+    let arguments = match Arguments::try_parse() {
+        Ok(arguments) => arguments,
+        Err(error) => {
+            // Help and version go to stdout and succeed; anything else did not parse.
+            let parsed = !error.use_stderr();
+            let _ = error.print();
+            return std::process::ExitCode::from(if parsed { exit::OK } else { exit::USAGE });
+        }
+    };
+    match run(arguments) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("faris: {error}");
-            std::process::ExitCode::from(
-                if error
-                    .downcast_ref::<study::CoreCompilationRejected>()
-                    .is_some()
-                    || error
-                        .downcast_ref::<study_file::StudyFileRejected>()
-                        .is_some()
-                    || error.downcast_ref::<design::DesignCheckFailed>().is_some()
-                {
-                    1
-                } else {
-                    2
-                },
-            )
+            std::process::ExitCode::from(exit::classify(error.as_ref()))
         }
     }
 }
@@ -124,6 +134,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         config::startup(&arguments.settings)?;
     }
     match arguments.command {
+        Command::Adapters { command } => adapters::run(command)?,
         Command::Config { command } => config::run(command, &arguments.settings)?,
         Command::History { command } => history::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
@@ -144,37 +155,44 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
                 }))?
             );
         }
-        Command::Export { scenario, output } => {
-            let manifest = build_manifest(&LoadedScenario::load(&scenario)?)?;
-            transport::write_new_json(&output, &manifest)?;
-            println!("Exported {} to {}", manifest.scenario_id, output.display());
+        Command::Export {
+            scenario,
+            study,
+            output,
+        } => {
+            if let Some(study) = study {
+                let summary = study_export::export(&study, &output)?;
+                println!("{}", serde_json::to_string_pretty(&summary)?);
+            } else if let Some(scenario) = scenario {
+                let manifest = build_manifest(&LoadedScenario::load(&scenario)?)?;
+                transport::write_new_json(&output, &manifest)?;
+                println!("Exported {} to {}", manifest.scenario_id, output.display());
+            }
         }
         Command::Doctor => {
-            let tools: serde_json::Map<String, serde_json::Value> = [
-                "openmc",
-                "actinv",
-                "avila-core",
-            ]
-            .into_iter()
-            .map(|name| {
-                let detected = std::env::var_os("PATH").is_some_and(|paths| {
-                    std::env::split_paths(&paths).any(|directory| {
-                        let path = directory.join(name);
-                        path.is_file()
-                            || cfg!(windows) && directory.join(format!("{name}.exe")).is_file()
-                    })
-                });
-                (
-                    name.into(),
-                    serde_json::json!({"detected": detected, "adapter_status": "NOT_EVALUATED"}),
-                )
-            })
-            .collect();
+            // Path and hash of what is found; nothing is executed (`faris adapters list` runs
+            // the version check).
+            let listing = adapters::list(std::env::var_os("PATH").as_deref(), false);
+            let tools: serde_json::Map<String, serde_json::Value> = listing["tools"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|tool| {
+                    (
+                        tool["name"].as_str().unwrap_or_default().to_owned(),
+                        serde_json::json!({
+                            "detected": tool["detected"], "path": tool["path"],
+                            "sha256": tool["sha256"], "adapter_status": "NOT_EVALUATED",
+                        }),
+                    )
+                })
+                .collect();
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
                     "faris_version": env!("CARGO_PKG_VERSION"), "optional_tools": tools,
-                    "note": "PATH presence only; no tool executed. Commands that run a tool take its path as a flag (faris reactor run, faris design check and transport, faris evidence run, faris control absorber); the desktop app's Find tools searches environments as well as PATH.",
+                    "bundled_adapters": listing["bundled_adapters"],
+                    "note": "PATH presence and file hashes only; no tool executed (faris adapters list also reports versions and health). Commands that run a tool take its path as a flag (faris reactor run, faris design check and transport, faris evidence run, faris control absorber); the desktop app's Find tools searches environments as well as PATH.",
                 }))?
             );
         }

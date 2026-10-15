@@ -256,7 +256,10 @@ fn run_case(
             .or_else(|| run.execution.as_ref().map(|result| result.stderr.as_str()))
             .filter(|message| !message.is_empty())
             .unwrap_or("external execution did not succeed");
-        return Err(format!("reactor execution failed: {reason}; see run.json").into());
+        return Err(Box::new(crate::exit::JobFailed {
+            status: execution.unwrap_or(ExecutionStatus::Failed),
+            reason: format!("reactor execution failed: {reason}; see run.json"),
+        }));
     }
     if run.normalized.is_none() {
         let reason = run
