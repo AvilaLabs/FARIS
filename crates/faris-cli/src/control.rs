@@ -263,7 +263,10 @@ pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
         output.display()
     );
     if execution.execution_status != ExecutionStatus::Succeeded {
-        return Err("control did not execute successfully; see execution.json".into());
+        return Err(Box::new(crate::exit::JobFailed {
+            status: execution.execution_status,
+            reason: "control did not execute successfully; see execution.json".into(),
+        }));
     }
     if control
         .as_ref()

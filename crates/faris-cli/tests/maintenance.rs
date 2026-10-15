@@ -80,24 +80,27 @@ fn run_help_lists_every_option() {
 }
 
 #[test]
-fn argument_errors_exit_two() {
-    // Missing required options and a bad worker count are usage errors.
-    assert_eq!(faris(&["maintenance", "run"]).status.code(), Some(2));
+fn argument_errors_exit_with_the_usage_code() {
+    // Missing required options and a bad worker count are usage errors (exit 64).
+    assert_eq!(faris(&["maintenance", "run"]).status.code(), Some(64));
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("r.json");
     let args = run_args("d.json", "a.json", path(&out), &["--workers", "0"]);
     let result = faris(&args);
-    assert_eq!(result.status.code(), Some(2));
+    assert_eq!(result.status.code(), Some(64));
     assert!(text(&result.stderr).contains("workers"));
     let args = run_args("d.json", "a.json", path(&out), &["--workers", "65"]);
-    assert_eq!(faris(&args).status.code(), Some(2));
+    assert_eq!(faris(&args).status.code(), Some(64));
     assert_eq!(
         faris(&["maintenance", "report", "--format", "yaml", "x"])
             .status
             .code(),
-        Some(2)
+        Some(64)
     );
-    assert_eq!(faris(&["maintenance", "frobnicate"]).status.code(), Some(2));
+    assert_eq!(
+        faris(&["maintenance", "frobnicate"]).status.code(),
+        Some(64)
+    );
 }
 
 #[test]

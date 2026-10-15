@@ -3,16 +3,18 @@
 
 The package holds two programs: `faris-app`, the desktop, and `faris`, the command line. The `faris` command needs no graphics, Python, OpenMC or Avila Core, except for the commands marked below. Run `faris --version` to check the version and `faris COMMAND --help` for every flag of a command.
 
-Errors exit with status 2. A study file that fails verification exits 1.
+Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation); 2 validation (an input is missing, unreadable or invalid); 3 solver failure (an external tool ran and did not succeed); 4 cancelled (Ctrl-C or SIGTERM stopped the job); 5 resource refused (the memory check refused the job); 64 usage (the command line did not parse). `faris --help` lists them.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `faris validate SCENARIO` | Validates a scenario without running physics. |
-| `faris export --scenario S --output O` | Exports geometry metadata and its evaluation status. It refuses an existing destination. It is not the study export below. |
+| `faris export --scenario S --output O` | Exports geometry metadata and its evaluation status. It refuses an existing destination. |
+| `faris export --study FILE --output DIR` | The same as `faris study-file export` below: the study export folder from a `.faris` file. |
 | `faris config list`, `get`, `set`, `unset`, `reset`, `path` | Shows and changes your settings and says which layer supplies each value. See [Settings](settings.md). |
-| `faris doctor` | Reports which optional tools are on `PATH`. It runs nothing. |
+| `faris doctor` | Reports which optional tools are on `PATH`, where, and the SHA-256 of each file. It runs nothing. |
+| `faris adapters list [--no-probe]` | JSON list of `openmc`, `actinv` and `avila-core` with path, SHA-256, version and health, plus the hashes of the scripts FARIS carries. The only thing it runs is `TOOL --version`, at most 5 seconds each. |
 | `faris study-file create` | Writes a `.faris` file from recorded bundles and assumptions. |
 | `faris study-file inspect FILE` | Summarises a file without extracting it. |
 | `faris study-file verify FILE` | Rehashes every blob and rebuilds every bundle. Exits 1 on any failure. |
