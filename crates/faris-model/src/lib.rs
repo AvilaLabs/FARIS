@@ -6,6 +6,7 @@ pub mod maintenance;
 pub mod math;
 pub mod physics;
 pub mod remote_handling;
+pub mod settings;
 pub mod transport;
 pub mod validation;
 

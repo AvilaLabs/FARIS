@@ -11,6 +11,7 @@ Errors exit with status 2. A study file that fails verification exits 1.
 | --- | --- |
 | `faris validate SCENARIO` | Validates a scenario without running physics. |
 | `faris export --scenario S --output O` | Exports geometry metadata and its evaluation status. It refuses an existing destination. It is not the study export below. |
+| `faris config list`, `get`, `set`, `unset`, `reset`, `path` | Shows and changes your settings and says which layer supplies each value. See [Settings](settings.md). |
 | `faris doctor` | Reports which optional tools are on `PATH`. It runs nothing. |
 | `faris study-file create` | Writes a `.faris` file from recorded bundles and assumptions. |
 | `faris study-file inspect FILE` | Summarises a file without extracting it. |

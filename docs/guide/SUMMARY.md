@@ -25,6 +25,7 @@
 - [Study files (.faris)](study-files.md)
 - [Export a brief, tables and charts](export.md)
 - [Command line](cli.md)
+- [Settings](settings.md)
 - [Run your own transport](transport.md)
 - [Nuclear data](nuclear-data.md)
 - [The design file (bring your own CAD)](design-file.md)
