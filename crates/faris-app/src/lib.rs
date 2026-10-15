@@ -19,13 +19,16 @@ mod design_transport_panel;
 mod design_transport_result;
 mod design_transport_run;
 mod dialog;
+mod error_catalogue;
 mod export_panel;
 mod history_panel;
 mod interface_check;
 #[cfg(not(target_arch = "wasm32"))]
 mod interface_prefs;
+mod interval_kind;
 mod maintenance_panel;
 mod maintenance_run;
+mod not_evaluated;
 mod package;
 mod recorder;
 mod settings;
@@ -363,6 +366,15 @@ fn interface_size_menu(ui: &mut egui::Ui) {
             ui.close();
         }
         ui.label("100% follows your desktop's display scaling.");
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((badge, hover)) =
+            interface_prefs::path().and_then(|p| interface_prefs::origin_badge(&p))
+        {
+            ui.horizontal(|ui| {
+                ui.weak("Saved size comes from:");
+                badge::note(ui, &format!("[{badge}]"), &hover);
+            });
+        }
     })
     .response
     .on_hover_text(
@@ -527,6 +539,66 @@ impl FarisApp {
             );
         }
         self.rebuild()
+    }
+
+    /// The values the current field view plots, `None` where a component has no recorded result:
+    /// the legend counts them against its limits (VIS-025, VIS-026).
+    fn legend_values(&self) -> Vec<Option<f64>> {
+        let variant = &self.manifest.variants[self.variant];
+        let response = |id: String| self.transport.response(&variant.id, &id).map(|r| r.mean);
+        let components = || {
+            variant
+                .components
+                .iter()
+                .filter(|c| c.material_id != "void" && !self.hidden.contains(&c.id))
+        };
+        match self.transport.view {
+            transport_panel::FieldView::Materials => Vec::new(),
+            transport_panel::FieldView::ComponentFlux => components()
+                .map(|c| response(format!("{}-flux", c.id)))
+                .collect(),
+            transport_panel::FieldView::NuclearHeating => components()
+                .map(|c| response(format!("heating-total-{}", c.id)))
+                .collect(),
+            transport_panel::FieldView::ComponentFluence => {
+                let snapshot = self.history.snapshot(
+                    &self.manifest.source_sha256,
+                    &variant.id,
+                    self.year * faris_engine::history::JULIAN_YEAR_SECONDS,
+                );
+                components()
+                    .map(|c| {
+                        snapshot
+                            .as_ref()?
+                            .component_fluence_n_m2
+                            .get(&c.id)
+                            .copied()
+                    })
+                    .collect()
+            }
+            transport_panel::FieldView::FluxSlice => {
+                let Some(record) = self.transport.record(&variant.id) else {
+                    return Vec::new();
+                };
+                let Some(result) = &record.normalized else {
+                    return Vec::new();
+                };
+                let mesh = &record.mesh;
+                result
+                    .results
+                    .iter()
+                    .filter_map(|r| match &r.domain {
+                        faris_model::transport::ResponseDomain::Mesh { bin, .. }
+                            if (*bin as usize / mesh.dimensions[0]) % mesh.dimensions[1]
+                                == self.transport.slice =>
+                        {
+                            Some(Some(r.mean))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
+        }
     }
 
     fn rebuild(&mut self) -> Result<(), faris_engine::mesh::MeshError> {
@@ -805,12 +877,13 @@ impl FarisApp {
                     if let Some(response) = self.transport.mesh_response(&record.variant_id, bin) {
                         hit = true;
                         self.message = format!(
-                            "{} · {} · Y slice {} · bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. Qualification NOT_EVALUATED.",
+                            "{} · {} · Y slice {} · bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. {}",
                             self.manifest.scenario_id,
                             record.variant_id,
                             self.transport.slice,
                             response.mean,
-                            response.standard_error
+                            response.standard_error,
+                            crate::not_evaluated::NOT_QUALIFIED.line()
                         );
                     }
                 }
@@ -1355,7 +1428,10 @@ impl FarisApp {
 
     fn transport_card(&self, ui: &mut egui::Ui) {
         let variant = &self.manifest.variants[self.variant];
-        let note = "Monte Carlo ± one standard error; cold-data surrogate; scientific qualification NOT_EVALUATED.";
+        let note = &format!(
+            "Monte Carlo ± one standard error; cold-data surrogate. {}",
+            crate::not_evaluated::NOT_QUALIFIED.line()
+        );
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.strong("Transport results");
@@ -1751,6 +1827,11 @@ impl eframe::App for FarisApp {
             ctx.request_repaint();
         }
         self.poll_file(&ctx);
+        let scripted = self.capture.is_some()
+            || self.recorder.is_some()
+            || self.interface_check.is_some()
+            || self.benchmark.is_some();
+        self.handle_close(&ctx, scripted);
         self.study.poll(&ctx);
         let history_before = self.history.revision();
         for (scenario, variant, history) in self.study.archive.take_histories() {
@@ -1832,7 +1913,10 @@ impl eframe::App for FarisApp {
         self.export.poll(&ctx);
         self.run_development_export(&ctx);
         if field_before.0 != self.transport.render_key().0 {
-            self.message="Transport worker finished. Inspect execution status and recorded numerical results; scientific qualification NOT_EVALUATED.".into();
+            self.message = format!(
+                "Transport worker finished. Inspect execution status and recorded numerical results. {}",
+                crate::not_evaluated::NOT_QUALIFIED.line()
+            );
         }
         let before = (
             self.variant,
@@ -1962,7 +2046,7 @@ impl eframe::App for FarisApp {
                         ui,
                         badge::Kind::Conditional,
                         "cold-data surrogate · NOT_EVALUATED",
-                        "Checked transport records loaded. Cold-data surrogate; scientific qualification NOT_EVALUATED.",
+                        &format!("Checked transport records loaded. Cold-data surrogate. {}", crate::not_evaluated::NOT_QUALIFIED.line()),
                     );
                     self.tour.anchor("status-badge", cold.rect);
                 }
@@ -1970,6 +2054,14 @@ impl eframe::App for FarisApp {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     ui.add(egui::Label::new(egui::RichText::new(&self.message).small()).truncate())
                         .on_hover_text(&self.message);
+                    if let Some(error) = &self.file.last_error
+                        && ui
+                            .small_button("Copy details")
+                            .on_hover_text("Copies the error code and the technical message, to paste into a report.")
+                            .clicked()
+                    {
+                        ui.ctx().copy_text(error.copy_text());
+                    }
                 });
             });
         });
@@ -2201,7 +2293,8 @@ impl eframe::App for FarisApp {
                     }
                     if self.transport.view!=transport_panel::FieldView::Materials {ui.weak(match self.transport.view {transport_panel::FieldView::FluxSlice=>"Sampling uncertainty only · click a spatial bin to inspect",transport_panel::FieldView::ComponentFluence=>"Conditional history · component mean · uncertainty not propagated",_=>"Sampling uncertainty only · component volume averages"});}
                 });
-                self.transport.field_legend(ui);
+                let legend_values = self.legend_values();
+                self.transport.field_legend(ui, &legend_values);
                     });
                 let (rect, response) =
                     ui.allocate_exact_size(ui.available_size().max(egui::vec2(1.0, 1.0)), egui::Sense::click_and_drag());
@@ -2366,6 +2459,7 @@ impl eframe::App for FarisApp {
             }
         }
         self.opening_overlay(&ctx);
+        self.close_prompt_ui(&ctx);
         if self.export.development_requested()
             && self.export.development_settled()
             && self.capture.is_none()

@@ -164,10 +164,11 @@ pub fn path_row(
     text: &mut String,
     note: Option<(Kind, &str)>,
 ) -> bool {
-    path_row_enabled(ui, label, hint, text, note, true)
+    path_row_enabled(ui, label, hint, text, note, true, None)
 }
 
-/// [`path_row`] that can be shown read-only (a value the environment supplies).
+/// [`path_row`] that can be shown read-only (a value the environment supplies), with an optional
+/// (badge, hover text) naming the settings layer the value came from.
 pub fn path_row_enabled(
     ui: &mut egui::Ui,
     label: &str,
@@ -175,6 +176,7 @@ pub fn path_row_enabled(
     text: &mut String,
     note: Option<(Kind, &str)>,
     enabled: bool,
+    origin: Option<(&str, &str)>,
 ) -> bool {
     ui.label(label).on_hover_text(hint);
     ui.add_sized(
@@ -187,6 +189,12 @@ pub fn path_row_enabled(
         .add_enabled(enabled, egui::Button::new("Browse\u{2026}"))
         .clicked();
     ui.end_row();
+    // Where the value comes from (CFG-002): a small badge, the full account on hover.
+    if let Some((badge, hover)) = origin {
+        ui.label("");
+        crate::badge::note(ui, &format!("[{badge}]"), hover);
+        ui.end_row();
+    }
     if let Some((kind, note)) = note {
         ui.label("");
         ui.add(egui::Label::new(egui::RichText::new(note).small().color(kind.color())).wrap());

@@ -495,12 +495,15 @@ pub struct Snapshot {
     pub stage: Option<(String, usize, usize)>,
     /// How many different stages have reported so far.
     pub stages_seen: usize,
+    /// When the newest stage first reported, for the estimate of its remaining time.
+    pub stage_started: Option<crate::time::Instant>,
 }
 
 impl Snapshot {
     pub fn apply(&mut self, stage: &str, done: usize, total: usize) {
         if self.stage.as_ref().is_none_or(|(name, _, _)| name != stage) {
             self.stages_seen += 1;
+            self.stage_started = Some(crate::time::Instant::now());
         }
         self.stage = Some((stage.to_string(), done, total));
     }
@@ -514,17 +517,48 @@ pub struct ProgressView {
     /// How far the stage in progress is, when it has a count.
     pub fraction: Option<f32>,
     pub stages_seen: String,
+    /// An estimate of the time left in the stage in progress, as a sentence that says it is an
+    /// estimate; `None` until a fifth of the stage is done, or when it has no count (PERF-022).
+    pub stage_remaining: Option<String>,
+}
+
+/// The share of a stage that must be done before its remaining time is estimated: before that
+/// the pace is too uncertain to name a time.
+pub const ESTIMATE_AFTER: f64 = 0.2;
+
+/// The time left in a stage that has done `done` of `total` in `elapsed_s` seconds, assuming
+/// the pace so far holds. `None` before [`ESTIMATE_AFTER`] of it is done, with no count, or when
+/// nothing has been done.
+pub fn stage_remaining_s(elapsed_s: f64, done: usize, total: usize) -> Option<f64> {
+    if total == 0 || done == 0 || done > total || !elapsed_s.is_finite() || elapsed_s <= 0.0 {
+        return None;
+    }
+    ((done as f64 / total as f64) >= ESTIMATE_AFTER)
+        .then(|| elapsed_s * (total - done) as f64 / done as f64)
+}
+
+fn remaining_sentence(seconds: f64) -> String {
+    format!(
+        "Estimate: about {} left in this stage, if the pace so far holds. Later stages and the programs that show no count are not included.",
+        crate::maintenance_run::elapsed_text(crate::time::Duration::from_secs_f64(seconds))
+    )
 }
 
 /// Said under every progress line, because no honest total can be given.
 pub const NO_ESTIMATE: &str = "No time estimate for the whole check: the stages differ in length and their number depends on the model, so only the stage in progress shows how far it is. Reading the STEP file, the conversion and the material audit run as separate programs and show no count while they work; the line stays where it is until they finish.";
 
 pub fn progress_view(snapshot: &Snapshot) -> ProgressView {
+    progress_view_at(snapshot, crate::time::Instant::now())
+}
+
+/// [`progress_view`] with the time given, so a test can fix it.
+pub fn progress_view_at(snapshot: &Snapshot, now: crate::time::Instant) -> ProgressView {
     match &snapshot.stage {
         None => ProgressView {
             line: "Starting: the design file and the STEP file are read first, and that reports no count.".into(),
             fraction: None,
             stages_seen: "No stage has reported yet.".into(),
+            stage_remaining: None,
         },
         Some((stage, done, total)) => ProgressView {
             line: format!("{stage}: {done} of {total}"),
@@ -533,6 +567,16 @@ pub fn progress_view(snapshot: &Snapshot) -> ProgressView {
                 "{} counted stage(s) have reported so far.",
                 snapshot.stages_seen
             ),
+            stage_remaining: snapshot
+                .stage_started
+                .and_then(|started| {
+                    stage_remaining_s(
+                        now.saturating_duration_since(started).as_secs_f64(),
+                        *done,
+                        *total,
+                    )
+                })
+                .map(remaining_sentence),
         },
     }
 }
@@ -870,6 +914,52 @@ pub(crate) mod tests {
         assert_eq!(fields(&refused_check(&inputs)), [Field::WorkDir]);
         inputs.work_dir = dir.path().join("work").display().to_string();
         assert!(validate_check(&inputs).is_ok());
+    }
+
+    // Verifies: PERF-022
+    #[test]
+    fn the_stage_estimate_waits_for_a_fifth_and_stays_within_30_percent_at_a_varying_pace() {
+        assert_eq!(stage_remaining_s(10.0, 0, 100), None);
+        assert_eq!(stage_remaining_s(10.0, 19, 100), None, "before 20 %");
+        assert_eq!(stage_remaining_s(10.0, 5, 0), None, "no count");
+        assert_eq!(stage_remaining_s(0.0, 50, 100), None, "no time has passed");
+        assert_eq!(stage_remaining_s(10.0, 20, 100), Some(40.0));
+        // A synthetic stage whose per-item time varies by +-20 % around one second: from the
+        // first 20 % on, the estimate stays within 30 % of the time that actually remained.
+        let cost = |i: usize| 1.0 + 0.2 * ((i * 7 % 11) as f64 / 5.0 - 1.0);
+        let total = 200;
+        let times: Vec<f64> = (0..=total)
+            .scan(0.0, |t, i| {
+                if i > 0 {
+                    *t += cost(i);
+                }
+                Some(*t)
+            })
+            .collect();
+        for done in (total / 5)..total {
+            let estimate = stage_remaining_s(times[done], done, total).unwrap();
+            let actual = times[total] - times[done];
+            assert!(
+                (estimate - actual).abs() <= 0.3 * actual,
+                "at {done}: estimated {estimate:.1} s, actual {actual:.1} s"
+            );
+        }
+        // The sentence says it is an estimate and what it leaves out.
+        let mut snapshot = Snapshot::default();
+        snapshot.apply("sampling points", 500, 1000);
+        let later = snapshot.stage_started.unwrap() + crate::time::Duration::from_secs(60);
+        let text = progress_view_at(&snapshot, later).stage_remaining.unwrap();
+        assert!(
+            text.starts_with("Estimate: about 1:00 left in this stage"),
+            "{text}"
+        );
+        assert!(text.contains("not included"));
+        let uncounted = {
+            let mut s = Snapshot::default();
+            s.apply("random chords", 0, 0);
+            progress_view_at(&s, later).stage_remaining
+        };
+        assert_eq!(uncounted, None);
     }
 
     #[test]

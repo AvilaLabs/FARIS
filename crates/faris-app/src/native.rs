@@ -520,7 +520,13 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args.interface_scale
             } else {
                 crate::interface_prefs::path()
-                    .and_then(|path| crate::interface_prefs::load(&path))
+                    .and_then(|path| {
+                        crate::interface_prefs::load(
+                            &path,
+                            crate::interface_prefs::old_path().as_deref(),
+                            &|name| std::env::var_os(name),
+                        )
+                    })
                     .unwrap_or(args.interface_scale)
             };
             cc.egui_ctx.set_zoom_factor(scale);
@@ -626,8 +632,10 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// What the user sees when the graphics adapter or window cannot start: what
 /// failed, why it matters, and what to try next (PLAT-013).
 fn graphics_failure(detail: &str) -> String {
+    use crate::error_catalogue::GRAPHICS_START as entry;
     format!(
-        "FARIS could not start its 3D viewport ({detail}). The viewport needs a Vulkan, Metal or DirectX 12 graphics driver. Next step: update the graphics driver, or on Linux install the Vulkan driver for your card (for example mesa-vulkan-drivers) and check that `vulkaninfo` lists a device; then start FARIS again. The command line (`faris`) works without a display."
+        "{} ({detail}) {} Why: {} Next step: {}",
+        entry.what, entry.code, entry.why, entry.fix
     )
 }
 

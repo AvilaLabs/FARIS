@@ -7,6 +7,7 @@ use crate::time::{Duration, Instant};
 use crate::{
     FarisApp, Session, SessionInputs, Step,
     badge::Kind,
+    error_catalogue::{STUDY_OPEN, STUDY_SAVE, UserError},
     load_sweep,
     package::{SavedStore, SavedStudy, StoreOrigin},
     study_panel, sweep_panel, thumbnail,
@@ -18,9 +19,10 @@ use faris_engine::evidence_store::EvidenceStore;
 use faris_study::{
     ArchiveKind, ArrangementDraft, EvidenceDraft, EvidenceMode, EvidenceState, EvidenceStoreDraft,
     EvidenceStoreTree, MissReason, StoreEvidenceState, StoreSource, StudyDraft, StudyReader,
-    ViewState, WriteReport, extract_tar_gz, packed_store_bytes, write_study,
+    ViewState, WriteReport, extract_tar_gz, packed_store_bytes, write_study_preserving,
 };
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -38,7 +40,7 @@ pub fn window_title(path: Option<&Path>, dirty: bool) -> String {
             name.to_string_lossy(),
             if dirty { " •" } else { "" }
         ),
-        None => "FARIS — unsaved study".into(),
+        None => format!("FARIS — unsaved study{}", if dirty { " •" } else { "" }),
     }
 }
 
@@ -312,6 +314,8 @@ struct OpenedStudy {
     /// History ensembles stored in the file, offered to the history panel;
     /// each is used only where its key equals the key of the loaded inputs.
     ensembles: Vec<faris_study::StoredEnsemble>,
+    /// Top-level manifest properties a newer FARIS wrote; saved back unchanged (PRV-055).
+    unknown_fields: BTreeMap<String, serde_json::Value>,
     workspace: faris_engine::vfs::ScratchDir,
 }
 
@@ -368,6 +372,14 @@ pub struct FileState {
     /// The trees the opened file recorded in its evidence-store layer.
     pub evidence_store: Option<StoreEvidenceState>,
     pub evidence_trees: Vec<EvidenceStoreTree>,
+    /// What a newer FARIS wrote into the opened file that this one cannot read; kept on save.
+    unknown_fields: BTreeMap<String, serde_json::Value>,
+    pub close_prompt: ClosePrompt,
+    /// Set when the user chose Discard (or nothing was unsaved): the next close request goes through.
+    close_approved: bool,
+    /// The last open or save error, for the status bar's "Copy details" (UX-044). Cleared when
+    /// the next open or save succeeds.
+    pub last_error: Option<UserError>,
 }
 
 impl Default for FileState {
@@ -393,6 +405,10 @@ impl FileState {
             evidence: EvidenceState::default(),
             evidence_store: None,
             evidence_trees: Vec::new(),
+            unknown_fields: BTreeMap::new(),
+            close_prompt: ClosePrompt::Hidden,
+            last_error: None,
+            close_approved: false,
         }
     }
 
@@ -422,6 +438,57 @@ impl FileState {
     pub fn title(&self, current: &ViewState) -> String {
         window_title(self.path.as_deref(), self.dirty(current))
     }
+
+    /// True when `current` differs from what was last saved or opened.
+    pub fn has_unsaved(&self, current: &ViewState) -> bool {
+        self.dirty(current)
+    }
+
+    /// The window was asked to close. True when it may close now; false when the prompt is up
+    /// and the close must be cancelled for the moment (UX-027).
+    pub fn close_requested(&mut self, unsaved: bool) -> bool {
+        if !unsaved || self.close_approved {
+            return true;
+        }
+        self.close_prompt = ClosePrompt::Asking;
+        false
+    }
+
+    /// What closing the prompt with `choice` asks the window to do next. Discard approves the
+    /// close, Cancel drops the prompt, Save leaves it waiting for the save (the caller starts it).
+    pub fn close_choice(&mut self, choice: CloseChoice) -> bool {
+        match choice {
+            CloseChoice::Save => {
+                self.close_prompt = ClosePrompt::Saving;
+                false
+            }
+            CloseChoice::Discard => {
+                self.close_prompt = ClosePrompt::Hidden;
+                self.close_approved = true;
+                true
+            }
+            CloseChoice::Cancel => {
+                self.close_prompt = ClosePrompt::Hidden;
+                false
+            }
+        }
+    }
+
+    /// After a Save from the prompt: close when nothing is left unsaved and no save is running;
+    /// otherwise (the save failed, or its dialog was cancelled) ask again.
+    pub fn close_after_save(&mut self, unsaved: bool) -> Option<bool> {
+        if self.close_prompt != ClosePrompt::Saving || self.is_busy() {
+            return None;
+        }
+        if unsaved {
+            self.close_prompt = ClosePrompt::Asking;
+            Some(false)
+        } else {
+            self.close_prompt = ClosePrompt::Hidden;
+            self.close_approved = true;
+            Some(true)
+        }
+    }
 }
 
 fn open_name(path: &Path) -> String {
@@ -450,6 +517,48 @@ fn write_marker(path: &Path, status: &str, error: Option<String>) {
         path,
         &serde_json::to_vec(&value).unwrap_or_default(),
     );
+}
+
+/// Where the close prompt stands (UX-027).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClosePrompt {
+    #[default]
+    Hidden,
+    /// The window was asked to close with unsaved changes; Save, Discard or Cancel is awaited.
+    Asking,
+    /// Save was chosen; the window closes when the save has finished and nothing is unsaved.
+    Saving,
+}
+
+/// The three answers the close prompt offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseChoice {
+    Save,
+    Discard,
+    Cancel,
+}
+
+/// One line for the user when an opened file carries properties from a newer FARIS (PRV-055).
+/// `saved` is true once a save has written them back.
+pub fn newer_file_notice(
+    fields: &BTreeMap<String, serde_json::Value>,
+    saved: bool,
+) -> Option<String> {
+    if fields.is_empty() {
+        return None;
+    }
+    let names = fields.keys().cloned().collect::<Vec<_>>().join(", ");
+    let count = fields.len();
+    let (plural, verb) = if count == 1 { ("", "is") } else { ("s", "are") };
+    Some(if saved {
+        format!(
+            "This file came from a newer FARIS; its {count} extra field{plural} ({names}) {verb} kept in the saved file."
+        )
+    } else {
+        format!(
+            "This file came from a newer FARIS; its {count} extra field{plural} ({names}) cannot be shown here and {verb} kept when you save."
+        )
+    })
 }
 
 /// Verify the file, unpack it under a fresh workspace and load it. Runs on a
@@ -600,6 +709,11 @@ fn open_study(
         .evidence_store
         .as_ref()
         .map_or_else(Vec::new, |layer| layer.trees.clone());
+    let unknown_fields = reader.unknown_manifest_fields().clone();
+    // Done with the file: close it now, so saving over the same path never meets an open handle
+    // (Windows cannot replace a file that is open). Nothing after this reads the study file;
+    // the evidence extraction above works from copies in the workspace.
+    drop(reader);
     let store_drafts = evidence_trees
         .iter()
         .map(|tree| EvidenceStoreDraft {
@@ -660,6 +774,7 @@ fn open_study(
             descriptors,
             marker,
             ensembles,
+            unknown_fields,
             workspace,
         },
     ))
@@ -804,7 +919,12 @@ impl FarisApp {
             .collect();
         self.file.evidence_store = opened.evidence_store;
         self.message = status_line(&opened.path, "Opened", opened.file_bytes, &summary);
+        if let Some(notice) = newer_file_notice(&opened.unknown_fields, false) {
+            self.message = format!("{} {notice}", self.message);
+        }
+        self.file.unknown_fields = opened.unknown_fields;
         self.file.path = Some(opened.path);
+        self.file.last_error = None;
         self.file.inputs = opened.inputs;
         if crate::browser::IS_BROWSER {
             self.file.inputs.unsaveable =
@@ -901,12 +1021,14 @@ impl FarisApp {
     ) {
         let (sender, receiver) = mpsc::channel();
         let (target, context) = (path.clone(), ctx.clone());
+        let unknown_fields = self.file.unknown_fields.clone();
         let spawned = crate::thread::Builder::new()
             .name("faris-save-study".into())
             .spawn(move || {
                 draft.preview_png = capture
                     .and_then(|(shot, rect, scale)| thumbnail::from_screenshot(&shot, rect, scale));
-                let _ = sender.send(write_study(&target, &draft).map_err(|e| e.to_string()));
+                let result = write_study_preserving(&target, &draft, &unknown_fields);
+                let _ = sender.send(result.map_err(|e| e.to_string()));
                 context.request_repaint();
             });
         match spawned {
@@ -1037,7 +1159,11 @@ impl FarisApp {
             self.file.task = Task::Idle;
             match result.and_then(|r| r) {
                 Ok((session, opened)) => self.install_opened(ctx, session, opened),
-                Err(error) => self.message = format!("Cannot open {name}: {error}"),
+                Err(error) => {
+                    let error = UserError::new(&STUDY_OPEN, name, error);
+                    self.message = error.text();
+                    self.file.last_error = Some(error);
+                }
             }
         }
         if matches!(self.file.task, Task::Capturing { .. }) {
@@ -1090,10 +1216,18 @@ impl FarisApp {
                         }
                     };
                     self.message = status_line(&path, "Saved", report.file_bytes, &mode);
+                    if let Some(notice) = newer_file_notice(&self.file.unknown_fields, true) {
+                        self.message = format!("{} {notice}", self.message);
+                    }
                     self.file.path = Some(path);
+                    self.file.last_error = None;
                     self.file.saved_view = Some(*view);
                 }
-                Err(error) => self.message = format!("Cannot save {}: {error}", open_name(&path)),
+                Err(error) => {
+                    let error = UserError::new(&STUDY_SAVE, open_name(&path), error);
+                    self.message = error.text();
+                    self.file.last_error = Some(error);
+                }
             }
         }
         if !matches!(self.file.task, Task::Idle) {
@@ -1193,6 +1327,87 @@ impl FarisApp {
         }
     }
 
+    /// Once per frame: a close request with unsaved work raises the prompt instead of closing,
+    /// and a Save chosen there closes the window when it has finished (UX-027). Scripted runs
+    /// (capture, recording, checks) close without asking.
+    pub fn handle_close(&mut self, ctx: &egui::Context, scripted: bool) {
+        let current = self.view_state();
+        let unsaved = self.file.has_unsaved(&current);
+        if !scripted && ctx.input(|i| i.viewport().close_requested()) {
+            if !self.file.close_requested(unsaved) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            }
+            return;
+        }
+        if self.file.close_after_save(unsaved) == Some(true) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+
+    /// The Save, Discard and Cancel prompt for a close with unsaved work.
+    pub fn close_prompt_ui(&mut self, ctx: &egui::Context) {
+        if self.file.close_prompt == ClosePrompt::Hidden {
+            return;
+        }
+        let name = self
+            .file
+            .path
+            .as_deref()
+            .map_or_else(|| "This study".to_owned(), open_name);
+        let reason = self.file.inputs.unsaveable.clone();
+        let saving = self.file.close_prompt == ClosePrompt::Saving;
+        let failed = self
+            .file
+            .last_error
+            .as_ref()
+            .filter(|e| e.entry.code == STUDY_SAVE.code)
+            .map(UserError::text);
+        let mut choice = None;
+        let modal = egui::Modal::new(egui::Id::new("close-prompt")).show(ctx, |ui| {
+            ui.set_max_width(380.0);
+            ui.strong("Save changes before closing?");
+            ui.add_space(4.0);
+            ui.label(format!(
+                "{name} has changes that are not saved. Save writes them to the study file, Discard closes without saving them, Cancel keeps the window open."
+            ));
+            if let Some(failed) = &failed {
+                ui.colored_label(Kind::Failed.color(), failed);
+            }
+            if let Some(reason) = &reason {
+                ui.colored_label(Kind::Partial.color(), reason);
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let save = ui.add_enabled(
+                    !saving && reason.is_none(),
+                    egui::Button::new(if saving { "Saving…" } else { "Save" }),
+                );
+                if save.clicked() {
+                    choice = Some(CloseChoice::Save);
+                }
+                if ui.add_enabled(!saving, egui::Button::new("Discard")).clicked() {
+                    choice = Some(CloseChoice::Discard);
+                }
+                if ui.add_enabled(!saving, egui::Button::new("Cancel")).clicked() {
+                    choice = Some(CloseChoice::Cancel);
+                }
+            });
+        });
+        if choice.is_none() && modal.should_close() && !saving {
+            choice = Some(CloseChoice::Cancel);
+        }
+        if let Some(choice) = choice {
+            let close_now = self.file.close_choice(choice);
+            match choice {
+                CloseChoice::Save => self.file_action(ctx, Action::Save),
+                CloseChoice::Discard if close_now => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close)
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// Blocks the window with a progress card while a study opens.
     pub fn opening_overlay(&self, ctx: &egui::Context) {
         let Task::Opening { name, progress, .. } = &self.file.task else {
@@ -1222,7 +1437,7 @@ fn enum_name<T: ValueEnum>(value: &T) -> String {
 mod tests {
     use super::*;
     use clap::Parser;
-    use faris_study::{ArchiveKind, EvidenceArchive, EvidenceFile, EvidenceMiss};
+    use faris_study::{ArchiveKind, EvidenceArchive, EvidenceFile, EvidenceMiss, write_study};
 
     const ASSUMPTIONS: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1299,8 +1514,8 @@ mod tests {
         assert_eq!(window_title(Some(path), false), "FARIS — study.faris");
         assert_eq!(window_title(Some(path), true), "FARIS — study.faris •");
         assert_eq!(window_title(None, false), "FARIS — unsaved study");
-        // Before a first save there is no file to be different from.
-        assert_eq!(window_title(None, true), "FARIS — unsaved study");
+        // Before a first save the marker still shows changes made since the study was started.
+        assert_eq!(window_title(None, true), "FARIS — unsaved study •");
     }
 
     // Verifies: UX-027
@@ -1474,6 +1689,123 @@ mod tests {
                 workspace_tree: "port-reference-workspace".into(),
             }],
         }
+    }
+
+    /// One frame with a window close request (or none), returning the viewport commands sent.
+    fn close_frame(
+        ctx: &egui::Context,
+        app: &mut FarisApp,
+        close: bool,
+    ) -> Vec<egui::ViewportCommand> {
+        let mut raw = egui::RawInput {
+            focused: true,
+            ..Default::default()
+        };
+        if close {
+            raw.viewports
+                .entry(egui::ViewportId::ROOT)
+                .or_default()
+                .events
+                .push(egui::ViewportEvent::Close);
+        }
+        let mut output = ctx.run_ui(raw, |ui| {
+            let ctx = ui.ctx().clone();
+            app.handle_close(&ctx, false);
+            app.close_prompt_ui(&ctx);
+        });
+        let commands = output
+            .viewport_output
+            .remove(&egui::ViewportId::ROOT)
+            .map(|v| v.commands)
+            .unwrap_or_default();
+        output.drop_without_applying_deltas();
+        commands
+    }
+
+    fn has(commands: &[egui::ViewportCommand], wanted: &egui::ViewportCommand) -> bool {
+        commands.iter().any(|c| c == wanted)
+    }
+
+    // Verifies: UX-027
+    #[test]
+    fn closing_with_unsaved_work_asks_and_a_clean_study_closes_at_once() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.file.saved_view = Some(app.view_state());
+        // Nothing unsaved: the close goes through and no prompt appears.
+        let commands = close_frame(&ctx, &mut app, true);
+        assert!(!has(&commands, &egui::ViewportCommand::CancelClose));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Hidden);
+        // An edit marks the title, and a close request now raises the prompt instead.
+        app.year += 3.0;
+        assert!(app.file.has_unsaved(&app.view_state()));
+        assert!(app.file.title(&app.view_state()).ends_with('•'));
+        let commands = close_frame(&ctx, &mut app, true);
+        assert!(has(&commands, &egui::ViewportCommand::CancelClose));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Asking);
+        // Cancel keeps the window, the prompt goes away, and the next close asks again.
+        assert!(!app.file.close_choice(CloseChoice::Cancel));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Hidden);
+        close_frame(&ctx, &mut app, true);
+        assert_eq!(app.file.close_prompt, ClosePrompt::Asking);
+        // Discard approves the close without saving.
+        assert!(app.file.close_choice(CloseChoice::Discard));
+        let commands = close_frame(&ctx, &mut app, true);
+        assert!(!has(&commands, &egui::ViewportCommand::CancelClose));
+    }
+
+    // Verifies: UX-027
+    #[test]
+    fn save_from_the_prompt_closes_when_saved_and_asks_again_when_it_failed() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.file.saved_view = Some(app.view_state());
+        app.year += 3.0;
+        close_frame(&ctx, &mut app, true);
+        assert!(!app.file.close_choice(CloseChoice::Save));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Saving);
+        // The save failed (still unsaved, nothing running): the prompt returns.
+        let commands = close_frame(&ctx, &mut app, false);
+        assert!(!has(&commands, &egui::ViewportCommand::Close));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Asking);
+        // The save succeeded (what was saved is now what is shown): the window closes.
+        app.file.close_choice(CloseChoice::Save);
+        app.file.saved_view = Some(app.view_state());
+        let commands = close_frame(&ctx, &mut app, false);
+        assert!(has(&commands, &egui::ViewportCommand::Close));
+        assert_eq!(app.file.close_prompt, ClosePrompt::Hidden);
+    }
+
+    // Verifies: PRV-055
+    #[test]
+    fn saving_over_the_open_study_keeps_a_newer_files_extra_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("newer.faris");
+        let extra = BTreeMap::from([(
+            "future_field".to_owned(),
+            serde_json::json!({"from": "a newer FARIS"}),
+        )]);
+        let draft = StudyDraft {
+            assumptions: Some(PathBuf::from(ASSUMPTIONS)),
+            ..StudyDraft::default()
+        };
+        write_study_preserving(&path, &draft, &extra).unwrap();
+        let progress = Mutex::new(String::new());
+        let (_, opened) = open_study(&path, &dir.path().join("runs"), None, &progress).unwrap();
+        assert_eq!(opened.unknown_fields, extra);
+        // The open is finished, so nothing holds the file: saving over the same path works (a
+        // handle kept open here would make this fail on Windows).
+        write_study_preserving(&path, &opened.inputs.draft, &opened.unknown_fields).unwrap();
+        let again = StudyReader::open(&path).unwrap();
+        assert_eq!(again.unknown_manifest_fields(), &extra);
+        drop(again);
+        // The notice is one line, names the fields, and changes wording once they are written.
+        let before = newer_file_notice(&opened.unknown_fields, false).unwrap();
+        let after = newer_file_notice(&opened.unknown_fields, true).unwrap();
+        assert!(before.contains("newer FARIS") && before.contains("future_field"));
+        assert!(before.contains("kept when you save") && !before.contains('\n'));
+        assert!(after.contains("kept in the saved file"));
+        assert_eq!(newer_file_notice(&BTreeMap::new(), true), None);
     }
 
     // Verifies: PRV-040

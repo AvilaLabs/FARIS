@@ -244,11 +244,11 @@ Run `faris COMMAND --help` for every flag. Exit codes: 0 ok; 1 rejected evidence
 
 **"recorded case, mesh or response definitions differ from this FARIS build: …"** The study was recorded by an earlier build. The full message continues: "The run was probably recorded by an earlier version; rerun the transport case with this build to use it."
 
-**"Cannot open NAME: …"** The file could not be opened. The reason follows. Reading is fail-closed. A file is refused if a blob does not match its recorded SHA-256 ("blob … does not match its recorded SHA-256"), if its size is wrong, if it uses an unsupported encoding, or if its version is not major version 1 ("unsupported study-file version …"). Run `faris study-file verify FILE` to see which part failed.
+**"The study file could not be opened. (NAME) FARIS-APP-001 Cause: …"** The file could not be opened. The cause follows (a failed save reads "The study file could not be saved", code FARIS-APP-002). The status bar has a Copy details button that copies the code and the technical message for a report. Reading is fail-closed. A file is refused if a blob does not match its recorded SHA-256 ("blob … does not match its recorded SHA-256"), if its size is wrong, if it uses an unsupported encoding, or if its version is not major version 1 ("unsupported study-file version …"). Run `faris study-file verify FILE` to see which part failed.
 
 **"Core receipts not included".** The Core archives are referenced, not packed. See section 6. A listed archive that is "not found" is missing from beside the file. One whose SHA-256 differs from the record is not used.
 
-**"No uncertainty range: …".** The ensemble is NOT_EVALUATED. The line gives the reason and the next step. Typical reasons are a transport record without covariance, or more than 1 per cent rejected draws.
+**"No uncertainty range. NOT_EVALUATED (NE-ENSEMBLE). Why: … Next step: …".** The ensemble is NOT_EVALUATED. The line gives a reason code, the reason and the next step. Typical reasons are a transport record without covariance, or more than 1 per cent rejected draws.
 
 **Export is unavailable.** Hover the button. It says when histories are still calculating, or when the study has no operating assumptions.
 

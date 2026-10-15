@@ -243,9 +243,8 @@ impl HistoryPanel {
                 if let Some((why, next_step)) = not_evaluated_text(&ensemble) {
                     ui.colored_label(
                         Kind::Partial.color(),
-                        format!("No uncertainty range: {why}"),
+                        format!("No uncertainty range. {}", ensemble_reason(why, next_step)),
                     );
-                    ui.label(format!("Next step: {next_step}"));
                 }
                 ui.small(format!(
                     "{} samples · {}",
@@ -278,11 +277,15 @@ impl HistoryPanel {
         match status {
             Status::Ready(ensemble) => match not_evaluated_text(&ensemble) {
                 None => {
+                    let inputs = &crate::interval_kind::HISTORY_INPUTS;
                     badge::badge(
                         ui,
-                        Kind::Conditional,
+                        crate::interval_kind::interval_kind(inputs).unwrap_or(Kind::Conditional),
                         "bands: P5–P95, transport sampling only",
-                        SCOPE_DETAIL,
+                        &format!(
+                            "{SCOPE_DETAIL}\n\n{}",
+                            crate::interval_kind::interval_explanation(inputs)
+                        ),
                     );
                 }
                 Some((why, next_step)) => {
@@ -290,7 +293,7 @@ impl HistoryPanel {
                         ui,
                         Kind::NotEvaluated,
                         "no uncertainty range",
-                        &format!("{why}.\nNext step: {next_step}."),
+                        &ensemble_reason(why, next_step),
                     );
                 }
             },
@@ -436,6 +439,11 @@ fn scope_line(ui: &mut egui::Ui) {
     });
 }
 
+/// The not-evaluated range as text: code, why and next step (UNC-054).
+pub(super) fn ensemble_reason(why: &str, next_step: &str) -> String {
+    crate::not_evaluated::Reason::engine(crate::not_evaluated::ENSEMBLE_UNEVALUATED, why, next_step)
+}
+
 /// Each output with its nominal value and its range or distribution.
 fn rows_ui(ui: &mut egui::Ui, rows: &[UncertaintyRow]) {
     for row in rows {
@@ -446,11 +454,16 @@ fn rows_ui(ui: &mut egui::Ui, rows: &[UncertaintyRow]) {
         });
         match &row.result {
             Some(result) => {
-                ui.label(&result.text).on_hover_ui(|ui| {
-                    ui.set_max_width(380.0);
-                    ui.label(&result.detail);
-                    ui.add_space(4.0);
-                    ui.small(SCOPE_LINE);
+                ui.horizontal_wrapped(|ui| {
+                    let range = ui.add(egui::Label::new(&result.text).sense(egui::Sense::click()));
+                    badge::explain(range, |ui| {
+                        ui.set_max_width(380.0);
+                        ui.label(&result.detail);
+                        ui.add_space(4.0);
+                        ui.small(SCOPE_LINE);
+                    });
+                    // The range is labelled with the kind of its weakest input (UNC-016).
+                    crate::interval_kind::history_interval_badge(ui);
                 });
             }
             None => {

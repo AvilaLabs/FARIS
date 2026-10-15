@@ -19,16 +19,16 @@ With the evidence pack, the app reads the evidence store in the package folder a
 **"recorded case, mesh or response definitions differ from this FARIS build: …"**
 The study was recorded by an earlier build. The full message continues: "The run was probably recorded by an earlier version; rerun the transport case with this build to use it."
 
-**"Cannot open NAME: …"**
-The file could not be opened. The reason follows. Reading is fail-closed. A file is refused if a blob does not match its recorded SHA-256 ("blob … does not match its recorded SHA-256"), if its size is wrong, if it uses an unsupported encoding, or if its version is not major version 1 ("unsupported study-file version …"). Run `faris study-file verify FILE` to see which part failed.
+**"The study file could not be opened. (NAME) FARIS-APP-001 Cause: …"**
+The file could not be opened. The cause follows (a failed save reads "The study file could not be saved", code FARIS-APP-002). The status bar has a Copy details button that copies the code and the technical message for a report. Reading is fail-closed. A file is refused if a blob does not match its recorded SHA-256 ("blob … does not match its recorded SHA-256"), if its size is wrong, if it uses an unsupported encoding, or if its version is not major version 1 ("unsupported study-file version …"). Run `faris study-file verify FILE` to see which part failed.
 
 **"Core receipts not included"**
 For the recorded package, the evidence store is not in the package folder. The message says why and the next step: download `FARIS-0.2.0-evidence.tar.gz` from the same release, unpack it into the `FARIS-0.2.0` folder, and reopen FARIS. Everything else works without it. For a `.faris` file saved with its Core evidence by reference, the Evidence step names each saved case whose evidence tree was not found or whose file list did not match, and where it looked: the `evidence-store` folder beside the file, then the store of the package the app was started from. Put the file next to the package's `evidence-store` folder, open it with FARIS started from that package, or save it again with **Include Core evidence in saved files** ticked. See [Study files](study-files.md). For files saved with older packages, a listed archive that is "not found" is missing from beside the file, and one whose SHA-256 differs from the record is not used.
 
 ## Uncertainty and export
 
-**"No uncertainty range: …"**
-The ensemble is not evaluated. The line gives the reason and the next step. Typical reasons are a transport record without covariance, or more than 1 per cent of draws rejected. See [Uncertainty ensembles](uncertainty.md).
+**"No uncertainty range. NOT_EVALUATED (NE-ENSEMBLE). Why: … Next step: …"**
+The ensemble is not evaluated. The line gives a reason code, the reason and the next step; the same text is on the badge when you hover it, focus it with Tab, or tap it. Typical reasons are a transport record without covariance, or more than 1 per cent of draws rejected. See [Uncertainty ensembles](uncertainty.md).
 
 **Export is unavailable.**
 Hover the button. It says when histories are still calculating, or when the study has no operating assumptions.
