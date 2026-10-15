@@ -1052,6 +1052,7 @@ pub(crate) mod tests {
         assert!(text.contains("the design was not judged: python exited with 1. Next step"));
     }
 
+    // Verifies: GEO-070
     #[test]
     fn init_hands_back_the_summary_and_the_nulls_it_left() {
         let (dir, mut inputs) = tree();

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class FuzzSeed(unittest.TestCase):
     # Verifies: QA-033
+    # Verifies: SEC-020
     def test_every_fuzz_target_gets_seeds_from_the_repository(self):
         targets = sorted(p.stem for p in (ROOT / "fuzz" / "fuzz_targets").glob("*.rs"))
         self.assertTrue(targets)

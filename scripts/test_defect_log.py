@@ -60,6 +60,7 @@ class DefectLogTests(unittest.TestCase):
             self.assertTrue(self.problems(entry(**change)), change)
 
     # Verifies: QA-080
+    # Verifies: QA-085
     def test_the_regression_test_must_exist(self):
         self.assertTrue(any("does not exist" in p for p in self.problems(entry(regression_test="tests/x.rs::a"))))
         self.assertTrue(any("does not occur" in p for p in self.problems(entry(regression_test="tests/t.rs::nope"))))

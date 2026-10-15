@@ -690,6 +690,8 @@ mod tests {
 
     #[test]
     fn registry_is_well_formed() {
+        // Verifies: CFG-003
+        // Verifies: CFG-004
         let mut seen = std::collections::BTreeSet::new();
         for d in REGISTRY {
             assert!(seen.insert(d.key), "duplicate key {}", d.key);
@@ -709,6 +711,7 @@ mod tests {
     #[test]
     fn handbook_page_lists_exactly_the_registry() {
         // Verifies: CFG-002
+        // Verifies: CFG-011
         let page = include_str!("../../../docs/guide/settings.md");
         assert!(page.starts_with("<!-- kind: reference -->"));
         let (_, table) = page
@@ -731,6 +734,7 @@ mod tests {
 
     #[test]
     fn layers_win_in_order_and_each_value_names_its_origin() {
+        // Verifies: CFG-001
         // Verifies: CFG-002
         // Verifies: CFG-080
         let mut file = UserSettings::default();
@@ -793,6 +797,7 @@ mod tests {
 
     #[test]
     fn validation_reports_every_problem_at_once() {
+        // Verifies: CFG-014
         // Verifies: CFG-017
         let bytes = br#"{
             "schema": 1,
@@ -883,6 +888,8 @@ mod tests {
 
     #[test]
     fn set_validates_and_unset_restores_the_lower_layer() {
+        // Verifies: CFG-014
+        // Verifies: CFG-021
         let mut file = UserSettings::default();
         assert!(file.set("memory.cap_mb", "0").is_err());
         assert!(file.set("nope", "1").is_err());
@@ -894,6 +901,7 @@ mod tests {
         assert!(file.is_empty());
     }
 
+    // Verifies: CFG-005
     #[test]
     fn result_changing_settings_are_refused_in_the_user_layer() {
         // Verifies: CFG-006

@@ -61,6 +61,7 @@ class Matrix(unittest.TestCase):
         self.assertIn("matrix quantities differ from the quantity registry", M.check_matrix(self.suite()["matrix"], bigger))
         self.assertEqual(M.check_matrix({"schema": "x"}), ["matrix schema must be 'faris.validation-matrix/1.0.0'"])
 
+    # Verifies: VAL-052
     def test_a_scored_benchmark_carries_bias_and_a_run_status(self):
         row = next(r for r in self.suite(with_run=True)["matrix"]["rows"] if r["quantity"] == "flux")
         self.assertEqual(row["status"], "validated within range")

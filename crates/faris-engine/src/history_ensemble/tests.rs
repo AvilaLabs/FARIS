@@ -477,6 +477,7 @@ fn generator_streams_are_distinct_and_reproducible() {
     assert!(mean.abs() < 0.015 && (var - 1.0).abs() < 0.02);
 }
 
+// Verifies: UNC-010
 #[test]
 fn summary_has_intervals_bands_and_fractions() {
     let rates = rates_with(0.1, 0.3);

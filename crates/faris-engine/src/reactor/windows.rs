@@ -602,6 +602,7 @@ mod tests {
         }
     }
 
+    // Verifies: AUTO-035
     #[test]
     fn a_cache_entry_counts_only_when_its_file_matches_its_record() {
         let dir = tempfile::tempdir().unwrap();

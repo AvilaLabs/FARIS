@@ -64,6 +64,7 @@ class StopRuleTest(unittest.TestCase):
         self.assertIsNone(DT.stop_reason(stats_of(noisy[:20]), SAMPLING, 1.0))
 
     # Verifies: NUC-043
+    # Verifies: NUC-041, UNC-005, UNC-007
     def test_a_run_one_batch_dominates_is_not_accepted(self):
         # 400 batches agree to 1 %, one carries a heavy history: the error is 0.5 %, well under the target, but
         # the variance of the variance is near 1, so the run goes on.

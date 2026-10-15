@@ -38,6 +38,7 @@ class WorkflowTests(unittest.TestCase):
         writers = [p.name for p in workflow_files() if re.search(r"(?m)^permissions:\s*\n\s+contents:\s*write", p.read_text())]
         self.assertEqual(writers, ["release-smoke.yml"])
 
+    # Verifies: SEC-031
     def test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks(self):
         # Verifies: QA-039, QA-090, LEG-005, QA-022
         text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")

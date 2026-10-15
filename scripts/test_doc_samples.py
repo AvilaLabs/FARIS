@@ -66,6 +66,7 @@ class Extraction(unittest.TestCase):
 
 class Dispositions(unittest.TestCase):
     # Verifies: QA-016
+    # Verifies: DOC-020
     def test_a_runnable_command_is_executed_and_a_failing_one_fails_the_check(self):
         docs = {"README.md": "```bash\nfaris validate s.json\n```\n\n```bash\nfaris fail\n```\n"}
         tmp, root, faris = tree(docs)
@@ -77,6 +78,7 @@ class Dispositions(unittest.TestCase):
         self.assertIn("not a command", " ".join(c.get("detail", "") for c in results.failures()))
 
     # Verifies: QA-016
+    # Verifies: DOC-021
     def test_a_flag_the_binary_does_not_have_fails(self):
         tmp, root, faris = tree({"README.md": "```bash\nfaris validate s.json --nonsense\n```\n"})
         with tmp:

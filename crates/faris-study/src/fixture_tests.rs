@@ -419,6 +419,7 @@ fn regenerate_archived_fixtures() {
 }
 
 // Verifies: PRV-053, DOC-042, INT-001
+// Verifies: QA-092, CFG-071
 #[test]
 fn every_archived_fixture_opens_verifies_and_matches_its_summary() {
     let files = fixtures();
@@ -475,6 +476,7 @@ fn manifest_value(path: &Path) -> Value {
 }
 
 // Verifies: INT-001, INT-003, INT-041
+// Verifies: CFG-012
 #[test]
 fn documents_written_by_the_writer_validate_against_the_published_schemas() {
     let mut ensembles = 0;
@@ -541,6 +543,7 @@ fn the_schemas_reject_documents_the_reader_would_refuse() {
 
 /// The schema lists exactly the properties the writer's types emit: a field
 /// added to a record without the schema changing fails here.
+// Verifies: CFG-012
 #[test]
 fn the_manifest_schema_names_every_field_the_types_write() {
     let schema = schema("faris-study-manifest-1.schema.json");
@@ -627,7 +630,7 @@ fn the_manifest_schema_names_every_field_the_types_write() {
 // ---------------------------------------------------------------------------
 // Unknown fields from a newer minor version
 
-// Verifies: PRV-055
+// Verifies: PRV-055, CFG-075, INT-082
 #[test]
 fn unknown_top_level_manifest_fields_are_listed_and_survive_a_re_save() {
     let newer = Path::new(FIXTURE_DIR).join("02-newer-minor-unknown-fields.faris");

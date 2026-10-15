@@ -123,6 +123,7 @@ class ReleaseGate(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
 
     # Verifies: QA-070
+    # Verifies: PLAT-073
     def test_a_gate_with_every_input_good_passes_every_condition(self):
         make_root(self.d)
         res = rg.run_gate(rg.Gate(self.d, **passing_inputs(self.d)))
@@ -187,6 +188,7 @@ class ReleaseGate(unittest.TestCase):
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
 
     # Verifies: QA-033
+    # Verifies: SEC-021
     def test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash(self):
         make_root(self.d)
         inputs = passing_inputs(self.d)
@@ -221,6 +223,7 @@ class ReleaseGate(unittest.TestCase):
         self.assertIn("faris", reason)
 
     # Verifies: QA-070
+    # Verifies: QA-072
     def test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver(self):
         make_root(self.d)
         inputs = passing_inputs(self.d)

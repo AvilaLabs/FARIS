@@ -956,7 +956,7 @@ mod tests {
         }
     }
 
-    // Verifies: A11Y-001, UX-030
+    // Verifies: A11Y-001, UX-030, UX-031
     #[test]
     fn every_registry_entry_is_complete_unique_and_in_the_palette() {
         let mut ids = BTreeSet::new();
@@ -1148,7 +1148,7 @@ mod tests {
         assert!(app.message.contains("Next step:"), "{}", app.message);
     }
 
-    // Verifies: A11Y-001
+    // Verifies: A11Y-001, A11Y-008
     #[test]
     fn the_viewport_and_plot_keys_move_the_view_and_the_cursor_year() {
         let keys = Keys::new();
@@ -1186,7 +1186,7 @@ mod tests {
         }
     }
 
-    // Verifies: A11Y-001, DOC-002
+    // Verifies: A11Y-001, DOC-002, UX-034
     #[test]
     fn the_keyboard_page_lists_every_shortcut_and_command() {
         for command in REGISTRY {

@@ -238,6 +238,7 @@ mod tests {
     }
 
     // Verifies: A11Y-009
+    // Verifies: A11Y-025
     #[test]
     fn enter_pins_the_explanation_and_escape_closes_it() {
         let ctx = egui::Context::default();

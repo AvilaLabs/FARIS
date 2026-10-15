@@ -40,6 +40,7 @@ class ScorecardTests(unittest.TestCase):
     def test_withdrawn_rows_are_excluded(self):
         self.assertEqual(list(self.reqs), ["AAA-001", "AAA-002", "AAA-003", "AAA-005"])
 
+    # Verifies: QA-009
     def test_counts(self):
         counts = sc.tally(list(self.reqs), self.reqs)
         # total, Met, Partial, Unmeasured, No, traced, [V], [U], FARIS choice, [internal], no basis, provisional

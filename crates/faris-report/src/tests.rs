@@ -1353,6 +1353,7 @@ fn column_quantity(file: &str, column: &str) -> Option<Option<faris_model::valid
 }
 
 // Verifies: VAL-054
+// Verifies: VAL-055
 #[test]
 fn every_calculated_column_of_the_tables_has_a_validation_column() {
     let (_guard, outcome) = exported();

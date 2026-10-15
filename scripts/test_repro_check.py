@@ -29,6 +29,7 @@ class ReproCheck(unittest.TestCase):
         self.assertRegex(out.stdout, r"export SOURCE_DATE_EPOCH=\d+")
 
     # Verifies: QA-063
+    # Verifies: SEC-037
     def test_equal_binaries_write_evidence_the_release_gate_accepts(self):
         with tempfile.TemporaryDirectory() as tmp:
             a, b, ev = (Path(tmp) / n for n in ("a", "b", "repro.json"))

@@ -98,6 +98,7 @@ class MetRule(unittest.TestCase):
     ROW = "| AAA-001 | a | t | {} | [U] | F1 | Met: done |"
 
     # Verifies: QA-001
+    # Verifies: QA-071
     def test_met_needs_a_test_unless_audit(self):
         self.assertIn("met-traced", rules(lint(self.ROW.format("Unit test."))))
         self.assertEqual(lint(self.ROW.format("Unit test."), trace={"AAA-001": ["t.rs::a"]}), [])

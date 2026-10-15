@@ -152,6 +152,7 @@ class RestartedRun(unittest.TestCase):
             ADAPTER.read_scalar_sums = saved
 
     # Verifies: NUC-043
+    # Verifies: AUTO-052
     def test_the_part_after_a_restart_is_appended_and_only_the_last_file_is_kept(self):
         before = {"t": [float(b) for b in range(1, 41)]}
         (sums, realized), left = self.read(range(40, 49), (before, 40))
@@ -196,6 +197,7 @@ class VarianceGuard(unittest.TestCase):
             self.rule(["a", "a"])
 
     # Verifies: NUC-043
+    # Verifies: NUC-041, UNC-005
     def test_a_steady_run_is_met_and_settled_and_a_heavy_batch_is_met_but_not_settled(self):
         rule = self.rule()
         steady = self.cumulative([1.0 + 0.01 * (i % 3) for i in range(40)])
@@ -217,6 +219,7 @@ class VarianceGuard(unittest.TestCase):
         self.assertTrue(ADAPTER.guard_verdict(rule, {"response-a": good, "response-b": good})["met"])
 
     # Verifies: NUC-043
+    # Verifies: UNC-007
     def test_a_met_but_unsettled_target_only_stops_at_the_budget_and_says_so(self):
         rule = self.rule()
         self.assertEqual(ADAPTER.judge_stop(rule, 40, 0.04, 0.02)[0], "target_met")

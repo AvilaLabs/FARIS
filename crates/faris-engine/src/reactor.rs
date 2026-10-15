@@ -3010,6 +3010,7 @@ mod tests {
     }
 
     // Verifies: NUC-043
+    // Verifies: NUC-041, UNC-005, UNC-007
     #[test]
     fn a_target_is_not_met_while_the_batches_disagree() {
         let plan = SamplingPlan {
@@ -3092,6 +3093,7 @@ mod tests {
     }
 
     // Verifies: PERF-025, NUC-043
+    // Verifies: UNC-007
     #[test]
     fn sampling_outcome_accepts_only_stops_the_rule_can_explain() {
         let plan = SamplingPlan {

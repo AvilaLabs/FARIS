@@ -109,6 +109,7 @@ fn the_key_describes_its_own_ensemble_only() {
     assert!(!key(6).describes(&e));
 }
 
+// Verifies: AUTO-036
 #[test]
 fn the_cache_drops_its_oldest_entry_when_full() {
     let mut cache = EnsembleCache::default();
