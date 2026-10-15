@@ -773,6 +773,51 @@ fn a_partial_study_exports_with_explained_gaps() {
     assert!(outcome.folder.join("summary.pdf").is_file());
 }
 
+// Verifies: L10N-011
+#[test]
+fn numbers_in_every_table_use_a_dot_and_no_grouping() {
+    // Rust formatting never reads the locale; this pins the written form.
+    for value in [0.5, 1234567.891, -2.5e-9, 6.02e23, 1.0e300] {
+        let written = tables::number(value);
+        assert!(
+            !written.contains([',', ' ', '\u{a0}', '\u{202f}']),
+            "{written}"
+        );
+        assert_eq!(written.parse::<f64>().unwrap(), value);
+    }
+    let (_guard, outcome) = exported();
+    let mut checked = 0;
+    for relative in fs::read_dir(outcome.folder.join("data"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "csv"))
+    {
+        let csv = fs::read_to_string(&relative).unwrap();
+        let rows = cells(
+            &csv.lines()
+                .filter(|l| !l.starts_with('#'))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        let width = rows[0].len();
+        for row in &rows {
+            // A comma used as a decimal mark would add a column.
+            assert_eq!(row.len(), width, "{relative:?}: {row:?}");
+            for cell in row {
+                let grouped = cell.len() > 4
+                    && cell
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || " ,\u{a0}.".contains(c))
+                    && cell.contains([' ', ',', '\u{a0}']);
+                assert!(!grouped, "{relative:?}: grouped number {cell}");
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 100);
+    assert_eq!(format_timestamp(FIXTURE_UNIX_S), "2026-09-21T14:13:20Z");
+}
+
 #[test]
 fn folder_names_and_dates_are_safe_and_exact() {
     assert_eq!(folder_name("My study"), "My study-export");

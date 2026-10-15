@@ -501,13 +501,14 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
             let state = cc
                 .wgpu_render_state
                 .as_ref()
-                .ok_or("wgpu is required for the 3D viewport")?;
+                .ok_or_else(|| graphics_failure("no wgpu render state was created"))?;
             viewport::initialize(state);
             eprintln!("FARIS graphics: {:?}", state.adapter.get_info());
             let mut visuals = egui::Visuals::dark();
             visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
             visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
             cc.egui_ctx.set_visuals(visuals);
+            cc.egui_ctx.all_styles_mut(crate::apply_text_sizes);
             cc.egui_ctx.set_zoom_factor(args.interface_scale);
             let sweep = (!args.sweep_bundle.is_empty()).then(|| {
                 let (paths, runs) = (args.sweep_bundle.clone(), runs_directory.clone());
@@ -603,12 +604,35 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
             Ok(Box::new(app))
         }),
-    )?;
+    )
+    .map_err(|error| graphics_failure(&error.to_string()))?;
     Ok(())
+}
+
+/// What the user sees when the graphics adapter or window cannot start: what
+/// failed, why it matters, and what to try next (PLAT-013).
+fn graphics_failure(detail: &str) -> String {
+    format!(
+        "FARIS could not start its 3D viewport ({detail}). The viewport needs a Vulkan, Metal or DirectX 12 graphics driver. Next step: update the graphics driver, or on Linux install the Vulkan driver for your card (for example mesa-vulkan-drivers) and check that `vulkaninfo` lists a device; then start FARIS again. The command line (`faris`) works without a display."
+    )
 }
 
 /// The 256 px tile icon for the window and taskbar.
 fn app_icon() -> egui::IconData {
     eframe::icon_data::from_png_bytes(include_bytes!("../assets/faris-icon-256.png"))
         .expect("the bundled application icon is a valid PNG")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::graphics_failure;
+
+    // Verifies: PLAT-013
+    #[test]
+    fn a_graphics_failure_names_the_cause_and_a_next_step() {
+        let text = graphics_failure("no suitable adapter");
+        assert!(text.contains("no suitable adapter"));
+        assert!(text.contains("Next step"));
+        assert!(text.contains("driver"));
+    }
 }

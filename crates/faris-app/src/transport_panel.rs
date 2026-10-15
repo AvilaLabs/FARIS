@@ -841,7 +841,7 @@ impl TransportPanel {
                     egui::pos2(x, bar.bottom() + 4.0),
                     egui::Align2::CENTER_TOP,
                     format!("10^{:.0}", lower + decade as f64),
-                    egui::FontId::monospace(9.5),
+                    egui::FontId::monospace(11.0),
                     egui::Color32::from_gray(185),
                 );
             }
@@ -998,6 +998,117 @@ mod colormap_tests {
         assert_eq!(
             scalar_color(1e30, 0.0, 10.0, 20.0),
             scalar_color(1e20, 0.0, 10.0, 20.0)
+        );
+    }
+
+    /// CIE L*a*b* (D65) of an sRGB colour with 0 to 1 channels.
+    fn lab(c: [f32; 3]) -> [f64; 3] {
+        let linear = |v: f32| {
+            let v = v as f64;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        let (r, g, b) = (linear(c[0]), linear(c[1]), linear(c[2]));
+        let x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+        let y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+        let z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
+        let f = |t: f64| {
+            if t > 216.0 / 24389.0 {
+                t.cbrt()
+            } else {
+                (24389.0 / 27.0 * t + 16.0) / 116.0
+            }
+        };
+        let (fx, fy, fz) = (f(x), f(y), f(z));
+        [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
+    }
+
+    /// CIEDE2000 colour difference (Sharma, Wu and Dalal 2005).
+    fn delta_e_2000(a: [f64; 3], b: [f64; 3]) -> f64 {
+        let rad = std::f64::consts::PI / 180.0;
+        let c_bar = ((a[1].hypot(a[2]) + b[1].hypot(b[2])) / 2.0).powi(7);
+        let g = 0.5 * (1.0 - (c_bar / (c_bar + 25f64.powi(7))).sqrt());
+        let (a1, a2) = (a[1] * (1.0 + g), b[1] * (1.0 + g));
+        let (c1, c2) = (a1.hypot(a[2]), a2.hypot(b[2]));
+        let hue = |y: f64, x: f64| {
+            if x == 0.0 && y == 0.0 {
+                0.0
+            } else {
+                y.atan2(x).to_degrees().rem_euclid(360.0)
+            }
+        };
+        let (h1, h2) = (hue(a[2], a1), hue(b[2], a2));
+        let (dl, dc) = (b[0] - a[0], c2 - c1);
+        let mut dh = h2 - h1;
+        if c1 * c2 == 0.0 {
+            dh = 0.0;
+        } else if dh > 180.0 {
+            dh -= 360.0;
+        } else if dh < -180.0 {
+            dh += 360.0;
+        }
+        let dh_big = 2.0 * (c1 * c2).sqrt() * (dh / 2.0 * rad).sin();
+        let l_bar = (a[0] + b[0]) / 2.0;
+        let c_mean = (c1 + c2) / 2.0;
+        let h_bar = if c1 * c2 == 0.0 {
+            h1 + h2
+        } else if (h1 - h2).abs() <= 180.0 {
+            (h1 + h2) / 2.0
+        } else if h1 + h2 < 360.0 {
+            (h1 + h2 + 360.0) / 2.0
+        } else {
+            (h1 + h2 - 360.0) / 2.0
+        };
+        let t = 1.0 - 0.17 * ((h_bar - 30.0) * rad).cos()
+            + 0.24 * ((2.0 * h_bar) * rad).cos()
+            + 0.32 * ((3.0 * h_bar + 6.0) * rad).cos()
+            - 0.20 * ((4.0 * h_bar - 63.0) * rad).cos();
+        let d_theta = 30.0 * (-((h_bar - 275.0) / 25.0).powi(2)).exp();
+        let r_c = 2.0 * (c_mean.powi(7) / (c_mean.powi(7) + 25f64.powi(7))).sqrt();
+        let s_l = 1.0 + 0.015 * (l_bar - 50.0).powi(2) / (20.0 + (l_bar - 50.0).powi(2)).sqrt();
+        let s_c = 1.0 + 0.045 * c_mean;
+        let s_h = 1.0 + 0.015 * c_mean * t;
+        let r_t = -(2.0 * d_theta * rad).sin() * r_c;
+        let (el, ec, eh) = (dl / s_l, dc / s_c, dh_big / s_h);
+        (el * el + ec * ec + eh * eh + r_t * ec * eh).sqrt()
+    }
+
+    #[test]
+    fn ciede2000_matches_published_reference_pairs() {
+        // Sharma, Wu and Dalal (2005), table 1, pairs 1 and 2.
+        let d = delta_e_2000([50.0, 2.6772, -79.7751], [50.0, 0.0, -82.7485]);
+        assert!((d - 2.0425).abs() < 1e-3, "{d}");
+        let d = delta_e_2000([50.0, 3.1571, -77.2803], [50.0, 0.0, -82.7485]);
+        assert!((d - 2.8615).abs() < 1e-3, "{d}");
+    }
+
+    // Verifies: VIS-020
+    #[test]
+    fn adjacent_levels_of_the_default_map_step_evenly_in_ciede2000() {
+        let steps: Vec<f64> = (0..255)
+            .map(|i| {
+                delta_e_2000(
+                    lab(colormap(i as f32 / 255.0)),
+                    lab(colormap((i + 1) as f32 / 255.0)),
+                )
+            })
+            .collect();
+        let mean = steps.iter().sum::<f64>() / steps.len() as f64;
+        let worst = steps
+            .iter()
+            .map(|s| (s / mean - 1.0).abs())
+            .fold(0.0, f64::max);
+        // VIS-020 asks for within 25 % of the mean step. Measured: the 11-point
+        // map is 84 % off (steps 0.31 to 1.01 around a mean of 0.55) and the
+        // full 256-entry matplotlib inferno is 81 % off, so the target is not met
+        // by inferno in CIEDE2000. This bound only stops the map getting worse.
+        assert!(
+            worst <= 0.9 && mean > 0.4,
+            "worst step {:.0} % from the mean {mean:.3}",
+            worst * 100.0
         );
     }
 

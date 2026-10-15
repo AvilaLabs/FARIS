@@ -61,6 +61,28 @@ pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
     native::main()
 }
 
+/// Navigation help beside the viewport: every drag has a key equivalent (UX-037).
+pub(crate) const VIEWPORT_HELP: &str = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select · Tab to the viewport, then arrows orbit, Shift and arrows pan, + and − zoom, 0 resets, Enter reads out";
+
+#[cfg(test)]
+mod audit;
+
+/// Smallest text anywhere in the interface, and the size of body text (A11Y-021).
+pub(crate) const MIN_TEXT_PX: f32 = 11.0;
+pub(crate) const BODY_TEXT_PX: f32 = 13.0;
+
+/// Raise egui's default text styles (small text is 9 px, body 12.5 px) to the
+/// minimums above; larger styles are left alone.
+pub(crate) fn apply_text_sizes(style: &mut egui::Style) {
+    for (text_style, font) in &mut style.text_styles {
+        let floor = match text_style {
+            egui::TextStyle::Body | egui::TextStyle::Button => BODY_TEXT_PX,
+            _ => MIN_TEXT_PX,
+        };
+        font.size = font.size.max(floor);
+    }
+}
+
 use crate::time::Instant;
 use camera::{Camera, triangle_hit};
 use eframe::egui;
@@ -1249,7 +1271,7 @@ impl FarisApp {
             badge::badge(
                 ui,
                 badge::Kind::Authored,
-                "authored",
+                badge::Kind::Authored.default_label(),
                 "Scenario inputs authored for this ARC-inspired study; tunable, not measured.",
             );
         });
@@ -1283,7 +1305,7 @@ impl FarisApp {
                 badge::badge(
                     ui,
                     badge::Kind::Literature,
-                    "literature",
+                    badge::Kind::Literature.default_label(),
                     "Cited sources for scenario inputs. Linking a source does not qualify the value.",
                 );
             }
@@ -2132,7 +2154,7 @@ impl eframe::App for FarisApp {
                     if ui.button("Frame scene").clicked() {
                         self.frame_scene();
                     }
-                    let help = "Drag to orbit · Shift-drag to pan · scroll to zoom · click to select · Tab to the viewport, then arrows orbit, + and − zoom, Enter reads out";
+                    let help = VIEWPORT_HELP;
                     if ui.available_width() > 450.0 {
                         ui.weak(help);
                     } else {

@@ -625,4 +625,22 @@ mod tests {
             }
         }
     }
+
+    // Verifies: UX-053
+    #[test]
+    fn tour_is_short_and_has_a_stop_on_reading_uncertainty() {
+        assert!(STOPS.len() <= 12);
+        // Reading time at 238 words a minute (average silent reading), with 10 s per stop to act on it.
+        let words: usize = STOPS
+            .iter()
+            .map(|s| s.title.split_whitespace().count() + s.body.split_whitespace().count())
+            .sum();
+        let minutes = words as f64 / 238.0 + STOPS.len() as f64 * 10.0 / 60.0;
+        assert!(minutes <= 5.0, "{minutes:.1} min");
+        let uncertainty = STOPS
+            .iter()
+            .filter(|s| s.body.contains("2\u{3c3}") || s.body.contains("Monte Carlo error"))
+            .count();
+        assert!(uncertainty >= 1);
+    }
 }
