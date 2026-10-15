@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 221 of 1419 requirements.
+Traced: 223 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -30,7 +30,7 @@ Traced: 221 of 1419 requirements.
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
 | [19-security.md](19-security.md) | 55 | 9 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 5 |
-| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 13 |
+| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 15 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 7 |
 | [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 8 |
 
@@ -231,6 +231,8 @@ Traced: 221 of 1419 requirements.
 | PLAT-013 | F1 | `crates/faris-app/src/native.rs::a_graphics_failure_names_the_cause_and_a_next_step` |
 | PLAT-023 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
 | PLAT-024 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
+| QA-001 | F1 | `scripts/test_requirement_lint.py::test_committed_tables_have_no_errors`<br>`scripts/test_requirement_lint.py::test_good_row_is_clean`<br>`scripts/test_requirement_lint.py::test_met_needs_a_test_unless_audit`<br>`scripts/test_requirement_lint.py::test_missing_phase_and_verification_fail`<br>`scripts/test_requirement_lint.py::test_phase_forms`<br>`scripts/test_requirement_lint.py::test_wrong_cell_count_and_empty_cell` |
+| QA-008 | F1 | `scripts/test_requirement_lint.py::test_removed_id_needs_a_tombstone`<br>`scripts/test_requirement_lint.py::test_reused_and_revived_ids`<br>`scripts/test_requirement_lint.py::test_rewording_keeps_the_id`<br>`scripts/test_requirement_lint.py::test_table_ids_reads_live_and_struck`<br>`scripts/test_requirement_lint.py::test_unchanged_is_clean` |
 | QA-016 | F2 | `crates/faris-engine/tests/doc_json_samples.rs::design_file_waivers_example_parses_and_names_waivable_checks`<br>`crates/faris-engine/tests/doc_json_samples.rs::maintenance_examples_parse_and_validate`<br>`scripts/test_doc_samples.py::test_a_block_with_no_disposition_fails`<br>`scripts/test_doc_samples.py::test_a_flag_the_binary_does_not_have_fails`<br>`scripts/test_doc_samples.py::test_a_runnable_command_is_executed_and_a_failing_one_fails_the_check`<br>`scripts/test_doc_samples.py::test_inline_commands_are_resolved_against_the_binary`<br>`scripts/test_doc_samples.py::test_the_evidence_file_is_what_the_release_gate_reads` |
 | QA-017 | F2 | `scripts/test_check_stochastic_tests.py::test_a_marked_seeded_test_passes`<br>`scripts/test_check_stochastic_tests.py::test_acceptance_above_three_sigma_is_found`<br>`scripts/test_check_stochastic_tests.py::test_exact_float_equality_is_found_unless_justified`<br>`scripts/test_check_stochastic_tests.py::test_the_repository_controls_have_no_findings`<br>`scripts/test_check_stochastic_tests.py::test_unseeded_randomness_is_found` |
 | QA-022 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |

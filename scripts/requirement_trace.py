@@ -40,17 +40,39 @@ PY_FN = re.compile(r"^\s*def\s+([A-Za-z0-9_]+)")
 PASSED_PHASES: tuple[str, ...] = ()
 
 
+def table_rows(text: str):
+    """Yield (line number, struck, id, cells) for each line of a requirement table.
+
+    A requirement table starts at a header line beginning "| ID |" and ends at the
+    first line that is not a table row. The id is "" when the first cell is not
+    a plain or struck-through requirement id, so a malformed row stays visible
+    to the linter. Cells are split on unescaped pipes.
+    """
+    in_table = False
+    for number, line in enumerate(text.splitlines(), 1):
+        if line.startswith("| ID |"):
+            in_table = True
+            continue
+        if not line.startswith("|"):
+            in_table = False
+            continue
+        if not in_table or line.startswith("| ---"):
+            continue
+        cells = [c.strip() for c in CELL_SPLIT.split(line.strip())[1:-1]]
+        first = re.fullmatch(r"(~~)?([A-Z0-9]+-\d{3})(~~)?", cells[0]) if cells else None
+        struck = bool(first and first.group(1) and first.group(3))
+        rid = first.group(2) if first and bool(first.group(1)) == bool(first.group(3)) else ""
+        yield number, struck, rid, cells
+
+
 def read_requirements() -> dict[str, dict]:
     found: dict[str, dict] = {}
     for path in sorted(REQUIREMENTS.glob("[0-9][0-9]-*.md")):
-        for line in path.read_text(encoding="utf-8").splitlines():
-            match = ROW.match(line)
-            if not match:
+        for _, struck, rid, cells in table_rows(path.read_text(encoding="utf-8")):
+            if struck or not rid:
                 continue
-            cells = [c.strip() for c in CELL_SPLIT.split(line.strip())[1:-1]]
             if len(cells) != 7:
-                raise SystemExit(f"{path.name}: {match.group(1)} has {len(cells)} cells, expected 7")
-            rid = match.group(1)
+                raise SystemExit(f"{path.name}: {rid} has {len(cells)} cells, expected 7")
             if rid in found:
                 raise SystemExit(f"duplicate requirement {rid} in {path.name} and {found[rid]['file']}")
             phase = re.match(r"F\d", cells[5])
