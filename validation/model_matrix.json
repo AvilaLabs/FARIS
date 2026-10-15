@@ -1198,7 +1198,7 @@
       "reason": "this model reports durations of maintenance steps in days, which are not one of the registry quantities; no benchmark is registered for its response",
       "reported_outputs": [],
       "source_sha256": {
-        "crates/faris-engine/src/maintenance.rs": "28cffa2c115d7db5a8b95481a990cbc758a4cb20d66218cc6723d359212b2f1b"
+        "crates/faris-engine/src/maintenance.rs": "672aa7c4b807d7654670d9edfc194b9a57165dcbe37c9d4dcc08ad257b12d831"
       },
       "status": "not validated",
       "validation": [],

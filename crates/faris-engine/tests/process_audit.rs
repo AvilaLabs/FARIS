@@ -61,6 +61,7 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-engine/src/design.rs", "launch_python_with_lines(", 2, "-", "definition and forwarding call"),
     ("faris-engine/src/design/external.rs", "launch_python(", 5, "FS", "interpreter S; helper scripts embedded F; STEP path made absolute"),
     ("faris-engine/src/design/transport.rs", "launch_python_with_lines(", 1, "FS", "interpreter S; script embedded F; model path validated by converted_model"),
+    ("faris-cli/src/adapters.rs", "run_job(", 1, "FS", "faris adapters list: program is a fixed tool name (openmc, actinv, avila-core) found on PATH; the only argument is `--version`; five-second bound"),
     ("faris-cli/src/control.rs", "run_job(", 2, "FS", "Python S; script embedded F (Linux and other targets)"),
     // Other spawns.
     ("faris-occt-client/src/client.rs", "Command::new", 1, "FS", "worker program S (FARIS_OCCT_WORKER or beside the executable); two scratch paths F"),

@@ -66,6 +66,8 @@ jobs:
         run: python3 scripts/requirement_trace.py --check
       - name: Requirement scorecard is current
         run: python3 scripts/requirement_scorecard.py --check
+      - name: Requirement tables follow the table rules
+        run: python3 scripts/requirement_lint.py
       - name: Wording lint over user-facing text
         run: python3 scripts/wording_lint.py
       - name: Validation matrix, rule hashes and case manifests
