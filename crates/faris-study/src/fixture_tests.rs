@@ -647,6 +647,8 @@ fn unknown_top_level_manifest_fields_are_listed_and_survive_a_re_save() {
         saved.manifest.format, FORMAT,
         "the new file is written in this version's format"
     );
+    // Windows cannot replace a file a reader still holds open.
+    drop(saved);
     // A plain save writes none, and an ordinary file reports none.
     write_study(&target, &draft(dir.path())).unwrap();
     assert!(
