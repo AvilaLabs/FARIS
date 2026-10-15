@@ -1090,6 +1090,7 @@ pub fn run_maintenance(
 
 pub mod actinv;
 pub mod files;
+pub mod irradiation;
 
 #[cfg(test)]
 mod tests;
