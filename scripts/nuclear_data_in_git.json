@@ -1,0 +1,22 @@
+{
+ "policy": "Nuclear data may be tracked in Git only when the file is small (at most 1 MiB) and its provider allows redistribution. Each file names its provider, source, terms with the evidence for them, the credit owed and its SHA-256. Larger data is fetched by hash.",
+ "max_file_bytes": 1048576,
+ "files": [
+  {
+   "path": "integrations/windows-spike/data/H1.h5",
+   "kind": "data",
+   "sha256": "022130262d45cb9babfc334833413af0af14eb7efe862eadd7c8646237705b23",
+   "content": "ENDF/B-VII.1 H-1 neutron evaluation at 294 K in the OpenMC HDF5 format; the Windows native spike's only data fixture (docs/notes/WINDOWS_NATIVE_SPIKE.md)",
+   "provider": "National Nuclear Data Center, Brookhaven National Laboratory (ENDF/B-VII.1, CSEWG); HDF5 conversion by the OpenMC project",
+   "source": "https://www.nndc.bnl.gov/endf-b7.1/",
+   "terms": "ENDF/B evaluations are released without restriction on distribution; credit the library and the issuing data centre",
+   "terms_evidence": "NNDC release notice for ENDF/B-VI Release 3 (https://rsicc.ornl.gov/endf/release3.html): released with no restrictions on distribution; IAEA-NDS-0200 (https://nds.iaea.org/publications/iaea-nds/iaea-nds-0200.pdf): credit the author and the issuing data centre. The ENDF/B-VII.1 page itself states no terms (checked 2026-10-14).",
+   "attribution": "M.B. Chadwick et al., ENDF/B-VII.1 Nuclear Data for Science and Technology, Nuclear Data Sheets 112 (2011) 2887; distributed by the NNDC, Brookhaven National Laboratory"
+  },
+  {
+   "path": "integrations/windows-spike/data/cross_sections.xml",
+   "kind": "index",
+   "content": "OpenMC library index naming only the H1.h5 fixture beside it"
+  }
+ ]
+}

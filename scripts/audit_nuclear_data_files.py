@@ -25,6 +25,8 @@ import tarfile
 import zipfile
 from pathlib import Path
 
+import nuclear_data_policy
+
 REPO = Path(__file__).resolve().parents[1]
 DATA_SUFFIXES = {".h5", ".hdf5", ".endf", ".ace", ".endf6"}
 DATA_NAMES = {"cross_sections.xml", "chain.xml"}
@@ -32,14 +34,8 @@ HDF5_SIGNATURE = b"\x89HDF\r\n\x1a\n"
 # HDF5 containers that hold geometry, not nuclear data (MOAB meshes for DAGMC).
 GEOMETRY_SUFFIXES = {".h5m"}
 MAX_SCANNED_BYTES = 64 * 1024 * 1024
-# Tracked on purpose, each with its reason. Anything else is a finding.
-ALLOWED_IN_GIT = {
-    "integrations/windows-spike/data/H1.h5": (
-        "0.3 MB public-domain ENDF/B-VII.1 H1 evaluation kept as the Windows native spike's only data fixture "
-        "(docs/notes/WINDOWS_NATIVE_SPIKE.md); the spike's cross_sections.xml points at it"
-    ),
-    "integrations/windows-spike/data/cross_sections.xml": "index of that single fixture",
-}
+# Tracked on purpose: small data whose provider allows redistribution, with its provenance.
+ALLOWED_IN_GIT = nuclear_data_policy.allowed()
 
 
 def is_data_name(name: str) -> bool:
@@ -117,6 +113,7 @@ def main() -> int:
     parser.add_argument("--package", type=Path, action="append", default=[], help="a .faris study package (zip)")
     args = parser.parse_args()
     findings, allowed = audit_git(args.root)
+    findings += nuclear_data_policy.problems(args.root)
     for package in args.package:
         findings += audit_package(package)
     for line in allowed:

@@ -29,8 +29,10 @@
 - Use focused numerical tests and independent references where relevant. Before
   finishing a code change, run formatting, Clippy for changed targets, and
   appropriate tests. Compile the desktop when changing shared interfaces.
-- Use `--jobs 1` for graphics builds on this workstation. Keep downloaded nuclear
-  data, customer cases, and generated runs out of Git. Commit `Cargo.lock`.
+- Use `--jobs 1` for graphics builds on this workstation. Keep customer cases and
+  generated runs out of Git. Nuclear data stays out of Git unless a file is at most
+  1 MiB, its provider allows redistribution, and it is listed with its provenance in
+  `scripts/nuclear_data_in_git.json`; larger data is fetched by hash. Commit `Cargo.lock`.
 - FARIS source code and documentation are licensed AGPL-3.0-only. New crates
   inherit the workspace license. Preserve project and third-party license notices.
   Do not publish packages or create/push a GitHub repository implicitly.

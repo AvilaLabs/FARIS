@@ -3,8 +3,9 @@
 """Checks that the files tracked by version control stay small and hold no nuclear data or archives (QA-090).
 
 Fails when the tracked files add up to more than 50 MB, when one file is larger than 10 MB, or when a
-tracked file has a suffix that belongs to downloaded nuclear data or to an archive. Larger data is fetched
-by hash and kept out of the repository (AGENTS.md).
+tracked file has a suffix that belongs to downloaded nuclear data or to an archive, unless it is small
+nuclear data listed with its provenance in nuclear_data_in_git.json (see nuclear_data_policy.py). Larger
+data is fetched by hash and kept out of the repository (AGENTS.md).
 """
 from __future__ import annotations
 
@@ -13,15 +14,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import nuclear_data_policy
+
 ROOT = Path(__file__).resolve().parent.parent
 MAX_TOTAL_BYTES = 50 * 1000 * 1000
 MAX_FILE_BYTES = 10 * 1000 * 1000
 FORBIDDEN_SUFFIXES = (".h5", ".hdf5", ".endf", ".zip", ".tar", ".gz", ".xz", ".tgz", ".7z")
-# Named exceptions, each with its reason. Adding one is a decision to review.
-ALLOWED = {
-    # The hydrogen-1 file (0.3 MB) the Windows native spike runs OpenMC against; its hash is recorded next to it.
-    "integrations/windows-spike/data/H1.h5": "small spike fixture with recorded hash",
-}
+# Small nuclear data whose provider allows redistribution, each with its provenance (QA-090).
+ALLOWED = nuclear_data_policy.allowed()
 
 
 def check(sizes: dict[str, int]) -> list[str]:
@@ -56,7 +56,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     args = parser.parse_args()
     sizes = tracked_sizes(args.root)
-    problems = check(sizes)
+    problems = check(sizes) + nuclear_data_policy.problems(args.root)
     for problem in problems:
         print(f"check_repository_size: {problem}", file=sys.stderr)
     print(f"{len(sizes)} tracked files, {sum(sizes.values())} bytes")
