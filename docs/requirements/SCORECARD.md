@@ -8,42 +8,42 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 63 | 445 | 872 | 39 | 230 | 16 % | 504 | 150 | 459 | 116 | 431 | 98 |
+| All requirements | 1419 | 63 | 491 | 829 | 36 | 267 | 19 % | 504 | 150 | 459 | 116 | 431 | 98 |
 
 ## By category
 
 | Category | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| [Geometry and model](01-geometry-and-model.md) | 73 | 3 | 37 | 32 | 1 | 26 | 36 % | 29 | 8 | 43 | 4 | 6 | 12 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 8 | 42 | 54 | 3 | 29 | 27 % | 40 | 12 | 50 | 18 | 7 | 12 |
+| [Geometry and model](01-geometry-and-model.md) | 73 | 3 | 38 | 31 | 1 | 27 | 37 % | 29 | 8 | 43 | 4 | 6 | 12 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 8 | 43 | 53 | 3 | 30 | 28 % | 40 | 12 | 50 | 18 | 7 | 12 |
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 2 | 9 | 86 | 0 | 4 | 4 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 3 | 18 | 78 | 0 | 6 | 6 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 3 | 9 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 2 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 6 | 29 | 37 | 0 | 25 | 35 % | 18 | 6 | 20 | 17 | 27 | 5 |
-| [Uncertainty](07-uncertainty.md) | 61 | 2 | 12 | 47 | 0 | 8 | 13 % | 10 | 3 | 14 | 8 | 29 | 2 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 6 | 32 | 34 | 0 | 27 | 38 % | 18 | 6 | 20 | 17 | 27 | 5 |
+| [Uncertainty](07-uncertainty.md) | 61 | 2 | 15 | 44 | 0 | 11 | 18 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 5 | 14 % | 15 | 7 | 15 | 3 | 7 | 0 |
-| [Usability](09-usability.md) | 73 | 0 | 24 | 46 | 3 | 9 | 12 % | 37 | 12 | 30 | 10 | 5 | 6 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 12 | 32 | 13 | 5 | 9 % | 42 | 5 | 13 | 4 | 1 | 1 |
+| [Usability](09-usability.md) | 73 | 0 | 27 | 43 | 3 | 11 | 15 % | 37 | 12 | 30 | 10 | 5 | 6 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 14 | 33 | 10 | 7 | 12 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 13 | 27 % | 21 | 7 | 22 | 7 | 8 | 0 |
-| [Configurability](12-configurability.md) | 63 | 1 | 18 | 43 | 1 | 9 | 14 % | 27 | 3 | 26 | 2 | 15 | 0 |
-| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 16 | 58 | 0 | 6 | 8 % | 35 | 8 | 25 | 1 | 20 | 4 |
-| [Interoperability](14-interoperability.md) | 59 | 1 | 19 | 36 | 3 | 9 | 15 % | 24 | 11 | 14 | 1 | 24 | 3 |
+| [Configurability](12-configurability.md) | 63 | 1 | 28 | 33 | 1 | 19 | 30 % | 27 | 3 | 26 | 2 | 15 | 0 |
+| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 19 | 55 | 0 | 9 | 12 % | 35 | 8 | 25 | 1 | 20 | 4 |
+| [Interoperability](14-interoperability.md) | 59 | 1 | 21 | 34 | 3 | 10 | 17 % | 24 | 11 | 14 | 1 | 24 | 3 |
 | [Design workflows](15-design-workflows.md) | 75 | 3 | 20 | 52 | 0 | 5 | 7 % | 19 | 9 | 19 | 0 | 40 | 4 |
 | [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 6 | 18 | 16 | 2 | 15 | 36 % | 11 | 4 | 7 | 0 | 25 | 4 |
 | [Collaboration](17-collaboration.md) | 40 | 1 | 7 | 32 | 0 | 3 | 8 % | 6 | 1 | 10 | 1 | 25 | 1 |
 | [Reliability](18-reliability.md) | 38 | 2 | 11 | 24 | 1 | 4 | 11 % | 7 | 4 | 8 | 1 | 27 | 3 |
-| [Security](19-security.md) | 55 | 9 | 19 | 26 | 1 | 9 | 16 % | 14 | 3 | 7 | 0 | 36 | 10 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 21 | 20 | 0 | 5 | 11 % | 5 | 2 | 6 | 1 | 33 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 25 | 47 | 1 | 15 | 19 % | 16 | 13 | 23 | 7 | 34 | 7 |
-| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 16 | 28 | 1 | 7 | 16 % | 13 | 1 | 22 | 11 | 4 | 2 |
+| [Security](19-security.md) | 55 | 9 | 23 | 22 | 1 | 13 | 24 % | 14 | 3 | 7 | 0 | 36 | 10 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 23 | 18 | 0 | 6 | 13 % | 5 | 2 | 6 | 1 | 33 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 34 | 38 | 1 | 20 | 26 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 19 | 25 | 1 | 9 | 20 % | 13 | 1 | 22 | 11 | 4 | 2 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 3 | 19 | 12 | 2 | 8 | 22 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
 ## By phase
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 45 | 225 | 156 | 19 | 139 | 31 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 9 | 148 | 322 | 18 | 66 | 13 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F1 | 445 | 45 | 250 | 133 | 17 | 158 | 36 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 497 | 9 | 169 | 302 | 17 | 84 | 17 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 7 | 58 | 0 | 3 | 5 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 4 | 31 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
@@ -100,11 +100,8 @@ Marked Met in the Now column, but no test declares `Verifies:` for them.
 - LEG-011 (23-compliance-and-privacy.md)
 - LEG-015 (23-compliance-and-privacy.md)
 
-## Traced but marked No (4)
+## Traced but marked No (0)
 
 A test declares `Verifies:` for them while the Now column says No; the Now column may be stale.
 
-- VAL-050 (06-accuracy-and-validation.md): `validation/test_matrix.py::test_every_calculated_quantity_has_a_row`
-- UX-010 (09-usability.md): `crates/faris-app/src/commands.rs::core_tasks_t1_to_t5_are_reachable_with_key_events_only`
-- INT-003 (14-interoperability.md): `crates/faris-study/src/fixture_tests.rs::documents_written_by_the_writer_validate_against_the_published_schemas`
-- QA-070 (21-quality-assurance.md): `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`, `scripts/test_release_gate.py::test_an_unmet_requirement_fails_the_gate_and_the_exit_code_is_nonzero`, `scripts/test_release_gate.py::test_defects_open_s1_blocks_and_open_s2_needs_a_valid_waiver` and 5 more
+None.
