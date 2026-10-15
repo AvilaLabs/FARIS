@@ -13,7 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import release_gate as rg  # noqa: E402
 import wording_lint  # noqa: E402
+from validation import fixtures as vv_fixtures  # noqa: E402
 from validation import matrix as vv_matrix  # noqa: E402
+from validation import models as vv_models  # noqa: E402
+from validation import report as vv_report  # noqa: E402
 
 # The repository's terms without its allow list, whose entries are unused in a fixture tree.
 TERMS = {**wording_lint.load_terms(), "allow_list": []}
@@ -46,11 +49,16 @@ def write(path: Path, text: str):
     path.write_text(text, encoding="utf-8")
 
 
+def good_suite(root: Path | None = None):
+    """The suite of a small fixture tree (one case, no run record), written under `root` when given."""
+    if root is not None:
+        return vv_fixtures.write_tree(root)
+    m = vv_fixtures.manifest()
+    return vv_report.build_suite([m], {}, None, registry=vv_fixtures.FIXTURE_REGISTRY)
+
+
 def good_matrix():
-    cells = {c: "x" for c in vv_matrix.CELLS}
-    return {"schema": vv_matrix.SCHEMA, "quantities": ["q1", "q2"], "rows": [
-        dict(cells, quantity="q1", benchmark_id="case/resp", status="code-to-code only"),
-        dict(cells, quantity="q2", benchmark_id="none", status="not validated")]}
+    return good_suite()["matrix"]
 
 
 def evidence(kind="checks", commit=COMMIT):
@@ -72,14 +80,14 @@ def make_root(d: Path, now="Met", traced=True, matrix=None):
     write(d / "docs" / "requirements" / "01-a.md", "".join(row(r, now) for r in ("AAA-001", "AAA-002", "BBB-001", "GEO-010")))
     ids = "AAA-001, AAA-002, BBB-001" if traced else "AAA-001"
     write(d / "scripts" / "test_fixture.py", f"{MARK}{ids}\ndef test_x():\n    pass\n")
-    write(d / "validation" / "matrix.json", json.dumps(matrix or good_matrix()))
+    good_suite(d)
+    if matrix:
+        write(d / "validation" / "matrix.json", json.dumps(matrix))
 
 
 def make_report(d: Path, report=None):
     """A V&V report directory and the release record that carries its hash."""
-    m = good_matrix()
-    report = report or {"methods": {"a": "b"}, "matrix": m, "cases": [{"case_id": "c1"}], "qualified_ranges": {"c1": {}},
-                        "known_issues": {"c1": []}, "last_run": {"c1": "never run"}}
+    report = report or good_suite(d / "tree")
     out = d / "vv"
     out.mkdir()
     (out / "report.json").write_text(json.dumps(report), encoding="utf-8")
@@ -245,7 +253,7 @@ class ReleaseGate(unittest.TestCase):
         make_root(self.d)
         passed, reason = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))["V&V matrix has no blank row"]
         self.assertTrue(passed)
-        self.assertIn("1 rows labelled not validated", reason)
+        self.assertIn("2 rows labelled not validated", reason)
         (self.d / "validation" / "matrix.json").unlink()
         self.assertFalse(results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))["V&V matrix has no blank row"][0])
 
@@ -265,11 +273,69 @@ class ReleaseGate(unittest.TestCase):
     def test_the_gate_fails_on_a_report_missing_a_required_section_or_hash(self):
         make_root(self.d)
         name = "V&V report exists and its hash is recorded"
-        incomplete = {"methods": {"a": "b"}, "matrix": good_matrix(), "cases": [{"case_id": "c1"}], "qualified_ranges": {"c1": {}}, "known_issues": {"c1": []}}
+        incomplete = {k: v for k, v in good_suite(self.d / "tree").items() if k != "last_run"}
         out, record = make_report(self.d, incomplete)
         self.assertIn("lacks last_run", results(rg.Gate(self.d, vv_report=out, release_record=record, commit=COMMIT, terms=TERMS))[name][1])
         write(record, json.dumps({}))
         self.assertIn("no vv_report_sha256", results(rg.Gate(self.d, vv_report=out, release_record=record, commit=COMMIT, terms=TERMS))[name][1])
+
+    # Verifies: VAL-001
+    def test_a_reported_model_without_a_row_or_with_missing_evidence_blocks_the_gate(self):
+        name = "every reported model has a V&V row"
+        make_root(self.d)
+        self.assertTrue(results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name][0])
+        # A new output catalogue that no model claims.
+        write(self.d / "crates" / "fx" / "src" / "more.rs", 'pub const NEW_OUTPUTS: &[Output] = &[\n    calculated("x", Quantity::Flux),\n];\n')
+        passed, reason = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name]
+        self.assertFalse(passed)
+        self.assertIn("NEW_OUTPUTS", reason)
+        (self.d / "crates" / "fx" / "src" / "more.rs").unlink()
+        # A model dropped from the committed model matrix.
+        mm = json.loads((self.d / "validation" / "model_matrix.json").read_text(encoding="utf-8"))
+        mm["rows"] = [dict(mm["rows"][0], model="other")]
+        write(self.d / "validation" / "model_matrix.json", json.dumps(mm))
+        self.assertIn("fixture-model has no row", results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name][1])
+
+    # Verifies: VAL-037
+    def test_a_changed_model_source_or_case_makes_the_matrices_stale_and_blocks_the_gate(self):
+        name = "V&V matrices are not stale"
+        make_root(self.d)
+        self.assertTrue(results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name][0])
+        src = self.d / "crates" / "fx" / "src" / "lib.rs"
+        src.write_text(src.read_text(encoding="utf-8") + "// kernel changed\n", encoding="utf-8")
+        passed, reason = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name]
+        self.assertFalse(passed)
+        self.assertIn("STALE model_matrix.json: model fixture-model: source changed (crates/fx/src/lib.rs)", reason)
+        vv_fixtures.write_tree(self.d)  # regenerated
+        self.assertTrue(results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name][0])
+        manifest = json.loads((self.d / "validation" / "cases" / "fixture" / "manifest.json").read_text(encoding="utf-8"))
+        manifest["not_covered"] = ["ports", "a new gap"]
+        write(self.d / "validation" / "cases" / "fixture" / "manifest.json", json.dumps(manifest))
+        self.assertIn("STALE matrix.json", results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))[name][1])
+
+    # Verifies: VAL-006
+    def test_a_hand_edited_matrix_cell_or_an_unbacked_validated_claim_blocks_the_gate(self):
+        name = "V&V verdicts are derived from case records"
+        make_root(self.d)
+        suite = good_suite(self.d / "tree")
+        out, record = make_report(self.d, suite)
+        gate = lambda: results(rg.Gate(self.d, vv_report=out, release_record=record, commit=COMMIT, terms=TERMS))[name]  # noqa: E731
+        self.assertTrue(gate()[0])
+        edited = json.loads(json.dumps(suite))
+        edited["matrix"]["rows"][0]["status"] = "validated within range"
+        (out / "report.json").write_text(json.dumps(edited), encoding="utf-8")
+        passed, reason = gate()
+        self.assertFalse(passed)
+        self.assertIn("claims 'validated within range' without a case record", reason)
+        self.assertIn("cell status differs from the value derived", reason)
+
+    # Verifies: VAL-091
+    def test_the_gate_fails_on_a_report_without_the_model_matrix(self):
+        make_root(self.d)
+        name = "V&V report exists and its hash is recorded"
+        without = {k: v for k, v in good_suite(self.d / "tree").items() if k != "model_matrix"}
+        out, record = make_report(self.d, without)
+        self.assertIn("lacks model_matrix", results(rg.Gate(self.d, vv_report=out, release_record=record, commit=COMMIT, terms=TERMS))[name][1])
 
     def test_wording_lint_findings_fail_the_gate(self):
         make_root(self.d)

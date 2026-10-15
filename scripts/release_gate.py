@@ -14,7 +14,14 @@ Conditions read from the repository (--root, default this checkout):
   marker names an unknown requirement;
 - the V&V matrix (validation/matrix.json) has no blank cell, and a quantity with no benchmark is labelled
   "not validated" with a reason (VAL-051);
+- every model and calculated output FARIS reports has a row in the model matrix (validation/model_matrix.json),
+  its verification evidence exists, and every evidence record has exactly one class (VAL-001);
+- neither matrix is stale: both equal a regeneration from the registry, models, case manifests, rules and model
+  source files in the tree (VAL-037, `python3 -m validation matrix` and `python3 -m validation models`);
 - wording lint is clean.
+
+The verdicts of the V&V report are re-derived from its case records: a matrix cell that differs from the
+derivation, or a row that claims validation without a case record with a PASS or FAIL verdict, fails (VAL-006).
 
 The V&V report (VAL-091) is checked from --vv-report (the directory `python3 -m validation report` wrote)
 and --release-record (the JSON that command wrote the report hash into): both must exist, the hash must
@@ -53,10 +60,11 @@ sys.path.insert(0, str(ROOT))
 import requirement_trace as rt  # noqa: E402
 import wording_lint  # noqa: E402
 from validation import matrix as vv_matrix  # noqa: E402
+from validation import models as vv_models  # noqa: E402
 
 PLAN = Path("docs") / "NEXT_RELEASE_PLAN.md"
 REQUIREMENTS = Path("docs") / "requirements"
-REPORT_KEYS = ("methods", "matrix", "cases", "qualified_ranges", "known_issues", "last_run")
+REPORT_KEYS = ("methods", "matrix", "model_matrix", "cases", "qualified_ranges", "known_issues", "last_run")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 MAX_WAIVER_DAYS = 90
 FUZZ_SECONDS = 3600  # QA-033: at least one CPU-hour per fuzz target per release
@@ -238,7 +246,7 @@ def check_vv_report(g: Gate):
     missing = [k for k in REPORT_KEYS if not report.get(k)]
     if missing:
         raise ValueError("the report lacks " + ", ".join(missing))
-    problems = vv_matrix.check_matrix(report["matrix"])
+    problems = vv_matrix.check_matrix(report["matrix"]) + vv_models.check_model_matrix(report["model_matrix"])
     if problems:
         raise ValueError("the report's matrix has problems: " + "; ".join(problems[:3]))
     cases = [c["case_id"] for c in report["cases"]]
@@ -246,6 +254,48 @@ def check_vv_report(g: Gate):
     if absent:
         raise ValueError("last run, qualified range or known issues missing for " + ", ".join(absent))
     return True, f"report.json hash {actual[:12]} matches the release record; {len(cases)} cases, matrix of {len(report['matrix']['rows'])} rows"
+
+
+def _registry(g: Gate) -> dict:
+    return vv_matrix.load_registry(g.root / "validation" / "quantities.json")
+
+
+def check_model_rows(g: Gate):
+    """VAL-001: a reported model or quantity with no row, or a row with no real evidence, blocks the release."""
+    problems = vv_models.lint_models(g.root)
+    mm = read_json(g.root / "validation" / "model_matrix.json", "model matrix")
+    problems += vv_models.check_model_matrix(mm)
+    committed = {r.get("model") for r in mm.get("rows", [])} if isinstance(mm, dict) else set()
+    problems += [f"model {m['id']} has no row in model_matrix.json" for m in vv_models.load_models(g.root)["models"] if m["id"] not in committed]
+    if problems:
+        shown = "; ".join(problems[:5]) + (f"; and {len(problems) - 5} more" if len(problems) > 5 else "")
+        return False, f"{len(problems)} problems: {shown}"
+    return True, f"{len(mm['rows'])} models, each with a row, existing verification evidence and one class per record"
+
+
+def check_not_stale(g: Gate):
+    """VAL-037: the committed matrices equal a regeneration from the tree; a changed input makes rows STALE."""
+    matrix = read_json(g.matrix, "V&V matrix")
+    mm = read_json(g.root / "validation" / "model_matrix.json", "model matrix")
+    stale = vv_models.staleness(g.root, mm, matrix)
+    if stale:
+        shown = "; ".join(stale[:4]) + (f"; and {len(stale) - 4} more" if len(stale) > 4 else "")
+        return False, f"{len(stale)} stale: {shown}. Regenerate with `python3 -m validation matrix` and `python3 -m validation models`, rerun the affected benchmarks, then commit"
+    return True, "both matrices equal a regeneration from the registry, models, cases, rules and model sources"
+
+
+def check_claims(g: Gate):
+    """VAL-006: no verdict in the report's matrix is a hand edit, and no validated row lacks a passing case record."""
+    if g.vv_report is None:
+        raise ValueError("no V&V report directory given; run `python3 -m validation report --out DIR --release-record FILE`")
+    report = read_json(g.vv_report / "report.json", "V&V report")
+    problems = vv_matrix.check_claims(report.get("matrix") or {}, report.get("cases") or [], _registry(g))
+    if problems:
+        shown = "; ".join(problems[:4]) + (f"; and {len(problems) - 4} more" if len(problems) > 4 else "")
+        return False, f"{len(problems)} problems: {shown}"
+    rows = report["matrix"]["rows"]
+    claimed = sum(1 for r in rows if r["status"].startswith("validated"))
+    return True, f"every one of {len(rows)} rows equals the value derived from the case records; {claimed} claim validation, each with a case record"
 
 
 def check_wording(g: Gate):
@@ -362,7 +412,10 @@ CONDITIONS = (
     ("gate requirements Met", "NEXT_RELEASE_PLAN", check_gate_ids_met),
     ("requirement-to-test trace complete", "QA-002", check_trace),
     ("V&V matrix has no blank row", "VAL-051", check_matrix),
+    ("every reported model has a V&V row", "VAL-001", check_model_rows),
+    ("V&V matrices are not stale", "VAL-037", check_not_stale),
     ("V&V report exists and its hash is recorded", "VAL-091", check_vv_report),
+    ("V&V verdicts are derived from case records", "VAL-006", check_claims),
     ("wording lint clean", "wording lint", check_wording),
     ("all tests pass", "QA-070", _checks("tests", "test evidence")),
     ("performance gates pass", "PERF-051", _checks("perf", "performance evidence")),

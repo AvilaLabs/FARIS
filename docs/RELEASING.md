@@ -14,7 +14,10 @@ condition passes. It uses only the Python standard library.
 | Every ID in the "Release gate" list of `docs/NEXT_RELEASE_PLAN.md` is Met | read from the requirement tables; the list is parsed from the plan |
 | The requirement-to-test trace is complete for those IDs, and no marker names an unknown requirement (QA-002) | `Verifies:` markers in the source tree |
 | The V&V matrix has no blank cell, and a quantity with no benchmark is labelled "not validated" with a reason (VAL-051) | `validation/matrix.json` |
+| Every model FARIS reports has a row in the model matrix, its verification evidence exists and has one class, and no output catalogue is unclaimed (VAL-001) | `validation/model_matrix.json`, `validation/models.json`, the Rust output catalogues |
+| Neither matrix is stale: both equal a regeneration from the registry, models, case manifests, rules and model sources (VAL-037) | `python3 -m validation matrix`, `python3 -m validation models` |
 | The V&V report exists and its hash matches the release record (VAL-091) | `--vv-report`, `--release-record` |
+| The report's matrix equals the one derived from its case records, and no row claims validation without a case record with a PASS or FAIL verdict (VAL-006) | `report.json` in `--vv-report` |
 | Wording lint is clean | `scripts/wording_lint.py` |
 | All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them (fuzz: `scripts/fuzz_all.sh 3600`, see `docs/FUZZING.md`) |
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
@@ -22,6 +25,10 @@ condition passes. It uses only the Python standard library.
 
 A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,
 empty, not valid JSON or for another commit. Nothing passes by default. The formats are in the script's header.
+
+Before a release, regenerate both matrices and commit them (`python3 -m validation matrix` then
+`python3 -m validation models`). A model source that changed since they were generated makes the gate fail with
+the file and the row; rerun the affected benchmarks first.
 
 At release time:
 
