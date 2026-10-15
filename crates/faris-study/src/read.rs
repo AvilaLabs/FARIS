@@ -584,6 +584,13 @@ impl StudyReader {
         }
     }
 
+    /// Top-level manifest properties this version does not know, as written by
+    /// a newer minor version. The reader ignores them; the caller can warn that
+    /// the file has them and hand them to `write_study_preserving` on re-save.
+    pub fn unknown_manifest_fields(&self) -> &BTreeMap<String, serde_json::Value> {
+        &self.manifest.extra
+    }
+
     pub fn blob_infos(&mut self) -> Result<Vec<BlobInfo>, StudyError> {
         let mut infos = Vec::new();
         for record in self.manifest.blobs.clone() {

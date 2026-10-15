@@ -1,0 +1,13 @@
+{
+  "blob_count": 0,
+  "blob_sha256": [],
+  "created_by": "FARIS 0.2.0",
+  "entries": [
+    "manifest.json",
+    "mimetype"
+  ],
+  "evidence_mode": "none",
+  "format": "faris-study/1",
+  "has_preview": false,
+  "record_count": 0
+}

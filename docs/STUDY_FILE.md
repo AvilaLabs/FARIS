@@ -6,6 +6,12 @@ assumptions and what-if values, and the view the author left open. Opening it
 restores that state. It is the project file, in the sense that a `.psd` is for
 an image; the PDF, CSV and chart exports are derived from it and name its hash.
 
+The format is open. This page, the JSON Schemas in [`docs/schemas/`](schemas/)
+and the archived fixtures are enough to write a reader without FARIS source;
+[`scripts/read_study_file.py`](../scripts/read_study_file.py) is such a reader
+(Python standard library only, under 300 lines, written from this page). See
+"Writing a reader" below.
+
 ## Size policy (decided 2026-10-01)
 
 Measured on the demo study (four arrangements plus the seven-point allocation
@@ -53,7 +59,13 @@ keep the file small without weakening verification. v1 reserves both:
 
 ## Container
 
-A zip archive. Entries:
+A zip archive in the ordinary single-disk format (PKWARE APPNOTE 6.3): no zip64,
+no encryption, no multi-part files, no archive comment that matters (a reader
+finds the end-of-central-directory record in the last 65 557 bytes). Entry
+names are exactly the ones below, in UTF-8 with forward slashes, each once. Entry
+compression is *stored* (method 0) or *zstd* (method 93, RFC 8878 frames, which
+the zip format registers); a writer uses no other method, and a reader that meets
+one it cannot decode says which entry and which method. Entries:
 
 | Entry | Contents |
 | --- | --- |
@@ -63,8 +75,11 @@ A zip archive. Entries:
 | `evidence-store/store.json`, `evidence-store/blobs/<h0h1>/<h>.xz` | optional, only with packed store evidence: a content-addressed evidence store holding exactly the recorded trees (see "Evidence store layer"), stored uncompressed. Not listed in the blob table |
 | `preview.png` | optional thumbnail of the 3D view: PNG, at most 512 px on the long side and 512 KiB (the desktop aims for under 150 kB), stored uncompressed. Written by the desktop app on save; not listed in the manifest |
 
+Entry order: `mimetype` first (so the type string sits at byte offset 30 of the
+file, after the 30-byte local header and the 8-byte name), then `manifest.json`,
+the blobs, then the optional entries. Order after `mimetype` carries no meaning.
 Blobs are zstd-compressed, except blobs that are already compressed (evidence
-`.tar.gz` archives), which are stored. Each blob entry in the manifest records
+`.tar.gz` archives), which are stored. `manifest.json` is zstd-compressed too. Each blob entry in the manifest records
 `sha256`, `bytes`, `media_type` and `encoding`. v1 writes only `verbatim`;
 `array-f64-le` and `array-f32-le` are reserved for rule 1 above.
 
@@ -297,6 +312,145 @@ for one blob; blob reads longer than the recorded size (bounded while
 decompressing, so a lying header cannot expand past it); unsafe bundle names or
 evidence paths in the manifest. Writing is atomic: a temporary file in the
 destination directory, `fsync`, then rename.
+
+## Writing a reader
+
+This is the algorithm, in the order a reader should apply it. Everything here
+is checked by the archived fixtures and by `scripts/read_study_file.py`. A
+reader that follows it opens every file FARIS writes and refuses every file
+FARIS refuses.
+
+**1. Container.** Open the zip. Refuse a file that is not a zip, that uses zip64
+or encryption, that repeats an entry name (read names from the central
+directory: some zip libraries silently keep the last of two), or whose first
+entry is not a *stored* entry named `mimetype` holding exactly
+`application/vnd.avila-labs.faris-study`. Refuse any entry name other than
+`mimetype`, `manifest.json`, `preview.png`, `blobs/<64 lowercase hex>` and the
+embedded-store names in step 6.
+
+**2. Manifest.** Read `manifest.json` (at most 64 MiB) as UTF-8 JSON. It must be
+an object with a string `format`. The format string is `faris-study/<major>`
+optionally followed by dot-separated minor numbers. Refuse a major other than `1`
+and name the version found ("faris-study/2"); accept any minor of 1. Ignore
+manifest properties you do not know, at every level (step 8 says what to do
+with them). Digests everywhere are 64 lowercase hexadecimal characters, the
+SHA-256 of the bytes they name, with no prefix. Numbers that exceed 53 bits are
+written as text (`seed`), so no reader rounds them.
+
+**3. Blob table.** `blobs` is a list of `{sha256, bytes, media_type, encoding}`.
+Refuse an invalid digest, a digest listed twice, a `bytes` outside 0 to 1 GiB, a
+total over 4 GiB, and any `encoding` other than `verbatim` (`array-f64-le` and
+`array-f32-le` are reserved names; a reader never skips data it cannot interpret).
+The `blobs/<sha256>` entries and the table must name exactly the same digests.
+
+**4. Verify every blob.** Decompress each blob entry, reading at most `bytes` + 1
+bytes (a lying header must not expand past its record). Refuse a blob whose
+length is not `bytes` or whose SHA-256 is not its name, and name the blob. Blobs
+hold exact file contents, so a reader that wants the original file writes the
+bytes unchanged. Blobs shared by several records are stored once.
+
+**5. References.** Every digest the manifest uses to name a blob (`assumptions`,
+`arrangements.<role>.scenario` and `.physics[]`, each bundle's `files` values,
+`ensembles[].blob`, and `layers.evidence.archives[].sha256` when `mode` is
+`packed`) must be in the blob table. Bundle names are safe file names and unique
+within their list; ensemble keys are unique; evidence-archive roles
+`(arrangement, allocation, kind)` are unique, with `arrangement` one of `port`
+or `control`, a safe `allocation`, a `file_name` that is a safe relative path,
+and, when packed, a `bytes` equal to the blob's. A *safe file name* is 1 to 128
+characters of letters, digits, `.`, `_`, `-`, and is not `.` or `..`; a *safe
+relative path* is one to four such names joined by `/`. A file with both
+`layers.evidence` and `layers.evidence_store` is refused.
+
+**6. Embedded evidence store.** With `layers.evidence_store.mode` `packed`, the
+file holds exactly the entries `evidence-store/store.json` and, for each distinct
+`sha256` among the listed files, `evidence-store/blobs/<first two hex digits>/<sha256>.xz`
+(an xz stream, entry stored). Refuse more, fewer or differently named entries,
+and refuse any `evidence-store/` entry when the layer is absent or `referenced`.
+`store.json` is `{schema_version, codec, trees[{name, files[{path, sha256, bytes}]}]}`;
+each tree in the manifest must equal the tree of the same name there
+(`tree` = `name`, same files). Each `.xz` blob must decompress to exactly
+`bytes` bytes whose SHA-256 is the entry's name. These blobs are not in the
+blob table.
+
+**7. Optional parts.** `preview.png` is a thumbnail: never refuse a file for it,
+and use it only if it is a PNG at most 512 pixels a side and 512 KiB. A
+`referenced` layer records only identities; a reader reports the evidence as not
+included and never claims Core verification.
+
+**8. Unknown fields.** A reader may drop unknown properties when it only reads.
+FARIS preserves unknown *top-level* manifest properties when it re-saves a
+file it opened (see "Newer minor versions" below).
+
+**What to report.** A refusal names the rule and the blob or entry. FARIS and the
+reference reader print one sentence and exit non-zero; neither returns partial
+data from a refused file.
+
+## Versioning
+
+The format string is `faris-study/<major>[.<minor>]`. Today it is `faris-study/1`.
+
+- **Minor versions** only add optional properties, optional entries whose names
+  are listed above, or new optional layers (`layers.evidence_store` was minor 1.1
+  and kept the string `faris-study/1`). A reader written for 1.0 reads every
+  1.x file, ignoring what it does not know, and may say that evidence recorded
+  in a layer it does not know is not included.
+- **A major version** is needed to change what an existing property means,
+  remove a required one, add a blob encoding a reader must interpret, or change
+  the container. FARIS refuses a major it does not know, naming it, and
+  opens every file written by any released version of the previous two majors
+  and all of the current one (PRV-053). It never rewrites a file it opened:
+  saving writes a new file.
+- **Archived fixtures.** `crates/faris-study/tests/fixtures/` holds files written
+  by the writer and frozen, one summary beside each (`*.summary.json`, schema
+  `faris-study-summary-1`). Each release adds the files its writer produces if
+  the format or a layer changed; a fixture is never regenerated to make a test
+  pass. See `FIXTURES.md` there for the set and how it was made.
+
+### Newer minor versions
+
+A file written by a newer minor version opens (it is format 1, so nothing in it
+is refused), and the reader lists the top-level manifest properties it does not
+know (`StudyReader::unknown_manifest_fields`) so the application can say so.
+`write_study_preserving` writes them back into the manifest of a re-saved study,
+unchanged. Unknown properties nested inside known ones (inside `view`, a bundle
+or a layer) are ignored on read and are not carried over; a version that adds
+nested properties must say so here and move them to the top level or bump the
+major version.
+
+## Schemas
+
+Machine-readable, JSON Schema draft 2020-12, in [`docs/schemas/`](schemas/):
+
+| Schema | Describes |
+| --- | --- |
+| [`faris-study-manifest-1.schema.json`](schemas/faris-study-manifest-1.schema.json) | `manifest.json` |
+| [`faris-history-ensemble-1.schema.json`](schemas/faris-history-ensemble-1.schema.json) | an ensemble blob (media type `application/vnd.avila-labs.faris-history-ensemble+json`) |
+| [`faris-evidence-store-index-1.schema.json`](schemas/faris-evidence-store-index-1.schema.json) | `evidence-store/store.json` in a packed file |
+| [`faris-study-summary-1.schema.json`](schemas/faris-study-summary-1.schema.json) | the summary two readers compare (`read_study_file.py --summary`) |
+
+The manifest schema allows unknown properties (minor versions add them); the
+ensemble and store-index schemas forbid them, as FARIS does for those blobs.
+Constraints a schema cannot state (the blobs exist, hashes match, sizes agree,
+references resolve) are the rules above. Recorded transport bundles, scenario,
+physics and assumption files are blobs of other FARIS formats, described in
+[`FILE_FORMATS.md`](FILE_FORMATS.md); a reader that does not need them treats them
+as bytes. A test validates every file the writer produces against these schemas.
+
+## The reference reader
+
+    python3 scripts/read_study_file.py study.faris             # verify and list
+    python3 scripts/read_study_file.py study.faris --summary   # JSON for comparing readers
+    python3 scripts/read_study_file.py study.faris --records   # bundles, ensembles, evidence
+    python3 scripts/read_study_file.py study.faris --manifest  # the manifest as stored
+    python3 scripts/read_study_file.py study.faris --blob SHA  # one verified blob to stdout
+
+Exit status 0 means every hash verified; 1 means the file was refused (the
+reason is printed); 2 means this Python cannot decompress the file. Zstd zip
+entries need Python 3.14 or newer (`zipfile` gained zstd support there); on an
+older Python the reader says so and names the entry, and its test skips.
+`records` are the bundles (with `group` `port`, `control` or `sweep`),
+ensembles, evidence archives and evidence-store trees, which together make
+the summary's `record_count`.
 
 ## Opening in the app
 

@@ -190,4 +190,22 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ensembles: Vec<EnsembleRecord>,
     pub blobs: Vec<BlobRecord>,
+    /// Top-level properties this version does not know (written by a newer
+    /// minor version). Kept so a re-save can carry them on, and listed to the
+    /// reader of the file; never interpreted.
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, serde_json::Value>,
 }
+
+/// The top-level manifest properties this version defines.
+pub(crate) const KNOWN_MANIFEST_FIELDS: [&str; 9] = [
+    "format",
+    "created_by",
+    "arrangements",
+    "sweep",
+    "assumptions",
+    "view",
+    "layers",
+    "ensembles",
+    "blobs",
+];

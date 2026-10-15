@@ -1,0 +1,18 @@
+{
+  "blob_count": 2,
+  "blob_sha256": [
+    "7dfe6b54bb336dd66cbc9493ca8e1af60af31928f6c36c4c96946c43ee150c6e",
+    "aa4639e45cba74699f254aa0d0427dcd2d5b42ad31a498405dcf9f115d9ac371"
+  ],
+  "created_by": "FARIS 0.2.0",
+  "entries": [
+    "blobs/7dfe6b54bb336dd66cbc9493ca8e1af60af31928f6c36c4c96946c43ee150c6e",
+    "blobs/aa4639e45cba74699f254aa0d0427dcd2d5b42ad31a498405dcf9f115d9ac371",
+    "manifest.json",
+    "mimetype"
+  ],
+  "evidence_mode": "none",
+  "format": "faris-study/1",
+  "has_preview": false,
+  "record_count": 0
+}

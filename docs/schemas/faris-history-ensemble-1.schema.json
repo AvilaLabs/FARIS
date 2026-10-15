@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:avila-labs:faris:schema:history-ensemble:1",
+  "title": "FARIS history ensemble blob (media type application/vnd.avila-labs.faris-history-ensemble+json)",
+  "description": "A derived blob of a study file: the operating history re-run on sampled transport rates, method faris-history-ensemble/v1. FARIS refuses unknown properties here; this schema does the same at the top level. The inner sample and summary objects are defined by the method (docs/OPERATING_HISTORY.md) and are checked only as objects. The scope text states that only transport sampling uncertainty is covered.",
+  "type": "object",
+  "required": ["method", "status", "seed", "samples_requested", "samples_accepted", "rejections", "scenario_sha256", "transport_artifact_sha256", "covariance_method", "nominal", "samples", "summary", "scope"],
+  "additionalProperties": false,
+  "properties": {
+    "method": { "type": "string" },
+    "status": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status"],
+          "properties": { "status": { "const": "evaluated" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["status", "why", "next_step"],
+          "properties": {
+            "status": { "const": "not_evaluated" },
+            "why": { "type": "string" },
+            "next_step": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "seed": { "type": "integer", "minimum": 0 },
+    "samples_requested": { "type": "integer", "minimum": 0 },
+    "samples_accepted": { "type": "integer", "minimum": 0 },
+    "rejections": { "type": "integer", "minimum": 0 },
+    "scenario_sha256": { "type": "string" },
+    "transport_artifact_sha256": { "type": "string" },
+    "covariance_method": { "type": ["string", "null"] },
+    "nominal": { "type": ["object", "null"] },
+    "samples": { "type": "array", "items": { "type": "object" } },
+    "summary": { "type": ["object", "null"] },
+    "scope": { "type": "string" }
+  }
+}

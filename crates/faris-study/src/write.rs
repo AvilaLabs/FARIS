@@ -1,8 +1,8 @@
 use crate::{
     ArchiveKind, ArrangementRecord, Arrangements, BlobRecord, BundleRecord, ENCODING_VERBATIM,
     ENSEMBLE_MEDIA_TYPE, EnsembleRecord, EvidenceArchive, EvidenceLayer, EvidenceMode,
-    EvidenceStoreLayer, FORMAT, Layers, MIMETYPE, Manifest, StudyError, ViewState,
-    is_safe_file_name, is_safe_relative_path, is_sha256_hex,
+    EvidenceStoreLayer, FORMAT, KNOWN_MANIFEST_FIELDS, Layers, MIMETYPE, Manifest, StudyError,
+    ViewState, is_safe_file_name, is_safe_relative_path, is_sha256_hex,
     read::sha256_file,
     sha256_hex,
     store_layer::{self, EvidenceStoreDraft, STORE_INDEX_ENTRY, blob_entry_name},
@@ -449,6 +449,26 @@ fn zip_error(error: zip::result::ZipError) -> StudyError {
 }
 
 pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, StudyError> {
+    write_study_preserving(path, draft, &BTreeMap::new())
+}
+
+/// As [`write_study`], carrying on the top-level manifest properties a newer
+/// minor version wrote (`StudyReader::unknown_manifest_fields`), so re-saving a
+/// study does not drop what this version cannot interpret. A name this version
+/// defines itself is refused: it would be written twice.
+pub fn write_study_preserving(
+    path: &Path,
+    draft: &StudyDraft,
+    unknown: &BTreeMap<String, serde_json::Value>,
+) -> Result<WriteReport, StudyError> {
+    if let Some(name) = unknown
+        .keys()
+        .find(|k| KNOWN_MANIFEST_FIELDS.contains(&k.as_str()))
+    {
+        return Err(StudyError::Input(format!(
+            "\"{name}\" is a manifest property this version defines, not an unknown one"
+        )));
+    }
     let mut blobs = BlobSet::default();
     let arrangements = Arrangements {
         port: draft
@@ -496,6 +516,7 @@ pub fn write_study(path: &Path, draft: &StudyDraft) -> Result<WriteReport, Study
         },
         ensembles,
         blobs: blobs.table.clone(),
+        extra: unknown.clone(),
     };
     let preview = draft
         .preview_png
