@@ -100,6 +100,10 @@ pub struct Settings {
     /// Folders "Find tools" also looks in: environments, nuclear data, packages.
     #[serde(default)]
     pub extra_search_folders: Vec<String>,
+    /// Sections this window does not edit (the command line's `values`, written by `faris config`),
+    /// kept as read so saving here never drops them.
+    #[serde(flatten)]
+    pub other: BTreeMap<String, serde_json::Value>,
 }
 
 impl Default for Settings {
@@ -109,6 +113,7 @@ impl Default for Settings {
             tools: BTreeMap::new(),
             last_folders: LastFolders::default(),
             extra_search_folders: Vec::new(),
+            other: BTreeMap::new(),
         }
     }
 }
@@ -282,6 +287,25 @@ mod tests {
                 .find(|(n, _)| *n == name)
                 .map(|(_, v)| OsString::from(v))
         }
+    }
+
+    #[test]
+    fn saving_keeps_the_sections_the_command_line_wrote() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        std::fs::write(
+            &path,
+            r#"{"schema":1,"tools":{},"values":{"memory.cap_mb":4096,"ui.theme":"dark"}}"#,
+        )
+        .unwrap();
+        let mut loaded = load(&path).settings;
+        loaded.set_tool(Tool::CadPython, "/opt/cad/bin/python");
+        save(&path, &loaded).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written["values"]["memory.cap_mb"], 4096);
+        assert_eq!(written["values"]["ui.theme"], "dark");
+        assert_eq!(written["tools"]["cad_python"], "/opt/cad/bin/python");
     }
 
     #[test]
