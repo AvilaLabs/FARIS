@@ -3,6 +3,7 @@ use faris_engine::build_manifest;
 use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
+mod config;
 mod control;
 mod design;
 mod evidence;
@@ -23,6 +24,10 @@ mod transport;
 struct Arguments {
     #[command(subcommand)]
     command: Command,
+    /// Set one setting for this run, over the environment and your settings file. Repeatable.
+    /// `faris config list` shows the keys.
+    #[arg(long = "setting", value_name = "KEY=VALUE", global = true)]
+    settings: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -46,6 +51,11 @@ enum Command {
     Design {
         #[command(subcommand)]
         command: design::DesignCommand,
+    },
+    /// Show and change your settings, and which layer supplies each value.
+    Config {
+        #[command(subcommand)]
+        command: config::ConfigCommand,
     },
     /// Validate a scenario without running physics.
     Validate { scenario: PathBuf },
@@ -109,7 +119,12 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
+    // `faris config` reports a damaged settings stack itself, so it can be used to repair it.
+    if !matches!(arguments.command, Command::Config { .. }) {
+        config::startup(&arguments.settings)?;
+    }
     match arguments.command {
+        Command::Config { command } => config::run(command, &arguments.settings)?,
         Command::History { command } => history::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,
