@@ -37,6 +37,10 @@ libproc.workspace = true
 [target.'cfg(windows)'.dependencies]
 win32job.workspace = true
 
+# Free memory for the admission check where there is no /proc/meminfo.
+[target.'cfg(any(target_os = "macos", windows))'.dependencies]
+sysinfo.workspace = true
+
 [features]
 # Small synthetic histories and ensembles for tests and development checks.
 # Off in every normal build.

@@ -27,6 +27,7 @@ nix = { version = "=0.31.3", features = ["process", "signal"] }
 tempfile = "=3.27.0"
 libproc = "=0.14.11"
 win32job = "=2.0.3"
+sysinfo = { version = "=0.39.6", default-features = false, features = ["system"] }
 signal-hook = "=0.3.18"
 eframe = { version = "=0.36.2", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
 zip = { version = "=8.6.0", default-features = false }

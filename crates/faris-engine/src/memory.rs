@@ -169,11 +169,22 @@ fn read_available_memory() -> Result<u64, String> {
         parse_meminfo_available(&text)
             .ok_or_else(|| "/proc/meminfo has no MemAvailable line".to_string())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(target_os = "macos", windows))]
+    {
+        // sysinfo reads the kernel's free-plus-reclaimable figure: host_statistics64 on
+        // macOS, GlobalMemoryStatusEx (ullAvailPhys) on Windows.
+        let mut system = sysinfo::System::new();
+        system.refresh_memory_specifics(sysinfo::MemoryRefreshKind::nothing().with_ram());
+        match system.available_memory() {
+            0 => Err("the system reported no available memory figure".into()),
+            free => Ok(free),
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     {
         Err(
-            "free memory is read from /proc/meminfo, which this platform does not have; \
-             the cap still applies"
+            "free memory is read from /proc/meminfo (Linux) or the system memory statistics \
+             (macOS, Windows), and this platform has none of them; the cap still applies"
                 .into(),
         )
     }
@@ -342,10 +353,12 @@ pub(crate) mod tests {
     }
 
     // Verifies: PERF-041
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn this_machines_free_memory_is_readable() {
-        assert!(read_available_memory().unwrap() > 0);
+        let free = read_available_memory().unwrap();
+        // Every CI runner and laptop has more than 64 MiB free and less than 64 TiB.
+        assert!(free > 64 << 20 && free < 64 << 40, "{free}");
     }
 
     // Verifies: PERF-041
