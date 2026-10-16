@@ -1,0 +1,39 @@
+{
+ "schema": "faris-waste-tables/1",
+ "scheme_id": "nrc-10cfr61.55",
+ "scheme_name": "US NRC 10 CFR 61.55 waste classification for near-surface disposal, Tables 1 and 2",
+ "scheme_version": "eCFR current through title issue date 2026-10-13; section last amended 66 FR 55792, Nov. 2, 2001",
+ "scheme_date": "2001-11-02",
+ "source": {
+  "title": "10 CFR 61.55 Waste classification",
+  "url": "https://www.ecfr.gov/current/title-10/chapter-I/part-61/subpart-D/section-61.55",
+  "api_url": "https://www.ecfr.gov/api/versioner/v1/full/2026-10-13/title-10.xml?part=61&section=61.55",
+  "retrieved": "2026-10-15",
+  "snapshot_file": "ecfr_10cfr61.55.xml",
+  "snapshot_sha256": "fa94bc0027a39e9946332706162e46f5dccf60b16b596dd4dfed7f8136b3e899",
+  "licence": "US federal regulation, public domain",
+  "redistribution": "public_domain"
+ },
+ "rows_note": "A row label is the first cell of the eCFR table row, character for character. Waste in the activated-metal form uses a nuclide's 'in activated metal' row where one exists, and the plain row otherwise; every other form uses plain rows only. Nb-94 and Ni-59 have an activated-metal row and no plain row.",
+ "table1": [
+  {"label": "C-14", "nuclide": "C-14", "scope": "general", "unit": "Ci/m3", "limit": 8},
+  {"label": "C-14 in activated metal", "nuclide": "C-14", "scope": "activated_metal", "unit": "Ci/m3", "limit": 80},
+  {"label": "Ni-59 in activated metal", "nuclide": "Ni-59", "scope": "activated_metal", "unit": "Ci/m3", "limit": 220},
+  {"label": "Nb-94 in activated metal", "nuclide": "Nb-94", "scope": "activated_metal", "unit": "Ci/m3", "limit": 0.2},
+  {"label": "Tc-99", "nuclide": "Tc-99", "scope": "general", "unit": "Ci/m3", "limit": 3},
+  {"label": "I-129", "nuclide": "I-129", "scope": "general", "unit": "Ci/m3", "limit": 0.08},
+  {"label": "Alpha emitting transuranic nuclides with half-life greater than 5 years", "nuclide": null, "group": "alpha_transuranic_half_life_over_5y", "scope": "general", "unit": "nCi/g", "limit": 100},
+  {"label": "Pu-241", "nuclide": "Pu-241", "scope": "general", "unit": "nCi/g", "limit": 3500},
+  {"label": "Cm-242", "nuclide": "Cm-242", "scope": "general", "unit": "nCi/g", "limit": 20000}
+ ],
+ "table2": [
+  {"label": "Total of all nuclides with less than 5 year half-life", "nuclide": null, "group": "total_half_life_under_5y", "scope": "general", "unit": "Ci/m3", "col1": 700, "col2": null, "col3": null},
+  {"label": "H-3", "nuclide": "H-3", "scope": "general", "unit": "Ci/m3", "col1": 40, "col2": null, "col3": null},
+  {"label": "Co-60", "nuclide": "Co-60", "scope": "general", "unit": "Ci/m3", "col1": 700, "col2": null, "col3": null},
+  {"label": "Ni-63", "nuclide": "Ni-63", "scope": "general", "unit": "Ci/m3", "col1": 3.5, "col2": 70, "col3": 700},
+  {"label": "Ni-63 in activated metal", "nuclide": "Ni-63", "scope": "activated_metal", "unit": "Ci/m3", "col1": 35, "col2": 700, "col3": 7000},
+  {"label": "Sr-90", "nuclide": "Sr-90", "scope": "general", "unit": "Ci/m3", "col1": 0.04, "col2": 150, "col3": 7000},
+  {"label": "Cs-137", "nuclide": "Cs-137", "scope": "general", "unit": "Ci/m3", "col1": 1, "col2": 44, "col3": 4600}
+ ],
+ "table2_footnote": "There are no limits established for these radionuclides in Class B or C wastes. Practical considerations such as the effects of external radiation and internal heat generation on transportation, handling, and disposal will limit the concentrations for these wastes. These wastes shall be Class B unless the concentrations of other nuclides in Table 2 determine the waste to be Class C independent of these nuclides."
+}

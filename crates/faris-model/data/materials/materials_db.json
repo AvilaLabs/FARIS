@@ -1,0 +1,476 @@
+{
+ "schema": "faris-materials-db/1",
+ "database": {
+  "id": "faris-materials",
+  "version": "0.1.0",
+  "date": "2026-10-15",
+  "scope": "Seed database. Every number below was read from a source opened on the retrieval date and is quoted beside it. A field without a citable value is NOT_EVALUATED with the reason."
+ },
+ "sources": [
+  {
+   "id": "federici-2017",
+   "citation": "G. Federici et al., European DEMO design strategy and consequences for materials, Nuclear Fusion 57 (2017) 092002",
+   "url": "https://doi.org/10.1088/1741-4326/57/9/092002",
+   "retrieved": "2026-10-15",
+   "licence": "Creative Commons Attribution 3.0 (stated on the paper's first page)",
+   "redistribution": "cc_by",
+   "note": "Read from https://biblio.ugent.be/publication/8667008/file/8697111.pdf; page numbers are the journal's printed numbers."
+  },
+  {
+   "id": "zinkle-osti-1364282",
+   "citation": "S.J. Zinkle, J-L Boutard, D.T. Hoelzer, A. Kimura, R. Lindau, G.R. Odette, M. Rieth, L. Tan, H. Tanigawa, Development of Next Generation Tempered and ODS Reduced Activation Ferritic/Martensitic Steels for Fusion Energy Applications (manuscript hosted by OSTI, 1364282)",
+   "url": "https://www.osti.gov/servlets/purl/1364282",
+   "retrieved": "2026-10-15",
+   "licence": "Author manuscript hosted by the US Department of Energy OSTI; no reuse licence stated in the file",
+   "redistribution": "quote_only",
+   "note": "Values are quoted with this citation; the document is not redistributed. Page numbers are PDF pages of the OSTI file."
+  },
+  {
+   "id": "wang-1996-jnm",
+   "citation": "C.A. Wang, M.L. Grossbeck, N.B. Potluri, B.A. Chin, Welding of irradiated stainless steel, Journal of Nuclear Materials, October 1996, doi:10.1016/S0022-3115(96)00203-6",
+   "url": "https://www.osti.gov/etdeweb/biblio/439480",
+   "retrieved": "2026-10-15",
+   "licence": "Abstract on the US Department of Energy ETDEWEB record; no reuse licence stated",
+   "redistribution": "quote_only",
+   "note": "Only the abstract on the ETDEWEB page was read."
+  },
+  {
+   "id": "gaganidze-kit-2017",
+   "citation": "E. Gaganidze (KIT), Development of EUROFER97 Database and Material Property Handbook, 18th International Conference on Fusion Reactor Materials, 5 to 10 November 2017, Aomori; slide 3 cites R. Lindau et al., Fusion Eng. Des. 75-79 (2005)",
+   "url": "https://publikationen.bibliothek.kit.edu/1000076783/4990287",
+   "retrieved": "2026-10-15",
+   "licence": "Conference slides on the KIT repository; no reuse licence stated in the file",
+   "redistribution": "quote_only",
+   "note": "Slide numbers are the numbers printed on the slides."
+  },
+  {
+   "id": "fetter-1990-part2",
+   "citation": "S. Fetter, E.T. Cheng, F.M. Mann, Long-term radioactive waste from fusion reactors: Part II, Fusion Engineering and Design, 1990",
+   "url": "https://fetter.it-prod-webhosting.aws.umd.edu/sites/default/files/fetter/files/1990-FED-RadWaste.pdf",
+   "retrieved": "2026-10-15",
+   "licence": "Journal article posted by the author's group; publisher copyright not stated in the file",
+   "redistribution": "quote_only",
+   "note": "Page numbers are the numbers printed on the pages (Table 2 on pages 6 to 8, Table 3 on page 9)."
+  },
+  {
+   "id": "nrc-10cfr61.55",
+   "citation": "10 CFR 61.55 Waste classification, eCFR",
+   "url": "https://www.ecfr.gov/current/title-10/chapter-I/part-61/subpart-D/section-61.55",
+   "retrieved": "2026-10-15",
+   "licence": "US federal regulation, public domain",
+   "redistribution": "public_domain",
+   "note": "The rows themselves are in crates/faris-model/data/waste/nrc_10cfr61_55.json."
+  }
+ ],
+ "materials": [
+  {
+   "id": "eurofer97",
+   "name": "EUROFER97",
+   "class": "reduced-activation ferritic/martensitic steel",
+   "composition": {
+    "status": "nominal",
+    "basis": "mass_percent",
+    "elements": [
+     {"element": "C", "mass_percent": 0.11, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "C 0.09-0.12 [0.11] (targeted values in [])", "value_text": "0.11"}},
+     {"element": "Cr", "mass_percent": 9.0, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "Cr 8.5-9.5 [9.0] (targeted values in [])", "value_text": "9.0"}},
+     {"element": "W", "mass_percent": 1.1, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "W 1.0-1.2 [1.1] (targeted values in [])", "value_text": "1.1"}},
+     {"element": "Mn", "mass_percent": 0.4, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "Mn 0.20-0.60 [0.40] (targeted values in [])", "value_text": "0.40"}},
+     {"element": "V", "mass_percent": 0.2, "label": "calculated", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "V 0.15-0.25 (no targeted value in [] is given)", "value_text": "0.15-0.25"}, "method": "Midpoint of the specified range 0.15 to 0.25, because the slide gives no targeted value for V"},
+     {"element": "Ta", "mass_percent": 0.12, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "Ta 0.10-0.14 [0.12] (targeted values in [])", "value_text": "0.12"}},
+     {"element": "N", "mass_percent": 0.03, "label": "literature", "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, main alloying elements, Specified (mass%)", "quote": "N2 0.015-0.045 [0.030] (targeted values in [])", "value_text": "0.030"}}
+    ],
+    "balance": {"element": "Fe", "label": "calculated", "method": "100 percent minus the listed elements; the slide does not state the iron content"},
+    "not_evaluated": null
+   },
+   "impurity_specs": [
+    {
+     "id": "eurofer97-specified",
+     "kind": "specified",
+     "description": "EUROFER97 specification limits for the radiologically undesired elements, and the upper limits of the minor main-table elements",
+     "limits": [
+      {"element": "Nb", "max_wt_ppm": 10, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Nb <10", "value_text": "10"}},
+      {"element": "Mo", "max_wt_ppm": 50, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Mo <50", "value_text": "50"}},
+      {"element": "Ni", "max_wt_ppm": 50, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Ni < 50", "value_text": "50"}},
+      {"element": "Cu", "max_wt_ppm": 50, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Cu <50", "value_text": "50"}},
+      {"element": "Al", "max_wt_ppm": 100, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Al < 100", "value_text": "100"}},
+      {"element": "Ti", "max_wt_ppm": 100, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Ti < 100", "value_text": "100"}},
+      {"element": "Si", "max_wt_ppm": 500, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Si <500", "value_text": "500"}},
+      {"element": "Co", "max_wt_ppm": 50, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Specified (ug/g)", "quote": "Co <50", "value_text": "50"}}
+     ]
+    },
+    {
+     "id": "eurofer97-achieved-lindau2005",
+     "kind": "measured",
+     "description": "Range achieved in the production batches reported on the slide; the maximum of each range is the value used",
+     "limits": [
+      {"element": "Nb", "min_wt_ppm": 2, "max_wt_ppm": 7, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Nb 2-7", "value_text": "7"}},
+      {"element": "Mo", "min_wt_ppm": 10, "max_wt_ppm": 32, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Mo 10-32", "value_text": "32"}},
+      {"element": "Ni", "min_wt_ppm": 70, "max_wt_ppm": 280, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Ni 70-280", "value_text": "280"}},
+      {"element": "Cu", "min_wt_ppm": 15, "max_wt_ppm": 220, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Cu 15-220", "value_text": "220"}},
+      {"element": "Al", "min_wt_ppm": 60, "max_wt_ppm": 90, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Al 60-90", "value_text": "90"}},
+      {"element": "Ti", "min_wt_ppm": 50, "max_wt_ppm": 90, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Ti 50-90", "value_text": "90"}},
+      {"element": "Si", "min_wt_ppm": 400, "max_wt_ppm": 700, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Si 400-700", "value_text": "700"}},
+      {"element": "Co", "min_wt_ppm": 30, "max_wt_ppm": 70, "cite": {"source": "gaganidze-kit-2017", "locator": "slide 3, radiologically undesired elements, Achieved (ug/g)", "quote": "Co 30-70", "value_text": "70"}}
+     ]
+    }
+   ],
+   "properties": [
+    {
+     "id": "operating_temperature_lower_c",
+     "name": "Lower viable operating temperature (radiation embrittlement)",
+     "unit": "degC",
+     "label": "conditional",
+     "value": {"shape": "scalar", "value": 325.0},
+     "valid_range": null,
+     "conditions": ["stated for reduced-activation ferritic/martensitic steels in general, not for EUROFER97 alone", "applies for doses above 10 dpa", "dpa convention not stated in the source"],
+     "cite": {"source": "zinkle-osti-1364282", "locator": "PDF page 2, introduction", "quote": "lower viable operational temperature ~ 325 °C, for doses >10 dpa", "value_text": "325"},
+     "method": null,
+     "authored": null,
+     "not_evaluated": null
+    },
+    {
+     "id": "operating_temperature_upper_c",
+     "name": "Upper viable operating temperature (thermal aging and creep rupture)",
+     "unit": "degC",
+     "label": "literature",
+     "value": {"shape": "scalar", "value": 550.0},
+     "valid_range": null,
+     "conditions": ["stated for reduced-activation ferritic/martensitic steels in general, not for EUROFER97 alone", "the source writes the bound as 'less than 550 degC'"],
+     "cite": {"source": "zinkle-osti-1364282", "locator": "PDF page 2, introduction", "quote": "upper viable operational temperature < 550°C", "value_text": "550"},
+     "method": null,
+     "authored": null,
+     "not_evaluated": null
+    },
+    {
+     "id": "density_kg_m3",
+     "name": "Density",
+     "unit": "kg/m3",
+     "label": "not_evaluated",
+     "value": {"shape": "none"},
+     "valid_range": null,
+     "conditions": [],
+     "cite": null,
+     "method": null,
+     "authored": null,
+     "not_evaluated": {"reason": "no density value for EUROFER97 was read from an opened source", "next_step": "Add the density with its temperature range from the EUROfusion material property handbook or a measured datasheet, quoted with page and table."}
+    },
+    {
+     "id": "thermal_conductivity_w_m_k",
+     "name": "Thermal conductivity",
+     "unit": "W/(m K)",
+     "label": "not_evaluated",
+     "value": {"shape": "none"},
+     "valid_range": null,
+     "conditions": [],
+     "cite": null,
+     "method": null,
+     "authored": null,
+     "not_evaluated": {"reason": "no thermal conductivity for EUROFER97 was read from an opened source", "next_step": "Add a temperature table with its valid range from the material property handbook, quoted with page and table."}
+    }
+   ]
+  },
+  {
+   "id": "ss316",
+   "name": "316 stainless steel (316SS)",
+   "class": "austenitic stainless steel",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "no composition for 316SS was read from an opened source", "next_step": "Add the specification composition and impurity limits from the procurement standard used, quoted with page and table."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "tungsten",
+   "name": "Tungsten",
+   "class": "refractory metal armour",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "no tungsten grade specification was read from an opened source", "next_step": "Add the grade's purity and impurity limits from its supplier or standard, quoted with page and table."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "cucrzr",
+   "name": "CuCrZr",
+   "class": "copper alloy heat sink",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "no CuCrZr specification was read from an opened source", "next_step": "Add the specification composition and impurity limits, quoted with page and table."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "inconel718",
+   "name": "Inconel 718",
+   "class": "nickel superalloy",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "the manufacturer bulletin named in docs/MATERIAL_BASELINE.md was not opened for this database", "next_step": "Open the Special Metals bulletin, add its composition limits with table and page, and mark them specified."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "sic-sic",
+   "name": "SiC/SiC composite",
+   "class": "ceramic matrix composite",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "no SiC/SiC grade specification was read from an opened source", "next_step": "Add the grade's composition and impurity limits, quoted with page and table."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "rebco",
+   "name": "REBCO coated conductor",
+   "class": "high-temperature superconductor tape",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "REBCO tape is a layered product; no layer composition was read from an opened source", "next_step": "Add the layer stack of the tape type used, with its source."}},
+   "impurity_specs": [],
+   "properties": []
+  },
+  {
+   "id": "magnet-insulator",
+   "name": "Magnet insulator",
+   "class": "organic or ceramic insulation",
+   "composition": {"status": "not_evaluated", "basis": "mass_percent", "elements": [], "balance": null, "not_evaluated": {"reason": "no insulator type was chosen and no composition was read from an opened source", "next_step": "Name the insulator type, then add its composition and dose limit with a source."}},
+   "impurity_specs": [],
+   "properties": []
+  }
+ ],
+ "limits": [
+  {
+   "id": "eurofer97-dpa-starter-blanket",
+   "material": "eurofer97",
+   "component": "starter blanket, front-wall steel",
+   "quantity": "dpa",
+   "value": 20.0,
+   "unit": "dpa",
+   "convention": {"not_stated": "the paper quotes dpa from FISPACT-II damage cross sections without naming the displacement model (NRT, arc-dpa or another)"},
+   "temperature_window_c": {"not_stated": "no irradiation temperature is given with the lifetime"},
+   "spectrum": {"value": "DEMO fusion neutron spectrum, blanket front wall"},
+   "form": {"not_stated": "no product form is given"},
+   "conditions": ["design lifetime target for the first (starter) blanket, not a measured failure threshold"],
+   "status": "design_aspiration",
+   "kind": "literature",
+   "cite": {"source": "federici-2017", "locator": "page 10, section 2 text; also the page 7 list", "quote": "A ‘starter’ blanket should be designed using materials capable of withstanding ~20 dpa damage in the blanket front-wall steel.", "value_text": "20"},
+   "not_evaluated": null
+  },
+  {
+   "id": "eurofer97-dpa-second-blanket",
+   "material": "eurofer97",
+   "component": "second blanket, front-wall steel",
+   "quantity": "dpa",
+   "value": 50.0,
+   "unit": "dpa",
+   "convention": {"not_stated": "the paper quotes dpa from FISPACT-II damage cross sections without naming the displacement model (NRT, arc-dpa or another)"},
+   "temperature_window_c": {"not_stated": "no irradiation temperature is given with the lifetime"},
+   "spectrum": {"value": "DEMO fusion neutron spectrum, blanket front wall"},
+   "form": {"not_stated": "no product form is given"},
+   "conditions": ["design lifetime target for the second blanket, which the source says would use a more advanced material", "the source applies 50 dpa to the second blanket and does not name its steel"],
+   "status": "design_aspiration",
+   "kind": "conditional",
+   "cite": {"source": "federici-2017", "locator": "page 10, section 2 text; also the page 7 list", "quote": "The second blanket should be capable of lasting up to 50 dpa.", "value_text": "50"},
+   "not_evaluated": null
+  },
+  {
+   "id": "eurofer97-he-starter-blanket",
+   "material": "eurofer97",
+   "component": "starter blanket, front-wall steel",
+   "quantity": "he_appm",
+   "value": 200.0,
+   "unit": "appm",
+   "convention": {"not_stated": "not a dpa quantity"},
+   "temperature_window_c": {"not_stated": "no irradiation temperature is given"},
+   "spectrum": {"value": "DEMO fusion neutron spectrum, blanket front wall"},
+   "form": {"not_stated": "no product form is given"},
+   "conditions": ["the source lists 200 appm He in brackets after the 20 dpa starter-blanket lifetime: the helium level that goes with that lifetime, not an independently measured cracking limit"],
+   "status": "design_aspiration",
+   "kind": "conditional",
+   "cite": {"source": "federici-2017", "locator": "page 7, DEMO design list", "quote": "Lifetime: ‘starter’ blanket: 20 dpa (200 appm He); 2nd blanket 50 dpa; divertor: 5 dpa (Cu)", "value_text": "200"},
+   "not_evaluated": null
+  },
+  {
+   "id": "eurofer97-h-appm",
+   "material": "eurofer97",
+   "component": "blanket structure",
+   "quantity": "h_appm",
+   "value": null,
+   "unit": "appm",
+   "convention": {"not_stated": "not a dpa quantity"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no hydrogen limit for EUROFER97 was read from an opened source", "next_step": "Add a hydrogen appm limit with its irradiation temperature and the source's page and table."}
+  },
+  {
+   "id": "cucrzr-dpa-divertor",
+   "material": "cucrzr",
+   "component": "divertor heat sink",
+   "quantity": "dpa",
+   "value": 5.0,
+   "unit": "dpa",
+   "convention": {"not_stated": "the paper quotes dpa from FISPACT-II damage cross sections without naming the displacement model (NRT, arc-dpa or another)"},
+   "temperature_window_c": {"not_stated": "no irradiation temperature is given with the lifetime"},
+   "spectrum": {"value": "DEMO fusion neutron spectrum, divertor"},
+   "form": {"not_stated": "no product form is given"},
+   "conditions": ["the source says copper-alloy-based divertor heat sinks and does not name CuCrZr; assigning the limit to CuCrZr is FARIS's reading", "design lifetime target, not a measured threshold"],
+   "status": "design_aspiration",
+   "kind": "conditional",
+   "cite": {"source": "federici-2017", "locator": "pages 10 and 11, section 2 text; also the page 7 list", "quote": "neutron damage up to 20 dpa (for blanket front-wall steel) and 5 dpa (for copper-alloy-based divertor heat sinks)", "value_text": "5"},
+   "not_evaluated": null
+  },
+  {
+   "id": "ss316-he-weld-cracking",
+   "material": "ss316",
+   "component": "gas tungsten arc weld, heat affected zone",
+   "quantity": "he_appm",
+   "value": 1.0,
+   "unit": "appm",
+   "convention": {"not_stated": "not a dpa quantity"},
+   "temperature_window_c": {"not_stated": "helium-doped, unirradiated 316SS was welded; no irradiation temperature applies"},
+   "spectrum": {"not_stated": "helium-doped material, not a neutron-irradiated one"},
+   "form": {"value": "annealed 316SS, gas tungsten arc (GTA) weld"},
+   "conditions": ["helium-doped to 0.7, 1.5, 5.2 and 10 appm and welded by the GTA process", "threshold for weld cracking, observed on this process and material only", "the same abstract says earlier work found catastrophic cracking at 2 to 3 appm"],
+   "status": "measurement",
+   "kind": "literature",
+   "cite": {"source": "wang-1996-jnm", "locator": "abstract", "quote": "A threshold level for cracking in the helium doped material of approximately 1.0 appm was observed.", "value_text": "1.0"},
+   "not_evaluated": null
+  },
+  {
+   "id": "tungsten-limits",
+   "material": "tungsten",
+   "component": "plasma-facing armour",
+   "quantity": "dpa",
+   "value": null,
+   "unit": "dpa",
+   "convention": {"not_stated": "no row"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no tungsten damage limit was read from an opened source; the 100 dpa figure named in the requirements has no source", "next_step": "Add a limit with its dpa convention, irradiation temperature window and the source's page and table."}
+  },
+  {
+   "id": "inconel718-limits",
+   "material": "inconel718",
+   "component": "structural",
+   "quantity": "dpa",
+   "value": null,
+   "unit": "dpa",
+   "convention": {"not_stated": "no row"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no Inconel 718 damage limit was read from an opened source", "next_step": "Add a limit with its convention, temperature window and source."}
+  },
+  {
+   "id": "sic-sic-limits",
+   "material": "sic-sic",
+   "component": "structural or flow channel insert",
+   "quantity": "dpa",
+   "value": null,
+   "unit": "dpa",
+   "convention": {"not_stated": "no row"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no SiC/SiC damage limit was read from an opened source", "next_step": "Add a limit with its convention, temperature window and source."}
+  },
+  {
+   "id": "rebco-fluence-limits",
+   "material": "rebco",
+   "component": "magnet tape",
+   "quantity": "fluence_m2",
+   "value": null,
+   "unit": "m-2",
+   "convention": {"not_stated": "not a dpa quantity"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no REBCO fluence limit was read from an opened source; a limit needs its energy cut-off, irradiation temperature and tape type (MAT-030)", "next_step": "Add a limit with all three conditions from the source, quoted with page and table. Never reuse an Nb3Sn limit."}
+  },
+  {
+   "id": "magnet-insulator-dose-limits",
+   "material": "magnet-insulator",
+   "component": "magnet insulation",
+   "quantity": "dose_gy",
+   "value": null,
+   "unit": "Gy",
+   "convention": {"not_stated": "not a dpa quantity"},
+   "temperature_window_c": {"not_stated": "no row"},
+   "spectrum": {"not_stated": "no row"},
+   "form": {"not_stated": "no row"},
+   "conditions": [],
+   "status": "not_evaluated",
+   "kind": "not_evaluated",
+   "cite": null,
+   "not_evaluated": {"reason": "no insulator dose limit was read from an opened source", "next_step": "Name the insulator type, then add its dose limit with basis and source."}
+  }
+ ],
+ "watchlist": [
+  {
+   "element": "Nb",
+   "nuclides": ["Nb-94"],
+   "reason": "Nb-94 (half-life about 20 thousand years) is the long-lived product of niobium; its limit in activated metal is the tightest of Table 1, and trace niobium sets the class of activated steel",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 4, section 3; Table 3 on page 9", "quote": "The limits for niobium, molybdenum, gadolinium, terbium, and holmium are of the same order as or less than their natural abundance in the earth's crust.", "value_text": "niobium"},
+   "class_threshold": {"scheme": "nrc-10cfr61.55", "table": "table1", "row_label": "Nb-94 in activated metal"},
+   "literature_element_limit": {"text": "0.4-9 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "depends on Li-6 enrichment"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "41 Nb 0.4-9 ppm 20 Nb-94", "value_text": "0.4-9 ppm"}}
+  },
+  {
+   "element": "Mo",
+   "nuclides": ["Tc-99"],
+   "reason": "molybdenum makes Tc-99 (and Tc-98); Tc-99 has a Table 1 limit",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "42 Mo 0.2-2 ppm 1.5 Tc-99, Tc-98", "value_text": "0.2-2 ppm"},
+   "class_threshold": {"scheme": "nrc-10cfr61.55", "table": "table1", "row_label": "Tc-99"},
+   "literature_element_limit": {"text": "0.2-2 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "limit depends on waste-form indices"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "42 Mo 0.2-2 ppm 1.5 Tc-99, Tc-98", "value_text": "0.2-2 ppm"}}
+  },
+  {
+   "element": "Ag",
+   "nuclides": ["Ag-108m"],
+   "reason": "silver makes Ag-108m (half-life 127 years), which 10 CFR 61.55 does not list; Fetter gives a Class C specific-activity limit for activated metal",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 4, section 3", "quote": "Silver, erbium, and thorium could also present problems.", "value_text": "Silver"},
+   "class_threshold": {"scheme": "fetter-1990-sal", "nuclide": "Ag-108m", "value": 3.0, "unit": "Ci/m3", "note": "Class C specific-activity limit for activated metal in Fetter's Table 2; 10 CFR 61.55 has no row for Ag-108m, so no 61.55 threshold exists", "cite": {"source": "fetter-1990-part2", "locator": "page 6, Table 2", "quote": "Ag-108m 127. y 3.E+00 3 [6,8]", "value_text": "3.E+00"}},
+   "literature_element_limit": {"text": "0.5-1 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "depends on Li-6 enrichment"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "47 Ag 0.5-1 ppm 0.07 Ag-108m", "value_text": "0.5-1 ppm"}}
+  },
+  {
+   "element": "Co",
+   "nuclides": ["Co-60"],
+   "reason": "cobalt makes Co-60 (half-life 5.27 years); Table 2 gives Co-60 a Class A limit only, so above 700 Ci/m3 the waste is Class B at best",
+   "cite": {"source": "nrc-10cfr61.55", "locator": "(a)(4) Table 2 and its footnote 1", "quote": "Co-60 700 (1) (1)", "value_text": "700"},
+   "class_threshold": {"scheme": "nrc-10cfr61.55", "table": "table2", "row_label": "Co-60"},
+   "literature_element_limit": null
+  },
+  {
+   "element": "Gd",
+   "nuclides": ["Tb-158"],
+   "reason": "gadolinium makes Tb-158 (half-life 150 years), which 10 CFR 61.55 does not list; Fetter gives a Class C specific-activity limit for activated metal",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 4, section 3", "quote": "The limits for niobium, molybdenum, gadolinium, terbium, and holmium are of the same order as or less than their natural abundance in the earth's crust.", "value_text": "gadolinium"},
+   "class_threshold": {"scheme": "fetter-1990-sal", "nuclide": "Tb-158", "value": 4.0, "unit": "Ci/m3", "note": "Class C specific-activity limit for activated metal in Fetter's Table 2; 10 CFR 61.55 has no row for Tb-158, so no 61.55 threshold exists", "cite": {"source": "fetter-1990-part2", "locator": "page 7, Table 2 (continued)", "quote": "Tb-158 150. y 4.E+00 5 [8]", "value_text": "4.E+00"}},
+   "literature_element_limit": {"text": "4-20 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "depends on Li-6 enrichment"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "64 Gd 4-20 ppm 5.4 Tb-158", "value_text": "4-20 ppm"}}
+  },
+  {
+   "element": "Tb",
+   "nuclides": ["Tb-158"],
+   "reason": "terbium makes Tb-158 (half-life 150 years), which 10 CFR 61.55 does not list; Fetter gives a Class C specific-activity limit for activated metal",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 4, section 3", "quote": "The limits for niobium, molybdenum, gadolinium, terbium, and holmium are of the same order as or less than their natural abundance in the earth's crust.", "value_text": "terbium"},
+   "class_threshold": {"scheme": "fetter-1990-sal", "nuclide": "Tb-158", "value": 4.0, "unit": "Ci/m3", "note": "Class C specific-activity limit for activated metal in Fetter's Table 2; 10 CFR 61.55 has no row for Tb-158, so no 61.55 threshold exists", "cite": {"source": "fetter-1990-part2", "locator": "page 7, Table 2 (continued)", "quote": "Tb-158 150. y 4.E+00 5 [8]", "value_text": "4.E+00"}},
+   "literature_element_limit": {"text": "0.2-0.3 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "depends on Li-6 enrichment"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "65 Tb 0.2-0.3 ppm 0.9 Tb-158", "value_text": "0.2-0.3 ppm"}}
+  },
+  {
+   "element": "Ho",
+   "nuclides": ["Ho-166m"],
+   "reason": "holmium makes Ho-166m (half-life 1.2 thousand years), which 10 CFR 61.55 does not list; Fetter gives a Class C specific-activity limit for activated metal",
+   "cite": {"source": "fetter-1990-part2", "locator": "page 4, section 3", "quote": "The limits for niobium, molybdenum, gadolinium, terbium, and holmium are of the same order as or less than their natural abundance in the earth's crust.", "value_text": "holmium"},
+   "class_threshold": {"scheme": "fetter-1990-sal", "nuclide": "Ho-166m", "value": 0.2, "unit": "Ci/m3", "note": "Class C specific-activity limit for activated metal in Fetter's Table 2; 10 CFR 61.55 has no row for Ho-166m, so no 61.55 threshold exists", "cite": {"source": "fetter-1990-part2", "locator": "page 7, Table 2 (continued)", "quote": "Ho-166m 1.2 ky 2.E-01 0.2 [8]", "value_text": "2.E-01"}},
+   "literature_element_limit": {"text": "0.4-10 ppm", "conditions": ["metal first wall of a vanadium-alloy lithium-cooled blanket, 20 MW-y/m2", "depends on Li-6 enrichment"], "cite": {"source": "fetter-1990-part2", "locator": "page 9, Table 3", "quote": "67 Ho 0.4-10 ppm 1.2 Ho-166m", "value_text": "0.4-10 ppm"}}
+  }
+ ]
+}

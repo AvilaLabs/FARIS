@@ -3,12 +3,14 @@
 pub mod design;
 pub mod history;
 pub mod maintenance;
+pub mod materials_db;
 pub mod math;
 pub mod physics;
 pub mod remote_handling;
 pub mod settings;
 pub mod transport;
 pub mod validation;
+pub mod waste;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

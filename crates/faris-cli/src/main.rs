@@ -11,11 +11,13 @@ mod evidence;
 mod exit;
 mod history;
 mod maintenance;
+mod materials;
 mod reactor;
 mod study;
 mod study_export;
 mod study_file;
 mod transport;
+mod waste;
 
 #[derive(Parser)]
 #[command(
@@ -44,6 +46,16 @@ enum Command {
     Maintenance {
         #[command(subcommand)]
         command: maintenance::MaintenanceCommand,
+    },
+    /// Waste classification (10 CFR 61.55), IAEA clearance index and recycling index of activated components.
+    Waste {
+        #[command(subcommand)]
+        command: waste::WasteCommand,
+    },
+    /// The cited materials and limits database: compositions, impurity limits, damage and gas limits.
+    Materials {
+        #[command(subcommand)]
+        command: materials::MaterialsCommand,
     },
     /// Package and execute identified simulation evidence with real Avila Core.
     Evidence {
@@ -138,6 +150,8 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::Config { command } => config::run(command, &arguments.settings)?,
         Command::History { command } => history::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
+        Command::Waste { command } => waste::run(command)?,
+        Command::Materials { command } => materials::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,
         Command::Design { command } => design::run(command)?,
         Command::Control { command } => control::run(command)?,
