@@ -30,6 +30,7 @@ Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation
 | `faris history ensemble` | An ensemble of histories on sampled transport rates. |
 | `faris history compare-runs` | Compares two runs under identical assumptions. |
 | `faris history sensitivity` | Full-rerun sensitivity over a `--grid` file. With `--cache-dir` a killed run resumes where it stopped. |
+| `faris activation run` | Runs ACTINV on zones with group fluxes and an irradiation schedule: inventory, activity, decay heat, decay-photon source, main paths, data gaps. See [Activation and decay heat](activation.md). |
 | `faris maintenance run` | Computes replacement outages from decay heat for every design and compares them with the fixed ones. Needs ACTINV and Python. See [Computed maintenance durations](maintenance.md). |
 | `faris maintenance report RESULT` | Prints a maintenance result as tables. |
 | `faris waste classify`, `clearance-time`, `recycling`, `schemes`, `tables` | Classifies an activated component's inventory under 10 CFR 61.55 at a stated disposal time, gives its IAEA clearance index and the time it falls below 1, and a recycling index against your own dose-rate criterion. Prints JSON. See [Waste classification and clearance](waste.md). |

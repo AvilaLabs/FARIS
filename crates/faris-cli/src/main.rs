@@ -3,6 +3,7 @@ use faris_engine::build_manifest;
 use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
+mod activation;
 mod adapters;
 mod cache;
 mod config;
@@ -47,6 +48,11 @@ enum Command {
     History {
         #[command(subcommand)]
         command: history::HistoryCommand,
+    },
+    /// Activation inventory, decay heat and decay-photon source of zones through ACTINV.
+    Activation {
+        #[command(subcommand)]
+        command: activation::ActivationCommand,
     },
     /// Compute replacement outages from activation decay heat and compare them with fixed ones.
     Maintenance {
@@ -194,6 +200,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::Adapters { command } => adapters::run(command)?,
         Command::Config { command } => config::run(command, &settings)?,
         Command::History { command } => history::run(command)?,
+        Command::Activation { command } => activation::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
         Command::Waste { command } => waste::run(command)?,
         Command::Materials { command } => materials::run(command)?,
