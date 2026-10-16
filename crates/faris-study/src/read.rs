@@ -266,7 +266,9 @@ impl StudyReader {
             let entry = archive.by_index_raw(index)?;
             let name = entry
                 .name()
-                .map_err(|error| StudyError::corrupt(format!("an entry name is not valid: {error}")))?
+                .map_err(|error| {
+                    StudyError::corrupt(format!("an entry name is not valid: {error}"))
+                })?
                 .into_owned();
             if !names.insert(name.clone()) {
                 return Err(StudyError::corrupt(format!(
