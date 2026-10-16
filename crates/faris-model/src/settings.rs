@@ -195,6 +195,22 @@ pub static REGISTRY: &[SettingDef] = &[
         None,
         "Colour theme. Reserved for the desktop, which does not read it yet.",
     ),
+    def(
+        "backups.keep",
+        ValueType::Int { min: 1, max: 100 },
+        Some("3"),
+        "versions",
+        None,
+        "How many earlier versions of a study the desktop keeps beside the file each time you save.",
+    ),
+    def(
+        "crash.keep_days",
+        ValueType::Int { min: 1, max: 365 },
+        Some("30"),
+        "days",
+        None,
+        "How long the desktop keeps crash records, diagnostics bundles and recovery files on this computer before deleting them. Nothing is sent anywhere.",
+    ),
 ];
 
 pub fn lookup(key: &str) -> Option<&'static SettingDef> {

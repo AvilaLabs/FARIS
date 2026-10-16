@@ -23,6 +23,7 @@
 # Files and the command line
 
 - [Study files (.faris)](study-files.md)
+- [Undo, recovery and backups](recovery-and-undo.md)
 - [Export a brief, tables and charts](export.md)
 - [Command line](cli.md)
 - [Settings](settings.md)

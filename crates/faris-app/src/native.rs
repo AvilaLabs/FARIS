@@ -484,6 +484,29 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         return Err("initial year must be finite and within the scenario horizon".into());
     }
+    // Crash records, the recovery copy and rolling backups live in the per-user
+    // configuration folder; none of them is needed to open a study (REL-024).
+    let session_scripted = scripted;
+    let config_dir = crate::settings::config_dir_with(crate::settings::Platform::current(), &|n| {
+        std::env::var_os(n)
+    });
+    let user_settings = crate::settings::default_path()
+        .map(|path| crate::settings::load(&path).settings)
+        .unwrap_or_default();
+    let setting_number = |key: &str, default: u64, range: std::ops::RangeInclusive<u64>| {
+        user_settings
+            .value(key)
+            .and_then(|text| text.trim().parse::<u64>().ok())
+            .filter(|n| range.contains(n))
+            .unwrap_or(default)
+    };
+    let keep_days = setting_number("crash.keep_days", crash::DEFAULT_KEEP_DAYS, 1..=365);
+    let backups_keep =
+        setting_number("backups.keep", backup::DEFAULT_KEEP as u64, 1..=100) as usize;
+    if !session_scripted && let Some(config) = &config_dir {
+        crash::purge_all(config, crate::undo::now_unix() as u64, keep_days);
+        crash::install_panic_hook(config.clone());
+    }
     let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         depth_buffer: 32,
@@ -572,6 +595,20 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
                 app.maintenance.load_in_background(&cc.egui_ctx, path);
             }
             app.file = study_file::FileState::new(inputs, runs_directory.clone());
+            app.file.backups_keep = backups_keep;
+            app.diagnostics.config = config_dir.clone();
+            app.diagnostics.keep_days = Some(keep_days);
+            if !session_scripted && let Some(config) = &config_dir {
+                let dir = recovery::dir_in(config);
+                let found =
+                    recovery::find(&dir, app.autosave.process_id(), &recovery::process_alive);
+                let (offer, notice) = recovery::Offer::from_found(found, crate::undo::now_unix());
+                app.autosave.offer = offer;
+                if let Some(notice) = notice {
+                    app.message = notice;
+                }
+                app.autosave.enable(dir);
+            }
             if let Some(session) = package_session {
                 if let Some(failure) = &session.failure {
                     app.message = failure.text.clone();

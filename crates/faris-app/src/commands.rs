@@ -135,6 +135,17 @@ fn single_allocation(app: &FarisApp) -> Option<String> {
         .then(|| "This study has only one allocation, so there is nothing to switch to.".to_owned())
 }
 
+fn nothing_to_undo(app: &FarisApp) -> Option<String> {
+    (!app.edits.history.can_undo()).then(|| {
+        "There is nothing to undo yet. Changes you make in this session are listed under Edit, Edit history.".to_owned()
+    })
+}
+
+fn nothing_to_redo(app: &FarisApp) -> Option<String> {
+    (!app.edits.history.can_redo())
+        .then(|| "There is nothing to redo. Redo is available after you undo a change.".to_owned())
+}
+
 fn go_to(app: &mut FarisApp, step: Step) {
     app.step = step;
     app.message = format!("Step {} {}.", step.number(), step.name());
@@ -231,6 +242,50 @@ pub static REGISTRY: &[Command] = &[
         &["core", "receipts", "verify"],
         Some(Shortcut::key(Key::Num5)),
         |app, _| go_to(app, Step::Evidence),
+    ),
+    command(
+        "edit.undo",
+        "Undo the last change",
+        &["revert", "back", "history"],
+        Some(Shortcut::command(Key::Z)),
+        |app, ctx| app.undo(ctx),
+    )
+    .blocked_by(nothing_to_undo),
+    command(
+        "edit.redo",
+        "Redo the change you undid",
+        &["forward", "again", "history"],
+        Some(Shortcut::command_shift(Key::Z)),
+        |app, ctx| app.redo(ctx),
+    )
+    .blocked_by(nothing_to_redo),
+    command(
+        "edit.redo_alt",
+        "Redo (alternative key)",
+        &["forward", "again", "history"],
+        Some(Shortcut::command(Key::Y)),
+        |app, ctx| app.redo(ctx),
+    )
+    .blocked_by(nothing_to_redo),
+    command(
+        "edit.history",
+        "Edit history window (toggle)",
+        &["undo list", "changes", "steps"],
+        None,
+        |app, _| {
+            app.edits.window_open = !app.edits.window_open;
+            app.message = window_message("Edit history", app.edits.window_open);
+        },
+    ),
+    command(
+        "tools.diagnostics",
+        "Crash records and diagnostics window (toggle)",
+        &["crash", "bundle", "report", "log"],
+        None,
+        |app, _| {
+            app.diagnostics.open = !app.diagnostics.open;
+            app.message = window_message("Crash records and diagnostics", app.diagnostics.open);
+        },
     ),
     command(
         "file.open",
@@ -506,6 +561,11 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ("Top bar", "Steps 1 to 5", "step.operate"),
     ("Top bar", "Steps 1 to 5", "step.compare"),
     ("Top bar", "Steps 1 to 5", "step.evidence"),
+    ("Top bar", "Edit > Undo", "edit.undo"),
+    ("Top bar", "Edit > Redo", "edit.redo"),
+    ("Top bar", "Edit > Redo", "edit.redo_alt"),
+    ("Top bar", "Edit > Edit history", "edit.history"),
+    ("Top bar", "File > Crash records", "tools.diagnostics"),
     ("Top bar", "File > Open", "file.open"),
     ("Top bar", "File > Save", "file.save"),
     ("Top bar", "File > Save as", "file.save_as"),
@@ -809,7 +869,8 @@ impl FarisApp {
     /// wait while a text field has focus, while the palette is open and during
     /// the tour (which owns the arrows, Enter and Escape).
     pub fn keyboard(&mut self, ctx: &egui::Context) {
-        let plain_ok = !self.tour.active && !self.palette.open && !ctx.text_edit_focused();
+        let text_focused = ctx.text_edit_focused();
+        let plain_ok = !self.tour.active && !self.palette.open && !text_focused;
         let pressed = ctx.input_mut(|input| {
             // Shift chords first: `consume_key` ignores a surplus Shift.
             for with_shift in [true, false] {
@@ -818,6 +879,10 @@ impl FarisApp {
                         continue;
                     };
                     if shortcut.shift != with_shift || (!shortcut.command && !plain_ok) {
+                        continue;
+                    }
+                    // A text field being edited keeps its own undo for Ctrl+Z and Ctrl+Y.
+                    if shortcut.command && matches!(shortcut.key, Key::Z | Key::Y) && text_focused {
                         continue;
                     }
                     if !shortcut.command && input.modifiers.any() {

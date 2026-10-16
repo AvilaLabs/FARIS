@@ -373,6 +373,18 @@ impl TransportPanel {
         ctx.request_repaint();
     }
 
+    /// A transport run is under way.
+    pub fn is_running(&self) -> bool {
+        self.pending.is_some()
+    }
+
+    /// Ask the run under way to stop. What it already wrote stays as it is.
+    pub fn cancel_run(&self) {
+        if let Some(pending) = &self.pending {
+            pending.cancellation.cancel();
+        }
+    }
+
     fn start(&mut self, ctx: egui::Context, variant: &str) {
         let Some(physics) = self.cases.get(variant).cloned() else {
             self.error =
@@ -528,6 +540,9 @@ impl TransportPanel {
                     self.readiness(variant).starts_with("Transport configured"),
                     egui::Button::new("Run transport"),
                 )
+                .on_hover_text(crate::undo::cannot_undo_hint(
+                    "Starts a transport run on this computer.",
+                ))
                 .clicked()
             {
                 self.start(ui.ctx().clone(), variant);
