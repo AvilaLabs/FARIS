@@ -37,13 +37,22 @@ const browser = await chromium.launch({
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const problems = [];
-  page.on("pageerror", error => problems.push(`page error: ${error.message}`));
+  // A panic stops the app for good: report it at once instead of waiting out the load timeout.
+  let panicked;
+  const panic = new Promise((_, reject) => { panicked = reject; });
+  panic.catch(() => {});
+  const note = problem => {
+    problems.push(problem);
+    console.error(problem);
+    if (/panicked|RuntimeError: unreachable/.test(problem)) panicked(new Error(`the app stopped: ${problem}`));
+  };
+  page.on("pageerror", error => note(`page error: ${error.message}`));
   page.on("console", message => {
     const text = message.text();
     // The signed-out account check answers 401 (and fails CORS when served locally); both are expected.
     const source = (message.location() && message.location().url) || "";
     const expected = /api\.avilalabs\.org|net::ERR_FAILED/.test(text) || /api\.avilalabs\.org/.test(source);
-    if (!expected && (message.type() === "error" || /panicked/.test(text))) problems.push(`console ${message.type()}: ${text}`);
+    if (!expected && (message.type() === "error" || /panicked/.test(text))) note(`console ${message.type()}: ${text}`);
   });
   // Long main-thread tasks, as the page itself sees them.
   await page.addInitScript(() => {
@@ -55,7 +64,10 @@ try {
   await page.goto(url.href);
   await page.locator("#faris_canvas").waitFor({ state: "attached" });
   // The loading text goes away once the first frame is up.
-  await page.locator("#faris-loading").waitFor({ state: "detached", timeout: Number(process.env.WEB_TIMEOUT_MS || 180000) });
+  await Promise.race([
+    page.locator("#faris-loading").waitFor({ state: "detached", timeout: Number(process.env.WEB_TIMEOUT_MS || 180000) }),
+    panic,
+  ]);
   // No mouse, keyboard or resize events from here to the end of the settle
   // wait: every pending calculation must advance on its own.
   await page.waitForFunction(() => {

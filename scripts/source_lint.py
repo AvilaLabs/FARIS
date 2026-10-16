@@ -19,6 +19,8 @@ failing finding.
            as a string literal outside the modules that derive it from a receipt or an input
   UX-046   a badge call with an empty explanation; UX-046-na is a bare "N/A" literal, UX-046-dash a lone dash literal
   DSN-085  faris-report writes the research-screening statement from its one constant into csv, pdf and svg output
+  PLAT-web a std call that panics in the browser build (std::process::id, std::time::Instant or SystemTime, std::thread::spawn)
+           in faris-app; use crate::time and crate::thread, or gate it off wasm32 and list it below
   DOC-062  the user guide and README carry the design-model-not-a-twin sentence; VAL-084 is the same wording in the
            strings of the crates (the plant outputs), and QA-052 a document that states the NQA-1 mapping
 """
@@ -56,6 +58,12 @@ AMBIENT_TIME_OK = {
     ("crates/faris-engine/src/result_cache.rs", "SystemTime::now()"): "cache bookkeeping only (when an entry was made and last used, for eviction); "
     "the key never includes a time, which result_cache's tests check",
 }
+# (file, whole line) -> why a std call that panics in the browser is safe there.
+BROWSER_PANIC_OK = {
+    ("crates/faris-app/src/recovery.rs", "std::process::id()"): "inside process_id(), compiled only off wasm32",
+    ("crates/faris-app/src/web_ensembles.rs", "let started = std::time::Instant::now();"): "--write-web-ensembles, a desktop development tool",
+}
+BROWSER_PANIC = re.compile(r"\bstd::(?:process::id|time::(?:Instant|SystemTime)|thread::spawn)\b")
 AMBIENT_TIME = re.compile(r"\b(SystemTime::now|Utc::now|Local::now|OffsetDateTime::now_utc|chrono::Utc)\b")
 MONOTONIC = re.compile(r"\bInstant::now\b")
 AMBIENT_RANDOM = re.compile(r"\b(thread_rng|rand::random|from_entropy|OsRng|getrandom::|rand::rng|SmallRng::from_os)\b")
@@ -178,6 +186,8 @@ def lint_rust(root: Path = ROOT) -> list[tuple[str, str, int, str]]:
                     findings.append(("PRV-008-timing", rel, number, line.strip()))
                 if AMBIENT_RANDOM.search(line):
                     findings.append(("CFG-054", rel, number, line.strip()))
+            if crate == "faris-app" and BROWSER_PANIC.search(line) and (rel, line.strip()) not in BROWSER_PANIC_OK:
+                findings.append(("PLAT-web", rel, number, line.strip()))
             if DIGEST_COMPARE.search(line) and not any(rel == f and snippet in line for (f, snippet) in DIGEST_COMPARE_OK):
                 findings.append(("SEC-011", rel, number, line.strip()))
             for m in DIGEST_SLICE.finditer(line):

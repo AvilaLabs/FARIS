@@ -55,7 +55,7 @@ impl RecoveryFile {
             schema: SCHEMA.into(),
             saved_unix,
             faris_version: env!("CARGO_PKG_VERSION").into(),
-            process_id: std::process::id(),
+            process_id: process_id(),
             study_path: study_path.map(|p| p.to_string_lossy().into_owned()),
             state,
         }
@@ -64,6 +64,15 @@ impl RecoveryFile {
     pub fn encode(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap_or_default()
     }
+}
+
+/// This run's process id; the browser has none (`std::process::id` panics there),
+/// and autosave is off in the browser anyway.
+fn process_id() -> u32 {
+    #[cfg(target_arch = "wasm32")]
+    return 0;
+    #[cfg(not(target_arch = "wasm32"))]
+    std::process::id()
 }
 
 /// The folder recovery files live in, under the configuration folder.
@@ -308,7 +317,7 @@ impl Default for Autosave {
             restore_after_open: None,
             writer: None,
             error: Arc::new(Mutex::new(None)),
-            process_id: std::process::id(),
+            process_id: process_id(),
         }
     }
 }
