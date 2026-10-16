@@ -112,7 +112,7 @@ Its main gaps against these targets:
 <!-- counts:start -->
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 41 | 1 | 28 |
+| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 42 | 1 | 27 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 48 | 3 | 48 |
 | [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 17 | 41 | 0 | 39 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 3 | 18 | 0 | 78 |
@@ -120,24 +120,24 @@ Its main gaps against these targets:
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 6 | 32 | 0 | 34 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
-| [Usability](09-usability.md) | UX | 73 | 0 | 28 | 3 | 42 |
+| [Usability](09-usability.md) | UX | 73 | 0 | 34 | 3 | 36 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 0 | 18 | 9 | 30 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
-| [Configurability](12-configurability.md) | CFG | 63 | 1 | 34 | 1 | 27 |
+| [Configurability](12-configurability.md) | CFG | 63 | 1 | 35 | 1 | 26 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 0 | 26 | 0 | 48 |
 | [Interoperability](14-interoperability.md) | INT | 59 | 1 | 21 | 3 | 34 |
 | [Design workflows](15-design-workflows.md) | DSN | 75 | 3 | 20 | 0 | 52 |
 | [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 6 | 19 | 2 | 15 |
 | [Collaboration](17-collaboration.md) | COL | 40 | 1 | 12 | 0 | 27 |
-| [Reliability](18-reliability.md) | REL | 38 | 2 | 11 | 1 | 24 |
+| [Reliability](18-reliability.md) | REL | 38 | 3 | 21 | 1 | 13 |
 | [Security](19-security.md) | SEC | 55 | 9 | 28 | 1 | 17 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 4 | 24 | 0 | 17 |
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 36 | 1 | 36 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 22 | 2 | 9 |
-| **Total** | | **1419** | **78** | **578** | **35** | **728** |
+| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 23 | 2 | 8 |
+| **Total** | | **1419** | **79** | **597** | **35** | **708** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 78 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 79 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

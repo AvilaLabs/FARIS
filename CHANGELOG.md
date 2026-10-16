@@ -65,6 +65,12 @@ basis.
   figure of merit and its trend, relative error and its decrease, and more) and gives each tally its value with
   digits set by its uncertainty and a named 95 % interval (Student t or scaled Garwood, one-sided below 10
   effective events). A tally that fails a check gets no interval or verdict. See the handbook page "Tally
+- Desktop app: undo and redo for every edit (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and Edit > History to jump to a
+  step); autosave to a separate recovery file every 20 s, with an offer to restore after a crash; rolling backups
+  beside each saved study (`backups.keep`, default 3); a study in an older format is saved as a new
+  "(upgraded)" copy and the original is left alone. A crash writes a local record without paths or study content,
+  never uploaded, kept for `crash.keep_days` (default 30), with a reviewable diagnostics bundle you can choose to
+  share. See the handbook page "Recovery and undo".
   statistics".
 - Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
   registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a

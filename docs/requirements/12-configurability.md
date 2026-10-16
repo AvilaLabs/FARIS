@@ -39,7 +39,7 @@ How people and sites change FARIS without editing code, and how FARIS keeps that
 | CFG-022 | Imports shall be checked, previewed and applied atomically. | A file with one bad value changes 0 settings; the preview lists each change as old, new, unit; apply is one undoable step. | Fault-injection; undo test. | FARIS choice | F1 | No |
 | CFG-023 | Settings shall be editable in the app and as text, with the same result. | A change made in either route appears in the other within 1 s; 0 settings editable only in the UI or only in text, except locked ones. | Parity test over the registry. | VS Code Settings editor plus settings.json [V](https://code.visualstudio.com/docs/configure/settings) | F1 | No |
 | CFG-024 | The effective configuration of any run shall be exportable. | `faris config resolve` writes a complete file; re-running with it gives the same result hash on 20 golden studies. | Reproduction test. | Hydra `--cfg` [V](https://hydra.cc/docs/advanced/hydra-command-line-flags/); `nextflow config` [V](https://www.nextflow.io/docs/latest/reference/cli.html) | F1 | No |
-| CFG-025 | Settings changes shall be undoable and shown in an activity list. | Last 100 changes listed with time, key, old, new, layer; undo restores the exact prior state. | Undo test; log check. | FARIS choice | F2 | No |
+| CFG-025 | Settings changes shall be undoable and shown in an activity list. | Last 100 changes listed with time, key, old, new, layer; undo restores the exact prior state. | Undo test; log check. | FARIS choice | F2 | Partial: It covers ui.scale and study.include_evidence only. The last 100 settings changes are listed with time, key, old value, new value and layer, and undo restores them. |
 
 ## Keybindings, layouts and appearance
 
