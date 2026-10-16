@@ -55,6 +55,7 @@ fn the_help_text_lists_every_exit_code() {
         "3  solver failure",
         "4  cancelled",
         "5  resource refused",
+        "6  different",
         "64  usage",
     ] {
         assert!(help.contains(line), "{line} missing from:\n{help}");

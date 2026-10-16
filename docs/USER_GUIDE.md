@@ -210,7 +210,7 @@ The `faris` command needs no graphics, Python, OpenMC or Core.
 | `faris doctor` | Reports whether `openmc`, `actinv` and `avila-core` are on `PATH`, with the SHA-256 of each file. It runs nothing. |
 | `faris adapters list` | The same tools with version and health (runs `TOOL --version`, 5 seconds at most). |
 
-Run `faris COMMAND --help` for every flag. Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation); 2 validation (an input is missing, unreadable or invalid); 3 solver failure (an external tool ran and did not succeed); 4 cancelled (Ctrl-C or SIGTERM stopped the job); 5 resource refused (the memory check refused the job); 64 usage (the command line did not parse). `faris --help` lists them. To run new transport, follow [TRANSPORT.md](TRANSPORT.md) and [COLD_REFERENCE.md](COLD_REFERENCE.md). The history commands are in [OPERATING_HISTORY.md](OPERATING_HISTORY.md).
+Run `faris COMMAND --help` for every flag. Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation); 2 validation (an input is missing, unreadable or invalid); 3 solver failure (an external tool ran and did not succeed); 4 cancelled (Ctrl-C or SIGTERM stopped the job); 5 resource refused (the memory check refused the job); 6 different (a comparison such as `faris diff` found the two sides differ); 64 usage (the command line did not parse). `faris --help` lists them. To run new transport, follow [TRANSPORT.md](TRANSPORT.md) and [COLD_REFERENCE.md](COLD_REFERENCE.md). The history commands are in [OPERATING_HISTORY.md](OPERATING_HISTORY.md).
 
 ## 8. Limits of this release
 

@@ -11,6 +11,7 @@
 
 use super::{ReactorError, ReactorJob, digest, hash_file, write_new};
 use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
+use crate::result_cache::{self, CacheKey, Lookup, ResultCache};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
@@ -156,27 +157,36 @@ fn solid_request(request: &Value) -> Value {
 }
 
 /// Identity of a set of windows: the model, materials, response, data and helper code they were made from.
-fn cache_key(
+/// Built by the one key function (AUTO-031).
+fn windows_cache_key(
     base_input: &Value,
     cross_sections_sha256: &str,
     python: &Path,
     adapter: &[u8],
-) -> String {
-    let identity = serde_json::json!({
-        "recipe": RECIPE,
-        "manifest": base_input["manifest"],
-        "physics": base_input["physics"],
-        "request": solid_request(&base_input["request"]),
-        "cross_sections": cross_sections_sha256,
-        "window_python": python.display().to_string(),
-        "helpers": [
-            digest(REACTOR_WINDOWS.as_bytes()),
-            digest(WINDOW_GENERATOR.as_bytes()),
-            digest(WINDOW_FILL_HELPER.as_bytes()),
-            digest(adapter),
+) -> CacheKey {
+    result_cache::cache_key(
+        "reactor-windows",
+        [
+            ("recipe", serde_json::json!(RECIPE)),
+            ("manifest", base_input["manifest"].clone()),
+            ("physics", base_input["physics"].clone()),
+            ("request", solid_request(&base_input["request"])),
+            ("cross_sections", serde_json::json!(cross_sections_sha256)),
+            (
+                "window_python",
+                serde_json::json!(python.display().to_string()),
+            ),
+            (
+                "helpers",
+                serde_json::json!([
+                    digest(REACTOR_WINDOWS.as_bytes()),
+                    digest(WINDOW_GENERATOR.as_bytes()),
+                    digest(WINDOW_FILL_HELPER.as_bytes()),
+                    digest(adapter),
+                ]),
+            ),
         ],
-    });
-    digest(identity.to_string().as_bytes())
+    )
 }
 
 /// Windows kept by an earlier run, if the entry is whole and its file matches its record.
@@ -226,12 +236,28 @@ pub fn prepare(
             ))));
         }
     };
-    let key = cache_key(base_input, cross_sections_sha256, &python, job.adapter);
-    let entry = options
-        .cache_dir
-        .map(|cache| cache.join(format!("reactor-windows-{key}")));
-    if let Some((windows, record)) = entry.as_deref().and_then(cached) {
-        return Ok(Some(found(windows, record, true, 0.0, None)?));
+    let key = windows_cache_key(base_input, cross_sections_sha256, &python, job.adapter);
+    let store = options.cache_dir.map(ResultCache::open);
+    let entry = store.as_ref().map(|store| store.entry_dir(&key));
+    let mut refused = None;
+    if let Some(store) = &store {
+        // Every read is verified (AUTO-035): a damaged entry is refused, said so, and rebuilt.
+        match store.lookup(&key) {
+            Lookup::Hit(hit) => {
+                if let Some((windows, record)) = entry.as_deref().and_then(cached) {
+                    return Ok(Some(found(
+                        windows,
+                        record,
+                        Some(hit.provenance.text()),
+                        0.0,
+                        None,
+                    )?));
+                }
+            }
+            Lookup::Miss => {}
+            Lookup::Rejected(why) => refused = Some(why),
+        }
+        store.discard(&key);
     }
     // Made in a directory beside the cache (or beside the run), moved into place whole.
     let parent = match options.cache_dir {
@@ -244,7 +270,7 @@ pub fn prepare(
     std::fs::create_dir_all(&parent)?;
     let work = parent.join(format!(
         ".reactor-windows-{}-{}",
-        &key[..16],
+        &key.digest()[..16],
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&work);
@@ -273,19 +299,30 @@ pub fn prepare(
             std::fs::rename(&kept, &entry)?;
             let _ = std::fs::remove_dir_all(&work);
             let (windows, record) = (entry.join("filled.h5"), entry.join("record.json"));
-            Ok(Some(found(windows, record, false, seconds, None)?))
+            if let Some(store) = &store {
+                store
+                    .seal(&key, seconds)
+                    .map_err(|e| format!("the windows cache: {e}"))?;
+            }
+            let mut prepared = found(windows, record, None, seconds, None)?;
+            if let Some(why) = refused {
+                prepared.record.reason = format!("{} ({why})", prepared.record.reason);
+            }
+            Ok(Some(prepared))
         }
-        None => Ok(Some(found(windows, record, false, seconds, Some(work))?)),
+        None => Ok(Some(found(windows, record, None, seconds, Some(work))?)),
     }
 }
 
+/// `reused` is where the windows came from when they were kept by an earlier run.
 fn found(
     windows: PathBuf,
     record: PathBuf,
-    reused: bool,
+    reused: Option<String>,
     seconds: f64,
     scratch: Option<PathBuf>,
 ) -> Result<Prepared, ReactorError> {
+    let (reason, windows_reused) = (reused.as_deref(), reused.is_some());
     let plan = WeightWindowsPlan {
         kind: KIND.into(),
         response_id: super::STOP_RULE_RESPONSE_ID.into(),
@@ -294,8 +331,10 @@ fn found(
         record_file: WINDOWS_RECORD_FILE.into(),
         record_sha256: hash_file(&record)?,
     };
-    let reason = if reused {
-        "Weight windows aimed at the magnet fast flux, reused from an earlier run on the same model, data and response.".to_string()
+    let reason = if let Some(from) = reason {
+        format!(
+            "Weight windows aimed at the magnet fast flux, reused from an earlier run on the same model, data and response: {from}."
+        )
     } else {
         format!(
             "Weight windows aimed at the magnet fast flux, made for this run in {seconds:.0} s."
@@ -306,8 +345,8 @@ fn found(
         record: VarianceReductionRecord {
             mode: KIND.into(),
             reason,
-            windows_reused: Some(reused),
-            generation_seconds: Some(if reused { 0.0 } else { seconds }),
+            windows_reused: Some(windows_reused),
+            generation_seconds: Some(if windows_reused { 0.0 } else { seconds }),
         },
         source: Some((windows, record)),
         scratch,
@@ -487,7 +526,7 @@ mod tests {
     #[test]
     fn cache_key_follows_model_data_helpers_and_python_only() {
         let key = |input: &Value, data: &str, python: &str, adapter: &[u8]| {
-            cache_key(input, data, Path::new(python), adapter)
+            windows_cache_key(input, data, Path::new(python), adapter)
         };
         let reference = key(&base(), "d1", "/p", b"w");
         assert_eq!(reference, key(&base(), "d1", "/p", b"w"));
@@ -558,7 +597,7 @@ mod tests {
     #[test]
     fn changing_any_geometry_material_or_source_value_changes_the_cache_key() {
         let base = reference_input();
-        let key = |input: &Value| cache_key(input, "data", Path::new("/p"), b"worker");
+        let key = |input: &Value| windows_cache_key(input, "data", Path::new("/p"), b"worker");
         let reference = key(&base);
         let mut paths = Vec::new();
         leaf_paths(&base, &mut Vec::new(), &mut paths);

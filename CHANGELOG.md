@@ -28,6 +28,22 @@ basis.
   that can alter a published number. CI now fails on a dependency licence that is not compatible with AGPL-3.0,
   on an unwaived advisory (including unmaintained crates), on a broken link in the documents, and on a command-line
   reference that does not match the program's help.
+- `faris diff A B` compares two `.faris` studies, or two scenario, physics, assumptions or design files (COL-020,
+  COL-023). It lists every changed parameter with old value, new value and unit, keeps the inputs changed apart from
+  the evidence, the results and the presentation-only changes (labels, colours, the view), gives each input change a
+  cost class (instant, seconds, transport run) and says which recorded results it invalidates and which stay
+  reusable. Key order, number spelling, white space and line endings are not changes. `--json` writes the versioned
+  `faris-diff/v1`. It exits 0 when identical and 6 when the sides differ (a new exit code). `faris config diff`
+  does the same for two settings files, with each setting's effect class, and `faris geometry summary` writes the
+  table of cells with volume and mass as CSV. See the handbook page "Compare two studies or two models".
+- A result cache layer. One function builds every cache key from canonical forms, so equal inputs give equal keys;
+  each entry records its key components readably and is verified on every read (a damaged entry is refused,
+  reported and recalculated); the cache is bounded; and hits and false hits are counted separately.
+  `faris cache list`, `verify`, `explain`, `stats`, `gc`, `pin`, `unpin` and `clear` look after it. The design
+  transport cache and the reactor weight-window cache now use it; entries made by earlier versions are not read
+  and `faris cache clear --yes` removes them. `faris history sensitivity --cache-dir` keeps each finished point
+  so a killed run resumes without redoing finished work and writes the same result as an uninterrupted one. See
+  the handbook page "The result cache".
 - Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
   registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a
   registry entry (steps, open and save, export, view, component and allocation changes, timeline, the tool

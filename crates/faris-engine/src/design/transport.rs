@@ -24,6 +24,7 @@ use super::{
     launch_python_with_lines, resolve, sha256_file, sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
+use crate::result_cache::{self, CacheKey, Lookup, ResultCache};
 use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
@@ -621,23 +622,30 @@ fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenRespons
 }
 
 /// One entry of the cache per model, materials, response, nuclear data and preparation recipe.
-fn cache_key(
+/// Built by the one key function (AUTO-031). The window interpreter enters as its path: a path is
+/// not the interpreter's identity, so moving it only costs a rebuild.
+fn transport_cache_key(
     request: &serde_json::Value,
     h5m_sha256: &str,
     cross_sections_sha256: &str,
     window_python: Option<&Path>,
-) -> String {
-    let identity = serde_json::json!({
-        "recipe": PREPARATION_RECIPE,
-        "h5m": h5m_sha256,
-        "cross_sections": cross_sections_sha256,
-        "solids": request["solids"],
-        "materials": request["materials"],
-        "chamber_solid_id": request["chamber_solid_id"],
-        "response": request["response"],
-        "window_python": window_python.map(|p| p.display().to_string()),
-    });
-    sha256_hex(identity.to_string().as_bytes())
+) -> CacheKey {
+    result_cache::cache_key(
+        "design-transport",
+        [
+            ("recipe", serde_json::json!(PREPARATION_RECIPE)),
+            ("h5m", serde_json::json!(h5m_sha256)),
+            ("cross_sections", serde_json::json!(cross_sections_sha256)),
+            ("solids", request["solids"].clone()),
+            ("materials", request["materials"].clone()),
+            ("chamber_solid_id", request["chamber_solid_id"].clone()),
+            ("response", request["response"].clone()),
+            (
+                "window_python",
+                serde_json::json!(window_python.map(|p| p.display().to_string())),
+            ),
+        ],
+    )
 }
 
 fn copy_file(from: &Path, to: &Path) -> Result<(), DesignError> {
@@ -995,34 +1003,61 @@ pub fn design_transport(
             Launched::Failed(text) => Err(tool(text)),
         }
     };
-    let entry = options.cache_dir.as_ref().map(|cache| {
-        cache.join(cache_key(
-            &request,
-            &conversion.h5m_sha256,
-            &cross_sections_sha256,
-            options.window_python.as_deref(),
-        ))
-    });
+    let store = options.cache_dir.as_ref().map(ResultCache::open);
+    let key = transport_cache_key(
+        &request,
+        &conversion.h5m_sha256,
+        &cross_sections_sha256,
+        options.window_python.as_deref(),
+    );
+    let entry = store.as_ref().map(|store| store.entry_dir(&key));
+    // Every read of the kept entry is verified (AUTO-035); a refused one is reported and rebuilt.
+    let uses_cache = options.window_python.is_some() || chosen.peak_voxel_m.is_some();
+    let mut hit: Option<result_cache::Hit> = None;
+    if let (Some(store), true) = (&store, uses_cache) {
+        match store.lookup(&key) {
+            Lookup::Hit(found) => hit = Some(found),
+            Lookup::Miss => store.discard(&key),
+            Lookup::Rejected(why) => {
+                if let Some(progress) = &options.progress {
+                    progress(TransportProgress::Step(why));
+                }
+                store.discard(&key);
+            }
+        }
+    }
+    let seal = |seconds: f64| -> Result<(), DesignError> {
+        match &store {
+            Some(store) => store
+                .seal(&key, seconds)
+                .map_err(|e| tool(format!("the transport cache: {e}"))),
+            None => Ok(()),
+        }
+    };
     let mut setup_seconds = 0.0;
     let mut windows_reused = false;
+    let mut cache_note: Option<String> = None;
     if let Some(window_python) = &options.window_python {
-        windows_reused = match &entry {
-            Some(entry) => restore_windows(entry, &dir)?,
-            None => false,
+        windows_reused = match (&entry, &hit) {
+            (Some(entry), Some(_)) => restore_windows(entry, &dir)?,
+            _ => false,
         };
-        if !windows_reused {
+        if windows_reused {
+            cache_note = hit.as_ref().map(|h| h.provenance.text());
+        } else {
             setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
             setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
             // Kept at once: a run that fails later does not cost the windows again.
             if let Some(entry) = &entry {
                 keep_for_later(&dir, entry, false)?;
+                seal(setup_seconds)?;
             }
         }
     }
     if chosen.peak_voxel_m.is_some() {
-        let reused = match &entry {
-            Some(entry) => restore_pieces(entry, &dir)?,
-            None => false,
+        let reused = match (&entry, &hit) {
+            (Some(entry), Some(_)) => restore_pieces(entry, &dir)?,
+            _ => false,
         };
         if !reused {
             setup_seconds += phase("volumes", python, true, VOLUMES_TIMEOUT)?;
@@ -1030,6 +1065,7 @@ pub fn design_transport(
                 for name in PIECE_FILES {
                     copy_file(&dir.join("peak").join(name), &entry.join("peak").join(name))?;
                 }
+                seal(0.0)?;
             }
         }
     }
@@ -1043,6 +1079,7 @@ pub fn design_transport(
         && options.window_python.is_some()
     {
         keep_for_later(&dir, entry, windows_reused)?;
+        seal(0.0)?;
     }
     let result_path = solver.join("result.json");
     let worker: WorkerResult = serde_json::from_slice(&read_bounded(&result_path)?)
@@ -1069,6 +1106,7 @@ pub fn design_transport(
             history,
             setup_seconds,
             windows_reused,
+            cache_note,
             chosen: &chosen,
         },
     )
@@ -1087,6 +1125,8 @@ struct Inputs<'a> {
     history: Result<PowerHistory, String>,
     setup_seconds: f64,
     windows_reused: bool,
+    /// Where the reused windows came from (AUTO-039).
+    cache_note: Option<String>,
     chosen: &'a ChosenResponse,
 }
 
@@ -1195,7 +1235,12 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         });
     }
     if inputs.windows_reused {
-        notices.push("The weight windows of an earlier run on this model were used.".into());
+        notices.push(match &inputs.cache_note {
+            Some(note) => {
+                format!("The weight windows of an earlier run on this model were used: {note}.")
+            }
+            None => "The weight windows of an earlier run on this model were used.".into(),
+        });
     }
     if worker.variance_reduction.aim_reused {
         notices.push("The channel search of an earlier run on this model was used.".into());
@@ -1687,7 +1732,9 @@ mod tests {
         let request = serde_json::json!({"solids": [1], "materials": [2], "chamber_solid_id": "p",
             "response": {"solid_ids": ["a"], "energy_min_ev": 1.0e5}});
         let key = |library: &str, python: Option<&str>| {
-            cache_key(&request, "h", library, python.map(Path::new))
+            transport_cache_key(&request, "h", library, python.map(Path::new))
+                .digest()
+                .to_string()
         };
         let reference = key("lib1", Some("/py/a"));
         assert_eq!(reference, key("lib1", Some("/py/a")));
@@ -1705,7 +1752,9 @@ mod tests {
         other_seed["sampling"]["seed"] = 2.into();
         let mut other_response = request.clone();
         other_response["response"]["energy_min_ev"] = 0.0.into();
-        let key = |r: &serde_json::Value, h: &str| cache_key(r, h, "x", None);
+        let key = |r: &serde_json::Value, h: &str| {
+            transport_cache_key(r, h, "x", None).digest().to_string()
+        };
         assert_eq!(key(&request, "h"), key(&other_seed, "h"));
         assert_ne!(key(&request, "h"), key(&other_response, "h"));
         assert_ne!(key(&request, "h"), key(&request, "h2"));

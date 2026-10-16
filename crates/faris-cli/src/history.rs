@@ -2,10 +2,11 @@
 use clap::Subcommand;
 use faris_engine::{
     comparison::{
-        HistorySensitivityGrid, compare_histories_cancellable, run_history_sensitivity_cancellable,
+        HistorySensitivityGrid, compare_histories_cancellable, run_history_sensitivity_resumable,
     },
     history::{TransportDrivingRates, run_operating_history_cancellable},
     reactor::load_reactor_run,
+    result_cache::ResultCache,
 };
 use faris_model::history::OperatingHistoryAssumptions;
 use std::path::PathBuf;
@@ -87,6 +88,11 @@ pub enum HistoryCommand {
         grid: PathBuf,
         #[arg(long)]
         output: PathBuf,
+        /// Keep every finished point here as it completes. Run the same command again with the
+        /// same folder after a kill and only the unfinished points are calculated; the result is
+        /// identical to an uninterrupted run.
+        #[arg(long)]
+        cache_dir: Option<PathBuf>,
     },
 }
 
@@ -153,8 +159,9 @@ pub fn run(command: HistoryCommand) -> Result<(), Box<dyn std::error::Error>> {
             assumptions,
             grid,
             output,
+            cache_dir,
         } => {
-            return sensitivity(scenario, run, assumptions, grid, output);
+            return sensitivity(scenario, run, assumptions, grid, output, cache_dir);
         }
     };
     let assumptions: OperatingHistoryAssumptions =
@@ -425,6 +432,7 @@ fn sensitivity(
     assumptions_path: PathBuf,
     grid_path: PathBuf,
     output: PathBuf,
+    cache_dir: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     ensure_new_outputs(&output, None)?;
     let scenario =
@@ -439,14 +447,33 @@ fn sensitivity(
     let cancellation = &interrupts.cancellation;
     #[cfg(not(unix))]
     let cancellation = &interrupts;
-    let result = run_history_sensitivity_cancellable(&assumptions, &rates, &grid, cancellation)
-        .map_err(std::io::Error::other)?;
+    let cache = cache_dir.as_ref().map(ResultCache::open);
+    let (result, report) = run_history_sensitivity_resumable(
+        &assumptions,
+        &rates,
+        &grid,
+        cache.as_ref(),
+        cancellation,
+    )
+    .map_err(std::io::Error::other)?;
     write_new_json(&output, &result)?;
     println!(
         "{} full-history sensitivity points recorded at {}",
         result.points.len(),
         output.display()
     );
+    if cache.is_some() {
+        println!(
+            "{} points calculated, {} reused from the cache",
+            report.calculated, report.reused
+        );
+        for from in &report.reused_from {
+            println!("  {from}");
+        }
+        for refused in &report.refused {
+            eprintln!("faris: {refused}");
+        }
+    }
     announce_research_screening();
     Ok(())
 }

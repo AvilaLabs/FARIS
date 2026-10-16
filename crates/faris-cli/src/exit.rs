@@ -16,10 +16,12 @@ pub const SOLVER_FAILURE: u8 = 3;
 pub const CANCELLED: u8 = 4;
 /// The memory check refused the job before it started.
 pub const RESOURCE_REFUSED: u8 = 5;
+/// A comparison ran and found the two sides different (`faris diff`, `faris config diff`).
+pub const DIFFERENT: u8 = 6;
 /// The command line itself did not parse (BSD `EX_USAGE`).
 pub const USAGE: u8 = 64;
 
-pub const EXIT_CODES: [(u8, &str); 7] = [
+pub const EXIT_CODES: [(u8, &str); 8] = [
     (OK, "ok"),
     (
         REJECTED,
@@ -40,6 +42,10 @@ pub const EXIT_CODES: [(u8, &str); 7] = [
     (
         RESOURCE_REFUSED,
         "resource refused: the memory check refused the job",
+    ),
+    (
+        DIFFERENT,
+        "different: a comparison found the two sides differ",
     ),
     (USAGE, "usage: the command line did not parse"),
 ];
@@ -82,8 +88,15 @@ pub fn classify(error: &(dyn std::error::Error + 'static)) -> u8 {
             || error
                 .downcast_ref::<crate::design::DesignCheckFailed>()
                 .is_some()
+            || error.downcast_ref::<crate::cache::CacheDamaged>().is_some()
         {
             return REJECTED;
+        }
+        if error
+            .downcast_ref::<crate::diff::DifferencesFound>()
+            .is_some()
+        {
+            return DIFFERENT;
         }
         if let Some(failed) = error.downcast_ref::<JobFailed>() {
             return if failed.status == ExecutionStatus::Cancelled {

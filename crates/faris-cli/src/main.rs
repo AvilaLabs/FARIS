@@ -4,9 +4,11 @@ use faris_model::LoadedScenario;
 use std::path::PathBuf;
 
 mod adapters;
+mod cache;
 mod config;
 mod control;
 mod design;
+mod diff;
 mod evidence;
 mod exit;
 mod history;
@@ -66,6 +68,38 @@ enum Command {
     Design {
         #[command(subcommand)]
         command: design::DesignCommand,
+    },
+    /// Compare two .faris studies, or two scenario, physics, assumptions or design files: every
+    /// changed parameter with old and new value and unit, causes apart from effects, and which
+    /// results the change invalidates. Exits 0 when identical, 6 when they differ.
+    Diff {
+        a: PathBuf,
+        b: PathBuf,
+        /// Stable, versioned JSON (`faris-diff/v1`) instead of text.
+        #[arg(long)]
+        json: bool,
+        /// Also list the values that changed inside changed result files (slower, longer).
+        #[arg(long)]
+        values: bool,
+        /// Write the report to a new file instead of printing it.
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Print how long the comparison took on standard error.
+        #[arg(long)]
+        time: bool,
+    },
+    /// Tables about a model's geometry.
+    Geometry {
+        #[command(subcommand)]
+        command: diff::GeometryCommand,
+    },
+    /// Look at, check and trim the result cache.
+    Cache {
+        /// The cache folder [default: `faris-transport-cache` in the current folder].
+        #[arg(long, global = true)]
+        dir: Option<PathBuf>,
+        #[command(subcommand)]
+        command: cache::CacheCommand,
     },
     /// Show and change your settings, and which layer supplies each value.
     Config {
@@ -154,6 +188,16 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::Materials { command } => materials::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,
         Command::Design { command } => design::run(command)?,
+        Command::Diff {
+            a,
+            b,
+            json,
+            values,
+            output,
+            time,
+        } => diff::run_diff(a, b, json, values, output, time)?,
+        Command::Geometry { command } => diff::run_geometry(command)?,
+        Command::Cache { dir, command } => cache::run(command, dir)?,
         Command::Control { command } => control::run(command)?,
         Command::Reactor { command } => reactor::run(command)?,
         Command::Study { command } => study::run(command)?,
