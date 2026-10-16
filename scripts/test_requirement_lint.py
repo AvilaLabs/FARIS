@@ -65,6 +65,10 @@ class RowRules(unittest.TestCase):
     def test_escaped_pipe_is_reported(self):
         self.assertIn("no-pipe", rules(lint("| AAA-001 | a \\|z\\| | t | test | [U] | F1 | No |")))
 
+    def test_nested_link_is_reported(self):
+        self.assertIn("link-form", rules(lint("| AAA-001 | r | t | test | x [V]([W3C](https://w3.org)) | F1 | No: n |")))
+        self.assertNotIn("link-form", rules(lint("| AAA-001 | r | t | test | x [V](https://w3.org) | F1 | No: n |")))
+
     def test_bad_header(self):
         files = {"01-a.md": "| ID | Requirement | Target | Verification | Basis | Now | Phase |\n| --- |\n"}
         self.assertEqual(rules(rl.lint_tables(files, {})), ["header"])

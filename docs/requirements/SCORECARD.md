@@ -62,9 +62,9 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Accuracy and validation](06-accuracy-and-validation.md): OpenMC; ACTINV; MCNP; Serpent; FISPACT; GMAT; SINBAD; Nucl. Fusion 52 083014; Nucl. Fusion 2024; Eur. Phys. J. Plus 139:432; NRC RAI response; NASA report; Fusion Sci. Technol. 2025; Song et al.; OSTI; CMS5 NRC RAI response
 - [Uncertainty](07-uncertainty.md): OpenMC; MCNP; FISPACT; WCAG; EPJ Web Conf. ND2016 09025; Fischer 2018
 - [Performance](08-performance.md): Blender; Zed; OpenMC
-- [Usability](09-usability.md): Blender; WCAG; MeasuringU; Hertzum 2021; NN/g; Blender source; Onshape; Blender manual; VS Code; Figma; ParaView; W3C; Orfanou et al. 2015
-- [Accessibility and localisation](10-accessibility-and-localisation.md): WCAG; Blender; W3C; VS Code; Nunez 2018; egui accessibility; AccessKit; Access Board; #7975; #2529; #1016; #8576; #8577
-- [Visualization](11-visualization.md): WCAG; Blender; NN/g; ParaView docs; BIDS; Nunez 2018; Belia 2005; Hullman 2015; Kale 2019; Elsevier; W3C; VS Code
+- [Usability](09-usability.md): Blender; WCAG; Orfanou et al. 2015
+- [Accessibility and localisation](10-accessibility-and-localisation.md): WCAG; Blender; #7975; #2529; #1016; #8576; #8577
+- [Visualization](11-visualization.md): WCAG; Blender; Hullman 2015; Kale 2019
 - [Configurability](12-configurability.md): Blender; WCAG
 - [Automation and extensibility](13-automation-and-extensibility.md): Blender; OpenMC; Slurm job arrays; OpenMC parallelization; PEP 387
 - [Interoperability](14-interoperability.md): OpenMC; DAGMC; MCNP; ACTINV; FISPACT; RO-Crate specification; VTKHDF format; IMAS DD releases
@@ -75,8 +75,8 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Security](19-security.md): none named
 - [Platforms and distribution](20-platforms-and-distribution.md): OpenMC; DAGMC
 - [Quality assurance](21-quality-assurance.md): GMAT; OpenMC; MCNP; Serpent; FISPACT; ACTINV; NASA report; ISO/IEC 25010:2023; Bazel test encyclopedia; OpenSSF gold criteria; SQLite; ASME NQA-1
-- [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG; Diataxis; SCALE 6.3 manual; W3C
-- [Compliance and privacy](23-compliance-and-privacy.md): OpenMC; EUR-Lex
+- [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG
+- [Compliance and privacy](23-compliance-and-privacy.md): OpenMC
 
 ## Met without a checker (17)
 

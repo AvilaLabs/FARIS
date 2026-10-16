@@ -9,9 +9,10 @@ name: Web
 # Nothing is published here: deploy/web/sync.sh stages that artifact for
 # `wrangler deploy`, which is run by hand.
 
+# Every branch, not only main: test branches are merged by moving main to
+# them, so the browser check has to pass before that, not after.
 on:
   push:
-    branches: [main]
     paths:
       - "crates/**"
       - "Cargo.toml"
