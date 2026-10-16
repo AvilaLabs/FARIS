@@ -1,6 +1,7 @@
 //! Scenario semantics and validation. Display labels never imply material properties.
 
 pub mod design;
+pub mod display;
 pub mod history;
 pub mod maintenance;
 pub mod math;
@@ -8,6 +9,7 @@ pub mod physics;
 pub mod remote_handling;
 pub mod settings;
 pub mod transport;
+pub mod units;
 pub mod validation;
 
 use serde::{Deserialize, Serialize};

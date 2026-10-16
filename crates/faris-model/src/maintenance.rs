@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAINTENANCE_ASSUMPTIONS_VERSION: &str = "faris-maintenance-assumptions/v0.1";
 
-const DAY_S: f64 = 86_400.0;
+use crate::units::DAY_S;
 
 /// The quantity whose fall below a threshold ends the cooldown.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -55,7 +55,7 @@ pub struct CoolingGrid {
 impl Default for CoolingGrid {
     fn default() -> Self {
         Self {
-            min_s: 3600.0,
+            min_s: crate::units::HOUR_S,
             max_s: 365.0 * DAY_S,
             points: 40,
         }

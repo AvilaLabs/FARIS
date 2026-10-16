@@ -186,13 +186,18 @@ fn bundle_name(path: &Path, taken: &BTreeSet<String>) -> String {
     let mut base: String = stem
         .chars()
         .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+            if crate::is_safe_bundle_char(c) {
                 c
             } else {
                 '-'
             }
         })
         .collect();
+    // A name the reader accepts: no space at either end, short enough to leave room for "-2".
+    base = base.trim_matches(' ').to_string();
+    while base.len() > 190 {
+        base.pop();
+    }
     if base.is_empty() || base == "." || base == ".." {
         base = "bundle".into();
     }

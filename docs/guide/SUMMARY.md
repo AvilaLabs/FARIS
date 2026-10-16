@@ -26,6 +26,7 @@
 - [Export a brief, tables and charts](export.md)
 - [Command line](cli.md)
 - [Settings](settings.md)
+- [Units and number formats](units.md)
 - [Run your own transport](transport.md)
 - [Nuclear data](nuclear-data.md)
 - [The design file (bring your own CAD)](design-file.md)

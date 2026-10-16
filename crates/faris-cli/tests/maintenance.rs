@@ -306,3 +306,116 @@ fn report_refuses_other_files() {
         Some(2)
     );
 }
+
+/// `faris` in its own configuration folder, so the machine's settings cannot change the output.
+fn faris_in(config: &Path, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_faris"))
+        .args(arguments)
+        .env("FARIS_CONFIG_DIR", config)
+        .env_remove("FARIS_UNITS")
+        .output()
+        .expect("run faris")
+}
+
+/// The first q* number in a report's threshold table.
+fn threshold_value(report: &str) -> f64 {
+    let section = report.split("## Cooldown thresholds").nth(1).unwrap();
+    let row = section
+        .lines()
+        .find(|l| l.starts_with("| magnet |"))
+        .unwrap();
+    row.split('|')
+        .nth(2)
+        .unwrap()
+        .trim()
+        .replace(',', ".")
+        .parse()
+        .unwrap()
+}
+
+// Verifies: L10N-023, UX-066, CFG-040, CFG-037
+#[test]
+fn report_units_are_display_only_and_the_stored_file_never_changes() {
+    use sha2::{Digest, Sha256};
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("config");
+    let file = sample_result_file(dir.path());
+    let before = Sha256::digest(std::fs::read(&file).unwrap());
+    let report = |extra: &[&str]| {
+        let mut args = vec!["maintenance", "report", path(&file)];
+        args.extend_from_slice(extra);
+        let out = faris_in(&config, &args);
+        assert!(out.status.success(), "{}", text(&out.stderr));
+        text(&out.stdout)
+    };
+    let si = report(&[]);
+    // The default keeps the report's habitual days, years, MWh and W/m3.
+    for want in [
+        "Downtime fixed (d)",
+        "Start (yr)",
+        "Net electricity fixed (MWh)",
+        "q* (W/m3)",
+    ] {
+        assert!(si.contains(want), "{want} in {si}");
+    }
+    let fusion = report(&["--units", "fusion"]);
+    assert!(fusion.contains("Net electricity fixed (GWd)"), "{fusion}");
+    assert!(fusion.contains("q* (W/cm3)"), "{fusion}");
+    assert!(fusion.contains("Start (yr)"), "{fusion}");
+    assert_ne!(si, fusion);
+    // A per-quantity override beats the system, and the hours replace the days.
+    let hours = report(&["--units", "fusion", "--setting", "units.time=h"]);
+    assert!(hours.contains("Downtime fixed (h)"), "{hours}");
+    assert!(hours.contains("Net electricity fixed (GWd)"), "{hours}");
+    // The same stored number in two units: 1 W/cm3 is 1e6 W/m3.
+    let (q_si, q_fusion) = (threshold_value(&si), threshold_value(&fusion));
+    assert!(
+        (q_si / q_fusion / 1e6 - 1.0).abs() < 1e-3,
+        "{q_si} {q_fusion}"
+    );
+    // The number format is display only too.
+    let comma = report(&["--setting", "format.decimal=comma"]);
+    assert!(comma.contains("5,0000e-1"), "{comma}");
+    assert!(si.contains("5.0000e-1"), "{si}");
+    // The JSON report and the file are byte for byte the same under every choice.
+    let json = |extra: &[&str]| {
+        let mut args = vec!["maintenance", "report", path(&file), "--format", "json"];
+        args.extend_from_slice(extra);
+        faris_in(&config, &args).stdout
+    };
+    let plain = json(&[]);
+    assert_eq!(plain, json(&["--units", "fusion"]));
+    assert_eq!(
+        plain,
+        json(&[
+            "--setting",
+            "format.decimal=comma",
+            "--setting",
+            "units.time=h"
+        ])
+    );
+    assert_eq!(before, Sha256::digest(std::fs::read(&file).unwrap()));
+}
+
+// Verifies: L10N-021, CFG-040
+#[test]
+fn a_unit_of_the_wrong_quantity_in_a_setting_is_refused_with_the_allowed_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = faris_in(
+        dir.path(),
+        &["--setting", "units.time=kg", "config", "get", "units.time"],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    let message = text(&out.stderr);
+    assert!(
+        message.contains("units.time") && message.contains("kg"),
+        "{message}"
+    );
+    assert!(
+        message.contains("min") && message.contains("Next step"),
+        "{message}"
+    );
+    let bad_system = faris_in(dir.path(), &["--units", "imperial", "config", "list"]);
+    assert_eq!(bad_system.status.code(), Some(2));
+    assert!(text(&bad_system.stderr).contains("units.system"));
+}

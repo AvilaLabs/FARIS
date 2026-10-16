@@ -1344,7 +1344,10 @@ pub fn span_text(years: f64) -> String {
     if years >= 0.1 {
         format!("{years:.1} years")
     } else {
-        format!("{:.0} days", years * 365.25)
+        format!(
+            "{:.0} days",
+            years * (faris_model::units::JULIAN_YEAR_S / faris_model::units::DAY_S)
+        )
     }
 }
 

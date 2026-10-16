@@ -3,13 +3,10 @@
 use crate::transport::{read_bounded, write_new_json};
 use clap::{Subcommand, ValueEnum};
 // What the tests below reach through `super::*`.
-use faris_engine::{
-    history::JULIAN_YEAR_SECONDS,
-    maintenance::{
-        ComputedResult, Contrast, DesignResult, EventRecord, HistorySummary,
-        MAINTENANCE_RESULT_VERSION, MaintenanceResult, Status,
-        files::{BUILDER_NOT_FOUND, RunConfig, default_builder, run_from_files},
-    },
+use faris_engine::maintenance::{
+    ComputedResult, Contrast, DesignResult, EventRecord, HistorySummary,
+    MAINTENANCE_RESULT_VERSION, MaintenanceResult, Status,
+    files::{BUILDER_NOT_FOUND, RunConfig, default_builder, run_from_files},
 };
 #[cfg(test)]
 use faris_engine::{
@@ -34,7 +31,10 @@ use std::{
     sync::Arc,
 };
 
-const DAY_S: f64 = 86_400.0;
+use faris_model::{
+    display::{DisplayPrefs, NumberFormat},
+    units::{self, UnitDef},
+};
 
 #[derive(Subcommand)]
 #[allow(clippy::large_enum_variant)]
@@ -177,8 +177,9 @@ fn run_designs(request: RunRequest) -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(|progress| eprintln!("maintenance: {}", progress.line())),
     )?;
     write_new_json(&request.output, &result)?;
+    let show = Show::new(&crate::config::display());
     for (name, design) in &result.designs {
-        println!("{name}: {}", summary_line(design));
+        println!("{name}: {}", summary_line(design, &show));
     }
     let (actinv_runs, cache_hits) = result
         .decay_source
@@ -198,18 +199,67 @@ fn append_suffix(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(name)
 }
 
-fn summary_line(design: &DesignResult) -> String {
-    let fixed = design.fixed.total_replacement_downtime_s / DAY_S;
+fn summary_line(design: &DesignResult, show: &Show) -> String {
+    let unit = show.duration.symbol;
+    let fixed = show.days(design.fixed.total_replacement_downtime_s);
     match (&design.computed.summary, &design.computed.not_evaluated) {
         (Some(c), _) => format!(
-            "replacement downtime {fixed:.1} d fixed, {:.1} d computed",
-            c.total_replacement_downtime_s / DAY_S
+            "replacement downtime {fixed} {unit} fixed, {} {unit} computed",
+            show.days(c.total_replacement_downtime_s)
         ),
         (None, Some(ne)) => format!(
-            "replacement downtime {fixed:.1} d fixed; computed NOT_EVALUATED: {} Next step: {}",
+            "replacement downtime {fixed} {unit} fixed; computed NOT_EVALUATED: {} Next step: {}",
             ne.reason, ne.next_step
         ),
-        (None, None) => format!("replacement downtime {fixed:.1} d fixed"),
+        (None, None) => format!("replacement downtime {fixed} {unit} fixed"),
+    }
+}
+
+/// The units and number format this report prints in: the user's choice, else the units the
+/// report has always used (days, years, MWh, W/m3), so a default run prints what it always did.
+struct Show {
+    duration: &'static UnitDef,
+    service: &'static UnitDef,
+    energy: &'static UnitDef,
+    density: &'static UnitDef,
+    number: NumberFormat,
+}
+
+impl Show {
+    fn new(prefs: &DisplayPrefs) -> Self {
+        Self {
+            duration: prefs.unit_or("time", "d"),
+            service: prefs.unit_or("service_time", "yr"),
+            energy: prefs.unit_or("energy_plant", "MWh"),
+            density: prefs.unit_or("power_density", "W/m3"),
+            number: prefs.number,
+        }
+    }
+
+    /// Four significant digits for a unit the report does not habitually use, the report's own
+    /// fixed decimals for the habitual one.
+    fn digits(&self, value: f64, habit_decimals: usize, habitual: bool) -> String {
+        if habitual {
+            self.number.fixed(value, habit_decimals)
+        } else {
+            self.number.significant(value, 4)
+        }
+    }
+
+    fn days(&self, seconds: f64) -> String {
+        self.digits(
+            self.duration.from_si(seconds),
+            1,
+            self.duration.symbol == "d",
+        )
+    }
+
+    fn years(&self, seconds: f64) -> String {
+        self.digits(
+            self.service.from_si(seconds),
+            2,
+            self.service.symbol == "yr",
+        )
     }
 }
 
@@ -221,7 +271,10 @@ fn report(path: &Path, format: ReportFormat) -> Result<(), Box<dyn std::error::E
         return Err(format!("result schema_version must be {MAINTENANCE_RESULT_VERSION}").into());
     }
     match format {
-        ReportFormat::Markdown => print!("{}", markdown(&result)),
+        ReportFormat::Markdown => print!(
+            "{}",
+            markdown_with(&result, &Show::new(&crate::config::display()))
+        ),
         ReportFormat::Json => println!("{}", serde_json::to_string_pretty(&result)?),
     }
     Ok(())
@@ -231,22 +284,28 @@ fn cell(text: &str) -> String {
     text.replace('|', "\\|").replace('\n', " ")
 }
 
+#[cfg(test)]
 fn days(seconds: f64) -> String {
-    format!("{:.1}", seconds / DAY_S)
+    Show::new(&DisplayPrefs::default()).days(seconds)
 }
 
-fn years(seconds: f64) -> String {
-    format!("{:.2}", seconds / JULIAN_YEAR_SECONDS)
+fn availability(summary: &HistorySummary, show: &Show) -> String {
+    format!("{} %", show.number.fixed(summary.availability * 100.0, 2))
 }
 
-fn availability(summary: &HistorySummary) -> String {
-    format!("{:.2} %", summary.availability * 100.0)
-}
-
-fn electricity(summary: &HistorySummary) -> String {
-    summary
-        .lifetime_net_electricity_mwh
-        .map_or_else(|| "not available".into(), |mwh| format!("{mwh:.0}"))
+fn electricity(summary: &HistorySummary, show: &Show) -> String {
+    summary.lifetime_net_electricity_mwh.map_or_else(
+        || "not available".into(),
+        |mwh| {
+            // The result file holds MWh; the unit registry holds the factor to the shown unit.
+            let mwh_unit = units::find_in("energy_plant", "MWh").unwrap_or(show.energy);
+            show.digits(
+                units::convert(mwh, mwh_unit, show.energy).unwrap_or(mwh),
+                0,
+                show.energy.symbol == "MWh",
+            )
+        },
+    )
 }
 
 /// The iteration whose durations the converged summary used, or the last one.
@@ -260,7 +319,12 @@ fn final_events(computed: &ComputedResult) -> &[EventRecord] {
         .map_or(&[], |i| i.events.as_slice())
 }
 
+#[cfg(test)]
 fn markdown(result: &MaintenanceResult) -> String {
+    markdown_with(result, &Show::new(&DisplayPrefs::default()))
+}
+
+fn markdown_with(result: &MaintenanceResult, show: &Show) -> String {
     let mut out = String::new();
     let _ = writeln!(
         out,
@@ -286,10 +350,11 @@ fn markdown(result: &MaintenanceResult) -> String {
     }
 
     let _ = writeln!(out, "## Per design\n");
+    let (d, e) = (show.duration.symbol, show.energy.symbol);
     let _ = writeln!(
         out,
-        "| Design | Status | Downtime fixed (d) | Downtime computed (d) | Availability fixed | \
-         Availability computed | Net electricity fixed (MWh) | Net electricity computed (MWh) |"
+        "| Design | Status | Downtime fixed ({d}) | Downtime computed ({d}) | Availability fixed | \
+         Availability computed | Net electricity fixed ({e}) | Net electricity computed ({e}) |"
     );
     let _ = writeln!(out, "|---|---|---:|---:|---:|---:|---:|---:|");
     for (name, design) in &result.designs {
@@ -300,12 +365,12 @@ fn markdown(result: &MaintenanceResult) -> String {
                     out,
                     "| {} | EVALUATED | {} | {} | {} | {} | {} | {} |",
                     cell(name),
-                    days(fixed.total_replacement_downtime_s),
-                    days(c.total_replacement_downtime_s),
-                    availability(fixed),
-                    availability(c),
-                    electricity(fixed),
-                    electricity(c)
+                    show.days(fixed.total_replacement_downtime_s),
+                    show.days(c.total_replacement_downtime_s),
+                    availability(fixed, show),
+                    availability(c, show),
+                    electricity(fixed, show),
+                    electricity(c, show)
                 );
             }
             _ => {
@@ -313,9 +378,9 @@ fn markdown(result: &MaintenanceResult) -> String {
                     out,
                     "| {} | NOT_EVALUATED | {} | NOT_EVALUATED | {} | NOT_EVALUATED | {} | NOT_EVALUATED |",
                     cell(name),
-                    days(fixed.total_replacement_downtime_s),
-                    availability(fixed),
-                    electricity(fixed)
+                    show.days(fixed.total_replacement_downtime_s),
+                    availability(fixed, show),
+                    electricity(fixed, show)
                 );
             }
         }
@@ -333,11 +398,18 @@ fn markdown(result: &MaintenanceResult) -> String {
 
     if let Some(design) = result.designs.values().next() {
         let _ = writeln!(out, "\n## Cooldown thresholds\n");
-        let _ = writeln!(out, "| Class | q* (W/m3) | Source | Note |");
+        let _ = writeln!(
+            out,
+            "| Class | q* ({}) | Source | Note |",
+            show.density.symbol
+        );
         let _ = writeln!(out, "|---|---:|---|---|");
         for (class, th) in &design.thresholds {
             let (q, note) = match (&th.q_star_w_per_m3, &th.not_evaluated) {
-                (Some(q), _) => (format!("{q:.4e}"), String::new()),
+                (Some(q), _) => (
+                    show.number.scientific(show.density.from_si(*q), 4),
+                    String::new(),
+                ),
                 (None, Some(ne)) => (
                     "NOT_EVALUATED".into(),
                     format!("{} Next step: {}", ne.reason, ne.next_step),
@@ -363,9 +435,10 @@ fn markdown(result: &MaintenanceResult) -> String {
             continue;
         }
         let _ = writeln!(out, "\n## Replacements: {name}\n");
+        let (y, d) = (show.service.symbol, show.duration.symbol);
         let _ = writeln!(
             out,
-            "| Component | k | Start (y) | Fixed (d) | Computed (d) | Governing component | Share | In service (y) | Note |"
+            "| Component | k | Start ({y}) | Fixed ({d}) | Computed ({d}) | Governing component | Share | In service ({y}) | Note |"
         );
         let _ = writeln!(out, "|---|---:|---:|---:|---:|---|---:|---:|---|");
         for e in final_events(&design.computed) {
@@ -386,12 +459,13 @@ fn markdown(result: &MaintenanceResult) -> String {
                 "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                 cell(&e.component),
                 e.k,
-                years(e.start_s),
-                days(e.fixed_duration_s),
-                e.duration_computed_s.map_or_else(|| "n/a".into(), days),
+                show.years(e.start_s),
+                show.days(e.fixed_duration_s),
+                e.duration_computed_s
+                    .map_or_else(|| "n/a".into(), |s| show.days(s)),
                 governing.map_or_else(|| "n/a".into(), |g| cell(&g.component)),
                 governing.map_or_else(|| "n/a".into(), |g| format!("{:.0} %", g.share * 100.0)),
-                governing.map_or_else(|| "n/a".into(), |g| years(g.in_service_s)),
+                governing.map_or_else(|| "n/a".into(), |g| show.years(g.in_service_s)),
                 cell(&note)
             );
         }
@@ -405,17 +479,23 @@ fn markdown(result: &MaintenanceResult) -> String {
         );
         let _ = writeln!(
             out,
-            "| A | B | Fixed difference (d) | Computed difference (d) | Computed / fixed | Note |"
+            "| A | B | Fixed difference ({d}) | Computed difference ({d}) | Computed / fixed | Note |",
+            d = show.duration.symbol
         );
         let _ = writeln!(out, "|---|---|---:|---:|---:|---|");
         for c in &result.contrasts {
-            let _ = writeln!(out, "{}", contrast_row(c));
+            let _ = writeln!(out, "{}", contrast_row_with(c, show));
         }
     }
     out
 }
 
+#[cfg(test)]
 fn contrast_row(c: &Contrast) -> String {
+    contrast_row_with(c, &Show::new(&DisplayPrefs::default()))
+}
+
+fn contrast_row_with(c: &Contrast, show: &Show) -> String {
     let note = c
         .not_evaluated
         .as_ref()
@@ -425,10 +505,11 @@ fn contrast_row(c: &Contrast) -> String {
         "| {} | {} | {} | {} | {} | {} |",
         cell(&c.a),
         cell(&c.b),
-        days(c.fixed_difference_s),
-        c.computed_difference_s.map_or_else(|| "n/a".into(), days),
+        show.days(c.fixed_difference_s),
+        c.computed_difference_s
+            .map_or_else(|| "n/a".into(), |s| show.days(s)),
         c.ratio_computed_over_fixed
-            .map_or_else(|| "n/a".into(), |r| format!("{r:.2}")),
+            .map_or_else(|| "n/a".into(), |r| show.number.fixed(r, 2)),
         cell(&note)
     )
 }

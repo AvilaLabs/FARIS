@@ -31,6 +31,10 @@ struct Arguments {
     /// `faris config list` shows the keys.
     #[arg(long = "setting", value_name = "KEY=VALUE", global = true)]
     settings: Vec<String>,
+    /// Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa).
+    /// The same as `--setting units.system=...`; stored files are never changed by it.
+    #[arg(long, value_name = "SYSTEM", global = true)]
+    units: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -129,13 +133,20 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
+    // `--units` is a flag-layer setting that an explicit `--setting units.system=` overrides.
+    let settings: Vec<String> = arguments
+        .units
+        .iter()
+        .map(|system| format!("units.system={system}"))
+        .chain(arguments.settings.iter().cloned())
+        .collect();
     // `faris config` reports a damaged settings stack itself, so it can be used to repair it.
     if !matches!(arguments.command, Command::Config { .. }) {
-        config::startup(&arguments.settings)?;
+        config::startup(&settings)?;
     }
     match arguments.command {
         Command::Adapters { command } => adapters::run(command)?,
-        Command::Config { command } => config::run(command, &arguments.settings)?,
+        Command::Config { command } => config::run(command, &settings)?,
         Command::History { command } => history::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
         Command::Evidence { command } => evidence::run(command)?,

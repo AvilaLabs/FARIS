@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAINTENANCE_RESULT_VERSION: &str = "faris-maintenance-result/v0.1";
 
-const DAY_S: f64 = 86_400.0;
+use faris_model::units::DAY_S;
 /// Contrasts whose fixed-duration difference is smaller than this give no ratio.
 pub const CONTRAST_MIN_FIXED_S: f64 = 30.0 * DAY_S;
 /// Tolerance of the calibration round trip, seconds (the reference's `TOL_S`).

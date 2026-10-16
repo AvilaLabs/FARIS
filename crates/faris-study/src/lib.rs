@@ -76,6 +76,31 @@ pub(crate) fn is_safe_file_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
 }
 
+/// True for a character a bundle name may hold: any Unicode letter, mark, digit, symbol or
+/// space, but no control, path separator, character Windows refuses in a file name, or invisible
+/// direction override (L10N-034). Names are kept exactly as given: NFC and NFD forms of one
+/// visible text are two names.
+pub(crate) fn is_safe_bundle_char(c: char) -> bool {
+    !c.is_control()
+        && !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+        && !matches!(
+            c,
+            '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{feff}'
+        )
+}
+
+/// A bundle name: any Unicode (see [`is_safe_bundle_char`]), at most 200 bytes, not `.` or `..`,
+/// and no space at either end.
+pub(crate) fn is_safe_bundle_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 200
+        && name != "."
+        && name != ".."
+        && !name.starts_with(' ')
+        && !name.ends_with(' ')
+        && name.chars().all(is_safe_bundle_char)
+}
+
 /// A relative path of one to four safe components joined by `/`: where an
 /// evidence archive is looked for, relative to the study file.
 pub(crate) fn is_safe_relative_path(path: &str) -> bool {

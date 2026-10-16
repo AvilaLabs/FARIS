@@ -6,10 +6,20 @@ use faris_engine::{
     atomic_file,
     memory::{self, MIB, MemoryPolicy},
 };
+use faris_model::display::DisplayPrefs;
 use faris_model::settings::{
     self, Layers, Origin, REGISTRY, Resolved, SettingDef, UserSettings, parse_flag,
 };
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+/// The display choices (units, number and date formats) in force for this run.
+static DISPLAY: OnceLock<DisplayPrefs> = OnceLock::new();
+
+/// The display choices `startup` resolved; SI and plain numbers when it has not run.
+pub fn display() -> DisplayPrefs {
+    DISPLAY.get().cloned().unwrap_or_default()
+}
 
 #[derive(Subcommand)]
 pub enum ConfigCommand {
@@ -118,6 +128,8 @@ fn resolve(loaded: &Loaded, flags: &[String]) -> Result<Vec<Resolved>, Box<dyn s
 /// other than the built-in default supplied.
 pub fn startup(flags: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let all = resolve(&load_file()?, flags)?;
+    let prefs = DisplayPrefs::from_resolved(&all).map_err(SettingsRejected)?;
+    let _ = DISPLAY.set(prefs);
     let pick = |key: &str| all.iter().find(|r| r.key == key);
     let cap = pick("memory.cap_mb");
     let margin = pick("memory.margin_mb");
