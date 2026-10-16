@@ -32,6 +32,7 @@ pub mod result_cache;
 pub mod semantic_diff;
 pub mod study;
 pub mod sweep;
+pub mod tally_health;
 pub mod transport;
 pub mod vfs;
 

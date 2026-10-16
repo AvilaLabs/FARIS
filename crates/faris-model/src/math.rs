@@ -55,6 +55,9 @@ pub fn cbrt(x: f64) -> f64 {
 pub fn hypot(x: f64, y: f64) -> f64 {
     libm::hypot(x, y)
 }
+pub fn lgamma(x: f64) -> f64 {
+    libm::lgamma(x)
+}
 
 /// Integer power by binary exponentiation in a fixed order, using only IEEE
 /// multiplication and division (LLVM's `powi` intrinsic may expand differently
