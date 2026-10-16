@@ -6,7 +6,7 @@
 Every `faris` command with its help text, which lists every option. The examples are command lines from the
 rest of this handbook; [Command line](cli.md) explains how the commands fit together.
 
-48 of 50 commands have an example in the handbook; these have none yet: `faris evidence run`, `faris evidence stage`.
+79 of 83 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
 
 ## faris
 
@@ -17,9 +17,15 @@ Usage: faris [OPTIONS] <COMMAND>
 
 Commands:
   history      Calculate or validate the shared Rust operating-history ledger
+  activation   Activation inventory, decay heat and decay-photon source of zones through ACTINV
   maintenance  Compute replacement outages from activation decay heat and compare them with fixed ones
+  waste        Waste classification (10 CFR 61.55), IAEA clearance index and recycling index of activated components
+  materials    The cited materials and limits database: compositions, impurity limits, damage and gas limits
   evidence     Package and execute identified simulation evidence with real Avila Core
   design       Write and check the design file that says what a STEP model's solids are
+  diff         Compare two .faris studies, or two scenario, physics, assumptions or design files: every changed parameter with old and new value and unit, causes apart from effects, and which results the change invalidates. Exits 0 when identical, 6 when they differ
+  geometry     Tables about a model's geometry
+  cache        Look at, check and trim the result cache
   config       Show and change your settings, and which layer supplies each value
   validate     Validate a scenario without running physics
   export       Export geometry metadata (--scenario), or a study's PDF brief, CSV and charts (--study)
@@ -34,6 +40,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
   -V, --version              Print version
 
@@ -44,6 +51,7 @@ Exit codes:
    3  solver failure: an external tool ran and did not succeed
    4  cancelled: the job was stopped by Ctrl-C or SIGTERM
    5  resource refused: the memory check refused the job
+   6  different: a comparison found the two sides differ
   64  usage: the command line did not parse
 ```
 
@@ -65,6 +73,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -80,6 +89,7 @@ Options:
       --rates <RATES>              
       --output <OUTPUT>            
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -94,6 +104,7 @@ Options:
       --assumptions <ASSUMPTIONS>  
       --rates <RATES>              
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -113,6 +124,7 @@ Options:
       --output <OUTPUT>              
       --rates-output <RATES_OUTPUT>  
       --setting <KEY=VALUE>          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>               Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                         Print help
 ```
 
@@ -133,6 +145,7 @@ Options:
       --threads <THREADS>          Worker threads; default is the available parallelism minus one
       --output <OUTPUT>            
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -162,6 +175,8 @@ Options:
           
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -179,11 +194,82 @@ Options:
       --assumptions <ASSUMPTIONS>  
       --grid <GRID>                
       --output <OUTPUT>            
+      --cache-dir <CACHE_DIR>      Keep every finished point here as it completes. Run the same command again with the same folder after a kill and only the unfinished points are calculated; the result is identical to an uninterrupted run
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
 Example: `faris history sensitivity`
+
+## faris activation
+
+```text
+Activation inventory, decay heat and decay-photon source of zones through ACTINV
+
+Usage: faris activation [OPTIONS] <COMMAND>
+
+Commands:
+  run   Run ACTINV on zones with group fluxes and an irradiation schedule; writes a JSON result with inventory, activity, decay heat, decay-photon source, pathways and data gaps
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris activation run --zones zones.json --spectra spectra.json --schedule schedule.json --cooling 1s,1h,1d,1y,10y,100y --actinv ~/.local/bin/actinv --data-dir ~/actinv-data --output activation.json`
+
+## faris activation run
+
+```text
+Run ACTINV on zones with group fluxes and an irradiation schedule; writes a JSON result with inventory, activity, decay heat, decay-photon source, pathways and data gaps
+
+Usage: faris activation run [OPTIONS] --actinv <ACTINV> --data-dir <DATA_DIR> --output <OUTPUT>
+
+Options:
+      --request <REQUEST>
+          A complete request (faris-activation-request/v0.1: zones with spectra, steps, cooling grid). Or give --zones, --spectra and --schedule instead
+      --zones <ZONES>
+          JSON list of zones: id, component_id, mass_g, volume_m3, basis, composition
+      --spectra <SPECTRA>
+          Normalized neutron spectra of the transport run (a list, or an object with `normalized_spectra`), 709 groups, n per m2 per s
+      --schedule <SCHEDULE>
+          An irradiation schedule file (faris-irradiation-schedule/v0.1)
+      --cooling <COOLING>
+          Cooling times since shutdown, `1s,1h,1d,1y`; 1 s to 1e9 s [default: one per decade]
+      --photon-groups <PHOTON_GROUPS>
+          Number of decay-photon groups (log-spaced to 20 MeV); default is ACTINV's 24 groups
+      --photon-response <PHOTON_RESPONSE>
+          An actinv-photon-response-1 file, for the contact dose proxy; needs its SHA-256
+      --photon-response-sha256 <PHOTON_RESPONSE_SHA256>
+          
+      --mode <MODE>
+          ACTINV solution mode. `trace` (and `auto` when it picks trace) holds the starting material constant; use `coupled` when the material itself contains radionuclides [possible values: auto, trace, coupled]
+      --actinv <ACTINV>
+          The `actinv` executable
+      --data-dir <DATA_DIR>
+          ACTINV data root (the folder above the catalogue version)
+      --output <OUTPUT>
+          New result file (faris-activation-result/v0.1); existing paths are refused
+      --cache <CACHE>
+          Content-addressed zone results; an identical request is not run again
+      --work-dir <WORK_DIR>
+          Scratch folder for ACTINV problems [default: OUTPUT.work]
+      --top-nuclides <TOP_NUCLIDES>
+          Keep this many nuclides per cooling point, most active first (totals stay complete) [default: 50]
+      --photon-source-dir <PHOTON_SOURCE_DIR>
+          Also write the decay-photon source (photons/s/cm3) of every zone and cooling time here
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
+```
+
+Example: `faris activation run --zones zones.json --spectra spectra.json --schedule schedule.json --cooling 1s,1h,1d,1y,10y,100y --actinv ~/.local/bin/actinv --data-dir ~/actinv-data --output activation.json`
 
 ## faris maintenance
 
@@ -199,6 +285,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -224,6 +311,7 @@ Options:
       --python <PYTHON>            Interpreter that runs the activation-input builder [default: python3]
       --builder <BUILDER>          The activation-input builder script [default: tools/build_activation_inputs.py beside the folder that holds this program (a downloaded package); otherwise the script in the source repository this program was built from]
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -242,10 +330,363 @@ Arguments:
 Options:
       --format <FORMAT>      [default: markdown] [possible values: markdown, json]
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
 Example: `faris maintenance report RESULT`
+
+## faris waste
+
+```text
+Waste classification (10 CFR 61.55), IAEA clearance index and recycling index of activated components
+
+Usage: faris waste [OPTIONS] <COMMAND>
+
+Commands:
+  schemes         List the classification schemes with name, version and date, and which are implemented
+  tables          Print the encoded limit tables with their source, retrieval date and licence
+  classify        Classify an inventory at a disposal time. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing; it never defaults to Class A
+  clearance-time  Find the time the IAEA clearance index falls below 1, searched between two times
+  recycling       Recycling index: a dose rate over a dose-rate criterion you write. FARIS supplies no criterion
+  help            Print this message or the help of the given subcommand(s)
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris waste classify`
+
+## faris waste schemes
+
+```text
+List the classification schemes with name, version and date, and which are implemented
+
+Usage: faris waste schemes [OPTIONS]
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris waste schemes`
+
+## faris waste tables
+
+```text
+Print the encoded limit tables with their source, retrieval date and licence
+
+Usage: faris waste tables [OPTIONS]
+
+Options:
+      --scheme <SCHEME>
+          Possible values:
+          - nrc-10cfr61.55:     US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
+          - iaea-gsr3-table-i2: IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          
+          [default: nrc-10cfr61.55]
+
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+Example: `faris waste tables`
+
+## faris waste classify
+
+```text
+Classify an inventory at a disposal time. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing; it never defaults to Class A
+
+Usage: faris waste classify [OPTIONS] --inventory <INVENTORY> --time-years <TIME_YEARS>
+
+Options:
+      --inventory <INVENTORY>
+          faris waste inventory JSON: component, waste form, averaging volume and mass, nuclides
+
+      --time-years <TIME_YEARS>
+          Years after the inventory reference at which the waste is disposed of
+
+      --scheme <SCHEME>
+          Possible values:
+          - nrc-10cfr61.55:     US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
+          - iaea-gsr3-table-i2: IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          
+          [default: nrc-10cfr61.55]
+
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+Example: `faris waste classify`
+
+## faris waste clearance-time
+
+```text
+Find the time the IAEA clearance index falls below 1, searched between two times
+
+Usage: faris waste clearance-time [OPTIONS] --inventory <INVENTORY>
+
+Options:
+      --inventory <INVENTORY>    
+      --from-years <FROM_YEARS>  [default: 1]
+      --to-years <TO_YEARS>      [default: 100]
+      --setting <KEY=VALUE>      Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>           Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                     Print help
+```
+
+Example: `faris waste clearance-time --inventory <inventory.json>`
+
+## faris waste recycling
+
+```text
+Recycling index: a dose rate over a dose-rate criterion you write. FARIS supplies no criterion
+
+Usage: faris waste recycling [OPTIONS] --criterion <CRITERION> --contributions <CONTRIBUTIONS> --time-years <TIME_YEARS>
+
+Options:
+      --criterion <CRITERION>
+          JSON with name, dose_rate_limit_sv_per_h and source
+      --contributions <CONTRIBUTIONS>
+          JSON list of per-nuclide dose rates with half-life and sigma
+      --contributions-at-years <CONTRIBUTIONS_AT_YEARS>
+          Years after the reference at which the contributions are given [default: 0]
+      --time-years <TIME_YEARS>
+          
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
+```
+
+Example: `faris waste recycling --criterion <criterion.json> --contributions <contributions.json> --time-years 50`
+
+## faris materials
+
+```text
+The cited materials and limits database: compositions, impurity limits, damage and gas limits
+
+Usage: faris materials [OPTIONS] <COMMAND>
+
+Commands:
+  list           Database id, version, date and content hash; the materials and counts
+  show           One material: composition, impurity specifications, properties, limits
+  limits         The limit table (every row with convention, window, spectrum, conditions, status and citation)
+  watchlist      The impurity watch-list with the 10 CFR 61.55 thresholds each element endangers
+  check          Validate the embedded database, or another database file (schema, citations, labels)
+  compare        Compare one value with one stored limit under the case's conditions
+  time-to-limit  Years to each limit at a constant rate, and which is reached first. A dpa-only check is refused for a material with a helium or hydrogen limit
+  classify       A waste class for a component of a stored material, only with an impurity specification
+  max-impurity   The largest content of one element that keeps the inventory within a target class
+  export         Export the database or its tables with citations
+  help           Print this message or the help of the given subcommand(s)
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials list`
+
+## faris materials list
+
+```text
+Database id, version, date and content hash; the materials and counts
+
+Usage: faris materials list [OPTIONS]
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials list`
+
+## faris materials show
+
+```text
+One material: composition, impurity specifications, properties, limits
+
+Usage: faris materials show [OPTIONS] <MATERIAL>
+
+Arguments:
+  <MATERIAL>  
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: none in the handbook yet.
+
+## faris materials limits
+
+```text
+The limit table (every row with convention, window, spectrum, conditions, status and citation)
+
+Usage: faris materials limits [OPTIONS]
+
+Options:
+      --material <MATERIAL>  
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials limits`
+
+## faris materials watchlist
+
+```text
+The impurity watch-list with the 10 CFR 61.55 thresholds each element endangers
+
+Usage: faris materials watchlist [OPTIONS]
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials watchlist`
+
+## faris materials check
+
+```text
+Validate the embedded database, or another database file (schema, citations, labels)
+
+Usage: faris materials check [OPTIONS]
+
+Options:
+      --file <FILE>          
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials check`
+
+## faris materials compare
+
+```text
+Compare one value with one stored limit under the case's conditions
+
+Usage: faris materials compare [OPTIONS] --limit <LIMIT> --value <VALUE>
+
+Options:
+      --limit <LIMIT>             
+      --value <VALUE>             
+      --conditions <CONDITIONS>   JSON: dpa_convention, irradiation_temperature_c, spectrum, form (each optional)
+      --override <OVERRIDE_FILE>  JSON authored override: limit_id, value, convention, author, time, reason
+      --setting <KEY=VALUE>       Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>            Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                      Print help
+```
+
+Example: `faris materials compare --limit <limit-id> --value <value> --conditions <conditions.json>`
+
+## faris materials time-to-limit
+
+```text
+Years to each limit at a constant rate, and which is reached first. A dpa-only check is refused for a material with a helium or hydrogen limit
+
+Usage: faris materials time-to-limit [OPTIONS] --material <MATERIAL> --criteria <CRITERIA>
+
+Options:
+      --material <MATERIAL>      
+      --criteria <CRITERIA>      JSON list of criteria: limit_id, accumulated, rate_per_year, optional override
+      --conditions <CONDITIONS>  
+      --setting <KEY=VALUE>      Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>           Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                     Print help
+```
+
+Example: `faris materials time-to-limit --material eurofer97 --criteria <criteria.json>`
+
+## faris materials classify
+
+```text
+A waste class for a component of a stored material, only with an impurity specification
+
+Usage: faris materials classify [OPTIONS] --material <MATERIAL> --inventory <INVENTORY> --inventory-spec <INVENTORY_SPEC> --time-years <TIME_YEARS>
+
+Options:
+      --material <MATERIAL>
+          
+      --inventory <INVENTORY>
+          
+      --inventory-spec <INVENTORY_SPEC>
+          The specification id the inventory was computed with
+      --spec <SPEC>
+          JSON: spec_id and assumed limits (element, max_wt_ppm, author, reason). Omit to see the refusal
+      --time-years <TIME_YEARS>
+          
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
+```
+
+Example: `faris materials classify --material eurofer97 --inventory <inventory.json> --inventory-spec <spec-id> --spec <spec.json> --time-years 10`
+
+## faris materials max-impurity
+
+```text
+The largest content of one element that keeps the inventory within a target class
+
+Usage: faris materials max-impurity [OPTIONS] --inventory <INVENTORY> --element-yield <ELEMENT_YIELD> --target <TARGET> --time-years <TIME_YEARS>
+
+Options:
+      --inventory <INVENTORY>          
+      --element-yield <ELEMENT_YIELD>  JSON element yield: element and per_ppm nuclide activities (Bq per wt ppm)
+      --current-ppm <CURRENT_PPM>      The element's wt ppm that the inventory was computed with [default: 0]
+      --target <TARGET>                [possible values: CLASS_A, CLASS_B, CLASS_C]
+      --time-years <TIME_YEARS>        
+      --setting <KEY=VALUE>            Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>                 Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                           Print help
+```
+
+Example: `faris materials max-impurity --inventory <inventory.json> --element-yield <yield.json> --target CLASS_A --time-years 10`
+
+## faris materials export
+
+```text
+Export the database or its tables with citations
+
+Usage: faris materials export [OPTIONS]
+
+Options:
+      --format <FORMAT>      [default: json] [possible values: json, csv-limits, csv-properties]
+      --output <OUTPUT>      Write to this new file instead of standard output
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris materials export --format csv-limits --output <limits.csv>`
 
 ## faris evidence
 
@@ -264,6 +705,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -284,6 +726,7 @@ Options:
       --faris <FARIS>              FARIS CLI executable to bind (defaults to this executable)
       --output <OUTPUT>            
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -303,6 +746,7 @@ Options:
       --workspace <WORKSPACE>  
       --output <OUTPUT>        
       --setting <KEY=VALUE>    Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>         Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                   Print help
 ```
 
@@ -330,6 +774,8 @@ Options:
           Tree of the store holding the Core execution workspace
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -346,6 +792,7 @@ Usage: faris evidence verify-store [OPTIONS] --store <STORE>
 Options:
       --store <STORE>        
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -370,6 +817,7 @@ Options:
       --assumptions <ASSUMPTIONS>  
       --output <OUTPUT>            
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -390,6 +838,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -415,6 +864,7 @@ Options:
       --cad-reader <READER>        Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
       --occt-worker <WORKER>       The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -461,10 +911,12 @@ Options:
           Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
       --cad-reader <READER>
           Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
-      --setting <KEY=VALUE>
-          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --occt-worker <WORKER>
           The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -497,16 +949,250 @@ Options:
       --cache-dir <DIR>                Where weight windows and the channel search are kept, so that a later run on the same model starts sampling at once [default: `faris-transport-cache` beside the design file]
       --no-cache                       Keep nothing between runs and reuse nothing
       --cad-python <PYTHON>            Python with cadquery, used to read the STEP file [env: FARIS_CAD_PYTHON]
-      --setting <KEY=VALUE>            Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --openmc-python <PYTHON>         Python with openmc and h5py, used for the nuclear-data audit [env: FARIS_OPENMC_PYTHON]
       --cross-sections <XML>           cross_sections.xml of the audited library [env: FARIS_CROSS_SECTIONS]
       --plasma-source-path <DIR>       Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
       --cad-reader <READER>            Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
       --occt-worker <WORKER>           The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
+      --setting <KEY=VALUE>            Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>                 Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                           Print help
 ```
 
 Example: `faris design transport`
+
+## faris diff
+
+```text
+Compare two .faris studies, or two scenario, physics, assumptions or design files: every changed parameter with old and new value and unit, causes apart from effects, and which results the change invalidates. Exits 0 when identical, 6 when they differ
+
+Usage: faris diff [OPTIONS] <A> <B>
+
+Arguments:
+  <A>  
+  <B>  
+
+Options:
+      --json                 Stable, versioned JSON (`faris-diff/v1`) instead of text
+      --values               Also list the values that changed inside changed result files (slower, longer)
+      --output <OUTPUT>      Write the report to a new file instead of printing it
+      --time                 Print how long the comparison took on standard error
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris diff`
+
+## faris geometry
+
+```text
+Tables about a model's geometry
+
+Usage: faris geometry [OPTIONS] <COMMAND>
+
+Commands:
+  summary  Write the table of cells of a scenario: name, id, material, volume, mass, representation and kind label, as CSV
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris geometry summary --scenario S [--physics P]`
+
+## faris geometry summary
+
+```text
+Write the table of cells of a scenario: name, id, material, volume, mass, representation and kind label, as CSV
+
+Usage: faris geometry summary [OPTIONS] --scenario <SCENARIO>
+
+Options:
+      --scenario <SCENARIO>  
+      --physics <PHYSICS>    A physics case for the scenario, to give each cell its density and mass. Without one the mass is NOT_EVALUATED
+      --variant <VARIANT>    The allocation to tabulate [default: the physics case's, or the first]
+      --output <OUTPUT>      New CSV file; an existing file is never overwritten [default: print]
+      --json                 JSON instead of CSV
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris geometry summary --scenario S [--physics P]`
+
+## faris cache
+
+```text
+Look at, check and trim the result cache
+
+Usage: faris cache [OPTIONS] <COMMAND>
+
+Commands:
+  list     List the entries: kind, key, size, when made, when last used
+  verify   Rehash every entry. A damaged entry is reported and the command exits with status 1
+  explain  Show every component of one entry's key, with its value
+  stats    Show hit and false-hit counts, and the two rates, separately
+  gc       Remove the least recently used entries until the cache is at most this size. Pinned entries are never removed
+  pin      Keep an entry through `gc` and the size limit
+  unpin    Let an entry be removed again
+  clear    Remove every entry (and folders made before entries recorded their key)
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache list`
+
+## faris cache list
+
+```text
+List the entries: kind, key, size, when made, when last used
+
+Usage: faris cache list [OPTIONS]
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --json                 
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache list`
+
+## faris cache verify
+
+```text
+Rehash every entry. A damaged entry is reported and the command exits with status 1
+
+Usage: faris cache verify [OPTIONS]
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --json                 
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache verify`
+
+## faris cache explain
+
+```text
+Show every component of one entry's key, with its value
+
+Usage: faris cache explain [OPTIONS] <KEY>
+
+Arguments:
+  <KEY>  The key, or the start of it (at least 6 characters)
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --json                 
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache explain KEY`
+
+## faris cache stats
+
+```text
+Show hit and false-hit counts, and the two rates, separately
+
+Usage: faris cache stats [OPTIONS]
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --json                 
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache stats`
+
+## faris cache gc
+
+```text
+Remove the least recently used entries until the cache is at most this size. Pinned entries are never removed
+
+Usage: faris cache gc [OPTIONS] --max-size <MAX_SIZE>
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --max-size <MAX_SIZE>  A size such as 500MB or 10GB (powers of 1024)
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache gc --max-size 10GB`
+
+## faris cache pin
+
+```text
+Keep an entry through `gc` and the size limit
+
+Usage: faris cache pin [OPTIONS] <KEY>
+
+Arguments:
+  <KEY>  
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache pin KEY`
+
+## faris cache unpin
+
+```text
+Let an entry be removed again
+
+Usage: faris cache unpin [OPTIONS] <KEY>
+
+Arguments:
+  <KEY>  
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: none in the handbook yet.
+
+## faris cache clear
+
+```text
+Remove every entry (and folders made before entries recorded their key)
+
+Usage: faris cache clear [OPTIONS]
+
+Options:
+      --dir <DIR>            The cache folder [default: `faris-transport-cache` in the current folder]
+      --yes                  Confirm: the entries are deleted and calculated again when next needed
+      --include-pinned       Remove pinned entries too
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris cache clear --yes`
 
 ## faris config
 
@@ -522,10 +1208,12 @@ Commands:
   unset  Remove a value from your settings file, so the default or environment applies again
   reset  Replace your settings file with an empty one (the desktop's own sections are kept)
   path   Print where your settings file is
+  diff   Compare two settings files: every key whose effective value differs, with old and new value, unit, layer and effect class. Exits 0 when identical, 6 when they differ
   help   Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -541,6 +1229,7 @@ Usage: faris config list [OPTIONS]
 Options:
       --json                 One JSON document instead of text
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -559,6 +1248,7 @@ Arguments:
 Options:
       --show-origin          Also say which layer supplied the value: default, user file, environment or flag
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -577,6 +1267,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -594,6 +1285,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -609,6 +1301,7 @@ Usage: faris config reset [OPTIONS]
 Options:
       --yes                  Confirm: every value you set in the file is lost
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -623,10 +1316,31 @@ Usage: faris config path [OPTIONS]
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
 Example: `faris config path`
+
+## faris config diff
+
+```text
+Compare two settings files: every key whose effective value differs, with old and new value, unit, layer and effect class. Exits 0 when identical, 6 when they differ
+
+Usage: faris config diff [OPTIONS] <A> <B>
+
+Arguments:
+  <A>  
+  <B>  
+
+Options:
+      --json                 One JSON document (`faris-config-diff/v1`) instead of text
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris config diff A B`
 
 ## faris validate
 
@@ -640,6 +1354,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -657,6 +1372,7 @@ Options:
       --study <STUDY>        A .faris study file: writes the same export folder as the desktop's export (the 3D view is not captured on the command line)
       --output <OUTPUT>      The manifest file for --scenario; the folder to create the export in for --study
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -671,6 +1387,7 @@ Usage: faris doctor [OPTIONS]
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -689,6 +1406,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -704,6 +1422,7 @@ Usage: faris adapters list [OPTIONS]
 Options:
       --no-probe             Do not run `<tool> --version`; health is then NOT_EVALUATED and the version unknown
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -722,6 +1441,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -751,6 +1471,8 @@ Options:
           [default: 600]
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -767,11 +1489,13 @@ Usage: faris transport [OPTIONS] <COMMAND>
 Commands:
   validate-request  Validate definitions against exact scenario bytes without running physics
   normalize         Convert solver-reported per-source scores to physical rates and densities
+  statistics        Run the statistical checks on a run's per-batch tally values and show each tally with an interval that holds at low counts; a failing tally gets no interval and no verdict
   pack              Package one completed run.json and its bound files into a portable bundle
   help              Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -788,6 +1512,7 @@ Options:
       --scenario <SCENARIO>  
       --request <REQUEST>    
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -806,10 +1531,30 @@ Options:
       --artifact <ARTIFACT>  
       --output <OUTPUT>      
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
 Example: `faris transport normalize`
+
+## faris transport statistics
+
+```text
+Run the statistical checks on a run's per-batch tally values and show each tally with an interval that holds at low counts; a failing tally gets no interval and no verdict
+
+Usage: faris transport statistics [OPTIONS] --batch-values <BATCH_VALUES>
+
+Options:
+      --batch-values <BATCH_VALUES>  transport-batch-values.json written beside the artifact
+      --artifact <ARTIFACT>          transport-artifact.json of the same run, to check its reported errors against the batches
+      --point-detector               Apply the point-detector relative error guideline (5 %) instead of the region one (10 %)
+      --output <OUTPUT>              Write the full report as JSON to this new file as well
+      --setting <KEY=VALUE>          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>               Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                         Print help
+```
+
+Example: `faris transport statistics --batch-values FILE`
 
 ## faris transport pack
 
@@ -822,6 +1567,7 @@ Options:
       --run <RUN>            A run.json beside its scenario, input, audit, adapter and tally files
       --output <OUTPUT>      New bundle path; an existing file is never overwritten
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -841,6 +1587,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -860,6 +1607,7 @@ Options:
       --minimum-tbr <MINIMUM_TBR>  [default: 1]
       --output <OUTPUT>            New exclusive evidence directory; existing paths are refused
       --setting <KEY=VALUE>        Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>             Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                       Print help
 ```
 
@@ -878,6 +1626,7 @@ Options:
       --core <CORE>          
       --output <OUTPUT>      New exclusive evidence directory; existing paths are refused
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -900,6 +1649,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -943,6 +1693,8 @@ Options:
           PNG thumbnail of the 3D view (at most 512 pixels a side, 512 KiB); one that does not fit is left out and reported as `preview_bytes: null`
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -961,6 +1713,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -978,6 +1731,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -1003,6 +1757,9 @@ Options:
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
 
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+
   -h, --help
           Print help (see a summary with '-h')
 ```
@@ -1022,6 +1779,7 @@ Arguments:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -1041,6 +1799,7 @@ Commands:
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 
@@ -1084,14 +1843,16 @@ Options:
           Spatial flux tally resolution; local variants use the same outboard bounds [default: coarse] [possible values: coarse, outboard-local-coarse, outboard-local, outboard-port-window]
       --activation-spectra <ACTIVATION_SPECTRA>
           Also tally each component's neutron spectrum on the 709-group `fispact-709` boundaries of the TENDL-2025 activation library (for activation inputs) [possible values: fispact-709]
-      --setting <KEY=VALUE>
-          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
       --window-python <WINDOW_PYTHON>
           A Python with OpenMC 0.16 or later. With --target-error it makes weight windows aimed at the magnet fast flux first, so the run needs far fewer histories; without it the run is analog and its record says so
       --window-cache <WINDOW_CACHE>
           Where weight windows are kept between runs [default: `faris-transport-cache` beside --output]
       --no-window-cache
           Make the weight windows for this run only
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help
           Print help
 ```
@@ -1109,6 +1870,7 @@ Options:
       --scenario <SCENARIO>  
       --run <RUN>            The run.json record inside a reactor evidence directory
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
   -h, --help                 Print help
 ```
 

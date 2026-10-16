@@ -20,7 +20,7 @@ regulation or limit is met.
 
 ## Run it
 
-```text
+```bash
 faris activation run --zones zones.json --spectra spectra.json --schedule schedule.json \
   --cooling 1s,1h,1d,1y,10y,100y --actinv ~/.local/bin/actinv --data-dir ~/actinv-data \
   --output activation.json

@@ -92,6 +92,10 @@ NEEDS = {
     ("transport", "normalize"): "needs a raw solver artifact",
     ("study-file", "export"): "needs bundles that hold real transport results; the fixture bundles carry placeholder members",
     ("transport", "validate-request"): "needs a transport request file written for the reader's scenario",
+    ("transport", "statistics"): "needs a batch-values file that a transport run writes",
+    ("geometry", "summary"): "needs the reader's scenario and physics case files",
+    ("activation", "run"): "needs ACTINV and its data and a transport run's group spectra",
+    ("diff",): "needs two study or model files of the reader's",
 }
 
 # Placeholder names the handbook uses for files, mapped to the fixture that stands in. Used when a
@@ -126,6 +130,7 @@ FRAGMENTS = {
 JSON_TESTS = {
     "docs/guide/design-file.md": ["design_file_waivers_example_parses_and_names_waivable_checks"],
     "docs/guide/maintenance.md": ["maintenance_examples_parse_and_validate"],
+    "docs/guide/activation.md": ["activation_zones_example_parses"],
 }
 RUST_JSON_TEST = ("faris-engine", "doc_json_samples")
 DOCTESTED = {"faris-model", "faris-engine", "faris-study", "faris-report", "faris-occt-client"}
@@ -450,7 +455,7 @@ def run_command(binary: Binary, root: Path, work: Path, where: str, command: str
     words, rest = binary.leaf(args)
     problems = check_flags(binary, words, rest) + check_repo_paths(root, rest)
     placeholder = any(re.search(r"<[^>]*>|/path/to/", t.replace("/path/to/parent", "")) for t in rest)
-    reason = NEEDS.get(words[:2]) if len(words) >= 2 else None
+    reason = (NEEDS.get(tuple(words[:2])) if len(words) >= 2 else None) or NEEDS.get(tuple(words[:1]))
     key = (file, " ".join(toks[:3]))
     if key in EXPECTED_FAIL:
         results.add(label, "expected-fail", True, EXPECTED_FAIL[key])

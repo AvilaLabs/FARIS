@@ -93,3 +93,15 @@ fn maintenance_examples_parse_and_validate() {
         }
     }
 }
+
+// Verifies: QA-016
+#[test]
+fn activation_zones_example_parses() {
+    let blocks = json_blocks("docs/guide/activation.md");
+    assert_eq!(blocks.len(), 1, "a new json example needs a check here");
+    let zones: Vec<faris_engine::activation::ZoneSpec> = serde_json::from_str(&blocks[0]).unwrap();
+    assert!(!zones.is_empty());
+    for zone in &zones {
+        assert!(zone.mass_g > 0.0 && zone.volume_m3 > 0.0 && !zone.composition.is_empty());
+    }
+}
