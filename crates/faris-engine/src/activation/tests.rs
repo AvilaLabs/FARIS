@@ -879,9 +879,12 @@ fn live_actinv_end_to_end_is_reproducible_and_matches_the_recording() {
         serde_json::to_vec(&a).unwrap(),
         serde_json::to_vec(&b).unwrap()
     );
-    assert_eq!(
-        a.data.solver, "actinv-core 1.4.0",
-        "the recorded fixtures are from this version"
+    // The fixtures were recorded with ACTINV 1.4.0. Later versions must reproduce their decay
+    // heat for this start from stable material (ACTINV 1.5.0 changed ledger counts only here).
+    assert!(
+        a.data.solver.starts_with("actinv-core 1."),
+        "unexpected solver {}",
+        a.data.solver
     );
     let recorded = recorded(RECORDED, &live.config.data);
     for (j, p) in a.zones[0].points.iter().enumerate() {
