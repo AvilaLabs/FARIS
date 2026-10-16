@@ -1,5 +1,6 @@
 use super::*;
 use faris_model::math;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 // The edges of ACTINV's fispact-709 structure, read from the activation library's bounds.
@@ -95,6 +96,7 @@ fn recorded(text: &str, data: &ActivationData) -> Value {
     v
 }
 
+#[cfg(unix)]
 /// A stand-in `actinv`: counts its calls and copies a recorded result to the output path.
 fn fake_actinv(dir: &Path, result: &Value) -> PathBuf {
     let canned = dir.join("canned.json");
@@ -113,16 +115,19 @@ fn fake_actinv(dir: &Path, result: &Value) -> PathBuf {
     script
 }
 
+#[cfg(unix)]
 fn calls(dir: &Path) -> usize {
     std::fs::read_to_string(dir.join("calls")).map_or(0, |t| t.lines().count())
 }
 
+#[cfg(unix)]
 struct Rig {
     _fake: FakeData,
     scratch: tempfile::TempDir,
     config: ActivationConfig,
 }
 
+#[cfg(unix)]
 fn rig(result_text: &str) -> Rig {
     let fake = fake_data();
     let scratch = tempfile::tempdir().unwrap();
@@ -316,6 +321,7 @@ fn request_checks_refuse_with_a_reason() {
 
 // Verifies: ACT-001, ACT-020, ACT-021, ACT-022, ACT-023, ACT-045, ACT-047, ACT-049
 #[test]
+#[cfg(unix)]
 fn recorded_run_gives_typed_inventory_heat_activity_photons_and_versions() {
     let rig = rig(RECORDED);
     let request = fixture_request(1.0e8);
@@ -403,6 +409,7 @@ fn recorded_run_gives_typed_inventory_heat_activity_photons_and_versions() {
 
 // Verifies: ACT-020
 #[test]
+#[cfg(unix)]
 fn zone_totals_equal_the_sum_over_zones() {
     let rig = rig(RECORDED);
     let mut request = fixture_request(1.0e8);
@@ -430,6 +437,7 @@ fn zone_totals_equal_the_sum_over_zones() {
 
 // Verifies: ACT-042
 #[test]
+#[cfg(unix)]
 fn identical_requests_give_bit_identical_results() {
     let rig = rig(RECORDED);
     let request = fixture_request(1.0e8);
@@ -453,6 +461,7 @@ fn identical_requests_give_bit_identical_results() {
 
 // Verifies: ACT-042, ACT-045
 #[test]
+#[cfg(unix)]
 fn any_changed_input_or_data_file_changes_the_receipt() {
     let rig = rig(RECORDED);
     let base = fixture_request(1.0e8);
@@ -497,6 +506,7 @@ fn any_changed_input_or_data_file_changes_the_receipt() {
 }
 
 #[test]
+#[cfg(unix)]
 fn an_identical_request_is_served_from_the_cache_and_a_changed_data_file_is_not() {
     let mut rig = rig(RECORDED);
     rig.config.cache_dir = Some(rig.scratch.path().join("cache"));
@@ -528,6 +538,7 @@ fn an_identical_request_is_served_from_the_cache_and_a_changed_data_file_is_not(
 
 // Verifies: ACT-006
 #[test]
+#[cfg(unix)]
 fn nuclides_lacking_data_are_listed_and_make_the_totals_a_lower_bound() {
     let rig = rig(RECORDED);
     let request = fixture_request(1.0e8);
@@ -586,6 +597,7 @@ fn nuclides_lacking_data_are_listed_and_make_the_totals_a_lower_bound() {
 
 // Verifies: ACT-041
 #[test]
+#[cfg(unix)]
 fn zero_and_empty_spectra_give_zero_activity_without_error() {
     let rig = rig(RECORDED_ZERO);
     for spectrum in [
@@ -637,6 +649,7 @@ fn zero_and_empty_spectra_give_zero_activity_without_error() {
 
 // Verifies: ACT-048
 #[test]
+#[cfg(unix)]
 fn a_changed_hand_off_is_caught_not_absorbed() {
     let rig = rig(RECORDED);
     let request = fixture_request(1.0e8);
@@ -680,6 +693,7 @@ fn a_changed_hand_off_is_caught_not_absorbed() {
 
 // Verifies: ACT-029, NUC-035
 #[test]
+#[cfg(unix)]
 fn photon_source_file_conserves_emission_states_units_and_is_hashed() {
     let rig = rig(RECORDED);
     let mut request = fixture_request(1.0e8);
@@ -772,6 +786,7 @@ fn an_irradiation_schedule_from_the_history_feeds_the_request_with_its_hash() {
 }
 
 #[test]
+#[cfg(unix)]
 fn limiting_nuclides_keeps_totals_and_counts_the_omitted() {
     let rig = rig(RECORDED);
     let request = fixture_request(1.0e8);
