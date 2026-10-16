@@ -120,10 +120,10 @@ Its main gaps against these targets:
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 6 | 32 | 0 | 34 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 15 | 0 | 44 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
-| [Usability](09-usability.md) | UX | 73 | 0 | 27 | 3 | 43 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 0 | 14 | 10 | 33 |
+| [Usability](09-usability.md) | UX | 73 | 0 | 28 | 3 | 42 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 0 | 18 | 9 | 30 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
-| [Configurability](12-configurability.md) | CFG | 63 | 1 | 30 | 1 | 31 |
+| [Configurability](12-configurability.md) | CFG | 63 | 1 | 34 | 1 | 27 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 0 | 26 | 0 | 48 |
 | [Interoperability](14-interoperability.md) | INT | 59 | 1 | 21 | 3 | 34 |
 | [Design workflows](15-design-workflows.md) | DSN | 75 | 3 | 20 | 0 | 52 |
@@ -135,7 +135,7 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 36 | 1 | 36 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 22 | 2 | 9 |
-| **Total** | | **1419** | **78** | **539** | **36** | **766** |
+| **Total** | | **1419** | **78** | **548** | **35** | **758** |
 
 Counts are generated from the tables by `scripts/requirement_trace.py`. 78 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->

@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 78 | 539 | 766 | 36 | 331 | 23 % | 504 | 150 | 459 | 116 | 431 | 98 |
+| All requirements | 1419 | 78 | 548 | 758 | 35 | 340 | 24 % | 504 | 150 | 459 | 116 | 431 | 98 |
 
 ## By category
 
@@ -22,10 +22,10 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 6 | 32 | 34 | 0 | 27 | 38 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 15 | 44 | 0 | 11 | 18 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 5 | 14 % | 15 | 7 | 15 | 3 | 7 | 0 |
-| [Usability](09-usability.md) | 73 | 0 | 27 | 43 | 3 | 11 | 15 % | 37 | 12 | 30 | 10 | 5 | 6 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 14 | 33 | 10 | 7 | 12 % | 42 | 5 | 13 | 4 | 1 | 1 |
+| [Usability](09-usability.md) | 73 | 0 | 28 | 42 | 3 | 12 | 16 % | 37 | 12 | 30 | 10 | 5 | 6 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 18 | 30 | 9 | 11 | 19 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 13 | 27 % | 21 | 7 | 22 | 7 | 8 | 0 |
-| [Configurability](12-configurability.md) | 63 | 1 | 30 | 31 | 1 | 21 | 33 % | 27 | 3 | 26 | 2 | 15 | 0 |
+| [Configurability](12-configurability.md) | 63 | 1 | 34 | 27 | 1 | 25 | 40 % | 27 | 3 | 26 | 2 | 15 | 0 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 0 | 26 | 48 | 0 | 16 | 22 % | 35 | 8 | 25 | 1 | 20 | 4 |
 | [Interoperability](14-interoperability.md) | 59 | 1 | 21 | 34 | 3 | 10 | 17 % | 24 | 11 | 14 | 1 | 24 | 3 |
 | [Design workflows](15-design-workflows.md) | 75 | 3 | 20 | 52 | 0 | 5 | 7 % | 19 | 9 | 19 | 0 | 40 | 4 |
@@ -43,7 +43,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | F1 | 445 | 45 | 278 | 105 | 17 | 187 | 42 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 24 | 188 | 268 | 17 | 118 | 24 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F2 | 497 | 24 | 197 | 260 | 16 | 127 | 26 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 8 | 57 | 0 | 4 | 6 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 4 | 31 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |

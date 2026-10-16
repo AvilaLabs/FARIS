@@ -44,6 +44,16 @@ basis.
   and `faris cache clear --yes` removes them. `faris history sensitivity --cache-dir` keeps each finished point
   so a killed run resumes without redoing finished work and writes the same result as an uninterrupted one. See
   the handbook page "The result cache".
+- Waste classification and a cited materials database. `faris waste classify` places an inventory in Class A, B,
+  C or greater than Class C under 10 CFR 61.55 (tables read from the eCFR text, stored with its hash) and gives
+  the IAEA GSR Part 3 clearance index and the time it falls below 1; decay is forward only, without ingrowth.
+  `faris materials` reads a database in which every limit and impurity value carries its source, page and quoted
+  text, checked on load and in CI. See the handbook pages "Waste classification" and "Materials and limits".
+- One unit registry. Every conversion factor lives in one place with its source, and a lint refuses a second
+  copy. `units.system` (`si` or `fusion`), a `units.<group>` override per quantity, `--units` on any command and
+  `format.decimal`, `format.grouping` and `format.date` choose how numbers are shown; stored files and JSON
+  output never change with them. So far the maintenance report and summaries follow the choice. See the
+  handbook page "Units".
 - Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
   registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a
   registry entry (steps, open and save, export, view, component and allocation changes, timeline, the tool
@@ -197,6 +207,10 @@ basis.
 
 ### Changed
 
+- Study files may now use any Unicode in bundle names, without normalisation (NFC and NFD spellings are two
+  names). Control characters, path separators, names Windows refuses and invisible direction overrides are still
+  refused, and names are capped at 200 bytes. Earlier FARIS versions refuse a study file that uses such a name.
+- The maintenance report's start column header reads "Start (yr)" (was "Start (y)").
 - `faris design transport` accepts a run at its target error only when the batches agree: the variance of the
   variance of the batch values must be at or below 0.1, MCNP's check. A run in which one rare heavy history holds
   much of the sum goes on sampling, and a run stopped at a limit in that state says so. The report gives the value.

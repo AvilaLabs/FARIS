@@ -105,6 +105,8 @@ pub const DAY_S: f64 = 86_400.0;
 pub const JULIAN_YEAR_S: f64 = 365.25 * DAY_S;
 /// Seconds in an hour.
 pub const HOUR_S: f64 = 3_600.0;
+/// Becquerel per curie (NIST SP 811 Appendix B: 1 Ci = 3.7e10 Bq exactly).
+pub const CURIE_BQ: f64 = 3.7e10;
 
 /// One unit of the registry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

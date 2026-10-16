@@ -15,9 +15,9 @@ use serde::{Deserialize, Serialize};
 use crate::math;
 
 /// Seconds in a Julian year (365.25 days), the year used for every decay time here.
-pub const YEAR_S: f64 = 365.25 * 86_400.0;
+pub const YEAR_S: f64 = crate::units::JULIAN_YEAR_S;
 /// Becquerel per curie (exact, by definition).
-pub const CURIE_BQ: f64 = 3.7e10;
+pub use crate::units::CURIE_BQ;
 /// Fractions and sums that differ from a bound by no more than this relative amount are on it,
 /// so a sum of exactly 1 stays inside its class and floating-point noise cannot move it.
 pub const BOUNDARY_TOLERANCE: f64 = 1e-9;
