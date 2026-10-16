@@ -14,6 +14,8 @@ A setting takes the first value found, looking from the strongest layer to the w
 
 `faris config get KEY --show-origin` names the layer, and the variable or file, that supplied the value. `faris config list` does it for every setting.
 
+The `units.*` and `format.*` settings choose how quantities, numbers and dates are shown and typed, never what is stored; see [Units and number formats](units.md).
+
 Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. `ui.theme` is stored and reported, and the desktop does not read it yet.
 
 ## Your settings file
@@ -48,5 +50,34 @@ The table is checked against the program's list of settings by a test, so it can
 | `tools.core_executable` | path | not set | - | `FARIS_CORE_EXECUTABLE` | The Avila Core program that compiles and runs studies; when unset, the one on PATH. |
 | `memory.cap_mb` | whole number 1 to 4194304 | not set | MiB | `FARIS_MEMORY_CAP_MB` | Address-space cap applied to every external job; when unset, no cap is applied and a job is checked against the memory that is free. |
 | `memory.margin_mb` | whole number 1 to 4194304 | `1024` | MiB | `FARIS_MEMORY_MARGIN_MB` | Memory kept free for the rest of the machine when the free-memory check is made before a job starts. |
+| `units.system` | one of si, fusion | `si` | - | `FARIS_UNITS` | Unit system for displayed and typed quantities: si, or fusion (MW, keV, cm, GWd, dpa and related practical units). Stored files always stay in SI base units. |
+| `units.length` | system, or one of m, cm, mm, km | `system` | - | - | Unit shown for length; system follows units.system. |
+| `units.area` | system, or one of m2, cm2, barn | `system` | - | - | Unit shown for area and cross-section; system follows units.system. |
+| `units.mass` | system, or one of kg, g, t | `system` | - | - | Unit shown for mass; system follows units.system. |
+| `units.density` | system, or one of kg/m3, g/cm3 | `system` | - | - | Unit shown for mass density; system follows units.system. |
+| `units.time` | system, or one of s, min, h, d | `system` | - | - | Unit shown for duration; system follows units.system. |
+| `units.service_time` | system, or one of s, d, yr, FPY | `system` | - | - | Unit shown for time in service; system follows units.system. |
+| `units.temperature` | system, or one of K, degC | `system` | - | - | Unit shown for temperature; system follows units.system. |
+| `units.power` | system, or one of W, kW, MW, GW | `system` | - | - | Unit shown for power; system follows units.system. |
+| `units.energy_particle` | system, or one of J, eV, keV, MeV | `system` | - | - | Unit shown for particle energy; system follows units.system. |
+| `units.energy_plant` | system, or one of J, kWh, MWh, GWh, MWd, GWd | `system` | - | - | Unit shown for plant energy; system follows units.system. |
+| `units.power_density` | system, or one of W/m3, W/cm3, MW/m3 | `system` | - | - | Unit shown for power density; system follows units.system. |
+| `units.heat_flux` | system, or one of W/m2, kW/m2, MW/m2, W/cm2 | `system` | - | - | Unit shown for surface power; system follows units.system. |
+| `units.particle_flux` | system, or one of n/m2/s, n/cm2/s | `system` | - | - | Unit shown for particle flux; system follows units.system. |
+| `units.fluence` | system, or one of n/m2, n/cm2 | `system` | - | - | Unit shown for fluence; system follows units.system. |
+| `units.damage` | system, or one of dpa | `system` | - | - | Unit shown for displacement damage; system follows units.system. |
+| `units.damage_rate` | system, or one of dpa/s, dpa/yr, dpa/FPY | `system` | - | - | Unit shown for damage rate; system follows units.system. |
+| `units.dose` | system, or one of Sv, mSv, rem | `system` | - | - | Unit shown for dose equivalent; system follows units.system. |
+| `units.dose_rate` | system, or one of Sv/s, Sv/h, mSv/h, uSv/h, rem/h | `system` | - | - | Unit shown for dose-equivalent rate; system follows units.system. |
+| `units.absorbed_dose` | system, or one of Gy, mGy, rad | `system` | - | - | Unit shown for absorbed dose; system follows units.system. |
+| `units.absorbed_dose_rate` | system, or one of Gy/s, Gy/h, mGy/h | `system` | - | - | Unit shown for absorbed-dose rate; system follows units.system. |
+| `units.activity` | system, or one of Bq, kBq, MBq, GBq, TBq, mCi, Ci | `system` | - | - | Unit shown for activity; system follows units.system. |
+| `units.fraction` | system, or one of 1, %, appm | `system` | - | - | Unit shown for fraction; system follows units.system. |
+| `units.burnup` | system, or one of J/kg, MWd/kg, GWd/t | `system` | - | - | Unit shown for burn-up; system follows units.system. |
+| `units.magnetic_field` | system, or one of T, mT, G | `system` | - | - | Unit shown for magnetic flux density; system follows units.system. |
+| `units.pressure` | system, or one of Pa, kPa, MPa, bar, atm | `system` | - | - | Unit shown for pressure; system follows units.system. |
+| `format.decimal` | one of point, comma | `point` | - | - | Decimal separator of displayed numbers. Stored files always use a point. |
+| `format.grouping` | one of none, thin-space, comma, point, apostrophe | `none` | - | - | Digit-group separator of displayed numbers, from five integer digits up. It must differ from the decimal separator. |
+| `format.date` | one of iso, dmy, mdy | `iso` | - | - | Date order of displayed dates: iso (2026-10-15), dmy (15.10.2026) or mdy (10/15/2026). Stored dates are always ISO. |
 | `ui.scale` | number 0.5 to 4 | `1` | x | - | Interface size as a multiple of the desktop's own scaling. The desktop reads it at start and saves it when you change the size; its size menu offers 0.75 to 2. |
 | `ui.theme` | one of system, light, dark | `system` | - | - | Colour theme. Reserved for the desktop, which does not read it yet. |

@@ -1,7 +1,7 @@
 use crate::{
     ArchiveKind, ArrangementRecord, BundleRecord, ENCODING_VERBATIM, EvidenceArchive,
-    EvidenceLayer, EvidenceMode, MIMETYPE, Manifest, StudyError, is_safe_file_name,
-    is_safe_relative_path, is_sha256_hex,
+    EvidenceLayer, EvidenceMode, MIMETYPE, Manifest, StudyError, is_safe_bundle_name,
+    is_safe_file_name, is_safe_relative_path, is_sha256_hex,
     preview::{MAX_PREVIEW_BYTES_USED, MAX_PREVIEW_SIDE, Preview, PreviewStatus, png_dimensions},
     sha256_hex,
     store_layer::{
@@ -476,7 +476,7 @@ impl StudyReader {
         for set in bundle_sets {
             let mut names = BTreeSet::new();
             for bundle in set {
-                if !is_safe_file_name(&bundle.name) || !names.insert(&bundle.name) {
+                if !is_safe_bundle_name(&bundle.name) || !names.insert(&bundle.name) {
                     return Err(StudyError::corrupt(format!(
                         "bundle name \"{}\" is unsafe or repeated",
                         bundle.name.escape_debug()

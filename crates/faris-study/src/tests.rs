@@ -426,6 +426,41 @@ fn unsafe_bundle_names_in_the_manifest_are_refused() {
     assert!(open_raw(&tiny.entries(manifest)).is_err());
 }
 
+// Verifies: L10N-034, SEC-002
+#[test]
+fn bundle_names_may_be_any_unicode_but_never_a_path() {
+    use crate::is_safe_bundle_name as safe;
+    for name in [
+        "r\u{e9}f\u{e9}rence",
+        "re\u{301}fe\u{301}rence",
+        "\u{30d6}\u{30e9}\u{30f3}\u{30b1}\u{30c3}\u{30c8}",
+        "\u{1f9ea} test run 2",
+        "\u{5c64}-030cm",
+        "plain.name_1",
+    ] {
+        assert!(safe(name), "{name}");
+    }
+    for name in [
+        "",
+        ".",
+        "..",
+        "../escape",
+        "a/b",
+        "a\\b",
+        "C:evil",
+        " lead",
+        "trail ",
+        "tab\there",
+        "nul\0byte",
+        "flip\u{202e}gnp",
+        "x".repeat(201).as_str(),
+    ] {
+        assert!(!safe(name), "{name:?}");
+    }
+    // NFC and NFD are kept apart, not merged.
+    assert_ne!("r\u{e9}f", "re\u{301}f");
+}
+
 // Verifies: INT-004
 #[test]
 fn not_a_zip_is_refused() {

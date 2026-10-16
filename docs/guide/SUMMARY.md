@@ -29,6 +29,7 @@
 - [Command line](cli.md)
 - [Command-line reference](cli-reference.md)
 - [Settings](settings.md)
+- [Units and number formats](units.md)
 - [Run your own transport](transport.md)
 - [Nuclear data](nuclear-data.md)
 - [The design file (bring your own CAD)](design-file.md)

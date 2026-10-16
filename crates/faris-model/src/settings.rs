@@ -35,6 +35,9 @@ pub enum ValueType {
     /// A file or folder path; not checked for existence, because a tool may be installed later.
     Path,
     Choice(&'static [&'static str]),
+    /// `system`, or a unit of the named quantity group of [`crate::units`] by symbol or alias;
+    /// stored under its symbol.
+    UnitOf(&'static str),
     Int {
         min: i64,
         max: i64,
@@ -180,6 +183,238 @@ pub static REGISTRY: &[SettingDef] = &[
         "Memory kept free for the rest of the machine when the free-memory check is made before a job starts.",
     ),
     def(
+        "units.system",
+        ValueType::Choice(&["si", "fusion"]),
+        Some("si"),
+        "",
+        Some("FARIS_UNITS"),
+        "Unit system for displayed and typed quantities: si, or fusion (MW, keV, cm, GWd, dpa and related practical units). Stored files always stay in SI base units.",
+    ),
+    def(
+        "units.length",
+        ValueType::UnitOf("length"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for length; system follows units.system.",
+    ),
+    def(
+        "units.area",
+        ValueType::UnitOf("area"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for area and cross-section; system follows units.system.",
+    ),
+    def(
+        "units.mass",
+        ValueType::UnitOf("mass"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for mass; system follows units.system.",
+    ),
+    def(
+        "units.density",
+        ValueType::UnitOf("density"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for mass density; system follows units.system.",
+    ),
+    def(
+        "units.time",
+        ValueType::UnitOf("time"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for duration; system follows units.system.",
+    ),
+    def(
+        "units.service_time",
+        ValueType::UnitOf("service_time"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for time in service; system follows units.system.",
+    ),
+    def(
+        "units.temperature",
+        ValueType::UnitOf("temperature"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for temperature; system follows units.system.",
+    ),
+    def(
+        "units.power",
+        ValueType::UnitOf("power"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for power; system follows units.system.",
+    ),
+    def(
+        "units.energy_particle",
+        ValueType::UnitOf("energy_particle"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for particle energy; system follows units.system.",
+    ),
+    def(
+        "units.energy_plant",
+        ValueType::UnitOf("energy_plant"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for plant energy; system follows units.system.",
+    ),
+    def(
+        "units.power_density",
+        ValueType::UnitOf("power_density"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for power density; system follows units.system.",
+    ),
+    def(
+        "units.heat_flux",
+        ValueType::UnitOf("heat_flux"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for surface power; system follows units.system.",
+    ),
+    def(
+        "units.particle_flux",
+        ValueType::UnitOf("particle_flux"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for particle flux; system follows units.system.",
+    ),
+    def(
+        "units.fluence",
+        ValueType::UnitOf("fluence"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for fluence; system follows units.system.",
+    ),
+    def(
+        "units.damage",
+        ValueType::UnitOf("damage"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for displacement damage; system follows units.system.",
+    ),
+    def(
+        "units.damage_rate",
+        ValueType::UnitOf("damage_rate"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for damage rate; system follows units.system.",
+    ),
+    def(
+        "units.dose",
+        ValueType::UnitOf("dose"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for dose equivalent; system follows units.system.",
+    ),
+    def(
+        "units.dose_rate",
+        ValueType::UnitOf("dose_rate"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for dose-equivalent rate; system follows units.system.",
+    ),
+    def(
+        "units.absorbed_dose",
+        ValueType::UnitOf("absorbed_dose"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for absorbed dose; system follows units.system.",
+    ),
+    def(
+        "units.absorbed_dose_rate",
+        ValueType::UnitOf("absorbed_dose_rate"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for absorbed-dose rate; system follows units.system.",
+    ),
+    def(
+        "units.activity",
+        ValueType::UnitOf("activity"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for activity; system follows units.system.",
+    ),
+    def(
+        "units.fraction",
+        ValueType::UnitOf("fraction"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for fraction; system follows units.system.",
+    ),
+    def(
+        "units.burnup",
+        ValueType::UnitOf("burnup"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for burn-up; system follows units.system.",
+    ),
+    def(
+        "units.magnetic_field",
+        ValueType::UnitOf("magnetic_field"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for magnetic flux density; system follows units.system.",
+    ),
+    def(
+        "units.pressure",
+        ValueType::UnitOf("pressure"),
+        Some("system"),
+        "",
+        None,
+        "Unit shown for pressure; system follows units.system.",
+    ),
+    def(
+        "format.decimal",
+        ValueType::Choice(&["point", "comma"]),
+        Some("point"),
+        "",
+        None,
+        "Decimal separator of displayed numbers. Stored files always use a point.",
+    ),
+    def(
+        "format.grouping",
+        ValueType::Choice(&["none", "thin-space", "comma", "point", "apostrophe"]),
+        Some("none"),
+        "",
+        None,
+        "Digit-group separator of displayed numbers, from five integer digits up. It must differ from the decimal separator.",
+    ),
+    def(
+        "format.date",
+        ValueType::Choice(&["iso", "dmy", "mdy"]),
+        Some("iso"),
+        "",
+        None,
+        "Date order of displayed dates: iso (2026-10-15), dmy (15.10.2026) or mdy (10/15/2026). Stored dates are always ISO.",
+    ),
+    def(
         "ui.scale",
         ValueType::Float { min: 0.5, max: 4.0 },
         Some("1"),
@@ -207,6 +442,13 @@ impl SettingDef {
         match self.value_type {
             ValueType::Path => "path".into(),
             ValueType::Choice(options) => format!("one of {}", options.join(", ")),
+            ValueType::UnitOf(group) => format!(
+                "system, or one of {}",
+                crate::units::units_of(group)
+                    .map(|u| u.symbol)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             ValueType::Int { min, max } => format!("whole number {min} to {max}"),
             ValueType::Float { min, max } => format!("number {min} to {max}"),
         }
@@ -241,6 +483,15 @@ impl SettingDef {
                 .contains(&text)
                 .then(|| text.to_string())
                 .ok_or_else(|| bad(&format!("'{text}' is not one of the choices"))),
+            ValueType::UnitOf(group) => {
+                if text == "system" {
+                    Ok(text.into())
+                } else {
+                    crate::units::find_in(group, text)
+                        .map(|u| u.symbol.to_string())
+                        .ok_or_else(|| bad(&format!("'{text}' is not a unit of that quantity")))
+                }
+            }
             ValueType::Int { min, max } => match text.parse::<i64>() {
                 Ok(n) if (min..=max).contains(&n) => Ok(n.to_string()),
                 Ok(n) => Err(bad(&format!("{n} is outside the range"))),
@@ -474,7 +725,7 @@ fn check_user_layer(def: &SettingDef) -> Result<(), String> {
 fn kind_word(def: &SettingDef) -> &'static str {
     match def.value_type {
         ValueType::Path => "path (text)",
-        ValueType::Choice(_) => "choice (text)",
+        ValueType::Choice(_) | ValueType::UnitOf(_) => "choice (text)",
         ValueType::Int { .. } => "whole number",
         ValueType::Float { .. } => "number",
     }

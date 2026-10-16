@@ -2,6 +2,7 @@
 
 pub mod canonical;
 pub mod design;
+pub mod display;
 pub mod history;
 pub mod maintenance;
 pub mod materials_db;
@@ -10,6 +11,7 @@ pub mod physics;
 pub mod remote_handling;
 pub mod settings;
 pub mod transport;
+pub mod units;
 pub mod validation;
 pub mod waste;
 

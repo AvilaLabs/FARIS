@@ -769,7 +769,7 @@ pub struct AssumptionRow {
     pub provenance: String,
 }
 
-const DAY_S: f64 = 86_400.0;
+use faris_model::units::DAY_S;
 
 /// Every operating assumption behind the histories, with its kind and the
 /// provenance the assumption file records. `fusion_power_mw` and `horizon` come

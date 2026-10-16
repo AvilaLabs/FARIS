@@ -7,7 +7,7 @@ use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
 
 /// Length of a year used for all conversions: 365.25 days.
-pub const SECONDS_PER_YEAR: f64 = 365.25 * 86_400.0;
+pub const SECONDS_PER_YEAR: f64 = faris_model::units::JULIAN_YEAR_S;
 
 /// Width of the status band, in standard errors of the history fluence.
 const BAND_SIGMAS: f64 = 2.0;

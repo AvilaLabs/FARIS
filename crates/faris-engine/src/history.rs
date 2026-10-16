@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
 pub const TRITIUM_HALF_LIFE_YEARS: f64 = 12.32;
-pub const JULIAN_YEAR_SECONDS: f64 = 365.25 * 86_400.0;
+pub const JULIAN_YEAR_SECONDS: f64 = faris_model::units::JULIAN_YEAR_S;
 pub const TRITIUM_MOLAR_MASS_KG_PER_MOL: f64 = 3.016_049_277_9e-3;
 pub const AVOGADRO_CONSTANT_PER_MOL: f64 = 6.022_140_76e23;
 pub const ELEMENTARY_CHARGE_J_PER_EV: f64 = 1.602_176_634e-19;
@@ -1790,8 +1790,8 @@ pub fn run_operating_history_cancellable(
                 breeder_h3_rate * requested,
             )?;
             full_power_seconds += requested * active_duration;
-            fusion_energy_mwh +=
-                rates.reference_fusion_power_mw * requested * active_duration / 3600.0;
+            fusion_energy_mwh += rates.reference_fusion_power_mw * requested * active_duration
+                / faris_model::units::HOUR_S;
             for (id, state) in &mut components {
                 if let Some(flux) = rates.component_average_flux_n_m2_s.get(id) {
                     state.fluence += flux.mean * requested * active_duration;
@@ -1815,10 +1815,11 @@ pub fn run_operating_history_cancellable(
                     * ELEMENTARY_CHARGE_J_PER_EV
                     / 1e6;
                 if let Some(v) = transport_recovered_heat_mwh.as_mut() {
-                    *v += transport_heat_mw * active_duration / 3600.0;
+                    *v += transport_heat_mw * active_duration / faris_model::units::HOUR_S;
                 }
                 if let Some(v) = alpha_recovered_heat_mwh.as_mut() {
-                    *v += alpha_power_mw * alpha_fraction * active_duration / 3600.0;
+                    *v += alpha_power_mw * alpha_fraction * active_duration
+                        / faris_model::units::HOUR_S;
                 }
                 let gross_electric_mw =
                     (alpha_power_mw * alpha_fraction + transport_heat_mw) * efficiency;
@@ -1827,10 +1828,10 @@ pub fn run_operating_history_cancellable(
                     .auxiliary_power_mw_while_operating
                     .unwrap();
                 if let Some(v) = gross_electricity_mwh.as_mut() {
-                    *v += gross_electric_mw * active_duration / 3600.0;
+                    *v += gross_electric_mw * active_duration / faris_model::units::HOUR_S;
                 }
                 if let Some(v) = auxiliary_electricity_mwh.as_mut() {
-                    *v += aux_mw * active_duration / 3600.0;
+                    *v += aux_mw * active_duration / faris_model::units::HOUR_S;
                 }
             }
         }
@@ -1862,7 +1863,7 @@ pub fn run_operating_history_cancellable(
             let off_aux = assumptions.energy.auxiliary_power_mw_while_off.unwrap();
             let off_duration = dt - active_duration;
             if let Some(v) = auxiliary_electricity_mwh.as_mut() {
-                *v += off_aux * off_duration / 3600.0;
+                *v += off_aux * off_duration / faris_model::units::HOUR_S;
             }
         }
         // Each component's operating curve for the trip-time bands: the delivered power, or the

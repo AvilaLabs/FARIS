@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// A month as the maintenance validation note counts it (365.25 / 12 days).
 pub const MONTH_DAYS: f64 = 30.4375;
-const DAY_S: f64 = 86_400.0;
+use crate::units::DAY_S;
 
 /// The label every preset carries wherever its value travels.
 pub const LITERATURE_LABEL: &str = "literature";
