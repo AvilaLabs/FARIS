@@ -48,6 +48,7 @@ DIGEST_SLICE_OK = {
 # (file, snippet) -> why a prefix comparison there is not an integrity check.
 DIGEST_COMPARE_OK = {
     ("crates/faris-model/src/settings.rs", "self.key.starts_with("): "a settings key name, not a digest",
+    ("crates/faris-app/src/crash.rs", "def.key.starts_with("): "a settings key name, not a digest",
     ("crates/faris-study/src/store_layer.rs", "fanout == &digest[..2]"): "checks the fan-out directory name of a digest that is_sha256_hex has just accepted in full",
 }
 # (file, snippet) -> why a wall-clock read there is not an input of a result.
