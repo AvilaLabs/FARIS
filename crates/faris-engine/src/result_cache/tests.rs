@@ -396,7 +396,9 @@ fn only_the_cache_module_builds_a_key() {
     }
     assert!(files.len() > 50);
     for file in files {
-        if file.ends_with("result_cache.rs") || file.to_string_lossy().contains("result_cache/") {
+        if file.ends_with("result_cache.rs")
+            || file.components().any(|c| c.as_os_str() == "result_cache")
+        {
             continue;
         }
         let text = std::fs::read_to_string(&file).unwrap();

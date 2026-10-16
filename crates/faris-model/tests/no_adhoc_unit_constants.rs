@@ -80,7 +80,7 @@ fn no_unit_conversion_constants_outside_the_registry() {
             .strip_prefix(&crates)
             .unwrap()
             .to_string_lossy()
-            .into_owned();
+            .replace('\\', "/");
         let name = file.file_name().unwrap().to_string_lossy();
         // The registry itself, and test files, may spell the values out to check them.
         if relative.ends_with("faris-model/src/units.rs")
