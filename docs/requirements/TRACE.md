@@ -6,11 +6,11 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 314 of 1419 requirements.
+Traced: 331 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
-| [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 27 |
+| [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 30 |
 | [02-radiation-transport.md](02-radiation-transport.md) | 107 | 30 |
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 33 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
@@ -21,12 +21,12 @@ Traced: 314 of 1419 requirements.
 | [09-usability.md](09-usability.md) | 73 | 11 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 7 |
 | [11-visualization.md](11-visualization.md) | 49 | 13 |
-| [12-configurability.md](12-configurability.md) | 63 | 19 |
-| [13-automation-and-extensibility.md](13-automation-and-extensibility.md) | 74 | 9 |
+| [12-configurability.md](12-configurability.md) | 63 | 21 |
+| [13-automation-and-extensibility.md](13-automation-and-extensibility.md) | 74 | 16 |
 | [14-interoperability.md](14-interoperability.md) | 59 | 10 |
 | [15-design-workflows.md](15-design-workflows.md) | 75 | 5 |
 | [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 16 |
-| [17-collaboration.md](17-collaboration.md) | 40 | 3 |
+| [17-collaboration.md](17-collaboration.md) | 40 | 8 |
 | [18-reliability.md](18-reliability.md) | 38 | 4 |
 | [19-security.md](19-security.md) | 55 | 18 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 7 |
@@ -64,6 +64,9 @@ Traced: 314 of 1419 requirements.
 | GEO-042 | F1 | `crates/faris-model/src/physics.rs::a_recipe_hash_changes_only_when_that_recipe_changes` |
 | GEO-043 | F1 | `crates/faris-model/src/physics.rs::atom_fractions_must_sum_to_one_within_the_stated_tolerance`<br>`crates/faris-model/src/physics.rs::validates_composition_temperature_and_nuclide_syntax` |
 | GEO-046 | F2 | `crates/faris-engine/src/reactor.rs::mesh_presets_are_bounded_and_local_pair_shares_exact_bounds`<br>`scripts/test_verify_recorded_demo.py::test_bundle_rejects_oversized_mesh_before_range_allocation` |
+| GEO-067 | F1 | `crates/faris-cli/tests/diff_cache.rs::diff_compares_two_model_files_and_refuses_a_mixed_pair`<br>`crates/faris-engine/src/semantic_diff/tests.rs::added_removed_moved_and_material_changed_components_and_volume_changes_are_listed`<br>`crates/faris-engine/src/semantic_diff/tests.rs::exactly_the_seeded_edits_are_listed_over_250_trials` |
+| GEO-068 | F1 | `crates/faris-engine/src/semantic_diff/tests.rs::assumption_edits_reuse_the_transport_and_recalculate_the_history`<br>`crates/faris-engine/src/semantic_diff/tests.rs::fifty_known_edits_get_the_right_cost_class`<br>`crates/faris-engine/src/semantic_diff/tests.rs::the_impact_names_what_is_invalidated_and_what_stays_reusable`<br>`crates/faris-study/src/diff/tests.rs::an_assumption_edit_leaves_the_transport_reusable`<br>`crates/faris-study/src/diff/tests.rs::causes_are_kept_apart_from_effects_and_unexplained_results_say_so` |
+| GEO-069 | F1 | `crates/faris-cli/tests/diff_cache.rs::geometry_summary_writes_the_csv_table`<br>`crates/faris-engine/src/semantic_diff/tests.rs::the_geometry_table_total_mass_is_the_sum_of_the_cells`<br>`crates/faris-engine/src/semantic_diff/tests.rs::without_a_physics_case_the_mass_is_not_evaluated_not_invented` |
 | GEO-070 | F2 | `crates/faris-app/src/design_check_run.rs::init_hands_back_the_summary_and_the_nulls_it_left` |
 | NUC-001 | F1 | `crates/faris-engine/src/transport.rs::adapter_artifacts_are_strictly_typed_at_the_boundary` |
 | NUC-003 | F1 | `controls/test_transport_arithmetic.py::test_a_correct_run_reproduces_the_conversion_table_to_1e_12`<br>`controls/test_transport_arithmetic.py::test_each_seeded_unit_slip_is_detected`<br>`crates/faris-engine/src/transport.rs::flux_reaction_particle_production_and_heating_have_distinct_units`<br>`crates/faris-engine/src/transport.rs::power_and_units_scale_exactly_and_cm3_equals_m3` |
@@ -232,13 +235,22 @@ Traced: 314 of 1419 requirements.
 | CFG-074 | F1 | `crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named` |
 | CFG-075 | F1 | `crates/faris-study/src/fixture_tests.rs::unknown_top_level_manifest_fields_are_listed_and_survive_a_re_save` |
 | CFG-080 | F1 | `crates/faris-cli/tests/config.rs::list_names_a_layer_for_every_setting_and_a_flag_wins`<br>`crates/faris-model/src/settings.rs::every_setting_resolves_with_a_nonempty_origin_description`<br>`crates/faris-model/src/settings.rs::layers_win_in_order_and_each_value_names_its_origin` |
+| CFG-081 | F2 | `crates/faris-cli/tests/diff_cache.rs::config_diff_lists_keys_with_unit_layer_and_effect_and_exits_6_when_different`<br>`crates/faris-engine/src/semantic_diff/tests.rs::a_thousand_reorderings_and_reformattings_are_not_changes`<br>`crates/faris-model/src/settings.rs::a_diff_lists_each_changed_key_with_unit_layer_and_effect_class`<br>`crates/faris-model/src/settings.rs::a_resaved_or_reordered_copy_has_no_changes_over_twenty_pairs` |
+| CFG-082 | F2 | `crates/faris-cli/tests/diff_cache.rs::config_diff_lists_keys_with_unit_layer_and_effect_and_exits_6_when_different`<br>`crates/faris-model/src/settings.rs::a_diff_lists_each_changed_key_with_unit_layer_and_effect_class` |
 | AUTO-004 | F1 | `crates/faris-cli/src/exit.rs::each_failure_class_has_its_own_code`<br>`crates/faris-cli/tests/exit_codes.rs::a_job_the_memory_check_refuses_exits_five_and_names_the_setting`<br>`crates/faris-cli/tests/exit_codes.rs::a_tool_that_exits_non_zero_is_a_solver_failure`<br>`crates/faris-cli/tests/exit_codes.rs::each_failure_class_exits_with_its_own_documented_code`<br>`crates/faris-cli/tests/exit_codes.rs::the_help_text_lists_every_exit_code`<br>`crates/faris-cli/tests/study_file.rs::a_damaged_file_fails_verification_with_status_one`<br>`crates/faris-cli/tests/study_file.rs::a_file_that_is_not_a_study_is_a_verification_failure_and_a_missing_one_an_input_error` |
 | AUTO-005 | F1 | `crates/faris-cli/tests/exit_codes.rs::sigint_stops_a_running_job_within_two_seconds_and_leaves_no_orphan` |
 | AUTO-030 | F1 | `crates/faris-app/src/uncertainty/tests.rs::an_unchanged_key_never_reruns`<br>`crates/faris-engine/src/history_uncertainty/tests.rs::the_same_inputs_give_the_same_key_and_hit_the_cache`<br>`crates/faris-study/src/tests.rs::a_study_stores_ensembles_and_reuses_one_only_on_an_exact_key` |
-| AUTO-033 | F1 | `crates/faris-app/src/uncertainty/tests.rs::stored_ensembles_are_reused_only_under_an_exact_key`<br>`crates/faris-engine/src/history_uncertainty/tests.rs::changing_any_component_of_the_key_misses`<br>`crates/faris-study/src/tests.rs::a_study_stores_ensembles_and_reuses_one_only_on_an_exact_key` |
-| AUTO-035 | F1 | `crates/faris-engine/src/reactor/windows.rs::a_cache_entry_counts_only_when_its_file_matches_its_record` |
-| AUTO-036 | F2 | `crates/faris-engine/src/history_uncertainty/tests.rs::the_cache_drops_its_oldest_entry_when_full` |
+| AUTO-031 | F1 | `crates/faris-engine/src/result_cache/tests.rs::only_the_cache_module_builds_a_key` |
+| AUTO-032 | F1 | `crates/faris-cli/tests/diff_cache.rs::cache_list_explain_verify_stats_gc_pin_and_clear`<br>`crates/faris-engine/src/result_cache/tests.rs::an_entry_records_every_key_component_readably` |
+| AUTO-033 | F1 | `crates/faris-app/src/uncertainty/tests.rs::stored_ensembles_are_reused_only_under_an_exact_key`<br>`crates/faris-engine/src/history_uncertainty/tests.rs::changing_any_component_of_the_key_misses`<br>`crates/faris-engine/src/result_cache/tests.rs::changing_any_one_component_changes_the_key`<br>`crates/faris-study/src/tests.rs::a_study_stores_ensembles_and_reuses_one_only_on_an_exact_key` |
+| AUTO-034 | F1 | `crates/faris-engine/src/result_cache/tests.rs::a_timestamp_path_or_host_name_that_is_not_a_component_never_changes_the_key`<br>`crates/faris-engine/src/result_cache/tests.rs::changing_any_one_component_changes_the_key`<br>`crates/faris-engine/src/result_cache/tests.rs::equal_inputs_hash_equally_over_200_reordered_and_reformatted_pairs`<br>`crates/faris-model/src/canonical.rs::spelling_order_and_white_space_do_not_change_the_canonical_text`<br>`crates/faris-model/src/canonical.rs::units_convert_to_one_base_value` |
+| AUTO-035 | F1 | `crates/faris-cli/tests/diff_cache.rs::cache_list_explain_verify_stats_gc_pin_and_clear`<br>`crates/faris-engine/src/comparison.rs::a_damaged_kept_point_is_refused_and_calculated_again`<br>`crates/faris-engine/src/reactor/windows.rs::a_cache_entry_counts_only_when_its_file_matches_its_record`<br>`crates/faris-engine/src/result_cache/tests.rs::list_verify_and_clear_cover_entries_legacy_folders_and_interrupted_stores`<br>`crates/faris-engine/src/result_cache/tests.rs::two_hundred_injected_corruptions_are_refused_and_reported_never_served` |
+| AUTO-036 | F2 | `crates/faris-cli/tests/diff_cache.rs::cache_list_explain_verify_stats_gc_pin_and_clear`<br>`crates/faris-engine/src/history_uncertainty/tests.rs::the_cache_drops_its_oldest_entry_when_full`<br>`crates/faris-engine/src/result_cache/tests.rs::gc_removes_least_recently_used_first_and_never_a_pinned_entry`<br>`crates/faris-engine/src/result_cache/tests.rs::list_verify_and_clear_cover_entries_legacy_folders_and_interrupted_stores`<br>`crates/faris-engine/src/result_cache/tests.rs::the_size_limit_is_enforced_on_every_store` |
+| AUTO-038 | F1 | `crates/faris-cli/tests/diff_cache.rs::cache_list_explain_verify_stats_gc_pin_and_clear`<br>`crates/faris-engine/src/result_cache/tests.rs::hits_and_false_hits_are_counted_apart` |
+| AUTO-039 | F1 | `crates/faris-engine/src/result_cache/tests.rs::a_hit_carries_when_it_was_made_by_which_version_and_under_which_key` |
 | AUTO-040 | F1 | `crates/faris-engine/src/jobs.rs::aggregate_artifact_bytes_are_checked_even_for_short_jobs`<br>`crates/faris-engine/src/jobs.rs::cancellation_terminates_a_running_job`<br>`crates/faris-engine/src/jobs.rs::files_already_in_the_roots_do_not_count_against_the_total`<br>`crates/faris-engine/src/jobs.rs::inherited_address_space_limit_bounds_child_allocation`<br>`crates/faris-engine/src/jobs.rs::only_the_address_space_may_be_raised_and_only_to_the_ceiling`<br>`crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_caught_by_the_artifact_scan`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_killed_by_inherited_file_size_limit`<br>`crates/faris-engine/src/jobs.rs::timeout_cleans_up_descendants_holding_the_output_pipe` |
+| AUTO-050 | F1 | `crates/faris-engine/src/comparison.rs::a_cancelled_run_keeps_nothing_unfinished_and_a_changed_input_reuses_nothing`<br>`crates/faris-engine/src/comparison.rs::a_damaged_kept_point_is_refused_and_calculated_again`<br>`crates/faris-engine/src/comparison.rs::a_killed_sensitivity_run_resumes_without_redoing_finished_points_and_matches_a_clean_run` |
+| AUTO-051 | F1 | `crates/faris-engine/src/comparison.rs::a_killed_sensitivity_run_resumes_without_redoing_finished_points_and_matches_a_clean_run` |
 | AUTO-052 | F2 | `scripts/test_reactor_stop_rule.py::test_the_part_after_a_restart_is_appended_and_only_the_last_file_is_kept` |
 | AUTO-066 | F1 | `crates/faris-cli/tests/exit_codes.rs::adapters_list_reports_path_hash_version_and_health` |
 | INT-001 | F1 | `crates/faris-study/src/fixture_tests.rs::documents_written_by_the_writer_validate_against_the_published_schemas`<br>`crates/faris-study/src/fixture_tests.rs::every_archived_fixture_opens_verifies_and_matches_its_summary`<br>`crates/faris-study/src/tests.rs::the_hand_built_container_reads_and_ignores_unknown_manifest_fields` |
@@ -275,6 +287,11 @@ Traced: 314 of 1419 requirements.
 | COL-003 | F1 | `crates/faris-study/src/tests.rs::an_altered_blob_is_named_and_refused` |
 | COL-006 | F1 | `crates/faris-report/src/tests.rs::export_writes_the_documented_folder_layout` |
 | COL-007 | F1 | `crates/faris-cli/src/study_export.rs::cli_and_desktop_assembly_export_identical_csv_and_manifest` |
+| COL-020 | F1 | `crates/faris-engine/src/semantic_diff/tests.rs::a_change_carries_its_old_value_new_value_and_unit`<br>`crates/faris-engine/src/semantic_diff/tests.rs::exactly_the_seeded_edits_are_listed_over_250_trials`<br>`crates/faris-study/src/diff/tests.rs::a_resaved_unchanged_study_has_no_changes`<br>`crates/faris-study/src/diff/tests.rs::every_archived_fixture_compared_with_itself_is_identical`<br>`crates/faris-study/src/diff/tests.rs::seeded_edits_to_a_studys_inputs_are_listed_exactly_and_a_reformatted_copy_is_not_a_change` |
+| COL-022 | F1 | `crates/faris-engine/src/semantic_diff/tests.rs::the_impact_names_what_is_invalidated_and_what_stays_reusable`<br>`crates/faris-study/src/diff/tests.rs::an_assumption_edit_leaves_the_transport_reusable`<br>`crates/faris-study/src/diff/tests.rs::causes_are_kept_apart_from_effects_and_unexplained_results_say_so`<br>`crates/faris-study/src/diff/tests.rs::evidence_and_presentation_changes_have_their_own_sections`<br>`crates/faris-study/src/diff/tests.rs::stored_ensembles_are_results_that_follow_assumption_changes` |
+| COL-023 | F1 | `crates/faris-cli/tests/diff_cache.rs::diff_compares_two_model_files_and_refuses_a_mixed_pair`<br>`crates/faris-cli/tests/diff_cache.rs::diff_json_is_versioned_and_the_exit_code_says_whether_the_studies_differ` |
+| COL-024 | F2 | `crates/faris-study/src/diff/tests.rs::the_diff_of_the_largest_fixtures_takes_well_under_the_limit` |
+| COL-025 | F1 | `crates/faris-engine/src/semantic_diff/tests.rs::a_thousand_reorderings_and_reformattings_are_not_changes`<br>`crates/faris-model/src/canonical.rs::spelling_order_and_white_space_do_not_change_the_canonical_text`<br>`crates/faris-study/src/diff/tests.rs::seeded_edits_to_a_studys_inputs_are_listed_exactly_and_a_reformatted_copy_is_not_a_change` |
 | REL-006 | F1 | `crates/faris-engine/src/jobs.rs::timeout_cleans_up_descendants_holding_the_output_pipe` |
 | REL-010 | F1 | `crates/faris-engine/src/atomic_file.rs::a_failed_save_leaves_the_previous_file`<br>`crates/faris-engine/src/atomic_file.rs::modelled_power_loss_states_never_expose_partial_data`<br>`crates/faris-engine/src/atomic_file.rs::replace_and_refuse_leave_no_temporary_files`<br>`crates/faris-engine/src/atomic_file.rs::the_power_loss_model_catches_a_rename_before_fsync`<br>`crates/faris-engine/tests/kill_during_save.rs::full_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-engine/tests/kill_during_save.rs::reduced_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/kill_tests.rs::full_study_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/kill_tests.rs::reduced_study_kill_during_save_campaign_finds_no_damaged_file`<br>`crates/faris-study/src/tests.rs::saving_replaces_atomically_and_leaves_no_temporary_files` |
 | REL-020 | F1 | `crates/faris-cli/tests/study_file.rs::a_damaged_file_fails_verification_with_status_one`<br>`crates/faris-study/src/tests.rs::an_altered_blob_is_named_and_refused` |
