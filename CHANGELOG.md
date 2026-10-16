@@ -54,6 +54,18 @@ basis.
   `format.decimal`, `format.grouping` and `format.date` choose how numbers are shown; stored files and JSON
   output never change with them. So far the maintenance report and summaries follow the choice. See the
   handbook page "Units".
+- `faris activation run` runs ACTINV per zone from group fluxes and an irradiation schedule and returns inventory,
+  activity, decay heat (with its alpha, beta and gamma parts), the decay-photon source and a shutdown-dose source
+  file, main production paths and every data gap ACTINV reports, with a receipt binding the ACTINV version, the
+  data hashes and the problem. The hand-off is checked: flux, fluence, cooling times, steps and decay-file hashes
+  must match or the run stops. A start from named nuclides is always solved in ACTINV's coupled mode, because
+  ACTINV 1.4.0 and earlier can hold radioactive starting material constant in its automatic mode; ACTINV 1.5.0 or
+  later is recommended. See the handbook page "Activation and decay heat".
+- `faris transport statistics` runs ten statistical checks on a tally's batch values (variance of the variance,
+  figure of merit and its trend, relative error and its decrease, and more) and gives each tally its value with
+  digits set by its uncertainty and a named 95 % interval (Student t or scaled Garwood, one-sided below 10
+  effective events). A tally that fails a check gets no interval or verdict. See the handbook page "Tally
+  statistics".
 - Keyboard operation of the desktop app (A11Y-001). **Ctrl/Cmd+K** opens a command palette over one command
   registry: type to filter, Up and Down to choose, Enter to run, Esc to close. Every app-level action is a
   registry entry (steps, open and save, export, view, component and allocation changes, timeline, the tool

@@ -54,7 +54,7 @@ pub const MAX_SCHEDULE_STEPS: usize = 2_000;
 const MAX_RESULT_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_LISTED_ITEMS: usize = 25;
 const PATHWAY_TOP: usize = 10;
-const YEAR_S: f64 = 365.25 * 86_400.0;
+use faris_model::units::{DAY_S, HOUR_S, JULIAN_YEAR_S as YEAR_S};
 /// Relative disagreement allowed between what was sent to ACTINV and what it reports back.
 const HANDOFF_TOLERANCE: f64 = 1.0e-9;
 
@@ -467,9 +467,9 @@ pub fn parse_cooling_list(text: &str) -> Result<Vec<f64>, String> {
             let scale = match unit {
                 "s" => 1.0,
                 "min" => 60.0,
-                "h" => 3600.0,
-                "d" => 86_400.0,
-                "w" => 7.0 * 86_400.0,
+                "h" => HOUR_S,
+                "d" => DAY_S,
+                "w" => 7.0 * DAY_S,
                 "y" => YEAR_S,
                 _ => {
                     return Err(format!(

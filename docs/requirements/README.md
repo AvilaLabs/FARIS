@@ -113,12 +113,12 @@ Its main gaps against these targets:
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 41 | 1 | 28 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 43 | 3 | 53 |
-| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 17 | 23 | 0 | 57 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 48 | 3 | 48 |
+| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 17 | 41 | 0 | 39 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 3 | 18 | 0 | 78 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 3 | 9 | 0 | 33 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 6 | 32 | 0 | 34 |
-| [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 15 | 0 | 44 |
+| [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
 | [Usability](09-usability.md) | UX | 73 | 0 | 28 | 3 | 42 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 0 | 18 | 9 | 30 |
@@ -135,7 +135,7 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 36 | 1 | 36 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 22 | 2 | 9 |
-| **Total** | | **1419** | **78** | **548** | **35** | **758** |
+| **Total** | | **1419** | **78** | **578** | **35** | **728** |
 
 Counts are generated from the tables by `scripts/requirement_trace.py`. 78 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->

@@ -38,6 +38,7 @@ Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation
 | `faris transport pack` | Packages a completed run into a portable bundle. |
 | `faris transport validate-request` | Validates a transport request against the exact scenario bytes. |
 | `faris transport normalize` | Converts solver-reported per-source scores to physical rates and densities. |
+| `faris transport statistics --batch-values FILE` | Runs the ten tally statistical checks on recorded batch values and gives each tally its value, interval and convention; a tally that fails a check gets no interval or verdict. See [Tally statistics](tally-statistics.md). |
 | `faris reactor run` | Runs fixed-source transport through OpenMC. Needs your own OpenMC and data. See [Run your own transport](transport.md). |
 | `faris reactor inspect` | Revalidates a saved run's input, artifact, volumes and normalization. |
 | `faris design init STEP` and `faris design check DESIGN` | Available from the next release. Write a draft design file for a STEP model, and run import checks 1 to 9 on it. Needs a Python with cadquery. See [The design file](design-file.md). |
