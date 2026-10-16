@@ -316,6 +316,8 @@ struct OpenedStudy {
     ensembles: Vec<faris_study::StoredEnsemble>,
     /// Top-level manifest properties a newer FARIS wrote; saved back unchanged (PRV-055).
     unknown_fields: BTreeMap<String, serde_json::Value>,
+    /// The format version the file was written as (REL-025).
+    format: String,
     workspace: faris_engine::vfs::ScratchDir,
 }
 
@@ -340,9 +342,12 @@ enum Task {
     Saving {
         path: PathBuf,
         view: Box<ViewState>,
-        receiver: Receiver<Result<WriteReport, String>>,
+        receiver: Receiver<SaveOutcome>,
     },
 }
+
+/// What the save worker reports: the write, and whether the earlier version could be kept.
+type SaveOutcome = (Result<WriteReport, String>, Option<String>);
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -380,6 +385,13 @@ pub struct FileState {
     /// The last open or save error, for the status bar's "Copy details" (UX-044). Cleared when
     /// the next open or save succeeds.
     pub last_error: Option<UserError>,
+    /// The format version of the opened file; a save of one written by an older version
+    /// goes to a new file (REL-025).
+    pub opened_format: Option<String>,
+    /// What the next finished save tells the user about where it went.
+    upgrade_notice: Option<String>,
+    /// How many earlier versions a save keeps beside the file (REL-016).
+    pub backups_keep: usize,
 }
 
 impl Default for FileState {
@@ -409,6 +421,9 @@ impl FileState {
             close_prompt: ClosePrompt::Hidden,
             last_error: None,
             close_approved: false,
+            opened_format: None,
+            upgrade_notice: None,
+            backups_keep: crate::backup::DEFAULT_KEEP,
         }
     }
 
@@ -710,6 +725,7 @@ fn open_study(
         .as_ref()
         .map_or_else(Vec::new, |layer| layer.trees.clone());
     let unknown_fields = reader.unknown_manifest_fields().clone();
+    let format = reader.manifest.format.clone();
     // Done with the file: close it now, so saving over the same path never meets an open handle
     // (Windows cannot replace a file that is open). Nothing after this reads the study file;
     // the evidence extraction above works from copies in the workspace.
@@ -775,6 +791,7 @@ fn open_study(
             marker,
             ensembles,
             unknown_fields,
+            format,
             workspace,
         },
     ))
@@ -932,6 +949,15 @@ impl FarisApp {
         }
         self.file.evidence = opened.evidence;
         self.file.saved_view = Some(self.view_state());
+        self.file.opened_format = Some(opened.format);
+        if self.edits.history.len() > 0 {
+            self.message = format!(
+                "{} The undo history of the previous study was cleared.",
+                self.message
+            );
+        }
+        self.edits.rebase = true;
+        self.apply_pending_restore(ctx);
     }
 
     pub(crate) fn begin_open(&mut self, ctx: &egui::Context, path: PathBuf) {
@@ -981,6 +1007,19 @@ impl FarisApp {
             self.message = reason.clone();
             return;
         }
+        // A study written by an older format is never rewritten in place (REL-025).
+        let (path, upgraded) = crate::backup::save_destination(
+            &path,
+            self.file.opened_format.as_deref(),
+            faris_study::FORMAT,
+        );
+        self.file.upgrade_notice = upgraded.then(|| {
+            format!(
+                "The opened file was written by an older version of FARIS, so this save went to a new file, {}, and the original was left as it was.",
+                open_name(&path)
+            )
+        });
+        self.autosave.save_snapshot = Some(self.edit_state(ctx));
         let view = self.view_state();
         let mut draft = self.file.inputs.draft.clone();
         draft.view = view.clone();
@@ -1022,13 +1061,27 @@ impl FarisApp {
         let (sender, receiver) = mpsc::channel();
         let (target, context) = (path.clone(), ctx.clone());
         let unknown_fields = self.file.unknown_fields.clone();
+        let keep = self.file.backups_keep;
         let spawned = crate::thread::Builder::new()
             .name("faris-save-study".into())
             .spawn(move || {
                 draft.preview_png = capture
                     .and_then(|(shot, rect, scale)| thumbnail::from_screenshot(&shot, rect, scale));
+                // Keep the version being replaced (REL-016); a failure to do so is reported,
+                // and does not stop the save.
+                let backup_problem = crate::backup::rotate(
+                    &target,
+                    keep,
+                    crate::undo::now_unix() as u64,
+                )
+                .err()
+                .map(|e| {
+                    format!(
+                        "The earlier version could not be kept ({e}). Check that the folder beside the study is writable."
+                    )
+                });
                 let result = write_study_preserving(&target, &draft, &unknown_fields);
-                let _ = sender.send(result.map_err(|e| e.to_string()));
+                let _ = sender.send((result.map_err(|e| e.to_string()), backup_problem));
                 context.request_repaint();
             });
         match spawned {
@@ -1197,7 +1250,7 @@ impl FarisApp {
                 Ok(result) => Some(result),
                 Err(TryRecvError::Empty) => None,
                 Err(TryRecvError::Disconnected) => {
-                    Some(Err("The save worker ended without a result.".into()))
+                    Some((Err("The save worker ended without a result.".into()), None))
                 }
             },
             _ => None,
@@ -1206,6 +1259,7 @@ impl FarisApp {
             && let Task::Saving { path, view, .. } =
                 std::mem::replace(&mut self.file.task, Task::Idle)
         {
+            let (result, backup_problem) = result;
             match result {
                 Ok(report) => {
                     let mode = match report.evidence {
@@ -1219,11 +1273,31 @@ impl FarisApp {
                     if let Some(notice) = newer_file_notice(&self.file.unknown_fields, true) {
                         self.message = format!("{} {notice}", self.message);
                     }
+                    if let Some(notice) = self.file.upgrade_notice.take() {
+                        self.message = format!("{} {notice}", self.message);
+                    }
+                    if let Some(problem) = backup_problem {
+                        self.message = format!("{} {problem}", self.message);
+                    }
+                    self.file.opened_format = None;
                     self.file.path = Some(path);
                     self.file.last_error = None;
                     self.file.saved_view = Some(*view);
+                    // What was saved is no longer unsaved work: the recovery copy goes.
+                    if let Some(state) = self.autosave.save_snapshot.take() {
+                        self.autosave.rebase(state);
+                    }
+                    self.note_outside_action(
+                        crate::undo::NoteKind::Saved,
+                        &format!(
+                            "The study was saved to disk (undo {}: it changes the view, never a file)",
+                            crate::undo::CANNOT_UNDO
+                        ),
+                    );
                 }
                 Err(error) => {
+                    self.file.upgrade_notice = None;
+                    self.autosave.save_snapshot = None;
                     let error = UserError::new(&STUDY_SAVE, open_name(&path), error);
                     self.message = error.text();
                     self.file.last_error = Some(error);
@@ -1276,6 +1350,7 @@ impl FarisApp {
     pub fn file_menu(&mut self, ui: &mut egui::Ui) {
         let busy = self.file.is_busy();
         let mut action = None;
+        let mut restore = None;
         ui.menu_button("File", |ui| {
             if ui
                 .add_enabled(!busy, egui::Button::new("Open…").shortcut_text("Ctrl+O"))
@@ -1297,6 +1372,13 @@ impl FarisApp {
                 save.clone().on_disabled_hover_text(reason);
                 save_as.clone().on_disabled_hover_text(reason);
             }
+            if reason.is_none() {
+                let hint = crate::undo::cannot_undo_hint(
+                    "Writes the study file; the version it replaces is kept beside it.",
+                );
+                save.clone().on_hover_text(hint.clone());
+                save_as.clone().on_hover_text(hint);
+            }
             if save.clicked() {
                 action = Some(Action::Save);
                 ui.close();
@@ -1305,6 +1387,7 @@ impl FarisApp {
                 action = Some(Action::SaveAs);
                 ui.close();
             }
+            restore = self.earlier_versions_menu(ui, busy);
             ui.separator();
             let evidence_label = evidence_option_label(
                 &self.file.inputs.draft.evidence,
@@ -1314,6 +1397,15 @@ impl FarisApp {
             .on_hover_text(
                 "Off: the file records the Core evidence's names, file lists and SHA-256 hashes, and opens fully without it. On: the evidence is stored inside, so the receipts can be re-checked from this one file. Applies when the study has saved Core receipts.",
             );
+            ui.separator();
+            if ui
+                .button("Crash records and diagnostics…")
+                .on_hover_text("See the crash records kept on this computer, clear them, or make a diagnostics file to read. Nothing is sent.")
+                .clicked()
+            {
+                self.diagnostics.open = true;
+                ui.close();
+            }
         })
         .response
         .on_hover_text("Open and save .faris study files");
@@ -1324,6 +1416,72 @@ impl FarisApp {
         if let Some(action) = action {
             let ctx = ui.ctx().clone();
             self.file_action(&ctx, action);
+        }
+        if let Some(backup) = restore {
+            let ctx = ui.ctx().clone();
+            self.restore_backup(&ctx, &backup);
+        }
+    }
+
+    /// The File menu's list of kept earlier versions; the one chosen, if any.
+    fn earlier_versions_menu(
+        &mut self,
+        ui: &mut egui::Ui,
+        busy: bool,
+    ) -> Option<crate::backup::Backup> {
+        let path = self.file.path.clone()?;
+        let versions = crate::backup::list(&path);
+        let unsaved = self.file.has_unsaved(&self.view_state());
+        let mut chosen = None;
+        ui.menu_button("Earlier versions", |ui| {
+            if versions.is_empty() {
+                ui.weak("None yet. Each save keeps the version it replaces.");
+            }
+            if unsaved {
+                ui.weak("Save or discard your changes first: restoring reopens the file.");
+            }
+            let now = crate::undo::now_unix() as u64;
+            for version in &versions {
+                let label = format!(
+                    "{} · {:.1} MB",
+                    crate::backup::age_text(now, version.unix),
+                    version.bytes as f64 / 1e6
+                );
+                if ui
+                    .add_enabled(!busy && !unsaved, egui::Button::new(label))
+                    .on_hover_text("Replaces the study file with this version and reopens it. The version it replaces is kept too.")
+                    .clicked()
+                {
+                    chosen = Some(version.clone());
+                    ui.close();
+                }
+            }
+        })
+        .response
+        .on_hover_text("Versions of this study kept each time you saved");
+        chosen
+    }
+
+    /// Replace the study file with an earlier version and reopen it.
+    fn restore_backup(&mut self, ctx: &egui::Context, backup: &crate::backup::Backup) {
+        let Some(path) = self.file.path.clone() else {
+            return;
+        };
+        match crate::backup::restore(
+            &path,
+            &backup.path,
+            self.file.backups_keep,
+            crate::undo::now_unix() as u64,
+        ) {
+            Ok(()) => {
+                self.begin_open(ctx, path);
+                self.message = "Restored the earlier version; reopening the study.".into();
+            }
+            Err(error) => {
+                self.message = format!(
+                    "The earlier version could not be restored: {error}. The study file was not changed. Check that its folder is writable and has room."
+                );
+            }
         }
     }
 
@@ -2159,5 +2317,178 @@ mod tests {
         assert_eq!(restored.view_state().arrangement, "control");
         assert_eq!(restored.view_state().allocation, "breeder-emphasis");
         assert_eq!(restored.view_state().step, "operate");
+    }
+
+    /// Poll the file machinery until its worker is done.
+    fn finish(app: &mut FarisApp, ctx: &egui::Context) {
+        for _ in 0..400 {
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                app.poll_file(&ui.ctx().clone());
+            })
+            .drop_without_applying_deltas();
+            if !app.file.is_busy() {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("the file worker did not finish");
+    }
+
+    fn file_hash(path: &Path) -> String {
+        faris_study::sha256_hex(&std::fs::read(path).unwrap())
+    }
+
+    // Verifies: REL-016
+    #[test]
+    fn each_save_keeps_the_version_it_replaces_and_a_restore_reproduces_its_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("plant.faris");
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let mut hashes = Vec::new();
+        for year in [1.0, 2.0, 3.0, 4.0, 5.0] {
+            app.year = year;
+            app.begin_save(&ctx, path.clone());
+            finish(&mut app, &ctx);
+            assert!(
+                app.message.starts_with("Saved plant.faris"),
+                "{}",
+                app.message
+            );
+            hashes.push(file_hash(&path));
+        }
+        let kept = crate::backup::list(&path);
+        assert_eq!(kept.len(), 3, "three versions are kept by default");
+        let kept_hashes: Vec<_> = kept.iter().map(|b| file_hash(&b.path)).collect();
+        assert_eq!(
+            kept_hashes,
+            vec![hashes[3].clone(), hashes[2].clone(), hashes[1].clone()]
+        );
+        // The File menu's restore puts the old bytes back: same hash.
+        let oldest = kept.last().unwrap().clone();
+        crate::backup::restore(&path, &oldest.path, 3, 9_999_999_999).unwrap();
+        assert_eq!(file_hash(&path), hashes[1]);
+        // The number kept follows the setting.
+        app.file.backups_keep = 1;
+        app.year = 6.0;
+        app.begin_save(&ctx, path.clone());
+        finish(&mut app, &ctx);
+        assert_eq!(crate::backup::list(&path).len(), 1);
+    }
+
+    // Verifies: REL-016
+    #[test]
+    fn a_save_that_cannot_keep_the_old_version_still_saves_and_says_why() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("plant.faris");
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.begin_save(&ctx, path.clone());
+        finish(&mut app, &ctx);
+        // A file where the backup folder should be makes the backup impossible.
+        std::fs::write(crate::backup::dir_for(&path), b"in the way").unwrap();
+        app.year = 7.0;
+        app.begin_save(&ctx, path.clone());
+        finish(&mut app, &ctx);
+        assert!(
+            app.message.starts_with("Saved plant.faris"),
+            "{}",
+            app.message
+        );
+        assert!(
+            app.message.contains("earlier version could not be kept"),
+            "{}",
+            app.message
+        );
+        assert!(app.file.last_error.is_none());
+    }
+
+    // Verifies: REL-025
+    #[test]
+    fn saving_a_study_from_an_older_format_writes_a_new_file_and_leaves_the_original_bytes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.faris");
+        let ctx = egui::Context::default();
+        let mut app = app();
+        // A study as an older FARIS wrote it.
+        write_study(&path, &StudyDraft::default()).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let before = file_hash(&path);
+        app.file.path = Some(path.clone());
+        app.file.opened_format = Some("faris-study/0.5".into());
+        app.year = 3.0;
+        app.begin_save(&ctx, path.clone());
+        finish(&mut app, &ctx);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            original,
+            "the original is byte-identical"
+        );
+        assert_eq!(file_hash(&path), before);
+        let upgraded = dir.path().join("old (upgraded).faris");
+        assert!(upgraded.is_file(), "the new file exists");
+        assert_eq!(app.file.path.as_deref(), Some(upgraded.as_path()));
+        assert!(
+            app.message.contains("older version of FARIS"),
+            "{}",
+            app.message
+        );
+        assert!(
+            app.message.contains("original was left as it was"),
+            "{}",
+            app.message
+        );
+        assert!(StudyReader::open(&upgraded).is_ok());
+        // Saved once, the new file is current: the next save is in place, with a backup.
+        assert_eq!(app.file.opened_format, None);
+        app.year = 4.0;
+        app.begin_save(&ctx, upgraded.clone());
+        finish(&mut app, &ctx);
+        assert_eq!(crate::backup::list(&upgraded).len(), 1);
+        assert_eq!(std::fs::read(&path).unwrap(), original);
+    }
+
+    // Verifies: REL-024
+    #[test]
+    fn a_study_opens_with_no_preferences_no_caches_and_no_configuration_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        // The configuration folder does not exist; neither does the runs folder.
+        let config = dir.path().join("no-config-here");
+        let runs = dir.path().join("no-runs-here");
+        assert!(!config.exists() && !runs.exists());
+        // Everything start-up reads from it is optional.
+        let loaded = crate::settings::load(&config.join(crate::settings::FILE_NAME));
+        assert!(loaded.settings.tools.is_empty());
+        assert!(crate::recovery::find(&crate::recovery::dir_in(&config), 1, &|_| false).is_empty());
+        assert_eq!(crate::crash::purge_all(&config, 1_000_000, 30), 0);
+        assert!(crate::crash::list_records(&crate::crash::dir_in(&config)).is_empty());
+        // A corrupt settings file is set aside and replaced by defaults, not fatal.
+        std::fs::create_dir_all(&config).unwrap();
+        let broken = config.join(crate::settings::FILE_NAME);
+        std::fs::write(&broken, b"{ this is not json").unwrap();
+        let loaded = crate::settings::load(&broken);
+        assert!(loaded.settings.tools.is_empty());
+        // And a study opens.
+        let study = dir.path().join("plain.faris");
+        let scenario = PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../scenarios/arc-inspired/scenario.json"
+        ));
+        write_study(
+            &study,
+            &StudyDraft {
+                port: Some(ArrangementDraft {
+                    scenario: Some(scenario),
+                    physics: vec![],
+                    bundles: vec![],
+                }),
+                ..StudyDraft::default()
+            },
+        )
+        .unwrap();
+        let progress = Mutex::new(String::new());
+        let (session, opened) = open_study(&study, &runs, None, &progress).unwrap();
+        assert!(!session.manifest.variants.is_empty());
+        assert_eq!(opened.path, study);
     }
 }

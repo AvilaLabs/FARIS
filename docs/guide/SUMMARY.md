@@ -25,6 +25,7 @@
 # Files and the command line
 
 - [Study files (.faris)](study-files.md)
+- [Undo, recovery and backups](recovery-and-undo.md)
 - [Export a brief, tables and charts](export.md)
 - [Compare two studies or two models](compare-files.md)
 - [The result cache](result-cache.md)

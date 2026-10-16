@@ -28,7 +28,7 @@ use faris_engine::{
 };
 use faris_model::history::OperatingHistoryAssumptions;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     path::PathBuf,
     sync::mpsc::{self, Receiver, TryRecvError},
 };
@@ -42,6 +42,39 @@ const MAX_PLOT_POINTS: usize = 1500;
 const DAY_S: f64 = 86_400.0;
 
 type Histories = BTreeMap<String, HistoryResult>;
+
+/// How many earlier complete sets of results are kept so that going back to
+/// their inputs (an undo, or an edit changed back) shows them again at once
+/// instead of calculating them again (UX-023).
+const RESULT_CACHE: usize = 8;
+
+/// The kept result set that was calculated for exactly these driving rates and assumptions.
+fn take_cached(
+    cache: &mut VecDeque<Histories>,
+    prepared: &[(String, String, TransportDrivingRates)],
+    assumptions: &OperatingHistoryAssumptions,
+) -> Option<Histories> {
+    let at = cache.iter().position(|results| {
+        !prepared.is_empty()
+            && prepared.iter().all(|(id, _, rates)| {
+                results
+                    .get(id)
+                    .is_some_and(|r| r.assumptions == *assumptions && r.driving_rates == *rates)
+            })
+    })?;
+    cache.remove(at)
+}
+
+/// Keep `results` for a later return to their inputs; the oldest set goes first.
+fn stash(cache: &mut VecDeque<Histories>, results: Histories) {
+    if results.is_empty() {
+        return;
+    }
+    cache.push_back(results);
+    while cache.len() > RESULT_CACHE {
+        cache.pop_front();
+    }
+}
 #[cfg(target_arch = "wasm32")]
 type HistorySteps =
     crate::steps::Steps<(String, String, TransportDrivingRates), (String, HistoryResult)>;
@@ -182,6 +215,8 @@ pub struct HistoryPanel {
     hidden: BTreeSet<String>,
     cache: BTreeMap<String, CachedSeries>,
     cache_revision: u64,
+    /// Earlier complete result sets, for a return to their inputs (UX-023).
+    result_cache: VecDeque<Histories>,
     uncertainty: Uncertainty,
     /// The arrangement drawn in 3D; its ensemble is calculated first.
     selected: String,
@@ -257,6 +292,7 @@ impl HistoryPanel {
             hidden: BTreeSet::new(),
             cache: BTreeMap::new(),
             cache_revision: 0,
+            result_cache: VecDeque::new(),
             uncertainty: Uncertainty::default(),
             selected: String::new(),
         })
@@ -550,7 +586,8 @@ impl HistoryPanel {
         }
         match result {
             Ok(results) => {
-                self.results = results;
+                let earlier = std::mem::replace(&mut self.results, results);
+                stash(&mut self.result_cache, earlier);
                 self.revision += 1;
                 self.edited = self.assumptions.as_ref() != Some(&pending.assumptions);
                 self.error = None;
@@ -639,6 +676,16 @@ impl HistoryPanel {
                 .get(id)
                 .is_some_and(|r| r.assumptions == assumptions && r.driving_rates == *rates)
         }) {
+            self.edited = false;
+            self.error = None;
+            return;
+        }
+        // Inputs that an earlier calculation already covered (an undo, or an edit put back):
+        // show that result again with no calculation.
+        if let Some(cached) = take_cached(&mut self.result_cache, &prepared, &assumptions) {
+            let earlier = std::mem::replace(&mut self.results, cached);
+            stash(&mut self.result_cache, earlier);
+            self.revision += 1;
             self.edited = false;
             self.error = None;
             return;
@@ -2067,6 +2114,51 @@ mod tests {
         assert!(lo <= -1.0 && hi >= 36.0);
         let ticks = ((hi - lo) / step).round() as i32;
         assert!((3..=8).contains(&ticks));
+    }
+
+    fn computed(assumptions: &OperatingHistoryAssumptions, artifact: char) -> Histories {
+        let rates = faris_engine::fixtures::rates_without_covariance(0.05, artifact);
+        let result = faris_engine::history::run_operating_history(assumptions, &rates).unwrap();
+        BTreeMap::from([("scenario::variant".to_string(), result)])
+    }
+
+    // Verifies: UX-023
+    #[test]
+    fn going_back_to_earlier_inputs_finds_their_result_with_no_calculation() {
+        let first = faris_engine::fixtures::assumptions();
+        let mut second = first.clone();
+        second.startup_reserve_kg += 0.05;
+        let rates_a = faris_engine::fixtures::rates_without_covariance(0.05, 'a');
+        let rates_b = faris_engine::fixtures::rates_without_covariance(0.05, 'b');
+        let mut cache = VecDeque::new();
+        stash(&mut cache, computed(&first, 'a'));
+        stash(&mut cache, computed(&second, 'a'));
+        stash(&mut cache, BTreeMap::new());
+        assert_eq!(cache.len(), 2, "an empty set is not kept");
+        let wanted = |rates: &TransportDrivingRates| {
+            vec![(
+                "scenario::variant".to_string(),
+                "name".to_string(),
+                rates.clone(),
+            )]
+        };
+        // The first inputs come back as the set that was calculated for them.
+        let found = take_cached(&mut cache, &wanted(&rates_a), &first).expect("cached");
+        assert_eq!(found["scenario::variant"].assumptions, first);
+        assert_eq!(cache.len(), 1);
+        // Other assumptions or another transport result are not served from the cache.
+        let mut third = first.clone();
+        third.startup_reserve_kg += 1.0;
+        assert!(take_cached(&mut cache, &wanted(&rates_a), &third).is_none());
+        assert!(take_cached(&mut cache, &wanted(&rates_b), &second).is_none());
+        assert!(take_cached(&mut cache, &wanted(&rates_a), &second).is_some());
+        // The cache is bounded.
+        for n in 0..(RESULT_CACHE + 5) {
+            let mut a = first.clone();
+            a.startup_reserve_kg += n as f64 * 0.001;
+            stash(&mut cache, computed(&a, 'a'));
+        }
+        assert_eq!(cache.len(), RESULT_CACHE);
     }
 
     #[test]

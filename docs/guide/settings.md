@@ -81,3 +81,5 @@ The table is checked against the program's list of settings by a test, so it can
 | `format.date` | one of iso, dmy, mdy | `iso` | - | - | Date order of displayed dates: iso (2026-10-15), dmy (15.10.2026) or mdy (10/15/2026). Stored dates are always ISO. |
 | `ui.scale` | number 0.5 to 4 | `1` | x | - | Interface size as a multiple of the desktop's own scaling. The desktop reads it at start and saves it when you change the size; its size menu offers 0.75 to 2. |
 | `ui.theme` | one of system, light, dark | `system` | - | - | Colour theme. Reserved for the desktop, which does not read it yet. |
+| `backups.keep` | whole number 1 to 100 | `3` | versions | - | How many earlier versions of a study the desktop keeps beside the file each time you save. |
+| `crash.keep_days` | whole number 1 to 365 | `30` | days | - | How long the desktop keeps crash records, diagnostics bundles and recovery files on this computer before deleting them. Nothing is sent anywhere. |

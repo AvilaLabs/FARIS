@@ -4,12 +4,14 @@
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 
 mod archive_panel;
+mod backup;
 mod badge;
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod browser;
 mod camera;
 mod commands;
 mod compare_panel;
+mod crash;
 mod design_check_panel;
 mod design_check_result;
 mod design_check_run;
@@ -31,6 +33,7 @@ mod maintenance_run;
 mod not_evaluated;
 mod package;
 mod recorder;
+mod recovery;
 mod settings;
 mod study_file;
 mod study_panel;
@@ -39,6 +42,7 @@ mod thumbnail;
 mod tool_finder;
 mod tour;
 mod transport_panel;
+mod undo;
 /// The Avila Labs account controls: the device sign-in on the desktop, the
 /// session cookie in the browser.
 #[cfg(not(target_arch = "wasm32"))]
@@ -445,6 +449,12 @@ struct FarisApp {
     palette: commands::Palette,
     /// The browser version's first-open card and About window.
     notice: browser::Notice,
+    /// Undo and redo (UX-020 to UX-025).
+    edits: undo::Edits,
+    /// Autosave of unsaved edits and the recovery offer (REL-011, REL-013).
+    autosave: recovery::Autosave,
+    /// The crash records and diagnostics window (REL-040 to REL-043).
+    diagnostics: crash::Panel,
 }
 
 impl FarisApp {
@@ -502,11 +512,15 @@ impl FarisApp {
             viewport_id: None,
             palette: commands::Palette::default(),
             notice: browser::Notice::default(),
+            edits: undo::Edits::new(undo::EditState::placeholder()),
+            autosave: recovery::Autosave::default(),
+            diagnostics: crash::Panel::default(),
         };
         if app.transport.has_results() {
             app.message = "Checked transport records loaded.".into();
         }
         app.reset_for_session()?;
+        app.edits = undo::Edits::new(app.edit_state_scaled(1.0));
         Ok(app)
     }
 
@@ -1718,7 +1732,16 @@ impl FarisApp {
 
     fn begin_export(&mut self, ctx: &egui::Context) {
         match self.export_input() {
-            Ok(input) => self.export.begin(ctx, input, self.viewport_rect),
+            Ok(input) => {
+                self.export.begin(ctx, input, self.viewport_rect);
+                self.note_outside_action(
+                    undo::NoteKind::Exported,
+                    &format!(
+                        "An export was started (the files it writes stay on disk: undo {}).",
+                        undo::CANNOT_UNDO
+                    ),
+                );
+            }
             Err(error) => self.message = format!("Export not started: {error}"),
         }
     }
@@ -1749,6 +1772,11 @@ impl FarisApp {
 }
 
 impl eframe::App for FarisApp {
+    /// A normal exit: the recovery copy is no longer needed.
+    fn on_exit(&mut self) {
+        self.autosave.clean_exit();
+    }
+
     fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
         if let Some(check) = &mut self.interface_check {
             check.set_viewport(self.viewport_rect);
@@ -1937,6 +1965,7 @@ impl eframe::App for FarisApp {
                 }
                 ui.separator();
                 self.file_menu(ui);
+                self.edit_menu(ui);
                 ui.separator();
                 if !compact {
                     self.step_bar(ui);
@@ -2458,6 +2487,11 @@ impl eframe::App for FarisApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
+        self.track_edits(&ctx);
+        self.tick_autosave(&ctx);
+        self.edit_history_window(&ctx);
+        self.diagnostics.show(&ctx, &crash::settings_for_bundle);
+        self.recovery_offer_ui(&ctx);
         self.opening_overlay(&ctx);
         self.close_prompt_ui(&ctx);
         if self.export.development_requested()

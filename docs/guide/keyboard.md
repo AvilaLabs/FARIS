@@ -19,6 +19,11 @@ Each row is a palette entry. Where a key is shown it also works on its own, with
 | Go to step 3: Operate | 3 |
 | Go to step 4: Compare | 4 |
 | Go to step 5: Evidence | 5 |
+| Undo the last change | Ctrl+Z |
+| Redo the change you undid | Ctrl+Shift+Z |
+| Redo (alternative key) | Ctrl+Y |
+| Edit history window (toggle) | none, use the palette |
+| Crash records and diagnostics window (toggle) | none, use the palette |
 | Open a study file… | Ctrl+O |
 | Save the study | Ctrl+S |
 | Save the study as… | Ctrl+Shift+S |
