@@ -16,6 +16,7 @@
 - [Simulate: transport results](simulate.md)
 - [Operate: the 30-year history](operate.md)
 - [Computed maintenance durations](maintenance.md)
+- [Activation and decay heat](activation.md)
 - [Uncertainty ensembles](uncertainty.md)
 - [Compare and the allocation sweep](compare.md)
 - [Evidence and Avila Core receipts](evidence.md)

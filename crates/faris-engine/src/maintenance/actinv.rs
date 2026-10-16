@@ -470,11 +470,11 @@ pub struct ActinvDecaySource {
     log: Option<LogFn>,
 }
 
-fn hex_sha256(bytes: &[u8]) -> String {
+pub(crate) fn hex_sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn hash_file(path: &Path) -> Result<String, String> {
+pub(crate) fn hash_file(path: &Path) -> Result<String, String> {
     let mut file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut digest = Sha256::new();
     let mut buffer = vec![0u8; 1 << 16];
@@ -491,7 +491,7 @@ fn hash_file(path: &Path) -> Result<String, String> {
 }
 
 /// Absolute path of an executable: a bare name is searched on PATH.
-fn resolve_program(program: &Path) -> Result<PathBuf, String> {
+pub(crate) fn resolve_program(program: &Path) -> Result<PathBuf, String> {
     let direct = program.is_absolute() || program.components().count() > 1;
     let found = if direct {
         std::path::absolute(program).ok().filter(|p| p.is_file())
@@ -513,7 +513,7 @@ fn existing_file(path: &Path, what: &str) -> Result<PathBuf, String> {
     Ok(absolute)
 }
 
-fn tail_of(text: &str) -> String {
+pub(crate) fn tail_of(text: &str) -> String {
     let chars: Vec<char> = text.trim().chars().collect();
     chars[chars.len().saturating_sub(ERROR_TAIL_CHARS)..]
         .iter()

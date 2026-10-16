@@ -56,6 +56,7 @@ const REVIEWED: &[(&str, &str, usize, &str, &str)] = &[
     ("faris-engine/src/reactor.rs", "run_job(", 1, "FS", "Python S; worker script embedded F; paths S"),
     ("faris-engine/src/reactor/windows.rs", "run_job(", 1, "FS", "window Python S (--window-python or the Tools setting); helper script embedded F; paths S"),
     ("faris-engine/src/maintenance/actinv.rs", "run_job(", 1, "FS", "Python and ACTINV S; component ids from file text go in as one --component=ID token"),
+    ("faris-engine/src/activation.rs", "run_job(", 1, "FS", "ACTINV S (--actinv); arguments F (run) plus problem and result paths in a scratch folder named by a hash; zone ids from file text never reach an argument"),
     ("faris-engine/src/design.rs", "run_job_with_lines(", 1, "-", "the Python launcher"),
     ("faris-engine/src/design.rs", "launch_python(", 2, "-", "definition and forwarding call"),
     ("faris-engine/src/design.rs", "launch_python_with_lines(", 2, "-", "definition and forwarding call"),
