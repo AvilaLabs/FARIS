@@ -28,6 +28,8 @@ Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation
 | `faris history sensitivity` | Full-rerun sensitivity over a `--grid` file. |
 | `faris maintenance run` | Computes replacement outages from decay heat for every design and compares them with the fixed ones. Needs ACTINV and Python. See [Computed maintenance durations](maintenance.md). |
 | `faris maintenance report RESULT` | Prints a maintenance result as tables. |
+| `faris waste classify`, `clearance-time`, `recycling`, `schemes`, `tables` | Classifies an activated component's inventory under 10 CFR 61.55 at a stated disposal time, gives its IAEA clearance index and the time it falls below 1, and a recycling index against your own dose-rate criterion. Prints JSON. See [Waste classification and clearance](waste.md). |
+| `faris materials list`, `show`, `limits`, `watchlist`, `check`, `compare`, `time-to-limit`, `classify`, `max-impurity`, `export` | The cited materials and limits database: compares a value with a limit only when the dpa convention and stated conditions match, names the limit reached first, and gives the largest impurity a waste class allows. Prints JSON or CSV. See [Materials and limits database](materials.md). |
 | `faris transport pack` | Packages a completed run into a portable bundle. |
 | `faris transport validate-request` | Validates a transport request against the exact scenario bytes. |
 | `faris transport normalize` | Converts solver-reported per-source scores to physical rates and densities. |

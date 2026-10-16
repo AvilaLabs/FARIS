@@ -29,6 +29,8 @@
 - [Run your own transport](transport.md)
 - [Nuclear data](nuclear-data.md)
 - [The design file (bring your own CAD)](design-file.md)
+- [Waste classification and clearance](waste.md)
+- [Materials and limits database](materials.md)
 
 # Understand the results
 
