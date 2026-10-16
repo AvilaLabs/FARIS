@@ -2,11 +2,13 @@
 
 pub mod design;
 pub mod history;
+pub mod interval_display;
 pub mod maintenance;
 pub mod math;
 pub mod physics;
 pub mod remote_handling;
 pub mod settings;
+pub mod tally_statistics;
 pub mod transport;
 pub mod validation;
 

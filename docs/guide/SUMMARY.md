@@ -17,6 +17,7 @@
 - [Operate: the 30-year history](operate.md)
 - [Computed maintenance durations](maintenance.md)
 - [Uncertainty ensembles](uncertainty.md)
+- [Tally statistics](tally-statistics.md)
 - [Compare and the allocation sweep](compare.md)
 - [Evidence and Avila Core receipts](evidence.md)
 

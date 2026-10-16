@@ -30,6 +30,7 @@ pub mod presets;
 pub mod reactor;
 pub mod study;
 pub mod sweep;
+pub mod tally_health;
 pub mod transport;
 pub mod vfs;
 
