@@ -336,7 +336,7 @@ fn build_set(out: &Path) -> Vec<String> {
 /// Zip entry names of a study file, sorted.
 fn entry_names(path: &Path) -> Vec<String> {
     let archive = zip::ZipArchive::new(std::fs::File::open(path).unwrap()).unwrap();
-    let mut names: Vec<String> = archive.file_names().map(str::to_owned).collect();
+    let mut names: Vec<String> = archive.file_names().map(|n| n.unwrap().into_owned()).collect();
     names.sort();
     names
 }

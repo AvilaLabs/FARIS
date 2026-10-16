@@ -587,7 +587,7 @@ fn store_evidence_is_referenced_by_default_and_packed_on_request() {
             .compression_method(zip::CompressionMethod::Stored);
         for index in 0..archive.len() {
             let mut entry = archive.by_index(index).unwrap();
-            let name = entry.name().to_owned();
+            let name = entry.name().unwrap().into_owned();
             let mut bytes = Vec::new();
             entry.read_to_end(&mut bytes).unwrap();
             if name.starts_with("evidence-store/blobs/") {

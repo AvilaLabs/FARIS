@@ -207,6 +207,8 @@ basis.
 
 ### Changed
 
+- The zip library moves from 8.6.0, which was withdrawn upstream, to 9.0.4. A study file with an entry name the
+  library cannot read is now refused as corrupt, with the reason.
 - Study files may now use any Unicode in bundle names, without normalisation (NFC and NFD spellings are two
   names). Control characters, path separators, names Windows refuses and invisible direction overrides are still
   refused, and names are capped at 200 bytes. Earlier FARIS versions refuse a study file that uses such a name.

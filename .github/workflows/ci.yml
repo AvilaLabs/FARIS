@@ -77,6 +77,7 @@ jobs:
       # validates (SEC-030). The release workflow attaches the SBOM files to the release.
       - name: Dependency licences and SBOM
         run: |
+          cargo fetch --locked
           cargo metadata --locked --offline --format-version 1 > metadata.json
           python3 scripts/check_licences.py --metadata metadata.json
           python3 scripts/generate_sbom.py --metadata metadata.json --out sbom

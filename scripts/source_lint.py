@@ -47,7 +47,13 @@ DIGEST_SLICE_OK = {
 }
 # (file, snippet) -> why a prefix comparison there is not an integrity check.
 DIGEST_COMPARE_OK = {
+    ("crates/faris-model/src/settings.rs", "self.key.starts_with("): "a settings key name, not a digest",
     ("crates/faris-study/src/store_layer.rs", "fanout == &digest[..2]"): "checks the fan-out directory name of a digest that is_sha256_hex has just accepted in full",
+}
+# (file, snippet) -> why a wall-clock read there is not an input of a result.
+AMBIENT_TIME_OK = {
+    ("crates/faris-engine/src/result_cache.rs", "SystemTime::now()"): "cache bookkeeping only (when an entry was made and last used, for eviction); "
+    "the key never includes a time, which result_cache's tests check",
 }
 AMBIENT_TIME = re.compile(r"\b(SystemTime::now|Utc::now|Local::now|OffsetDateTime::now_utc|chrono::Utc)\b")
 MONOTONIC = re.compile(r"\bInstant::now\b")
@@ -165,7 +171,7 @@ def lint_rust(root: Path = ROOT) -> list[tuple[str, str, int, str]]:
         for number, line in enumerate(code.splitlines(), 1):
             literal_line = literal_lines[number - 1]
             if crate in CALCULATION_CRATES:
-                if AMBIENT_TIME.search(line):
+                if AMBIENT_TIME.search(line) and not any(rel == f and snippet in line for (f, snippet) in AMBIENT_TIME_OK):
                     findings.append(("PRV-008", rel, number, line.strip()))
                 if MONOTONIC.search(line):
                     findings.append(("PRV-008-timing", rel, number, line.strip()))

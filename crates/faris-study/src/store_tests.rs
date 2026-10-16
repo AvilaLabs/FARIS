@@ -90,7 +90,7 @@ fn rewrite(
         zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).unwrap();
-        let name = entry.name().to_owned();
+        let name = entry.name().unwrap().into_owned();
         let mut bytes = Vec::new();
         entry.read_to_end(&mut bytes).unwrap();
         if let Some(bytes) = edit(&name, bytes) {
@@ -181,7 +181,7 @@ fn packed_store_evidence_round_trips_as_a_verifiable_store() {
     let mut store_entries = 0;
     for index in 0..archive.len() {
         let entry = archive.by_index_raw(index).unwrap();
-        if entry.name().starts_with("evidence-store/") {
+        if entry.name().unwrap().starts_with("evidence-store/") {
             store_entries += 1;
             assert_eq!(entry.compression(), zip::CompressionMethod::Stored);
         }
@@ -241,6 +241,7 @@ fn referenced_store_evidence_records_listings_without_bytes() {
             .by_index_raw(i)
             .unwrap()
             .name()
+            .unwrap()
             .starts_with("evidence-store")
     }));
     let reader = StudyReader::open(&target).unwrap();
