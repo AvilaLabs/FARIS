@@ -2,6 +2,7 @@
 use crate::history::{HistoryResult, TransportDrivingRates};
 use crate::jobs::Cancellation;
 use crate::output_uncertainty::OutputUncertainty;
+use crate::result_cache::{self, CacheKey, Lookup, ResultCache};
 use faris_model::history::OperatingHistoryAssumptions;
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +55,68 @@ pub fn run_history_sensitivity_cancellable(
     grid: &HistorySensitivityGrid,
     cancellation: &Cancellation,
 ) -> Result<HistorySensitivityResult, String> {
+    run_history_sensitivity_resumable(assumptions, rates, grid, None, cancellation)
+        .map(|(result, _)| result)
+}
+
+/// What a resumable run did: how many points it calculated, how many it took from the cache of
+/// an earlier (possibly killed) run, and what the cache refused (AUTO-050).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ResumeReport {
+    pub calculated: usize,
+    pub reused: usize,
+    /// Entries that failed verification and were calculated again.
+    pub refused: Vec<String>,
+    /// Where the reused points came from, one line per distinct origin (AUTO-039).
+    pub reused_from: Vec<String>,
+}
+
+const POINT_KIND: &str = "history-sensitivity-point";
+const POINT_FILE: &str = "point.json";
+
+/// The key of one grid point: the whole input of that history, not the grid it came from, so a
+/// point is reused by any grid that contains it.
+fn point_key(
+    assumptions: &OperatingHistoryAssumptions,
+    rates: &TransportDrivingRates,
+    recovery: f64,
+    delay_factor: f64,
+    limit_factor: f64,
+) -> Result<CacheKey, String> {
+    Ok(result_cache::cache_key(
+        POINT_KIND,
+        [
+            (
+                "method",
+                serde_json::json!("faris-history-sensitivity/v0.1"),
+            ),
+            (
+                "assumptions",
+                serde_json::to_value(assumptions).map_err(|e| e.to_string())?,
+            ),
+            (
+                "rates",
+                serde_json::to_value(rates).map_err(|e| e.to_string())?,
+            ),
+            ("recovery_fraction", serde_json::json!(recovery)),
+            ("delay_multiplier", serde_json::json!(delay_factor)),
+            ("service_limit_multiplier", serde_json::json!(limit_factor)),
+        ],
+    ))
+}
+
+/// [`run_history_sensitivity_cancellable`], keeping every finished point in `cache` as soon as it
+/// is done and reusing the points a cache already holds. A run that is killed (or cancelled) and
+/// started again with the same cache calculates only the points that were not finished, and its
+/// result is identical to an uninterrupted run: a point is stored only when reading it back gives
+/// the same value.
+pub fn run_history_sensitivity_resumable(
+    assumptions: &OperatingHistoryAssumptions,
+    rates: &TransportDrivingRates,
+    grid: &HistorySensitivityGrid,
+    cache: Option<&ResultCache>,
+    cancellation: &Cancellation,
+) -> Result<(HistorySensitivityResult, ResumeReport), String> {
     assumptions.validate()?;
     rates.validate()?;
     let valid_levels = |values: &[f64], min: f64, max: f64| {
@@ -88,12 +151,50 @@ pub fn run_history_sensitivity_cancellable(
         return Err("sensitivity grid exceeds the 64-rerun bound".into());
     }
     let mut points = Vec::with_capacity(count);
+    let mut report = ResumeReport::default();
     for recovery in &grid.recovery_fraction_levels {
         for delay_factor in &grid.delay_multipliers {
             for limit_factor in &grid.service_limit_multipliers {
                 if cancellation.is_cancelled() {
                     return Err("history sensitivity canceled; partial grid is not valid".into());
                 }
+                let key = match cache {
+                    Some(_) => Some(point_key(
+                        assumptions,
+                        rates,
+                        *recovery,
+                        *delay_factor,
+                        *limit_factor,
+                    )?),
+                    None => None,
+                };
+                if let (Some(cache), Some(key)) = (cache, &key) {
+                    match cache.get_bytes(key, POINT_FILE) {
+                        (Lookup::Hit(hit), Some(bytes)) => {
+                            if let Ok(point) =
+                                serde_json::from_slice::<HistorySensitivityPoint>(&bytes)
+                            {
+                                report.reused += 1;
+                                let from = hit.provenance.text();
+                                if !report.reused_from.contains(&from) {
+                                    report.reused_from.push(from);
+                                }
+                                points.push(point);
+                                continue;
+                            }
+                            report
+                                .refused
+                                .push(format!("{} could not be read as a point", key.dir_name()));
+                            cache.discard(key);
+                        }
+                        (Lookup::Rejected(why), _) => {
+                            report.refused.push(why);
+                            cache.discard(key);
+                        }
+                        _ => {}
+                    }
+                }
+                let started = std::time::Instant::now();
                 let mut case = assumptions.clone();
                 case.recovery_fraction = *recovery;
                 case.processing_delay_s *= delay_factor;
@@ -116,7 +217,7 @@ pub fn run_history_sensitivity_cancellable(
                     .iter()
                     .map(|s| s.mass_balance_residual_kg.abs())
                     .fold(0.0, f64::max);
-                points.push(HistorySensitivityPoint {
+                let point = HistorySensitivityPoint {
                     recovery_fraction: *recovery,
                     delay_multiplier: *delay_factor,
                     service_limit_multiplier: *limit_factor,
@@ -124,19 +225,38 @@ pub fn run_history_sensitivity_cancellable(
                     final_snapshot,
                     event_count: run.events.len(),
                     maximum_absolute_mass_balance_residual_kg,
-                });
+                };
+                report.calculated += 1;
+                if let (Some(cache), Some(key)) = (cache, &key) {
+                    // Kept at once, so a kill loses at most the point in flight. A point that does
+                    // not read back as the same value is used but not kept.
+                    if let Ok(bytes) = serde_json::to_vec(&point)
+                        && serde_json::from_slice::<HistorySensitivityPoint>(&bytes)
+                            .ok()
+                            .as_ref()
+                            == Some(&point)
+                    {
+                        cache
+                            .put_bytes(key, POINT_FILE, &bytes, started.elapsed().as_secs_f64())
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+                points.push(point);
             }
         }
     }
-    Ok(HistorySensitivityResult {
-        schema_version: "faris-history-sensitivity/v0.1".into(),
-        rationale: grid.rationale.clone(),
-        base_assumptions: assumptions.clone(),
-        driving_rates: rates.clone(),
-        grid: grid.clone(),
-        points,
-        note: "Every point reruns the complete deterministic history. Levels are conditional user-authored scenarios, not random samples or uncertainty bounds; no transport covariance is inferred.".into(),
-    })
+    Ok((
+        HistorySensitivityResult {
+            schema_version: "faris-history-sensitivity/v0.1".into(),
+            rationale: grid.rationale.clone(),
+            base_assumptions: assumptions.clone(),
+            driving_rates: rates.clone(),
+            grid: grid.clone(),
+            points,
+            note: "Every point reruns the complete deterministic history. Levels are conditional user-authored scenarios, not random samples or uncertainty bounds; no transport covariance is inferred.".into(),
+        },
+        report,
+    ))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -662,6 +782,189 @@ mod tests {
                 .uncertainty
                 .values()
                 .all(|u| !u.has_interval())
+        );
+    }
+
+    fn resume_grid() -> HistorySensitivityGrid {
+        HistorySensitivityGrid {
+            recovery_fraction_levels: vec![0.4, 0.6, 0.8, 1.0],
+            delay_multipliers: vec![0.5, 1.0, 2.0, 4.0],
+            service_limit_multipliers: vec![0.5, 1.0],
+            rationale: "resume test".into(),
+        }
+    }
+
+    // Verifies: AUTO-050, AUTO-051
+    #[test]
+    fn a_killed_sensitivity_run_resumes_without_redoing_finished_points_and_matches_a_clean_run() {
+        use crate::fixtures::{assumptions, rates_without_covariance};
+        let a = assumptions();
+        let rates = rates_without_covariance(0.02, 'a');
+        let grid = resume_grid();
+        let total = 32;
+        let clean = run_history_sensitivity(&a, &rates, &grid).unwrap();
+        let clean_bytes = serde_json::to_vec(&clean).unwrap();
+        assert_eq!(clean.points.len(), total);
+        // Kill points: after every number of finished points from 0 to all of them.
+        for kill in 0..=total {
+            let dir = tempfile::tempdir().unwrap();
+            let cache = ResultCache::open(dir.path());
+            // Finish exactly `kill` points, then stop: run the first `kill` points of the grid
+            // through the cache with a cancellation that trips at that count.
+            let cancellation = Cancellation::default();
+            let mut finished = 0;
+            let mut partial = HistorySensitivityGrid {
+                rationale: grid.rationale.clone(),
+                ..grid.clone()
+            };
+            // Cancelling inside the run is not deterministic about where it lands, so the
+            // interrupted run is made exact by running the leading points one at a time.
+            let mut remaining = kill;
+            'outer: for r in &grid.recovery_fraction_levels {
+                for d in &grid.delay_multipliers {
+                    for l in &grid.service_limit_multipliers {
+                        if remaining == 0 {
+                            break 'outer;
+                        }
+                        partial.recovery_fraction_levels = vec![*r];
+                        partial.delay_multipliers = vec![*d];
+                        partial.service_limit_multipliers = vec![*l];
+                        let (_, report) = run_history_sensitivity_resumable(
+                            &a,
+                            &rates,
+                            &partial,
+                            Some(&cache),
+                            &cancellation,
+                        )
+                        .unwrap();
+                        assert_eq!(report.calculated, 1);
+                        remaining -= 1;
+                        finished += 1;
+                    }
+                }
+            }
+            // A kill during a store leaves a half-written folder beside the cache.
+            std::fs::create_dir_all(dir.path().join(".tmp-torn-1")).unwrap();
+            std::fs::write(
+                dir.path().join(".tmp-torn-1").join("point.json"),
+                b"{\"half",
+            )
+            .unwrap();
+            // The resumed run.
+            let (resumed, report) = run_history_sensitivity_resumable(
+                &a,
+                &rates,
+                &grid,
+                Some(&cache),
+                &Cancellation::default(),
+            )
+            .unwrap();
+            assert_eq!(report.reused, finished, "kill point {kill}");
+            assert_eq!(report.calculated, total - finished, "kill point {kill}");
+            assert!(report.refused.is_empty());
+            if finished > 0 {
+                assert!(report.reused_from[0].starts_with("reused from 20"));
+            }
+            assert_eq!(
+                serde_json::to_vec(&resumed).unwrap(),
+                clean_bytes,
+                "kill point {kill}: the resumed result differs from the uninterrupted one"
+            );
+            // A third run finds every point.
+            let (_, again) = run_history_sensitivity_resumable(
+                &a,
+                &rates,
+                &grid,
+                Some(&cache),
+                &Cancellation::default(),
+            )
+            .unwrap();
+            assert_eq!((again.reused, again.calculated), (total, 0));
+        }
+    }
+
+    // Verifies: AUTO-050
+    #[test]
+    fn a_cancelled_run_keeps_nothing_unfinished_and_a_changed_input_reuses_nothing() {
+        use crate::fixtures::{assumptions, rates_without_covariance};
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ResultCache::open(dir.path());
+        let a = assumptions();
+        let rates = rates_without_covariance(0.02, 'a');
+        let cancellation = Cancellation::default();
+        cancellation.cancel();
+        let stopped = run_history_sensitivity_resumable(
+            &a,
+            &rates,
+            &resume_grid(),
+            Some(&cache),
+            &cancellation,
+        );
+        assert!(stopped.unwrap_err().contains("canceled"));
+        assert!(
+            cache.list().is_empty(),
+            "nothing was finished, nothing is kept"
+        );
+        let (_, finished) = run_history_sensitivity_resumable(
+            &a,
+            &rates,
+            &resume_grid(),
+            Some(&cache),
+            &Cancellation::default(),
+        )
+        .unwrap();
+        assert_eq!(finished.calculated, 32);
+        assert_eq!(cache.list().len(), 32);
+        // A different assumption set shares no point with the earlier run.
+        let mut other = a.clone();
+        other.horizon_s *= 2.0;
+        other.operation[0].end_s = other.horizon_s;
+        let (_, report) = run_history_sensitivity_resumable(
+            &other,
+            &rates,
+            &resume_grid(),
+            Some(&cache),
+            &Cancellation::default(),
+        )
+        .unwrap();
+        assert_eq!((report.reused, report.calculated), (0, 32));
+    }
+
+    // Verifies: AUTO-035, AUTO-050
+    #[test]
+    fn a_damaged_kept_point_is_refused_and_calculated_again() {
+        use crate::fixtures::{assumptions, rates_without_covariance};
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ResultCache::open(dir.path());
+        let a = assumptions();
+        let rates = rates_without_covariance(0.02, 'a');
+        let grid = resume_grid();
+        let (clean, _) = run_history_sensitivity_resumable(
+            &a,
+            &rates,
+            &grid,
+            Some(&cache),
+            &Cancellation::default(),
+        )
+        .unwrap();
+        let victim = cache.list().remove(7);
+        let file = dir.path().join(&victim.dir_name).join("point.json");
+        let mut bytes = std::fs::read(&file).unwrap();
+        bytes[3] ^= 0x01;
+        std::fs::write(&file, bytes).unwrap();
+        let (again, report) = run_history_sensitivity_resumable(
+            &a,
+            &rates,
+            &grid,
+            Some(&cache),
+            &Cancellation::default(),
+        )
+        .unwrap();
+        assert_eq!((report.reused, report.calculated), (31, 1));
+        assert_eq!(report.refused.len(), 1);
+        assert_eq!(
+            serde_json::to_vec(&again).unwrap(),
+            serde_json::to_vec(&clean).unwrap()
         );
     }
 }

@@ -640,6 +640,97 @@ pub fn default_path() -> Option<PathBuf> {
         .map(|d| d.join(SETTINGS_FILE_NAME))
 }
 
+/// What a setting does (CFG-005): how it looks, how the program behaves, or which numbers come out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EffectClass {
+    Appearance,
+    Behaviour,
+    ResultChanging,
+}
+
+impl EffectClass {
+    pub fn word(self) -> &'static str {
+        match self {
+            Self::Appearance => "appearance",
+            Self::Behaviour => "behaviour",
+            Self::ResultChanging => "result-changing",
+        }
+    }
+}
+
+impl SettingDef {
+    /// The effect class used by `faris config diff`. `ui.` settings are appearance. A setting the
+    /// registry marks `result_changing` is result-changing. The tool settings that choose the nuclear
+    /// data library or the program that does the transport are result-changing as well: a different
+    /// library or OpenMC build can give different numbers, even though the user file may hold them.
+    /// Everything else (memory caps, where a CAD reader is found) is behaviour.
+    pub fn effect_class(&self) -> EffectClass {
+        const RESULT_TOOLS: [&str; 4] = [
+            "tools.cross_sections",
+            "tools.openmc_python",
+            "tools.window_python",
+            "tools.openmc_package",
+        ];
+        if self.result_changing || RESULT_TOOLS.contains(&self.key) {
+            EffectClass::ResultChanging
+        } else if self.key.starts_with("ui.") {
+            EffectClass::Appearance
+        } else {
+            EffectClass::Behaviour
+        }
+    }
+}
+
+/// One setting whose effective value differs between two configurations (CFG-081).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SettingChange {
+    pub key: &'static str,
+    pub old: Option<String>,
+    pub new: Option<String>,
+    pub unit: &'static str,
+    /// The layer that supplied each side's value ("default" or "user file").
+    pub old_layer: &'static str,
+    pub new_layer: &'static str,
+    pub effect: EffectClass,
+}
+
+/// Every setting whose effective value differs. The values are compared after normalisation, so a
+/// value written differently, or set explicitly to its default, is not a change (0 false changes
+/// on a re-save). `old` and `new` are resolved with [`Layers`] from the two files alone.
+pub fn diff_resolved(old: &[Resolved], new: &[Resolved]) -> Vec<SettingChange> {
+    let mut changes = Vec::new();
+    for def in REGISTRY {
+        let find = |all: &[Resolved]| all.iter().find(|r| r.key == def.key).cloned();
+        let (a, b) = (find(old), find(new));
+        let value = |r: &Option<Resolved>| r.as_ref().and_then(|r| r.value.clone());
+        let layer = |r: &Option<Resolved>| r.as_ref().map_or("default", |r| r.origin.layer());
+        if value(&a) != value(&b) {
+            changes.push(SettingChange {
+                key: def.key,
+                old: value(&a),
+                new: value(&b),
+                unit: def.unit,
+                old_layer: layer(&a),
+                new_layer: layer(&b),
+                effect: def.effect_class(),
+            });
+        }
+    }
+    changes
+}
+
+/// Resolves a settings file alone (no environment, no flags) for comparison.
+pub fn resolve_file_alone(file: &UserSettings, path: &Path) -> Result<Vec<Resolved>, Vec<String>> {
+    let no_env = |_: &str| None;
+    Layers {
+        file,
+        file_path: path,
+        env: &no_env,
+        flags: &[],
+    }
+    .resolve_all()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -950,5 +1041,81 @@ mod tests {
                 Some(chosen.clone())
             );
         }
+    }
+    fn file_of(pairs: &[(&str, &str)]) -> UserSettings {
+        let mut file = UserSettings::default();
+        for (k, v) in pairs {
+            file.set(k, v).unwrap();
+        }
+        file
+    }
+
+    fn diff_of(a: &UserSettings, b: &UserSettings) -> Vec<SettingChange> {
+        let path = Path::new("/u/settings.json");
+        diff_resolved(
+            &resolve_file_alone(a, path).unwrap(),
+            &resolve_file_alone(b, path).unwrap(),
+        )
+    }
+
+    // Verifies: CFG-081, CFG-082
+    #[test]
+    fn a_diff_lists_each_changed_key_with_unit_layer_and_effect_class() {
+        let a = file_of(&[("memory.cap_mb", "4096"), ("ui.scale", "1")]);
+        let b = file_of(&[
+            ("memory.cap_mb", "8192"),
+            ("ui.scale", "1.5"),
+            ("tools.cross_sections", "/data/xs.xml"),
+        ]);
+        let changes = diff_of(&a, &b);
+        let keys: Vec<_> = changes.iter().map(|c| c.key).collect();
+        assert_eq!(keys, ["tools.cross_sections", "memory.cap_mb", "ui.scale"]);
+        let cap = &changes[1];
+        assert_eq!(cap.old.as_deref(), Some("4096"));
+        assert_eq!(cap.new.as_deref(), Some("8192"));
+        assert_eq!(cap.unit, "MiB");
+        assert_eq!((cap.old_layer, cap.new_layer), ("user file", "user file"));
+        assert_eq!(cap.effect, EffectClass::Behaviour);
+        assert_eq!(changes[0].effect, EffectClass::ResultChanging);
+        assert_eq!(changes[0].old_layer, "default");
+        assert_eq!(changes[2].effect, EffectClass::Appearance);
+    }
+
+    // Verifies: CFG-081
+    #[test]
+    fn a_resaved_or_reordered_copy_has_no_changes_over_twenty_pairs() {
+        let base: Vec<(&str, &str)> = vec![
+            ("memory.cap_mb", "4096"),
+            ("memory.margin_mb", "1024"),
+            ("ui.scale", "1.25"),
+            ("ui.theme", "dark"),
+            ("tools.cad_reader", "native"),
+            ("tools.openmc_python", "/opt/openmc/bin/python"),
+        ];
+        for n in 0..20usize {
+            let mut other = base.clone();
+            other.rotate_left(n % base.len());
+            // Written another way: a trailing zero on the float, a leading zero on the integer.
+            let spelled: Vec<(&str, String)> = other
+                .iter()
+                .map(|(k, v)| match (*k, n % 2) {
+                    ("ui.scale", 0) => (*k, format!("{v}0")),
+                    ("memory.cap_mb", 0) => (*k, format!("0{v}")),
+                    _ => (*k, (*v).to_string()),
+                })
+                .collect();
+            let mut b = UserSettings::default();
+            for (k, v) in &spelled {
+                b.set(k, v).unwrap();
+            }
+            assert!(diff_of(&file_of(&base), &b).is_empty(), "pair {n}");
+            // A re-save through render and parse is identical.
+            let a = file_of(&base);
+            let resaved = UserSettings::parse(&a.render(), Path::new("/u/settings.json")).unwrap();
+            assert!(diff_of(&a, &resaved).is_empty());
+        }
+        // Setting a value to its default is not a change of the effective value.
+        let explicit = file_of(&[("memory.margin_mb", "1024")]);
+        assert!(diff_of(&UserSettings::default(), &explicit).is_empty());
     }
 }

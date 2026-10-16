@@ -3,7 +3,7 @@
 
 The package holds two programs: `faris-app`, the desktop, and `faris`, the command line. The `faris` command needs no graphics, Python, OpenMC or Avila Core, except for the commands marked below. Run `faris --version` to check the version and `faris COMMAND --help` for every flag of a command.
 
-Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation); 2 validation (an input is missing, unreadable or invalid); 3 solver failure (an external tool ran and did not succeed); 4 cancelled (Ctrl-C or SIGTERM stopped the job); 5 resource refused (the memory check refused the job); 64 usage (the command line did not parse). `faris --help` lists them.
+Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation); 2 validation (an input is missing, unreadable or invalid); 3 solver failure (an external tool ran and did not succeed); 4 cancelled (Ctrl-C or SIGTERM stopped the job); 5 resource refused (the memory check refused the job); 6 different (a comparison such as `faris diff` found the two sides differ); 64 usage (the command line did not parse). `faris --help` lists them.
 
 ## Commands
 
@@ -13,6 +13,10 @@ Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation
 | `faris export --scenario S --output O` | Exports geometry metadata and its evaluation status. It refuses an existing destination. |
 | `faris export --study FILE --output DIR` | The same as `faris study-file export` below: the study export folder from a `.faris` file. |
 | `faris config list`, `get`, `set`, `unset`, `reset`, `path` | Shows and changes your settings and says which layer supplies each value. See [Settings](settings.md). |
+| `faris config diff A B` | Lists each setting whose effective value differs between two settings files, with unit, layer and effect class. Exits 6 when they differ. See [Compare two studies or two models](compare-files.md). |
+| `faris diff A B [--json] [--values]` | Compares two `.faris` studies, or two model files: every changed parameter, causes apart from effects, and which results are invalidated. Exits 6 when they differ. See [Compare two studies or two models](compare-files.md). |
+| `faris geometry summary --scenario S [--physics P]` | The cells of a scenario with volume, mass, representation and kind label, as CSV. |
+| `faris cache list`, `verify`, `explain`, `stats`, `gc`, `pin`, `unpin`, `clear` | Looks after the result cache. See [The result cache](result-cache.md). |
 | `faris doctor` | Reports which optional tools are on `PATH`, where, and the SHA-256 of each file. It runs nothing. |
 | `faris adapters list [--no-probe]` | JSON list of `openmc`, `actinv` and `avila-core` with path, SHA-256, version and health, plus the hashes of the scripts FARIS carries. The only thing it runs is `TOOL --version`, at most 5 seconds each. |
 | `faris study-file create` | Writes a `.faris` file from recorded bundles and assumptions. |
@@ -25,7 +29,7 @@ Exit codes: 0 ok; 1 rejected evidence (a file failed verification or compilation
 | `faris history from-run` | Binds rates from a successful transport run and calculates the history. |
 | `faris history ensemble` | An ensemble of histories on sampled transport rates. |
 | `faris history compare-runs` | Compares two runs under identical assumptions. |
-| `faris history sensitivity` | Full-rerun sensitivity over a `--grid` file. |
+| `faris history sensitivity` | Full-rerun sensitivity over a `--grid` file. With `--cache-dir` a killed run resumes where it stopped. |
 | `faris maintenance run` | Computes replacement outages from decay heat for every design and compares them with the fixed ones. Needs ACTINV and Python. See [Computed maintenance durations](maintenance.md). |
 | `faris maintenance report RESULT` | Prints a maintenance result as tables. |
 | `faris transport pack` | Packages a completed run into a portable bundle. |

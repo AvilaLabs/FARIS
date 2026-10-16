@@ -28,6 +28,8 @@ pub mod mesh;
 pub mod output_uncertainty;
 pub mod presets;
 pub mod reactor;
+pub mod result_cache;
+pub mod semantic_diff;
 pub mod study;
 pub mod sweep;
 pub mod transport;

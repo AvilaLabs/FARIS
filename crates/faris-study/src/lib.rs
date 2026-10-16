@@ -7,6 +7,7 @@
 //! reader cannot interpret or verify refuses the file.
 
 mod descriptor;
+mod diff;
 mod error;
 mod manifest;
 mod preview;
@@ -27,6 +28,7 @@ mod store_tests;
 pub(crate) mod tests;
 
 pub use descriptor::{DescriptorEvidence, descriptor_evidence, evidence_from_descriptor};
+pub use diff::{StudyDiffOptions, diff_study_files};
 pub use error::StudyError;
 pub(crate) use manifest::KNOWN_MANIFEST_FIELDS;
 pub use manifest::{

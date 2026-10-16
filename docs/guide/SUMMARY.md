@@ -24,6 +24,8 @@
 
 - [Study files (.faris)](study-files.md)
 - [Export a brief, tables and charts](export.md)
+- [Compare two studies or two models](compare-files.md)
+- [The result cache](result-cache.md)
 - [Command line](cli.md)
 - [Settings](settings.md)
 - [Run your own transport](transport.md)

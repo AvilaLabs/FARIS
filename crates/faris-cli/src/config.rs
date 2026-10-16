@@ -38,6 +38,15 @@ pub enum ConfigCommand {
     },
     /// Print where your settings file is.
     Path,
+    /// Compare two settings files: every key whose effective value differs, with old and new value,
+    /// unit, layer and effect class. Exits 0 when identical, 6 when they differ.
+    Diff {
+        a: PathBuf,
+        b: PathBuf,
+        /// One JSON document (`faris-config-diff/v1`) instead of text.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 /// The settings problems, all at once; exits with status 2.
@@ -169,8 +178,82 @@ fn write_file(path: &Path, file: &UserSettings) -> Result<(), Box<dyn std::error
         .map_err(|e| format!("cannot write {}: {e}", path.display()).into())
 }
 
+/// Reads a settings file by itself, and resolves it without the environment or flags.
+fn resolve_alone(path: &Path) -> Result<Vec<Resolved>, Box<dyn std::error::Error>> {
+    let bytes = std::fs::read(path).map_err(|e| {
+        format!(
+            "cannot read {}: {e}. Next step: check the path",
+            path.display()
+        )
+    })?;
+    let file = UserSettings::parse(&bytes, path).map_err(SettingsRejected)?;
+    settings::resolve_file_alone(&file, path).map_err(|p| SettingsRejected(p).into())
+}
+
+fn diff_settings(a: &Path, b: &Path, json: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let changes = settings::diff_resolved(&resolve_alone(a)?, &resolve_alone(b)?);
+    let result_changing = changes
+        .iter()
+        .filter(|c| c.effect == settings::EffectClass::ResultChanging)
+        .count();
+    if json {
+        let rows: Vec<_> = changes
+            .iter()
+            .map(|c| {
+                serde_json::json!({
+                    "key": c.key, "old": c.old, "new": c.new, "unit": c.unit,
+                    "old_layer": c.old_layer, "new_layer": c.new_layer,
+                    "effect": c.effect.word(),
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "schema": "faris-config-diff/v1",
+                "a": a.display().to_string(), "b": b.display().to_string(),
+                "identical": changes.is_empty(),
+                "result_changing": result_changing,
+                "changes": rows,
+            }))?
+        );
+    } else if changes.is_empty() {
+        println!("No differences between the two configurations.");
+    } else {
+        println!(
+            "{} differences, {result_changing} result-changing",
+            changes.len()
+        );
+        for c in &changes {
+            let unit = if c.unit.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", c.unit)
+            };
+            println!(
+                "  {}: {} -> {}{unit}  [{} -> {}]  ({})",
+                c.key,
+                shown(&c.old),
+                shown(&c.new),
+                c.old_layer,
+                c.new_layer,
+                c.effect.word()
+            );
+        }
+    }
+    if changes.is_empty() {
+        Ok(())
+    } else {
+        Err(Box::new(crate::diff::DifferencesFound(format!(
+            "the two configurations differ in {} settings",
+            changes.len()
+        ))))
+    }
+}
+
 pub fn run(command: ConfigCommand, flags: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        ConfigCommand::Diff { a, b, json } => return diff_settings(&a, &b, json),
         ConfigCommand::Path => {
             println!("{}", config_path()?.display());
         }
