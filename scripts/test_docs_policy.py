@@ -209,7 +209,7 @@ class ReleaseNotesTests(unittest.TestCase):
         root = tmp()
         out = root / "notes.md"
         code = release_notes.main(["--version", "0.3.0", "--release-record", str(root / "none.json"), "--gate", str(root / "none.txt"),
-                                   "--root", str(REPO), "--out", str(out)])
+                                   "--cache-stats", str(root / "none-cache.json"), "--root", str(REPO), "--out", str(out)])
         self.assertEqual(code, 1)
         self.assertFalse(out.exists())
 
@@ -218,13 +218,51 @@ class ReleaseNotesTests(unittest.TestCase):
         root = tmp()
         write(root / "record.json", json.dumps(self.RECORD))
         write(root / "gate.txt", self.GATE)
+        write(root / "cache.json", json.dumps(self.CACHE))
         version = check_citation.workspace_version(REPO)
         changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIsNotNone(re.search(rf"^##\s+{re.escape(version)}\s", changelog, re.M))
         out = root / "notes.md"
         self.assertEqual(release_notes.main(["--version", version, "--release-record", str(root / "record.json"),
-                                             "--gate", str(root / "gate.txt"), "--root", str(REPO), "--out", str(out)]), 0)
-        self.assertIn("Export-control review", out.read_text(encoding="utf-8"))
+                                             "--gate", str(root / "gate.txt"), "--cache-stats", str(root / "cache.json"),
+                                             "--root", str(REPO), "--out", str(out)]), 0)
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("Export-control review", text)
+        self.assertIn("False-hit rate:", text)
+
+    CACHE = {"hits": 90, "misses": 10, "corrupt": 0, "false_hits": 0, "hit_rate": 0.9, "false_hit_rate": 0.0}
+    DEFECT_LIST = [{"id": "D-1", "severity": "S3", "status": "open", "title": "slow"},
+                   {"id": "D-2", "severity": "S2", "status": "open", "title": "odd", "waiver": {"owner": "o", "reason": "r", "expiry": "2026-12-01"}},
+                   {"id": "D-3", "severity": "S1", "status": "fixed", "title": "gone"}]
+
+    def test_the_notes_list_every_open_defect_with_its_severity_and_refuse_an_open_s1_or_unwaived_s2(self):
+        # Verifies: REL-045
+        text = release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, defects=self.DEFECT_LIST)
+        self.assertIn("- S2 D-2: odd", text)
+        self.assertIn("- S3 D-1: slow", text)
+        self.assertNotIn("D-3", text)
+        for bad in ({"id": "D-4", "severity": "S1", "status": "open", "title": "t"},
+                    {"id": "D-5", "severity": "S2", "status": "open", "title": "t"},
+                    {"id": "D-6", "severity": "S2", "status": "open", "title": "t", "waiver": {"owner": "o"}}):
+            with self.assertRaises(ValueError):
+                release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, defects=[bad])
+        clean = release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, defects=[])
+        self.assertIn("No open defect.", clean)
+
+    def test_the_repository_defect_log_passes_the_release_notes_defect_rule(self):
+        # Verifies: REL-045
+        release_notes.open_defect_lines(release_notes.defect_list(REPO))
+
+    def test_the_notes_give_hit_rate_and_false_hit_rate_apart_and_refuse_a_false_hit(self):
+        # Verifies: AUTO-038
+        text = release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, cache_stats=self.CACHE)
+        self.assertIn("Hit rate: 90.00 % (90 of 100)", text)
+        self.assertIn("False-hit rate: 0.00 % (0 of 90)", text)
+        idle = dict(self.CACHE, hits=0, misses=0, hit_rate=None, false_hit_rate=None)
+        self.assertIn("False-hit rate: not defined", release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, cache_stats=idle))
+        for bad in (dict(self.CACHE, false_hits=1, false_hit_rate=0.011), {"hits": 1}, dict(self.CACHE, hit_rate="x")):
+            with self.assertRaises(ValueError):
+                release_notes.render("0.3.0", self.CHANGELOG, self.RECORD, self.GATE, self.COUNTS, cache_stats=bad)
 
 
 STUB = """#!/usr/bin/env python3

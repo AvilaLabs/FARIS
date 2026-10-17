@@ -17,7 +17,8 @@ failing finding.
            starts_with); SEC-011-slice lists every truncation of a digest, to be read, with the allow list below for
            the ones that are file names or seeds and not integrity checks
   PRV-011  a constant holding a kind label (const NAME: &str = "calculated"); PRV-011-literal is a kind label written
-           as a string literal outside the modules that derive it from a receipt or an input
+           as a string literal outside the modules that map a label type to its text (KIND_DEFINERS); everywhere else the
+           text comes from StatusKind::label() of a kind derived from the result's inputs
   UX-046   a badge call with an empty explanation; UX-046-na is a bare "N/A" literal, UX-046-dash a lone dash literal
   DSN-085  faris-report writes the research-screening statement from its one constant into csv, pdf and svg output
   PLAT-web a std call that panics in the browser build (std::process::id, std::time::Instant or SystemTime, std::thread::spawn)
@@ -34,10 +35,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CALCULATION_CRATES = ["faris-engine", "faris-model", "faris-study"]
-ADVISORY = {"PRV-008-timing", "SEC-011-slice", "PRV-011-literal", "UX-046-na", "UX-046-dash", "DOC-062", "VAL-084"}
+ADVISORY = {"PRV-008-timing", "SEC-011-slice", "UX-046-na", "UX-046-dash", "DOC-062", "VAL-084"}
 KIND_WORDS = ("calculated", "authored", "literature", "conditional")
 # Modules that define the kind text of a label from the result it labels.
-KIND_DEFINERS = {"crates/faris-engine/src/brief.rs", "crates/faris-model/src/remote_handling.rs", "crates/faris-app/src/badge.rs"}
+KIND_DEFINERS = {"crates/faris-engine/src/brief.rs", "crates/faris-model/src/remote_handling.rs", "crates/faris-app/src/badge.rs",
+                 "crates/faris-model/src/materials_db/mod.rs", "crates/faris-model/src/materials_db/limits.rs"}
 # (file, snippet) -> why a digest slice there is not an integrity comparison.
 DIGEST_SLICE_OK = {
     ("crates/faris-engine/src/evidence_store.rs", "[..2]"): "two-character fan-out directory of the content store; the blob is checked by its full digest",

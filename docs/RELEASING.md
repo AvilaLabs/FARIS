@@ -82,8 +82,10 @@ with its defect id as the condition (`"condition": "FARIS-020"`), under the same
 
 ### Release notes, SBOM and the files to attach
 
-After the gate, `python3 scripts/release_notes.py --version X.Y.Z --release-record release-record.json --gate
-gate-output.txt --out notes.md` writes the notes (`docs/RELEASE_NOTES_TEMPLATE.md` says what they contain). The
+After the gate, `faris cache stats --json > cache-stats.json` records the result-cache counts, and `python3
+scripts/release_notes.py --version X.Y.Z --release-record release-record.json --gate gate-output.txt --cache-stats
+cache-stats.json --out notes.md` writes the notes, with every open defect and its severity and the hit rate and
+false-hit rate on separate lines; an open S1, an open S2 without a waiver or a cache false hit refuses them (`docs/RELEASE_NOTES_TEMPLATE.md` says what they contain). The
 `Release supply chain` workflow builds `faris.spdx.json` and `faris.cdx.json` for the tag (`scripts/generate_sbom.py`);
 attach them to the release. Update `CITATION.cff` and `docs/guide/cite.md` to the new version, and add the version's
 section to `CHANGELOG.md`.
