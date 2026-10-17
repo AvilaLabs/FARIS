@@ -6,6 +6,8 @@ packages; it is not a list inferred from binary symbols. Original third-party
 copyright and license terms remain those reproduced below. Project licensing
 is recorded separately in its root license and source provenance.
 
+The combined work, FARIS together with the permissive crates it links (including avila-account), is distributed under AGPL-3.0-only; the permissive licenses below do not change the license of the FARIS source.
+
 SHA-256 labels identify original source-file bytes before Markdown framing.
 
 Recreate the metadata with `cargo metadata --locked --offline --format-version 1

@@ -771,7 +771,7 @@ impl TransportPanel {
             FieldView::ComponentFlux | FieldView::FluxSlice | FieldView::NuclearHeating
         ) {
             ui.small("Stationary reference-source rate")
-                .on_hover_text("These transport fields use the recorded source strength. They stay fixed during history outages; accumulated fluence follows the timeline. Instantaneous fields and decay heat are not shown here.");
+                .on_hover_text("These transport fields use the recorded source strength. They stay fixed during history outages; accumulated fluence (a transport proxy, not dpa or life) follows the timeline. Instantaneous fields and decay heat are not shown here.");
         }
         if self.view == FieldView::FluxSlice {
             let last_slice = self

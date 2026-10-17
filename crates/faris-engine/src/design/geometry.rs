@@ -605,7 +605,8 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             std::path::absolute(dir).map_err(|e| super::io_error(dir, e))?
         }
         None => {
-            temporary = tempfile::tempdir().map_err(|e| DesignError::Io(e.to_string()))?;
+            temporary = crate::scratch::tempdir("faris-cad-")
+                .map_err(|e| DesignError::Io(e.to_string()))?;
             temporary.path().to_path_buf()
         }
     };

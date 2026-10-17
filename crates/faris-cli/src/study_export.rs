@@ -150,7 +150,7 @@ fn stored_ensemble(
 
 fn read_study(file: &Path) -> Result<StudyData, Failure> {
     let mut reader = StudyReader::open(file).map_err(convert)?;
-    let workspace = tempfile::Builder::new().prefix("faris-export-").tempdir()?;
+    let workspace = faris_engine::scratch::tempdir("faris-export-")?;
     let near = file
         .parent()
         .filter(|p| !p.as_os_str().is_empty())

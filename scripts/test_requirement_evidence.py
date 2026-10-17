@@ -119,6 +119,20 @@ class DependencyPinningTests(unittest.TestCase):
         for name, spec in external.items():
             version = spec if isinstance(spec, str) else spec.get("version", "")
             self.assertRegex(version, r"^=\d+\.\d+\.\d+$", name)
+        # Member crates take every external dependency from the workspace table or pin it exactly themselves.
+        loose = []
+        for name, crate in own_crates().items():
+            tables = [crate.get(kind, {}) for kind in ("dependencies", "dev-dependencies", "build-dependencies")]
+            for target in crate.get("target", {}).values():
+                tables += [target.get(kind, {}) for kind in ("dependencies", "dev-dependencies", "build-dependencies")]
+            for table in tables:
+                for dependency, spec in table.items():
+                    if isinstance(spec, dict) and (spec.get("workspace") or "path" in spec):
+                        continue
+                    version = spec if isinstance(spec, str) else spec.get("version", "")
+                    if not re.fullmatch(r"=\d+\.\d+\.\d+", version):
+                        loose.append(f"{name}: {dependency} {version}")
+        self.assertEqual(loose, [])
         self.assertTrue((ROOT / "Cargo.lock").is_file())
         self.assertIn("name = \"serde\"", read("Cargo.lock"))
         # Every cargo command that resolves or builds uses the lock file.
@@ -212,6 +226,8 @@ class DataAndUpdateRuleTests(unittest.TestCase):
                 self.assertIs(crate["package"]["license"]["workspace"], True, name)
         self.assertIn("avila-account", read("crates/faris-app/Cargo.toml"))
         notices = read("docs/THIRD_PARTY_NOTICES.md")
+        self.assertIn("The combined work, FARIS together with the permissive crates it links (including avila-account), "
+                      "is distributed under AGPL-3.0-only", notices)
         self.assertRegex(notices, r"\| avila-account \d+\.\d+\.\d+ \| MIT OR Apache-2\.0 \|")
         # The permissive licences of the dependencies are on the policy's allow list (LEG-003 checks the graph).
         policy = read("scripts/licence_policy.json")
@@ -244,6 +260,52 @@ class DataAndUpdateRuleTests(unittest.TestCase):
         # PDF embedding of Ubuntu Light is covered by the licence's own terms: embedding in documents is not
         # restricted by it (the licence limits renaming and modified fonts, not the use of the font in a document).
         self.assertIn("embedding", read("docs/STUDY_EXPORT.md"))
+
+
+class DisplayAndScratchTests(unittest.TestCase):
+    def test_every_place_that_shows_the_accumulated_fluence_names_it_a_proxy(self):
+        # Verifies: MAT-019
+        shown = {
+            "crates/faris-app/src/lib.rs": ("neutron fluence (a transport proxy, not dpa or life) follows the timeline",
+                                            "accumulated neutron fluence (proxy, not dpa or life)"),
+            "crates/faris-app/src/transport_panel.rs": ("accumulated fluence (a transport proxy, not dpa or life)",),
+            "crates/faris-app/src/history_panel.rs": ("(flux × time, a transport proxy, not dpa)",),
+            "crates/faris-report/src/charts.rs": ("FLUENCE_PROXY_NOTE",),
+        }
+        for path, phrases in shown.items():
+            text = read(path)
+            for phrase in phrases:
+                self.assertIn(phrase, text, path)
+        note = re.search(r'FLUENCE_PROXY_NOTE: &str =\s*"([^"]+)"', read("crates/faris-model/src/lib.rs")).group(1)
+        self.assertIn("proxy", note)
+        self.assertIn("not dpa", note)
+
+    # Verifies: PLAT-029
+    def test_only_small_probe_folders_use_the_system_temporary_folder(self):
+        # A scratch folder made with tempfile::tempdir() or Builder::tempdir() lands in the system temporary
+        # folder. The large ones (an unpacked study, a CAD conversion) use faris_engine::scratch instead; the
+        # remaining uses hold a request file, a probe or a staging file beside its target.
+        small = {
+            "crates/faris-app/src/tool_finder.rs": 1,
+            "crates/faris-cli/src/adapters.rs": 1,
+            "crates/faris-occt-client/src/client.rs": 1,
+            "crates/faris-engine/src/scratch.rs": 1,
+            "crates/faris-engine/src/vfs.rs": 1,
+        }
+        found = {}
+        for path in sorted((ROOT / "crates").rglob("*.rs")):
+            relative = path.relative_to(ROOT).as_posix()
+            if "/tests/" in relative or path.name.endswith("tests.rs") or "tests" in path.parts:
+                continue
+            text = path.read_text(encoding="utf-8").split("#[cfg(test)]")[0].split("#[cfg(all(test")[0]
+            text = "\n".join(line for line in text.splitlines() if not line.strip().startswith("//"))
+            count = len(re.findall(r"tempfile::tempdir\(\)|\.tempdir\(\)|tempfile::Builder::new\(\)\.[^;]*?\.tempdir\(\)", text))
+            if count:
+                found[relative] = count
+        self.assertEqual(found, small)
+        for path in ("crates/faris-study/src/read.rs", "crates/faris-cli/src/study_export.rs",
+                     "crates/faris-engine/src/design/geometry.rs"):
+            self.assertIn("scratch::tempdir", read(path), path)
 
 
 if __name__ == "__main__":

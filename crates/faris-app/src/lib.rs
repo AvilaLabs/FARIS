@@ -2281,7 +2281,7 @@ impl eframe::App for FarisApp {
                     self.history.inspector(ui,&self.manifest.source_sha256,&variant.id,&component.id,self.year*faris_engine::history::JULIAN_YEAR_SECONDS);
                     self.transport.spectra(ui,&variant.id,&component.id);
                     ui.add_space(10.0);
-                    ui.weak(match self.transport.view {transport_panel::FieldView::Materials=>"Display colors identify components.",transport_panel::FieldView::NuclearHeating=>"Directly tallied total nuclear heating; component averages, not temperatures.",transport_panel::FieldView::ComponentFluence=>"Calculated component-average neutron fluence follows the timeline, including local resets on replacement.",_=>"Calculated flux uses a fixed scale across arrangements; inspect sampling precision before comparing."});
+                    ui.weak(match self.transport.view {transport_panel::FieldView::Materials=>"Display colors identify components.",transport_panel::FieldView::NuclearHeating=>"Directly tallied total nuclear heating; component averages, not temperatures.",transport_panel::FieldView::ComponentFluence=>"Calculated component-average neutron fluence (a transport proxy, not dpa or life) follows the timeline, including local resets on replacement.",_=>"Calculated flux uses a fixed scale across arrangements; inspect sampling precision before comparing."});
                 }
                 });
             });
@@ -2422,7 +2422,7 @@ impl eframe::App for FarisApp {
                             "Reference-power bin mean flux · neutrons/m²/s · full voxel volumes, including any material/void mixture"
                         }
                         transport_panel::FieldView::NuclearHeating => "Reference-power nuclear heat deposition · W/m³ · coupled transport",
-                        transport_panel::FieldView::ComponentFluence => "Snapshot accumulated neutron fluence · neutrons/m² · component mean",
+                        transport_panel::FieldView::ComponentFluence => "Snapshot accumulated neutron fluence (proxy, not dpa or life) · neutrons/m² · component mean",
                     };
                 let galley = ui.painter().layout(
                     caption.to_owned(),

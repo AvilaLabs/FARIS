@@ -34,6 +34,11 @@ def load_standard(directory: Path) -> tuple[str, dict[str, tuple[bytes, str]], d
     return manifest['tag'], texts, declared
 
 
+COMBINED_WORK_FARIS = ('The combined work, FARIS together with the permissive crates it links (including '
+                       'avila-account), is distributed under AGPL-3.0-only; the permissive licenses below do '
+                       'not change the license of the FARIS source.')
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--metadata', required=True, type=Path)
@@ -47,6 +52,8 @@ def main() -> None:
                         default=Path(__file__).resolve().parents[1] / 'licenses/upstream-rust')
     parser.add_argument('--standard', type=Path,
                         default=Path(__file__).resolve().parents[1] / 'licenses/spdx-standard')
+    parser.add_argument('--combined-work', default=None,
+                        help='Licence statement for the combined work; FARIS notices state AGPL-3.0-only by default')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     metadata = json.loads(args.metadata.read_text())
@@ -122,6 +129,9 @@ def main() -> None:
         if not local_files:
             raise ValueError(f'no license text for {package["name"]} {package["version"]}')
         rows.append((package, commit, local_files))
+    combined = args.combined_work
+    if combined is None and args.title.startswith('FARIS'):
+        combined = COMBINED_WORK_FARIS
     body = [
         '# ' + args.title, '',
         f'Exact license texts collected from the locked {args.platform_label} Cargo dependency graph.',
@@ -129,6 +139,7 @@ def main() -> None:
         'packages; it is not a list inferred from binary symbols. Original third-party',
         'copyright and license terms remain those reproduced below. Project licensing',
         'is recorded separately in its root license and source provenance.', '',
+        *([combined, ''] if combined else []),
         'SHA-256 labels identify original source-file bytes before Markdown framing.', '',
         'Recreate the metadata with `cargo metadata --locked --offline --format-version 1',
         f'--filter-platform {args.target_triple}`, then run',

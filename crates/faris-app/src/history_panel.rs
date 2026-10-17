@@ -148,7 +148,9 @@ impl Plot {
     }
     fn title(self) -> &'static str {
         match self {
-            Plot::MagnetFluence => "Magnet fluence toward its service limit, n/m²",
+            Plot::MagnetFluence => {
+                "Magnet fluence (flux × time, a transport proxy, not dpa) toward its service limit, n/m²"
+            }
             Plot::Electricity => "Cumulative signed net electricity · TWh",
             Plot::Tritium => "Usable tritium inventory · kg",
             Plot::FullPower => "Cumulative full-power time · years",

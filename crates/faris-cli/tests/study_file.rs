@@ -619,3 +619,70 @@ fn store_evidence_is_referenced_by_default_and_packed_on_request() {
     assert_eq!(code(&mixed), 2, "{}", text(&mixed));
     assert!(!dir.path().join("mixed.faris").exists());
 }
+
+// Verifies: PLAT-029
+#[test]
+fn verifying_and_exporting_a_study_leave_the_system_temporary_folder_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let bundle = bundle_file(dir.path(), "reference", "a");
+    let descriptor = store_evidence(dir.path());
+    let study = dir.path().join("packed.faris");
+    let created = run(&[
+        "study-file",
+        "create",
+        "--bundle",
+        bundle.to_str().unwrap(),
+        "--evidence",
+        descriptor.to_str().unwrap(),
+        "--pack-evidence",
+        "-o",
+        study.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&created), 0, "{}", text(&created));
+
+    // The system temporary folder is an empty folder of our own; scratch goes to a configured folder that does
+    // not exist yet, so its appearance shows the operation used it.
+    let system_temporary = dir.path().join("system-temporary");
+    std::fs::create_dir(&system_temporary).unwrap();
+    let scratch = dir.path().join("scratch-here");
+    let with_folders = |arguments: &[&str]| -> Output {
+        Command::new(env!("CARGO_BIN_EXE_faris"))
+            .args(arguments)
+            .env("TMPDIR", &system_temporary)
+            .env("TMP", &system_temporary)
+            .env("TEMP", &system_temporary)
+            .env("FARIS_SCRATCH_DIR", &scratch)
+            .output()
+            .expect("run faris")
+    };
+    let study_arg = study.to_str().unwrap();
+    let verified = with_folders(&["study-file", "verify", study_arg]);
+    assert_eq!(code(&verified), 0, "{}", text(&verified));
+    assert!(
+        scratch.is_dir(),
+        "verify did not use the configured scratch folder"
+    );
+    std::fs::remove_dir_all(&scratch).unwrap();
+    let out = dir.path().join("exports");
+    std::fs::create_dir(&out).unwrap();
+    // The export refuses the placeholder bundle, but only after unpacking the study into its work folder.
+    let exported = with_folders(&[
+        "study-file",
+        "export",
+        study_arg,
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(code(&exported), 0, "{}", text(&exported));
+    assert!(
+        scratch.is_dir(),
+        "export did not use the configured scratch folder"
+    );
+    assert_eq!(
+        std::fs::read_dir(&system_temporary).unwrap().count(),
+        0,
+        "something was written to the system temporary folder"
+    );
+    // Nothing is left behind in the scratch folder either.
+    assert_eq!(std::fs::read_dir(&scratch).unwrap().count(), 0);
+}
