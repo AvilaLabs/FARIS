@@ -6,18 +6,18 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 388 of 1419 requirements.
+Traced: 404 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
 | [01-geometry-and-model.md](01-geometry-and-model.md) | 73 | 31 |
 | [02-radiation-transport.md](02-radiation-transport.md) | 107 | 35 |
-| [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 49 |
+| [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 50 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 6 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 5 |
 | [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 27 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 18 |
-| [08-performance.md](08-performance.md) | 37 | 5 |
+| [08-performance.md](08-performance.md) | 37 | 6 |
 | [09-usability.md](09-usability.md) | 73 | 18 |
 | [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 11 |
 | [11-visualization.md](11-visualization.md) | 49 | 13 |
@@ -28,11 +28,11 @@ Traced: 388 of 1419 requirements.
 | [16-evidence-and-provenance.md](16-evidence-and-provenance.md) | 42 | 16 |
 | [17-collaboration.md](17-collaboration.md) | 40 | 8 |
 | [18-reliability.md](18-reliability.md) | 38 | 15 |
-| [19-security.md](19-security.md) | 55 | 18 |
-| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 7 |
-| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 22 |
+| [19-security.md](19-security.md) | 55 | 23 |
+| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 10 |
+| [21-quality-assurance.md](21-quality-assurance.md) | 77 | 25 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 15 |
-| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 12 |
+| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 15 |
 
 ## Traced requirements
 
@@ -142,6 +142,7 @@ Traced: 388 of 1419 requirements.
 | MAT-015 | F2 | `crates/faris-model/src/materials_db/limits.rs::a_temperature_window_is_tested_when_a_limit_states_one`<br>`crates/faris-model/src/materials_db/limits.rs::conditions_outside_the_stated_window_make_the_comparison_conditional` |
 | MAT-016 | F3 | `crates/faris-model/src/materials_db/limits.rs::not_evaluated_limit_rows_give_their_reason` |
 | MAT-018 | F4 | `crates/faris-engine/src/history.rs::every_replacement_event_stores_criterion_value_limit_and_unit`<br>`crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track`<br>`crates/faris-engine/src/history.rs::replacing_one_component_leaves_every_other_component_bit_identical`<br>`crates/faris-engine/src/history.rs::with_two_limits_on_a_component_the_event_names_the_one_reached_first`<br>`crates/faris-report/src/tests.rs::the_replacement_table_gives_each_trip_its_limit_value_and_band` |
+| MAT-019 | F2 | `crates/faris-engine/src/history.rs::an_energy_integrated_flux_is_never_written_as_dpa_or_service_life` |
 | MAT-040 | F2 | `crates/faris-model/src/materials_db/impurity.rs::two_specifications_give_two_verdicts_and_the_inventory_must_match_the_one_chosen` |
 | MAT-041 | F2 | `crates/faris-model/src/materials_db/impurity.rs::the_watch_list_has_the_required_elements_each_with_a_reason_and_a_threshold` |
 | MAT-042 | F2 | `crates/faris-model/src/materials_db/impurity.rs::the_inverse_agrees_with_the_forward_classification_on_ten_cases`<br>`crates/faris-model/src/materials_db/impurity.rs::the_inverse_names_the_binding_column_and_flags_an_already_exceeded_base`<br>`crates/faris-model/src/materials_db/impurity.rs::the_maximum_moves_with_the_disposal_time` |
@@ -214,6 +215,7 @@ Traced: 388 of 1419 requirements.
 | PERF-025 | F2 | `crates/faris-app/src/transport_panel.rs::both_tiers_are_valid_sampling_plans`<br>`crates/faris-app/src/transport_panel.rs::production_stops_on_a_target_within_the_history_cap`<br>`crates/faris-engine/src/reactor.rs::a_merged_result_takes_each_response_from_the_pass_valid_for_it`<br>`crates/faris-engine/src/reactor.rs::plans_without_a_target_read_and_write_as_before`<br>`crates/faris-engine/src/reactor.rs::precision_goals_are_judged_on_the_pass_each_response_is_reported_from`<br>`crates/faris-engine/src/reactor.rs::sampling_outcome_accepts_only_stops_the_rule_can_explain`<br>`crates/faris-engine/src/reactor.rs::stop_rule_target_is_validated_and_optional`<br>`crates/faris-engine/src/reactor/windows.rs::the_analog_pass_of_a_two_pass_run_reads_no_windows_but_its_record_says_the_run_used_them`<br>`integrations/openmc/test_stop_rule_openmc.py::test_loose_target_stops_before_the_budget`<br>`integrations/openmc/test_windows_csg_openmc.py::test_windows_from_openmc_magic_agree_with_analog`<br>`integrations/openmc/test_windows_csg_openmc.py::test_windows_from_the_studys_generator_agree_with_analog`<br>`scripts/test_reactor_stop_rule.py::test_target_sets_openmc_triggers_on_the_magnet_flux_only`<br>`scripts/test_reactor_windows.py::test_an_input_without_windows_is_analog_and_says_so`<br>`scripts/test_reactor_windows.py::test_design_transport_and_reactor_study_use_one_implementation` |
 | PERF-027 | F1 | `crates/faris-app/src/uncertainty/tests.rs::an_unchanged_key_never_reruns`<br>`crates/faris-app/src/uncertainty/tests.rs::stored_ensembles_are_reused_only_under_an_exact_key` |
 | PERF-041 | F1 | `crates/faris-cli/tests/exit_codes.rs::a_job_the_memory_check_refuses_exits_five_and_names_the_setting`<br>`crates/faris-engine/src/jobs.rs::a_finished_job_records_its_peak_memory_and_the_check_made_before_it`<br>`crates/faris-engine/src/jobs.rs::a_job_projected_beyond_free_memory_is_refused_before_it_starts`<br>`crates/faris-engine/src/jobs.rs::macos_stops_a_job_whose_memory_passes_the_cap`<br>`crates/faris-engine/src/memory.rs::a_job_that_fits_is_admitted_and_one_that_does_not_is_refused_with_a_reason`<br>`crates/faris-engine/src/memory.rs::a_refusal_comes_from_the_injected_free_figure`<br>`crates/faris-engine/src/memory.rs::an_unreadable_free_figure_is_not_evaluated_not_guessed`<br>`crates/faris-engine/src/memory.rs::meminfo_and_proc_text_parse`<br>`crates/faris-engine/src/memory.rs::the_cap_lowers_but_never_raises_a_jobs_address_space`<br>`crates/faris-engine/src/memory.rs::this_machines_free_memory_is_readable` |
+| PERF-045 | F1 | `scripts/test_check_install_size.py::test_a_folder_over_the_limit_fails_and_one_under_it_passes`<br>`scripts/test_check_install_size.py::test_the_release_build_workflow_runs_the_check_on_the_collected_folder_at_150_mb` |
 | UX-010 | F1 | `crates/faris-app/src/commands.rs::core_tasks_t1_to_t5_are_reachable_with_key_events_only` |
 | UX-020 | F1 | `crates/faris-app/src/undo.rs::a_thousand_command_steps_undo_and_redo_to_identical_scene_hashes`<br>`crates/faris-app/src/undo.rs::a_thousand_random_edit_sequences_undo_to_the_start_hash_and_redo_to_the_end_hash`<br>`crates/faris-app/src/undo.rs::ctrl_z_ctrl_shift_z_and_ctrl_y_undo_and_redo_in_every_step_of_the_workflow`<br>`crates/faris-app/src/undo.rs::every_mutating_command_in_the_registry_is_covered_by_undo`<br>`crates/faris-app/src/undo.rs::undo_restores_allocation_what_if_hidden_evidence_and_size_exactly` |
 | UX-021 | F1 | `crates/faris-app/src/undo.rs::a_byte_cap_drops_the_oldest_steps_first_and_keeps_the_newest`<br>`crates/faris-app/src/undo.rs::a_history_of_ten_thousand_steps_is_kept_and_the_next_one_drops_the_oldest_and_says_so` |
@@ -356,17 +358,22 @@ Traced: 388 of 1419 requirements.
 | SEC-002 | F1 | `crates/faris-engine/src/case_archive.rs::a_directory_tree_and_a_store_tree_read_the_same_files_the_same_way`<br>`crates/faris-engine/src/case_archive.rs::archive_file_reader_rejects_symlink_and_oversize`<br>`crates/faris-engine/src/case_archive.rs::archive_paths_and_digests_are_strict`<br>`crates/faris-engine/src/case_archive.rs::tree_limits_are_enforced_alike_on_a_directory_and_on_the_store_index`<br>`crates/faris-engine/src/core_evidence.rs::portable_record_refuses_path_escape_and_missing_artifacts`<br>`crates/faris-engine/src/evidence_store.rs::a_decompression_bomb_is_bounded_by_the_indexed_length`<br>`crates/faris-engine/src/evidence_store.rs::a_symlink_blob_or_blob_directory_is_refused`<br>`crates/faris-engine/src/evidence_store.rs::a_tampered_blob_is_detected_and_never_returned`<br>`crates/faris-engine/src/evidence_store.rs::pack_then_read_round_trips_every_file_and_shares_blobs`<br>`crates/faris-study/src/tests.rs::bundle_names_may_be_any_unicode_but_never_a_path`<br>`crates/faris-study/src/tests.rs::evidence_paths_must_be_safe_relative_paths`<br>`crates/faris-study/src/tests.rs::tar_gz_refuses_traversal_links_duplicates_and_damage`<br>`crates/faris-study/src/tests.rs::unexpected_entry_names_are_refused`<br>`crates/faris-study/src/tests.rs::unsafe_bundle_names_in_the_manifest_are_refused`<br>`scripts/test_evidence_store.py::test_a_flipped_byte_in_a_blob_is_detected`<br>`scripts/test_evidence_store.py::test_a_symlink_blob_is_refused_and_never_read`<br>`scripts/test_evidence_store.py::test_bad_paths_are_refused`<br>`scripts/test_verify_recorded_demo.py::test_index_rejects_extra_unindexed_file_and_path_traversal` |
 | SEC-003 | F1 | `crates/faris-cli/src/transport.rs::special_files_cannot_bypass_input_bounds`<br>`crates/faris-study/src/tests.rs::an_entry_larger_than_its_recorded_size_is_refused`<br>`crates/faris-study/src/tests.rs::declared_totals_beyond_the_bound_are_refused` |
 | SEC-004 | F1 | `crates/faris-study/src/tests.rs::a_blob_without_an_entry_or_an_entry_without_a_blob_is_refused`<br>`crates/faris-study/src/tests.rs::a_damaged_ensemble_record_refuses_the_file`<br>`crates/faris-study/src/tests.rs::a_duplicate_entry_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_encoding_is_refused`<br>`crates/faris-study/src/tests.rs::an_unknown_major_version_is_refused_and_named`<br>`crates/faris-study/src/tests.rs::unexpected_entry_names_are_refused` |
+| SEC-005 | F1 | `scripts/test_requirement_evidence.py::test_the_workspace_forbids_unsafe_code_and_every_crate_inherits_or_documents_its_exception` |
 | SEC-010 | F1 | `crates/faris-study/src/tests.rs::an_altered_blob_is_named_and_refused` |
 | SEC-011 | F1 | `scripts/test_source_lint.py::test_a_comparison_with_a_truncated_digest_is_found`<br>`scripts/test_source_lint.py::test_digest_slices_are_listed_unless_allow_listed` |
 | SEC-020 | F1 | `scripts/test_fuzz_seed.py::test_every_fuzz_target_gets_seeds_from_the_repository` |
 | SEC-021 | F1 | `scripts/test_release_gate.py::test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash` |
+| SEC-025 | F1 | `scripts/test_requirement_evidence.py::test_the_only_unsafe_in_the_own_code_is_the_commented_bridge_module` |
 | SEC-030 | F1 | `scripts/test_generate_sbom.py::test_bundled_fonts_are_listed_with_their_hashes`<br>`scripts/test_generate_sbom.py::test_checksums_licences_and_dependencies_are_carried`<br>`scripts/test_generate_sbom.py::test_output_is_reproducible_for_a_fixed_timestamp_and_main_writes_both_files`<br>`scripts/test_generate_sbom.py::test_the_repository_fonts_are_all_listed`<br>`scripts/test_generate_sbom.py::test_validation_catches_a_missing_identifier_and_a_missing_dependency_section` |
 | SEC-031 | F1 | `scripts/test_check_audit.py::test_a_valid_waiver_covers_unmaintained_and_yanked_findings`<br>`scripts/test_check_audit.py::test_expired_incomplete_overlong_and_unused_waivers_fail`<br>`scripts/test_check_audit.py::test_the_repository_allowlist_is_complete_and_within_the_ninety_day_rule`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
+| SEC-032 | F1 | `scripts/test_requirement_evidence.py::test_every_workspace_dependency_is_exact_pinned_and_cargo_lock_is_committed` |
 | SEC-033 | F1 | `scripts/test_workflows.py::test_every_action_is_pinned_by_full_commit_hash_with_its_version_in_a_comment`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | SEC-037 | F2 | `scripts/test_repro_check.py::test_equal_binaries_write_evidence_the_release_gate_accepts` |
 | SEC-039 | F1 | `scripts/test_check_licences.py::test_the_repository_policy_is_well_formed_and_fails_a_gpl2_only_dependency` |
+| SEC-042 | F1 | `crates/faris-app/tests/account_token.rs::plain_http_is_refused_except_for_loopback_and_https_is_accepted`<br>`crates/faris-app/tests/account_token.rs::the_https_stack_verifies_certificates_with_a_bundled_root_store`<br>`crates/faris-app/tests/account_token.rs::the_token_goes_to_the_issuing_host_and_a_redirect_is_not_followed` |
 | SEC-061 | F1 | `crates/faris-engine/src/jobs.rs::inherited_address_space_limit_bounds_child_allocation`<br>`crates/faris-engine/src/jobs.rs::only_the_address_space_may_be_raised_and_only_to_the_ceiling`<br>`crates/faris-engine/src/jobs.rs::oversized_single_file_is_killed_by_inherited_file_size_limit` |
 | SEC-063 | F2 | `crates/faris-engine/src/jobs.rs::oversized_output_is_bounded_even_when_a_process_exits_quickly` |
+| SEC-065 | F2 | `scripts/test_requirement_evidence.py::test_native_code_is_built_only_by_the_worker_crate_and_the_c_readers_have_fuzz_targets` |
 | SEC-073 | F1 | `scripts/test_docs_policy.py::test_the_advisory_process_covers_cve_release_notes_and_a_regression_test` |
 | SEC-074 | F1 | `scripts/test_docs_policy.py::test_every_threat_maps_to_an_existing_requirement_or_a_listed_accepted_risk` |
 | SEC-076 | F1 | `scripts/test_docs_policy.py::test_every_threat_maps_to_an_existing_requirement_or_a_listed_accepted_risk` |
@@ -375,15 +382,21 @@ Traced: 388 of 1419 requirements.
 | PLAT-013 | F1 | `crates/faris-app/src/native.rs::a_graphics_failure_names_the_cause_and_a_next_step` |
 | PLAT-023 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
 | PLAT-024 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
+| PLAT-026 | F1 | `scripts/test_check_install_size.py::test_a_folder_over_the_limit_fails_and_one_under_it_passes`<br>`scripts/test_check_install_size.py::test_the_release_build_workflow_runs_the_check_on_the_collected_folder_at_150_mb` |
+| PLAT-030 | F4 | `scripts/test_requirement_evidence.py::test_no_update_check_exists_in_the_source_or_the_lock_file` |
 | PLAT-034 | F1 | `scripts/test_docs_policy.py::test_missing_inputs_refuse_to_produce_notes`<br>`scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line` |
+| PLAT-053 | F1 | `scripts/test_requirement_evidence.py::test_data_of_unclear_terms_is_ignored_by_git_documented_for_user_download_and_refused_by_the_packager` |
 | PLAT-073 | F1 | `scripts/test_release_gate.py::test_a_gate_with_every_input_good_passes_every_condition`<br>`scripts/test_release_gate.py::test_repository_checks_run_every_script_fail_on_a_failing_one_and_on_a_missing_input`<br>`scripts/test_release_gate.py::test_the_command_exits_nonzero_when_a_repository_check_fails_and_can_skip_them` |
 | QA-001 | F1 | `scripts/test_requirement_lint.py::test_committed_tables_have_no_errors`<br>`scripts/test_requirement_lint.py::test_good_row_is_clean`<br>`scripts/test_requirement_lint.py::test_met_needs_a_test_unless_audit`<br>`scripts/test_requirement_lint.py::test_missing_phase_and_verification_fail`<br>`scripts/test_requirement_lint.py::test_phase_forms`<br>`scripts/test_requirement_lint.py::test_wrong_cell_count_and_empty_cell` |
 | QA-008 | F1 | `scripts/test_requirement_lint.py::test_removed_id_needs_a_tombstone`<br>`scripts/test_requirement_lint.py::test_reused_and_revived_ids`<br>`scripts/test_requirement_lint.py::test_rewording_keeps_the_id`<br>`scripts/test_requirement_lint.py::test_table_ids_reads_live_and_struck`<br>`scripts/test_requirement_lint.py::test_unchanged_is_clean` |
 | QA-009 | F2 | `scripts/test_requirement_scorecard.py::test_counts` |
+| QA-010 | F1 | `scripts/test_requirement_evidence.py::test_ci_runs_format_clippy_and_tests_on_every_push_and_pull_request` |
+| QA-011 | F1 | `scripts/test_requirement_evidence.py::test_ci_runs_the_analytic_controls_without_openmc` |
 | QA-016 | F2 | `crates/faris-engine/tests/doc_json_samples.rs::activation_zones_example_parses`<br>`crates/faris-engine/tests/doc_json_samples.rs::design_file_waivers_example_parses_and_names_waivable_checks`<br>`crates/faris-engine/tests/doc_json_samples.rs::maintenance_examples_parse_and_validate`<br>`scripts/test_doc_samples.py::test_a_block_with_no_disposition_fails`<br>`scripts/test_doc_samples.py::test_a_flag_the_binary_does_not_have_fails`<br>`scripts/test_doc_samples.py::test_a_runnable_command_is_executed_and_a_failing_one_fails_the_check`<br>`scripts/test_doc_samples.py::test_inline_commands_are_resolved_against_the_binary`<br>`scripts/test_doc_samples.py::test_the_evidence_file_is_what_the_release_gate_reads` |
 | QA-017 | F2 | `scripts/test_check_stochastic_tests.py::test_a_marked_seeded_test_passes`<br>`scripts/test_check_stochastic_tests.py::test_acceptance_above_three_sigma_is_found`<br>`scripts/test_check_stochastic_tests.py::test_exact_float_equality_is_found_unless_justified`<br>`scripts/test_check_stochastic_tests.py::test_the_repository_controls_have_no_findings`<br>`scripts/test_check_stochastic_tests.py::test_unseeded_randomness_is_found` |
 | QA-022 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | QA-033 | F2 | `scripts/test_fuzz_seed.py::test_every_fuzz_target_gets_seeds_from_the_repository`<br>`scripts/test_release_gate.py::test_fuzz_evidence_needs_every_target_for_an_hour_from_libfuzzer_with_no_crash` |
+| QA-035 | F1 | `scripts/test_requirement_evidence.py::test_the_workspace_forbids_unsafe_code_and_every_crate_inherits_or_documents_its_exception` |
 | QA-039 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
 | QA-042 | F1 | `controls/test_check_history.py::test_recorded_engine_histories_close_in_decimals`<br>`controls/test_check_history.py::test_the_decimal_controls_pass` |
 | QA-052 | F1 | `scripts/test_wording_lint.py::test_compliance_tied_to_nqa1_or_a_regulator_is_flagged` |
@@ -416,7 +429,10 @@ Traced: 388 of 1419 requirements.
 | DOC-062 | F1 | `scripts/test_export_lint.py::test_a_claim_in_an_export_and_a_missing_twin_statement_are_found`<br>`scripts/test_export_lint.py::test_a_clean_export_has_no_finding_except_the_stamp`<br>`scripts/test_export_lint.py::test_the_statement_must_be_the_first_line`<br>`scripts/test_source_lint.py::test_the_tree_has_no_failing_finding` |
 | LEG-003 | F1 | `scripts/test_check_licences.py::test_an_exception_matches_the_exact_expression_and_unused_ones_fail`<br>`scripts/test_check_licences.py::test_missing_and_unparseable_licences_fail`<br>`scripts/test_check_licences.py::test_older_slash_separators_and_exceptions_with_with`<br>`scripts/test_check_licences.py::test_the_repository_policy_is_well_formed_and_fails_a_gpl2_only_dependency` |
 | LEG-005 | F1 | `scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
+| LEG-007 | F1 | `scripts/test_requirement_evidence.py::test_the_combined_work_licence_and_the_account_client_licence_are_recorded` |
+| LEG-011 | F1 | `scripts/test_requirement_evidence.py::test_data_of_unclear_terms_is_ignored_by_git_documented_for_user_download_and_refused_by_the_packager` |
 | LEG-014 | F1 | `scripts/test_collect_dependency_notices.py::test_spdx_expression_parsing` |
+| LEG-015 | F1 | `scripts/test_requirement_evidence.py::test_both_font_licences_ship_with_the_program_and_are_in_the_notices` |
 | LEG-016 | F1 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row` |
 | LEG-027 | F1 | `crates/faris-app/src/crash.rs::records_are_deleted_after_thirty_days_and_beyond_the_count_and_clear_now_empties`<br>`crates/faris-app/src/crash.rs::recovery_files_and_bundles_expire_with_the_same_rule` |
 | LEG-040 | F1 | `crates/faris-cli/tests/history_screening.rs::history_run_and_ensemble_print_the_statement_without_changing_the_file`<br>`crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |

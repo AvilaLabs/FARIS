@@ -114,7 +114,7 @@ Its main gaps against these targets:
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 42 | 1 | 27 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 48 | 3 | 48 |
-| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 17 | 41 | 0 | 39 |
+| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 16 | 42 | 0 | 39 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 3 | 18 | 0 | 78 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 3 | 9 | 0 | 33 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 6 | 32 | 0 | 34 |
@@ -130,14 +130,14 @@ Its main gaps against these targets:
 | [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 6 | 19 | 2 | 15 |
 | [Collaboration](17-collaboration.md) | COL | 40 | 1 | 12 | 0 | 27 |
 | [Reliability](18-reliability.md) | REL | 38 | 3 | 21 | 1 | 13 |
-| [Security](19-security.md) | SEC | 55 | 9 | 28 | 1 | 17 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 4 | 24 | 0 | 17 |
-| [Quality assurance](21-quality-assurance.md) | QA | 77 | 4 | 36 | 1 | 36 |
+| [Security](19-security.md) | SEC | 55 | 7 | 30 | 1 | 17 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 2 | 26 | 0 | 17 |
+| [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 37 | 1 | 36 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 23 | 2 | 8 |
-| **Total** | | **1419** | **79** | **597** | **35** | **708** |
+| [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 2 | 24 | 2 | 8 |
+| **Total** | | **1419** | **72** | **604** | **35** | **708** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 79 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 72 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control

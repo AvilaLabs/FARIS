@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 79 | 597 | 708 | 35 | 388 | 27 % | 504 | 150 | 459 | 116 | 431 | 98 |
+| All requirements | 1419 | 72 | 604 | 708 | 35 | 404 | 28 % | 504 | 150 | 459 | 116 | 431 | 98 |
 
 ## By category
 
@@ -16,12 +16,12 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | 73 | 3 | 42 | 27 | 1 | 31 | 42 % | 29 | 8 | 43 | 4 | 6 | 12 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | 107 | 8 | 48 | 48 | 3 | 35 | 33 % | 40 | 12 | 50 | 18 | 7 | 12 |
-| [Activation, waste and materials](03-activation-and-materials.md) | 97 | 17 | 41 | 39 | 0 | 49 | 51 % | 39 | 6 | 39 | 9 | 12 | 5 |
+| [Activation, waste and materials](03-activation-and-materials.md) | 97 | 16 | 42 | 39 | 0 | 50 | 52 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 3 | 18 | 78 | 0 | 6 | 6 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 3 | 9 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 2 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 6 | 32 | 34 | 0 | 27 | 38 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 22 | 37 | 0 | 18 | 30 % | 10 | 3 | 14 | 8 | 29 | 2 |
-| [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 5 | 14 % | 15 | 7 | 15 | 3 | 7 | 0 |
+| [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 6 | 16 % | 15 | 7 | 15 | 3 | 7 | 0 |
 | [Usability](09-usability.md) | 73 | 0 | 34 | 36 | 3 | 18 | 25 % | 37 | 12 | 30 | 10 | 5 | 6 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 0 | 18 | 30 | 9 | 11 | 19 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 13 | 27 % | 21 | 7 | 22 | 7 | 8 | 0 |
@@ -32,20 +32,20 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 6 | 19 | 15 | 2 | 16 | 38 % | 11 | 4 | 7 | 0 | 25 | 4 |
 | [Collaboration](17-collaboration.md) | 40 | 1 | 12 | 27 | 0 | 8 | 20 % | 6 | 1 | 10 | 1 | 25 | 1 |
 | [Reliability](18-reliability.md) | 38 | 3 | 21 | 13 | 1 | 15 | 39 % | 7 | 4 | 8 | 1 | 27 | 3 |
-| [Security](19-security.md) | 55 | 9 | 28 | 17 | 1 | 18 | 33 % | 14 | 3 | 7 | 0 | 36 | 10 |
-| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 4 | 24 | 17 | 0 | 7 | 16 % | 5 | 2 | 6 | 1 | 33 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 36 | 36 | 1 | 22 | 29 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Security](19-security.md) | 55 | 7 | 30 | 17 | 1 | 23 | 42 % | 14 | 3 | 7 | 0 | 36 | 10 |
+| [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 2 | 26 | 17 | 0 | 10 | 22 % | 5 | 2 | 6 | 1 | 33 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 37 | 36 | 1 | 25 | 32 % | 16 | 13 | 23 | 7 | 34 | 7 |
 | [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 24 | 20 | 1 | 15 | 33 % | 13 | 1 | 22 | 11 | 4 | 2 |
-| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 3 | 23 | 8 | 2 | 12 | 33 % | 13 | 3 | 2 | 1 | 21 | 2 |
+| [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 2 | 24 | 8 | 2 | 15 | 42 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
 ## By phase
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 46 | 297 | 85 | 17 | 207 | 47 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 24 | 227 | 230 | 16 | 155 | 31 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F1 | 445 | 40 | 303 | 85 | 17 | 220 | 49 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 497 | 23 | 228 | 230 | 16 | 157 | 32 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 8 | 57 | 0 | 4 | 6 % | 34 | 10 | 20 | 3 | 9 | 4 |
-| F4 | 173 | 4 | 31 | 136 | 2 | 8 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
+| F4 | 173 | 4 | 31 | 136 | 2 | 9 | 5 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
 | F6 | 175 | 0 | 20 | 155 | 0 | 2 | 1 % | 68 | 21 | 52 | 0 | 64 | 18 |
 | F7 | 30 | 1 | 9 | 20 | 0 | 8 | 27 % | 15 | 9 | 17 | 0 | 4 | 4 |
@@ -78,27 +78,11 @@ Outside tools and standards named in each file's Basis and Target columns: known
 - [Documentation and learning](22-documentation-and-learning.md): SCALE; Blender; WCAG
 - [Compliance and privacy](23-compliance-and-privacy.md): OpenMC
 
-## Met without a checker (17)
+## Met without a checker (0)
 
 Marked Met in the Now column, but no test declares `Verifies:` for them.
 
-- MAT-019 (03-activation-and-materials.md)
-- PERF-045 (08-performance.md)
-- SEC-005 (19-security.md)
-- SEC-025 (19-security.md)
-- SEC-032 (19-security.md)
-- SEC-042 (19-security.md)
-- SEC-065 (19-security.md)
-- PLAT-026 (20-platforms-and-distribution.md)
-- PLAT-029 (20-platforms-and-distribution.md)
-- PLAT-030 (20-platforms-and-distribution.md)
-- PLAT-053 (20-platforms-and-distribution.md)
-- QA-010 (21-quality-assurance.md)
-- QA-011 (21-quality-assurance.md)
-- QA-035 (21-quality-assurance.md)
-- LEG-007 (23-compliance-and-privacy.md)
-- LEG-011 (23-compliance-and-privacy.md)
-- LEG-015 (23-compliance-and-privacy.md)
+None.
 
 ## Traced but marked No (0)
 
