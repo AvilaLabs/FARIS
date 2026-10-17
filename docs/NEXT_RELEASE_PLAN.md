@@ -203,7 +203,7 @@ that depends on it starts.
 4. **Real CAD quality.** Real machine STEP files often contain overlaps.
    - GEO-010 asks for a 50-file real STEP corpus, and an open corpus of that size
      is not known to exist.
-   - Test: assemble what is openly licensed (Paramak, ARC V3A-derived, open
+   - Test: assemble what is under an open licence (Paramak, ARC V3A-derived, open
      benchmark geometries).
    - If 50 cannot be reached, the target is revisited with the count found.
 5. **Validation data access.** The FNG experimental tables sit in SINBAD

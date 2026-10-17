@@ -4,8 +4,7 @@
 **Evidence snapshot:** 2026-10-01. The scoped functional/numerical demo is complete for the documented cold
 fixed-source model, canonical recorded-result package, and tested Linux
 workstation configurations; X11 and Wayland results are from that workstation.
-No second-host or cross-platform generalization is claimed. This is not a claim of reactor physics validation or
-engineering qualification. Response-specific validation,
+No second-host or cross-platform generalization is claimed. This is not a claim of reactor physics validation or engineering sign-off. Response-specific validation,
 local precision/refinement, uncertainty propagation, material and data
 provenance, and physical energy/service-limit bases remain open as detailed below.
 
@@ -13,7 +12,7 @@ provenance, and physical energy/service-limit bases remain open as detailed belo
 
 | Roadmap IDs | Status | Evidence and remaining gap |
 | --- | --- | --- |
-| S01–S06 | Supported within the tested cold-demo boundary | The native walkthrough passed 23 checkpoints, including genuine Core compilation, all four saved Core cases, typed study selections/dependencies, explicit input provenance, and scoped result states. The exact control/port comparisons and all four transport identities are in the canonical indexed package. Remaining limitations concern physical model qualification and response uncertainty, not the demonstrated study-control flow. See `references/native-demo-verification.json` and `references/portable-history-comparison-verification.json`. |
+| S01–S06 | Supported within the tested cold-demo boundary | The native walkthrough passed 23 checkpoints, including genuine Core compilation, all four saved Core cases, typed study selections/dependencies, explicit input provenance, and scoped result states. The exact control/port comparisons and all four transport identities are in the canonical indexed package. Remaining limitations concern physical model assessment and response uncertainty, not the demonstrated study-control flow. See `references/native-demo-verification.json` and `references/portable-history-comparison-verification.json`. |
 | G01–G02, G06–G07 | Supported for tested authored geometries and views | The 0.08 m plasma-to-first-wall void is explicit; each corrected primary run passed 117 scenario-bound ownership probes and clearance checks. Native camera, cutaway, identity changes, and picks were exercised while solver input identity/full-component volume remained independent of display changes. The viewport labels geometric surrogates; the finite port and homogenized components remain authored geometric abstractions, not validated hardware geometry. Earlier clearance-defective records remain superseded. See `references/native-demo-verification.json`. |
 | G03–G05 | Supported for the authored cases | Corrected finite-port and feature-free control geometries were executed at the same 24×12×24 local mesh bounds. The independent port-volume reports pass for the affected component cells, with SciPy adaptive quadrature, OpenMC point classification, and Rust mesh-volume checks recorded as distinct checks. This establishes consistency of the authored CSG partition and volume normalization, not physical adequacy of the penetration model. |
 | A01–A02, A04–A06 | Partial | Cold numerical material recipes, mixture/source conventions, source strength, solver/worker identities, and run settings are recorded. Independent arithmetic verifies the 525 MW D-T strength and tally-unit conversions. Material temperatures/operating states are unspecified; recipes are not validated component assays. The modeled source is a declared idealization, not a validated plasma source. |

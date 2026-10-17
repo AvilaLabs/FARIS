@@ -5,9 +5,8 @@
 Scans Rust string literals in the crate sources, the string literals of the
 package script, the browser page, and the Markdown documents users read. It
 does not scan comments, tests or docs/requirements/, which name forbidden words
-in order to forbid them. The design documents under docs/ that use "qualification"
-in its technical sense are scanned as advisory: their findings are printed, and
-fail only with --strict. Website copy lives in another repository; run
+in order to forbid them. A document listed in ADVISORY_MARKDOWN (none now) is scanned
+as advisory: its findings are printed, and fail only with --strict. Website copy lives in another repository; run
 `wording_lint.py --extra DIR` from there (or CI) to scan its .html and .md files.
 
 Rules (word lists are versioned in wording_lint_terms.json):
@@ -42,13 +41,9 @@ ROOT = Path(__file__).resolve().parent.parent
 TERMS = Path(__file__).with_name("wording_lint_terms.json")
 RUST_DIRS = ["crates/*/src"]
 MARKDOWN = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "docs/*.md", "docs/guide/*.md", "integrations/*/README.md"]
-# Design documents that use "qualification" and "licence" in their technical senses.
-ADVISORY_MARKDOWN = {
-    "docs/COLD_REFERENCE.md", "docs/CORE_STUDIES.md", "docs/DEMO_ACCEPTANCE.md", "docs/DEMO_INPUT_SPEC.md",
-    "docs/DEMO_ROADMAP.md", "docs/DEMO_WALKTHROUGH.md", "docs/NEXT_RELEASE_PLAN.md", "docs/NUMERICAL_CONTROLS.md",
-    "docs/OPERATING_HISTORY.md", "docs/RELEASING.md", "docs/SCIENTIFIC_BASELINE.md", "docs/STUDY_FILE.md",
-    "docs/VALIDATION.md", "integrations/avila-core/README.md",
-}
+# Documents whose findings are printed but do not fail (--strict makes them fail). Empty: the design documents
+# that used "qualification" and "licence" in their technical senses were reworded (VAL-090).
+ADVISORY_MARKDOWN: set[str] = set()
 # Third-party licence texts: they say "licensed" because that is what they are.
 SKIPPED_MARKDOWN = {"docs/THIRD_PARTY_NOTICES.md", "docs/CORE_RUNTIME_DEPENDENCY_NOTICES.md"}
 HTML = ["crates/faris-app/index.html"]
@@ -263,7 +258,10 @@ def negated(before: str, after: str, terms: dict) -> bool:
         any(p.replace("_", " ") in ahead.lower() for p in terms["limiting_following_phrases"])
 
 
-def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | None = None) -> list[Finding]:
+def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | None = None,
+              code_spans: bool = False) -> list[Finding]:
+    """Findings in `units`. With `code_spans` (Markdown), a verdict-word variant or synonym inside a `code span`
+    is a verbatim identifier (a status id, a solver status) and is not reported; LEG-043 still applies to prose."""
     allow = {(a["rule"], normalise(a["text"])) for a in terms["allow_list"]}
     findings: list[Finding] = []
     claim = re.compile(r"\b(?:" + "|".join(terms["forbidden_claims"]) + r")\b", re.I)
@@ -304,7 +302,12 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
                 report("LEG-042", m)
             canonical = set(vw["canonical_forms"])
             at_start = set(vw["sentence_start_forms"])
+            def in_code(m: re.Match) -> bool:
+                return code_spans and sentence.count("`", 0, m.start()) % 2 == 1
+
             for m in variant.finditer(sentence):
+                if in_code(m):
+                    continue
                 token = m.group(0)
                 if token in canonical:
                     continue
@@ -312,7 +315,8 @@ def lint_text(path: str, units: list[tuple[str, int]], terms: dict, used: set | 
                     continue
                 report("LEG-043", m)
             for m in synonym.finditer(sentence):
-                report("LEG-043", m)
+                if not in_code(m):
+                    report("LEG-043", m)
             for m in list(names_ci.finditer(sentence)) + list(names_cs.finditer(sentence)):
                 report("LEG-044", m)
     return findings
@@ -366,7 +370,7 @@ def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | No
             if path in seen or name in SKIPPED_MARKDOWN:
                 continue
             seen.add(path)
-            found = lint_text(name, markdown_units(path.read_text(encoding="utf-8")), terms, used)
+            found = lint_text(name, markdown_units(path.read_text(encoding="utf-8")), terms, used, code_spans=True)
             if name in ADVISORY_MARKDOWN:
                 found = [replace(f, advisory=True) for f in found]
             findings += found
@@ -379,7 +383,7 @@ def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | No
             if path.suffix in (".md", ".html", ".htm") and path.is_file() and "node_modules" not in path.parts:
                 text = path.read_text(encoding="utf-8")
                 units = markdown_units(text) if path.suffix == ".md" else html_units(text)
-                findings += lint_text(str(path), units, terms, used)
+                findings += lint_text(str(path), units, terms, used, code_spans=path.suffix == ".md")
     findings += lint_names(root, terms)
     for entry in terms["allow_list"]:
         if (entry["rule"], normalise(entry["text"])) not in used:

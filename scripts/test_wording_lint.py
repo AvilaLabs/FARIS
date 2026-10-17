@@ -2,6 +2,7 @@ import copy
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -136,7 +137,7 @@ fn b() { "after" }
             self.assertNotIn("straight channel", (root / name).read_text(encoding="utf-8"), name)
 
     def test_repository_is_clean(self):
-        self.assertEqual([f.render() for f in lint.run() if not f.advisory], [])
+        self.assertEqual([f.render() for f in lint.run()], [])
 
 
 class RegulatorAndSourceTests(unittest.TestCase):
@@ -168,8 +169,21 @@ class RegulatorAndSourceTests(unittest.TestCase):
             (Path(root) / "docs").mkdir()
             (Path(root) / "docs" / "VALIDATION.md").write_text("A qualified range.\n", encoding="utf-8")
             (Path(root) / "docs" / "OTHER.md").write_text("A qualified range.\n", encoding="utf-8")
-            findings = lint.run(Path(root), {**TERMS, "allow_list": []})
+            with mock.patch.object(lint, "ADVISORY_MARKDOWN", {"docs/VALIDATION.md"}):
+                findings = lint.run(Path(root), {**TERMS, "allow_list": []})
         self.assertEqual(sorted((f.path, f.advisory) for f in findings), [("docs/OTHER.md", False), ("docs/VALIDATION.md", True)])
+
+    # Verifies: VAL-090
+    def test_no_document_is_advisory_so_every_finding_in_the_repository_fails(self):
+        self.assertEqual(lint.ADVISORY_MARKDOWN, set())
+        self.assertEqual(lint.run(), [])
+
+    # Verifies: LEG-043
+    def test_a_status_id_in_a_markdown_code_span_is_verbatim_but_prose_is_not(self):
+        units = [("The status is `not_evaluated` and the solver status `FAILED`; a not_evaluated ensemble is stored.", 1)]
+        rules = [f.text for f in lint.lint_text("d.md", units, TERMS, code_spans=True)]
+        self.assertEqual(rules, ["not_evaluated"])
+        self.assertEqual(len(lint.lint_text("d.md", units, TERMS)), 3)
 
 
 if __name__ == "__main__":

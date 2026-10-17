@@ -45,8 +45,7 @@ The local open-benchmarks checkout contains ITER_1D OpenMC `geometry.xml`,
 It contains no ITER_1D or HCPB experimental-results directory; its available
 experimental files include FNS, Oktavian, and TIARA cases. Preserve a pinned
 copy/revision and hashes of any reference inputs actually used. The project
-checkout describes the benchmark collection as work in progress and identifies
-CC-BY-4.0 licensing; it is useful provenance, not a substitute for auditing the
+checkout describes the benchmark collection as work in progress and identifies the CC-BY-4.0 licence; it is useful provenance, not a substitute for auditing the
 benchmark specification and source experimental report.
 
 ## Evidence and present readiness
@@ -110,8 +109,7 @@ percent tolerance in advance of response-specific uncertainty extraction.
 
 Passing an uncertainty compatibility check means the result is statistically
 consistent with the experiment at the stated coverage level. It is one piece of
-validation evidence, not proof of model qualification. Qualification of a
-specific FARIS response additionally requires a defined applicability domain,
+validation evidence, not proof of model qualification. Fitness of a specific FARIS response for a stated use additionally requires a defined applicability domain,
 adequate benchmark relevance, checks for systematic bias and model-form error,
 complete material/source/geometry uncertainty treatment, and independent
 numerical verification. Preserve these as separate findings and scopes.
@@ -133,7 +131,7 @@ uncertainty; use independent seeds or batch estimates as a stability check.
 | Analytic numerical controls | Correct source-rate conversion, reaction-energy arithmetic, units, simple geometry volumes, volume/strength normalization, and Rust ledger conservation in limiting cases | Nuclear data accuracy or reactor-design accuracy |
 | Code-to-code benchmark (JADE ITER_1D) | Independent implementation/input agreement for identical modeled problem, after reconciling physics/data/settings | Agreement with nature; independence may be reduced by shared data and common modeling assumptions |
 | Experimental benchmark (FNG SINBAD) | Agreement of specified response(s) for measured mock-up, conditional on experiment/model uncertainty and exact benchmark reproduction | Whole-device performance, dissimilar materials/geometries, blanket self-sufficiency, magnet life, or economic/operating projections |
-| Design-level FARIS calculation | Conditional comparative consequence of the declared two FARIS inputs under the declared stationary transport and Rust assumptions | Qualified ARC design, lifetime, component survivability, thermal-hydraulic/stress safety, or tritium self-sufficiency in an engineered plant |
+| Design-level FARIS calculation | Conditional comparative consequence of the declared two FARIS inputs under the declared stationary transport and Rust assumptions | Engineering-grade ARC design, lifetime, component survivability, thermal-hydraulic/stress safety, or tritium self-sufficiency in an engineered plant |
 
 The documented HCPB mock-up tritium prediction uncertainty is reported as about
 8–10% at 2-sigma including experimental, calculation-statistical, and nuclear
@@ -200,7 +198,7 @@ unresolved in the generated study and blocks dependent physical claims.
 - [OECD-NEA SINBAD: FNG HCPB TBM mock-up](https://www.oecd-nea.org/science/wprs/shielding/sinbad/fng_hcpb/fnghcpb-a.htm).
 - [Batistoni et al., HCPB mock-up sensitivity/uncertainty analysis](https://doi.org/10.1016/j.fusengdes.2007.08.007) — response-specific prediction and combined uncertainty evidence.
 - [IAEA report INDC(NDS)-0631](https://www-nds.iaea.org/publications/indc/indc-nds-0631.pdf) — fusion neutronics experimental benchmark descriptions and measurement context.
-- [IAEA-NDS/open-benchmarks repository](https://github.com/IAEA-NDS/open-benchmarks) and [JADE benchmark input conventions](https://github.com/IAEA-NDS/open-benchmarks/blob/main/jade_open_benchmarks/jade_benchmarks.md) — local ITER_1D/HCPB templates, per-code input versions, and CC-BY-4.0 repository licensing (verify local pinned revision before use).
+- [IAEA-NDS/open-benchmarks repository](https://github.com/IAEA-NDS/open-benchmarks) and [JADE benchmark input conventions](https://github.com/IAEA-NDS/open-benchmarks/blob/main/jade_open_benchmarks/jade_benchmarks.md) — local ITER_1D/HCPB templates, per-code input versions, and CC-BY-4.0 repository licence (verify local pinned revision before use).
 - [OpenMC data configuration](https://docs.openmc.org/en/stable/usersguide/data.html) and [tallies](https://docs.openmc.org/en/stable/usersguide/tallies.html) — supported external data configuration, processing paths, score units, and normalization.
 - [OpenMC distributed cross-section libraries](https://openmc.org/data/) — describes the downloadable FENDL-3.2 HDF5 library as converted from IAEA-NDS ACE data, with neutron data at 293.6 K and photoatomic data. This establishes the intended upstream library identity, not a byte-for-byte check of the local archive.
 - [IAEA INDC(NDS)-0797](https://www-nds.iaea.org/publications/indc/indc-nds-0797.pdf) — FENDL-3.2 technical meeting recommendations for total KERMA MT 301 heating and using TENDL-2017 activation MT 444 data for DPA; pin the relevant evaluation and response before an exposure claim.

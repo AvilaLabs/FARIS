@@ -32,7 +32,7 @@ data:
 | --- | --- | --- |
 | Solid breeder-like salt | Li2BeF4 stoichiometry, 90 atom% Li-6 / 10 atom% Li-7; one Li2BeF4 formula unit has atom fractions Li-6 0.2571428571, Li-7 0.0285714286, Be-9 0.1428571429, F-19 0.5714285714. Set `rho = 2137.175 kg/m3` as an authored model assumption. | The 2025 X-ray density trend for **solid** Li2BeF4 was 2179.1(3) - 0.114(1) T_C kg/m3 at 7Li/6Li = 10500(500), with natural Be/F and BeF2 mole fraction 1/3 over 20–449°C. At 293.6 K, the published isotope-basis value is ~2176.8 kg/m3. The candidate value mass-reweights the formula unit to 90%-Li6 at fixed measured crystal-cell volume. It is not a measured 90%-Li6 density; isotope-related lattice change, batch chemistry, impurities, and uncertainty of this transfer are unquantified. The source measured a crystal, so it also does not establish a homogenized operating blanket bulk density. ARC separately tabulates 1940 kg/m3 at 950 K for FLiBe; its isotope/composition basis is not specified well enough to replace this cold-state model assumption. |
 | First-wall armor | Natural-isotope elemental tungsten, `rho = 19,300 kg/m3`. | Pure dense W proxy, sourced at near-room temperature from NIST. Does not encode tile joints, coating, texture, impurities, or high-temperature expansion. ARC used 1 cm W in one design calculation; its thickness is a precedent, not this case's validated requirement. |
-| Structure | Natural-isotope pure iron shell, `rho = 7,874 kg/m3`. | Deliberate composition surrogate for the ARC-named Inconel 718 structure; it is **not Inconel 718**. NIST's reported pure Fe density is 7.874 ±0.001 g/cm3. Alloying/ribbing/welds/structural qualification are excluded. |
+| Structure | Natural-isotope pure iron shell, `rho = 7,874 kg/m3`. | Deliberate composition surrogate for the ARC-named Inconel 718 structure; it is **not Inconel 718**. NIST's reported pure Fe density is 7.874 ±0.001 g/cm3. Alloying/ribbing/welds/structural assessment are excluded. |
 | Separate neutron multiplier | Natural Be, represented by Be-9, `rho = 1,850 kg/m3`. | Dense elemental Be reference from NIST. The ARC paper's separate multiplier is a 1 cm non-structural layer; any implemented thickness must be explicitly identified as the selected FARIS model value. It is distinct from Be already present in the salt. |
 | Neutron shield | Ideal stoichiometric TiH2, natural Ti and H isotope abundances, `rho = 3,750 kg/m3`. | Theoretical crystalline density from a primary powder-compaction study. ARC describes TiH2 powder; do not equate theoretical crystal density with actual packed-bed bulk density. No powder void, canister, or water channels are represented by this recipe. H/Ti stoichiometry and hydrogen retention are assumptions. |
 | Magnet response surrogate | Natural-isotope pure Cu toroidal shell, `rho = 8,960 kg/m3`. | NIST selected-metal value at 295 K. It is an outer response tally region, not a REBCO coil, insulation package, structural winding, or failure model. Report transport fluence/damage-energy response in this surrogate only; never label it coil failure or service life. |
@@ -120,8 +120,7 @@ until provenance/licensing are established.
 All material and nuclear data are cold-data inputs. This case cannot be used as
 the hot ARC-like design case: ARC reports flowing FLiBe around 800–900 K, whereas
 the available target nuclear data here are one 294 K group. No temperature
-interpolation, Doppler processing or extrapolation has been qualified for this
-scenario. The cold solid-salt density, phase, and no-flow assumption are not a
+interpolation, Doppler processing or extrapolation has been assessed for this scenario. The cold solid-salt density, phase, and no-flow assumption are not a
 substitute for liquid-salt thermophysical behavior.
 
 ## Claim boundary and next gates
@@ -133,7 +132,7 @@ authored materials, source, nuclear data and history. It cannot establish:
 - ARC's geometry, source recipe, TBR, shield thickness, heating, or magnet life;
 - plant blanket performance, self-sufficiency, temperature feedback or power;
 - enriched molten-salt density or hot nuclear-data response;
-- experimental validation or qualified prediction of a FARIS design;
+- experimental validation or an engineering-grade prediction of a FARIS design;
 - coil degradation, lifetime, replacement schedule, or net electricity.
 
 Before treating even the cold comparison as ready, verify the exact region

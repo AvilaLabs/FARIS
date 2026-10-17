@@ -23,7 +23,7 @@ condition passes. It uses only the Python standard library.
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
 | 0 open S1 defects, 0 open S2 defects without a waiver (QA-083), and no data-loss defect that is not fixed (REL-044) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
 
-A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,
+A condition the script cannot decide from the repository takes a file as input and fails when the file is absent,
 empty, not valid JSON or for another commit. Nothing passes by default. The formats are in the script's header.
 
 Before a release, regenerate both matrices and commit them (`python3 -m validation matrix` then
@@ -36,8 +36,12 @@ At release time:
 python3 -m validation report --out vv --release-record release-record.json
 python3 scripts/release_gate.py --vv-report vv --release-record release-record.json \
     --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
-    --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
+    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json --archive gate-output.txt
 ```
+
+`a11y-previous.json` is the accessibility snapshot of the previous release (A11Y-055). Write the snapshot of each
+release with `python3 scripts/a11y_regression.py snapshot --tests tests.json --out a11y-snapshot.json` and archive it
+with the release record; the gate fails when a check of A11Y-001 to A11Y-046 that passed there fails or goes unrun now.
 
 Archive `gate-output.txt`, `release-record.json` and the `vv` directory with the release record. The gate is not a
 CI step on ordinary commits: it fails until the gate requirements are Met, which is the intended result. It is
@@ -52,7 +56,7 @@ checklist. Add `--faris` for the command-line reference and `--cargo` if cargo i
 ```sh
 python3 scripts/release_gate.py --faris target/release/faris --vv-report vv --release-record release-record.json \
     --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
-    --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
+    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json --archive gate-output.txt
 ```
 
 The extra conditions are: every requirement marked Met has a test marker (QA-071); the waivers file is complete and
@@ -173,6 +177,6 @@ committed `matrix.json` differs from what the registry and manifests generate.
 
 `python3 -m validation report --out DIR --release-record FILE` writes `report.json`, `report.md` and `report.sha256`,
 and records the report's SHA-256 in the release record. The report holds the methods, the matrix, the C/E
-distributions per case and response class, the qualified ranges, the known issues and the date of the last run of
+distributions per case and response class, the covered ranges, the known issues and the date of the last run of
 each benchmark (`run_date` in the run record). List every row labelled "not validated" in the release notes
 (VAL-051).

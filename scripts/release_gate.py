@@ -20,6 +20,8 @@ Conditions read from the repository (--root, default this checkout):
   source files in the tree (VAL-037, `python3 -m validation matrix` and `python3 -m validation models`);
 - wording lint is clean;
 - every requirement marked Met anywhere in the tables has a Verifies: marker in a test (QA-071);
+- no accessibility check of A11Y-001 to A11Y-046 that passed in the previous release's snapshot (--a11y-baseline)
+  fails or goes unrun in this release's test evidence (A11Y-055, scripts/a11y_regression.py);
 - the waivers file docs/release-waivers.json is complete and unexpired (QA-072).
 
 An open S2 defect is waived in the same file with its defect id (FARIS-NNN) as the condition, or by a "waiver"
@@ -97,7 +99,7 @@ class Gate:
         self.matrix: Path | None = None
         self.vv_report: Path | None = None
         self.release_record: Path | None = None
-        self.evidence = {name: None for name in ("tests", "perf", "defects", "fuzz", "repro", "doc_tests")}
+        self.evidence = {name: None for name in ("tests", "perf", "defects", "fuzz", "repro", "doc_tests", "a11y_baseline")}
         self.repo_checks = False  # the command line turns these on; run_gate on a fixture tree leaves them off
         self.faris: Path | None = None
         self.cargo = "cargo"
@@ -345,6 +347,17 @@ def _checks(name: str, what: str):
             return False, f"{len(bad)} of {len(checks)} checks are not PASS: " + ", ".join(bad[:5])
         return True, f"all {len(checks)} checks are PASS for commit {g.commit[:12]}"
     return check
+
+
+def check_a11y(g: Gate):
+    """A11Y-055: no accessibility check that passed in the previous release fails or goes unrun in this one."""
+    import a11y_regression
+    baseline = read_json(g.evidence["a11y_baseline"], "accessibility snapshot of the previous release")
+    current = a11y_regression.snapshot(_evidence(g, "tests", "test evidence"), g.root)
+    new, known = a11y_regression.compare(baseline, current)
+    if new:
+        return False, f"{len(new)} new accessibility failures: " + "; ".join(new[:5])
+    return True, f"no new accessibility failures against the snapshot of {str(baseline.get('commit'))[:12]} ({len(known)} known gaps)"
 
 
 def check_fuzz(g: Gate):
@@ -603,6 +616,7 @@ CONDITIONS = (
     ("all tests pass", "QA-070", _checks("tests", "test evidence")),
     ("performance gates pass", "PERF-051", _checks("perf", "performance evidence")),
     ("no open S1, no open S2 without a waiver", "QA-083", check_defects),
+    ("no new accessibility failures", "A11Y-055", check_a11y),
     ("fuzz clean", "QA-033", check_fuzz),
     ("reproducible build", "QA-063", check_repro),
     ("documentation tests pass", "QA-016", _checks("doc_tests", "documentation-test evidence")),
@@ -644,6 +658,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--defects", type=Path, help="defect log")
     ap.add_argument("--fuzz", type=Path, help="fuzz results evidence")
     ap.add_argument("--repro", type=Path, help="reproducible-build evidence")
+    ap.add_argument("--a11y-baseline", dest="a11y_baseline", type=Path,
+                    help="accessibility snapshot of the previous release (scripts/a11y_regression.py snapshot)")
     ap.add_argument("--doc-tests", dest="doc_tests", type=Path, help="documentation test evidence")
     ap.add_argument("--archive", type=Path, help="also write the output here, for the release record")
     ap.add_argument("--faris", type=Path, help="the faris binary, for the command-line reference check")

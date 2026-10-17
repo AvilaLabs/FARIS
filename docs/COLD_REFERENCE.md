@@ -8,8 +8,7 @@ mapping, and Rust normalization. Corrected production fixtures are
 two authored radial allocations and explicit cold-data material recipes. The
 historical `arc-cold-reference-001` fixture is not the identity used by the
 corrected coupled production records. This is **not** the ARC reactor, an
-operating liquid blanket model, an experimental benchmark reproduction, or a
-qualified design prediction. Keep scientific qualification `NOT_EVALUATED`.
+operating liquid blanket model, an experimental benchmark reproduction, or a design prediction for an engineered plant. Keep scientific qualification `NOT_EVALUATED`.
 
 ## Scenario and physical inputs
 
@@ -112,7 +111,7 @@ ordering is checked through OpenMC's own `RegularMesh.indices` iterator before
 tally export: zero-based bin 0 maps to `(1,1,1)`, x increments fastest, then y,
 then z. A nonzero exit, incomplete/mismatched statepoint, non-finite score, log
 limit exceedance, or logged lost particle fails execution. The worker output
-records execution status separately from scientific qualification.
+records execution status separately from scientific assessment.
 
 The requested H3-production score is the modeled gross tritium birth rate per
 source neutron. Its whole-model tally is a reconciliation diagnostic and can

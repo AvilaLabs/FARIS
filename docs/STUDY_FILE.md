@@ -241,11 +241,9 @@ history re-run on rates drawn from the recorded transport means and covariance
 so each finished ensemble is stored as a derived blob and reused on open.
 
 - **Blob.** The `HistoryEnsemble` as JSON (sampled rates, every per-sample
-  outcome, the summaries and the 361-point series bands, or the not-evaluated
-  reason and next step). Media type
+  outcome, the summaries and the 361-point series bands, or the not evaluated reason and next step). Media type
   `application/vnd.avila-labs.faris-history-ensemble+json`, encoding
-  `verbatim`, hashed like every other blob. A not-evaluated ensemble is stored
-  too, with its reasons.
+  `verbatim`, hashed like every other blob. A not evaluated ensemble is stored too, with its reasons.
 - **Key.** Each manifest entry carries the full identity of the calculation:
   `method` (`faris-history-ensemble/v1`), `history_model` (the ledger's
   processing-model identity), `samples`, `seed` (as a string, so no reader

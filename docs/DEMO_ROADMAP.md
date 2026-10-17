@@ -28,7 +28,7 @@ qualification.
 The [scientific baseline](SCIENTIFIC_BASELINE.md), [cold model boundary](COLD_REFERENCE.md),
 [operating-history controls](OPERATING_HISTORY.md), and
 [coupled Li-6 control](LITHIUM_CAPTURE_CONTROL.md) distinguish numerical
-verification from physical qualification. Material operating state, reactor
+verification from physical assessment. Material operating state, reactor
 reference responses, nuclear-data applicability and engineering limits remain
 unqualified. Those gaps restrict claims; completed solver jobs and verified
 Core receipts do not turn them into physical passes.
@@ -42,7 +42,7 @@ Core receipts do not turn them into physical passes.
 | M4 | Complete within the scoped spatial boundary: corrected ownership/volumes, sampling/window and fine/coarse diagnostics, calculated fields, picking and native presentation verified; local-map convergence remains NOT_EVALUATED |
 | M5 | Complete within the deterministic numerical boundary: all four drivers verified at 600/500/250 s, independent conservation/event/energy checks, paired comparisons, 27-point reruns and outage-duration probes |
 | M6 | Complete: all four genuine Core cases verified and reopened after relocation; fresh native four-stage execution re-inspected after app exit; scoped findings, dependency/edit flow and CLI replay verified |
-| M7 | Complete on the named workstation: final indexed distribution, native walkthrough, supported input edit/recalculation, real solver cancellation/recovery, exports and measured startup/frame throughput; physical qualification and second-host execution remain unevaluated |
+| M7 | Complete on the named workstation: final indexed distribution, native walkthrough, supported input edit/recalculation, real solver cancellation/recovery, exports and measured startup/frame throughput; physical assessment and second-host execution remain unevaluated |
 
 ## The result we are building
 
@@ -136,7 +136,7 @@ Before quantitative implementation, settle and record:
 - Recoverable-heat accounting, thermal efficiency, operating/outage auxiliary
   loads, and the meaning of reported net electricity.
 - The pinned Core implementation/profile, supported binding interface, and
-  uncertainty/qualification policy for this research study.
+  uncertainty/assessment policy for this research study.
 - A named demonstration workstation and acceptable run/resource budgets.
 
 These choices are implementation prerequisites, not requests for a predetermined
@@ -264,14 +264,14 @@ Damage-energy is not automatically a calibrated magnet lifetime or DPA response.
 A breeding ratio above one is not itself a fuel-sufficiency result. Sufficiency
 depends on the modeled losses, delays, reserves, decay, and operating schedule.
 Service-limit projections are conditional scenario results unless their response
-model and limits have supporting qualification for the stated use.
+model and limits have supporting assessment for the stated use.
 
 ### C — Comparison and uncertainty
 
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
 | C01 | Compare both arrangements using common definitions and operating assumptions | Input diff, common criteria, and comparable outputs accompany every comparison |
-| C02 | Distinguish Monte Carlo sampling uncertainty, assumed parameter ranges, model discrepancy, and qualified bounds | Display and records name the uncertainty source and interpretation; sampling error is not advertised as total uncertainty |
+| C02 | Distinguish Monte Carlo sampling uncertainty, assumed parameter ranges, model discrepancy, and bounded claims | Display and records name the uncertainty source and interpretation; sampling error is not advertised as total uncertainty |
 | C03 | Assess differences with appropriate dependence/covariance treatment | Seeds/replicates and any correlation assumptions are recorded; a directional claim is made only when supported |
 | C04 | Show breeding, selected magnet response, fuel inventory, operating availability, events, and cumulative net electricity together | Tables/plots share input/run identity and timeline; unavailable values remain absent |
 | C05 | Include a small sensitivity study of the consequential lifetime assumptions | A bounded sweep covers recovery/loss and service-limit/outage assumptions, with ranges justified and histories recalculated |
@@ -291,7 +291,7 @@ model and limits have supporting qualification for the stated use.
 | K08 | Use a few coarse executable stages and reusable packaging | Geometry/material preparation, transport/normalization, and operating-history/comparison stages have documented boundaries; no contract per component or time step |
 | K09 | Use real execution/evidence records for Core-backed results | Declared executable/input/output identities and receipts verify; admissible claims and requirement verdicts derive from those bound records |
 | K10 | Preserve all four assessment states and their scope | `PASS`, `FAIL`, `INCONCLUSIVE`, and `NOT_EVALUATED` remain distinct; unsupported/omitted analyses cannot appear as established requirements |
-| K11 | Keep research assumptions and qualification gaps visible | A conditional service-limit scenario or unqualified estimate cannot be presented as a qualified physical prediction; policy changes are explicit |
+| K11 | Keep research assumptions and assessment gaps visible | A conditional service-limit scenario or unassessed estimate cannot be presented as a physical prediction; policy changes are explicit |
 | K12 | Keep normal FARIS execution independently usable and measure integration effort | Shared Rust operations and CLI work without the UI; adding the same study requires generated/reusable metadata, with setup and upkeep recorded |
 
 FARIS owns domain dependency expansion and contract materialization. Core checks
@@ -423,7 +423,7 @@ Record what is reused and independently recheck its implementation and boundary.
 | P03 | Provide a separate documented fresh-run path | Required solver/data versions and acquisition steps reproduce the study without hidden author-only files; licenses govern bundled data |
 | P04 | Export a portable study/evidence bundle | Scenario, selections, assumptions, generated contract/registry, applicable bound records, result formats, identities, and verification instructions are included; required external data is identified |
 | P05 | Provide a short walkthrough and a factual capability statement | Demonstration explains the question, calculation, local effect, operating consequence, uncertainty, and reproducibility; current limitations accompany the result |
-| P06 | Leave repository and artifacts maintainable | Source/build lockfiles, focused checks, AGPL-3.0-only project licensing, documented third-party/data terms, and ignored heavyweight run/data directories are ready; no implicit GitHub publication |
+| P06 | Leave repository and artifacts maintainable | Source/build lockfiles, focused checks, AGPL-3.0-only project licence, documented third-party/data terms, and ignored heavyweight run/data directories are ready; no implicit GitHub publication |
 
 ## Completion criteria for the finished demo
 
