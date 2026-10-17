@@ -1,0 +1,369 @@
+<!-- Schedule 23 Part 3 (Tables of radionuclides and summation rules) of The Environmental Permitting (England and Wales) Regulations 2016, SI 2016/1154,
+     as in force (E+W, restricted start 2019-01-07), extracted from https://www.legislation.gov.uk/uksi/2016/1154/schedule/23/data.xml
+     retrieved 2026-10-16 (file SHA-256 729f70acddc62652577e7e16df08f1c23af36a880c387024554241bb2a83f836, legislation.gov.uk dc:modified 2026-09-07). -->
+<!-- Part 2 paragraph 6 reads: Radionuclides not of natural terrestrial or cosmic origin 6 A substance or article which contains one or more radionuclides that are not of natural terrestrial or cosmic origin is radioactive material or radioactive waste where— a the substance or article is a solid or a relevant liquid and it has a concentration of radioactivity which exceeds the value specified in column 2 of Table 2, or b the substance is any other liquid or a gas.  -->
+<Part xmlns="http://www.legislation.gov.uk/namespaces/legislation" xmlns:ns2="http://www.w3.org/1999/XSL/Format" xmlns:xhtml="http://www.w3.org/1999/xhtml" id="schedule-23-part-3"><Number><Strong>PART 3</Strong></Number><Title>Tables of radionuclides and summation rules</Title><P1group><Title>Table 1</Title><P1 id="schedule-23-part-3-paragraph-1" shortId="schedule-23-paragraph-1"><Pnumber>1</Pnumber><P1para><P2 id="schedule-23-part-3-paragraph-1-1" shortId="schedule-23-paragraph-1-1"><Pnumber>1</Pnumber><P2para><Text>The Table 1 referred to in paragraph 4 of Part 2 (NORM industrial activities) is—</Text></P2para><Tabular Orientation="portrait"><Number>Table 1</Number><Title>Concentration of radionuclides: NORM industrial activities</Title><xhtml:table cols="4"><xhtml:colgroup><xhtml:col width="25%" /><xhtml:col width="25%" /><xhtml:col width="25%" /><xhtml:col width="25%" /></xhtml:colgroup><xhtml:tbody>
+<xhtml:tr><xhtml:th><Emphasis>Radionuclide</Emphasis></xhtml:th><xhtml:th><Emphasis>Solid or relevant liquid concentration in becquerels per gram (Bq/g)</Emphasis></xhtml:th><xhtml:th><Emphasis>Any other liquid concentration in becquerels per litre (Bq/l)</Emphasis></xhtml:th><xhtml:th><Emphasis>Gaseous concentration in becquerels per cubic metre (Bq/m<Superior>3</Superior>)</Emphasis></xhtml:th></xhtml:tr>
+<xhtml:tr><xhtml:td>U-238sec <CommentaryRef Ref="c23193741" /></xhtml:td><xhtml:td> <Substitution>1</Substitution> </xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-238+</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-234</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-230</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-226+</xhtml:td><xhtml:td> <Substitution>1</Substitution> </xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pb-210+</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Po-210</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-235sec</xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.0001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-235+</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pa-231</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ac-227+</xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-232sec</xhtml:td><xhtml:td> <Substitution>1</Substitution> </xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-232</xhtml:td><xhtml:td>5</xhtml:td><xhtml:td>10</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-228+</xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.1</xhtml:td><xhtml:td>0.01</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-228+</xhtml:td><xhtml:td> <Substitution>1</Substitution> </xhtml:td><xhtml:td>1</xhtml:td><xhtml:td>0.001</xhtml:td></xhtml:tr></xhtml:tbody></xhtml:table></Tabular></P2><P2 id="schedule-23-part-3-paragraph-1-2" shortId="schedule-23-paragraph-1-2"><Pnumber>2</Pnumber><P2para><Text>The Table 1 summation rule in respect of column 2, 3 or 4 means the sum of the quotients A/B where—</Text><P3 id="schedule-23-part-3-paragraph-1-2-a" shortId="schedule-23-paragraph-1-2-a"><Pnumber>a</Pnumber><P3para><Text>“<Term id="term-a">A</Term>” means the concentration of each radionuclide listed in column 1 of Table 1 that is present in the substance or article, and</Text></P3para></P3><P3 id="schedule-23-part-3-paragraph-1-2-b" shortId="schedule-23-paragraph-1-2-b"><Pnumber>b</Pnumber><P3para><Text>“<Term id="term-b">B</Term>” means the concentration of that radionuclide specified in column 2, 3 or 4 (as appropriate) of Table 1.</Text></P3para></P3></P2para></P2></P1para></P1></P1group><P1group><Title>Table 2</Title><P1 id="schedule-23-part-3-paragraph-2" shortId="schedule-23-paragraph-2"><Pnumber>2</Pnumber><P1para><P2 id="schedule-23-part-3-paragraph-2-1" shortId="schedule-23-paragraph-2-1"><Pnumber>1</Pnumber><P2para><Text>The Table 2 referred to in paragraph 5 of Part 2 (processed radionuclides of natural terrestrial or cosmic origin) and paragraph 6 of that Part (radionuclides not of natural terrestrial or cosmic origin) is—</Text></P2para><Tabular Orientation="portrait"><Number>Table 2</Number><Title>Concentration of radionuclides</Title><xhtml:table cols="2"><xhtml:colgroup><xhtml:col width="133pt" /><xhtml:col width="212.6pt" /></xhtml:colgroup><xhtml:thead>
+<xhtml:tr><xhtml:th><Substitution>Radionuclide</Substitution></xhtml:th><xhtml:th><Substitution>Concentration in becquerels per gram (Bq/g)</Substitution></xhtml:th></xhtml:tr></xhtml:thead><xhtml:tbody>
+<xhtml:tr><xhtml:td><Substitution>H-3</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Be-7</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>C-14</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>F-18</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Na-22</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Na-24</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Si-31</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>P-32</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>P-33</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>S-35</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cl-36</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cl-38</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>K-42</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>K-43</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ca-45</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ca-47</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sc-46</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sc-47</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sc-48</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>V-48</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cr-51</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-51</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-52</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-52m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-53</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-54</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mn-56</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Fe-52+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Fe-55</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Fe-59</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-55</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-56</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-57</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-58</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-58m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>4</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-60</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-60m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-61</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Co-62m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ni-59</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ni-63</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ni-65</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cu-64</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zn-65</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zn-69</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zn-69m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ga-72</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ge-71</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>4</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>As-73</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>As-74</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>As-76</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>As-77</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Se-75</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Br-82</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Rb-86</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-85</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-85m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-87m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-89</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-90+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-91+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sr-92</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Y-90</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Y-91</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Y-91m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Y-92</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Y-93</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zr-93</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zr-95+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Zr-97+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nb-93m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nb-94</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nb-95</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nb-97+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nb-98</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mo-90</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mo-93</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mo-99+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Mo-101+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-96</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-96m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-97</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-97m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-99</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tc-99m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ru-97</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ru-103+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ru-105+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ru-106+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Rh-103m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>4</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Rh-105</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pd-103+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pd-109+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ag-105</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ag-108m+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ag-110m+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ag-111</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cd-109+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cd-115+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cd-115m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>In-111</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>In-113m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>In-114m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>In-115m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sn-113+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sn-125</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sb-122</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sb-124</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sb-125+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-123m</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-125m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-127</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-127m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-129</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-129m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-131</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-131m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-132+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-133+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-133m+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Te-134</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-123</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-125</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-126</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-129</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-130</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-131+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-132</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-133</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-134</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>I-135</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-129</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-131</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-132</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-134</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-134m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-135</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-136</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-137+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cs-138</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ba-131</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ba-140</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>La-140</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ce-139</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ce-141</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ce-143</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ce-144+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pr-142</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pr-143</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nd-147</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Nd-149</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pm-147</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pm-149</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sm-151</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Sm-153</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Eu-152</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Eu-152m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Eu-154</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Eu-155</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Gd-153</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Gd-159</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tb-160</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Dy-165</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Dy-166</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ho-166</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Er-169</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Er-171</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tm-170</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tm-171</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Yb-175</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Lu-177</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Hf-181</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ta-182</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>W-181</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>W-185</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>W-187</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Re-186</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Re-188</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Os-185</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Os-191</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Os-191m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Os-193</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ir-190</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ir-192</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ir-194</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pt-191</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pt-193m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pt-197</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pt-197m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Au-198</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Au-199</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Hg-197</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Hg-197m</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Hg-203</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tl-200</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tl-201</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tl-202</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Tl-204</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pb-203</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pb-210+</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pb-212+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Bi-206</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Bi-207</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Bi-210</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Bi-212+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Po-203</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Po-205</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Po-207</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Po-210</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>At-211</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-223+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-224+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-225</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-226+</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-227</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ra-228+</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ac-227+</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Ac-228</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-226+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-227</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-228+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-229+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-230</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-231</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-232</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-232+</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-232sec</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Th-234+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pa-230</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pa-231</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pa-233</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-230+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-231</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-232+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-233</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-234</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-235+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-235sec</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-236</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-237</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-238+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-238sec</Substitution></xhtml:td><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-239</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>U-240+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Np-237+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Np-239</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Np-240</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-234</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-235</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-236</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-237</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-238</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-239</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-240</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-241</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-242</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-243</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Pu-244+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Am-241</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Am-242</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Am-242m+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Am-243+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-242</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-243</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-244</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-245</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-246</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-247+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cm-248</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Bk-249</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-246</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>3</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-248</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-249</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-250</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-251</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-252</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-253</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-253+</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Cf-254</Substitution></xhtml:td><xhtml:td><Substitution>1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Es-253</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Es-254+</Substitution></xhtml:td><xhtml:td><Substitution>0.1</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Es-254m+</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Fm-254</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution> 4</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Fm-255</Substitution></xhtml:td><xhtml:td><Substitution>10</Substitution><Superior><Substitution>2</Substitution></Superior></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td /><xhtml:td><Substitution>0.01</Substitution></xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td><Substitution>Any other solid or relevant liquid radionuclide that is not of natural terrestrial or cosmic origin</Substitution></xhtml:td><xhtml:td><Substitution>or that concentration which gives rise to a dose to a member of the public of 10 microsieverts per year calculated by reference to the International Atomic Energy Agency publication “Application of the Concepts of Exclusion, Exemption and Clearance”, </Substitution><Acronym Expansion="International Atomic Energy Agency"><Substitution>IAEA</Substitution></Acronym><Substitution> Safety Standards Series </Substitution><Abbreviation Expansion="Number"><Substitution>No.</Substitution></Abbreviation><Substitution> RS-G-1.7.</Substitution></xhtml:td></xhtml:tr></xhtml:tbody></xhtml:table></Tabular></P2><P2 id="schedule-23-part-3-paragraph-2-2" shortId="schedule-23-paragraph-2-2"><Pnumber>2</Pnumber><P2para><Text>The Table 2 column 2 summation rule means the sum of the quotients A/B where—</Text><P3 id="schedule-23-part-3-paragraph-2-2-a" shortId="schedule-23-paragraph-2-2-a"><Pnumber>a</Pnumber><P3para><Text>“<Term id="term-a">A</Term>” means the concentration of each radionuclide listed in column 1 of Table 2 that is present in the substance or article, and</Text></P3para></P3><P3 id="schedule-23-part-3-paragraph-2-2-b" shortId="schedule-23-paragraph-2-2-b"><Pnumber>b</Pnumber><P3para><Text>“<Term id="term-b">B</Term>” means the concentration of that radionuclide specified in column 2 of Table 2.</Text></P3para></P3></P2para></P2></P1para></P1></P1group><P1group><Title>References in Table 1 and Table 2 to + and sec</Title><P1 id="schedule-23-part-3-paragraph-3" shortId="schedule-23-paragraph-3"><Pnumber>3</Pnumber><P1para><Text>Where any radionuclide carries the suffix  “+” or  “sec” in Table 1 or Table 2—</Text><P3 id="schedule-23-paragraph-3-a"><Pnumber>a</Pnumber><P3para><Text>that radionuclide represents the parent radionuclide in secular equilibrium with the corresponding daughter radionuclides which are identified in column 2 of Table 3 in respect of that parent radionuclide, and</Text></P3para></P3><P3 id="schedule-23-paragraph-3-b"><Pnumber>b</Pnumber><P3para><Text>a concentration value given in a table in this Part in respect of such a parent radionuclide is the value for the parent radionuclide alone, but already takes into account the daughter radionuclides present.</Text></P3para></P3></P1para></P1></P1group><P1group><Title>Table 3</Title><P1 id="schedule-23-part-3-paragraph-4" shortId="schedule-23-paragraph-4"><Pnumber>4</Pnumber><P1para><Text>The Table 3 referred to in paragraph 3 is—</Text></P1para><Tabular Orientation="portrait"><Number>Table 3</Number><Title>Radionuclides in secular equilibrium</Title><xhtml:table cols="2"><xhtml:colgroup><xhtml:col width="50%" /><xhtml:col width="50%" /></xhtml:colgroup><xhtml:tbody>
+<xhtml:tr><xhtml:th><Emphasis>Parent radionuclide</Emphasis></xhtml:th><xhtml:th><Emphasis>Daughter radionuclides</Emphasis></xhtml:th></xhtml:tr>
+<xhtml:tr><xhtml:td>Fe-52+</xhtml:td><xhtml:td>Mn-52m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Zn-69m+</xhtml:td><xhtml:td>Zn-69</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Sr-90+</xhtml:td><xhtml:td>Y-90</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Sr-91+</xhtml:td><xhtml:td>Y-91m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Zr-95+</xhtml:td><xhtml:td>Nb-95m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Zr-97+</xhtml:td><xhtml:td>Nb-97m, Nb-97</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Nb-97+</xhtml:td><xhtml:td>Nb-97m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Mo-99+</xhtml:td><xhtml:td>Tc-99m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Mo-101+</xhtml:td><xhtml:td>Tc-101</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ru-103+</xhtml:td><xhtml:td>Rh-103m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ru-105+</xhtml:td><xhtml:td>Rh-105m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ru-106+</xhtml:td><xhtml:td>Rh-106</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pd-103+</xhtml:td><xhtml:td>Rh-103m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pd-109+</xhtml:td><xhtml:td>Ag-109m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ag-108m+</xhtml:td><xhtml:td>Ag-108</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ag-110m+</xhtml:td><xhtml:td>Ag-110</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cd-109+</xhtml:td><xhtml:td>Ag-109m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cd-115+</xhtml:td><xhtml:td>In-115m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cd-115m+</xhtml:td><xhtml:td>In-115m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>In-114m+</xhtml:td><xhtml:td>In-114</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Sn-113+</xhtml:td><xhtml:td>In-113m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Sb-125+</xhtml:td><xhtml:td>Te-125m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-127m+</xhtml:td><xhtml:td>Te-127</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-129m+</xhtml:td><xhtml:td>Te-129</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-131m+</xhtml:td><xhtml:td>Te-131</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-132+</xhtml:td><xhtml:td>I-132</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-133+</xhtml:td><xhtml:td>I-133, Xe-133m, Xe-133</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Te-133m+</xhtml:td><xhtml:td>Te-133, I-133, Xe-133m, Xe-133</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>I-131+</xhtml:td><xhtml:td>Xe-131m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cs-137+</xhtml:td><xhtml:td>Ba-137m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ce-144+</xhtml:td><xhtml:td>Pr-144, Pr-144m</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pb-210+</xhtml:td><xhtml:td>Bi-210, Po-210</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pb-212+</xhtml:td><xhtml:td>Bi-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Bi-212+</xhtml:td><xhtml:td>Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-223+</xhtml:td><xhtml:td>Rn-219, Po-215, Pb-211, Bi-211, Tl-207</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-224+</xhtml:td><xhtml:td>Rn-220, Po-216, Pb-212, Bi-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-226+</xhtml:td><xhtml:td>Rn-222, Po-218, Pb-214, Bi-214, Po-214</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ra-228+</xhtml:td><xhtml:td>Ac-228</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Ac-227+</xhtml:td><xhtml:td>Th-227, Fr-223, Ra-223, Rn-219, Po-215, Pb-211, Bi-211, Tl-207, Po-211</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-226+</xhtml:td><xhtml:td>Ra-222, Rn-218, Po-214</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-228+</xhtml:td><xhtml:td>Ra-224, Rn-220, Po-216, Pb-212, Bi-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-229+</xhtml:td><xhtml:td>Ra-225, Ac-225, Fr-221, At-217, Bi-213, Tl-209, Pb-209</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-232+</xhtml:td><xhtml:td>Ra-228, Ac-228, Th-228, Ra-224, Rn-220, Po-216, Pb-212, Bi-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-232sec</xhtml:td><xhtml:td>Ra-228, Ac-228, Th-228, Ra-224, Rn-220, Po-216, Pb-212, Bi-212, Po-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Th-234+</xhtml:td><xhtml:td>Pa-234m, Pa-234</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-230+</xhtml:td><xhtml:td>Th-226, Ra-222, Rn-218, Po-214</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-232+</xhtml:td><xhtml:td>Th-228, Ra-224, Rn-220, Po-216, Pb-212, Bi-212, Tl-208</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-235+</xhtml:td><xhtml:td>Th-231</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-235sec</xhtml:td><xhtml:td>Th-231, Pa-231, Ac-227, Th-227, Fr-223, Ra-223, Rn-219, Po-215, Pb-211, Bi-211, Tl-207, Po-211</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-238+</xhtml:td><xhtml:td>Th-234, Pa-234m, Pa-234</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-238sec</xhtml:td><xhtml:td>Th-234, Pa-234m, Pa-234, U-234, Th-230, Ra-226, Rn-222, Po-218, Pb-214, Bi-214, Po-214, Pb-210, Bi-210, Po-210</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>U-240+</xhtml:td><xhtml:td>Np-240m, Np-240</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Np-237+</xhtml:td><xhtml:td>Pa-233</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Pu-244+</xhtml:td><xhtml:td>U-240, Np-240m, Np-240</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Am-242m+</xhtml:td><xhtml:td>Np-238</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Am-243+</xhtml:td><xhtml:td>Np-239</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cm-247+</xhtml:td><xhtml:td>Pu-243</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Cf-253+</xhtml:td><xhtml:td>Cm-249</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Es-254+</xhtml:td><xhtml:td>Bk-250</xhtml:td></xhtml:tr>
+<xhtml:tr><xhtml:td>Es-254m+</xhtml:td><xhtml:td>Fm-254</xhtml:td></xhtml:tr></xhtml:tbody></xhtml:table></Tabular></P1></P1group></Part>

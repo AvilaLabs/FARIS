@@ -1,17 +1,19 @@
-//! `faris waste`: classify an activated component's inventory under 10 CFR 61.55, give its IAEA
+//! `faris waste`: classify an activated component's inventory under a regime you choose (10 CFR 61.55,
+//! IAEA clearance, UK waste thresholds, UK out-of-scope values, Fetter limits), give its IAEA
 //! clearance index and time, and its recycling index. Every command prints one JSON document.
 //! Research screening, not a regulatory determination.
 
-use crate::transport::read_bounded;
+use crate::transport::{read_bounded, sha256, write_new_bytes};
 use clap::{Subcommand, ValueEnum};
 use faris_model::waste::{
     self, WasteInventory,
-    classify::classify_nrc,
     clearance::{
         DoseRateContribution, RecyclingCriterion, SEARCH_END_YEARS, SEARCH_START_YEARS,
-        clearance_index, clearance_time, recycling_index,
+        clearance_time, recycling_index,
     },
-    tables,
+    fetter,
+    regime::{Regime, classify_regime},
+    tables, uk,
 };
 use serde::de::DeserializeOwned;
 use std::path::{Path, PathBuf};
@@ -24,6 +26,27 @@ pub enum Scheme {
     /// IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1.
     #[value(name = "iaea-gsr3-table-i2")]
     Iaea,
+    /// UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW.
+    #[value(name = "uk-llw-ilw")]
+    UkLlwIlw,
+    /// UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations.
+    #[value(name = "uk-epr2016-sch23-table2")]
+    UkOutOfScope,
+    /// Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions.
+    #[value(name = "fetter-specific-activity")]
+    Fetter,
+}
+
+impl Scheme {
+    fn regime(self) -> Regime {
+        match self {
+            Scheme::Nrc => Regime::UsNrc,
+            Scheme::Iaea => Regime::Iaea,
+            Scheme::UkLlwIlw => Regime::UkWaste,
+            Scheme::UkOutOfScope => Regime::UkOutOfScope,
+            Scheme::Fetter => Regime::Fetter,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -35,8 +58,10 @@ pub enum WasteCommand {
         #[arg(long, value_enum, default_value = "nrc-10cfr61.55")]
         scheme: Scheme,
     },
-    /// Classify an inventory at a disposal time. Refuses (NOT_EVALUATED) when a needed nuclide,
-    /// volume, mass or flag is missing; it never defaults to Class A.
+    /// Classify an inventory at a disposal time under the regime you choose with --scheme. The
+    /// regime and its jurisdiction profile (name, version, review date) are named on the result.
+    /// Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing, or when the
+    /// profile is past its review date; it never defaults to Class A.
     Classify {
         /// faris waste inventory JSON: component, waste form, averaging volume and mass, nuclides.
         #[arg(long)]
@@ -46,6 +71,13 @@ pub enum WasteCommand {
         time_years: f64,
         #[arg(long, value_enum, default_value = "nrc-10cfr61.55")]
         scheme: Scheme,
+        /// Write the receipt (scheme choice, scheme and profile versions, inventory hash, class) to
+        /// this new file. The same receipt is in the printed result.
+        #[arg(long)]
+        receipt: Option<PathBuf>,
+        /// Evaluation date YYYY-MM-DD for the profile review check. Default: today (UTC).
+        #[arg(long)]
+        date: Option<String>,
     },
     /// Find the time the IAEA clearance index falls below 1, searched between two times.
     ClearanceTime {
@@ -70,6 +102,15 @@ pub enum WasteCommand {
         #[arg(long)]
         time_years: f64,
     },
+}
+
+/// Today's date in UTC as `YYYY-MM-DD`. The model takes the date as an argument and never reads the clock.
+fn today_utc() -> String {
+    let unix_s = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let (y, m, d) = faris_model::display::civil_date(unix_s);
+    format!("{y:04}-{m:02}-{d:02}")
 }
 
 pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, Box<dyn std::error::Error>> {
@@ -119,17 +160,89 @@ pub fn run(command: WasteCommand) -> Result<(), Box<dyn std::error::Error>> {
                     })).collect::<Vec<_>>(),
                 }))
             }
+            Scheme::UkLlwIlw => {
+                let t = uk::uk_waste();
+                print(&serde_json::json!({
+                    "scheme": t.scheme_info(),
+                    "sources": t.sources.iter().map(|s| serde_json::json!({
+                        "tag": s.tag, "title": s.title, "kind": s.kind, "url": s.url,
+                        "retrieved": s.retrieved, "original_sha256": s.original_sha256,
+                    })).collect::<Vec<_>>(),
+                    "extracts_file": t.snapshot_file,
+                    "extracts_sha256": t.snapshot_sha256,
+                    "licence": t.licence,
+                    "llw": {"alpha_gbq_per_te": t.llw.alpha_gbq_per_te, "beta_gamma_gbq_per_te": t.llw.beta_gamma_gbq_per_te, "quote": t.llw.quote},
+                    "vllw_high_volume": {"total_mbq_per_te": t.vllw_high_volume.total_mbq_per_te, "tritium_mbq_per_te": t.vllw_high_volume.tritium_mbq_per_te, "quote": t.vllw_high_volume.quote},
+                    "vllw_low_volume": {
+                        "per_0_1_m3_kbq": t.vllw_low_volume.per_0_1_m3_kbq, "per_item_kbq": t.vllw_low_volume.per_item_kbq,
+                        "per_0_1_m3_c14_h3_kbq": t.vllw_low_volume.per_0_1_m3_c14_h3_kbq, "per_item_c14_h3_kbq": t.vllw_low_volume.per_item_c14_h3_kbq,
+                        "evaluated_by_faris": t.vllw_low_volume.evaluated_by_faris, "reason": t.vllw_low_volume.reason,
+                    },
+                    "ilw": {"definition": t.ilw.quote, "quantitative": false},
+                    "hlw": {"definition": t.hlw.quote, "quantitative": false, "reason": t.hlw.reason},
+                }))
+            }
+            Scheme::UkOutOfScope => {
+                let t = uk::uk_clearance();
+                print(&serde_json::json!({
+                    "scheme": t.scheme_info(),
+                    "unit": "Bq/g",
+                    "source": {
+                        "title": t.source.title, "kind": t.source.kind, "url": t.source.url, "data_url": t.source.data_url,
+                        "retrieved": t.source.retrieved, "original_sha256": t.source.original_sha256,
+                        "snapshot_sha256": t.source.snapshot_sha256, "licence": t.source.licence,
+                    },
+                    "rule_quote": t.rule_quote,
+                    "levels": t.levels.iter().map(|l| serde_json::json!({
+                        "row": l.label, "nuclide": l.nuclide, "suffix": l.suffix, "bq_per_g": l.bq_per_g,
+                    })).collect::<Vec<_>>(),
+                    "table3_daughters": t.table3.iter().map(|r| serde_json::json!({"parent": r.parent, "daughters": r.daughters})).collect::<Vec<_>>(),
+                }))
+            }
+            Scheme::Fetter => {
+                let t = fetter::fetter();
+                print(&serde_json::json!({
+                    "scheme": t.scheme_info(),
+                    "unit": t.unit,
+                    "source": {
+                        "title": t.source.title, "kind": t.source.kind, "url": t.source.url,
+                        "retrieved": t.source.retrieved, "original_sha256": t.source.original_sha256,
+                        "snapshot_sha256": t.source.snapshot_sha256, "licence": t.source.licence,
+                    },
+                    "tmsa_means": "theoretical maximum specific activity of the pure radionuclide: no limit can be reached",
+                    "limits": t.limits.iter().map(|l| serde_json::json!({
+                        "nuclide": l.nuclide, "half_life": l.half_life_text, "sal": l.sal_text,
+                        "lower_ci_per_m3": l.sal_low_ci_per_m3, "upper_ci_per_m3": l.sal_high_ci_per_m3,
+                        "upper_is_tmsa": l.sal_high_is_tmsa, "no_limit_tmsa": l.no_limit_tmsa, "quote": l.quote,
+                    })).collect::<Vec<_>>(),
+                }))
+            }
         },
         WasteCommand::Classify {
             inventory,
             time_years,
             scheme,
+            receipt,
+            date,
         } => {
-            let inventory: WasteInventory = read_json(&inventory)?;
-            match scheme {
-                Scheme::Nrc => print(&classify_nrc(&inventory, time_years)),
-                Scheme::Iaea => print(&clearance_index(&inventory, time_years)),
+            let bytes = read_bounded(&inventory)?;
+            let parsed: WasteInventory = serde_json::from_slice(&bytes)
+                .map_err(|e| format!("{}: {e}", inventory.display()))?;
+            let today = date.unwrap_or_else(today_utc);
+            let report = classify_regime(
+                scheme.regime(),
+                &parsed,
+                time_years,
+                &today,
+                "command flag --scheme",
+                Some(sha256(&bytes)),
+            );
+            if let Some(path) = receipt {
+                let mut text = serde_json::to_string_pretty(&report.receipt)?;
+                text.push('\n');
+                write_new_bytes(&path, text.as_bytes())?;
             }
+            print(&report)
         }
         WasteCommand::ClearanceTime {
             inventory,
@@ -200,11 +313,48 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = inventory_file(dir.path());
         let inventory: WasteInventory = read_json(&path).unwrap();
-        let r = classify_nrc(&inventory, 10.0);
+        let r = classify_regime(Regime::UsNrc, &inventory, 10.0, "2026-10-16", "test", None);
         let json = serde_json::to_value(&r).unwrap();
         // Nb-94 at 0.05 Ci/m3 in activated metal is 0.25 of its Table 1 value: Class C.
-        assert_eq!(json["verdict"], "CLASS_C");
-        assert_eq!(json["scheme"]["id"], "nrc-10cfr61.55");
+        assert_eq!(json["class"], "CLASS_C");
+        assert_eq!(json["result"]["verdict"], "CLASS_C");
+        assert_eq!(json["result"]["scheme"]["id"], "nrc-10cfr61.55");
+        assert_eq!(json["regime"], "nrc-10cfr61.55");
+        assert_eq!(json["profile"]["id"], "us-nrc");
         assert!(read_json::<WasteInventory>(&dir.path().join("missing.json")).is_err());
+    }
+
+    // Verifies: ACT-033, SAFE-011, SAFE-012
+    #[test]
+    fn every_scheme_flag_maps_to_its_own_regime_and_a_stale_date_blocks() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = inventory_file(dir.path());
+        let inventory: WasteInventory = read_json(&path).unwrap();
+        let mut ids = Vec::new();
+        for scheme in [
+            Scheme::Nrc,
+            Scheme::Iaea,
+            Scheme::UkLlwIlw,
+            Scheme::UkOutOfScope,
+            Scheme::Fetter,
+        ] {
+            let r = classify_regime(
+                scheme.regime(),
+                &inventory,
+                10.0,
+                "2026-10-16",
+                "test",
+                None,
+            );
+            assert_eq!(r.regime, scheme.regime().scheme_id());
+            assert!(r.result.is_some());
+            ids.push(r.regime);
+        }
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 5);
+        let stale = classify_regime(Regime::Fetter, &inventory, 10.0, "2099-01-01", "test", None);
+        assert_eq!(stale.class, "NOT_EVALUATED");
+        assert!(stale.blocked_by_profile.is_some());
     }
 }

@@ -1,4 +1,4 @@
-//! Waste classification and clearance of activated components (requirements ACT-030 to ACT-040).
+//! Waste classification and clearance of activated components (requirements ACT-030 to ACT-040, SAFE-011, SAFE-012).
 //!
 //! Self-contained on purpose: nothing here names a FARIS scenario, so the tables and the
 //! classifier can move to another crate unchanged. The input is a nuclide inventory per
@@ -8,7 +8,11 @@
 
 pub mod classify;
 pub mod clearance;
+pub mod fetter;
+pub mod profile;
+pub mod regime;
 pub mod tables;
+pub mod uk;
 
 use serde::{Deserialize, Serialize};
 
@@ -112,43 +116,19 @@ pub struct SchemeInfo {
     pub version: String,
     pub date: String,
     pub citation: String,
-    /// `IMPLEMENTED`, or `NOT_EVALUATED` when FARIS does not yet carry the scheme.
+    /// `IMPLEMENTED`, or `NOT_EVALUATED` when FARIS does not carry the scheme's values.
     pub status: String,
     pub status_reason: Option<String>,
 }
 
-/// Every scheme FARIS lists. Two are implemented; the others say why they are not.
+/// Every scheme FARIS lists, all implemented: each states its source, version and date.
 pub fn schemes() -> Vec<SchemeInfo> {
-    let nrc = tables::nrc();
-    let iaea = tables::iaea();
-    let planned = |id: &str, name: &str, citation: &str| {
-        SchemeInfo {
-        id: id.to_string(),
-        name: name.to_string(),
-        version: "not loaded".to_string(),
-        date: "not loaded".to_string(),
-        citation: citation.to_string(),
-        status: "NOT_EVALUATED".to_string(),
-        status_reason: Some(
-            "FARIS has not transcribed and checked this scheme's values from its primary source, \
-             so it gives no result under it; use the NRC or IAEA scheme, or supply the limits as authored values"
-                .to_string(),
-        ),
-    }
-    };
     vec![
-        nrc.scheme_info(),
-        iaea.scheme_info(),
-        planned(
-            "uk-llw-ilw",
-            "UK low-level and intermediate-level waste thresholds",
-            "UK Low Level Waste Policy, 4 and 12 GBq per tonne boundaries",
-        ),
-        planned(
-            "fetter-specific-activity",
-            "Fetter, Cheng and Mann specific-activity limits",
-            "S. Fetter, E.T. Cheng, F.M. Mann, Long-term radioactive waste from fusion reactors: Part II, Fusion Eng. Des. 13 (1990)",
-        ),
+        tables::nrc().scheme_info(),
+        tables::iaea().scheme_info(),
+        uk::uk_waste().scheme_info(),
+        uk::uk_clearance().scheme_info(),
+        fetter::fetter().scheme_info(),
     ]
 }
 
@@ -297,13 +277,14 @@ mod tests {
     #[test]
     fn schemes_name_version_and_date_and_say_why_a_scheme_is_missing() {
         let list = schemes();
-        assert_eq!(list.len(), 4);
+        assert_eq!(list.len(), 5);
         for s in &list {
             assert!(!s.name.is_empty() && !s.version.is_empty() && !s.date.is_empty());
+            assert!(s.citation.contains("http"));
             if s.status == "NOT_EVALUATED" {
                 assert!(s.status_reason.is_some());
             }
         }
-        assert_eq!(list.iter().filter(|s| s.status == "IMPLEMENTED").count(), 2);
+        assert_eq!(list.iter().filter(|s| s.status == "IMPLEMENTED").count(), 5);
     }
 }

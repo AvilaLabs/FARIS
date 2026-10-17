@@ -49,6 +49,19 @@ basis.
   the IAEA GSR Part 3 clearance index and the time it falls below 1; decay is forward only, without ingrowth.
   `faris materials` reads a database in which every limit and impurity value carries its source, page and quoted
   text, checked on load and in CI. See the handbook pages "Waste classification" and "Materials and limits".
+- More waste classification regimes. `faris waste classify --scheme` now chooses between 10 CFR 61.55, the IAEA
+  clearance index, the UK waste thresholds (`uk-llw-ilw`: LLW at 4 GBq/te alpha and 12 GBq/te beta/gamma,
+  high-volume VLLW at 4 MBq/te), the England and Wales out-of-scope concentrations (`uk-epr2016-sch23-table2`,
+  Environmental Permitting Regulations 2016 Schedule 23 Table 2, 284 rows) and the Fetter, Cheng and Mann (1990)
+  Class C specific-activity limits (`fetter-specific-activity`, 101 nuclides). Each value was read from a
+  retrieved primary source with its date and SHA-256, and a test compares every row with the stored copy. The
+  heat criterion that separates UK ILW from HLW has no number and is not encoded; the low-volume VLLW limits are
+  listed and not evaluated. Every result names its regime and a versioned jurisdiction profile (US NRC, UK, IAEA,
+  and a literature profile for Fetter) with an authored review date; a profile past its review date turns the
+  class into NOT_EVALUATED. The scheme choice is stored in a receipt (`--receipt`, also in the printed result).
+  The printed result now has the scheme's own result under `result`, beside `regime`, `class`, `profile`,
+  `scheme_choice` and `receipt`; this command was not in an earlier release. See the handbook page "Waste
+  classification".
 - One unit registry. Every conversion factor lives in one place with its source, and a lint refuses a second
   copy. `units.system` (`si` or `fusion`), a `units.<group>` override per quantity, `--units` on any command and
   `format.decimal`, `format.grouping` and `format.date` choose how numbers are shown; stored files and JSON

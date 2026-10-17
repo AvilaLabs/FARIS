@@ -1,0 +1,2187 @@
+{
+ "schema": "faris-waste-tables/1",
+ "scheme_id": "uk-epr2016-sch23-table2",
+ "scheme_name": "England and Wales out-of-scope concentrations, Environmental Permitting Regulations 2016 Schedule 23 Table 2 (solid or relevant liquid, Bq/g)",
+ "scheme_version": "SI 2016/1154 Schedule 23 as in force; legislation.gov.uk record modified 2026-09-07",
+ "scheme_date": "2026-09-07",
+ "source": {
+  "title": "The Environmental Permitting (England and Wales) Regulations 2016, Schedule 23 Part 3 Table 2 and Table 3",
+  "kind": "primary",
+  "url": "https://www.legislation.gov.uk/uksi/2016/1154/schedule/23",
+  "data_url": "https://www.legislation.gov.uk/uksi/2016/1154/schedule/23/data.xml",
+  "retrieved": "2026-10-16",
+  "original_sha256": "729f70acddc62652577e7e16df08f1c23af36a880c387024554241bb2a83f836",
+  "snapshot_file": "uk_epr2016_sch23_part3.xml",
+  "snapshot_sha256": "3d81c8e649f6373f69ffcd6d644cfaf4a2190b404ea55c72a3bac7bff0effb42",
+  "licence": "Open Government Licence v3.0",
+  "redistribution": "open_government_licence"
+ },
+ "rule_quote": "A substance or article which contains one or more radionuclides that are not of natural terrestrial or cosmic origin is radioactive material or radioactive waste where",
+ "rows_note": "Label is the first cell of the Table 2 row. A trailing + marks a parent radionuclide in secular equilibrium with the daughters named for it in Table 3; its value already includes them. A trailing sec marks a whole decay chain in secular equilibrium.",
+ "levels": [
+  {
+   "label": "H-3",
+   "nuclide": "H-3",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Be-7",
+   "nuclide": "Be-7",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "C-14",
+   "nuclide": "C-14",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "F-18",
+   "nuclide": "F-18",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Na-22",
+   "nuclide": "Na-22",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Na-24",
+   "nuclide": "Na-24",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Si-31",
+   "nuclide": "Si-31",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "P-32",
+   "nuclide": "P-32",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "P-33",
+   "nuclide": "P-33",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "S-35",
+   "nuclide": "S-35",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Cl-36",
+   "nuclide": "Cl-36",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cl-38",
+   "nuclide": "Cl-38",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "K-42",
+   "nuclide": "K-42",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "K-43",
+   "nuclide": "K-43",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ca-45",
+   "nuclide": "Ca-45",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ca-47",
+   "nuclide": "Ca-47",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Sc-46",
+   "nuclide": "Sc-46",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Sc-47",
+   "nuclide": "Sc-47",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Sc-48",
+   "nuclide": "Sc-48",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "V-48",
+   "nuclide": "V-48",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cr-51",
+   "nuclide": "Cr-51",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Mn-51",
+   "nuclide": "Mn-51",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mn-52",
+   "nuclide": "Mn-52",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Mn-52m",
+   "nuclide": "Mn-52m",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mn-53",
+   "nuclide": "Mn-53",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Mn-54",
+   "nuclide": "Mn-54",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Mn-56",
+   "nuclide": "Mn-56",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Fe-52+",
+   "nuclide": "Fe-52",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Fe-55",
+   "nuclide": "Fe-55",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Fe-59",
+   "nuclide": "Fe-59",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Co-55",
+   "nuclide": "Co-55",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Co-56",
+   "nuclide": "Co-56",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Co-57",
+   "nuclide": "Co-57",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Co-58",
+   "nuclide": "Co-58",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Co-58m",
+   "nuclide": "Co-58m",
+   "suffix": "",
+   "bq_per_g": 10000.0
+  },
+  {
+   "label": "Co-60",
+   "nuclide": "Co-60",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Co-60m",
+   "nuclide": "Co-60m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Co-61",
+   "nuclide": "Co-61",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Co-62m",
+   "nuclide": "Co-62m",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ni-59",
+   "nuclide": "Ni-59",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ni-63",
+   "nuclide": "Ni-63",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ni-65",
+   "nuclide": "Ni-65",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cu-64",
+   "nuclide": "Cu-64",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Zn-65",
+   "nuclide": "Zn-65",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Zn-69",
+   "nuclide": "Zn-69",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Zn-69m+",
+   "nuclide": "Zn-69m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ga-72",
+   "nuclide": "Ga-72",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ge-71",
+   "nuclide": "Ge-71",
+   "suffix": "",
+   "bq_per_g": 10000.0
+  },
+  {
+   "label": "As-73",
+   "nuclide": "As-73",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "As-74",
+   "nuclide": "As-74",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "As-76",
+   "nuclide": "As-76",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "As-77",
+   "nuclide": "As-77",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Se-75",
+   "nuclide": "Se-75",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Br-82",
+   "nuclide": "Br-82",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Rb-86",
+   "nuclide": "Rb-86",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Sr-85",
+   "nuclide": "Sr-85",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Sr-85m",
+   "nuclide": "Sr-85m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Sr-87m",
+   "nuclide": "Sr-87m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Sr-89",
+   "nuclide": "Sr-89",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Sr-90+",
+   "nuclide": "Sr-90",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Sr-91+",
+   "nuclide": "Sr-91",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Sr-92",
+   "nuclide": "Sr-92",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Y-90",
+   "nuclide": "Y-90",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Y-91",
+   "nuclide": "Y-91",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Y-91m",
+   "nuclide": "Y-91m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Y-92",
+   "nuclide": "Y-92",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Y-93",
+   "nuclide": "Y-93",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Zr-93",
+   "nuclide": "Zr-93",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Zr-95+",
+   "nuclide": "Zr-95",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Zr-97+",
+   "nuclide": "Zr-97",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Nb-93m",
+   "nuclide": "Nb-93m",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Nb-94",
+   "nuclide": "Nb-94",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Nb-95",
+   "nuclide": "Nb-95",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Nb-97+",
+   "nuclide": "Nb-97",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Nb-98",
+   "nuclide": "Nb-98",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mo-90",
+   "nuclide": "Mo-90",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mo-93",
+   "nuclide": "Mo-93",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mo-99+",
+   "nuclide": "Mo-99",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Mo-101+",
+   "nuclide": "Mo-101",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Tc-96",
+   "nuclide": "Tc-96",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Tc-96m",
+   "nuclide": "Tc-96m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Tc-97",
+   "nuclide": "Tc-97",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Tc-97m",
+   "nuclide": "Tc-97m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Tc-99",
+   "nuclide": "Tc-99",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Tc-99m",
+   "nuclide": "Tc-99m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ru-97",
+   "nuclide": "Ru-97",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ru-103+",
+   "nuclide": "Ru-103",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ru-105+",
+   "nuclide": "Ru-105",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ru-106+",
+   "nuclide": "Ru-106",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Rh-103m",
+   "nuclide": "Rh-103m",
+   "suffix": "",
+   "bq_per_g": 10000.0
+  },
+  {
+   "label": "Rh-105",
+   "nuclide": "Rh-105",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pd-103+",
+   "nuclide": "Pd-103",
+   "suffix": "+",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Pd-109+",
+   "nuclide": "Pd-109",
+   "suffix": "+",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ag-105",
+   "nuclide": "Ag-105",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ag-108m+",
+   "nuclide": "Ag-108m",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Ag-110m+",
+   "nuclide": "Ag-110m",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Ag-111",
+   "nuclide": "Ag-111",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Cd-109+",
+   "nuclide": "Cd-109",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cd-115+",
+   "nuclide": "Cd-115",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cd-115m+",
+   "nuclide": "Cd-115m",
+   "suffix": "+",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "In-111",
+   "nuclide": "In-111",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "In-113m",
+   "nuclide": "In-113m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "In-114m+",
+   "nuclide": "In-114m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "In-115m",
+   "nuclide": "In-115m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Sn-113+",
+   "nuclide": "Sn-113",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Sn-125",
+   "nuclide": "Sn-125",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Sb-122",
+   "nuclide": "Sb-122",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Sb-124",
+   "nuclide": "Sb-124",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Sb-125+",
+   "nuclide": "Sb-125",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Te-123m",
+   "nuclide": "Te-123m",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Te-125m",
+   "nuclide": "Te-125m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Te-127",
+   "nuclide": "Te-127",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Te-127m+",
+   "nuclide": "Te-127m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Te-129",
+   "nuclide": "Te-129",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Te-129m+",
+   "nuclide": "Te-129m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Te-131",
+   "nuclide": "Te-131",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Te-131m+",
+   "nuclide": "Te-131m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Te-132+",
+   "nuclide": "Te-132",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Te-133+",
+   "nuclide": "Te-133",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Te-133m+",
+   "nuclide": "Te-133m",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Te-134",
+   "nuclide": "Te-134",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-123",
+   "nuclide": "I-123",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "I-125",
+   "nuclide": "I-125",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "I-126",
+   "nuclide": "I-126",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-129",
+   "nuclide": "I-129",
+   "suffix": "",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "I-130",
+   "nuclide": "I-130",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-131+",
+   "nuclide": "I-131",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "I-132",
+   "nuclide": "I-132",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-133",
+   "nuclide": "I-133",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-134",
+   "nuclide": "I-134",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "I-135",
+   "nuclide": "I-135",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cs-129",
+   "nuclide": "Cs-129",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cs-131",
+   "nuclide": "Cs-131",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Cs-132",
+   "nuclide": "Cs-132",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cs-134",
+   "nuclide": "Cs-134",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cs-134m",
+   "nuclide": "Cs-134m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Cs-135",
+   "nuclide": "Cs-135",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Cs-136",
+   "nuclide": "Cs-136",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cs-137+",
+   "nuclide": "Cs-137",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cs-138",
+   "nuclide": "Cs-138",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ba-131",
+   "nuclide": "Ba-131",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ba-140",
+   "nuclide": "Ba-140",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "La-140",
+   "nuclide": "La-140",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ce-139",
+   "nuclide": "Ce-139",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ce-141",
+   "nuclide": "Ce-141",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ce-143",
+   "nuclide": "Ce-143",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ce-144+",
+   "nuclide": "Ce-144",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pr-142",
+   "nuclide": "Pr-142",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pr-143",
+   "nuclide": "Pr-143",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Nd-147",
+   "nuclide": "Nd-147",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Nd-149",
+   "nuclide": "Nd-149",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pm-147",
+   "nuclide": "Pm-147",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Pm-149",
+   "nuclide": "Pm-149",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Sm-151",
+   "nuclide": "Sm-151",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Sm-153",
+   "nuclide": "Sm-153",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Eu-152",
+   "nuclide": "Eu-152",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Eu-152m",
+   "nuclide": "Eu-152m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Eu-154",
+   "nuclide": "Eu-154",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Eu-155",
+   "nuclide": "Eu-155",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Gd-153",
+   "nuclide": "Gd-153",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Gd-159",
+   "nuclide": "Gd-159",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Tb-160",
+   "nuclide": "Tb-160",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Dy-165",
+   "nuclide": "Dy-165",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Dy-166",
+   "nuclide": "Dy-166",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ho-166",
+   "nuclide": "Ho-166",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Er-169",
+   "nuclide": "Er-169",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Er-171",
+   "nuclide": "Er-171",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Tm-170",
+   "nuclide": "Tm-170",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Tm-171",
+   "nuclide": "Tm-171",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Yb-175",
+   "nuclide": "Yb-175",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Lu-177",
+   "nuclide": "Lu-177",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Hf-181",
+   "nuclide": "Hf-181",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ta-182",
+   "nuclide": "Ta-182",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "W-181",
+   "nuclide": "W-181",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "W-185",
+   "nuclide": "W-185",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "W-187",
+   "nuclide": "W-187",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Re-186",
+   "nuclide": "Re-186",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Re-188",
+   "nuclide": "Re-188",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Os-185",
+   "nuclide": "Os-185",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Os-191",
+   "nuclide": "Os-191",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Os-191m",
+   "nuclide": "Os-191m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Os-193",
+   "nuclide": "Os-193",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ir-190",
+   "nuclide": "Ir-190",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ir-192",
+   "nuclide": "Ir-192",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ir-194",
+   "nuclide": "Ir-194",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pt-191",
+   "nuclide": "Pt-191",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pt-193m",
+   "nuclide": "Pt-193m",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Pt-197",
+   "nuclide": "Pt-197",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Pt-197m",
+   "nuclide": "Pt-197m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Au-198",
+   "nuclide": "Au-198",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Au-199",
+   "nuclide": "Au-199",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Hg-197",
+   "nuclide": "Hg-197",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Hg-197m",
+   "nuclide": "Hg-197m",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Hg-203",
+   "nuclide": "Hg-203",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Tl-200",
+   "nuclide": "Tl-200",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Tl-201",
+   "nuclide": "Tl-201",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Tl-202",
+   "nuclide": "Tl-202",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Tl-204",
+   "nuclide": "Tl-204",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Pb-203",
+   "nuclide": "Pb-203",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pb-210+",
+   "nuclide": "Pb-210",
+   "suffix": "+",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Pb-212+",
+   "nuclide": "Pb-212",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Bi-206",
+   "nuclide": "Bi-206",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Bi-207",
+   "nuclide": "Bi-207",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Bi-210",
+   "nuclide": "Bi-210",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Bi-212+",
+   "nuclide": "Bi-212",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Po-203",
+   "nuclide": "Po-203",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Po-205",
+   "nuclide": "Po-205",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Po-207",
+   "nuclide": "Po-207",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Po-210",
+   "nuclide": "Po-210",
+   "suffix": "",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "At-211",
+   "nuclide": "At-211",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Ra-223+",
+   "nuclide": "Ra-223",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ra-224+",
+   "nuclide": "Ra-224",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Ra-225",
+   "nuclide": "Ra-225",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Ra-226+",
+   "nuclide": "Ra-226",
+   "suffix": "+",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Ra-227",
+   "nuclide": "Ra-227",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Ra-228+",
+   "nuclide": "Ra-228",
+   "suffix": "+",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Ac-227+",
+   "nuclide": "Ac-227",
+   "suffix": "+",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Ac-228",
+   "nuclide": "Ac-228",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Th-226+",
+   "nuclide": "Th-226",
+   "suffix": "+",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Th-227",
+   "nuclide": "Th-227",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Th-228+",
+   "nuclide": "Th-228",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Th-229+",
+   "nuclide": "Th-229",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Th-230",
+   "nuclide": "Th-230",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Th-231",
+   "nuclide": "Th-231",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Th-232",
+   "nuclide": "Th-232",
+   "suffix": "",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Th-232+",
+   "nuclide": "Th-232",
+   "suffix": "+",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Th-232sec",
+   "nuclide": "Th-232",
+   "suffix": "sec",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Th-234+",
+   "nuclide": "Th-234",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pa-230",
+   "nuclide": "Pa-230",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pa-231",
+   "nuclide": "Pa-231",
+   "suffix": "",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "Pa-233",
+   "nuclide": "Pa-233",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "U-230+",
+   "nuclide": "U-230",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "U-231",
+   "nuclide": "U-231",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "U-232+",
+   "nuclide": "U-232",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "U-233",
+   "nuclide": "U-233",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "U-234",
+   "nuclide": "U-234",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "U-235+",
+   "nuclide": "U-235",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "U-235sec",
+   "nuclide": "U-235",
+   "suffix": "sec",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "U-236",
+   "nuclide": "U-236",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "U-237",
+   "nuclide": "U-237",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "U-238+",
+   "nuclide": "U-238",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "U-238sec",
+   "nuclide": "U-238",
+   "suffix": "sec",
+   "bq_per_g": 0.01
+  },
+  {
+   "label": "U-239",
+   "nuclide": "U-239",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "U-240+",
+   "nuclide": "U-240",
+   "suffix": "+",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Np-237+",
+   "nuclide": "Np-237",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Np-239",
+   "nuclide": "Np-239",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Np-240",
+   "nuclide": "Np-240",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pu-234",
+   "nuclide": "Pu-234",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pu-235",
+   "nuclide": "Pu-235",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pu-236",
+   "nuclide": "Pu-236",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Pu-237",
+   "nuclide": "Pu-237",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Pu-238",
+   "nuclide": "Pu-238",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Pu-239",
+   "nuclide": "Pu-239",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Pu-240",
+   "nuclide": "Pu-240",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Pu-241",
+   "nuclide": "Pu-241",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Pu-242",
+   "nuclide": "Pu-242",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Pu-243",
+   "nuclide": "Pu-243",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Pu-244+",
+   "nuclide": "Pu-244",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Am-241",
+   "nuclide": "Am-241",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Am-242",
+   "nuclide": "Am-242",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Am-242m+",
+   "nuclide": "Am-242m",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Am-243+",
+   "nuclide": "Am-243",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cm-242",
+   "nuclide": "Cm-242",
+   "suffix": "",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Cm-243",
+   "nuclide": "Cm-243",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cm-244",
+   "nuclide": "Cm-244",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cm-245",
+   "nuclide": "Cm-245",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cm-246",
+   "nuclide": "Cm-246",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cm-247+",
+   "nuclide": "Cm-247",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cm-248",
+   "nuclide": "Cm-248",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Bk-249",
+   "nuclide": "Bk-249",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Cf-246",
+   "nuclide": "Cf-246",
+   "suffix": "",
+   "bq_per_g": 1000.0
+  },
+  {
+   "label": "Cf-248",
+   "nuclide": "Cf-248",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cf-249",
+   "nuclide": "Cf-249",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cf-250",
+   "nuclide": "Cf-250",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cf-251",
+   "nuclide": "Cf-251",
+   "suffix": "",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Cf-252",
+   "nuclide": "Cf-252",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cf-253",
+   "nuclide": "Cf-253",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Cf-253+",
+   "nuclide": "Cf-253",
+   "suffix": "+",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Cf-254",
+   "nuclide": "Cf-254",
+   "suffix": "",
+   "bq_per_g": 1.0
+  },
+  {
+   "label": "Es-253",
+   "nuclide": "Es-253",
+   "suffix": "",
+   "bq_per_g": 100.0
+  },
+  {
+   "label": "Es-254+",
+   "nuclide": "Es-254",
+   "suffix": "+",
+   "bq_per_g": 0.1
+  },
+  {
+   "label": "Es-254m+",
+   "nuclide": "Es-254m",
+   "suffix": "+",
+   "bq_per_g": 10.0
+  },
+  {
+   "label": "Fm-254",
+   "nuclide": "Fm-254",
+   "suffix": "",
+   "bq_per_g": 10000.0
+  },
+  {
+   "label": "Fm-255",
+   "nuclide": "Fm-255",
+   "suffix": "",
+   "bq_per_g": 100.0
+  }
+ ],
+ "table3": [
+  {
+   "parent": "Fe-52+",
+   "daughters": [
+    "Mn-52m"
+   ]
+  },
+  {
+   "parent": "Zn-69m+",
+   "daughters": [
+    "Zn-69"
+   ]
+  },
+  {
+   "parent": "Sr-90+",
+   "daughters": [
+    "Y-90"
+   ]
+  },
+  {
+   "parent": "Sr-91+",
+   "daughters": [
+    "Y-91m"
+   ]
+  },
+  {
+   "parent": "Zr-95+",
+   "daughters": [
+    "Nb-95m"
+   ]
+  },
+  {
+   "parent": "Zr-97+",
+   "daughters": [
+    "Nb-97m",
+    "Nb-97"
+   ]
+  },
+  {
+   "parent": "Nb-97+",
+   "daughters": [
+    "Nb-97m"
+   ]
+  },
+  {
+   "parent": "Mo-99+",
+   "daughters": [
+    "Tc-99m"
+   ]
+  },
+  {
+   "parent": "Mo-101+",
+   "daughters": [
+    "Tc-101"
+   ]
+  },
+  {
+   "parent": "Ru-103+",
+   "daughters": [
+    "Rh-103m"
+   ]
+  },
+  {
+   "parent": "Ru-105+",
+   "daughters": [
+    "Rh-105m"
+   ]
+  },
+  {
+   "parent": "Ru-106+",
+   "daughters": [
+    "Rh-106"
+   ]
+  },
+  {
+   "parent": "Pd-103+",
+   "daughters": [
+    "Rh-103m"
+   ]
+  },
+  {
+   "parent": "Pd-109+",
+   "daughters": [
+    "Ag-109m"
+   ]
+  },
+  {
+   "parent": "Ag-108m+",
+   "daughters": [
+    "Ag-108"
+   ]
+  },
+  {
+   "parent": "Ag-110m+",
+   "daughters": [
+    "Ag-110"
+   ]
+  },
+  {
+   "parent": "Cd-109+",
+   "daughters": [
+    "Ag-109m"
+   ]
+  },
+  {
+   "parent": "Cd-115+",
+   "daughters": [
+    "In-115m"
+   ]
+  },
+  {
+   "parent": "Cd-115m+",
+   "daughters": [
+    "In-115m"
+   ]
+  },
+  {
+   "parent": "In-114m+",
+   "daughters": [
+    "In-114"
+   ]
+  },
+  {
+   "parent": "Sn-113+",
+   "daughters": [
+    "In-113m"
+   ]
+  },
+  {
+   "parent": "Sb-125+",
+   "daughters": [
+    "Te-125m"
+   ]
+  },
+  {
+   "parent": "Te-127m+",
+   "daughters": [
+    "Te-127"
+   ]
+  },
+  {
+   "parent": "Te-129m+",
+   "daughters": [
+    "Te-129"
+   ]
+  },
+  {
+   "parent": "Te-131m+",
+   "daughters": [
+    "Te-131"
+   ]
+  },
+  {
+   "parent": "Te-132+",
+   "daughters": [
+    "I-132"
+   ]
+  },
+  {
+   "parent": "Te-133+",
+   "daughters": [
+    "I-133",
+    "Xe-133m",
+    "Xe-133"
+   ]
+  },
+  {
+   "parent": "Te-133m+",
+   "daughters": [
+    "Te-133",
+    "I-133",
+    "Xe-133m",
+    "Xe-133"
+   ]
+  },
+  {
+   "parent": "I-131+",
+   "daughters": [
+    "Xe-131m"
+   ]
+  },
+  {
+   "parent": "Cs-137+",
+   "daughters": [
+    "Ba-137m"
+   ]
+  },
+  {
+   "parent": "Ce-144+",
+   "daughters": [
+    "Pr-144",
+    "Pr-144m"
+   ]
+  },
+  {
+   "parent": "Pb-210+",
+   "daughters": [
+    "Bi-210",
+    "Po-210"
+   ]
+  },
+  {
+   "parent": "Pb-212+",
+   "daughters": [
+    "Bi-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Bi-212+",
+   "daughters": [
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Ra-223+",
+   "daughters": [
+    "Rn-219",
+    "Po-215",
+    "Pb-211",
+    "Bi-211",
+    "Tl-207"
+   ]
+  },
+  {
+   "parent": "Ra-224+",
+   "daughters": [
+    "Rn-220",
+    "Po-216",
+    "Pb-212",
+    "Bi-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Ra-226+",
+   "daughters": [
+    "Rn-222",
+    "Po-218",
+    "Pb-214",
+    "Bi-214",
+    "Po-214"
+   ]
+  },
+  {
+   "parent": "Ra-228+",
+   "daughters": [
+    "Ac-228"
+   ]
+  },
+  {
+   "parent": "Ac-227+",
+   "daughters": [
+    "Th-227",
+    "Fr-223",
+    "Ra-223",
+    "Rn-219",
+    "Po-215",
+    "Pb-211",
+    "Bi-211",
+    "Tl-207",
+    "Po-211"
+   ]
+  },
+  {
+   "parent": "Th-226+",
+   "daughters": [
+    "Ra-222",
+    "Rn-218",
+    "Po-214"
+   ]
+  },
+  {
+   "parent": "Th-228+",
+   "daughters": [
+    "Ra-224",
+    "Rn-220",
+    "Po-216",
+    "Pb-212",
+    "Bi-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Th-229+",
+   "daughters": [
+    "Ra-225",
+    "Ac-225",
+    "Fr-221",
+    "At-217",
+    "Bi-213",
+    "Tl-209",
+    "Pb-209"
+   ]
+  },
+  {
+   "parent": "Th-232+",
+   "daughters": [
+    "Ra-228",
+    "Ac-228",
+    "Th-228",
+    "Ra-224",
+    "Rn-220",
+    "Po-216",
+    "Pb-212",
+    "Bi-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Th-232sec",
+   "daughters": [
+    "Ra-228",
+    "Ac-228",
+    "Th-228",
+    "Ra-224",
+    "Rn-220",
+    "Po-216",
+    "Pb-212",
+    "Bi-212",
+    "Po-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "Th-234+",
+   "daughters": [
+    "Pa-234m",
+    "Pa-234"
+   ]
+  },
+  {
+   "parent": "U-230+",
+   "daughters": [
+    "Th-226",
+    "Ra-222",
+    "Rn-218",
+    "Po-214"
+   ]
+  },
+  {
+   "parent": "U-232+",
+   "daughters": [
+    "Th-228",
+    "Ra-224",
+    "Rn-220",
+    "Po-216",
+    "Pb-212",
+    "Bi-212",
+    "Tl-208"
+   ]
+  },
+  {
+   "parent": "U-235+",
+   "daughters": [
+    "Th-231"
+   ]
+  },
+  {
+   "parent": "U-235sec",
+   "daughters": [
+    "Th-231",
+    "Pa-231",
+    "Ac-227",
+    "Th-227",
+    "Fr-223",
+    "Ra-223",
+    "Rn-219",
+    "Po-215",
+    "Pb-211",
+    "Bi-211",
+    "Tl-207",
+    "Po-211"
+   ]
+  },
+  {
+   "parent": "U-238+",
+   "daughters": [
+    "Th-234",
+    "Pa-234m",
+    "Pa-234"
+   ]
+  },
+  {
+   "parent": "U-238sec",
+   "daughters": [
+    "Th-234",
+    "Pa-234m",
+    "Pa-234",
+    "U-234",
+    "Th-230",
+    "Ra-226",
+    "Rn-222",
+    "Po-218",
+    "Pb-214",
+    "Bi-214",
+    "Po-214",
+    "Pb-210",
+    "Bi-210",
+    "Po-210"
+   ]
+  },
+  {
+   "parent": "U-240+",
+   "daughters": [
+    "Np-240m",
+    "Np-240"
+   ]
+  },
+  {
+   "parent": "Np-237+",
+   "daughters": [
+    "Pa-233"
+   ]
+  },
+  {
+   "parent": "Pu-244+",
+   "daughters": [
+    "U-240",
+    "Np-240m",
+    "Np-240"
+   ]
+  },
+  {
+   "parent": "Am-242m+",
+   "daughters": [
+    "Np-238"
+   ]
+  },
+  {
+   "parent": "Am-243+",
+   "daughters": [
+    "Np-239"
+   ]
+  },
+  {
+   "parent": "Cm-247+",
+   "daughters": [
+    "Pu-243"
+   ]
+  },
+  {
+   "parent": "Cf-253+",
+   "daughters": [
+    "Cm-249"
+   ]
+  },
+  {
+   "parent": "Es-254+",
+   "daughters": [
+    "Bk-250"
+   ]
+  },
+  {
+   "parent": "Es-254m+",
+   "daughters": [
+    "Fm-254"
+   ]
+  }
+ ]
+}
