@@ -51,6 +51,23 @@ class ScreenshotContrastTest(unittest.TestCase):
             report = sc.sample(path)
         self.assertTrue(all(b["shapes"] == 0 for b in report["backgrounds"]))
 
+    def test_a_near_background_stripe_is_fill_not_a_failing_shape(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "d.png"
+            shot((38, 40, 44)).save(path)
+            self.assertEqual(sc.main([str(path)]), 0)
+            background = sc.sample(path)["backgrounds"][0]
+        self.assertEqual(background["shapes"], 0)
+        self.assertEqual(background["fill_pieces"], 2)
+
+
+    def test_a_decoration_background_is_reported_but_does_not_fail(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "e.png"
+            shot((60, 60, 60)).save(path)
+            self.assertEqual(sc.main([str(path), "--skip-background", "37,39,44"]), 0)
+            self.assertEqual(sc.main([str(path)]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

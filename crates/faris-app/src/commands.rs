@@ -588,10 +588,14 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ("Top bar", "Interface size menu", "interface.larger"),
     ("Top bar", "Interface size menu", "interface.smaller"),
     ("Top bar", "Interface size menu", "interface.reset"),
-    ("Top bar", "Maintenance", "tools.maintenance"),
-    ("Top bar", "Compare versions", "tools.compare_versions"),
-    ("Top bar", "Design check", "tools.design_check"),
-    ("Top bar", "Design flux", "tools.design_flux"),
+    ("Top bar", "Tools > Maintenance", "tools.maintenance"),
+    (
+        "Top bar",
+        "Tools > Compare versions",
+        "tools.compare_versions",
+    ),
+    ("Top bar", "Tools > Design check", "tools.design_check"),
+    ("Top bar", "Tools > Design flux", "tools.design_flux"),
     ("Top bar", "Tour", "tour.replay"),
     #[cfg(target_arch = "wasm32")]
     ("Top bar", "Browser version menu", "browser.about"),

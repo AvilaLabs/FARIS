@@ -2,7 +2,7 @@
 # Computed maintenance durations
 
 > **New in FARIS 0.2.** The download includes a recorded result for the four demo arrangements: open
-> **Maintenance** in the top bar and choose **Open the recorded maintenance result**.
+> **Tools > Maintenance** in the top bar and choose **Open the recorded maintenance result**.
 
 Most plant models give every replacement the same fixed outage length. In a real plant the length depends on how
 long the parts around the replaced component take to cool down, and that grows as the parts that stay in the machine
@@ -98,7 +98,7 @@ The fixed duration of each class is the `replacement_duration_s` in that design'
 
 ## Run it from the desktop
 
-Open **Maintenance** in the top bar, then **Run…**:
+Open **Tools > Maintenance** in the top bar, then **Run…**:
 
 1. Choose the designs file and the maintenance assumptions file.
 2. Choose the `actinv` executable and the ACTINV data directory (the folder above the catalogue version). FARIS

@@ -17,6 +17,10 @@ basis.
 
 ### Added
 
+- A high-contrast theme (white on black, every text style at least 7 to 1), chosen with the `ui.theme`
+  setting on the desktop. A palette test in CI checks every text style and control colour of both themes, and
+  `scripts/screenshot_contrast.py` checks the contrast of what was actually drawn, from screenshots.
+
 - Waste over plant life. `faris waste lifetime` gives waste mass and volume by class, by component and for the
   whole plant over the replacements of a maintenance result and the components still in place at the end,
   counting each replacement batch once. A class comes only from classifying a given inventory under 10 CFR 61.55;
@@ -246,6 +250,12 @@ basis.
   are reported as not evaluated. See [The design file](docs/guide/design-file.md).
 
 ### Changed
+
+- The desktop top bar fits a 1440-point window again: Maintenance, Compare versions, Design check and Design
+  flux are now in a Tools menu. Before, the last items were drawn over each other.
+- Default theme colours meet WCAG contrast as drawn: body and weak text, separators, control borders, chart
+  axes, pill borders and disabled controls are lighter, and the error colour is a lighter red. One-pixel lines
+  are checked at the colour they are actually drawn after anti-aliasing.
 
 - The zip library moves from 8.6.0, which was withdrawn upstream, to 9.0.4. A study file with an entry name the
   library cannot read is now refused as corrupt, with the reason.

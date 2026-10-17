@@ -273,7 +273,7 @@ minimum (`SRC-018`).
 
 ## Check a design from the desktop
 
-Available from the next release. Open **Design check** in the top bar. The window does the two steps above without a
+Available from the next release. Open **Tools > Design check** in the top bar. The window does the two steps above without a
 terminal: it runs the same functions as `faris design init` and `faris design check` (see [Command line](cli.md)).
 You can also open it at launch with `--design-check`, with `--check-step FILE` and `--check-design FILE` to fill in the
 files.
@@ -341,7 +341,7 @@ any time to start again.
 
 ## Run the flux from the desktop
 
-Available from the next release. Open **Design flux** in the top bar. The window runs the same computation as
+Available from the next release. Open **Tools > Design flux** in the top bar. The window runs the same computation as
 `faris design transport` (see [Command line](cli.md)); the command line stays the way to script it.
 
 1. Choose the design file and the JSON report `faris design check --report` wrote for it. The check's work folder must

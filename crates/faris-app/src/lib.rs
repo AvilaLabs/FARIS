@@ -1989,27 +1989,35 @@ impl eframe::App for FarisApp {
                 }
                 interface_size_menu(ui);
                 units_menu::menu(ui);
-                ui.toggle_value(&mut self.maintenance.open, "Maintenance")
-                    .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
-                ui.toggle_value(&mut self.diff.open, "Compare versions")
-                    .on_hover_text("Show what differs between two studies or two model files: changed parameters, components added, removed or moved, material and volume changes");
+                // The tool windows share one menu so the top bar fits a 1440-point window.
+                let running = self.design_check.is_running() || self.design_flux.is_running();
+                let tools_label = if running { "Tools (running)" } else { "Tools" };
+                ui.menu_button(tools_label, |ui| {
+                    ui.checkbox(&mut self.maintenance.open, "Maintenance")
+                        .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
+                    ui.checkbox(&mut self.diff.open, "Compare versions")
+                        .on_hover_text("Show what differs between two studies or two model files: changed parameters, components added, removed or moved, material and volume changes");
+                    if !browser::IS_BROWSER {
+                        let check_label = if self.design_check.is_running() {
+                            "Design check (running)"
+                        } else {
+                            "Design check"
+                        };
+                        ui.checkbox(&mut self.design_check.open, check_label)
+                            .on_hover_text("Write a draft design file from your STEP file, and run the nine import checks on a design file");
+                        let flux_label = if self.design_flux.is_running() {
+                            "Design flux (running)"
+                        } else {
+                            "Design flux"
+                        };
+                        ui.checkbox(&mut self.design_flux.open, flux_label)
+                            .on_hover_text("Run the neutron flux of a checked design in its magnets, compared with its fluence limit, and watch it");
+                    }
+                })
+                .response
+                .on_hover_text("Maintenance, Compare versions, Design check and Design flux windows");
                 if browser::IS_BROWSER {
                     self.browser_menu(ui);
-                } else {
-                    let check_label = if self.design_check.is_running() {
-                        "Design check (running)"
-                    } else {
-                        "Design check"
-                    };
-                    ui.toggle_value(&mut self.design_check.open, check_label)
-                        .on_hover_text("Write a draft design file from your STEP file, and run the nine import checks on a design file");
-                    let flux_label = if self.design_flux.is_running() {
-                        "Design flux (running)"
-                    } else {
-                        "Design flux"
-                    };
-                    ui.toggle_value(&mut self.design_flux.open, flux_label)
-                        .on_hover_text("Run the neutron flux of a checked design in its magnets, compared with its fluence limit, and watch it");
                 }
                 let replay = ui.button("Tour").on_hover_text("Replay the guided tour");
                 self.tour.anchor("tour-button", replay.rect);

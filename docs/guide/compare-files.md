@@ -85,6 +85,6 @@ The 2 second target for a study of this size is met in these runs. A pair of 1 G
 
 ## Not done yet
 
-The desktop shows the same report in the Compare versions window (top bar, or the command palette): choose two studies or two model files, or take the open study as version A. It lists the components first, then the text `faris diff` prints. The browser version cannot read files, so it says so. The comparison does not yet list the numbers inside changed results by default, and it does not mark a change below two standard errors as within noise. A merged study is not covered.
+The desktop shows the same report in the Compare versions window (Tools menu in the top bar, or the command palette): choose two studies or two model files, or take the open study as version A. It lists the components first, then the text `faris diff` prints. The browser version cannot read files, so it says so. The comparison does not yet list the numbers inside changed results by default, and it does not mark a change below two standard errors as within noise. A merged study is not covered.
 
 Next: [Command line](cli.md).

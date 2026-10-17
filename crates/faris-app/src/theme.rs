@@ -97,6 +97,10 @@ pub struct Palette {
     pub pill_text_lift: f32,
     pub pill_fill_alpha: f32,
     pub pill_border_alpha: f32,
+    /// How strongly error bars show their series colour.
+    pub error_bar_alpha: f32,
+    /// How much of a disabled control's colour is kept (egui fades disabled widgets by it).
+    pub disabled_alpha: f32,
     // Labels over the 3D view: the plate behind them and the label colour.
     pub overlay_plate: Color32,
     pub overlay_text: Color32,
@@ -134,16 +138,18 @@ pub static DEFAULT: Palette = Palette {
     button_hovered: gray(70),
     button_active: gray(55),
     selection_fill: Color32::from_rgb(67, 78, 125),
-    separator: gray(125),
-    control_border: gray(135),
+    separator: gray(155),
+    control_border: gray(155),
     control_border_hovered: gray(170),
     control_border_active: Color32::WHITE,
     focus_ring: Color32::from_rgb(192, 222, 255),
-    chart_axis: gray(135),
+    chart_axis: gray(155),
     marker: gray(230),
     pill_text_lift: 0.3,
     pill_fill_alpha: 0.14,
-    pill_border_alpha: 0.85,
+    pill_border_alpha: 1.0,
+    error_bar_alpha: 0.75,
+    disabled_alpha: 0.75,
     overlay_plate: Color32::from_rgb(18, 21, 28),
     overlay_text: Color32::from_rgb(255, 178, 46),
     label_min: 4.5,
@@ -183,6 +189,8 @@ pub static HIGH_CONTRAST: Palette = Palette {
     pill_text_lift: 0.5,
     pill_fill_alpha: 0.0,
     pill_border_alpha: 1.0,
+    error_bar_alpha: 1.0,
+    disabled_alpha: 0.7,
     overlay_plate: Color32::BLACK,
     overlay_text: Color32::from_rgb(255, 200, 90),
     label_min: 7.0,
@@ -240,6 +248,7 @@ pub fn visuals(theme: Theme) -> egui::Visuals {
     v.panel_fill = p.panel;
     v.window_fill = p.window;
     v.window_stroke = Stroke::new(1.0, p.separator);
+    v.disabled_alpha = p.disabled_alpha;
     v.extreme_bg_color = p.extreme;
     v.faint_bg_color = p.faint;
     v.hyperlink_color = p.hyperlink;
@@ -368,6 +377,15 @@ pub fn pill_border_in(p: &Palette, color: Color32) -> Color32 {
     color.gamma_multiply(p.pill_border_alpha)
 }
 
+/// An error bar in a series colour: dimmed in the default theme, full strength in high contrast.
+pub fn error_bar(color: Color32) -> Color32 {
+    error_bar_in(palette(), color)
+}
+
+pub fn error_bar_in(p: &Palette, color: Color32) -> Color32 {
+    color.gamma_multiply(p.error_bar_alpha)
+}
+
 /// A bar drawn in a series colour.
 pub fn bar_fill(color: Color32) -> Color32 {
     bar_fill_in(palette(), color)
@@ -436,6 +454,20 @@ mod tests {
             Kind::NotEvaluated,
             Kind::Failed,
         ]
+    }
+
+    const THIN_LINE_COVERAGE: f32 = 0.8;
+
+    /// The colour a one-pixel line of `fg` is drawn as over `bg` at THIN_LINE_COVERAGE.
+    fn thin_line(fg: Color32, bg: Color32) -> Color32 {
+        let mix = |f: u8, b: u8| {
+            (f32::from(b) + (f32::from(f) - f32::from(b)) * THIN_LINE_COVERAGE).round() as u8
+        };
+        Color32::from_rgb(
+            mix(fg.r(), bg.r()),
+            mix(fg.g(), bg.g()),
+            mix(fg.b(), bg.b()),
+        )
     }
 
     /// Every colour name, value and background it is read against.
@@ -530,6 +562,24 @@ mod tests {
                 &format!("{state} button fill"),
             );
         }
+        // A disabled control is drawn with its colours faded by disabled_alpha: the label on the
+        // page, and the button text on the faded button fill.
+        let faded = |c: Color32, under: Color32| over(c.gamma_multiply(v.disabled_alpha), under);
+        for (bg_name, bg) in pages {
+            text(
+                "disabled label",
+                faded(v.widgets.noninteractive.fg_stroke.color, bg),
+                bg,
+                bg_name,
+            );
+            let fill = faded(v.widgets.inactive.weak_bg_fill, bg);
+            text(
+                "disabled button",
+                faded(v.widgets.inactive.fg_stroke.color, fill),
+                fill,
+                &format!("disabled button fill on {bg_name}"),
+            );
+        }
         text(
             "selected text",
             v.selection.stroke.color,
@@ -569,10 +619,20 @@ mod tests {
             }
         }
 
+        // A one-pixel line is anti-aliased across two device pixels at fractional scales, so its
+        // drawn colour is only part of the way from the background to the stroke colour. Screenshots
+        // at 1.46 scale (scripts/screenshot_contrast.py) measured 0.83 of the way; lines are checked
+        // at THIN_LINE_COVERAGE, below that.
+        // Filled areas (bars) are drawn at their own colour; every other graphic is a line.
         let mut graphic = |what: &str, fg: Color32, bg: Color32, bg_name: &str| {
+            let drawn = if matches!(what, "sweep bar" | "port bar" | "no port bar") {
+                fg
+            } else {
+                thin_line(fg, bg)
+            };
             out.push(Check {
                 what: format!("non-text {what} against {bg_name}"),
-                ratio: ratio(fg, bg),
+                ratio: ratio(drawn, bg),
                 minimum: graphic_min,
             });
         };
@@ -606,8 +666,8 @@ mod tests {
                 ("outage work", SERIES_WORK),
                 ("neutron line", SPECTRUM_NEUTRON),
                 ("photon line", SPECTRUM_PHOTON),
-                ("neutron error bar", SPECTRUM_NEUTRON.gamma_multiply(0.75)),
-                ("photon error bar", SPECTRUM_PHOTON.gamma_multiply(0.75)),
+                ("neutron error bar", error_bar_in(p, SPECTRUM_NEUTRON)),
+                ("photon error bar", error_bar_in(p, SPECTRUM_PHOTON)),
                 ("port line", series_in(p, arrangement_color(true, false))),
                 (
                     "port breeder line",
