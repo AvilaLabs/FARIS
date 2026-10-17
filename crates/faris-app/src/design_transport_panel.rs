@@ -348,12 +348,17 @@ impl DesignTransportPanel {
             ui.label("Time limit").on_hover_text(
                 "Stop after this many seconds of sampling even when the target is not reached. Command line default: 3600.",
             );
-            ui.add(
-                egui::DragValue::new(&mut self.inputs.max_seconds)
-                    .range(1..=2_592_000)
-                    .speed(60.0)
-                    .suffix(" s"),
-            );
+            let mut limit_s = self.inputs.max_seconds as f64;
+            if crate::units_menu::quantity_field(
+                ui,
+                "transport-time-limit",
+                "time",
+                "s",
+                &mut limit_s,
+                1.0..=2_592_000.0,
+            ) {
+                self.inputs.max_seconds = limit_s.round() as u64;
+            }
         });
         ui.checkbox(&mut self.inputs.keep_cache, "Keep weight windows between runs")
             .on_hover_text(

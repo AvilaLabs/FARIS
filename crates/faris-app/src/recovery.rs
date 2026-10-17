@@ -586,7 +586,10 @@ impl Offer {
         } else if minutes < 120 {
             format!("{minutes} minutes before this start")
         } else {
-            format!("{:.0} hours before this start", self.age_seconds / 3600.0)
+            format!(
+                "{:.0} hours before this start",
+                self.age_seconds / faris_model::units::HOUR_S
+            )
         };
         let base = format!(
             "FARIS did not close normally last time (it crashed, was force-closed, or the computer lost power). While it ran it kept a recovery copy of your unsaved changes to {}, last updated {when}. Restore puts those changes back; Discard deletes the copy.",

@@ -304,7 +304,7 @@ fn purge_by(
     max_count: usize,
     time_of: &dyn Fn(&Path) -> Option<u64>,
 ) -> usize {
-    let limit = keep_days.saturating_mul(86_400);
+    let limit = keep_days.saturating_mul(faris_model::units::DAY_S as u64);
     let mut deleted = 0;
     for (index, (path, time)) in dated_files(dir, time_of).into_iter().enumerate() {
         if (index >= max_count || now_unix.saturating_sub(time) > limit)

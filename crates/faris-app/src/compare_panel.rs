@@ -60,9 +60,9 @@ fn low_statistics_note((mean, se): (f64, f64)) -> String {
 /// Shown where a value is missing; the hover text beside it says why.
 const NOT_RECORDED: &str = "not recorded";
 
-fn pair(value: Option<(f64, f64)>, decimals: usize) -> String {
+fn pair(value: Option<(f64, f64)>) -> String {
     value.map_or(NOT_RECORDED.into(), |(m, se)| {
-        format!("{m:.decimals$} ± {se:.decimals$}")
+        crate::quantity_text::measurement(m, se)
     })
 }
 
@@ -94,13 +94,13 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                         "Breeder H3 / source"
                     })
                     .on_hover_text(format!("Tritium atoms produced per source neutron, ± one Monte Carlo standard error. Cold-data surrogate. {}", crate::not_evaluated::NOT_QUALIFIED.line()));
-                    ui.monospace(pair(cell.breeding, 4));
+                    ui.monospace(pair(cell.breeding));
                     ui.end_row();
                     ui.label("Magnet mean flux")
                         .on_hover_text("Component-average neutron flux in the magnet envelope at reference power, ± one sampling standard error. Volume and model/data uncertainty are separate.");
                     ui.horizontal(|ui| {
                         ui.monospace(match cell.magnet_flux {
-                            Some((m, se)) => format!("{} ± {} n/m²/s", fmt_sig(m), fmt_sig(se)),
+                            Some((m, se)) => crate::quantity_text::measurement_in("particle_flux", "n/m2/s", m, se),
                             None => NOT_RECORDED.into(),
                         });
                         if let Some(value) = cell.magnet_flux.filter(|v| is_low_statistics(*v)) {
@@ -123,7 +123,13 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     ui.label("First swap");
                     ui.horizontal(|ui| match (cell.first_swap_y, cell.first_swap_relative_sampling) {
                         (Some(y), Some(rel)) => {
-                            ui.monospace(format!("{y:.1} ± {:.1} y", y * rel));
+                            let year = faris_model::units::JULIAN_YEAR_S;
+                            ui.monospace(crate::quantity_text::measurement_in(
+                                "service_time",
+                                "yr",
+                                y * year,
+                                y * rel * year,
+                            ));
                             badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the fast flux in the magnet region that reaches its limit first, carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the local peak within the region, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
                         }
                         (Some(y), None) => {
@@ -148,16 +154,13 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     ui.label("Final usable tritium");
                     ui.monospace(
                         cell.final_tritium_kg
-                            .map_or(NOT_RECORDED.into(), |v| format!("{v:.2} kg")),
+                            .map_or(NOT_RECORDED.into(), |v| {
+                                crate::quantity_text::quantity("mass", "kg", v, 2)
+                            }),
                     );
                     ui.end_row();
                 });
         });
-}
-
-/// Compact scientific notation for fluxes (1.64e14).
-fn fmt_sig(v: f64) -> String {
-    format!("{v:.2e}")
 }
 
 fn delta_cell(

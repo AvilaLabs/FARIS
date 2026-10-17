@@ -31,7 +31,7 @@ use std::{
     sync::mpsc::{self, Receiver, TryRecvError},
 };
 
-const DAY_S: f64 = 86_400.0;
+const DAY_S: f64 = faris_model::units::DAY_S;
 
 /// What "computed" means, shown under the summary.
 pub const COMPUTED_MEANING: &str = "Computed: each replacement's outage is the cooldown until the decay heat per volume of the governing components falls below the class threshold q*, plus the class's work time; the operating history is rerun with those outages until they stop changing. Fixed is the authored duration. The two models are compared on downtime, availability and lifetime electricity; the comparison makes no ranking claim.";
@@ -402,6 +402,16 @@ fn years(seconds: f64) -> f64 {
     seconds / JULIAN_YEAR_SECONDS
 }
 
+/// A duration in the unit the user chose for durations (days until they choose), unit attached.
+fn days_text(seconds: f64, decimals: usize) -> String {
+    crate::quantity_text::quantity("time", "d", seconds, decimals)
+}
+
+/// A time in service in the unit the user chose (years until they choose), unit attached.
+fn years_text(seconds: f64, decimals: usize) -> String {
+    crate::quantity_text::quantity("service_time", "yr", seconds, decimals)
+}
+
 /// Reason, then next step: the text every NOT_EVALUATED shows.
 pub fn not_evaluated_text(ne: &NotEvaluated) -> String {
     format!(
@@ -419,10 +429,10 @@ pub fn why_text(why: &Why) -> String {
         .iter()
         .map(|g| {
             format!(
-                "{} {:.0} % ({:.1} y in service)",
+                "{} {:.0} % ({} in service)",
                 g.component,
                 g.share * 100.0,
-                years(g.in_service_s)
+                years_text(g.in_service_s, 1)
             )
         })
         .collect::<Vec<_>>()
@@ -437,8 +447,8 @@ fn threshold_source(record: &ThresholdRecord) -> String {
     ) {
         ("calibrated", Some(design), Some(target)) => {
             format!(
-                "calibrated on {design} to a target of {:.1} days",
-                days(target)
+                "calibrated on {design} to a target of {}",
+                days_text(target, 1)
             )
         }
         (source, _, _) => source.to_string(),
@@ -488,20 +498,20 @@ fn net_text(summary: &HistorySummary) -> Option<String> {
 pub fn event_detail(event: &EventRecord) -> String {
     let mut lines = vec![
         format!(
-            "{} \u{b7} {} \u{b7} replacement {} at {:.2} y",
+            "{} \u{b7} {} \u{b7} replacement {} at {}",
             event.class,
             event.component,
             event.k,
-            years(event.start_s)
+            years_text(event.start_s, 2)
         ),
-        format!("fixed {:.1} d", days(event.fixed_duration_s)),
+        format!("fixed {}", days_text(event.fixed_duration_s, 1)),
     ];
     match (event.duration_computed_s, event.cooldown_s) {
         (Some(total), Some(cool)) => lines.push(format!(
-            "computed {:.1} d = cooldown {:.1} d + work {:.1} d",
-            days(total),
-            days(cool),
-            days(event.work_s)
+            "computed {} = cooldown {} + work {}",
+            days_text(total, 1),
+            days_text(cool, 1),
+            days_text(event.work_s, 1)
         )),
         _ => lines.push("computed: not evaluated".into()),
     }
@@ -616,7 +626,7 @@ fn header(ui: &mut egui::Ui, loaded: &Loaded) {
                     .on_hover_text(spec.map_or(String::new(), |c| {
                         format!("Governing components: {}", c.governing.join(", "))
                     }));
-                ui.label(spec.map_or("\u{2014}".into(), |c| format!("{:.1} d", days(c.work_s))));
+                ui.label(spec.map_or("\u{2014}".into(), |c| days_text(c.work_s, 1)));
                 match (
                     &record.status,
                     record.q_star_w_per_m3,
@@ -717,7 +727,7 @@ fn net_cell(ui: &mut egui::Ui, summary: &HistorySummary) {
 fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
     let fixed = &design.fixed;
     ui.strong(name);
-    ui.label(format!("{:.1} y", years(fixed.history_end_s)))
+    ui.label(years_text(fixed.history_end_s, 1))
         .on_hover_text(outcome_label(&fixed.outcome));
     ui.monospace(format!("{:.1}", days(fixed.total_replacement_downtime_s)));
     let computed = design.computed.summary.as_ref();
@@ -1416,7 +1426,7 @@ mod tests {
         let events = final_events(&result.designs["X"]);
         assert_eq!(
             why_text(events[1].why.as_ref().unwrap()),
-            "first-wall 82 % (7.0 y in service), blanket 18 % (3.5 y in service)"
+            "first-wall 82 % (7.0 yr in service), blanket 18 % (3.5 yr in service)"
         );
         // The first wall's share and years in service grow from event to event.
         let first_wall = |i: usize| {
@@ -1514,7 +1524,7 @@ mod tests {
     fn threshold_source_names_the_calibration() {
         assert_eq!(
             threshold_source(&threshold("calibrated")),
-            "calibrated on X to a target of 20.0 days"
+            "calibrated on X to a target of 20.0 d"
         );
         assert_eq!(threshold_source(&threshold("explicit")), "explicit");
     }

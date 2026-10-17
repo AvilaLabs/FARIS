@@ -32,6 +32,7 @@ mod maintenance_panel;
 mod maintenance_run;
 mod not_evaluated;
 mod package;
+mod quantity_text;
 mod recorder;
 mod recovery;
 mod settings;
@@ -43,6 +44,7 @@ mod tool_finder;
 mod tour;
 mod transport_panel;
 mod undo;
+mod units_menu;
 /// The Avila Labs account controls: the device sign-in on the desktop, the
 /// session cookie in the browser.
 #[cfg(not(target_arch = "wasm32"))]
@@ -891,12 +893,16 @@ impl FarisApp {
                     if let Some(response) = self.transport.mesh_response(&record.variant_id, bin) {
                         hit = true;
                         self.message = format!(
-                            "{} · {} · Y slice {} · bin {bin}: {:.3e} ± {:.2e} neutrons/m²/s (Monte Carlo SE); full-bin average. {}",
+                            "{} · {} · Y slice {} · bin {bin}: {} (Monte Carlo SE); full-bin average. {}",
                             self.manifest.scenario_id,
                             record.variant_id,
                             self.transport.slice,
-                            response.mean,
-                            response.standard_error,
+                            quantity_text::measurement_in(
+                                "particle_flux",
+                                "n/m2/s",
+                                response.mean,
+                                response.standard_error
+                            ),
                             crate::not_evaluated::NOT_QUALIFIED.line()
                         );
                     }
@@ -1473,10 +1479,9 @@ impl FarisApp {
                 badge::metric(
                     ui,
                     "Tritium breeding · H3 per source neutron",
-                    &format!(
-                        "{:.4} ± {:.4}",
+                    &quantity_text::measurement(
                         tally.integrated_mean / rate,
-                        tally.integrated_standard_error / rate
+                        tally.integrated_standard_error / rate,
                     ),
                     badge::Kind::Calculated,
                     &format!("Gross births per primary neutron; recovery and fuel availability are separate. {note}"),
@@ -1491,16 +1496,21 @@ impl FarisApp {
                     )
                 } else {
                     (
-                        format!("{:.2e} ± {:.1e}", flux.mean, flux.standard_error),
+                        quantity_text::measurement_in(
+                            "particle_flux",
+                            "n/m2/s",
+                            flux.mean,
+                            flux.standard_error,
+                        ),
                         format!(
-                            "Component volume average in neutrons/m²/s; relative sampling SE {:.1}%. Volume and model/data uncertainty are separate. {note}",
+                            "Component volume average; relative sampling SE {:.1}%. Volume and model/data uncertainty are separate. {note}",
                             100.0 * flux.standard_error / flux.mean
                         ),
                     )
                 };
                 badge::metric(
                     ui,
-                    "Magnet-region mean flux · neutrons/m²/s",
+                    "Magnet-region mean flux",
                     &value,
                     badge::Kind::Calculated,
                     &explanation,
@@ -1513,11 +1523,12 @@ impl FarisApp {
             {
                 badge::metric(
                     ui,
-                    "Total nuclear heating · MW",
-                    &format!(
-                        "{:.2} ± {:.2}",
-                        heat.integrated_mean / 1e6,
-                        heat.integrated_standard_error / 1e6
+                    "Total nuclear heating",
+                    &quantity_text::measurement_in(
+                        "power",
+                        "MW",
+                        heat.integrated_mean,
+                        heat.integrated_standard_error,
                     ),
                     badge::Kind::Calculated,
                     &format!("Coupled neutron/photon deposition. Includes material reaction energy and can exceed D–T source power; heat recovery is an authored assumption. {note}"),
@@ -1972,6 +1983,7 @@ impl eframe::App for FarisApp {
                     ui.separator();
                 }
                 interface_size_menu(ui);
+                units_menu::menu(ui);
                 ui.toggle_value(&mut self.maintenance.open, "Maintenance")
                     .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
                 if browser::IS_BROWSER {
@@ -2259,10 +2271,9 @@ impl eframe::App for FarisApp {
                     ui.add_space(12.0);
                     ui.separator();
                     if let Some(response)=self.transport.response(&variant.id,&format!("{}-flux",component.id)) {
-                        ui.weak("Reference neutron flux · neutrons/m²/s");
+                        ui.weak("Reference neutron flux");
                         ui.horizontal_wrapped(|ui|{
-                            ui.label(egui::RichText::new(format!("{:.3e}",response.mean)).size(18.0).strong());
-                            badge::badge(ui,badge::Kind::Calculated,&format!("± {:.2e} SE",response.standard_error),&format!("Standard error: {:.2e} neutrons/m²/s\nComponent volume average. Sampling uncertainty only.",response.standard_error));
+                            ui.label(egui::RichText::new(quantity_text::measurement_in("particle_flux","n/m2/s",response.mean,response.standard_error)).size(18.0).strong());
                             badge::badge(ui,badge::Kind::Calculated,&format!("volume {:.4} m³",response.volume_m3),&format!("Scored physical volume: {:.6} m³ · volume SE {:.2e} m³", response.volume_m3, response.volume_standard_error_m3));
                         });
                         if response.mean == 0.0 && response.standard_error == 0.0 {badge::badge(ui,badge::Kind::Partial,"no sampled tracks","No sampled tracks. This does not establish zero flux or an upper bound.");}
@@ -2270,10 +2281,10 @@ impl eframe::App for FarisApp {
                     } else {ui.label("Mean neutron flux  —");}
                     ui.add_space(8.0);
                     if let Some(heating) = self.transport.response(&variant.id, &format!("heating-total-{}", component.id)) {
-                        ui.weak("Reference nuclear heating · MW");
+                        ui.weak("Reference nuclear heating");
                         ui.horizontal_wrapped(|ui|{
-                            ui.label(egui::RichText::new(format!("{:.3}",heating.integrated_mean / 1e6)).size(18.0).strong());
-                            badge::badge(ui,badge::Kind::Calculated,&format!("± {:.3} MW SE",heating.integrated_standard_error / 1e6),&format!("Sampling SE: {:.3} MW · coupled neutron/photon",heating.integrated_standard_error / 1e6));
+                            ui.label(egui::RichText::new(quantity_text::measurement_in("power","MW",heating.integrated_mean,heating.integrated_standard_error)).size(18.0).strong());
+                            badge::badge(ui,badge::Kind::Calculated,"sampling SE","Sampling uncertainty only; coupled neutron/photon.");
                             badge::badge(ui,badge::Kind::Conditional,"energy closure not evaluated","Deposition includes material reaction energy and can exceed D–T source power. Full physical energy closure is not evaluated; heat recovery is an authored assumption.");
                         });
                     } else { ui.label("Nuclear heating  —"); }

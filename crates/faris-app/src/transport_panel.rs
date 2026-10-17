@@ -683,6 +683,13 @@ impl TransportPanel {
                     );
                 });
             }
+            if let Some(note) = record.normalized.as_ref().and_then(|n| {
+                crate::quantity_text::mesh_note(&n.results, &record.mesh.id, record.mesh.bins())
+            }) {
+                ui.label(note).on_hover_text(
+                    "Share of the flux mesh's voxels whose relative standard error is within 10 % and 5 %. A voxel with no score counts as not converged.",
+                );
+            }
             if let Some(tally) = self.response(variant, "total-tritium-production") {
                 let rate = record
                     .normalized
@@ -691,23 +698,27 @@ impl TransportPanel {
                     .source_neutron_rate_per_s;
                 ui.horizontal_wrapped(|ui| {
                     ui.label(format!(
-                        "Total H3/source: {:.4} ± {:.4}",
-                        tally.integrated_mean / rate,
-                        tally.integrated_standard_error / rate
+                        "Total H3/source: {}",
+                        crate::quantity_text::measurement(
+                            tally.integrated_mean / rate,
+                            tally.integrated_standard_error / rate
+                        )
                     ));
                     badge::badge(
                         ui,
                         Kind::Calculated,
-                        "± 1 SE",
-                        "± one Monte Carlo standard error; total-model production per primary neutron.",
+                        "per primary neutron",
+                        "The interval is one Monte Carlo standard error (stated beside the value); total-model production per primary neutron.",
                     );
                 });
                 if let Some(breeder) = self.response(variant, "blanket-tritium") {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!(
-                            "Breeder H3/source: {:.4} ± {:.4}",
-                            breeder.integrated_mean / rate,
-                            breeder.integrated_standard_error / rate
+                            "Breeder H3/source: {}",
+                            crate::quantity_text::measurement(
+                                breeder.integrated_mean / rate,
+                                breeder.integrated_standard_error / rate
+                            )
                         ));
                         badge::badge(
                             ui,
