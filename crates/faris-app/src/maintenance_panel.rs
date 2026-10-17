@@ -778,6 +778,12 @@ const WORK_COLOR: egui::Color32 = crate::theme::SERIES_WORK;
 fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
     ui.painter().rect_filled(rect, 1.0, color);
+    ui.painter().rect_stroke(
+        rect,
+        1.0,
+        egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
+        egui::StrokeKind::Outside,
+    );
     ui.weak(label);
 }
 

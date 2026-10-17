@@ -97,6 +97,11 @@ pub struct Palette {
     pub pill_text_lift: f32,
     pub pill_fill_alpha: f32,
     pub pill_border_alpha: f32,
+    // Labels over the 3D view: the plate behind them and the label colour.
+    pub overlay_plate: Color32,
+    pub overlay_text: Color32,
+    // Contrast a label drawn on a data-coloured fill must reach.
+    pub label_min: f32,
     // Series colours (lines, markers, bars) are lifted toward white by this much, and bars
     // are drawn with this opacity.
     pub series_lift: f32,
@@ -139,6 +144,9 @@ pub static DEFAULT: Palette = Palette {
     pill_text_lift: 0.3,
     pill_fill_alpha: 0.14,
     pill_border_alpha: 0.85,
+    overlay_plate: Color32::from_rgb(18, 21, 28),
+    overlay_text: Color32::from_rgb(255, 178, 46),
+    label_min: 4.5,
     series_lift: 0.0,
     bar_alpha: 0.85,
 };
@@ -175,6 +183,9 @@ pub static HIGH_CONTRAST: Palette = Palette {
     pill_text_lift: 0.5,
     pill_fill_alpha: 0.0,
     pill_border_alpha: 1.0,
+    overlay_plate: Color32::BLACK,
+    overlay_text: Color32::from_rgb(255, 200, 90),
+    label_min: 7.0,
     series_lift: 0.15,
     bar_alpha: 1.0,
 };
@@ -256,6 +267,60 @@ pub fn visuals(theme: Theme) -> egui::Visuals {
     );
     w.open = widget(&w.open, p.button, p.control_border, p.text_button, 1.0);
     v
+}
+
+/// WCAG 2.2 relative luminance of an opaque colour.
+pub fn relative_luminance(c: Color32) -> f64 {
+    let linear = |channel: u8| {
+        let v = f64::from(channel) / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * linear(c.r()) + 0.7152 * linear(c.g()) + 0.0722 * linear(c.b())
+}
+
+/// WCAG 2.2 contrast ratio of two opaque colours.
+pub fn contrast_ratio(a: Color32, b: Color32) -> f64 {
+    let (a, b) = (relative_luminance(a), relative_luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// The colour of a label drawn on `fill` (a data colour the app does not choose, such as a
+/// component colour from a study file), and a backing plate when black or white text alone
+/// would fall short of `p.label_min`. The pair always reaches `label_min`: against its plate
+/// the text is black on white or white on black, 21 to 1.
+pub fn label_colors(p: &Palette, fill: Color32) -> (Color32, Option<Color32>) {
+    let (best, other) =
+        if contrast_ratio(Color32::BLACK, fill) >= contrast_ratio(Color32::WHITE, fill) {
+            (Color32::BLACK, Color32::WHITE)
+        } else {
+            (Color32::WHITE, Color32::BLACK)
+        };
+    if f64::from(p.label_min) <= contrast_ratio(best, fill) {
+        (best, None)
+    } else {
+        (best, Some(other))
+    }
+}
+
+/// Draw `text` centred on `center`, over `fill`, readable at the theme's label contrast.
+pub fn label_on_fill(
+    painter: &egui::Painter,
+    center: egui::Pos2,
+    text: &str,
+    font: egui::FontId,
+    fill: Color32,
+) {
+    let (color, plate) = label_colors(palette(), fill);
+    let galley = painter.layout_no_wrap(text.to_owned(), font, color);
+    let rect = egui::Align2::CENTER_CENTER.anchor_size(center, galley.size());
+    if let Some(plate) = plate {
+        painter.rect_filled(rect.expand2(egui::vec2(2.0, 0.0)), 2.0, plate);
+    }
+    painter.galley(rect.min, galley, color);
 }
 
 #[cfg(test)]
@@ -444,6 +509,13 @@ mod tests {
                 text(&format!("{name} label"), pill_text_in(p, fg), bg, bg_name);
             }
         }
+        // Labels over the 3D view sit on an opaque plate, so the scene behind never matters.
+        for (name, fg) in [
+            ("overlay label", p.overlay_text),
+            ("viewport caption", p.caption),
+        ] {
+            text(name, fg, p.overlay_plate, "overlay plate");
+        }
         // Button text on each button state, and on the selection fill.
         for (state, widget) in [
             ("idle", v.widgets.inactive),
@@ -504,6 +576,12 @@ mod tests {
                 minimum: graphic_min,
             });
         };
+        graphic(
+            "overlay label border",
+            pill_border_in(p, p.overlay_text),
+            p.overlay_plate,
+            "overlay plate",
+        );
         // Control borders, separators, focus ring, axes and markers.
         for (bg_name, bg) in pages {
             for (name, fg) in [
@@ -628,6 +706,64 @@ mod tests {
                     "{} has no {needle} check",
                     theme.name()
                 );
+            }
+        }
+    }
+
+    // Verifies: A11Y-010
+    #[test]
+    fn labels_on_data_coloured_fills_reach_the_theme_contrast() {
+        // Component colours come from study files, so every colour is tried: a grid over the
+        // whole RGB cube (steps of 15 include both ends) plus every gray.
+        let mut worst = f64::MAX;
+        for theme in Theme::ALL {
+            let p = theme.palette();
+            let minimum = f64::from(text_minimum(theme));
+            assert_eq!(f64::from(p.label_min), minimum);
+            let mut check = |fill: Color32| {
+                let (color, plate) = label_colors(p, fill);
+                let got = match plate {
+                    Some(plate) => ratio(color, plate),
+                    None => ratio(color, fill),
+                };
+                assert!(
+                    got >= minimum,
+                    "{fill:?} gives {got:.2} in {}",
+                    theme.name()
+                );
+                worst = worst.min(got);
+            };
+            for r in (0..=255u8).step_by(15) {
+                for g in (0..=255u8).step_by(15) {
+                    for b in (0..=255u8).step_by(15) {
+                        check(Color32::from_rgb(r, g, b));
+                    }
+                }
+            }
+            for v in 0..=255u8 {
+                check(gray(v));
+            }
+        }
+        assert!(worst >= 4.5);
+    }
+
+    // The selection fill is a highlight behind text (checked above as "selected text"); it
+    // conveys no information of its own, so WCAG 1.4.11 does not ask 3:1 of the fill. The
+    // colour-map gradient and the component bars are graphical objects: each is outlined in
+    // `chart_axis`, checked against every background in `checks`, so their boundary is 3:1
+    // whatever the fill colours are.
+    // Verifies: A11Y-011
+    #[test]
+    fn data_coloured_objects_are_outlined_at_graphic_contrast() {
+        for theme in Theme::ALL {
+            let p = theme.palette();
+            let minimum = if theme == Theme::HighContrast {
+                4.5
+            } else {
+                3.0
+            };
+            for bg in [p.panel, p.window, p.central, p.plot] {
+                assert!(ratio(p.chart_axis, bg) >= minimum, "{}", theme.name());
             }
         }
     }

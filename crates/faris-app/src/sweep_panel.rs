@@ -596,22 +596,16 @@ impl SweepPanel {
             ui.painter().rect_stroke(
                 segment,
                 0.0,
-                egui::Stroke::new(1.0, egui::Color32::from_black_alpha(90)),
+                egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
                 egui::StrokeKind::Inside,
             );
-            let luminance =
-                0.299 * fill.r() as f32 + 0.587 * fill.g() as f32 + 0.114 * fill.b() as f32;
             if w >= 34.0 {
-                ui.painter().text(
+                crate::theme::label_on_fill(
+                    ui.painter(),
                     segment.center(),
-                    egui::Align2::CENTER_CENTER,
-                    format!("{:.2}", component.thickness_m),
+                    &format!("{:.2}", component.thickness_m),
                     egui::FontId::proportional(11.0),
-                    if luminance > 140.0 {
-                        egui::Color32::BLACK
-                    } else {
-                        egui::Color32::WHITE
-                    },
+                    fill,
                 );
             }
             ui.interact(

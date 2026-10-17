@@ -665,7 +665,7 @@ pub fn paint_labels(painter: &egui::Painter, rect: egui::Rect, camera: Camera, s
     let Some(point) = project(&camera, rect, anchor) else {
         return;
     };
-    let amber = egui::Color32::from_rgb(255, 178, 46);
+    let amber = crate::theme::palette().overlay_text;
     let galley = painter.layout_no_wrap(
         "Outboard port".to_owned(),
         egui::FontId::proportional(13.0),
@@ -688,11 +688,7 @@ pub fn paint_labels(painter: &egui::Painter, rect: egui::Rect, camera: Camera, s
         egui::Stroke::new(1.2, amber.gamma_multiply(0.8)),
     );
     painter.circle_filled(point, 3.5, amber);
-    painter.rect_filled(
-        label,
-        5.0,
-        egui::Color32::from_rgba_unmultiplied(18, 21, 28, 215),
-    );
+    painter.rect_filled(label, 5.0, crate::theme::palette().overlay_plate);
     painter.rect_stroke(
         label,
         5.0,

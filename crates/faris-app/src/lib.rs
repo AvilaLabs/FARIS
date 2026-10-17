@@ -1095,6 +1095,12 @@ fn draw_bar(
             .on_hover_cursor(egui::CursorIcon::PointingHand);
         let fill = hex_color(&component.color);
         ui.painter().rect_filled(segment, 0.0, fill);
+        ui.painter().rect_stroke(
+            segment,
+            0.0,
+            egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
+            egui::StrokeKind::Inside,
+        );
         let counterpart = other
             .and_then(|o| o.components.iter().find(|c| c.id == component.id))
             .filter(|c| (c.thickness_m - component.thickness_m).abs() > 1e-9);
@@ -1115,18 +1121,12 @@ fn draw_bar(
             );
         }
         if w >= 34.0 && height >= 22.0 {
-            let luminance =
-                0.299 * fill.r() as f32 + 0.587 * fill.g() as f32 + 0.114 * fill.b() as f32;
-            ui.painter().text(
+            crate::theme::label_on_fill(
+                ui.painter(),
                 segment.center(),
-                egui::Align2::CENTER_CENTER,
-                format!("{:.2}", component.thickness_m),
+                &format!("{:.2}", component.thickness_m),
                 egui::FontId::proportional(11.0),
-                if luminance > 140.0 {
-                    egui::Color32::BLACK
-                } else {
-                    egui::Color32::WHITE
-                },
+                fill,
             );
         }
         if response.clicked() {
@@ -2432,6 +2432,8 @@ impl eframe::App for FarisApp {
                 );
                 if rect.width() >= 200.0 && rect.height() >= 200.0 && galley.size().y + 32.0 <= rect.height() {
                     let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
+                    let plate = egui::Rect::from_min_size(caption_position, galley.size()).expand(4.0);
+                    ui.painter().rect_filled(plate, 3.0, crate::theme::palette().overlay_plate);
                     ui.painter().galley(caption_position, galley, crate::theme::palette().caption);
                 }
                 response.on_hover_ui(|ui| {
