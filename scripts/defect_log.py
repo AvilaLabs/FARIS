@@ -23,6 +23,9 @@ reads with `--defects` (scripts/release_gate.py, QA-083), so no separate evidenc
                        a release (affected_versions is not ["unreleased"]) needs it, no later than 7 days
                        after `found` (QA-082); an open S1 without it fails once 7 days have passed
     waiver             optional, as the release gate defines it (open S2 only)
+    data_loss          true when study data was lost or corrupted (REL-044), else false; required on S2 (the
+                       severity that includes data loss), optional elsewhere. An open or wont-fix data-loss
+                       entry blocks a release and cannot be waived (scripts/release_gate.py)
 
 Every problem is listed; exit status 1 if there is any. Upstream OpenMC drafts in docs/defects/*.md are not
 part of this log.
@@ -86,6 +89,13 @@ def lint_entry(d, root: Path, today: date | None = None) -> list[str]:
     elif status == "wont-fix" and not text(test):
         bad("wont-fix but regression_test gives no reason")
     out.extend(f"{name}: {p}" for p in disclosure_problems(d, today or date.today()))
+    loss = d.get("data_loss")
+    if loss is not None and not isinstance(loss, bool):
+        bad("data_loss must be true or false")
+    if d.get("severity") == "S2" and loss is None:
+        bad("an S2 defect must state data_loss (true or false)")
+    if loss is True and d.get("waiver") is not None:
+        bad("a data-loss defect cannot be waived")
     if d.get("waiver") is not None and not (status == "open" and d.get("severity") == "S2"):
         bad("a waiver applies only to an open S2 defect")
     return out

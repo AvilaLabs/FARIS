@@ -11,7 +11,7 @@ FARIS is a design model. It is not a digital twin.
 
 > Research screening only. These results are not a licensing, safety or design basis.
 
-This line sits in the bottom bar of every step. It is also in every export. Nothing in FARIS is a licence, qualification, safety or validation claim.
+This line sits in the bottom bar of every step. It is also in every export. Nothing in FARIS is a licence, qualification, safety or validation claim. FARIS maps its quality controls to the software elements of ASME NQA-1 and does not comply with NQA-1.
 
 ## 2. Getting started
 

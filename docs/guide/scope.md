@@ -1,7 +1,7 @@
 <!-- kind: explanation -->
 # Scope and limits
 
-FARIS 0.2.0 is research-screening software and a deliberately narrow demo. Its results are not a licensing, safety or design basis. Nothing in FARIS is a licence, safety, certification or validation claim.
+FARIS 0.2.0 is research-screening software and a deliberately narrow demo. Its results are not a licensing, safety or design basis. Nothing in FARIS is a licence, safety, certification or validation claim. FARIS maps its quality controls to the software elements of ASME NQA-1 and does not comply with NQA-1.
 
 FARIS is a design model of one study. It is not a model of a real machine.
 

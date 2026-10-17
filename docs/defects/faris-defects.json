@@ -124,6 +124,7 @@
       "id": "FARIS-010",
       "title": "Transport stop rule could accept a run while one heavy history dominated the sum",
       "severity": "S2",
+      "data_loss": false,
       "status": "fixed",
       "found": "2026-10-14",
       "affected_versions": [

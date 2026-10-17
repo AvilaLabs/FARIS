@@ -40,6 +40,24 @@ class DefectLogTests(unittest.TestCase):
         self.assertTrue(data["defects"])
 
     # Verifies: QA-080
+    def test_the_readme_defines_the_four_severities_and_the_log_uses_only_those(self):
+        readme = (REPO / "docs" / "defects" / "README.md").read_text(encoding="utf-8")
+        for severity in dl.SEVERITIES:
+            self.assertRegex(readme, rf"(?m)^\| {severity} \| .+ \|$")
+        data = json.loads((REPO / dl.LOG).read_text(encoding="utf-8"))
+        for d in data["defects"]:
+            for field in ("severity", "status", "affected_versions", "disposition", "regression_test"):
+                self.assertTrue(d.get(field), (d["id"], field))
+
+    # Verifies: REL-044
+    def test_data_loss_must_be_stated_on_s2_and_cannot_be_waived(self):
+        self.assertTrue(self.problems(entry(severity="S2")))
+        self.assertEqual(self.problems(entry(severity="S2", data_loss=False)), [])
+        self.assertTrue(self.problems(entry(data_loss="yes")))
+        self.assertTrue(self.problems(entry(status="open", severity="S2", data_loss=True, regression_test=None,
+                                            waiver={"owner": "a", "reason": "b", "expiry": "2026-12-01"})))
+
+    # Verifies: QA-080
     def test_a_complete_entry_passes(self):
         self.assertEqual(self.problems(entry()), [])
 
@@ -73,7 +91,7 @@ class DefectLogTests(unittest.TestCase):
         self.assertEqual(self.problems(entry(status="wont-fix", fixed_in=None, regression_test="Out of scope.")), [])
         self.assertTrue(self.problems(entry(status="wont-fix", fixed_in=None, regression_test="")))
         self.assertTrue(self.problems(entry(status="fixed", waiver={"owner": "a"})))
-        self.assertEqual(self.problems(entry(status="open", severity="S2", regression_test=None,
+        self.assertEqual(self.problems(entry(status="open", severity="S2", data_loss=False, regression_test=None,
                                              waiver={"owner": "a", "reason": "b", "expiry": "2026-12-01"})), [])
 
     # Verifies: QA-080

@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CALCULATION_CRATES = ["faris-engine", "faris-model", "faris-study"]
-ADVISORY = {"PRV-008-timing", "SEC-011-slice", "PRV-011-literal", "UX-046-na", "UX-046-dash", "DOC-062", "VAL-084", "QA-052"}
+ADVISORY = {"PRV-008-timing", "SEC-011-slice", "PRV-011-literal", "UX-046-na", "UX-046-dash", "DOC-062", "VAL-084"}
 KIND_WORDS = ("calculated", "authored", "literature", "conditional")
 # Modules that define the kind text of a label from the result it labels.
 KIND_DEFINERS = {"crates/faris-engine/src/brief.rs", "crates/faris-model/src/remote_handling.rs", "crates/faris-app/src/badge.rs"}

@@ -262,6 +262,24 @@ class ReleaseGate(unittest.TestCase):
         self.waiver_file(condition="FARIS-021")  # a waiver for another defect does not cover this one
         self.assertFalse(results(rg.Gate(self.d, **inputs))[defects][0])
 
+    # Verifies: REL-044
+    def test_a_data_loss_defect_that_is_not_fixed_blocks_the_gate(self):
+        make_root(self.d)
+        inputs = passing_inputs(self.d)
+        name = "no open S1, no open S2 without a waiver"
+        soon = (TODAY + timedelta(days=30)).isoformat()
+        waiver = {"owner": "CA", "reason": "workaround", "expiry": soon}
+
+        def gate_with(defects):
+            write(inputs["defects"], json.dumps({"defects": defects}))
+            return results(rg.Gate(self.d, **inputs))[name]
+
+        self.assertTrue(gate_with([{"id": "D-1", "severity": "S2", "status": "fixed", "data_loss": True}])[0])
+        for status in ("open", "wont-fix"):
+            passed, reason = gate_with([{"id": "D-1", "severity": "S2", "status": status, "data_loss": True, "waiver": waiver}])
+            self.assertFalse(passed)
+            self.assertIn("data loss", reason)
+
     # Verifies: VAL-051
     def test_a_blank_matrix_cell_blocks_the_gate(self):
         bad = good_matrix()

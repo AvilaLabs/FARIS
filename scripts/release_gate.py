@@ -51,7 +51,7 @@ least one must exist. Fuzz evidence (scripts/fuzz_all.sh) has the same shape wit
 its check (QA-033). Reproducible-build evidence is {"commit": SHA, "builds": [{"artifact": ...,
 "sha256_a": ..., "sha256_b": ...}]} with equal hashes. The defect log is {"defects": [{"id": ...,
 "severity": "S1".."S4", "status": "open" or other, "waiver": {"owner": ..., "reason": ..., "expiry":
-"YYYY-MM-DD"}}]}: an open S1 always blocks (QA-083), an open S2 needs a complete waiver that has not
+"YYYY-MM-DD"}}]}: an open S1 or any data-loss defect that is not fixed always blocks (QA-083, REL-044), an open S2 needs a complete waiver that has not
 expired and expires within 90 days (QA-072).
 
 At release time the gate runs after the test, performance, fuzz and build jobs, with their evidence files
@@ -399,6 +399,9 @@ def check_defects(g: Gate):
     blocking = []
     filed = {w.get("condition"): w for w in read_waivers(g.root) if isinstance(w, dict)}
     for d in defects:
+        if d.get("data_loss") is True and d.get("status") != "fixed":
+            blocking.append(f"{d.get('id')} (data loss is {d.get('status')}, cannot be waived)")
+            continue
         if d.get("status") != "open" or d.get("severity") not in ("S1", "S2"):
             continue
         if d["severity"] == "S1":
@@ -541,6 +544,8 @@ REPO_CHECKS = (
     ("tracked files stay small", "QA-090", _script("check_repository_size.py")),
     ("dependency licences fit AGPL-3.0", "LEG-003", _licences),
     ("no unwaived advisory", "SEC-031", _script("check_audit.py")),
+    ("sign-in advisories fixed in time", "SEC-039", _script("advisory_log.py")),
+    ("every fuzz finding has a reproducer and none is open", "SEC-022", _script("fuzz_findings.py", "--release")),
     ("SBOM generates and validates", "SEC-030", _sbom),
     ("dependency notices are current", "LEG-001", _notices),
     ("documentation links resolve", "DOC-026", _script("check_links.py")),

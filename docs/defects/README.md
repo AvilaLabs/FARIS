@@ -135,5 +135,9 @@ fixed entry (the lint checks that the file exists and contains the name), and th
 S1 blocks a release; an open S2 needs a waiver with owner, reason and an expiry within 90 days (see
 `docs/RELEASING.md`).
 
+A report of lost or corrupted study data is logged with `"data_loss": true`. An S2 entry must say `true` or `false`.
+A data-loss entry that is not fixed blocks the release and cannot be waived; once fixed it has a regression test like
+every fixed entry (REL-044).
+
 The log is filled from the commit history and the changelog. Where the date a defect was first seen is not recorded,
 `found` is the date of the commit that fixed it. A fix that has no test is not recorded as fixed until one is written.
