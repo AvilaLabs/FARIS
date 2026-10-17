@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 117 | 578 | 689 | 35 | 428 | 30 % | 505 | 150 | 459 | 116 | 430 | 98 |
+| All requirements | 1419 | 122 | 576 | 686 | 35 | 432 | 30 % | 505 | 150 | 459 | 116 | 430 | 98 |
 
 ## By category
 
@@ -25,14 +25,14 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Usability](09-usability.md) | 73 | 4 | 34 | 32 | 3 | 22 | 30 % | 37 | 12 | 30 | 10 | 5 | 6 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | 57 | 2 | 19 | 27 | 9 | 14 | 25 % | 42 | 5 | 13 | 4 | 1 | 1 |
 | [Visualization](11-visualization.md) | 49 | 1 | 31 | 16 | 1 | 13 | 27 % | 22 | 7 | 22 | 7 | 7 | 0 |
-| [Configurability](12-configurability.md) | 63 | 2 | 34 | 26 | 1 | 26 | 41 % | 27 | 3 | 26 | 2 | 15 | 0 |
-| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 1 | 25 | 48 | 0 | 17 | 23 % | 35 | 8 | 25 | 1 | 20 | 4 |
-| [Interoperability](14-interoperability.md) | 59 | 1 | 21 | 34 | 3 | 10 | 17 % | 24 | 11 | 14 | 1 | 24 | 3 |
+| [Configurability](12-configurability.md) | 63 | 3 | 35 | 24 | 1 | 28 | 44 % | 27 | 3 | 26 | 2 | 15 | 0 |
+| [Automation and extensibility](13-automation-and-extensibility.md) | 74 | 2 | 24 | 48 | 0 | 17 | 23 % | 35 | 8 | 25 | 1 | 20 | 4 |
+| [Interoperability](14-interoperability.md) | 59 | 2 | 20 | 34 | 3 | 10 | 17 % | 24 | 11 | 14 | 1 | 24 | 3 |
 | [Design workflows](15-design-workflows.md) | 75 | 3 | 20 | 52 | 0 | 5 | 7 % | 19 | 9 | 19 | 0 | 40 | 4 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 6 | 19 | 15 | 2 | 16 | 38 % | 11 | 4 | 7 | 0 | 25 | 4 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | 42 | 7 | 18 | 15 | 2 | 16 | 38 % | 11 | 4 | 7 | 0 | 25 | 4 |
 | [Collaboration](17-collaboration.md) | 40 | 1 | 12 | 27 | 0 | 8 | 20 % | 6 | 1 | 10 | 1 | 25 | 1 |
-| [Reliability](18-reliability.md) | 38 | 4 | 21 | 12 | 1 | 16 | 42 % | 7 | 4 | 8 | 1 | 27 | 3 |
-| [Security](19-security.md) | 55 | 10 | 28 | 16 | 1 | 24 | 44 % | 14 | 3 | 7 | 0 | 36 | 10 |
+| [Reliability](18-reliability.md) | 38 | 5 | 21 | 11 | 1 | 17 | 45 % | 7 | 4 | 8 | 1 | 27 | 3 |
+| [Security](19-security.md) | 55 | 10 | 28 | 16 | 1 | 25 | 45 % | 14 | 3 | 7 | 0 | 36 | 10 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 3 | 25 | 17 | 0 | 11 | 24 % | 5 | 2 | 6 | 1 | 33 | 7 |
 | [Quality assurance](21-quality-assurance.md) | 77 | 12 | 29 | 35 | 1 | 27 | 35 % | 16 | 13 | 23 | 7 | 34 | 7 |
 | [Documentation and learning](22-documentation-and-learning.md) | 45 | 3 | 24 | 17 | 1 | 18 | 40 % | 13 | 1 | 22 | 11 | 4 | 2 |
@@ -42,7 +42,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 71 | 282 | 75 | 17 | 235 | 53 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F1 | 445 | 76 | 280 | 72 | 17 | 239 | 54 % | 132 | 31 | 107 | 53 | 186 | 24 |
 | F2 | 497 | 35 | 222 | 224 | 16 | 163 | 33 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 8 | 57 | 0 | 4 | 6 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 6 | 32 | 133 | 2 | 12 | 7 % | 66 | 15 | 62 | 8 | 40 | 9 |

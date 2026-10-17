@@ -123,21 +123,21 @@ Its main gaps against these targets:
 | [Usability](09-usability.md) | UX | 73 | 4 | 34 | 3 | 32 |
 | [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 2 | 19 | 9 | 27 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
-| [Configurability](12-configurability.md) | CFG | 63 | 2 | 34 | 1 | 26 |
-| [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 1 | 25 | 0 | 48 |
-| [Interoperability](14-interoperability.md) | INT | 59 | 1 | 21 | 3 | 34 |
+| [Configurability](12-configurability.md) | CFG | 63 | 3 | 35 | 1 | 24 |
+| [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 2 | 24 | 0 | 48 |
+| [Interoperability](14-interoperability.md) | INT | 59 | 2 | 20 | 3 | 34 |
 | [Design workflows](15-design-workflows.md) | DSN | 75 | 3 | 20 | 0 | 52 |
-| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 6 | 19 | 2 | 15 |
+| [Evidence and provenance](16-evidence-and-provenance.md) | PRV | 42 | 7 | 18 | 2 | 15 |
 | [Collaboration](17-collaboration.md) | COL | 40 | 1 | 12 | 0 | 27 |
-| [Reliability](18-reliability.md) | REL | 38 | 4 | 21 | 1 | 12 |
+| [Reliability](18-reliability.md) | REL | 38 | 5 | 21 | 1 | 11 |
 | [Security](19-security.md) | SEC | 55 | 10 | 28 | 1 | 16 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | PLAT | 45 | 3 | 25 | 0 | 17 |
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 12 | 29 | 1 | 35 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 3 | 24 | 1 | 17 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 8 | 18 | 2 | 8 |
-| **Total** | | **1419** | **117** | **578** | **35** | **689** |
+| **Total** | | **1419** | **122** | **576** | **35** | **686** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 117 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 122 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control
