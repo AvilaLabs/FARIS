@@ -11,10 +11,10 @@ use faris_model::waste::{
     self, WasteInventory,
     clearance::{
         DoseRateContribution, RecyclingCriterion, SEARCH_END_YEARS, SEARCH_START_YEARS,
-        clearance_time, recycling_index,
+        recycling_index,
     },
     fetter,
-    regime::{Regime, classify_regime},
+    regime::{Regime, classify_regime, regime_time},
     tables, uk,
 };
 use serde::de::DeserializeOwned;
@@ -107,10 +107,14 @@ pub enum WasteCommand {
         #[arg(long)]
         replacements: Option<PathBuf>,
     },
-    /// Find the time the IAEA clearance index falls below 1, searched between two times.
+    /// Find the time a scheme's sum of fractions falls below 1 (IAEA) or to at most 1 (the UK
+    /// schedule, Fetter and UK VLLW sums), searched between two times. Decay only.
     ClearanceTime {
         #[arg(long)]
         inventory: PathBuf,
+        /// The scheme whose sum is searched; 10 CFR 61.55 has no single index and is refused.
+        #[arg(long, value_enum, default_value = "iaea-gsr3-table-i2")]
+        scheme: Scheme,
         #[arg(long, default_value_t = SEARCH_START_YEARS)]
         from_years: f64,
         #[arg(long, default_value_t = SEARCH_END_YEARS)]
@@ -324,11 +328,17 @@ pub fn run(command: WasteCommand) -> Result<(), Box<dyn std::error::Error>> {
         }
         WasteCommand::ClearanceTime {
             inventory,
+            scheme,
             from_years,
             to_years,
         } => {
             let inventory: WasteInventory = read_json(&inventory)?;
-            print(&clearance_time(&inventory, from_years, to_years))
+            print(&regime_time(
+                scheme.regime(),
+                &inventory,
+                from_years,
+                to_years,
+            ))
         }
         WasteCommand::Recycling {
             criterion,

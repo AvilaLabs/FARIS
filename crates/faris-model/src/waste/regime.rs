@@ -13,7 +13,9 @@ use sha2::{Digest, Sha256};
 use super::{
     NotEvaluated, SchemeInfo, WasteInventory,
     classify::{WasteResult, classify_nrc},
-    clearance::{ClearanceIndex, clearance_index},
+    clearance::{
+        ClearanceIndex, ClearanceTimeResult, clearance_index, clearance_time, time_to_below_one,
+    },
     fetter::{FetterResult, classify_fetter},
     profile::{self, ProfileStamp, ProfileStatus},
     uk::{UkClearanceResult, UkWasteResult, classify_uk_waste, uk_clearance_index},
@@ -115,6 +117,91 @@ pub struct RegimeReport {
     pub result: Option<RegimeResult>,
     pub receipt: ClassificationReceipt,
     pub research_screening: String,
+}
+
+/// The first time in `[start, end]` years at which the regime's sum of fractions is below 1 (IAEA)
+/// or at most 1 (the others). Not defined for 10 CFR 61.55, whose classes are not one sum, and for
+/// the UK LLW boundaries, which are two separate limits: the UK waste scheme searches its
+/// high-volume VLLW sum. Decay only, no ingrowth.
+pub fn regime_time(
+    regime: Regime,
+    inventory: &WasteInventory,
+    start_years: f64,
+    end_years: f64,
+) -> ClearanceTimeResult {
+    let info = |r: Regime| {
+        profile::scheme_record(r.scheme_id())
+            .expect("every regime has a scheme")
+            .0
+    };
+    let nope = |reason: &str| {
+        let mut out = time_to_below_one(
+            info(regime),
+            inventory,
+            start_years,
+            end_years,
+            true,
+            "not searched",
+            |_| Ok(0.0),
+        );
+        out.time = None;
+        out.index_at_window_start = None;
+        out.not_evaluated = Some(NotEvaluated::new(
+            reason,
+            vec!["scheme".to_string()],
+            "Use iaea-gsr3-table-i2, uk-epr2016-sch23-table2, fetter-specific-activity or uk-llw-ilw.",
+        ));
+        out
+    };
+    match regime {
+        Regime::Iaea => clearance_time(inventory, start_years, end_years),
+        Regime::UkOutOfScope => time_to_below_one(
+            info(regime),
+            inventory,
+            start_years,
+            end_years,
+            true,
+            "bisection on the decay-only Schedule 23 Table 2 sum (non-increasing in time; values are exceeded only above 1); no ingrowth",
+            |t| {
+                let r = uk_clearance_index(inventory, t);
+                r.index
+                    .ok_or_else(|| r.not_evaluated.expect("no index means a reason"))
+            },
+        ),
+        Regime::Fetter => time_to_below_one(
+            info(regime),
+            inventory,
+            start_years,
+            end_years,
+            true,
+            "bisection on the decay-only sum of fractions at the lower Fetter limits (non-increasing in time); no ingrowth",
+            |t| {
+                let r = classify_fetter(inventory, t);
+                match r.not_evaluated {
+                    Some(e) => Err(e),
+                    None => Ok(r.sum_at_lower),
+                }
+            },
+        ),
+        Regime::UkWaste => time_to_below_one(
+            info(regime),
+            inventory,
+            start_years,
+            end_years,
+            true,
+            "bisection on the decay-only high-volume VLLW sum of fractions, a FARIS combination of the 4 MBq/te and 40 MBq/te limits (non-increasing in time); no ingrowth",
+            |t| {
+                let r = classify_uk_waste(inventory, t);
+                match r.not_evaluated {
+                    Some(e) => Err(e),
+                    None => Ok(r.criteria[2].value),
+                }
+            },
+        ),
+        Regime::UsNrc => nope(
+            "10 CFR 61.55 gives a class from several sums and thresholds and not one index to bring below 1",
+        ),
+    }
 }
 
 fn iaea_class(r: &ClearanceIndex) -> String {
@@ -396,5 +483,100 @@ mod tests {
         assert_eq!(again.receipt.receipt_sha256, r.receipt_sha256);
         let text = serde_json::to_vec(&r.body).unwrap();
         assert_eq!(format!("{:x}", Sha256::digest(&text)), r.receipt_sha256);
+    }
+}
+
+#[cfg(test)]
+mod time_tests {
+    use super::*;
+    use crate::waste::clearance::ClearanceTime;
+    use crate::waste::{CURIE_BQ, NuclideActivity, WasteForm, YEAR_S};
+
+    /// One nuclide with a 10 year half-life, activity `k` times its limit at t = 0.
+    fn one(nuclide: &str, bq: f64, alpha: Option<bool>, mass: f64, volume: f64) -> WasteInventory {
+        WasteInventory {
+            component_id: "time-test".to_string(),
+            waste_form: WasteForm::ActivatedMetal,
+            volume_m3: Some(volume),
+            mass_g: Some(mass),
+            inventory_time_years: 0.0,
+            transuranics_evaluated: true,
+            inventory_kind: "authored_test".to_string(),
+            nuclides: vec![NuclideActivity {
+                nuclide: nuclide.to_string(),
+                activity_bq: bq,
+                half_life_s: 10.0 * YEAR_S,
+                alpha_emitter: alpha,
+                progeny_of: None,
+            }],
+        }
+    }
+
+    fn years(r: &ClearanceTimeResult) -> f64 {
+        match r.time {
+            Some(ClearanceTime::FallsBelowOneAt { years }) => years,
+            ref other => panic!("{other:?}"),
+        }
+    }
+
+    // Verifies: ACT-036
+    #[test]
+    fn iaea_single_nuclide_crosses_after_log2_of_its_excess_half_lives() {
+        // Co-60 level 0.1 Bq/g; 8 times that is 3 half-lives of 10 y: crosses (strictly below) at 30 y.
+        let inv = one("Co-60", 0.8 * 1000.0, None, 1000.0, 1.0);
+        let r = regime_time(Regime::Iaea, &inv, 1.0, 100.0);
+        assert!((years(&r) - 30.0).abs() < 1e-6, "{}", years(&r));
+    }
+
+    // Verifies: ACT-036
+    #[test]
+    fn uk_schedule_single_nuclide_reaches_at_most_one_after_log2_of_its_excess_half_lives() {
+        // Co-60 value 0.1 Bq/g; 8 times that: sum is exactly 1 after 3 half-lives, which is not above.
+        let inv = one("Co-60", 0.8 * 1000.0, None, 1000.0, 1.0);
+        let r = regime_time(Regime::UkOutOfScope, &inv, 1.0, 100.0);
+        assert!((years(&r) - 30.0).abs() < 1e-6, "{}", years(&r));
+        assert_eq!(r.scheme.id, "uk-epr2016-sch23-table2");
+    }
+
+    // Verifies: ACT-036
+    #[test]
+    fn fetter_single_nuclide_reaches_at_most_one_after_log2_of_its_excess_half_lives() {
+        // Nb-94 limit 0.2 Ci/m3 in 1 m3; 1.6 Ci/m3 is 8 times: 30 y.
+        let inv = one("Nb-94", 1.6 * CURIE_BQ, None, 1.0e6, 1.0);
+        let r = regime_time(Regime::Fetter, &inv, 1.0, 100.0);
+        assert!((years(&r) - 30.0).abs() < 1e-6, "{}", years(&r));
+    }
+
+    // Verifies: ACT-036
+    #[test]
+    fn uk_vllw_single_nuclide_reaches_at_most_one_after_log2_of_its_excess_half_lives() {
+        // 1 tonne; Co-60 at 32 MBq/te is 8 times the 4 MBq/te: 30 y. (LLW alone holds from the start.)
+        let inv = one("Co-60", 32.0e6, Some(false), 1.0e6, 1.0);
+        let r = regime_time(Regime::UkWaste, &inv, 1.0, 100.0);
+        assert!((years(&r) - 30.0).abs() < 1e-6, "{}", years(&r));
+        assert!(r.method.contains("FARIS combination"));
+    }
+
+    // Verifies: ACT-036
+    #[test]
+    fn a_window_that_ends_early_or_a_missing_input_or_nrc_is_reported_not_guessed() {
+        let inv = one("Co-60", 0.8 * 1000.0, None, 1000.0, 1.0);
+        let r = regime_time(Regime::UkOutOfScope, &inv, 1.0, 20.0);
+        assert!(matches!(
+            r.time,
+            Some(ClearanceTime::NotWithinWindow { .. })
+        ));
+        let mut no_mass = inv.clone();
+        no_mass.mass_g = None;
+        assert!(
+            regime_time(Regime::UkOutOfScope, &no_mass, 1.0, 100.0)
+                .not_evaluated
+                .is_some()
+        );
+        assert!(
+            regime_time(Regime::UsNrc, &inv, 1.0, 100.0)
+                .not_evaluated
+                .is_some()
+        );
     }
 }
