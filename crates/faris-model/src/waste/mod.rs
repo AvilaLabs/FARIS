@@ -9,6 +9,7 @@
 pub mod classify;
 pub mod clearance;
 pub mod fetter;
+pub mod lifetime;
 pub mod profile;
 pub mod regime;
 pub mod tables;

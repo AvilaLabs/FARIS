@@ -6,7 +6,7 @@
 Every `faris` command with its help text, which lists every option. The examples are command lines from the
 rest of this handbook; [Command line](cli.md) explains how the commands fit together.
 
-79 of 83 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
+81 of 85 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
 
 ## faris
 
@@ -210,8 +210,9 @@ Activation inventory, decay heat and decay-photon source of zones through ACTINV
 Usage: faris activation [OPTIONS] <COMMAND>
 
 Commands:
-  run   Run ACTINV on zones with group fluxes and an irradiation schedule; writes a JSON result with inventory, activity, decay heat, decay-photon source, pathways and data gaps
-  help  Print this message or the help of the given subcommand(s)
+  run         Run ACTINV on zones with group fluxes and an irradiation schedule; writes a JSON result with inventory, activity, decay heat, decay-photon source, pathways and data gaps
+  impurities  Rank impurity elements by their effect on activity, decay heat and 10 CFR 61.55 waste class, with a finite-difference check of every sensitivity. One ACTINV request holds all the runs (matrix, full specification, one element alone, two steps per element)
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -270,6 +271,27 @@ Options:
 ```
 
 Example: `faris activation run --zones zones.json --spectra spectra.json --schedule schedule.json --cooling 1s,1h,1d,1y,10y,100y --actinv ~/.local/bin/actinv --data-dir ~/actinv-data --output activation.json`
+
+## faris activation impurities
+
+```text
+Rank impurity elements by their effect on activity, decay heat and 10 CFR 61.55 waste class, with a finite-difference check of every sensitivity. One ACTINV request holds all the runs (matrix, full specification, one element alone, two steps per element)
+
+Usage: faris activation impurities [OPTIONS] --request <REQUEST> --actinv <ACTINV> --data-dir <DATA_DIR> --output <OUTPUT>
+
+Options:
+      --request <REQUEST>    A faris-impurity-sensitivity request: matrix, impurities (wt ppm with kind and source), mass, volume, 709-group spectrum, steps, cooling times
+      --actinv <ACTINV>      The `actinv` executable
+      --data-dir <DATA_DIR>  ACTINV data root (the folder above the catalogue version)
+      --output <OUTPUT>      New result file (faris-impurity-sensitivity/v0.1); existing paths are refused
+      --cache <CACHE>        Content-addressed zone results; an identical request is not run again
+      --work-dir <WORK_DIR>  Scratch folder [default: OUTPUT.work]
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris activation impurities --request impurities.json --actinv ~/.local/bin/actinv --data-dir ~/actinv-data --output impurities-result.json --cache cache/`
 
 ## faris maintenance
 
@@ -347,6 +369,7 @@ Commands:
   schemes         List the classification schemes with name, version and date, and which are implemented
   tables          Print the encoded limit tables with their source, retrieval date and licence
   classify        Classify an inventory at a disposal time under the regime you choose with --scheme. The regime and its jurisdiction profile (name, version, review date) are named on the result. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing, or when the profile is past its review date; it never defaults to Class A
+  lifetime        Waste mass and volume by class and component over plant life: each replacement batch and each end-of-life component counted once. A batch with no inventory is NOT_EVALUATED
   clearance-time  Find the time the IAEA clearance index falls below 1, searched between two times
   recycling       Recycling index: a dose rate over a dose-rate criterion you write. FARIS supplies no criterion
   help            Print this message or the help of the given subcommand(s)
@@ -445,6 +468,45 @@ Options:
 ```
 
 Example: `faris waste classify`
+
+## faris waste lifetime
+
+```text
+Waste mass and volume by class and component over plant life: each replacement batch and each end-of-life component counted once. A batch with no inventory is NOT_EVALUATED
+
+Usage: faris waste lifetime [OPTIONS] --plan <PLAN>
+
+Options:
+      --plan <PLAN>
+          Lifetime plan JSON: per component the pieces, mass and volume of one installation and the inventories its replaced and end-of-life installations are classified from
+
+      --maintenance-result <MAINTENANCE_RESULT>
+          A `maintenance run` result file; the replacements of `--design` are used
+
+      --design <DESIGN>
+          
+
+      --history <HISTORY>
+          Possible values:
+          - fixed:    The history run with the authored replacement durations
+          - computed: The history run with the converged, computed durations
+          
+          [default: computed]
+
+      --replacements <REPLACEMENTS>
+          Or a JSON list of replacements (class, component, k, start_s, end_s)
+
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+Example: `faris waste lifetime --plan plan.json --maintenance-result maintenance.json --design ref`
 
 ## faris waste clearance-time
 

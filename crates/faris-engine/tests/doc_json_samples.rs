@@ -105,3 +105,14 @@ fn activation_zones_example_parses() {
         assert!(zone.mass_g > 0.0 && zone.volume_m3 > 0.0 && !zone.composition.is_empty());
     }
 }
+
+// Verifies: QA-016, ACT-038
+#[test]
+fn waste_lifetime_plan_example_parses() {
+    let blocks = json_blocks("docs/guide/waste.md");
+    assert_eq!(blocks.len(), 1, "a new json example needs a check here");
+    let plan: faris_engine::waste_lifetime::LifetimePlan =
+        serde_json::from_str(&blocks[0]).unwrap();
+    assert_eq!(plan.components.len(), 2);
+    assert!(plan.components.iter().all(|c| c.mass_kg_each > 0.0));
+}

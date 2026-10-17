@@ -22,6 +22,7 @@ pub mod history;
 pub mod history_ensemble;
 pub mod history_refinement;
 pub mod history_uncertainty;
+pub mod impurity_sensitivity;
 pub mod jobs;
 pub mod maintenance;
 pub mod memory;
@@ -37,6 +38,7 @@ pub mod sweep;
 pub mod tally_health;
 pub mod transport;
 pub mod vfs;
+pub mod waste_lifetime;
 
 use faris_model::math;
 use faris_model::{LoadedScenario, Penetration, Reference, ScenarioError};

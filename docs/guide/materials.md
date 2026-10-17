@@ -91,6 +91,12 @@ the disposal time, and names the table column that binds. It relies on two linea
 composition. The element's yield (becquerel per weight ppm, per nuclide) comes from the activation calculation.
 It does not model self-shielding or a spectrum that changes with composition.
 
+To see the effect of a whole impurity specification on activity, decay heat and waste class, element by element,
+and which elements matter most, use `faris activation impurities`
+([Which impurities matter](activation.md#which-impurities-matter)). Each impurity in its request carries the
+kind (`nominal`, `specified`, `measured`, `assumed`) and source of its value, and the result shows the effect per
+element; two specifications are two requests.
+
 ## Properties
 
 A property with a table is evaluated by linear interpolation inside its cited valid range. Outside the range the

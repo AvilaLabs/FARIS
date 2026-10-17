@@ -95,6 +95,8 @@ NEEDS = {
     ("transport", "statistics"): "needs a batch-values file that a transport run writes",
     ("geometry", "summary"): "needs the reader's scenario and physics case files",
     ("activation", "run"): "needs ACTINV and its data and a transport run's group spectra",
+    ("activation", "impurities"): "needs ACTINV and its data and the reader's impurity request",
+    ("waste", "lifetime"): "needs the reader's lifetime plan and a maintenance result",
     ("diff",): "needs two study or model files of the reader's",
 }
 
@@ -131,6 +133,7 @@ JSON_TESTS = {
     "docs/guide/design-file.md": ["design_file_waivers_example_parses_and_names_waivable_checks"],
     "docs/guide/maintenance.md": ["maintenance_examples_parse_and_validate"],
     "docs/guide/activation.md": ["activation_zones_example_parses"],
+    "docs/guide/waste.md": ["waste_lifetime_plan_example_parses"],
 }
 RUST_JSON_TEST = ("faris-engine", "doc_json_samples")
 DOCTESTED = {"faris-model", "faris-engine", "faris-study", "faris-report", "faris-occt-client"}
