@@ -1,0 +1,4 @@
+{
+  "packages": ["avila-account", "ureq", "rustls", "ring"],
+  "advisories": []
+}

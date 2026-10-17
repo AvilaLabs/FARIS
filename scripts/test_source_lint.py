@@ -76,7 +76,7 @@ class SourceLint(unittest.TestCase):
         text = '/* a\nb */\nfn f() {\n    "x";\n    let t = SystemTime::now();\n}\n'
         self.assertEqual([f[2] for f in lint({ENGINE: text})], [5])
 
-    # Verifies: DSN-085, DOC-062
+    # Verifies: DSN-085, DOC-062, QA-052
     def test_the_tree_has_no_failing_finding(self):
         failing = [f for f in S.lint_rust() + S.lint_statements() if f[0] not in S.ADVISORY]
         self.assertEqual(failing, [])

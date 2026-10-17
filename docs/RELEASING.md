@@ -21,7 +21,7 @@ condition passes. It uses only the Python standard library.
 | Wording lint is clean | `scripts/wording_lint.py` |
 | All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them (fuzz: `scripts/fuzz_all.sh 3600`, see `docs/FUZZING.md`) |
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
-| 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
+| 0 open S1 defects, 0 open S2 defects without a waiver (QA-083), and no data-loss defect that is not fixed (REL-044) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
 
 A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,
 empty, not valid JSON or for another commit. Nothing passes by default. The formats are in the script's header.
@@ -83,7 +83,8 @@ gate-output.txt --out notes.md` writes the notes (`docs/RELEASE_NOTES_TEMPLATE.m
 attach them to the release. Update `CITATION.cff` and `docs/guide/cite.md` to the new version, and add the version's
 section to `CHANGELOG.md`.
 
-An open S1 defect is never waived (QA-083). An open S2 defect needs a waiver with owner, reason and an expiry
+An open S1 defect is never waived (QA-083). Neither is a defect marked `"data_loss": true` (lost or corrupted study
+data) that is open or won't-fix; the release waits for its fix and regression test (REL-044). An open S2 defect needs a waiver with owner, reason and an expiry
 date within 90 days (QA-072).
 
 ## Documentation samples (QA-016)

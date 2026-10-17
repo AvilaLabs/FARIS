@@ -1,0 +1,30 @@
+{
+  "contract": "faris-adapter-contract/v1",
+  "name": "avila-core",
+  "tool_versions": {
+    "tested": ["0.1.0 (semantic profile avila.core/semantic/0.2-draft)"],
+    "accepted": "the executable whose SHA-256 the recorded run pins",
+    "check": "records_only"
+  },
+  "inputs": [
+    {"name": "generated study", "carried_by": "case files written by FARIS", "format": "faris-generated-study/v0.1 with Core declarations", "unit": "none"},
+    {"name": "stage inputs", "carried_by": "files named in the hash-bound descriptor", "format": "faris-core-stage-output/v0.2 and the scenario, physics and assumptions files", "unit": "as the scenario states"}
+  ],
+  "outputs": [
+    {"name": "Core receipts and replay", "format": "faris-core-evidence-run/v0.1", "unit": "none", "label": "checked"},
+    {"name": "stage outputs (transport record, normalised rates, history, energy ledger)", "format": "faris-core-stage-output/v0.2", "unit": "canonical decimal strings in the unit of the quantity", "label": "calculated"}
+  ],
+  "units": "Core envelopes carry canonical decimal strings, and the original Rust artifacts stay verbatim strings, so no value is rounded at the boundary.",
+  "receipt": ["tool_path", "tool_sha256", "tool_version", "input_sha256", "arguments", "limits", "exit_status", "execution_status", "elapsed_seconds", "output_sha256"],
+  "cancellation": "Core runs through the job runner; cancelling ends its process group and the evidence run is not stored.",
+  "failures": [
+    {"mode": "the avila-core executable is missing", "reported_as": "NOT_FOUND in `faris adapters list`; evidence is NOT_EVALUATED", "next_step": "install Core or pass --core"},
+    {"mode": "a step has no completed receipt or a failed verification", "reported_as": "the evidence run is rejected (exit code 1 for rejected evidence)", "next_step": "read the failing step in the evidence run report"},
+    {"mode": "compilation fails", "reported_as": "compile error from Core, shown as a compilation attempt, not a verdict", "next_step": "fix the declaration it names"}
+  ],
+  "entry_points": [
+    "crates/faris-engine/src/core_evidence.rs",
+    "crates/faris-engine/src/study.rs",
+    "integrations/avila-core/README.md"
+  ]
+}

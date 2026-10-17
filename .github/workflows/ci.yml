@@ -99,6 +99,11 @@ jobs:
         run: python3 scripts/platform_table.py --check
       - name: Defect log lint
         run: python3 scripts/defect_log.py
+      - name: Fuzz findings, sign-in advisories and usability reports follow their rules
+        run: |
+          python3 scripts/fuzz_findings.py
+          python3 scripts/advisory_log.py
+          python3 scripts/usability_report.py
       - name: Tracked files stay small and hold no nuclear data
         run: python3 scripts/check_repository_size.py
 

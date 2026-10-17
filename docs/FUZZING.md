@@ -71,6 +71,12 @@ A finding is written to `fuzz/artifacts/<target>/`. Minimise it (`cargo fuzz tmi
 ordinary `#[test]` in the crate that owns the parser, and fix the parser so it returns an error. The
 regression test then runs in the stable CI job without the fuzzer.
 
+Every finding is entered in `docs/fuzz-findings.json` (id, target, date, summary) and marked fixed only with the
+name of that test (`path::test_name`) and the fix. `scripts/fuzz_findings.py` checks in CI that each fixed entry's
+test exists, that `fuzz/artifacts/` holds no more files than there are entries, and, with `--release` (the release
+gate runs it so), that no finding is still open: a reproducer within one release (SEC-022). The log is empty;
+no target has produced a finding yet.
+
 ### Where the fuzzer cannot be built
 
 libFuzzer needs the `libfuzzer-sys` crate. On a machine without it (an offline checkout),

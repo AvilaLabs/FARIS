@@ -27,6 +27,10 @@ SEC-074). The reporter-facing policy is `SECURITY.md` at the repository root.
 CI fails on any advisory against `Cargo.lock` (`scripts/check_audit.py`). A finding that cannot be fixed at once is
 waived in `scripts/audit_allowlist.json` with an owner, a reason, and an expiry within 90 days; an expired waiver
 fails CI. Dependencies on the sign-in path (SEC-039) are fixed within 7 days for critical and 30 days for high.
+An advisory against one of them (`avila-account`, `ureq`, `rustls`, `ring`) is also entered in
+`docs/advisories/signin-advisories.json` with its publication day and the day a release carried the fix;
+`scripts/advisory_log.py` runs in CI and in the release gate and fails on a fix that came late or an open advisory
+past its limit. The log is empty while none has been published against them.
 
 ## Advisory log
 

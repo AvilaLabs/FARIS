@@ -1,0 +1,30 @@
+{
+  "contract": "faris-adapter-contract/v1",
+  "name": "actinv",
+  "tool_versions": {
+    "tested": ["1.4.0", "1.5.0"],
+    "accepted": ">=1.4.0",
+    "check": "records_only"
+  },
+  "inputs": [
+    {"name": "continuation specs", "carried_by": "files written by scripts/build_activation_inputs.py, passed to `actinv run`", "format": "ACTINV run spec", "unit": "irradiation history in seconds; flux in n/cm2/s per group; mass in kg"},
+    {"name": "ACTINV data directory", "carried_by": "the data-root setting", "format": "ACTINV catalogue", "unit": "none"}
+  ],
+  "outputs": [
+    {"name": "decay-heat curve of an installation", "format": "ACTINV result stream, cached as faris-mct-actinv-points/v0.1", "unit": "W against seconds since shutdown", "label": "calculated"},
+    {"name": "activation inventory and decay-photon source", "format": "ACTINV result data", "unit": "Bq per nuclide; W", "label": "calculated"}
+  ],
+  "units": "ACTINV results are read in SI (seconds, W, Bq, kg). Conversion to the units a user sees happens in the display layer, never in the stored points file.",
+  "receipt": ["tool_path", "tool_sha256", "tool_version", "input_sha256", "arguments", "limits", "exit_status", "execution_status", "elapsed_seconds", "output_sha256"],
+  "cancellation": "Every `actinv run` goes through the job runner, so cancelling ends its process group. Points already in the content-addressed points cache stay; a partial run adds none.",
+  "failures": [
+    {"mode": "the actinv executable or data directory is missing", "reported_as": "NOT_FOUND in `faris adapters list`; the maintenance result is NOT_EVALUATED", "next_step": "install ACTINV or pass its path and data directory"},
+    {"mode": "ACTINV fails or hits a limit", "reported_as": "the job status, with the tail of its output (600 characters) in the error", "next_step": "run the same spec by hand to see why"},
+    {"mode": "result stream does not match the request", "reported_as": "a not-evaluated reason from the result reader", "next_step": "rerun with the same ACTINV version as the points cache records"}
+  ],
+  "entry_points": [
+    "crates/faris-engine/src/maintenance/actinv.rs",
+    "crates/faris-engine/src/activation.rs",
+    "scripts/build_activation_inputs.py"
+  ]
+}

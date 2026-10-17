@@ -14,7 +14,7 @@ transport needs the desktop app below.
 
 > **Research screening only.** FARIS results are not a licensing, safety or
 > design basis. Every number is labelled as calculated, authored, literature,
-> conditional or not evaluated.
+> conditional or not evaluated. FARIS maps its quality controls to the software elements of ASME NQA-1 and does not comply with NQA-1.
 
 > **This release is a demo.** FARIS 0.2.0 is a deliberately narrow
 > demonstration, complete for one study: an ARC-inspired tokamak in four
