@@ -16,6 +16,7 @@ use crate::{
     history_ensemble::{EnsembleStatus, HistoryEnsemble},
     output_uncertainty::{COUNT_BAND_BASIS, OutputUncertainty},
     reactor::ReactorRun,
+    tally_health::{ZoneSum, tritium_zone_sum_of},
 };
 use faris_model::history::{ComponentClass, OperatingHistoryAssumptions};
 use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
@@ -154,6 +155,7 @@ pub const BRIEF_OUTPUTS: &[Output] = &[
     calculated("magnet_flux", Quantity::Flux),
     calculated("flux_pct", Quantity::Flux),
     calculated("nuclear_heat_w", Quantity::Heating),
+    calculated("tritium_zone_sum", Quantity::Tbr),
     calculated("swaps", Quantity::Fluence),
     calculated("first_swap_y", Quantity::Fluence),
     calculated("first_swap_relative_sampling", Quantity::Fluence),
@@ -205,6 +207,9 @@ pub struct TransportSummary {
     pub magnet_flux: Option<(f64, f64)>,
     /// Whole-model total nuclear heating, W.
     pub nuclear_heat_w: Option<(f64, f64)>,
+    /// The zone tritium tallies summed with their recorded covariance, against the whole-model
+    /// tally (UNC-013); `None` when the record cannot give it.
+    pub tritium_zone_sum: Option<ZoneSum>,
 }
 
 /// Recorded, already-normalized transport quantities for one arrangement.
@@ -229,6 +234,7 @@ pub fn transport_summary(run: &ReactorRun) -> TransportSummary {
         magnet_flux: response("magnets-flux").map(|t| (t.mean, t.standard_error)),
         nuclear_heat_w: response("heating-total-whole-model")
             .map(|t| (t.integrated_mean, t.integrated_standard_error)),
+        tritium_zone_sum: tritium_zone_sum_of(normalized).ok(),
     }
 }
 
@@ -1181,6 +1187,7 @@ mod tests {
             total_h3_per_source: _,
             magnet_flux: _,
             nuclear_heat_w: _,
+            tritium_zone_sum: _,
         } = TransportSummary::default();
         let ArrangementSummary {
             recorded: _,
@@ -1233,6 +1240,7 @@ mod tests {
             "total_h3_per_source",
             "magnet_flux",
             "nuclear_heat_w",
+            "tritium_zone_sum",
             "recorded",
             "breeding",
             "breeding_is_total",
@@ -1491,6 +1499,7 @@ mod tests {
             total_h3_per_source: Some((1.3, 0.003)),
             magnet_flux: Some((1.0e14, 5.0e12)),
             nuclear_heat_w: Some((9.0e8, 1.0e7)),
+            tritium_zone_sum: None,
         };
         summarize_arrangement(Some(&transport), Some(&h))
     }

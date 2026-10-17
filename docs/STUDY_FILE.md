@@ -427,6 +427,7 @@ Machine-readable, JSON Schema draft 2020-12, in [`docs/schemas/`](schemas/):
 | [`faris-history-ensemble-1.schema.json`](schemas/faris-history-ensemble-1.schema.json) | an ensemble blob (media type `application/vnd.avila-labs.faris-history-ensemble+json`) |
 | [`faris-evidence-store-index-1.schema.json`](schemas/faris-evidence-store-index-1.schema.json) | `evidence-store/store.json` in a packed file |
 | [`faris-study-summary-1.schema.json`](schemas/faris-study-summary-1.schema.json) | the summary two readers compare (`read_study_file.py --summary`) |
+| [`faris-diff-1.schema.json`](schemas/faris-diff-1.schema.json) | the output of `faris diff --json` (`faris-diff/v1`) |
 
 The manifest schema allows unknown properties (minor versions add them); the
 ensemble and store-index schemas forbid them, as FARIS does for those blobs.

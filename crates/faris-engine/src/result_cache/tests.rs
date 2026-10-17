@@ -428,3 +428,58 @@ fn only_the_cache_module_builds_a_key() {
         }
     }
 }
+
+fn fake_environment(root: &Path, executable: &[u8], packages: &[&str]) -> PathBuf {
+    let site = root.join("lib").join("python3.12").join("site-packages");
+    std::fs::create_dir_all(&site).unwrap();
+    std::fs::create_dir_all(root.join("bin")).unwrap();
+    std::fs::write(root.join("pyvenv.cfg"), "version = 3.12.1\n").unwrap();
+    for package in packages {
+        std::fs::create_dir_all(site.join(format!("{package}.dist-info"))).unwrap();
+    }
+    let python = root.join("bin").join("python");
+    std::fs::write(&python, executable).unwrap();
+    python
+}
+
+// Verifies: AUTO-034
+#[test]
+fn the_interpreter_enters_a_key_as_who_it_is_and_not_where_it_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = fake_environment(&dir.path().join("a"), b"binary-1", &["openmc-0.16.0"]);
+    let moved = fake_environment(
+        &dir.path().join("elsewhere"),
+        b"binary-1",
+        &["openmc-0.16.0"],
+    );
+    let key = |python: &Path| {
+        cache_key(
+            "reactor-windows",
+            [("window_python", interpreter_identity(python))],
+        )
+        .digest()
+        .to_string()
+    };
+    // The same interpreter in another folder is the same key.
+    assert_eq!(key(&a), key(&moved));
+    // Another executable, another environment file or another installed package is not.
+    let other_binary = fake_environment(&dir.path().join("b"), b"binary-2", &["openmc-0.16.0"]);
+    let upgraded = fake_environment(&dir.path().join("c"), b"binary-1", &["openmc-0.17.0"]);
+    assert_ne!(key(&a), key(&other_binary));
+    assert_ne!(key(&a), key(&upgraded));
+    std::fs::write(
+        moved.parent().unwrap().parent().unwrap().join("pyvenv.cfg"),
+        "x",
+    )
+    .unwrap();
+    assert_ne!(key(&a), key(&moved));
+    // An unreadable interpreter falls back to its path: two different missing paths never match.
+    assert_ne!(
+        key(Path::new("/no/such/python-a")),
+        key(Path::new("/no/such/python-b"))
+    );
+    assert_eq!(
+        key(Path::new("/no/such/python-a")),
+        key(Path::new("/no/such/python-a"))
+    );
+}

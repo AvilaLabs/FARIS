@@ -50,7 +50,7 @@ A change to one allocation's layers invalidates that allocation's recorded trans
 
 ## The JSON
 
-`--json` writes `faris-diff/v1`. The schema name changes when a field name or meaning changes, so a script can check it. The output has no dates, no timings and no host names: the same two files give the same bytes. The fields are `schema`, `a`, `b`, `compared`, `identical`, `summary`, `inputs`, `evidence`, `results`, `presentation`, `components` and `impact`.
+`--json` writes `faris-diff/v1`. The schema name changes when a field name or meaning changes, so a script can check it. The output has no dates, no timings and no host names: the same two files give the same bytes. The fields are `schema`, `a`, `b`, `compared`, `identical`, `summary`, `inputs`, `evidence`, `results`, `presentation`, `components` and `impact`; `docs/schemas/faris-diff-1.schema.json` is the JSON Schema, and a test checks the command's output against it.
 
 By default a changed result is reported by its hash. `--values` also lists the values that changed inside it (up to 200 per file). Result files are megabytes of numbers, so this is slower and the report is long.
 
@@ -85,6 +85,6 @@ The 2 second target for a study of this size is met in these runs. A pair of 1 G
 
 ## Not done yet
 
-The desktop has no diff view yet, so COL-023 is met on the command line only. The comparison does not yet list the numbers inside changed results by default, and it does not mark a change below two standard errors as within noise. A merged study is not covered.
+The desktop shows the same report in the Compare versions window (top bar, or the command palette): choose two studies or two model files, or take the open study as version A. It lists the components first, then the text `faris diff` prints. The browser version cannot read files, so it says so. The comparison does not yet list the numbers inside changed results by default, and it does not mark a change below two standard errors as within noise. A merged study is not covered.
 
 Next: [Command line](cli.md).

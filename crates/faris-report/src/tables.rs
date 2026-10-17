@@ -247,6 +247,10 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
         "first_swap_uncertainty".into(),
         "net_electricity_uncertainty".into(),
         "final_usable_tritium_uncertainty".into(),
+        "tritium_zone_sum_h3_per_source_neutron".into(),
+        "tritium_zone_sum_standard_error".into(),
+        "tritium_zone_sum_vs_whole_model_sigma".into(),
+        "tritium_zone_sum_status".into(),
     ];
     header.extend(validation_headers(&COMPARISON_QUANTITIES));
     let mut out = row(&header);
@@ -323,6 +327,17 @@ pub fn comparison_csv(arrangements: &[&ArrangementData]) -> String {
             state_text(s, "net_twh", 3),
             state_text(s, "final_tritium_kg", 4),
         ];
+        let zone_sum = data.input.transport.and_then(|t| t.tritium_zone_sum);
+        cells.extend([
+            optional(zone_sum.map(|z| z.sum)),
+            optional(zone_sum.map(|z| z.standard_error)),
+            optional(zone_sum.map(|z| z.z)),
+            match (data.input.transport, zone_sum) {
+                (_, Some(z)) => z.check_line(),
+                (Some(_), None) => faris_engine::tally_health::ZONE_SUM_UNAVAILABLE.into(),
+                (None, None) => String::new(),
+            },
+        ]);
         cells.extend(validation_cells(&COMPARISON_QUANTITIES));
         out.push_str(&row(&cells));
     }

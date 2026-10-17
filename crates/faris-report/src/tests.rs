@@ -116,6 +116,17 @@ fn arrangement(arrangement: Arrangement, tbr: f64, flux: f64) -> ArrangementInpu
             total_h3_per_source: Some((tbr, 0.0014)),
             magnet_flux: Some((flux, flux * 0.15)),
             nuclear_heat_w: Some((4.9e8, 2.0e5)),
+            tritium_zone_sum: Some(faris_engine::tally_health::ZoneSum {
+                zones: 4,
+                sum: tbr,
+                standard_error: 0.0014,
+                total: tbr,
+                difference: 0.0,
+                difference_standard_error: 0.0003,
+                z: 0.0,
+                within_3_sigma: true,
+                large_zones_within_2_percent: true,
+            }),
         }),
         sampling: Some(Sampling {
             seed: 17,
@@ -558,6 +569,36 @@ fn comparison_csv_gives_every_sampled_value_its_standard_error_and_scope() {
         }
     }
     assert!(checked >= 4, "{checked}");
+}
+
+// Verifies: UNC-013
+#[test]
+fn comparison_csv_gives_the_tritium_zone_sum_with_its_combined_error_or_the_reason() {
+    let (_guard, outcome) = exported();
+    let rows = cells(&table(&outcome.folder, "data/comparison.csv"));
+    let column = |name: &str| rows[0].iter().position(|c| c == name).unwrap();
+    let mut summed = 0;
+    for row in &rows[1..] {
+        let sum = &row[column("tritium_zone_sum_h3_per_source_neutron")];
+        let status = &row[column("tritium_zone_sum_status")];
+        if sum.is_empty() {
+            // Not recorded: the status says why, or the arrangement has no transport at all.
+            assert!(
+                status.is_empty() || status.starts_with("NOT_EVALUATED"),
+                "{status}"
+            );
+        } else {
+            assert!(
+                row[column("tritium_zone_sum_standard_error")]
+                    .parse::<f64>()
+                    .unwrap()
+                    > 0.0
+            );
+            assert!(status.contains("within 3 σ"), "{status}");
+            summed += 1;
+        }
+    }
+    assert!(summed >= 1);
 }
 
 // Verifies: INT-009
@@ -1349,6 +1390,8 @@ fn column_quantity(file: &str, column: &str) -> Option<Option<faris_model::valid
         {
             q(Tbr)
         }
+        (_, "tritium_zone_sum_status") => no,
+        (_, c) if c.starts_with("tritium_zone_sum") => q(Tbr),
         (_, c) if c.starts_with("magnet_flux") => q(Flux),
         (
             _,

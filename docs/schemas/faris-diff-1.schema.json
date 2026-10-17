@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:avila-labs:faris:schema:diff:1",
+  "title": "Semantic diff of two studies or two model files (faris diff --json; faris-engine semantic_diff)",
+  "description": "What differs between two versions: changed parameters with old and new value, unit and cost, the results each change invalidates, and the components added, removed, moved or changed in material, thickness or volume. The desktop Compare versions window shows the same report.",
+  "type": "object",
+  "required": ["schema", "a", "b", "compared", "identical", "summary", "inputs", "evidence", "results", "presentation", "components", "impact"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "faris-diff/v1" },
+    "a": { "type": "string" },
+    "b": { "type": "string" },
+    "compared": { "type": "string" },
+    "identical": { "type": "boolean" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "inputs": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "results": { "type": "array", "items": { "$ref": "#/$defs/result_change" } },
+    "presentation": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "components": { "type": "array", "items": { "$ref": "#/$defs/component" } },
+    "impact": { "type": "array", "items": { "$ref": "#/$defs/impact" } }
+  },
+  "$defs": {
+    "cost": { "enum": ["instant", "seconds", "transport_run"] },
+    "kind": { "enum": ["added", "removed", "changed", "moved"] },
+    "summary": {
+      "type": "object",
+      "required": ["inputs_changed", "evidence_changed", "results_changed", "presentation_changed", "highest_cost", "invalidated", "reusable", "not_listed"],
+      "additionalProperties": false,
+      "properties": {
+        "inputs_changed": { "type": "integer", "minimum": 0 },
+        "evidence_changed": { "type": "integer", "minimum": 0 },
+        "results_changed": { "type": "integer", "minimum": 0 },
+        "presentation_changed": { "type": "integer", "minimum": 0 },
+        "highest_cost": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/cost" }] },
+        "invalidated": { "type": "integer", "minimum": 0 },
+        "reusable": { "type": "integer", "minimum": 0 },
+        "not_listed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "change": {
+      "type": "object",
+      "required": ["id", "document", "path", "kind", "old", "new", "unit", "cost", "invalidates", "scope", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "document": { "type": "string" },
+        "path": { "type": "string" },
+        "kind": { "$ref": "#/$defs/kind" },
+        "old": {},
+        "new": {},
+        "unit": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "cost": { "$ref": "#/$defs/cost" },
+        "invalidates": { "type": "array", "items": { "type": "string" } },
+        "scope": { "type": "string" },
+        "note": { "oneOf": [{ "type": "null" }, { "type": "string" }] }
+      }
+    },
+    "result_change": {
+      "type": "object",
+      "required": ["id", "item", "kind", "old_sha256", "new_sha256", "caused_by", "cause_note", "values"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "item": { "type": "string" },
+        "kind": { "$ref": "#/$defs/kind" },
+        "old_sha256": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "new_sha256": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "caused_by": { "type": "array", "items": { "type": "string" } },
+        "cause_note": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "values": { "type": "array", "items": { "$ref": "#/$defs/change" } }
+      }
+    },
+    "component": {
+      "type": "object",
+      "required": ["document", "variant", "component", "changes", "material_old", "material_new", "thickness_old_m", "thickness_new_m", "position_old", "position_new", "volume_old_m3", "volume_new_m3", "volume_delta_m3"],
+      "additionalProperties": false,
+      "properties": {
+        "document": { "type": "string" },
+        "variant": { "type": "string" },
+        "component": { "type": "string" },
+        "changes": { "type": "array", "items": { "enum": ["added", "removed", "moved", "material", "thickness", "volume"] } },
+        "material_old": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "material_new": { "oneOf": [{ "type": "null" }, { "type": "string" }] },
+        "thickness_old_m": { "oneOf": [{ "type": "null" }, { "type": "number" }] },
+        "thickness_new_m": { "oneOf": [{ "type": "null" }, { "type": "number" }] },
+        "position_old": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+        "position_new": { "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 0 }] },
+        "volume_old_m3": { "oneOf": [{ "type": "null" }, { "type": "number" }] },
+        "volume_new_m3": { "oneOf": [{ "type": "null" }, { "type": "number" }] },
+        "volume_delta_m3": { "oneOf": [{ "type": "null" }, { "type": "number" }] }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "required": ["item", "standing", "cost", "because"],
+      "additionalProperties": false,
+      "properties": {
+        "item": { "type": "string" },
+        "standing": { "enum": ["invalidated", "reusable"] },
+        "cost": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/cost" }] },
+        "because": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

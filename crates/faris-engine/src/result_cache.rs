@@ -130,6 +130,76 @@ pub fn cache_key<'a>(
     }
 }
 
+/// Largest interpreter file hashed; a bigger one is identified by its size and path instead.
+const MAX_INTERPRETER_BYTES: u64 = 256 * 1024 * 1024;
+
+/// What a key records about a Python interpreter (AUTO-034): who it is, not where it is. Nothing
+/// is run. The identity is the SHA-256 of the executable the path leads to, the SHA-256 of the
+/// `pyvenv.cfg` of the environment it sits in, and the SHA-256 of the sorted names of the
+/// packages installed beside it (`*.dist-info`), so an environment whose OpenMC was upgraded in
+/// place is another interpreter and a copy moved to another folder is the same one. An
+/// interpreter that cannot be read is identified by its path, which only ever costs a rebuild.
+pub fn interpreter_identity(python: &Path) -> Value {
+    let path_only = || serde_json::json!({ "unreadable_path": python.display().to_string() });
+    let Ok(resolved) = python.canonicalize() else {
+        return path_only();
+    };
+    let Ok(meta) = std::fs::metadata(&resolved) else {
+        return path_only();
+    };
+    if !meta.is_file() || meta.len() > MAX_INTERPRETER_BYTES {
+        return path_only();
+    }
+    let Some(executable) = file_sha256(&resolved) else {
+        return path_only();
+    };
+    // The environment is the folder above `bin` (or `Scripts`) of the path as given: a venv's
+    // `python` is a link to the system binary, so resolving it first would lose the venv.
+    let root = python.parent().and_then(Path::parent);
+    let config = root.and_then(|r| file_sha256(&r.join("pyvenv.cfg")));
+    let mut packages = Vec::new();
+    if let Some(root) = root {
+        let lib = root.join("lib");
+        let sites = std::fs::read_dir(&lib)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path().join("site-packages"))
+            .chain([root.join("Lib").join("site-packages")]);
+        for site in sites {
+            for entry in std::fs::read_dir(&site).into_iter().flatten().flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.ends_with(".dist-info") {
+                    packages.push(name);
+                }
+            }
+        }
+    }
+    packages.sort();
+    packages.dedup();
+    let package_digest = format!("{:x}", Sha256::digest(packages.join("\n").as_bytes()));
+    serde_json::json!({
+        "executable_sha256": executable,
+        "executable_bytes": meta.len(),
+        "venv_config_sha256": config,
+        "packages_sha256": package_digest,
+    })
+}
+
+fn file_sha256(path: &Path) -> Option<String> {
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 1 << 16];
+    loop {
+        let n = file.read(&mut buffer).ok()?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buffer[..n]);
+    }
+    Some(format!("{:x}", hasher.finalize()))
+}
+
 /// One file of an entry.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntryFile {
@@ -176,6 +246,31 @@ impl CacheProvenance {
         };
         format!(
             "reused from {date} (made by FARIS {}{took}; {} key {})",
+            self.faris_version,
+            self.kind,
+            self.key.get(..12).unwrap_or(&self.key)
+        )
+    }
+}
+
+impl CacheProvenance {
+    /// The day the entry was made (`YYYY-MM-DD`).
+    pub fn computed_on(&self) -> &str {
+        self.created_utc.get(..10).unwrap_or(&self.created_utc)
+    }
+
+    /// The label shown where a result, or a part of one, was served from the cache and not
+    /// calculated now: what was reused, when it was computed, and by which version and key
+    /// (AUTO-039).
+    pub fn banner(&self, what: &str) -> String {
+        let took = if self.compute_seconds > 0.0 {
+            format!(", {:.0} s to calculate", self.compute_seconds)
+        } else {
+            String::new()
+        };
+        format!(
+            "{what} reused from cache, computed on {} (made by FARIS {}{took}; {} key {})",
+            self.computed_on(),
             self.faris_version,
             self.kind,
             self.key.get(..12).unwrap_or(&self.key)

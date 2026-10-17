@@ -24,7 +24,7 @@ use super::{
     launch_python_with_lines, resolve, sha256_file, sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
-use crate::result_cache::{self, CacheKey, Lookup, ResultCache};
+use crate::result_cache::{self, CacheKey, CacheProvenance, Lookup, ResultCache};
 use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
@@ -290,6 +290,10 @@ pub struct DesignTransportReport {
     pub setup_seconds: f64,
     /// The weight windows of an earlier run on the same model were used.
     pub windows_reused: bool,
+    /// When, by which version and under which key the reused windows were made (AUTO-039);
+    /// absent when nothing was taken from the cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reused_from: Option<CacheProvenance>,
     pub fluence_limits: Vec<FluenceLimit>,
     /// Neutrons the geometry could not place; `None`: not counted by this OpenMC build.
     #[serde(default)]
@@ -622,8 +626,8 @@ fn choose_response(design: &Design, group: Option<&str>) -> Result<ChosenRespons
 }
 
 /// One entry of the cache per model, materials, response, nuclear data and preparation recipe.
-/// Built by the one key function (AUTO-031). The window interpreter enters as its path: a path is
-/// not the interpreter's identity, so moving it only costs a rebuild.
+/// Built by the one key function (AUTO-031). The window interpreter enters as its identity
+/// (`result_cache::interpreter_identity`), not its path.
 fn transport_cache_key(
     request: &serde_json::Value,
     h5m_sha256: &str,
@@ -642,7 +646,7 @@ fn transport_cache_key(
             ("response", request["response"].clone()),
             (
                 "window_python",
-                serde_json::json!(window_python.map(|p| p.display().to_string())),
+                serde_json::json!(window_python.map(result_cache::interpreter_identity)),
             ),
         ],
     )
@@ -1037,6 +1041,7 @@ pub fn design_transport(
     let mut setup_seconds = 0.0;
     let mut windows_reused = false;
     let mut cache_note: Option<String> = None;
+    let mut reused_from: Option<CacheProvenance> = None;
     if let Some(window_python) = &options.window_python {
         windows_reused = match (&entry, &hit) {
             (Some(entry), Some(_)) => restore_windows(entry, &dir)?,
@@ -1044,6 +1049,7 @@ pub fn design_transport(
         };
         if windows_reused {
             cache_note = hit.as_ref().map(|h| h.provenance.text());
+            reused_from = hit.as_ref().map(|h| h.provenance.clone());
         } else {
             setup_seconds += phase("mgxs", python, true, MGXS_TIMEOUT)?;
             setup_seconds += phase("windows", window_python, false, WINDOWS_TIMEOUT)?;
@@ -1107,6 +1113,7 @@ pub fn design_transport(
             setup_seconds,
             windows_reused,
             cache_note,
+            reused_from,
             chosen: &chosen,
         },
     )
@@ -1127,6 +1134,7 @@ struct Inputs<'a> {
     windows_reused: bool,
     /// Where the reused windows came from (AUTO-039).
     cache_note: Option<String>,
+    reused_from: Option<CacheProvenance>,
     chosen: &'a ChosenResponse,
 }
 
@@ -1349,6 +1357,7 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         solids,
         setup_seconds: inputs.setup_seconds + worker.variance_reduction.aim_seconds,
         windows_reused: inputs.windows_reused,
+        reused_from: inputs.reused_from.clone(),
         variance_reduction: worker.variance_reduction,
         fluence_limits,
         lost_particles: worker.lost_particles,
@@ -1909,6 +1918,7 @@ mod tests {
             },
             setup_seconds: 0.0,
             windows_reused: false,
+            reused_from: None,
             fluence_limits: vec![FluenceLimit {
                 group_id: "coils".into(),
                 basis: "peak_piece".into(),
