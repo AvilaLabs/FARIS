@@ -111,4 +111,35 @@ from the eCFR text retrieved on 2026-10-15 (title 10 current through its 2026-10
 the repository with its SHA-256, and a test compares every row with it. The IAEA levels were read from Table I.2,
 pages 124 to 127, of GSR Part 3 (STI/PUB/1578).
 
-Component totals by class over a plant life (waste mass and volume per class) are not computed here.
+## Waste over plant life
+
+```
+faris waste lifetime --plan plan.json --maintenance-result maintenance.json --design ref
+```
+
+Reports waste mass and volume by class, by component and for the whole plant, over the life of the plant
+including every replacement. The replacements come from a [`maintenance run`](maintenance.md) result (`--design`
+names the design, `--history computed|fixed` the history inside it) or from a JSON list of replacements with
+`--replacements`.
+
+The plan gives, per component, what one installation is as waste:
+
+```json
+{"components": [
+  {"component_id": "magnets", "pieces": 18, "mass_kg_each": 5000.5, "volume_m3_each": 0.7},
+  {"component_id": "blanket", "mass_kg_each": 123456.789, "volume_m3_each": 21.3}
+]}
+```
+
+`replacement_inventory` and `end_of_life_inventory` are optional, each `{"inventory": <an inventory as above>,
+"disposal_time_years": 5.0}`. The class of a batch comes from classifying that inventory under 10 CFR 61.55. A
+batch with no inventory, or whose inventory the classifier refuses, is counted under `NOT_EVALUATED` with the reason in its
+`class_basis`; a class is never guessed. A replaced component that the plan gives no mass for refuses the whole
+report and names the component.
+
+Every replacement removes one installation (batch `component#k`) and the installation in place when the history
+ends is the end-of-life batch (`component#end`). Each batch is counted once; a repeated batch id is refused. The
+result lists every batch, then totals by class, by component, and by component and class, and a `sum_check`: the
+plant total is summed from the batches and compared with the sum over components and the sum over classes, which
+must agree to 1e-9 relative (for mass and for volume). A replacement outage still open at the end of the history
+counts: the part has been taken out.

@@ -79,6 +79,46 @@ Each number carries a kind: `calculated` (a solver result), `authored` (mass, co
 `conditional` (a lower bound). What FARIS cannot give is listed as NOT_EVALUATED, each with the reason and the
 next step.
 
+## Which impurities matter
+
+```bash
+faris activation impurities --request impurities.json --actinv ~/.local/bin/actinv --data-dir ~/actinv-data \
+  --output impurities-result.json --cache cache/
+```
+
+Ranks the trace elements of a material by their effect on activity, decay heat and the 10 CFR 61.55 sums of
+fractions, at each cooling time you ask for. The request holds the alloy without its impurities
+(`matrix_wt_percent`), the impurities (`element`, `wt_ppm`, and the `kind` and `source` of each value:
+`nominal`, `specified`, `measured` or `assumed`), the zone mass and volume, a 709-group neutron spectrum in n per
+cm2 per second, the irradiation steps and the cooling times (1 s to 1e9 s).
+
+All runs go to ACTINV in one request, one zone each: the matrix alone, the full specification, each element
+alone added to the matrix, and each element at its content times (1 - h) and (1 + h) with the others present
+(`relative_step` h, default 0.5). Twelve elements make 38 zones.
+
+Why one run per element is enough: at a fixed flux the inventory is linear in the starting composition as long as
+the starting nuclides are not burned up, and a part per million is not. So the response per weight ppm of an
+element is the difference between its run and the matrix run, divided by its content, and the effects of the
+elements add up to the full specification's excess over the matrix. FARIS does not take that on trust. For every
+element it also computes a central finite difference around the full specification (all other impurities
+present) and compares the two per element. The result records, for activity, decay heat and waste class, the
+largest relative difference between the two estimates, any pair of elements the two order differently, and
+whether the check passed: every compared element within 20 %, and a swapped pair only if the two effects are
+within 20 % of each other. An element whose effect is under 1e-10 of the total is ranked but left out of the
+check, and listed.
+
+The ranking is by the absolute effect at the specified content (per ppm times ppm), for each of the three
+quantities, and an overall rank from the mean of the three. The waste measure is the sum of the Table 1 and
+Table 2 column 3 sums of fractions of 10 CFR 61.55 as activated metal, computed from the ACTINV inventory with
+half-lives from the decay data ACTINV used; every element also carries all four column sums per ppm. The waste
+part is `NOT_EVALUATED` with the reason when a nuclide has no half-life in the decay data or no free name in the
+classifier; isomers beyond the first (`Hf179m2`) are listed to the classifier under the `m` name or the plain
+mass name and the point says so in `waste_notes`. A zone with a data gap that can only lower totals makes the
+result `conditional` and names the zones.
+
+The spectrum is yours: the sensitivities are those of the composition and flux given, and a different spectrum
+changes the ranking. Self-shielding and a spectrum that changes with composition are not modelled.
+
 ## What ACTINV does not provide yet
 
 These are written down for ACTINV, not worked around in FARIS:

@@ -6,6 +6,7 @@ use faris_engine::activation::{
     ZoneSpec, decade_cooling_grid, limit_nuclides, log_photon_groups, parse_cooling_list,
     photon_source_file, run_activation, write_photon_source_file, zones_from_spectra,
 };
+use faris_engine::impurity_sensitivity::{SensitivityRequest, impurity_sensitivity};
 use faris_engine::maintenance::irradiation::IrradiationSchedule;
 use faris_engine::transport::NormalizedEnergySpectrum;
 use std::path::PathBuf;
@@ -72,6 +73,30 @@ pub enum ActivationCommand {
         /// Also write the decay-photon source (photons/s/cm3) of every zone and cooling time here.
         #[arg(long)]
         photon_source_dir: Option<PathBuf>,
+    },
+    /// Rank impurity elements by their effect on activity, decay heat and 10 CFR 61.55 waste
+    /// class, with a finite-difference check of every sensitivity. One ACTINV request holds all
+    /// the runs (matrix, full specification, one element alone, two steps per element).
+    Impurities {
+        /// A faris-impurity-sensitivity request: matrix, impurities (wt ppm with kind and
+        /// source), mass, volume, 709-group spectrum, steps, cooling times.
+        #[arg(long)]
+        request: PathBuf,
+        /// The `actinv` executable.
+        #[arg(long)]
+        actinv: PathBuf,
+        /// ACTINV data root (the folder above the catalogue version).
+        #[arg(long)]
+        data_dir: PathBuf,
+        /// New result file (faris-impurity-sensitivity/v0.1); existing paths are refused.
+        #[arg(long)]
+        output: PathBuf,
+        /// Content-addressed zone results; an identical request is not run again.
+        #[arg(long)]
+        cache: Option<PathBuf>,
+        /// Scratch folder [default: OUTPUT.work].
+        #[arg(long)]
+        work_dir: Option<PathBuf>,
     },
 }
 
@@ -182,6 +207,58 @@ pub fn run(command: ActivationCommand) -> Result<(), Box<dyn std::error::Error>>
                 output.display(),
                 stats.actinv_runs,
                 stats.cache_hits
+            );
+            eprintln!("{}", faris_model::RESEARCH_SCREENING_STATEMENT);
+            Ok(())
+        }
+        ActivationCommand::Impurities {
+            request,
+            actinv,
+            data_dir,
+            output,
+            cache,
+            work_dir,
+        } => {
+            if output.exists() {
+                return Err(format!("refusing to overwrite {}", output.display()).into());
+            }
+            let req: SensitivityRequest = serde_json::from_slice(&read_bounded(&request)?)?;
+            let work_dir = work_dir.unwrap_or_else(|| {
+                let mut name = output.as_os_str().to_os_string();
+                name.push(".work");
+                PathBuf::from(name)
+            });
+            let mut config =
+                ActivationConfig::new(actinv, ActivationData::catalog(&data_dir), work_dir);
+            config.cache_dir = cache;
+            let interrupts = crate::control::interrupt_cancellation()?;
+            #[cfg(unix)]
+            let cancellation = &interrupts.cancellation;
+            #[cfg(not(unix))]
+            let cancellation = &interrupts;
+            let result = impurity_sensitivity(&req, &config, cancellation)?;
+            write_new_json(&output, &result)?;
+            for p in &result.points {
+                let first = |r: &[faris_engine::impurity_sensitivity::RankLine]| {
+                    r.first().map_or("none".to_string(), |l| l.element.clone())
+                };
+                println!(
+                    "cooling {} s: largest effect on activity {}, decay heat {}, waste class {}; finite-difference check {}",
+                    p.cooling_s,
+                    first(&p.activity_ranking),
+                    first(&p.decay_heat_ranking),
+                    first(&p.waste_ranking),
+                    if p.agreement.iter().all(|a| a.passed) {
+                        "passed"
+                    } else {
+                        "FAILED"
+                    }
+                );
+            }
+            println!(
+                "Impurity sensitivity recorded at {} ({} ACTINV runs)",
+                output.display(),
+                result.runs
             );
             eprintln!("{}", faris_model::RESEARCH_SCREENING_STATEMENT);
             Ok(())

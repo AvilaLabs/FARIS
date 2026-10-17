@@ -8,6 +8,7 @@
 
 pub mod classify;
 pub mod clearance;
+pub mod lifetime;
 pub mod tables;
 
 use serde::{Deserialize, Serialize};

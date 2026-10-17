@@ -17,6 +17,15 @@ basis.
 
 ### Added
 
+- Waste over plant life. `faris waste lifetime` gives waste mass and volume by class, by component and for the
+  whole plant over the replacements of a maintenance result and the components still in place at the end,
+  counting each replacement batch once. A class comes only from classifying a given inventory under 10 CFR 61.55;
+  a batch with no inventory is counted as `NOT_EVALUATED`. The plant total is checked against the sums over
+  components and over classes to 1e-9 relative ([Waste classification and clearance](docs/guide/waste.md)).
+- Impurity ranking. `faris activation impurities` runs ACTINV on a matrix, the full impurity specification, each
+  element alone and two finite-difference steps per element in one request, and ranks the elements by their effect
+  on activity, decay heat and the 10 CFR 61.55 sums of fractions. It compares every per-element sensitivity with a
+  central finite difference and reports whether they agree within 20 % ([Activation](docs/guide/activation.md)).
 - Release and security documents. `SECURITY.md` says how to report a vulnerability privately and what to expect
   ([process](docs/SECURITY_PROCESS.md), [threat model](docs/THREAT_MODEL.md)). `CITATION.cff` and a
   [How to cite](docs/guide/cite.md) page say how to cite FARIS. A [glossary](docs/glossary.md), a generated

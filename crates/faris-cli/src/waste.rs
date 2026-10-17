@@ -4,6 +4,8 @@
 
 use crate::transport::read_bounded;
 use clap::{Subcommand, ValueEnum};
+use faris_engine::maintenance::{MaintenanceResult, ReplacementSummary};
+use faris_engine::waste_lifetime::{LifetimePlan, lifetime_from_replacements};
 use faris_model::waste::{
     self, WasteInventory,
     classify::classify_nrc,
@@ -26,6 +28,14 @@ pub enum Scheme {
     Iaea,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+pub enum HistoryKind {
+    /// The history run with the authored replacement durations.
+    Fixed,
+    /// The history run with the converged, computed durations.
+    Computed,
+}
+
 #[derive(Subcommand)]
 pub enum WasteCommand {
     /// List the classification schemes with name, version and date, and which are implemented.
@@ -46,6 +56,24 @@ pub enum WasteCommand {
         time_years: f64,
         #[arg(long, value_enum, default_value = "nrc-10cfr61.55")]
         scheme: Scheme,
+    },
+    /// Waste mass and volume by class and component over plant life: each replacement batch and
+    /// each end-of-life component counted once. A batch with no inventory is NOT_EVALUATED.
+    Lifetime {
+        /// Lifetime plan JSON: per component the pieces, mass and volume of one installation and
+        /// the inventories its replaced and end-of-life installations are classified from.
+        #[arg(long)]
+        plan: PathBuf,
+        /// A `maintenance run` result file; the replacements of `--design` are used.
+        #[arg(long, requires = "design", conflicts_with = "replacements")]
+        maintenance_result: Option<PathBuf>,
+        #[arg(long)]
+        design: Option<String>,
+        #[arg(long, value_enum, default_value = "computed")]
+        history: HistoryKind,
+        /// Or a JSON list of replacements (class, component, k, start_s, end_s).
+        #[arg(long)]
+        replacements: Option<PathBuf>,
     },
     /// Find the time the IAEA clearance index falls below 1, searched between two times.
     ClearanceTime {
@@ -131,6 +159,56 @@ pub fn run(command: WasteCommand) -> Result<(), Box<dyn std::error::Error>> {
                 Scheme::Iaea => print(&clearance_index(&inventory, time_years)),
             }
         }
+        WasteCommand::Lifetime {
+            plan,
+            maintenance_result,
+            design,
+            history,
+            replacements,
+        } => {
+            let plan: LifetimePlan = read_json(&plan)?;
+            let list: Vec<ReplacementSummary> = match (maintenance_result, replacements) {
+                (Some(path), _) => {
+                    let result: MaintenanceResult = read_json(&path)?;
+                    let name = design.unwrap_or_default();
+                    let d = result.designs.get(&name).ok_or_else(|| {
+                        format!(
+                            "design `{name}` is not in the result; it has: {}",
+                            result
+                                .designs
+                                .keys()
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    })?;
+                    match history {
+                        HistoryKind::Fixed => d.fixed.replacements.clone(),
+                        HistoryKind::Computed => match &d.computed.summary {
+                            Some(s) => s.replacements.clone(),
+                            None => {
+                                return print(&serde_json::json!({
+                                    "status": "NOT_EVALUATED",
+                                    "not_evaluated": d.computed.not_evaluated,
+                                    "next_step": "Use --history fixed, or repair the computed history.",
+                                }));
+                            }
+                        },
+                    }
+                }
+                (None, Some(path)) => read_json(&path)?,
+                (None, None) => {
+                    return Err("give --maintenance-result with --design, or --replacements".into());
+                }
+            };
+            match lifetime_from_replacements(&plan, &list) {
+                Ok(r) => print(&r),
+                Err(ne) => print(&serde_json::json!({
+                    "status": "NOT_EVALUATED",
+                    "not_evaluated": ne,
+                })),
+            }
+        }
         WasteCommand::ClearanceTime {
             inventory,
             from_years,
@@ -206,5 +284,29 @@ mod tests {
         assert_eq!(json["verdict"], "CLASS_C");
         assert_eq!(json["scheme"]["id"], "nrc-10cfr61.55");
         assert!(read_json::<WasteInventory>(&dir.path().join("missing.json")).is_err());
+    }
+    // Verifies: ACT-038
+    #[test]
+    fn lifetime_reads_a_plan_and_replacements_and_counts_every_batch_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let plan = serde_json::json!({"components": [
+            {"component_id": "magnets", "pieces": 18, "mass_kg_each": 5000.5, "volume_m3_each": 0.7},
+            {"component_id": "blanket", "mass_kg_each": 123456.789, "volume_m3_each": 21.3}
+        ]});
+        let replacements = serde_json::json!([
+            {"class": "magnet", "component": "magnets", "k": 1, "start_s": 1.0e8, "end_s": 1.1e8},
+            {"class": "magnet", "component": "magnets", "k": 2, "start_s": 3.0e8, "end_s": null}
+        ]);
+        let (p, r) = (dir.path().join("plan.json"), dir.path().join("rep.json"));
+        std::fs::write(&p, plan.to_string()).unwrap();
+        std::fs::write(&r, replacements.to_string()).unwrap();
+        let plan: LifetimePlan = read_json(&p).unwrap();
+        let list: Vec<ReplacementSummary> = read_json(&r).unwrap();
+        let out = lifetime_from_replacements(&plan, &list).unwrap();
+        let json = serde_json::to_value(&out).unwrap();
+        assert_eq!(json["plant"]["batches"], 4);
+        assert_eq!(json["by_component"]["magnets"]["pieces"], 54);
+        assert_eq!(json["by_class"]["NOT_EVALUATED"]["batches"], 4);
+        assert_eq!(json["sum_check"]["passed"], true);
     }
 }
