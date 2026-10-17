@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0f analysis: pooled gains of F0 and F1 against S0b's D2, the bias check, H7 and F1's NUC-050 band.
 
     s0f_analyse.py --runs DIR --out results-s0f.json

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the documentation and release-policy checks: glossary, citation, changelog, deprecations,
 known issues, release notes and the generated command-line reference (DOC-021, DOC-034, DOC-040, DOC-043, DOC-060,
 PRV-036, QA-074, QA-082, PLAT-034, LEG-052, SEC-073, SEC-076)."""

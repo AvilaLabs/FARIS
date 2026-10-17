@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Analysis driver for the maintenance-coupling test (docs/notes/MAINTENANCE_COUPLING_TEST.md).
 
 Executes the fixed protocol: for each duration model (fixed, computed), each

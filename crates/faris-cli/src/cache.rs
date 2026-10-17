@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris cache`: look at, check and trim the result cache (AUTO-032, AUTO-035, AUTO-036,
 //! AUTO-038). The rules live in `faris_engine::result_cache`.
 

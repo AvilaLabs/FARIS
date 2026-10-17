@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Merge audit: every fixed S1 to S3 defect links the commit that fixed it to a test (requirement QA-085).
 
     python3 scripts/merge_audit.py [--root DIR] [--log FILE]

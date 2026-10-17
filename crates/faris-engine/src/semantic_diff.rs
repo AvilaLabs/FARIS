@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The semantic diff of two studies or two models (GEO-067, GEO-068, COL-020, COL-022, COL-023,
 //! COL-025).
 //!

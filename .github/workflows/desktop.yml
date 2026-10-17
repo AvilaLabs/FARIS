@@ -99,6 +99,14 @@ jobs:
             --title "Avila Core native dependency notices" \
             --platform-label "${{ matrix.label }}" --target-triple "${{ matrix.target }}" \
             --output ../out/licenses/core-RUNTIME_DEPENDENCY_NOTICES.md
+          cd ..
+          # LEG-013: this platform's notices name exactly the packages of this platform's graph.
+          python3 scripts/check_platform_notices.py --metadata notices-work/faris.json \
+            --root-crate faris-cli --root-crate faris-app \
+            --notices out/licenses/faris-THIRD_PARTY_NOTICES.md
+          python3 scripts/check_platform_notices.py --metadata notices-work/core.json \
+            --root-crate avila-core-cli \
+            --notices out/licenses/core-RUNTIME_DEPENDENCY_NOTICES.md
       - name: Collect binaries and build record
         shell: bash
         run: |

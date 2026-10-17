@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests of integrations/openmc/streaming_aim.py: the decisions around an aimed run (no OpenMC needed)."""
 from pathlib import Path
 import sys

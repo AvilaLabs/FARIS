@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0c helpers (s0c_common). Standard library only; no OpenMC, CadQuery or numpy.
 
 Run from the repository root:

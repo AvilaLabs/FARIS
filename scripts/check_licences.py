@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Licence policy check for the locked dependency graph (requirements LEG-003, SEC-039, SEC-031).
 
     cargo metadata --locked --offline --format-version 1 > metadata.json

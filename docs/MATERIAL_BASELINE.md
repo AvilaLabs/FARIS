@@ -107,7 +107,7 @@ source distribution. The ARC paper describes MCNP transport on a simplified
 axisymmetric model. FARIS must define its own source phase space: D-T energy
 distribution (monoenergetic 14.1 MeV is a common idealization, but not to be
 claimed here as ARC's exact source), angular law, spatial birth density / plasma
-profile, and normalization (per source neutron or to fusion rate). The same
+profile, and normalisation (per source neutron or to fusion rate). The same
 source must be held fixed for the two blanket/shield allocations. If source rate
 is converted from fusion power, state the D-T energy convention and account for
 one source neutron per D-T reaction; do not use the 525 MW scenario value as
@@ -178,7 +178,7 @@ permission, or a proof that the intended OpenMC scores are supported. It did not
 audit the additional W, Ti, or H nuclides implied by the ARC candidate recipe.
 Before enabling the candidate model, expand the inventory to actual atom
 fractions after alloy selection, inspect each HDF5 dataset and relevant
-reaction/Q-value behavior (including Li tritium production), and record all
+reaction/Q-value behaviour (including Li tritium production), and record all
 response/temperature capability. Photon heating needs both suitable neutron
 secondary photon production and photon interaction data; presence of
 photoatomic files alone is insufficient.

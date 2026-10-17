@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Sample neutron source sites from the design file's `plasma` block (check 9, SRC-018).
 
 Run with the OpenMC environment, as a separate process under the FARIS bounded-job

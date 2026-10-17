@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """OPENMC-003 verification B (cause test: 0.16.0 with the 0.15.3 uniform slab source).
 
 D6 candidate 2: the MGXS library from convert_to_multigroup(method='stochastic_slab') can hold a negative transport-corrected

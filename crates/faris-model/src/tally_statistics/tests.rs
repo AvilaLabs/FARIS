@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 
 /// Small deterministic generator (xorshift64*); tests need reproducible synthetic tallies, not quality.

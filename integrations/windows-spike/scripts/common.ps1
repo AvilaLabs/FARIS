@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Shared helpers for the Windows native spike build scripts. Dot-source this file.
 $ErrorActionPreference = 'Stop'
 

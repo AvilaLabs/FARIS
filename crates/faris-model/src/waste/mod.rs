@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Waste classification and clearance of activated components (requirements ACT-030 to ACT-040, SAFE-011, SAFE-012).
 //!
 //! Self-contained on purpose: nothing here names a FARIS scenario, so the tables and the

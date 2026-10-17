@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The study-file preview thumbnail: the 3D viewport, scaled to at most 512
 //! pixels on the long side and encoded as a small PNG. Saving never waits long
 //! for it and never fails because of it.

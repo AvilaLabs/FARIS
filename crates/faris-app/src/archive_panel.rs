@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Reopening saved studies revalidates their identities on a worker thread.
 
 use crate::badge::{self, Kind};

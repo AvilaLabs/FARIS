@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for integrations/openmc/material_audit.py.
 
 The script needs OpenMC, h5py and the audited cross_sections.xml, so the tests

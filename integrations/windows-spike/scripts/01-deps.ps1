@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 1: HDF5 (official HDF Group Windows build), Embree 4 (official zip, ships TBB).
 # Eigen3 is not fetched: MOAB 5.6.0 needs it only with ENABLE_EIGEN3=ON and DAGMC only for dagtally,
 # both off here.

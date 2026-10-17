@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Assemble recorded FARIS frames into a looping GIF with one global palette.
 
     make_readme_gif.py FRAMES_DIR OUTPUT.gif [--width 960] [--fps 12] [--max-bytes 8000000]

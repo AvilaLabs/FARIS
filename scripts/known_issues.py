@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The known-issues page, generated from the defect log (requirement QA-082).
 
     python3 scripts/known_issues.py            # write docs/KNOWN_ISSUES.md

@@ -3,7 +3,7 @@
 
 **Scope:** executable OpenMC fixed-source numerical reference for checking FARIS
 geometry export, explicit material construction, source sampling, raw response
-mapping, and Rust normalization. Corrected production fixtures are
+mapping, and Rust normalisation. Corrected production fixtures are
 `arc-cold-coupled-control-001` and `arc-cold-reference-port-001`. They retain
 two authored radial allocations and explicit cold-data material recipes. The
 historical `arc-cold-reference-001` fixture is not the identity used by the
@@ -31,7 +31,7 @@ The authored recipes in the two `cold-coupled-control.*.physics.json` files are:
   FLiBe.
 - Natural-Ti, natural-H ideal TiH2 at 3,750 kg/m³, representing theoretical
   crystalline density. It is not the packed bulk density of ARC's TiH2 powder
-  concept; no porosity, canister, or coolant is modeled.
+  concept; no porosity, canister, or coolant is modelled.
 - Natural-isotope pure Fe, 7,874 kg/m³, as a structural surrogate, not Inconel
   718.
 - A geometric void and natural Cu at 8,960 kg/m³ as a magnet-response surrogate.
@@ -48,7 +48,7 @@ extrapolation. The selected local FENDL
 files have not had their upstream provenance, checksum against the publisher,
 or redistribution terms authenticated. The candidate XML also contains no
 thermal-scattering law. Bound molecular scattering for crystalline Li2BeF4 and
-TiH2 is therefore not modeled; do not treat low-energy spectra or breeding as
+TiH2 is therefore not modelled; do not treat low-energy spectra or breeding as
 qualified until that sensitivity is assessed.
 
 ## Source, transport and returned records
@@ -57,7 +57,7 @@ Use the same uniform-in-volume source over the full plasma torus for each
 variant. A Cartesian uniform box is rejection-sampled into the plasma cell;
 particle direction is isotropic and energy is monoenergetic at 14.1 MeV. The
 request's 17.6 MeV per D-T reaction and one neutron per reaction define later
-Rust normalization at 525 MW. The adapter reports only per-source-neutron raw
+Rust normalisation at 525 MW. The adapter reports only per-source-neutron raw
 scores and their OpenMC standard errors; Python does not multiply by absolute
 source strength.
 
@@ -81,7 +81,7 @@ torus-volume control.
 The full-model 12×8×12 mesh uses bin numbering `i + nx*(j + ny*k)`. Final primary
 records use the outboard-local 24×12×24 mesh; coarse local and one-bin window
 meshes are separate diagnostics. Bounds come from the Rust engine. Analytic torus
-shell and Cartesian bin volumes accompany raw scores for normalization.
+shell and Cartesian bin volumes accompany raw scores for normalisation.
 
 The adapter writes `solver/transport-artifact.json` in
 `faris-transport-artifact/v0.2`, echoing the complete request and one raw tally
@@ -90,7 +90,7 @@ per response. Neutron and photon spectra are recorded in
 group edges, per-component raw group means and standard errors, and the
 sampled volume and its standard error. They are flux spectra, not deposited-
 energy spectra. Rust validates the sidecar against the exact request, input,
-solver, data and history count, stores normalized group flux, and checks the
+solver, data and history count, stores normalised group flux, and checks the
 neutron group sum against the matching integrated component flux to
 floating-point summation tolerance. Per-bin standard errors describe transport
 sampling; volume uncertainty is kept separately and is not silently folded
@@ -113,7 +113,7 @@ then z. A nonzero exit, incomplete/mismatched statepoint, non-finite score, log
 limit exceedance, or logged lost particle fails execution. The worker output
 records execution status separately from scientific assessment.
 
-The requested H3-production score is the modeled gross tritium birth rate per
+The requested H3-production score is the modelled gross tritium birth rate per
 source neutron. Its whole-model tally is a reconciliation diagnostic and can
 include production outside the salt, including hydrogen-bearing regions such
 as TiH2; do not label it a breeder-only TBR. Component H3 tallies remain
@@ -153,12 +153,12 @@ heating score excludes transported secondary-photon energy and photon
 interactions score deposition separately. OpenMC's `electron_treatment="led"`
 option deposits secondary charged-particle energy locally rather than
 generating secondary bremsstrahlung photons. These solver-defined responses
-remain separate from alpha-particle transport, blanket thermal-fluid behavior,
+remain separate from alpha-particle transport, blanket thermal-fluid behaviour,
 structural temperatures, thermal losses, coolant enthalpy, or power conversion.
 
 Rust scales per-source scores using the fusion reaction rate
 `525 MW / (17.6 MeV per D-T reaction)`. This is the external D-T neutron-source
-rate convention: one source neutron per reaction. It differs from normalizing
+rate convention: one source neutron per reaction. It differs from normalising
 a fission system to an observed whole-system heating tally. The power
 denominator uses the full 17.6 MeV D-T energy, while the transported particle
 carries 14.1 MeV and the 3.5 MeV alpha is not transported. Therefore the
@@ -194,12 +194,12 @@ The supplied audit records this workstation's local cache. Another installation
 must run `audit_library.py` and supply its own audit; library content differences
 cannot be silently accepted. `reactor run` refuses an existing output directory.
 Ctrl-C cancels the owned process group. Neither process completion nor accepted
-normalization sets a scientific PASS. The CLI allows up to ten million histories,
-32 threads and a one-hour timeout; job resource and artifact caps are recorded per
+normalisation sets a scientific PASS. The CLI allows up to ten million histories,
+32 threads and a one-hour timeout; job resource and artefact caps are recorded per
 run. These are resource bounds, not a sandbox.
 
 Native replay uses the same case definitions and rechecks its recorded inputs,
-raw artifact, sampling, audit, adapter identity, volumes, and normalization:
+raw artefact, sampling, audit, adapter identity, volumes, and normalisation:
 
 ```bash
 cargo run -p faris-app -- \
@@ -244,15 +244,15 @@ as-built model specification; material, data-temperature, source, and geometry
 applicability for an ARC-like plant remain unevaluated. There is no design-level
 validation or qualification here.
 
-The normalized whole-model gross H3 production was 1.2945, 1.3085, 1.2952 and
+The normalised whole-model gross H3 production was 1.2945, 1.3085, 1.2952 and
 1.3117 H3 atoms per source neutron for control-reference, control-breeder,
 port-reference and port-breeder, respectively. Their direct Monte Carlo RSEs
 were 0.088%, 0.086%, 0.106% and 0.091%. Coupled total deposited heating was
 492.74, 491.65, 492.92 and 491.95 MW with RSE 0.050%, 0.046%, 0.061% and 0.050%.
 These are the model's gross tritium and OpenMC deposition responses; whole-model
-H3 includes all modeled regions and is not an extraction-corrected TBR. Heating
+H3 includes all modelled regions and is not an extraction-corrected TBR. Heating
 is not a thermal balance. The source convention injects one 14.1 MeV neutron per
-reaction while normalizing with 17.6 MeV per D-T reaction; the implied neutron
+reaction while normalising with 17.6 MeV per D-T reaction; the implied neutron
 source power is 420.6 MW, and the difference from scored deposition is not an
 energy-closure or power-conversion result.
 
@@ -266,9 +266,9 @@ from 13.9% to 35.0%, and magnet-surrogate integrated heating RSE from 11.2% to
 with their direct SE and retain the visible unresolved status. The targets are
 internal sampling goals, not validation tolerances or physical limits.
 
-Independent arithmetic reconstructed all 6,954 normalized responses in each
+Independent arithmetic reconstructed all 6,954 normalised responses in each
 fine primary from raw tally units, domain volumes and the 525 MW source-rate
-convention, independently computing `P_fusion / (17.6×10⁶ eV × 1.602176634×10⁻¹⁹ J/eV)` from each exact scenario and physics input. It matched each recorded source rate at the stored precision. Mean, integrated mean and volume matched exactly; tally-only SE reconstruction differed by at most 1.54×10⁻⁵ relative for ported records because the normalized record separately propagates the Monte Carlo port-volume SE.
+convention, independently computing `P_fusion / (17.6×10⁶ eV × 1.602176634×10⁻¹⁹ J/eV)` from each exact scenario and physics input. It matched each recorded source rate at the stored precision. Mean, integrated mean and volume matched exactly; tally-only SE reconstruction differed by at most 1.54×10⁻⁵ relative for ported records because the normalised record separately propagates the Monte Carlo port-volume SE.
 Independent torus-shell arithmetic matches unported component volumes and the
 whole torus to floating-point precision; mesh-bin volumes and sums match the
 Cartesian bounds. Each run's pre-transport OpenMC `Geometry.find` ownership and
@@ -326,7 +326,7 @@ port-to-void mapping, and added pre-transport ownership probes. The prior
 coupled smoke, coarse 1M control records, two port 1M attempts, and the earlier
 in-repository neutron-only million-history pair are retained as superseded or
 rejected diagnostics; none is primary evidence for the
-corrected geometry. Exact run/input/artifact hashes and rejection states are in
+corrected geometry. Exact run/input/artefact hashes and rejection states are in
 [`geometry-correction-superseded-runs.json`](../references/geometry-correction-superseded-runs.json). The
 older arithmetic receipt is marked superseded in
 [`cold-reference-verification.json`](../references/cold-reference-verification.json);
@@ -344,7 +344,7 @@ response, not a magnet-material flux or component failure estimate. This direct 
 Do not sum per-bin standard errors to estimate window uncertainty.
 
 Before the independent local comparisons, require exact replay of every
-request/artifact, sufficient in-run histories, and the port's independently
+request/artefact, sufficient in-run histories, and the port's independently
 checked volume report. Treat a path-window effect as sampling-resolved only if
 both independent-seed estimates have RSE ≤10% and their absolute difference
 exceeds twice the combined one-standard-error value
@@ -363,7 +363,7 @@ Generated runs, solver statepoints and nuclear data remain outside Git. Only
 the corrected-geometry worker revision, with its exact hashes, is eligible for
 the corrected local-fine primary runs, identified in the refinement-results
 receipt. The geometry audit and port-volume report are required receipts alongside
-transport and normalization; none is a physical validation.
+transport and normalisation; none is a physical validation.
 
 Input identity, OpenMC execution, exact volume arithmetic, and Monte Carlo
 standard errors are necessary implementation checks; they do not validate
@@ -371,7 +371,7 @@ materials or reactor physics. Before exposing values in the demo, confirm that
 OpenMC returns a nonzero H3 score in the salt, component IDs match the exact
 scenario bytes, source particles are contained in the plasma cell, no geometry
 particles are lost, raw tallies retain their units and estimator, mesh ordering
-matches the viewport, and Rust normalization occurs once. Use independently
+matches the viewport, and Rust normalisation occurs once. Use independently
 computed torus/Cartesian volumes and verify the variant geometry differs only
 in the declared blanket/shield allocation.
 
@@ -398,7 +398,7 @@ is not a qualified benchmark and is not used here.
   [torus geometry](https://docs.openmc.org/en/stable/usersguide/geometry.html),
   [tally scores](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html),
   [coupled heating and energy deposition](https://docs.openmc.org/en/v0.15.0/methods/energy_deposition.html),
-  [recommended coupled heating normalization](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html#normalization-of-tally-results),
+  [recommended coupled heating normalisation](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html#normalization-of-tally-results),
   [particle filters](https://docs.openmc.org/en/stable/pythonapi/generated/openmc.ParticleFilter.html),
   [stochastic geometry volumes](https://docs.openmc.org/en/v0.15.1/usersguide/volume.html), and
   [temperature treatment](https://docs.openmc.org/en/stable/methods/cross_sections.html).

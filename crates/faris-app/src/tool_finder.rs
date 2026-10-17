@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! "Find tools": look in the usual places for Python environments, ask each one a single short
 //! question (what is installed, which OpenMC), and propose a value for each of the six tools.
 //!

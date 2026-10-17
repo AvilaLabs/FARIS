@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Compares the native batch face classifier with the Python per-point loop on the same points.
 
     classify_parity.py STEP --worker PATH --total-points N [--solids 0,1,..] [--seed S] [--scratch DIR]

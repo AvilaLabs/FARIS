@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0b diagnostic helpers (s0b_common, the S0b configs). Standard library only; no OpenMC, CadQuery or numpy.
 
 Run from the repository root:

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! OpenCASCADE behind a thin C++ shim, for FARIS's CAD layer.
 //!
 //! The crate reads STEP files (units, solids in reader order, names, assembly paths, colours,

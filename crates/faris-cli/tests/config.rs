@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris config` end to end, each run in its own configuration folder.
 
 use std::{path::Path, process::Command};

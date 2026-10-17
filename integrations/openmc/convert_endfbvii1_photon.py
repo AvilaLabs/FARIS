@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Convert the cited NNDC ENDF/B-VII.1 photon archives to OpenMC HDF5.
 
 Only the eight photoatomic/atomic-relaxation element pairs used by the current

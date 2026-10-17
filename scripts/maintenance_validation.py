@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Validation runner and evaluator for the maintenance-coupling result (docs/notes/MAINTENANCE_COUPLING_VALIDATION.md).
 
   configs   write one driver configuration per variant (B, V1, V2-low, V2-high, V3, V4, V5a-V5d) from the amended

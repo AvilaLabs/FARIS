@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R2' (PERF-025): the 60 s laptop preview on RM-M from a finished model file (docs/notes/CAD_TRANSPORT_RISK_TESTS.md, "R2'").
 
     s0g_preview.py --model MODEL.xml --openmc /path/to/bin/openmc --run-dir R --out result.json --seed N [--threads 4]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The result cache: one way to build a cache key and one way to keep, check and manage an entry
 //! (AUTO-031, AUTO-032, AUTO-034, AUTO-035, AUTO-036, AUTO-038, AUTO-039).
 //!

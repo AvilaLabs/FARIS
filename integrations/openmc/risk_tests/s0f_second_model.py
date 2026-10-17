@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0f second geometry (fact 15): a shielded room with one straight duct, to test whether the automatic targets of
 s0f_find_targets.py carry beyond RM-M. Nothing here was tuned on RM-M's layout.
 

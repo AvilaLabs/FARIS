@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0f helpers and rules (s0f_common). Standard library only.
 
 Run from the repository root:

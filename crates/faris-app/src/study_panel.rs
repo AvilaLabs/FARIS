@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use crate::badge::{self, Kind};
 use crate::time::{SystemTime, UNIX_EPOCH};
 use eframe::egui;

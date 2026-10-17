@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Write the cross_sections.xml this case runs with: FENDL-3.2 neutron data and ENDF/B-VII.1 photon data.
 
     python3 make_library.py --fendl DIR --photon DIR --out cross_sections.xml

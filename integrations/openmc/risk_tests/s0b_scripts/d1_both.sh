@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # D1: the R6 analog model, 1e6 histories, 4 threads, same new seed, on both builds, one after the other
 cd /home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 S=/home/connoravila/.cache/avila-night/faris-wt/s0b/integrations/openmc/risk_tests/s0b_run.py

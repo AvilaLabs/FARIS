@@ -139,7 +139,7 @@ Core semantics, not verdicts on this reactor scenario.
 ## 4. Run or replay transport
 
 The replay path checks the saved input, scenario, data audit, adapter, raw tally,
-volume, and normalization identities before exposing results:
+volume, and normalisation identities before exposing results:
 
 ```bash
 cargo run -- reactor inspect \
@@ -164,7 +164,7 @@ For a fresh run, provide an exclusive output directory and the explicit tool/dat
 paths. The current default is 100 batches × 10,000 particles and one thread;
 the CLI accepts at most 10 million total histories, 32 threads, and 3,600
 seconds per job. Linux execution inherits 4 GiB address-space and 256 MiB
-per-file limits; the runner monitors at most 512 MiB and 2,048 regular artifact
+per-file limits; the runner monitors at most 512 MiB and 2,048 regular artefact
 files across its working/output roots. These are process/output ceilings, not a
 complete hostile-code sandbox or a measured production resource budget. The
 CLI reports execution separately from scientific assessment. Ctrl-C cancels the owned job; a partial directory is not a
@@ -298,10 +298,10 @@ tamper control targets a sweep file when one exists. Omitting the flag is allowe
 and yields a package with no sweep (the packager prints a note). The sweep runs
 carry transport identity only; they have no Core evidence cases.
 
-The packager checks all four scenario/run identities and normalized heating/H3
-responses, requires port geometry reports to bind to each raw artifact, archives
+The packager checks all four scenario/run identities and normalised heating/H3
+responses, requires port geometry reports to bind to each raw artefact, archives
 the exact worker ownership and void-confirmation audits with their input/run/
-artifact hashes, generates
+artefact hashes, generates
 the complete study selection, prepares each Core case, runs the real Core
 workflow, invokes Core's verified `export` for each case, and records its receipts/reports and the four portable
 `RecordedTransportBundle` JSON files. It also reopens each prepared case with
@@ -318,12 +318,12 @@ after those reports bind to the fresh run identities; absolute workstation paths
 are redacted in packaged support JSON. `DEMO_ACCEPTANCE.md` is not copied as a
 snapshot because the final package and its verifier define release acceptance.
 
-The package retains each recorded bundle's raw and normalized energy spectra,
-worker receipt, and all normalized mesh-bin fields, with hashes checked against
+The package retains each recorded bundle's raw and normalised energy spectra,
+worker receipt, and all normalised mesh-bin fields, with hashes checked against
 the run record. It also produces two paired history comparisons, four event-
 control histories, and four 27-point sensitivity records from the selected
 release CLI and exact fresh run records. Their provenance binds the scenario,
-run record, raw tally artifact, assumptions, and grid. The index reports total
+run record, raw tally artefact, assumptions, and grid. The index reports total
 file count and bytes and the verifier enforces the 1 GiB / 2,048-file delivered
 package caps. Case/workspace trees are held in one evidence store
 (`evidence-store/`, Avila Core format `avila.core/evidence-store/v0.1`): a

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage the verified browser bundle and the handbook for `wrangler deploy`.
 # Usage: deploy/web/sync.sh VERIFIED_DIST_DIRECTORY
 # The directory is the "faris-web" artifact of the Web workflow. Nothing is

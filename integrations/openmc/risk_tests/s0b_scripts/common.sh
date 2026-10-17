@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # sourced by the D2/D3 scripts: PY is set by the caller (the build D1 selected)
 B=/home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 cd $B

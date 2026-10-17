@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris diff`, `faris config diff`, `faris geometry summary` and `faris cache`, end to end.
 
 use faris_engine::result_cache::{ResultCache, cache_key};

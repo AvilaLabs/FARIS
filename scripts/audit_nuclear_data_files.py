@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Audit that no nuclear-data file is in Git or inside a `.faris` study package (NUC-069).
 
 Git: every tracked file is checked by name (HDF5, ENDF and ACE suffixes, `cross_sections.xml`) and,

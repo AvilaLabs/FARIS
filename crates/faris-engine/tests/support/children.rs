@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Detects child processes started by the code under test (SEC-001). Shared by
 //! test binaries with `#[path]`.
 //!

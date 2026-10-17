@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Design check window: write a draft design file from a STEP file, and run the nine import
 //! checks on a design file, with live stage progress and Cancel.
 //!

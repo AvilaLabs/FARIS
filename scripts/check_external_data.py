@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks that data fetched from outside the repository is fetched by hash (requirement QA-090).
 
     python3 scripts/check_external_data.py [--root DIR]

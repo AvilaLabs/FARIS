@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Literature maintenance-duration presets (OPS-032) and the remote-handling constraint model
 //! (OPS-033).
 //!

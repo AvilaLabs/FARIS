@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Runs the requests of [`faris_occt_client::protocol`] inside the worker process.
 //!
 //! A request is a JSON file; the worker writes the response to a second JSON file. Large data

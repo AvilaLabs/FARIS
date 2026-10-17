@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The uncertainty state every history and comparison output carries: an interval with the basis
 //! it comes from, or the reason there is none and what to do next. A number is never left bare.
 

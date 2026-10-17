@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Runs only after a failed smoke test: repeats the run under cdb (one thread) and prints the
 # exception, registers, the frames above it and the disassembly around the faulting instruction.
 param([string]$Bundle, [string]$Model, [string]$Tag)

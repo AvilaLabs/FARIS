@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Writes crates/faris-engine/tests/fixtures/maintenance_parity.json: inputs and outputs of the cooling-curve
 functions of scripts/maintenance_coupling_test.py, which the Rust port in faris_engine::maintenance must reproduce.
 

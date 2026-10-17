@@ -51,7 +51,7 @@ page and fails if an entry loses its citation or its omission line (GEO-009).
 - **Citation:** no outside source; the closed-form result (escape probability
   exp(-Sigma_a R) for a point source at the centre) is derived in
   [NUMERICAL_CONTROLS.md](NUMERICAL_CONTROLS.md).
-- **Use:** checking solver, source and normalization arithmetic against an
+- **Use:** checking solver, source and normalisation arithmetic against an
   exact answer.
 - **Omits:** scattering, energy dependence, any real material or nuclear data,
   and any reactor geometry. Its cross section and radius are chosen for the

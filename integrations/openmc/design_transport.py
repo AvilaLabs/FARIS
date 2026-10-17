@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Transport worker of `faris design transport`: a checked design's DAGMC geometry, run to a target error.
 
     design_transport.py --phase run     --request request.json --work-dir DIR

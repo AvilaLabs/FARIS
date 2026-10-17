@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Compares two faris-step-inspect/v1 reports: the Python helper's and the native worker's.
 
     compare_inspect.py PYTHON.json NATIVE.json [--rel 1e-9]

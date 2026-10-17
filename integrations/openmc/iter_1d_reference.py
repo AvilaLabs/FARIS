@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Run the local IAEA-NDS ITER_1D OpenMC case with auditable cell tallies.
 
 This is a code-to-code reference execution helper, not the authoritative FARIS

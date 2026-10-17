@@ -51,7 +51,7 @@ demo additionally needs real transport results and a working lifetime model.
 | --- | --- | --- |
 | D01 | One input defines displayed and calculated component identities and geometry | Geometry adapter and viewport agree on IDs, boundaries, volumes, and units |
 | D02 | Native egui interface with a functioning 3D viewport | Launch, selection, visibility, cutaway, camera, and variant checks |
-| D03 | Both arrangements use traceable material definitions and the same source model | Recorded compositions, densities, temperatures, source normalization, and nuclear-data identity |
+| D03 | Both arrangements use traceable material definitions and the same source model | Recorded compositions, densities, temperatures, source normalisation, and nuclear-data identity |
 | D04 | Real spatial transport results are attached to the corresponding geometry | Mesh/cell fields, component spectra, breeding, heating, uncertainties, and a reference/refinement check |
 | D05 | A meaningful local feature is represented before presenting detailed 3D physics claims | Explicit port, penetration, or other chosen asymmetry with controlled comparison; fidelity limitations retained |
 | D06 | Operating history conserves fuel and accumulates exposure consistently | Mass-balance controls, calendar/full-power-time checks, replacement and outage checks |

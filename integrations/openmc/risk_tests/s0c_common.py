@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Pure helpers for the S0c stand-in-model tests (docs/notes/CAD_TRANSPORT_S0C.md). Standard library only.
 
 The P1 slab (inboard radial build of RM-M as layers normal to x), the source-region count, the window floor, the

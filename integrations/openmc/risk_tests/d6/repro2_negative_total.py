@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """D6 candidate 2: the MGXS library from convert_to_multigroup(method='stochastic_slab') can hold a negative transport-corrected
 total cross section for a low-density material in one group; the random-ray solver then aborts on it.
 

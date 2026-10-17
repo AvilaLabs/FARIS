@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Source lint over the Rust crates (requirements PRV-008, CFG-054, SEC-011, PRV-011, UX-046, VAL-084, QA-052, DOC-062, DSN-085).
 
     python3 scripts/source_lint.py [--strict]

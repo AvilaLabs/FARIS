@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Bounded development checks delivered through eframe's real raw-input hook.
 //! This exercises egui controls in the native app, not OS input routing.
 

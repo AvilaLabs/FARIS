@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Kill-during-save trials of the real study writer (REL-010). The test binary
 //! starts itself as the child with `FARIS_KILL_CHILD` set to a work directory;
 //! the child saves year 2 over a saved year 1, the parent kills it with SIGKILL

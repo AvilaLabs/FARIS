@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Undo and redo for every change a user makes in the desktop (GEO-062,
 //! UX-020 to UX-025, CFG-025).
 //!

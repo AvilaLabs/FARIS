@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0d window generation on OpenMC 0.16.0, reusing S0b G6's multigroup library.
 
     s0d_generate.py --mode targeted --mgxs G6/mgxs.h5 --model-dir D --run-dir R --out gen.json --seed N

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Strict contracts for fixed-source D-T transport inputs and solver artifacts.
 //!
 //! Tallies are defined per source neutron. The adapter must preserve these

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Triangles that meet where they should not: self-intersection, overlap and
 //! duplicate surfaces (GEO-021), found from the faceted surfaces themselves.
 //!

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Advisory check with expiring waivers (requirement SEC-031).
 
     python3 scripts/check_audit.py                      # runs `cargo audit --json`

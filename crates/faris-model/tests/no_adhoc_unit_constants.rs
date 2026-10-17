@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! A static lint over the calculation crates: no ad-hoc unit conversion constants outside the
 //! unit registry (CFG-044). A conversion factor between units lives in `faris_model::units` and
 //! is imported; a second copy in another crate could drift from the first.

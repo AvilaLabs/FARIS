@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """D6 candidate 1: Model.convert_to_multigroup(method='stochastic_slab') ignores model.materials.cross_sections.
 
 Run with OPENMC_CROSS_SECTIONS unset and openmc.config['cross_sections'] unset, so the model's own path is the only library.

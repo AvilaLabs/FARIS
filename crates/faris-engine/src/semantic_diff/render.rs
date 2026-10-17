@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The readable text form of a diff. It says the same as the JSON, in the same order.
 
 use super::{Change, ChangeKind, DiffReport, Standing};

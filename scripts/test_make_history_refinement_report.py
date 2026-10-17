@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Unit tests for make_history_refinement_report.py; faris and the checker are faked."""
 import contextlib
 import copy

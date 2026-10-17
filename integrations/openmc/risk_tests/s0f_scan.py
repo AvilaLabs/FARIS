@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0f production run: one configuration and seed of RM-M, batch by batch through openmc.lib, with a JSON record.
 
     s0f_scan.py --base-model BASE.xml --run-dir D --config F0|F1 --seed S [--threads 4]

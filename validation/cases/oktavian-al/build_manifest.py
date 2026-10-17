@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Write manifest.json for the OKTAVIAN aluminium sphere from a local, read-only
 checkout of IAEA-NDS/open-benchmarks (CC-BY-4.0).
 

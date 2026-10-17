@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0e follow-up (Amendment 2): E2′ and, if the rules ask for it, E3′, inside a 45 min cap; then H6′ and G*′.
 
     s0e_followup.py --scratch ~/.cache/avila-night/cad-risk-tests/s0e

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! A bounding-volume hierarchy over triangles, so each integrity check costs
 //! about N log N instead of N squared. Boxes are integer (grid units), so box
 //! overlap is exact; the segment test uses `f64` slabs inflated by one grid unit

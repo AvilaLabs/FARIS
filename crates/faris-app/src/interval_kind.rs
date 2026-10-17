@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The kind label of an uncertainty interval (UNC-016).
 //!
 //! A number carries a kind (calculated, authored, literature, ...). An interval around a result

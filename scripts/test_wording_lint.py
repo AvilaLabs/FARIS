@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 import copy
 import sys
 import tempfile
@@ -104,6 +106,25 @@ class CodenameTests(unittest.TestCase):
             (scripts / "fine_name.py").write_text("")
             findings = lint.lint_names(Path(tmp), TERMS)
         self.assertEqual([f.path for f in findings], ["scripts/package_omnigen.py"])
+
+
+    # Verifies: LEG-044
+    def test_package_and_website_listings_are_checked_in_every_path_component(self):
+        names = ["bin/faris", "port/Astra/case.json", "site/north-star.html", "docs/astrophysics.md"]
+        findings = lint.lint_listing(names, TERMS, "pkg/")
+        self.assertEqual([f.path for f in findings], ["pkg/port/Astra/case.json", "pkg/site/north-star.html"])
+
+    # Verifies: LEG-044
+    def test_listing_option_and_extra_dirs_check_file_names(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "pkg").mkdir()
+            (Path(tmp) / "pkg" / "OMNIGEN.txt").write_text("")
+            (Path(tmp) / "pkg" / "fine.txt").write_text("")
+            self.assertEqual(lint.listing_of(Path(tmp) / "pkg"), ["OMNIGEN.txt", "fine.txt"])
+            found = [f for f in lint.run(lint.ROOT, TERMS, [], [str(Path(tmp) / "pkg")]) if f.rule == "LEG-044" and "OMNIGEN" in f.path]
+            self.assertEqual(len(found), 1)
+            found = [f for f in lint.run(lint.ROOT, TERMS, [str(Path(tmp) / "pkg")]) if f.rule == "LEG-044" and "OMNIGEN" in f.path]
+            self.assertEqual(len(found), 1)
 
 
 class ExtractionTests(unittest.TestCase):

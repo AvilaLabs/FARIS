@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Scoring rules for the validation suite (requirements VAL-001, 027-031, 035-037).
 
 Standard library only. Every function is pure: the verdict of a row is derived

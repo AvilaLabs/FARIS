@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "spelling": {
+    "colors?": "colour",
+    "behaviors?": "behaviour",
+    "analyz(?:e|es|ed|ing)": "analyse",
+    "centers?": "centre",
+    "centered": "centred",
+    "normaliz(?:e|es|ed|ing|ation)": "normalis- forms",
+    "optimiz(?:e|es|ed|ing|ation)": "optimis- forms",
+    "summariz(?:e|es|ed|ing)": "summaris- forms",
+    "visualiz(?:e|es|ed|ing|ation)": "visualis- forms",
+    "initializ(?:e|es|ed|ing|ation)": "initialis- forms",
+    "recogniz(?:e|es|ed|ing)": "recognis- forms",
+    "organiz(?:e|es|ed|ing|ation)": "organis- forms",
+    "customiz(?:e|es|ed|ing|ation)": "customis- forms",
+    "prioritiz(?:e|es|ed|ing)": "prioritis- forms",
+    "parameteriz(?:e|es|ed|ing|ation)": "parameteris- forms",
+    "discretiz(?:e|es|ed|ing|ation)": "discretis- forms",
+    "characteriz(?:e|es|ed|ing|ation)": "characteris- forms",
+    "neighbors?": "neighbour",
+    "labeled": "labelled",
+    "labeling": "labelling",
+    "modeled": "modelled",
+    "modeling": "modelling",
+    "canceled": "cancelled",
+    "fulfill": "fulfil",
+    "artifacts?": "artefact",
+    "defense": "defence",
+    "judgments?": "judgement"
+  },
+  "terminology": {
+    "e-mail": "email"
+  },
+  "allow_list": []
+}

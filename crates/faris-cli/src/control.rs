@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use crate::transport::{read_bounded, sha256, write_new_bytes, write_new_json};
 use clap::Subcommand;
 use faris_engine::jobs::{Cancellation, ExecutionStatus, JobSpec, run_job};

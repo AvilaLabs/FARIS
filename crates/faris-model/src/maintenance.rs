@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Assumptions for computed maintenance durations: which components are replaced, which
 //! components' decay heat governs the cooldown before the replacement, the threshold that
 //! ends the cooldown, and the iteration limits. Values are authored inputs.

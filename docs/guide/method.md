@@ -47,7 +47,7 @@ Independent Decimal-arithmetic checks cover the half-life decay, the source-rate
 ## Read the details
 
 - [Operating history](https://github.com/AvilaLabs/FARIS/blob/main/docs/OPERATING_HISTORY.md): the ledger, its controls and the ensemble method.
-- [Transport boundary](https://github.com/AvilaLabs/FARIS/blob/main/docs/TRANSPORT.md): normalization, regions and the covariance method.
+- [Transport boundary](https://github.com/AvilaLabs/FARIS/blob/main/docs/TRANSPORT.md): normalisation, regions and the covariance method.
 - [Cold-data reference](https://github.com/AvilaLabs/FARIS/blob/main/docs/COLD_REFERENCE.md): materials, source and recorded tallies.
 
 Next: [Scope and limits](scope.md).

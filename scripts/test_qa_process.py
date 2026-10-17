@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests of the process checks: release scorecard, merge audit, S1 disclosure, release known issues, external data."""
 import json
 import subprocess

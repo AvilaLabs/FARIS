@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! UK waste thresholds and UK out-of-scope concentrations (ACT-033, SAFE-011, ACT-036).
 //!
 //! Two schemes, each with its values read from a retrieved primary source:

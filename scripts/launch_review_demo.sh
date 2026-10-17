@@ -1,5 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Development review launch: open an unpacked 0.1.1+ package (app and evidence parts)
 # in package mode. FARIS_APP names a locally built faris-app instead of the package's
 # own; the app then labels itself a development binary not covered by the package index.

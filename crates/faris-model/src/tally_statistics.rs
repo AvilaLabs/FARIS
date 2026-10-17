@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Statistical health of Monte Carlo tallies: the MCNP statistical checks computed from batch values,
 //! the variance of the variance, the figure of merit, the effective number of scoring histories, intervals
 //! that stay valid at low counts, error from independent batches and seeds, and the error of a sum of

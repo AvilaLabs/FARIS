@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Autosave and crash recovery (REL-004, REL-011, REL-012, REL-013, REL-024).
 //!
 //! While there are edits that are not saved, the app writes them to a recovery

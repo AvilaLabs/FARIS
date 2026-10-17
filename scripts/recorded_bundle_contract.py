@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Offline identity and field/spectrum checks for recorded transport bundles."""
 from __future__ import annotations
 

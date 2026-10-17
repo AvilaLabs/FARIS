@@ -48,12 +48,12 @@ hash the release gate checks.
 | Phase | Result | Main dependencies |
 | --- | --- | --- |
 | F0 — Functional narrow demo | A real blanket/shield tradeoff study with transport fields, fuel/exposure/energy history, native 3D exploration, and the Core study experience | Complete the separate demo roadmap |
-| F1 — Reusable study platform | Extend the demo's scenario, geometry, artifact, adapter, job, and comparison interfaces to support additional bounded studies | Demonstrated interfaces and limitations from F0; a second concrete study |
+| F1 — Reusable study platform | Extend the demo's scenario, geometry, artefact, adapter, job, and comparison interfaces to support additional bounded studies | Demonstrated interfaces and limitations from F0; a second concrete study |
 | F2 — Radiation and evolving material state | Couple transport to activation/transmutation, decay heat, material inventories, and irradiation history; update environments where state changes matter | Validated spectra, material data, history model, and suitable inventory adapters |
 | F3 — Component multiphysics | Add relevant thermal, mechanical, magnet, and materials-response models, replacing selected service-limit assumptions with supported calculations | Defined coupling interfaces, applicability evidence, and response-specific reference cases |
 | F4 — Plant operation and life | Expand fuel processing, maintenance, reliability, operating schedules, power balance, and replacement logistics into a broader plant model | Component models and validated conservation/event semantics |
-| F5 — Plasma and source coupling | Integrate plasma/scenario tools and more detailed spatial/time-dependent source models when the research question requires them | Suitable external tools, source normalization, and verified coupling methods |
-| F6 — Design and research workflows | Support parameter studies, sensitivities, candidate comparison, optimization, and repeatable investigations across the integrated models | Stable study definitions, uncertainty treatment, bounded execution, and result reuse |
+| F5 — Plasma and source coupling | Integrate plasma/scenario tools and more detailed spatial/time-dependent source models when the research question requires them | Suitable external tools, source normalisation, and verified coupling methods |
+| F6 — Design and research workflows | Support parameter studies, sensitivities, candidate comparison, optimisation, and repeatable investigations across the integrated models | Stable study definitions, uncertainty treatment, bounded execution, and result reuse |
 | F7 — Broader 3D plant environment | Expand geometry fidelity, plant systems, and supported configurations into the intended full research workspace | Demonstrated demand, available models/data, and validated studies for each added domain |
 
 ACTINV, Converra, OpenMC, and the wider ecosystem can contribute as their inputs,

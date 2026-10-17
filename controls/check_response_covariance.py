@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Independent exact-arithmetic control for the transport response covariance.
 
 Uses only Python's standard library (fractions), without importing FARIS or

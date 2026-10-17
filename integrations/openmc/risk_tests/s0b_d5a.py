@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0b D5a: reaction-pathway audit of D1S decay-photon emission on 5 cm spheres in vacuum (no CAD). OpenMC 0.15.3 (double-down env).
 
     s0b_d5a.py neutron   --material tungsten --source mono14|tf --out-dir D [--spectrum S.json]

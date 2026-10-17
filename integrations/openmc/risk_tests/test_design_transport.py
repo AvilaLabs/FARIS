@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for ../design_transport.py: the pure helpers. Nothing here runs OpenMC."""
 
 import copy

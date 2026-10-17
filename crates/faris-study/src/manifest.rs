@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use faris_engine::evidence_store::StoreFile;
 use faris_engine::history_uncertainty::EnsembleKey;
 use faris_model::history::OperatingHistoryAssumptions;

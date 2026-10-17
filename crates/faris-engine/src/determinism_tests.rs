@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Cross-platform bit-identity of the history math. The expected digests are
 //! the SHA-256 of the compact JSON of each result; they must be equal on every
 //! desktop platform (Linux, Windows, macOS on both CPU families) because

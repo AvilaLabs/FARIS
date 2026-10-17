@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The external half of checks 6 to 9: the CAD helper's conversion, tessellation,
 //! boolean and deviation commands and the OpenMC source sampler, each run as a
 //! bounded job. The helpers are embedded in the binary and written next to the

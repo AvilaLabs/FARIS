@@ -1,0 +1,14 @@
+{
+  "comment": "Credit for every figure under docs/ (checked by scripts/check_doc_licence.py, requirement DOC-037). A figure made by FARIS is a screenshot or capture of the FARIS desktop app and carries the repository licence. A figure from another source must name its owner and its licence in 'credit'.",
+  "figures": {
+    "docs/guide/images/faris-tour.gif": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Recorded from the FARIS desktop app by scripts/make_readme_gif.py."},
+    "docs/images/faris-tour.gif": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Recorded from the FARIS desktop app by scripts/make_readme_gif.py."},
+    "docs/images/cold-reference-component-flux.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/demo-coupled-core-workspace.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/demo-coupled-flux-slice.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/demo-history-events.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/demo-history-recalculation.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/demo-sensitivity.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."},
+    "docs/images/interface-size-menu.png": {"origin": "faris-capture", "licence": "AGPL-3.0-only", "credit": "Captured from the FARIS desktop app."}
+  }
+}

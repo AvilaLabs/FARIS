@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Tests against the repository's STEP corpus: parity with the recorded Python helper reports,
 //! tessellation closure, the facets round trip, and the batch face classifier.
 

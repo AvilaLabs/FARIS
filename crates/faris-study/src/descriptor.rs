@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Core evidence named by a packaged saved-study descriptor: archives
 //! (`faris-saved-study-archive/v0.1`, older packages) or two trees of an
 //! evidence store (`faris-saved-study-store/v0.1`).

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Side-by-side comparison of the four recorded arrangements (two blanket/shield
 //! allocations, each with the finite outboard port and as a no-port control).
 //!

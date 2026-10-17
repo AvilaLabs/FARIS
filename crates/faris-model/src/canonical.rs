@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Canonical forms of JSON values, so that equal inputs compare and hash equally whatever order the
 //! keys were written in, whatever the white space, and however a number was spelled (AUTO-034,
 //! COL-025). The cache key (`faris_engine::result_cache`) and the semantic diff

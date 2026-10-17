@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint against fission accuracy figures used as FARIS acceptance numbers (requirement VAL-081).
 
     python3 scripts/fission_figure_lint.py [--root DIR]

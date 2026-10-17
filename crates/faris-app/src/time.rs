@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Clocks that work on both targets: `std::time::Instant` and `SystemTime`
 //! panic in the browser, so the browser build uses `web-time`.
 

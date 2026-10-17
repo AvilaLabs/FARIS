@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The per-release quality scorecard: at most 15 measures, each one that gates a release (requirement QA-007).
 
     python3 scripts/release_scorecard.py [--gate FILE] [--out FILE]

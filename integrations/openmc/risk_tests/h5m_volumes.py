@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Faceted volume, centroid and material tag of every volume in a DAGMC h5m file.
 
 Reads the MOAB HDF5 layout directly with h5py and numpy, with no OpenMC or

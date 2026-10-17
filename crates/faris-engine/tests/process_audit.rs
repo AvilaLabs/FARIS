@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Source scan for process starts and dynamic loading (SEC-001). It fails when
 //! a call that starts a process or loads a library appears anywhere in the
 //! workspace that is not in the reviewed list below, or when a reviewed file

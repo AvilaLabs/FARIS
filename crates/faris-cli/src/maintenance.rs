@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Computed maintenance durations: run the coupling of operating history and ACTINV decay
 //! heat for any number of designs, and report the result.
 use crate::transport::{read_bounded, write_new_json};

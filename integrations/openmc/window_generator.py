@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Weight windows from a random-ray adjoint of a response: the one implementation behind `faris design
 transport` (DAGMC geometry) and the reactor study's Production tier (CSG geometry).
 

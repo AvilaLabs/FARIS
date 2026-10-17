@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0c: read the run records, apply the protocol's rules, print the tables and write one results JSON.
 
     s0c_analyse.py [--root ~/.cache/avila-night/cad-risk-tests/s0c] [--out results-s0c.json]

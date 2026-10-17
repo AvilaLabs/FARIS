@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Register .faris study files with the desktop, for the current user only.
 #
 #   install_desktop_integration.sh /absolute/path/to/faris-app

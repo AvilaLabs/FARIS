@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Comparing a result with a stored limit (MAT-010 to MAT-012, MAT-015, MAT-050 to MAT-052).
 //!
 //! A comparison happens only when the case says what the limit needs: for a dpa limit the

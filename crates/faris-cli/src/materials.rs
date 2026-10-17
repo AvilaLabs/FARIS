@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris materials`: the cited materials and limits database. Every command prints JSON, except
 //! `export --format csv-limits` and `csv-properties`, which print CSV. Research screening only.
 

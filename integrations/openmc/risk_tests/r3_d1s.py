@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3, direct one-step (D1S, openmc.deplete.d1s) on RM-M, OpenMC 0.15.3.
 
     r3_d1s.py --model-dir D --out-dir R [--particles N] [--budget S]

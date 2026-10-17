@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Read-only inventory of selected OpenMC continuous-energy library files.
 
 Run this with an environment containing OpenMC and h5py, for example:

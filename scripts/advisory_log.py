@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Fix-time check for advisories in the sign-in client stack (requirement SEC-039).
 
     python3 scripts/advisory_log.py [--log FILE] [--root DIR] [--today YYYY-MM-DD]

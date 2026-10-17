@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """OpenMC side of RM-M: library identity, materials, DAGMC model, tokamak source and tallies.
 
 Imported by accept_rm_m.py and r6_worker.py, which run under the OpenMC

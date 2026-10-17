@@ -352,10 +352,10 @@ cargo run -- transport normalize --scenario scenarios/arc-inspired/scenario.json
   --request /path/to/request.json --artifact /path/to/raw-tallies.json --output runs/normalized-001.json
 ```
 
-An import checks definitions and arithmetic; the artifact's solver identities
+An import checks definitions and arithmetic; the artefact's solver identities
 and raw numbers are adapter assertions. Import success leaves scientific
 qualification `NOT_EVALUATED`. See [TRANSPORT.md](docs/TRANSPORT.md) for contracts,
-normalization, trust limits and unavailable reactor functionality.
+normalisation, trust limits and unavailable reactor functionality.
 
 ## Development
 
@@ -386,14 +386,14 @@ cargo run -p faris-app -- --capture runs/desktop-preview.png
 ```
 
 The screenshot destination's directory must already exist. Screenshots are
-development artifacts, not simulation evidence.
+development artefacts, not simulation evidence.
 
 ## Project map
 
 | Path | Responsibility |
 | --- | --- |
 | `crates/faris-model/` | Scenario types, units, validation, and identities |
-| `crates/faris-engine/` | Shared geometry, transport normalization/jobs, history, comparison and Core evidence |
+| `crates/faris-engine/` | Shared geometry, transport normalisation/jobs, history, comparison and Core evidence |
 | `crates/faris-study/` | The `.faris` study file: verified, content-addressed container (no UI) |
 | `crates/faris-cli/` | Headless client of the same engine |
 | `crates/faris-app/` | Native egui workspace and wgpu renderer |
@@ -407,7 +407,7 @@ development artifacts, not simulation evidence.
 | `docs/SCIENTIFIC_BASELINE.md` | Benchmark selection, validation scope, uncertainty rules and unresolved scientific inputs |
 | `docs/MATERIAL_BASELINE.md` | Primary-source material candidates and inputs that still need resolution |
 | `docs/STUDY_FILE.md` | The `.faris` study file: container, size policy, reading rules |
-| `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalization |
+| `docs/TRANSPORT.md` | Strict raw-tally contracts, dimensions and checked Rust normalisation |
 | `docs/FILE_FORMATS.md` | Every file format named in the code, where it is described, and which are not yet |
 | `docs/MODEL_PAGES.md` | Index of the model descriptions (theory manual) and the models with no page |
 | `docs/UI_INVENTORY.md` | The app's windows and steps, their handbook pages and screenshots |

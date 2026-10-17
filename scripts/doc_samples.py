@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Runs the code samples of the handbook and writes the gate evidence (requirement QA-016).
 
     python3 scripts/doc_samples.py --faris target/debug/faris --evidence doc-tests.json [--cargo CMD]

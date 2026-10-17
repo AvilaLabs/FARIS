@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Weight windows for a target-error reactor run (the Production tier).
 //!
 //! The magnet fast flux is the hardest response of the study to sample: a few neutrons in a million reach the

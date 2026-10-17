@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The fonts the desktop app uses for proportional and monospace text, embedded
 //! in the exports, with glyph-advance measurement for layout.
 //!

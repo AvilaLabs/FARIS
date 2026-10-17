@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The command-line reference, generated from `faris --help` (requirement DOC-021).
 
     python3 scripts/cli_reference.py --faris target/debug/faris           # write docs/guide/cli-reference.md

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Runs the exact-decimal history control on every CI pass (QA-042).
 
 `check_history.py` is a command-line control, so the CI step that discovers `test_*.py` never ran

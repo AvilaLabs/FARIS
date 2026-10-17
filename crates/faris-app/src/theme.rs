@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The colour themes (A11Y-010, A11Y-011, A11Y-012). Every colour the app draws text, borders,
 //! chart lines, axes and status pills with is named here, and `visuals` builds the egui style
 //! from the same names, so native and browser builds share one definition. The tests at the

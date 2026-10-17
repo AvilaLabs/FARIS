@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Check that every fuzz finding has a committed reproducer (requirement SEC-022).
 
     python3 scripts/fuzz_findings.py [--log FILE] [--root DIR] [--release]

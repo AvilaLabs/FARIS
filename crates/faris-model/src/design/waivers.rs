@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Waivers (GEO-026): an author's recorded acceptance of one integrity finding.
 //!
 //! A waiver names the check, the solids or the point it covers, a reason, an

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! How numbers, dates and quantities are shown and typed, as the user chose (CFG-037, CFG-040,
 //! UX-066, L10N-022, L10N-023).
 //!

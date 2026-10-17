@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris study-file export`: the study export folder from a `.faris` file,
 //! without the desktop. The file is read with the fail-closed reader, the
 //! recorded transport is validated as the desktop validates it, and the

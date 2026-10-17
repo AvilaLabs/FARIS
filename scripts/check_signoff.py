@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Every commit carries a Signed-off-by line for its author, maintainers included (requirement LEG-005).
 
     python3 scripts/check_signoff.py REV_RANGE [--root DIR] [--since YYYY-MM-DD]

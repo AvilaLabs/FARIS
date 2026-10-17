@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Cross-check the GEO-023 corpus against DAGMC's own tools (a cross-check only).
 
 For every corpus model that was converted to an h5m, run DAGMC's `check_watertight`

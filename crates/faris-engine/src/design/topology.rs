@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Edge topology of the faceted model: watertightness and orientation per
 //! volume (GEO-020), and the connected components of the surfaces that face the
 //! implicit complement, with their enclosed volume (GEO-022).

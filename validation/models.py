@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The model matrix: verification and validation evidence for every model FARIS reports (VAL-001, VAL-006, VAL-037, VAL-053).
 
 validation/matrix.json has one row per (quantity, benchmark). This module adds the other side: one row per

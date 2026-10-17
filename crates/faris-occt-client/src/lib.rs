@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The client side of the native CAD worker: the request and response types
 //! ([`protocol`]) and the process client with its wall-clock bound ([`client`]).
 //!

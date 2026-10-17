@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The requests the worker runs and the files they name: the protocol between FARIS and
 //! `faris-occt-worker`, with no OpenCASCADE in it.
 //!

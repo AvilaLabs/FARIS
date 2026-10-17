@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Expand design-file materials to nuclide vectors and audit them against the library.
 
 Run with the OpenMC environment (openmc and h5py), as a separate process under

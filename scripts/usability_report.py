@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Check usability study reports against the Common Industry Format template (requirement UX-009).
 
     python3 scripts/usability_report.py [--root DIR]

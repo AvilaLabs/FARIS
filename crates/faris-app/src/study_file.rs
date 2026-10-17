@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The app side of `.faris` study files: the File menu, opening and saving on
 //! worker threads, the window title, and the Evidence-step badge. Reading,
 //! writing and verification live in `faris-study`; nothing here interprets

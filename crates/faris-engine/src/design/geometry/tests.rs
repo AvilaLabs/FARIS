@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::super::mesh::fixtures::*;
 use super::super::testutil::{design_for, manifest_of};
 use super::super::*;

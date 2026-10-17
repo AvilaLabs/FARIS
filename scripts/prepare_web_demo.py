@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Collect the recorded study the browser version opens on load.
 
 Reads an unpacked release package (the folder holding package-index.json),

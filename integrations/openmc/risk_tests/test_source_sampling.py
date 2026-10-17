@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Sampling tests for ../source_sites.py: do sampled source positions follow the analytic profile?
 
 The sites come from the real path (`openmc-plasma-source`'s `tokamak_source` sampled through

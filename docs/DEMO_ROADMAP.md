@@ -38,7 +38,7 @@ Core receipts do not turn them into physical passes.
 | M0 | Complete: starting capabilities and demo boundary recorded |
 | M1 | Complete within the declared cold numerical boundary: frozen materials/data/source, authored operating inputs and response applicability limits |
 | M2 | Complete: typed transport/history/evidence formats, bounded workers, dependencies, actual Core compilation, and native cancellation verified |
-| M3 | Corrected coupled primary cases and independent normalization/capture controls complete; physical qualification explicitly NOT_EVALUATED |
+| M3 | Corrected coupled primary cases and independent normalisation/capture controls complete; physical qualification explicitly NOT_EVALUATED |
 | M4 | Complete within the scoped spatial boundary: corrected ownership/volumes, sampling/window and fine/coarse diagnostics, calculated fields, picking and native presentation verified; local-map convergence remains NOT_EVALUATED |
 | M5 | Complete within the deterministic numerical boundary: all four drivers verified at 600/500/250 s, independent conservation/event/energy checks, paired comparisons, 27-point reruns and outage-duration probes |
 | M6 | Complete: all four genuine Core cases verified and reopened after relocation; fresh native four-stage execution re-inspected after app exit; scoped findings, dependency/edit flow and CLI replay verified |
@@ -79,7 +79,7 @@ but they must remain identifiable, reproducible outputs of the same workflow.
 | One ARC-inspired compact tokamak | A documented idealized research model; no claim to reproduce the complete ARC design |
 | Two blanket/shield allocations | Same outer envelope, materials, source, and shared local feature; allocation is the controlled change |
 | Neutronics | Real fixed-source OpenMC calculations, component responses, spectra, and spatial fields |
-| Meaningful 3D physics | One explicitly modeled penetration with a matched feature-free control |
+| Meaningful 3D physics | One explicitly modelled penetration with a matched feature-free control |
 | Tritium and operation | A conservative Rust inventory/time model driven by calculated production and explicit recovery/operation assumptions |
 | Component service limits | Exposure-based scenario limits with declared sources and applicability; no implicit prediction of actual magnet failure |
 | Electricity | A transparent power/energy balance with stated recoverable-heat, efficiency, and auxiliary-load assumptions |
@@ -98,7 +98,7 @@ remote execution, and other reactor concepts are outside this roadmap. Record
 any simplified input they supply as an assumption or external input. The demo
 must remain useful without those models.
 
-Rust owns the scenario, adapter boundaries, normalization, time model, and shared
+Rust owns the scenario, adapter boundaries, normalisation, time model, and shared
 operations. Python can prepare or execute an external scientific solver. The
 desktop uses egui and wgpu. The simulation remains independently usable through
 the CLI; the Core experience is a required part of the finished desktop demo.
@@ -129,7 +129,7 @@ Before quantitative implementation, settle and record:
   enrichment, temperatures, homogenization, and any coolant/void fractions.
 - One evaluated nuclear-data distribution, required temperatures/reaction data,
   installation footprint, and acquisition/redistribution conditions.
-- D-T source energy/angular/spatial distributions and source-rate normalization.
+- D-T source energy/angular/spatial distributions and source-rate normalisation.
 - One penetration's location, shape, fill, affected components, and tally regions.
 - Steady or pulsed operation, initial tritium inventories, recovery delay/losses,
   startup/reserve rules, service-limit scenarios, and replacement durations.
@@ -153,7 +153,7 @@ work once the shared result formats are settled.
 | M0 — Establish the starting state | Existing scaffold | Honest current capability map and this bounded demo plan | Existing scene/CLI checks recorded; missing calculations remain absent |
 | M1 — Freeze the scientific baseline | M0 | Reference case, materials/data/source choices, operating assumptions, response definitions, validation criteria | Inputs are obtainable and identified; each intended claim has a stated validation route and limitation |
 | M2 — Build study and job foundations | M1 | Versioned result/field/history formats, dependency planner, bounded workers, generated Core contract, genuine Compile study flow | Valid/invalid studies exercise the actual compiler; readiness is separate; jobs cancel without freezing the UI |
-| M3 — Calculate and check the baseline | M1, M2 | First working OpenMC adapter, component rates/spectra, normalization, one reproduced reference | Reference responses meet predeclared criteria or the claim is explicitly restricted; CLI and app consume the same records |
+| M3 — Calculate and check the baseline | M1, M2 | First working OpenMC adapter, component rates/spectra, normalisation, one reproduced reference | Reference responses meet predeclared criteria or the claim is explicitly restricted; CLI and app consume the same records |
 | M4 — Deliver spatial comparison | M3 | Both arrangements, shared penetration and control, refined 3D geometry, real field overlays | Cell/mesh mapping and volumes verified; penetration effect examined with uncertainty; spatial results come from transport |
 | M5 — Couple operating history | M3; M4 for final field inputs | Rust fuel/exposure/event/power model and comparisons | Mass balance, time/event checks, replacements, outage decay, and energy accounting pass independent controls |
 | M6 — Connect Core and the complete experience | M2–M5 | Compile → readiness → run/reuse → results → evidence for both arrangements | Actual stage receipts and evidence bind to the study; diagnostics and verdicts appear on the relevant UI objects; CLI reproduces the study |
@@ -194,7 +194,7 @@ below expand them into implementable work.
 | --- | --- | --- |
 | S01 | Preserve the fixed-envelope research question and controlled comparison | Both arrangements share every declared control; changes appear in a typed input diff |
 | S02 | Separate observations, literature inputs, authored assumptions, solver outputs, and projections | Each result/input exposes its origin and applicable model boundary |
-| S03 | Define each metric, domain, unit, averaging region, and normalization before implementation | Versioned response definitions cover breeding, spectra, heating, exposure, inventories, events, and energy |
+| S03 | Define each metric, domain, unit, averaging region, and normalisation before implementation | Versioned response definitions cover breeding, spectra, heating, exposure, inventories, events, and energy |
 | S04 | Separate requested calculations from testable acceptance requirements | A study can request a response without inventing an engineering limit; an assessment requires an explicit criterion and basis |
 | S05 | Make the validity domain of stationary transport and exposure-based service limits explicit | Material evolution/feedback exclusions and limit applicability accompany affected results |
 | S06 | Preserve excluded and unsupported analyses as visible coverage gaps | Unchecked analyses are reported as outside the study; missing support is not converted into a favorable verdict |
@@ -209,13 +209,13 @@ below expand them into implementable work.
 | G04 | Validate material partitions, boundaries, source containment, gaps, and unintended overlaps | Geometry diagnostics and deliberate negative cases detect malformed geometry and lost-particle problems |
 | G05 | Recompute applicable volumes after adding the penetration | Modified-cell volumes are checked independently with reported numerical uncertainty; unmodified full-torus formulas are not reused blindly |
 | G06 | Keep display clipping, visibility, and tessellation separate from physical geometry | Camera/cutaway changes leave solver input identity and reported full-component volumes unchanged |
-| G07 | Identify resolved structure and geometric surrogates clearly | Magnet envelope and homogenized layers are labeled; visual detail is supported by the actual model |
+| G07 | Identify resolved structure and geometric surrogates clearly | Magnet envelope and homogenized layers are labelled; visual detail is supported by the actual model |
 
 ### A — Materials, source, and scientific data
 
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
-| A01 | Assign explicit physical materials to every modeled material region | Validated nuclides/fractions, density, temperature, enrichment, and fraction conventions replace unassigned labels |
+| A01 | Assign explicit physical materials to every modelled material region | Validated nuclides/fractions, density, temperature, enrichment, and fraction conventions replace unassigned labels |
 | A02 | Record material provenance and mixture assumptions | Inputs cite their sources; coolant/void treatment and homogenization are inspectable |
 | A03 | Pin evaluated-data identity and confirm required coverage | Library/file identities, nuclides, temperature policy, heating data, and missing reactions are checked before execution |
 | A04 | Define and validate the same D-T source for both arrangements | Energy, angular/spatial distributions, support, strength, and sampling settings are identified |
@@ -235,14 +235,14 @@ cover fraction types, density, temperatures, mixtures, and cross-section selecti
 | T03 | Calculate component energy spectra and the chosen magnet exposure response | Energy bins, threshold conventions, averaging region, and the distinction between regional average and local response are retained |
 | T04 | Calculate nuclear heating under an explicit photon treatment | Coupled photon deposition or local-deposition approximation is identified; the result is not presented as temperature |
 | T05 | Produce genuinely spatial flux/heating/production fields for the chosen demo layers | Recorded 3D coordinates, cells/mesh, material occupancy, units, estimates, uncertainties, and tally identity map into the viewport |
-| T06 | Normalize each tally exactly once and use the applicable volume | Rust controls cover per-source quantities, absolute rates, and volume-normalized responses; exported raw values remain available |
+| T06 | Normalise each tally exactly once and use the applicable volume | Rust controls cover per-source quantities, absolute rates, and volume-normalized responses; exported raw values remain available |
 | T07 | Use a bounded sampling plan and report achieved statistical precision | Histories/batches/seed and acceptance targets are defined before the production run; weakly sampled bins are visibly identified |
 | T08 | Retain solver warnings and failure states | Invalid geometry, incomplete statepoints, missing data, and abnormal exits never become completed physical results |
 
 OpenMC documents `H3-production`, flux, reaction, heating, and damage-energy
 scores with different per-source units. Absolute rates and flux densities require
 the appropriate strength and volume conversions. See
-[OpenMC tallies and normalization](https://docs.openmc.org/en/stable/usersguide/tallies.html).
+[OpenMC tallies and normalisation](https://docs.openmc.org/en/stable/usersguide/tallies.html).
 The exact score/estimator/data support must be checked against the pinned release.
 Damage-energy is not automatically a calibrated magnet lifetime or DPA response.
 
@@ -254,7 +254,7 @@ Damage-energy is not automatically a calibrated magnet lifetime or DPA response.
 | L02 | Distinguish calendar time from full-power time and handle events at their actual times | Pulse/outage/replacement boundaries are respected; results converge under time-step refinement |
 | L03 | Conserve tritium across available and in-process inventories, production, burn, losses, transfers, imports/exports, and decay | A per-step and cumulative residual closes within a predeclared tolerance; internal transfers cancel in the site total |
 | L04 | Represent recovery/processing delay and startup/reserve rules explicitly | Delayed production cannot be spent early; the model stops or reduces operation on an actual fuel deficit and records the event |
-| L05 | Apply decay during all calendar intervals and preserve declared processing/retention behavior during outages | Analytic decay-only and delay controls pass; outage policies are inspectable |
+| L05 | Apply decay during all calendar intervals and preserve declared processing/retention behaviour during outages | Analytic decay-only and delay controls pass; outage policies are inspectable |
 | L06 | Accumulate the selected exposure response according to actual operation | Instantaneous rates and accumulated exposure remain distinct; exposure does not grow during source-off periods |
 | L07 | Evaluate service limits with traceable response/limit compatibility | Metric, energy range, units, component, assumptions, and uncertainty match; permanent-component limits terminate or restrict operation according to declared policy |
 | L08 | Replace only declared replaceable components and account for downtime | Replacement resets only their appropriate local state; permanent components and site inventories retain their history; simultaneous events have deterministic ordering |
@@ -262,7 +262,7 @@ Damage-energy is not automatically a calibrated magnet lifetime or DPA response.
 | L10 | Return an actual operating outcome for both alternatives | The comparison exposes fuel-limited operation, replacement outages, end-of-life cause, completed horizon, or unresolved prerequisites |
 
 A breeding ratio above one is not itself a fuel-sufficiency result. Sufficiency
-depends on the modeled losses, delays, reserves, decay, and operating schedule.
+depends on the modelled losses, delays, reserves, decay, and operating schedule.
 Service-limit projections are conditional scenario results unless their response
 model and limits have supporting assessment for the stated use.
 
@@ -286,9 +286,9 @@ model and limits have supporting assessment for the stated use.
 | K03 | Generate a complete compatible contract, registry snapshot, and required bindings | Quantity kinds/units, slots, parameters, reproducibility, purposes, claim models, and requirement bases resolve against a pinned Core profile |
 | K04 | Preserve numeric meaning across the FARIS/Core boundary | Exact decimal/unit representations and conversion policy are tested; UI rounding cannot change a criterion or verdict |
 | K05 | Invoke the real Core compiler and consume its structured outcome | A valid study compiles; missing/incompatible declarations produce actual findings with stable codes, locations, and relevant UI links |
-| K06 | Separate compilation from artifact readiness and scientific evaluation | A compiled study can still lack runnable data/executables; FARIS preflight exposes that state; compilation is never shown as an engineering pass |
+| K06 | Separate compilation from artefact readiness and scientific evaluation | A compiled study can still lack runnable data/executables; FARIS preflight exposes that state; compilation is never shown as an engineering pass |
 | K07 | Bind scenario, selections, template, registry, compiler/profile, data, methods, and criteria to the compiled study/run | Changes create a new study identity; old results remain inspectable and visibly belong to their original inputs |
-| K08 | Use a few coarse executable stages and reusable packaging | Geometry/material preparation, transport/normalization, and operating-history/comparison stages have documented boundaries; no contract per component or time step |
+| K08 | Use a few coarse executable stages and reusable packaging | Geometry/material preparation, transport/normalisation, and operating-history/comparison stages have documented boundaries; no contract per component or time step |
 | K09 | Use real execution/evidence records for Core-backed results | Declared executable/input/output identities and receipts verify; admissible claims and requirement verdicts derive from those bound records |
 | K10 | Preserve all four assessment states and their scope | `PASS`, `FAIL`, `INCONCLUSIVE`, and `NOT_EVALUATED` remain distinct; unsupported/omitted analyses cannot appear as established requirements |
 | K11 | Keep research assumptions and assessment gaps visible | A conditional service-limit scenario or unassessed estimate cannot be presented as a physical prediction; policy changes are explicit |
@@ -322,14 +322,14 @@ threshold simply to obtain a compiled contract.
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
 | U01 | Deliver a native egui/wgpu application with a coherent Blender-inspired workspace | Scenario/study controls, central viewport, outliner, inspector, timeline, and results remain usable at supported sizes/scales |
-| U02 | Replace crude presentation with model-supported geometry and clear shading | Sufficient tessellation, stable normals/caps, distinct component boundaries, camera framing, lighting, and a visibly modeled penetration; no material visual artifacts |
+| U02 | Replace crude presentation with model-supported geometry and clear shading | Sufficient tessellation, stable normals/caps, distinct component boundaries, camera framing, lighting, and a visibly modelled penetration; no material visual artefacts |
 | U03 | Keep exploration dependable | Orbit, zoom, frame, component selection/hiding, cutaway, and slice controls behave consistently; hidden components do not steal picks |
 | U04 | Make fields interpretable | Colorbar, quantity, units, scale/log convention, common comparison range, time meaning, uncertainty/coverage, and data identity are visible; absent bins differ from actual zero |
 | U05 | Keep field/geometry correspondence accurate | Selection resolves the right material/component; slice/hover samples the actual recorded region/bin; mixed-volume bins expose occupancy treatment |
 | U06 | Make the timeline drive calculated state | Scrubbing selects/interpolates identified snapshots; current power, inventories, cumulative exposure/energy, replacements, and outage states update; interpolation never crosses discrete events silently |
 | U07 | Provide an actionable Compile study control near the upper right | State shows draft/changed, compiling, compiled, or rejected with relevant findings; independent run readiness and Run/Cancel controls remain clear |
 | U08 | Add the exact text **Powered by Avila Core** to the actual compile experience | A small Core mark and text sit beside the compile progress/result; a subtle pulse/spinner while compiling settles into a quiet attribution after completion |
-| U09 | Keep the attribution truthful and considerate | Show it for genuine Core attempts, including rejection; tooltip exposes Core version/profile; no fake wait, obstructive popup, approval badge, or forced animation; reduced-motion behavior is available |
+| U09 | Keep the attribution truthful and considerate | Show it for genuine Core attempts, including rejection; tooltip exposes Core version/profile; no fake wait, obstructive popup, approval badge, or forced animation; reduced-motion behaviour is available |
 | U10 | Present useful component and comparison evidence | Inspector links dimensions, materials, response definitions, results, assumptions, and run records; selection connects to the plots/diagnostics |
 | U11 | Support the actual demonstration path | Readable contrast/type, keyboard-accessible primary controls, progress, error recovery, saved study reopening, and a clear recorded-results versus fresh-run choice |
 
@@ -348,33 +348,33 @@ decay-heat fields remain unavailable until an activation model supplies them.
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
 | J01 | Keep substantial preparation, I/O, compilation, and solver work off the egui thread | Camera and controls remain responsive while a job runs; progress is delivered through a bounded job interface |
-| J02 | Bound histories, memory/disk artifacts, threads/processes, and runtime | The named workstation has measured budgets and preflight estimates; invalid or excessive requests are refused with a useful reason |
+| J02 | Bound histories, memory/disk artefacts, threads/processes, and runtime | The named workstation has measured budgets and preflight estimates; invalid or excessive requests are refused with a useful reason |
 | J03 | Support cancellation and child cleanup | Cancel stops owned work/children, preserves diagnostics, and never labels partial output as a completed result |
 | J04 | Verify reuse against the appropriate inputs and execution records | Unchanged results reuse only after identity checks; geometry/material/source/data/settings changes invalidate affected transport; history-only changes preserve eligible upstream transport |
 | J05 | Separate recorded-result loading from fresh solver execution | A packaged result opens quickly with provenance; Run fresh is explicitly available when compatible tools/data are installed |
 | J06 | Preserve useful failures and recover cleanly | Logs, diagnostics, job state, and input identity survive an error; reopening does not turn interrupted work into success or overwrite a completed run |
-| J07 | Make desktop and CLI clients of the same operations | Equivalent studies yield equivalent definitions, normalized results, histories, and comparisons; no duplicated UI physics |
-| J08 | Validate and publish completed artifacts safely | Version/schema, dimensions, units, IDs, finite values, identities, and size limits are checked; completed records are published atomically and partial writes remain incomplete |
+| J07 | Make desktop and CLI clients of the same operations | Equivalent studies yield equivalent definitions, normalised results, histories, and comparisons; no duplicated UI physics |
+| J08 | Validate and publish completed artefacts safely | Version/schema, dimensions, units, IDs, finite values, identities, and size limits are checked; completed records are published atomically and partial writes remain incomplete |
 
 Changing threads/builds may prevent byte-identical Monte Carlo results.
 Distinguish input/execution identity, deterministic Rust postprocessing, and
 statistical reproducibility. State the reproducibility claim actually supported.
 
-### Shared artifacts to establish in M2
+### Shared artefacts to establish in M2
 
 Choose the smallest useful formats and version them; this table specifies their
-contents, not new schemas that already exist. The UI must read the same artifacts
+contents, not new schemas that already exist. The UI must read the same artefacts
 as the CLI, and large field arrays must support bounded loading.
 
-| Artifact | Required contents | Responsible boundary |
+| Artefact | Required contents | Responsible boundary |
 | --- | --- | --- |
 | Study definition | Scenario reference, selections, assumptions, metrics/criteria, dependency plan, template/version, input identity | Rust model/engine |
 | Physical geometry/material map | Full regions, stable IDs, material/source definitions, units, volumes and applicable uncertainty, local feature | Rust geometry and solver adapter |
 | Solver invocation and raw results | Exact exported inputs, tool/data/settings identity, seeds, logs, statepoint/raw tallies, execution status | External worker through the Rust job/adapter boundary |
-| Normalized responses and fields | Raw tally references, response definition, units, normalization, component/cell/mesh coordinates, occupancy, values, sampling uncertainty | Rust normalization/result boundary |
+| Normalised responses and fields | Raw tally references, response definition, units, normalisation, component/cell/mesh coordinates, occupancy, values, sampling uncertainty | Rust normalisation/result boundary |
 | Operating history | Model/version, rates/assumptions, inventories, exposure, events, power/energy ledger, residuals, snapshots, end-state reason | Rust time/event engine |
 | Comparison and sensitivity | Both study/run identities, controlled input diff, metrics, curves, uncertainty treatment, sensitivity inputs and supported conclusions | Rust comparison operations |
-| Core/evidence bundle | Generated declarations, compiled identity/findings, applicable bindings/receipts/claims/verdicts, referenced artifact identities and export index | Core adapter and export boundary |
+| Core/evidence bundle | Generated declarations, compiled identity/findings, applicable bindings/receipts/claims/verdicts, referenced artefact identities and export index | Core adapter and export boundary |
 
 ### Initial workstation performance targets
 
@@ -400,12 +400,12 @@ exceeds the presentation window.
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
 | V01 | Define response-specific validation criteria before using production comparisons | Named reference, expected response, applicable uncertainty, and tolerance are recorded; failed comparisons restrict the affected claim |
-| V02 | Check geometry, source, tally coverage, normalization, and units independently | Simple controls expose swapped units, wrong volumes, double normalization, and missed production regions |
-| V03 | Check sampling and spatial refinement | Additional histories/replicates and a refined mesh assess the stability of reported totals and local effects; a voxel average is not labeled a pointwise peak |
+| V02 | Check geometry, source, tally coverage, normalisation, and units independently | Simple controls expose swapped units, wrong volumes, double normalisation, and missed production regions |
+| V03 | Check sampling and spatial refinement | Additional histories/replicates and a refined mesh assess the stability of reported totals and local effects; a voxel average is not labelled a pointwise peak |
 | V04 | Check the history model against independent limiting cases | Decay-only, delayed-recovery, constant-power energy, fuel starvation, replacement, permanent-component limit, and simultaneous-event controls pass |
 | V05 | Exercise real Core failures and scoped evaluations | Missing bindings, wrong kinds/units, inadequate claim models, stale identities, overlapping uncertainty, and missing evidence produce their appropriate actual outcomes |
-| V06 | Run one end-to-end workflow for each arrangement | Scenario → compilation/preflight → transport → normalization → history → comparison → export is reproduced and inspected |
-| V07 | Verify UI behavior and workstation performance | Native launch, fields/picking, variant edits, timeline events, cancellation, missing dependencies, scaling, and recorded-results startup are checked |
+| V06 | Run one end-to-end workflow for each arrangement | Scenario → compilation/preflight → transport → normalisation → history → comparison → export is reproduced and inspected |
+| V07 | Verify UI behaviour and workstation performance | Native launch, fields/picking, variant edits, timeline events, cancellation, missing dependencies, scaling, and recorded-results startup are checked |
 
 Use the neighboring Fusion Energy Ledger as a candidate source of model ideas,
 not a validated absolute breeding predictor. The local
@@ -419,11 +419,11 @@ Record what is reused and independently recheck its implementation and boundary.
 | ID | Requirement | Acceptance evidence |
 | --- | --- | --- |
 | P01 | Ship a working native binary for the named demo workstation | Clean launch and compatible drivers/tool dependencies are documented; the first release need not ship all operating systems |
-| P02 | Include verified precomputed results for both arrangements and the relevant controls | Identity-checked artifacts contain the real fields, histories, comparison, diagnostics, and provenance needed to explore offline |
+| P02 | Include verified precomputed results for both arrangements and the relevant controls | Identity-checked artefacts contain the real fields, histories, comparison, diagnostics, and provenance needed to explore offline |
 | P03 | Provide a separate documented fresh-run path | Required solver/data versions and acquisition steps reproduce the study without hidden author-only files; licenses govern bundled data |
 | P04 | Export a portable study/evidence bundle | Scenario, selections, assumptions, generated contract/registry, applicable bound records, result formats, identities, and verification instructions are included; required external data is identified |
 | P05 | Provide a short walkthrough and a factual capability statement | Demonstration explains the question, calculation, local effect, operating consequence, uncertainty, and reproducibility; current limitations accompany the result |
-| P06 | Leave repository and artifacts maintainable | Source/build lockfiles, focused checks, AGPL-3.0-only project licence, documented third-party/data terms, and ignored heavyweight run/data directories are ready; no implicit GitHub publication |
+| P06 | Leave repository and artefacts maintainable | Source/build lockfiles, focused checks, AGPL-3.0-only project licence, documented third-party/data terms, and ignored heavyweight run/data directories are ready; no implicit GitHub publication |
 
 ## Completion criteria for the finished demo
 
@@ -464,12 +464,12 @@ handwritten curves, or an untraceable solver output alone is insufficient.
 
 1. Resolve M1's reference/material/data/source choices and define acceptance
    targets for the specific responses we will show.
-2. Freeze the smallest shared artifacts needed by transport, fields, and history.
+2. Freeze the smallest shared artefacts needed by transport, fields, and history.
 3. Implement worker/job ownership and a headless transport reference slice.
 4. Generate and compile the one Core study template against the pinned registry,
    exercising real rejection paths before adding the compile attribution.
 5. Build outward from the checked reference into the two arrangements and one
-   penetration; refine the 3D presentation alongside those real artifacts.
+   penetration; refine the 3D presentation alongside those real artefacts.
 
 Reuse existing solvers and data where they satisfy this study. Create new FARIS
 tools only where this chain exposes a concrete missing interface or model.

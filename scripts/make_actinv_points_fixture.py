@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Writes crates/faris-engine/tests/fixtures/actinv_result_synthetic.json (a small synthetic result in the shape of an
 ACTINV `run` result, with extra nested members, unicode, awkward numbers, and steps with and without flux and
 photon_source) and actinv_scan_expected.json, the output of `scan_result` in scripts/maintenance_coupling_test.py for

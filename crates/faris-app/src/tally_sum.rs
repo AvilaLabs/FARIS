@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The sum of a run's zone tritium tallies with its combined error, shown under the tallies
 //! (UNC-013). The arithmetic is `faris_engine::tally_health`; this only draws its sentences.
 

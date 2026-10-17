@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Exit codes by failure class, SIGINT on a running job, and the tool listing, end to end.
 
 use std::process::{Command, Output};

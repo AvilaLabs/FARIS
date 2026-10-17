@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Explicit operating-history assumptions. Values are scenario inputs, not
 //! hidden defaults or qualified design limits.
 

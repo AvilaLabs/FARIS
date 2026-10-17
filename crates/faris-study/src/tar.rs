@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Minimal reader for the USTAR+gzip evidence archives. It accepts regular
 //! files only, with canonical relative names, within explicit bounds, and
 //! creates each file exclusively. Anything else refuses the archive.

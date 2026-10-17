@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Cross-document lint for C/E aggregates (requirement VAL-035).
 
     python3 -m validation.aggregate_lint [--root DIR] [FILE...]

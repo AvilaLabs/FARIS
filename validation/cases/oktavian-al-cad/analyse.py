@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Apply the manifest's declared protocol to a sealed run record of oktavian-al-cad (and, optionally, to the CSG run).
 
     python3 analyse.py --cad RECORD [--csg RECORD] [--out FILE]

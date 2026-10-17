@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The ACTINV activation adapter: transport group fluxes and an irradiation schedule in,
 //! nuclide inventory, activity, decay heat, decay-photon source and pathways out.
 //!

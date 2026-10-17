@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The OFB-derived cases: the CAD-path OKTAVIAN manifest and runner helpers, and the cases awaiting upstream specification.
 
 Plain Python (no numpy, no OpenMC): the runner's OpenMC and h5py imports are inside the functions that need them."""

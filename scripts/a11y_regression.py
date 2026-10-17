@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Accessibility regression check between releases (requirement A11Y-055).
 
     python3 scripts/a11y_regression.py snapshot --tests FILE --out FILE [--root DIR]

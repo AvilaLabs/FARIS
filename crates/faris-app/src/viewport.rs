@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use crate::camera::{Camera, VERTICAL_FOV_RADIANS, triangle_hit};
 use eframe::{egui, egui_wgpu, wgpu};
 use faris_engine::mesh::MeshVertex;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `step-inspect` in Rust: the report `integrations/cad/faris_cad.py step-inspect` writes
 //! (schema `faris-step-inspect/v1`), with the same fields and rules, plus each solid's face
 //! count, assembly path and colour.

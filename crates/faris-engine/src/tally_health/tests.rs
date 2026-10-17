@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::transport::{RawEnergySpectrum, TallyEstimator};
 use faris_model::tally_statistics::{

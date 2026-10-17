@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Compare versions window (GEO-067, COL-023): the semantic diff of two study files or two
 //! model files, the same report `faris diff` writes.
 //!

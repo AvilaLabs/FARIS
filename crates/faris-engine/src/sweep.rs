@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Allocation-sweep arithmetic: per-point transport and history summaries, the
 //! resolution test between sampled values, and the plain-language findings.
 //!

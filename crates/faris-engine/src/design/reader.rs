@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Which CAD reader runs the stages that have two: the native OpenCASCADE worker
 //! (`faris-occt-worker`) or the Python helper. The choice is made once per run, and what ran is
 //! recorded in the report, so a result is never taken for the other reader's.

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint over a study export folder (requirements INT-040, INT-044, PRV-010, PRV-012, UX-046, VIS-030, VIS-033, VIS-040,
 DOC-062, VAL-084, VAL-090, DSN-085).
 

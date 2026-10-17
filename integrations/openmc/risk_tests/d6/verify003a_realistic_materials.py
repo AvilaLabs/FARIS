@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """OPENMC-003 verification A (realistic low-density materials: helium coolant and air instead of the H-1 void stand-in).
 
 D6 candidate 2: the MGXS library from convert_to_multigroup(method='stochastic_slab') can hold a negative transport-corrected

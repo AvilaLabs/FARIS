@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The unit registry: every non-SI domain unit FARIS shows or accepts, defined once with an exact
 //! conversion factor and its source (requirements CFG-044, CFG-042, CFG-040, L10N-021, L10N-022).
 //!

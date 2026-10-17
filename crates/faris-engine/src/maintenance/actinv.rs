@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Decay curves from ACTINV: the Amendment 2 path of `scripts/maintenance_coupling_test.py`.
 //!
 //! For one design and iteration the source writes the history, has `build_activation_inputs.py`

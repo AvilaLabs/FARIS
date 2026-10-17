@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0d rules (s0d_common). Standard library only; no OpenMC or numpy.
 
 Run from the repository root:

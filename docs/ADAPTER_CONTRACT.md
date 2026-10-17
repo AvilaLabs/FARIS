@@ -48,7 +48,7 @@ cancellation ends the whole group, solver children included. The execution statu
 run is never stored as a result.
 
 **Failure modes.** The job runner reports an execution status: the tool succeeded, the tool exited with an error, the job was
-cancelled, or it passed the wall-time, output, artifact, file-size or memory limit. Success of the process is not success of the science: an adapter that
+cancelled, or it passed the wall-time, output, artefact, file-size or memory limit. Success of the process is not success of the science: an adapter that
 sees a clean exit still checks the output it reads (its schema, its tally identities, its normalisation) and reports a
 failure of that check as a failure of the adapter, with the file and field named.
 

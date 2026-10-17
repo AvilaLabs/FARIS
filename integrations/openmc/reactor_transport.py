@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Execute one bounded-input FARIS/OpenMC fixed-source transport job.
 
 The Rust model owns inputs and normalization. This adapter builds OpenMC CSG,

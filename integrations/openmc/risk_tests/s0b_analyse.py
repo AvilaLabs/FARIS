@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0b result tables from the run records (standard library only). Applies the protocol's mechanical rules; no verdict wording.
 
     s0b_analyse.py d1 --dd D1/dd.json --moab D1/moab.json --out D1/result.json

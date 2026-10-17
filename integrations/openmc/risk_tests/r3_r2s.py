@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3, mesh-based R2S (openmc.deplete.R2SManager) on RM-M, OpenMC 0.15.3.
 
     r3_r2s.py --model-dir D --out-dir R [--neutron-particles N --neutron-batches B --photon-particles N --photon-budget S]

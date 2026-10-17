@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks the support table in docs/guide/platforms.md against the CI workflows (PLAT-001).
 
 Every row must either name its evidence as `workflow.yml:job`, where the job exists in

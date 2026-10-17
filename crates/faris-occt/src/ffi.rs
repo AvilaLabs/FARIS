@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The cxx bridge to the C++ shim. Plain data structs cross it; OpenCASCADE objects stay
 //! behind the opaque `Model`. Nothing outside this crate's worker and tests calls it.
 

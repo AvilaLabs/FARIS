@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """A tally that scored nothing is never counted as a met precision goal (NUC-019).
 
 The worker's precision report gives a response with a zero mean no relative error and

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Versioned, cited materials and limits database (MAT-003, MAT-007, MAT-009 to MAT-012, MAT-015,
 //! MAT-040 to MAT-044, MAT-050 to MAT-052, MAT-054 to MAT-056).
 //!

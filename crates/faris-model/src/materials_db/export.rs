@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Export of the limit and property tables with their citations (MAT-056).
 //!
 //! JSON is the database itself. CSV has one row per limit or property, every field in its own

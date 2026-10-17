@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris design init`, `check` and `transport`: the design file for a STEP model.
 
 use clap::{Args, Subcommand};

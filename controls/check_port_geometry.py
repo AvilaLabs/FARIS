@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Independent adaptive-quadrature check for one finite FARIS outboard port.
 
 SciPy integrates the toroidal shell/box intersection independently from the

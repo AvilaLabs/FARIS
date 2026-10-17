@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Reads an OpenMC statepoint with h5py only and writes every tally bin as JSON.
 
     summarize_statepoint.py STATEPOINT.h5 OUT.json

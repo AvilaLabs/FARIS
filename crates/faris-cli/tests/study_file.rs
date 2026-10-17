@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris study-file` end to end: exit codes and the files it writes.
 
 use sha2::{Digest, Sha256};

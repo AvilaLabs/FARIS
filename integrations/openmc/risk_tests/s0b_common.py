@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Pure helpers for the S0b diagnostics (docs/notes/CAD_TRANSPORT_DIAGNOSTICS_S0B.md). Standard library only.
 
 Everything here is a rule or a statistic the frozen protocol fixes: figure of merit and its uncertainty, z-scores, the D1

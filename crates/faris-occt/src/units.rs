@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The declared length unit read from the STEP text, independently of OpenCASCADE. A port of
 //! `text_length_units` in `integrations/cad/faris_cad.py`, so the two readers can be compared.
 

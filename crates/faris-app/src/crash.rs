@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Crash records and the diagnostics bundle (REL-004, REL-040 to REL-043, LEG-027).
 //!
 //! When the UI thread panics, a small record is written to the `crashes` folder

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint the requirement tables in docs/requirements/ (requirements QA-001, QA-008).
 
 Every table row must follow the conventions in docs/requirements/README.md: the
@@ -90,7 +91,7 @@ def lint_file(name: str, text: str) -> tuple[list[Finding], list[dict]]:
                 findings.append(("empty-cell", where, f"{label} has an empty {column} cell"))
         if "\\|" in lines[number - 1]:
             findings.append(("no-pipe", where, f"{label} has an escaped pipe inside a cell; reword so no cell contains one"))
-        if re.search(r"\[[VU]\]\(\[", lines[number - 1]):
+        if re.search(r"\[[VU](?:-\d+)?\]\(\[", lines[number - 1]):
             findings.append(("link-form", where, f"{label} has a nested link [V]([text](url)); write [V](url)"))
         if struck and not re.fullmatch(r"~~.+~~", cells[1]):
             findings.append(("struck-form", where, f"{label} is withdrawn but its Requirement cell is not struck through"))

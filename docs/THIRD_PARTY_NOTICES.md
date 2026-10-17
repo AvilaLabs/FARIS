@@ -16,7 +16,7 @@ Recreate the metadata with `cargo metadata --locked --offline --format-version 1
 --output OUTPUT.md`. Use `--root-crate CRATE` for each client in another
 workspace. Crate sources must be available in the Cargo cache.
 
-305 dependency versions; 232 distinct exact license texts.
+307 dependency versions; 231 distinct exact license texts.
 
 | Package | Declared license | Source | License texts |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ workspace. Crate sources must be available in the Cargo cache.
 | as-raw-xcb-connection 1.0.1 | MIT OR Apache-2.0 | [as-raw-xcb-connection 1.0.1](https://crates.io/crates/as-raw-xcb-connection/1.0.1) | LICENSE-APACHE: [SHA-256 cfc7749b96f6](#text-cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30)<br>LICENSE-MIT: [SHA-256 9520ccef8aac](#text-9520ccef8aacc5e40e5158676a6c98c7bd8f8ffe8474a64ac0d213024be0bcd5) |
 | ash 0.38.0+1.3.281 | MIT OR Apache-2.0 | [ash 0.38.0+1.3.281](https://crates.io/crates/ash/0.38.0+1.3.281) | LICENSE-APACHE: [SHA-256 0e8a410375e1](#text-0e8a410375e1ee5c75c6198b08b534fec6e5edef766cf971bab4a404542636ab)<br>LICENSE-MIT: [SHA-256 c733ccf8ab25](#text-c733ccf8ab25df175a63d9d844677b98e3a5ab8f8de1c1616087e6868a7f948e) |
 | autocfg 1.5.1 | Apache-2.0 OR MIT | [autocfg 1.5.1](https://crates.io/crates/autocfg/1.5.1) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 27995d58ad5c](#text-27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac) |
-| avila-account 0.1.1 | MIT OR Apache-2.0 | [avila-account 0.1.1](https://crates.io/crates/avila-account/0.1.1) | LICENSE-APACHE: [SHA-256 ed0e0ca57b3a](#text-ed0e0ca57b3a59e10af705b461be79e0f5754c1fd37a6f117921fc05e0b35184)<br>LICENSE-MIT: [SHA-256 981e95d0df73](#text-981e95d0df73ba2b3650530bb5dbdd7ccc05354daa688c23a1467445e046be39) |
+| avila-account 0.1.2 | MIT OR Apache-2.0 | [avila-account 0.1.2](https://crates.io/crates/avila-account/0.1.2) | LICENSE-APACHE: [SHA-256 ed0e0ca57b3a](#text-ed0e0ca57b3a59e10af705b461be79e0f5754c1fd37a6f117921fc05e0b35184)<br>LICENSE-MIT: [SHA-256 981e95d0df73](#text-981e95d0df73ba2b3650530bb5dbdd7ccc05354daa688c23a1467445e046be39) |
 | base64 0.22.1 | MIT OR Apache-2.0 | [base64 0.22.1](https://crates.io/crates/base64/0.22.1) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 0dd882e53de1](#text-0dd882e53de11566d50f8e8e2d5a651bcf3fabee4987d70f306233cf39094ba7) |
 | bit-set 0.10.0 | Apache-2.0 OR MIT | [bit-set 0.10.0](https://crates.io/crates/bit-set/0.10.0) | LICENSE-APACHE: [SHA-256 8173d5c29b4f](#text-8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90)<br>LICENSE-MIT: [SHA-256 6b56ddc7cd80](#text-6b56ddc7cd80419e5e22e075f2252d720f6cbe17e3e2c17383095ee2712bcffa) |
 | bit-vec 0.9.1 | Apache-2.0 OR MIT | [bit-vec 0.9.1](https://crates.io/crates/bit-vec/0.9.1) | LICENSE-APACHE: [SHA-256 8173d5c29b4f](#text-8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90)<br>LICENSE-MIT: [SHA-256 f51ac2c59a22](#text-f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7) |
@@ -159,6 +159,8 @@ workspace. Crate sources must be available in the Cargo cache.
 | naga-types 30.0.1 | MIT OR Apache-2.0 | [naga-types 30.0.1](https://crates.io/crates/naga-types/30.0.1) | LICENSE.APACHE: [SHA-256 a6cba85bc92e](#text-a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9)<br>LICENSE.MIT: [SHA-256 dc0d97139e82](#text-dc0d97139e8205818c703741c7be7cb3b96888bd5917b8d6fc6133731e403c21) |
 | nix 0.31.3 | MIT | [nix 0.31.3](https://crates.io/crates/nix/0.31.3) | LICENSE: [SHA-256 66e3ee1fa7f9](#text-66e3ee1fa7f909ad3c612d556f2a0cdabcd809ad6e66f3b0605015ac64841b70) |
 | nohash-hasher 0.2.0 | Apache-2.0 OR MIT | [nohash-hasher 0.2.0](https://crates.io/crates/nohash-hasher/0.2.0) | LICENSE-APACHE: [SHA-256 cfc7749b96f6](#text-cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30)<br>LICENSE-MIT: [SHA-256 ec353d4fecf7](#text-ec353d4fecf7963b4c054384557e5dbc3c7a717997eb4a3815b315721a6aa75a) |
+| num-bigint 0.4.8 | MIT OR Apache-2.0 | [num-bigint 0.4.8](https://crates.io/crates/num-bigint/0.4.8) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 6485b8ed310d](#text-6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb) |
+| num-integer 0.1.47 | MIT OR Apache-2.0 | [num-integer 0.1.47](https://crates.io/crates/num-integer/0.1.47) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 6485b8ed310d](#text-6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb) |
 | num-traits 0.2.19 | MIT OR Apache-2.0 | [num-traits 0.2.19](https://crates.io/crates/num-traits/0.2.19) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 6485b8ed310d](#text-6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb) |
 | once_cell 1.21.4 | MIT OR Apache-2.0 | [once_cell 1.21.4](https://crates.io/crates/once_cell/1.21.4) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-MIT: [SHA-256 23f18e03dc49](#text-23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3) |
 | ordered-float 5.5.0 | MIT | [ordered-float 5.5.0](https://crates.io/crates/ordered-float/5.5.0) | LICENSE-MIT: [SHA-256 f7715d38a3fa](#text-f7715d38a3fa1b4ac97c5729740752505a39cb92ee83ab5b102aeb5eaa7cdea4) |
@@ -197,7 +199,7 @@ workspace. Crate sources must be available in the Cargo cache.
 | rustc-hash 2.1.3 | Apache-2.0 OR MIT | [rustc-hash 2.1.3](https://crates.io/crates/rustc-hash/2.1.3) | LICENSE-APACHE: [SHA-256 95bd3988beee](#text-95bd3988beee069fa2848f648dab43cc6e0b2add2ad6bcb17360caf749802bcc)<br>LICENSE-MIT: [SHA-256 30fefc3a7d6a](#text-30fefc3a7d6a0041541858293bcbea2dde4caa4c0a5802f996a7f7e8c0085652) |
 | rustix 0.38.44 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [rustix 0.38.44](https://crates.io/crates/rustix/0.38.44) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-Apache-2.0_WITH_LLVM-exception: [SHA-256 268872b9816f](#text-268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5)<br>LICENSE-MIT: [SHA-256 23f18e03dc49](#text-23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3) |
 | rustix 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | [rustix 1.1.5](https://crates.io/crates/rustix/1.1.5) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-Apache-2.0_WITH_LLVM-exception: [SHA-256 268872b9816f](#text-268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5)<br>LICENSE-MIT: [SHA-256 23f18e03dc49](#text-23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3) |
-| rustls 0.23.45 | Apache-2.0 OR ISC OR MIT | [rustls 0.23.45](https://crates.io/crates/rustls/0.23.45) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-ISC: [SHA-256 7cfafc877ecc](#text-7cfafc877eccc46c0e346ccbaa5c51bb6b894d2b818e617d970211e232785ad4)<br>LICENSE-MIT: [SHA-256 709e3175b421](#text-709e3175b4212f7b13aa93971c9f62ff8c69ec45ad8c6532a7e0c41d7a7d6f8c) |
+| rustls 0.23.46 | Apache-2.0 OR ISC OR MIT | [rustls 0.23.46](https://crates.io/crates/rustls/0.23.46) | LICENSE-APACHE: [SHA-256 a60eea817514](#text-a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2)<br>LICENSE-ISC: [SHA-256 7cfafc877ecc](#text-7cfafc877eccc46c0e346ccbaa5c51bb6b894d2b818e617d970211e232785ad4)<br>LICENSE-MIT: [SHA-256 709e3175b421](#text-709e3175b4212f7b13aa93971c9f62ff8c69ec45ad8c6532a7e0c41d7a7d6f8c) |
 | rustls-pki-types 1.15.1 | MIT OR Apache-2.0 | [rustls-pki-types 1.15.1](https://crates.io/crates/rustls-pki-types/1.15.1) | LICENSE-APACHE: [SHA-256 45fd05c4865e](#text-45fd05c4865e7c350b98ad7ac50e1b15462d49af4a91e9b0c9dd933dc9a69742)<br>LICENSE-MIT: [SHA-256 9117d922e667](#text-9117d922e667125508dde62b02c1f57ed22f5ad21eb536aa2e2d99e1c796e639) |
 | rustls-webpki 0.103.15 | ISC | [rustls-webpki 0.103.15](https://crates.io/crates/rustls-webpki/0.103.15) | LICENSE: [SHA-256 5b698ca13897](#text-5b698ca13897be3afdb7174256fa1574f8c6892b8bea1a66dd6469d3fe27885a) |
 | rustybuzz 0.20.1 | MIT | [rustybuzz 0.20.1](https://crates.io/crates/rustybuzz/0.20.1) | LICENSE: [SHA-256 3a7c3f0b887a](#text-3a7c3f0b887abb7c638faf022d29257418458614c6724b120ceeffb279f9c7d2)<br>scripts/ms-use/COPYING: [SHA-256 c2cfccb812fe](#text-c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383) |
@@ -317,12 +319,12 @@ workspace. Crate sources must be available in the Cargo cache.
 | zerotrie 0.2.5 | Unicode-3.0 | [zerotrie 0.2.5](https://crates.io/crates/zerotrie/0.2.5) | LICENSE: [SHA-256 f367c1b8e1aa](#text-f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2) |
 | zerovec 0.11.8 | Unicode-3.0 | [zerovec 0.11.8](https://crates.io/crates/zerovec/0.11.8) | LICENSE: [SHA-256 f367c1b8e1aa](#text-f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2) |
 | zerovec-derive 0.11.6 | Unicode-3.0 | [zerovec-derive 0.11.6](https://crates.io/crates/zerovec-derive/0.11.6) | LICENSE: [SHA-256 f367c1b8e1aa](#text-f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2) |
-| zip 8.6.0 | MIT | [zip 8.6.0](https://crates.io/crates/zip/8.6.0) | LICENSE: [SHA-256 58545fed1565](#text-58545fed1565e42d687aecec6897d35c6d37ccb71479a137c0deb2203e125c79) |
+| zip 9.0.4 | MIT | [zip 9.0.4](https://crates.io/crates/zip/9.0.4) | LICENSE: [SHA-256 58545fed1565](#text-58545fed1565e42d687aecec6897d35c6d37ccb71479a137c0deb2203e125c79) |
 | zlib-rs 0.6.8 | Zlib | [zlib-rs 0.6.8](https://crates.io/crates/zlib-rs/0.6.8) | LICENSE: [SHA-256 e72111c52b7d](#text-e72111c52b7d96ebe25348dee19f0744f444d3c95ae6b1ecb6ccaecc5bce05ba) |
 | zmij 1.0.23 | MIT | [zmij 1.0.23](https://crates.io/crates/zmij/1.0.23) | LICENSE-MIT: [SHA-256 23f18e03dc49](#text-23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3) |
-| zstd 0.13.3 | MIT | [zstd 0.13.3](https://crates.io/crates/zstd/0.13.3) | LICENSE: [SHA-256 129e8edef29e](#text-129e8edef29e9abcd2ebabe252f4ef1b1289cdca356bf0040284a2fbccfb96c8) |
-| zstd-safe 7.3.0 | BSD-3-Clause | [zstd-safe 7.3.0](https://crates.io/crates/zstd-safe/7.3.0) | LICENSE: [SHA-256 ce4868c8e4eb](#text-ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60) |
-| zstd-sys 2.1.0+zstd.1.5.7 | BSD-3-Clause | [zstd-sys 2.1.0+zstd.1.5.7](https://crates.io/crates/zstd-sys/2.1.0+zstd.1.5.7) | LICENSE: [SHA-256 ce4868c8e4eb](#text-ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60)<br>LICENSE.BSD-3-Clause: [SHA-256 bf7017a73a95](#text-bf7017a73a95ea63bf3716b13ec2bcd79c92942356e3408c6fb66332bad6d977)<br>zstd/COPYING: [SHA-256 f9c375a1be4a](#text-f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505)<br>zstd/LICENSE: [SHA-256 705526649763](#text-7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8) |
+| zstd 0.14.2 | BSD-3-Clause | [zstd 0.14.2](https://crates.io/crates/zstd/0.14.2) | LICENSE: [SHA-256 ce4868c8e4eb](#text-ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60) |
+| zstd-safe 8.1.0 | BSD-3-Clause | [zstd-safe 8.1.0](https://crates.io/crates/zstd-safe/8.1.0) | LICENSE: [SHA-256 ce4868c8e4eb](#text-ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60) |
+| zstd-sys 2.1.1+zstd.1.5.7 | BSD-3-Clause | [zstd-sys 2.1.1+zstd.1.5.7](https://crates.io/crates/zstd-sys/2.1.1+zstd.1.5.7) | LICENSE: [SHA-256 ce4868c8e4eb](#text-ce4868c8e4ebe47a7d4b3c93dbf6b802033e5ae2fa7638098173f80836daac60)<br>LICENSE.BSD-3-Clause: [SHA-256 bf7017a73a95](#text-bf7017a73a95ea63bf3716b13ec2bcd79c92942356e3408c6fb66332bad6d977)<br>zstd/COPYING: [SHA-256 f9c375a1be4a](#text-f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505)<br>zstd/LICENSE: [SHA-256 705526649763](#text-7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8) |
 | zune-core 0.5.3 | MIT OR Apache-2.0 OR Zlib | [zune-core 0.5.3](https://crates.io/crates/zune-core/0.5.3) | LICENSE-APACHE: [SHA-256 c71d239df917](#text-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4)<br>LICENSE-MIT: [SHA-256 d30047bca3b5](#text-d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745)<br>LICENSE-ZLIB: [SHA-256 d201d14804d3](#text-d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c) |
 | zune-jpeg 0.5.15 | MIT OR Apache-2.0 OR Zlib | [zune-jpeg 0.5.15](https://crates.io/crates/zune-jpeg/0.5.15) | LICENSE-APACHE: [SHA-256 c71d239df917](#text-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4)<br>LICENSE-MIT: [SHA-256 d30047bca3b5](#text-d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745)<br>LICENSE-ZLIB: [SHA-256 d201d14804d3](#text-d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c) |
 
@@ -1971,21 +1973,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-````
-
-<a id="text-129e8edef29e9abcd2ebabe252f4ef1b1289cdca356bf0040284a2fbccfb96c8"></a>
-
-## License text `129e8edef29e9abcd2ebabe252f4ef1b1289cdca356bf0040284a2fbccfb96c8`
-
-````text
-The MIT License (MIT)
-Copyright (c) 2016 Alexandre Bury
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ````
 
 <a id="text-13c0147abe1c7607fde840e2dffcde75bf925aea504b2845b7be4869a5af2afc"></a>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! File dialogs. The desktop uses the system dialog. The browser cannot show a
 //! blocking dialog; the panels that need one are desktop-only there, so this
 //! stand-in picks nothing. Opening and saving studies in the browser use the

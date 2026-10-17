@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # usage: job.sh <item> <name> <timeout_s> <cores|-> <cmd...>
 # One S0c job: memory-capped scope (6 GB, no swap), optional core pinning, /usr/bin/time -v log, wall time and load average
 # recorded in the S0c ledger. OMP_NUM_THREADS defaults to 4.

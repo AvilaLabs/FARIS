@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0c Q3: does a voxel-uniform R2S source read high (VAL-043, hypothesis H2). OpenMC 0.15.3, double-down env.
 
     s0c_p3.py d1s --out-dir D --batches B --particles N

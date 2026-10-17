@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Reasons a value is NOT_EVALUATED (UNC-054). Every NOT_EVALUATED the window shows carries a
 //! reason code, why it is so and the next step, as text and in the hover or tap explanation.
 //!

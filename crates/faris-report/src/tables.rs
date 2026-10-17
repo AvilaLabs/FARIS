@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! CSV tables of the exported data. Values are written at full precision
 //! (shortest round-trip representation); units are in the headers; a kind
 //! column accompanies every value the app shows with a status label.

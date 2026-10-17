@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # S0f protocol 3 (docs/notes/CAD_TRANSPORT_S0F.md, "Protocol 3"): F0 then F6 for each seed, interleaved.
 # Each run waits up to 10 min for a 1-minute load below 3.0 (waiting is not job time), then runs on cores 0-3 under a
 # 6 GB cap. Jobs stop when the next run would push job time past 75 min; runs not started are NOT_RUN.

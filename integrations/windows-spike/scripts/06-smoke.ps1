@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 6: run one model with one bundle. The PATH during the run holds only the bundle folder
 # and the Windows system directories, so a missing DLL fails the run instead of being found
 # somewhere in the runner image.

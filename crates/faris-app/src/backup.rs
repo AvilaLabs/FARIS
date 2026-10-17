@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Rolling backups of earlier saved versions, and the rule that an upgraded
 //! study is a new file (REL-016, REL-025).
 //!

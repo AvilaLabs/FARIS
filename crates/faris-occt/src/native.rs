@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Safe wrappers over the bridge. This is OpenCASCADE running inside the calling process; the
 //! worker binary is the only production caller. FARIS itself goes through [`crate::client`].
 

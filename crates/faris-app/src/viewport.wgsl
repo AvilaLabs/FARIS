@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 struct Camera {
     eye: vec4<f32>,
     right: vec4<f32>,

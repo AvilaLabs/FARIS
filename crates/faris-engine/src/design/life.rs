@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Converts a full-power fast-neutron flux into years until a fluence limit,
 //! using the power history linked to the design. Pure arithmetic: no I/O and
 //! no solver. The caller chooses which flux is judged (a mean or a peak) and

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lints over the validation cases and the V&V matrix (requirements VAL-005, 034, 041, 070, 075, 093, QA-091).
 
     python3 -m validation.checks            # lint the tree; exit 1 on any finding that is not advisory

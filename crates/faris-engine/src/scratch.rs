@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Where large temporary data goes (requirement PLAT-029). The system temporary folder may be memory-backed, so
 //! unpacked studies and conversion work folders are made under a FARIS folder instead: the folder named by
 //! `FARIS_SCRATCH_DIR`, else `scratch` in the per-user state folder that recorded-demo runs also use.

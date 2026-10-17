@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The adapter's embedded 709-group edges must equal the activation library's boundaries."""
 import importlib.util
 import os

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0e window generation (E2 and E-smoke) on OpenMC 0.16.0: S0d T2's CADIS windows on the cylindrical mesh.
 
     s0e_generate.py --mgxs G6/mgxs.h5 --model-dir D --run-dir R --out gen.json --seed N [--smoke]

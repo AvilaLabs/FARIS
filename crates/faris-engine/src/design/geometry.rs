@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Checks 6 to 9 of `faris design check`: conversion, binding, integrity and
 //! source sites, run in that order. A failing stage stops the later ones.
 //!

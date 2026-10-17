@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks on the CI workflow files: pinned actions, token permissions and the jobs other requirements name."""
 import re
 import unittest

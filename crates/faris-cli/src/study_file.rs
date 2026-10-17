@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use clap::Subcommand;
 use faris_study::{
     ArrangementDraft, DEFAULT_ZSTD_LEVEL, DescriptorEvidence, EvidenceDraft, EvidenceStoreDraft,

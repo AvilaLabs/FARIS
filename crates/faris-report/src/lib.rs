@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Study export: a human-readable folder derived from a study. It holds a
 //! two-page PDF summary, CSV tables, SVG and PNG charts and a manifest naming
 //! every file by SHA-256. The `.faris` study file stays the source of truth;

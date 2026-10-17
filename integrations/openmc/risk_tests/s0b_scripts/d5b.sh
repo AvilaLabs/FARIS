@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # D5b: where D1S's time goes: four RM-M configurations, 300 s each, 4 threads on cores 0-3 (nothing else of ours running)
 cd /home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python

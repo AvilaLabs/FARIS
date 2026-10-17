@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::fixtures;
 use crate::history::{HistoryEvent, HistoryOutcome, run_operating_history_cancellable};

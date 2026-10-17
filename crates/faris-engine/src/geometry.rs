@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Independent geometry checks and bounded numerical volume estimates.
 
 use faris_model::math;

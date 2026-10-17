@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Compares two faris-tessellation/v1 reports (Python helper, native worker) and their facets.
 
     compare_tessellate.py PYTHON_DIR NATIVE_DIR

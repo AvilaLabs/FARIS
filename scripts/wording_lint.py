@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Wording lint over user-facing text (requirements LEG-041..044, VAL-084, VAL-090, QA-052, DSN-085).
 
 Scans Rust string literals in the crate sources, the string literals of the
@@ -330,25 +331,53 @@ def html_units(text: str) -> list[tuple[str, int]]:
     return markdown_units(html.unescape(text))
 
 
-def lint_names(root: Path, terms: dict) -> list[Finding]:
+def _name_patterns(terms: dict):
     names_ci = re.compile("|".join(re.escape(x).replace(r"\ ", "[-_ ]") for x in terms["codenames"]["case_insensitive"]), re.I)
-    names_cs = re.compile("|".join(re.escape(x) for x in terms["codenames"]["case_sensitive"]), re.I)
-    exact = [x for x in terms["codenames"]["case_sensitive"]]
+    exact = [x.lower() for x in terms["codenames"]["case_sensitive"]]
+    return names_ci, exact
+
+
+def _codename_in(name: str, patterns) -> str | None:
+    names_ci, exact = patterns
+    hit = names_ci.search(name)
+    if hit:
+        return hit.group(0)
+    return next((w for w in re.split(r"[^A-Za-z0-9]+", name) if w.lower() in exact), None)
+
+
+def lint_listing(names: list[str], terms: dict, label: str = "") -> list[Finding]:
+    """Codenames in any component of the given relative file names (a package or website file listing)."""
+    patterns = _name_patterns(terms)
+    findings = []
+    for name in names:
+        for part in name.replace("\\", "/").split("/"):
+            hit = _codename_in(part, patterns)
+            if hit:
+                findings.append(Finding(label + name, 1, "LEG-044", hit, "file name"))
+                break
+    return findings
+
+
+def listing_of(directory: Path) -> list[str]:
+    return sorted(p.relative_to(directory).as_posix() for p in directory.rglob("*")
+                  if p.is_file() and "node_modules" not in p.parts and "__pycache__" not in p.parts)
+
+
+def lint_names(root: Path, terms: dict) -> list[Finding]:
+    patterns = _name_patterns(terms)
     findings = []
     for pattern in NAME_DIRS:
         for path in sorted((root / pattern).rglob("*")):
             if "__pycache__" in path.parts or not path.is_file():
                 continue
-            stem_words = re.split(r"[^A-Za-z0-9]+", path.name)
-            hit = names_ci.search(path.name) or next(
-                (w for w in stem_words if any(w.lower() == e.lower() for e in exact)), None)
+            hit = _codename_in(path.name, patterns)
             if hit:
-                text = hit if isinstance(hit, str) else hit.group(0)
-                findings.append(Finding(str(path.relative_to(root)), 1, "LEG-044", text, "file name"))
+                findings.append(Finding(str(path.relative_to(root)), 1, "LEG-044", hit, "file name"))
     return findings
 
 
-def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | None = None) -> list[Finding]:
+def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | None = None,
+        listings: list[str] | None = None) -> list[Finding]:
     terms = terms or load_terms()
     used: set = set()
     findings: list[Finding] = []
@@ -385,6 +414,10 @@ def run(root: Path = ROOT, terms: dict | None = None, extra_dirs: list[str] | No
                 units = markdown_units(text) if path.suffix == ".md" else html_units(text)
                 findings += lint_text(str(path), units, terms, used, code_spans=path.suffix == ".md")
     findings += lint_names(root, terms)
+    for listing in listings or []:
+        findings += lint_listing(listing_of(Path(listing)), terms, f"{listing}/")
+    for extra in extra_dirs or []:
+        findings += lint_listing(listing_of(Path(extra)), terms, f"{extra}/")
     for entry in terms["allow_list"]:
         if (entry["rule"], normalise(entry["text"])) not in used:
             findings.append(Finding("scripts/wording_lint_terms.json", 1, "ALLOW-LIST",
@@ -396,9 +429,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="wording lint over user-facing text")
     ap.add_argument("--strict", action="store_true", help="advisory findings fail too")
     ap.add_argument("--extra", action="append", default=[], metavar="DIR", help="also scan the .md and .html files under DIR (website copy)")
+    ap.add_argument("--listing", action="append", default=[], metavar="DIR",
+                    help="also check every file name under DIR for codenames (an unpacked package); --extra does too")
     args = ap.parse_args(argv)
     terms = load_terms()
-    findings = run(ROOT, terms, args.extra)
+    findings = run(ROOT, terms, args.extra, args.listing)
     failing = [f for f in findings if args.strict or not f.advisory]
     for finding in findings:
         print(finding.render())

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The V&V matrix and its blank-cell check (requirements VAL-050, VAL-051).
 
 One row per (quantity, benchmark). A quantity with no registered benchmark gets one row whose

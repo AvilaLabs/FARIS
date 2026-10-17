@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Core evidence as trees of a content-addressed store (`layers.evidence_store`).
 //!
 //! A study records, for each saved case and workspace, the tree's name and its

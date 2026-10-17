@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The `.faris` study file: one zip container holding a study's inputs, its
 //! recorded transport, its assumptions, the view the author left open and,
 //! optionally, the Core evidence archives. See `docs/STUDY_FILE.md`.

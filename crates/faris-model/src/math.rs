@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Platform-independent elementary functions.
 //!
 //! Rust's `f64::exp`, `ln`, `sin` and the like call the operating system's

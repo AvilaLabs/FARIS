@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Generated study declarations and genuine external Avila Core compilation.
 //! Compilation, execution readiness and scientific assessment are separate.
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Seeded unit-slip test of the independent normalization control (NUC-003, VAL-015).
 
 A synthetic run directory is written with every normalized value computed here, in

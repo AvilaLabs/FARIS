@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! What the Design check and Design flux windows share: the tool list (what each tool is for
 //! and what to do when it is missing), the input problems, the file rows and the run state
 //! machine (start on a worker thread, live progress, cancel, collect). Nothing here owns

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The design file `faris-design/v0.1`: what a STEP file cannot say.
 //!
 //! A STEP file says where the solids are. The design file says what they are

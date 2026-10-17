@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! FARIS's material baseline, `references/demo-input-spec.json`. A design file
 //! can name one of these by `catalog_id` instead of writing a recipe.
 

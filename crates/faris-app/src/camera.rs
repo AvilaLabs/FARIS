@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use eframe::egui;
 
 pub const VERTICAL_FOV_RADIANS: f32 = 45.0_f32.to_radians();

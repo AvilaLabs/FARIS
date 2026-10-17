@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 import importlib.util
 import json
 import os
@@ -88,6 +90,17 @@ class MakeReleaseTests(unittest.TestCase):
                 RELEASE.split_package(pkg, "0.2.0")
             (pkg / "extra.txt").write_text("unindexed\n")
             with self.assertRaisesRegex(SystemExit, "differ from its index"):
+                RELEASE.split_package(pkg, "0.1.0")
+
+    # Verifies: LEG-044
+    def test_a_codename_in_a_package_file_name_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pkg = package(Path(directory))
+            (pkg / "port/cases/McFly_notes.txt").write_text("x\n")
+            index = json.loads((pkg / "package-index.json").read_text())
+            index["files"].append({"path": "port/cases/McFly_notes.txt", "bytes": 2, "sha256": "0" * 64, "part": "evidence"})
+            (pkg / "package-index.json").write_text(json.dumps(index))
+            with self.assertRaisesRegex(SystemExit, "codename in package file names: port/cases/McFly_notes.txt"):
                 RELEASE.split_package(pkg, "0.1.0")
 
     def test_release_time_prefers_source_date_epoch(self):

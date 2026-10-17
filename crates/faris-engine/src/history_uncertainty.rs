@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Presentation of the history ensemble: the identity that decides whether a
 //! stored ensemble may be reused, an in-memory cache of finished ensembles, and
 //! the plain-language text for ranges, distributions and paired comparisons.

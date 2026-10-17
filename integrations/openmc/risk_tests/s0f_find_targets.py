@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0f fact 14: find the streaming targets from the model, with no hand-placed rectangles.
 
 Step 1 (this file's `uncollided_map`): an analog run of the model's own source with a high energy cut-off, tallying

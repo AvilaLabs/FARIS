@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Reader, verifier and writer for the content-addressed evidence store.
 //!
 //! The format is `avila.core/evidence-store/v0.1` (Avila Core ADR-0028): a

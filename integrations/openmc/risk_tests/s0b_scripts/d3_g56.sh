@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # cores 0-3: G5 (= G0 windows + max_split 1000 + checkpoints: neither G1 nor G2 improved), then G6 (9 groups, regenerated) with the same flags
 export PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
 source /home/connoravila/.cache/avila-night/cad-risk-tests/s0b/common.sh

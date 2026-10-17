@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Ensemble of operating histories on sampled, correlated transport rates.
 //!
 //! The transport Monte Carlo result gives each driving rate a mean and a

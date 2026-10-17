@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Study-file lint of the reference geometries: citation and omission fields (requirement GEO-009).
 
     python3 scripts/reference_geometry_lint.py [--root DIR]

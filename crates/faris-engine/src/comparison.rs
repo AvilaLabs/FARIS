@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Descriptive paired operating-history comparisons with no uncertainty shortcut.
 use crate::history::{HistoryResult, TransportDrivingRates};
 use crate::jobs::Cancellation;

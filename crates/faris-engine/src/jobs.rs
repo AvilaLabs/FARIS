@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Bounded external execution, independent of scientific acceptance.
 //!
 //! Call from a worker, never the UI thread. The runner samples the working directory and any

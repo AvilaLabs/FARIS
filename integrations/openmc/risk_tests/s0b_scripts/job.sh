@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # usage: job.sh <item> <logname> <timeout_s> <cmd...>  -- runs under run.sh, records wall time in the S0b ledger
 ITEM=$1; NAME=$2; T=$3; shift 3
 S=/home/connoravila/.cache/avila-night/faris-wt/s0b/integrations/openmc/risk_tests

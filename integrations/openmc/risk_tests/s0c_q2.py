@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0c Q2: what the 60 s preview spends its time on (PERF-025). RM-M, G6 windows, 8 threads, nothing else running.
 
     s0c_q2.py prepare --model-dir D --windows W.h5 --run-dir R

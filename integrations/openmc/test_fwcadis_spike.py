@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for fwcadis_spike.py. Run with the OpenMC 0.15.3 environment's python.
 
 Nothing here runs OpenMC transport, MGXS generation or random ray.

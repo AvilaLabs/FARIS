@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Waste mass and volume by class over plant life, replacements included (requirement ACT-038).
 //!
 //! The input is a list of batches: every part that leaves the plant as waste, each replacement

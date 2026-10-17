@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Benchmark manifest schema and validator (requirements VAL-001, 027, 029, 070, 075).
 
 A manifest describes one validation case. It holds small experimental or

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3' (docs/notes/CAD_TRANSPORT_RISK_TESTS.md): rerun R3's D1S model file on another OpenMC 0.15.3 build.
 
     r3p_d1s_rerun.py --r3-d1s DIR --out-dir R --seed N [--budget S]

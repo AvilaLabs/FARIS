@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Source-level audits of the desktop crate: rules that hold across every panel.
 
 const SOURCES: &[(&str, &str)] = &[

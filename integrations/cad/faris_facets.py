@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Reader and writer for the FARIS facets format `faris-facets/v1`.
 
 The format is documented in crates/faris-model/src/design/facets.rs and in

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! How a value and its uncertainty are written: digits set by the uncertainty (UNC-081), the interval
 //! convention stated beside every interval (UNC-082), and a notice naming what a partial interval
 //! leaves out (UNC-086). Clients call these functions; none of them decides a number.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Fetter, Cheng and Mann specific-activity limits (ACT-033, SAFE-011).
 //!
 //! `data/waste/fetter_1990_part2.json` holds Table 2 of S. Fetter, E.T. Cheng, F.M. Mann,

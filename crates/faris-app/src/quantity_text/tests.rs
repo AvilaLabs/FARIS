@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::settings::Settings;
 use faris_engine::transport::{NormalizedTally, PhysicalUnit, TallyEstimator};

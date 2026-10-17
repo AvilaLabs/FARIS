@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Every FARIS parser that reads bytes or text from outside the program, as a function of bytes.
 //!
 //! The cargo-fuzz targets in `fuzz/fuzz_targets` call these, and so does the smoke driver and the

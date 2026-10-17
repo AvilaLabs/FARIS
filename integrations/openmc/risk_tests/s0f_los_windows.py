@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0f facts 12-13: cap the weight windows at their line-of-sight importance to the response and the apertures.
 
 The deterministic adjoint under-rates regions that reach the response across void. Roulette then inflates neutrons

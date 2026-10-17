@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R2 (PERF-025): the 60 s laptop preview on RM-M, OpenMC 0.15.3. Run alone.
 
     r2_preview.py --model-dir D --windows W.h5 --run-dir R --out result.json

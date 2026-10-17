@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint the materials database and the waste tables with a second, independent reader (MAT-009).
 
     python3 scripts/materials_db_lint.py [--root DIR] [--check-links]
