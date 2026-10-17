@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint of FARIS's own defect log (requirement QA-080).
 
     python3 scripts/defect_log.py [--log FILE] [--root DIR]

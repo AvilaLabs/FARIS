@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Link checker for the Markdown documents (requirement DOC-026).
 
     python3 scripts/check_links.py [--root DIR]
@@ -12,14 +13,16 @@ docs/guide included). Inline links and images [text](target), reference definiti
   the repository fails);
 - an anchor (#section, or file.md#section) must match a heading of the target document, using GitHub's slug rule
   (mdbook's is the same for the headings used here), or an explicit <a id="..."> / name="..." in it;
-- an external link (http, https, mailto) is only checked for syntax: no network is used, so a dead external
-  address is not found here (DOC-026 asks for a weekly online check; that is a separate scheduled job);
+- an external link (http, https, mailto) is only checked for syntax unless --online is given: then every distinct
+  http(s) address is fetched (HEAD, then GET) and a dead one (404, 410, other 4xx/5xx, no answer) fails. A
+  403, 429 or 999 answer is a site refusing a script, not a dead link, and is reported as a warning. The
+  scheduled workflow .github/workflows/links.yml runs this every week;
 - a root-relative link (/docs/...) names a page of the hosted site and cannot be resolved offline; it is counted
   and reported, not failed.
 
-docs/requirements/ is not checked by default: its tables are owned by the requirement process and cite sources
-as `[V]([W3C](url))`, which is not a link in any renderer (43 such lines when this check was written). Pass
---include-requirements to list them.
+docs/requirements/ is not checked by default: its tables are owned by the requirement process. Pass
+--include-requirements to check them too; a nested link such as `[V]([W3C](url))` is reported as malformed
+in every document, because no renderer shows it as a link.
 
 Code spans and fenced blocks are ignored. Exit status 1 on any broken link; every one is listed as file:line.
 """
@@ -29,6 +32,9 @@ import argparse
 import re
 import sys
 import unicodedata
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -37,6 +43,7 @@ SKIPPED_DIRS = ("docs/requirements",)
 TOP = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md"]
 INLINE = re.compile(r"(!?)\[(?:[^\]\[]|\[[^\]]*\])*\]\(\s*(<[^>]*>|[^)\s]*)(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)")
 REFERENCE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(\S+)", re.M)
+NESTED = re.compile(r"\]\(\[")
 AUTOLINK = re.compile(r"<((?:https?|mailto):[^>\s]*)>")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 HTML_ANCHOR = re.compile(r"""<a\s+[^>]*?(?:id|name)\s*=\s*["']([^"']+)["']""", re.I)
@@ -121,7 +128,45 @@ def external_problem(target: str) -> str | None:
     return None
 
 
-def check(root: Path, include_requirements: bool = False) -> tuple[list[str], dict]:
+REFUSING = {403, 429, 999}
+AGENT = {"User-Agent": "faris-link-check (+https://github.com/AvilaLabs/FARIS)"}
+
+
+def fetch_status(url: str, timeout: float = 20.0) -> int | str:
+    """HTTP status of a URL (HEAD, then GET when HEAD is refused), or the error text when there is no answer."""
+    last: int | str = "no answer"
+    for method in ("HEAD", "GET"):
+        request = urllib.request.Request(url, method=method, headers=AGENT)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            last = error.code
+            if method == "HEAD" and error.code in (400, 403, 404, 405, 429, 501):
+                continue
+            return error.code
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+            last = f"no answer ({getattr(error, 'reason', error)})"
+            if method == "HEAD":
+                continue
+    return last
+
+
+def online_check(urls: dict[str, list[str]], fetch=fetch_status) -> tuple[list[str], list[str]]:
+    """Fetch each distinct URL once. `urls` maps a URL to the places that cite it. Returns (broken, warnings)."""
+    ordered = sorted(urls)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        statuses = list(pool.map(lambda u: fetch(u.split("#")[0]), ordered))
+    broken, warnings = [], []
+    for url, status in zip(ordered, statuses):
+        if isinstance(status, int) and status < 400:
+            continue
+        line = f"{url}: {status} (cited at {', '.join(urls[url][:3])})"
+        (warnings if status in REFUSING else broken).append(line)
+    return broken, warnings
+
+
+def check(root: Path, include_requirements: bool = False, cited: dict[str, list[str]] | None = None) -> tuple[list[str], dict]:
     problems: list[str] = []
     stats = {"documents": 0, "internal": 0, "anchors": 0, "external": 0, "site_relative": 0}
     cache: dict[Path, set[str]] = {}
@@ -134,7 +179,10 @@ def check(root: Path, include_requirements: bool = False) -> tuple[list[str], di
     for doc in documents(root, include_requirements):
         stats["documents"] += 1
         rel = doc.relative_to(root)
-        for number, target in links_of(doc.read_text(encoding="utf-8", errors="replace")):
+        text = doc.read_text(encoding="utf-8", errors="replace")
+        for match in NESTED.finditer(strip_code(text)):
+            problems.append(f"{rel}:{strip_code(text).count(chr(10), 0, match.start()) + 1}: malformed nested link (a link inside a link target)")
+        for number, target in links_of(text):
             where = f"{rel}:{number}: {target}"
             if not target:
                 problems.append(f"{where}: empty link target")
@@ -143,6 +191,8 @@ def check(root: Path, include_requirements: bool = False) -> tuple[list[str], di
                 why = external_problem(target)
                 if why:
                     problems.append(f"{where}: {why}")
+                elif cited is not None and target.lower().startswith("http"):
+                    cited.setdefault(target, []).append(f"{rel}:{number}")
             elif re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target):
                 problems.append(f"{where}: unsupported link scheme")
             elif target.startswith("/"):
@@ -173,10 +223,20 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--include-requirements", action="store_true", help="also check docs/requirements/")
+    ap.add_argument("--online", action="store_true", help="also fetch every external http(s) link (needs a network)")
     args = ap.parse_args(argv)
-    problems, stats = check(args.root, args.include_requirements)
+    cited: dict[str, list[str]] | None = {} if args.online else None
+    problems, stats = check(args.root, args.include_requirements, cited)
+    if cited is not None:
+        broken, warnings = online_check(cited)
+        problems += broken
+        for line in warnings:
+            print(f"warning: {line}", file=sys.stderr)
+        stats["fetched"] = len(cited)
     summary = (f"{stats['documents']} documents, {stats['internal']} internal links ({stats['anchors']} with an anchor), "
-               f"{stats['external']} external links syntax-checked, {stats['site_relative']} site-relative links not resolved")
+               f"{stats['external']} external links syntax-checked"
+               + (f", {stats['fetched']} distinct addresses fetched" if "fetched" in stats else "")
+               + f", {stats['site_relative']} site-relative links not resolved")
     if problems:
         print("\n".join(problems), file=sys.stderr)
         print(f"links: FAIL, {len(problems)} broken; {summary}", file=sys.stderr)

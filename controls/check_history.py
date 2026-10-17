@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Independent arithmetic controls for operating-history limiting cases.
 
 Uses only Python's standard library and Decimal; deliberately does not call FARIS.

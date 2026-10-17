@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """UX-079 open-pipeline baseline: the two RM-M conversions (docs/notes/CAD_TO_ANSWER_BASELINE.md, "New runs").
 
     cad_to_answer_baseline.py run --out ~/.cache/avila-night/cad-to-answer-baseline

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `run_from_files` end to end with a fake builder and a fake ACTINV. There is no cheap
 //! verified transport run record, so the rate binding is injected (`run_from_files_with`);
 //! everything else (designs file, assumptions file, input hashes, history, spec builder,

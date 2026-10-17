@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0b continuous-energy runs on RM-M (D1, D2, D3 production, D4, TF spectrum). OpenMC 0.15.3, either build.
 
     s0b_run.py run --model-dir D --run-dir R --out record.json --label L --seed S [--histories N | --budget SECONDS]

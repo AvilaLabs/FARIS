@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Memory is budgeted, not discovered (PERF-041): a hard cap FARIS applies to
 //! every external job, a check before the job starts that refuses one that
 //! would not fit in the memory that is free, and a measured peak afterwards.

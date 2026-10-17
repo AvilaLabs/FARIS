@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # usage: exclusive.sh <name> <cmd...>
 # Timing window alone: waits until no cargo/rustc runs, creates the S0B_EXCLUSIVE marker (removed by trap), snapshots the busiest
 # processes at start and end into <name>.ps, then runs the command (which starts its jobs through job.sh).

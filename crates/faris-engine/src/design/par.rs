@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Worker threads with progress and cancel, in the engine's conventions
 //! (PERF-022, PERF-024): `std::thread::scope` workers pull chunks of work,
 //! check the shared [`Cancellation`] between chunks, and report

@@ -62,7 +62,7 @@ faris reactor inspect \
   --run runs/cold-coupled-control-reference-001/run.json
 ```
 
-This rechecks the run's recorded inputs, raw artifact, sampling, audit, adapter identity, volumes and normalization. Neither a completed process nor an accepted normalization is a scientific verdict. Scientific qualification stays not evaluated.
+This rechecks the run's recorded inputs, raw artefact, sampling, audit, adapter identity, volumes and normalisation. Neither a completed process nor an accepted normalisation is a scientific verdict. Scientific qualification stays not evaluated.
 
 ## Replay or run in the desktop
 
@@ -84,6 +84,6 @@ faris transport pack --run runs/cold-coupled-control-reference-001/run.json --ou
 
 ## Where to read more
 
-The repository documents the details: the [cold-reference workflow](https://github.com/AvilaLabs/FARIS/blob/main/docs/COLD_REFERENCE.md) covers the materials, the source, the recorded tallies and the verification steps, and the [transport boundary](https://github.com/AvilaLabs/FARIS/blob/main/docs/TRANSPORT.md) covers the contracts, normalization and trust limits.
+The repository documents the details: the [cold-reference workflow](https://github.com/AvilaLabs/FARIS/blob/main/docs/COLD_REFERENCE.md) covers the materials, the source, the recorded tallies and the verification steps, and the [transport boundary](https://github.com/AvilaLabs/FARIS/blob/main/docs/TRANSPORT.md) covers the contracts, normalisation and trust limits.
 
 Next: [Reading the numbers](results.md).

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `--write-web-ensembles`: calculate the history uncertainty ensembles of the
 //! loaded study on this machine and write them for the browser version, which
 //! cannot run them itself. Development tool; the file is read back by key.

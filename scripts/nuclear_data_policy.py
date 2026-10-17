@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The nuclear data files allowed in Git and the rule they must meet (QA-090, NUC-069).
 
 A data file is allowed when it is listed in nuclear_data_in_git.json, is at most `max_file_bytes`,

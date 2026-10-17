@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use faris_engine::{
     fixtures::{assumptions, rates_with_covariance, rates_without_covariance},

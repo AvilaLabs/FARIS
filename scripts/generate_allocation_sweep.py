@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Generate the port-case blanket/shield allocation sweep from the frozen port inputs.
 
 The sweep changes only the blanket and shield thicknesses inside the fixed

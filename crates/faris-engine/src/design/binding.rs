@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Check 7: each DAGMC volume is matched to exactly one design-file solid by
 //! faceted volume and centroid, and its tag must name that solid.
 //!

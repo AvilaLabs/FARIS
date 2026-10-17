@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! 10 CFR 61.55 classification of one activated component (ACT-030 to ACT-035, ACT-039, ACT-040).
 //!
 //! What is implemented, by paragraph:

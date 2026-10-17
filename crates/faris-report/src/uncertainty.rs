@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Monte Carlo ensemble of each arrangement's operating history, as the
 //! export shows it: ranges beside nominal values, the per-sample and summary
 //! tables, the bands on the charts and the manifest records.

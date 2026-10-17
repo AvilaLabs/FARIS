@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0c Q1: window resolution on the P1 slab (inboard radial build of RM-M as layers normal to x). OpenMC 0.15.3, double-down env.
 
     s0c_p1.py layers

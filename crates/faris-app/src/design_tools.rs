@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Tools section the Design check and Design flux windows share: the six tool paths set once
 //! (kept in the settings file, `settings`), the environment variables that win over them, and
 //! "Find tools", which looks in the usual places (`tool_finder`) and offers what it found.

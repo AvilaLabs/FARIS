@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Load the browser build and check it starts: the page draws a frame, the
 // recorded study is open, the first-open card shows, nothing panics. Serve the
 // built dist (crates/faris-app/dist) first, e.g.

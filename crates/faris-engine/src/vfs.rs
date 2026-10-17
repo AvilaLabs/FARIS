@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Reading recorded files by path on both targets.
 //!
 //! On the desktop these are the operating system's files. The browser build

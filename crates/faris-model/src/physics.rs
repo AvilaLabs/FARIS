@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Explicit material, source, and data inputs joined to one exact scenario.
 //!
 //! Validation checks record integrity and completeness. It is not a physical

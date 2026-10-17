@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // The desktop executable. The browser build enters through `web::start_web`
 // in the library; this target only exists natively.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]

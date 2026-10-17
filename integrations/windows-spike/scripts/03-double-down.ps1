@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 3: double-down 1.1.0 against Embree 4 and the MOAB from stage 2.
 . "$PSScriptRoot\common.ps1"
 Get-Source double-down 'https://github.com/pshriwise/double-down.git' 'v1.1.0'

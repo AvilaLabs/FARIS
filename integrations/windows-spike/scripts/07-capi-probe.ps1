@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 6c: build the Rust probe against libopenmc.lib and run a model through the C API, with the
 # same restricted PATH as the smoke tests.
 param([string]$Bundle, [string]$Model, [string]$Tag, [string]$LibBundle = '')

@@ -29,7 +29,7 @@ and parsed compiler report. Rejected declarations remain reviewable records.
 The compile command exits 0 for compiled, 1 for a compiler rejection, and 2 for
 execution, input, or report errors.
 
-Breeding and shielding require transport and normalization. Fuel history adds
+Breeding and shielding require transport and normalisation. Fuel history adds
 the operating-history stage; electricity adds history and net-energy accounting.
 The planner declares those dependencies and the evidence builder supplies the
 coarse Rust adapters. Compilation does not assert that their inputs or

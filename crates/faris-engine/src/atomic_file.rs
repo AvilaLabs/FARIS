@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! One way to write a file a user will keep: a temporary file in the same
 //! directory, written and fsynced, renamed over the destination, then the
 //! directory fsynced so the rename itself survives a power cut. A reader sees

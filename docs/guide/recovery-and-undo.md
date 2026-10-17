@@ -73,7 +73,7 @@ Records are deleted after 30 days, and only the newest 20 are kept. The setting 
 
 ### The diagnostics bundle
 
-**Make a diagnostics bundle** writes one file you can read before you share it. It lists what it holds first, then the program and system details, the settings that are set (a path is shown only as "set"), whether a recovery copy exists, and the crash records. Anything that looks like a path, an e-mail address, a key or your user name is replaced by `[redacted]`, and the window says how many items that was. The file is kept in the `diagnostics` folder of the configuration folder.
+**Make a diagnostics bundle** writes one file you can read before you share it. It lists what it holds first, then the program and system details, the settings that are set (a path is shown only as "set"), whether a recovery copy exists, and the crash records. Anything that looks like a path, an email address, a key or your user name is replaced by `[redacted]`, and the window says how many items that was. The file is kept in the `diagnostics` folder of the configuration folder.
 
 ## Where things are kept
 

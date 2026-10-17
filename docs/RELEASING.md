@@ -20,7 +20,7 @@ condition passes. It uses only the Python standard library.
 | The report's matrix equals the one derived from its case records, and no row claims validation without a case record with a PASS or FAIL verdict (VAL-006) | `report.json` in `--vv-report` |
 | Wording lint is clean | `scripts/wording_lint.py` |
 | All tests pass; performance gates pass (PERF-051); fuzz clean (QA-033); documentation tests pass (QA-016) | evidence files from the jobs that ran them (fuzz: `scripts/fuzz_all.sh 3600`, see `docs/FUZZING.md`) |
-| Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
+| Reproducible build (QA-063) | evidence file with two builds' hashes per artefact |
 | 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
 
 A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,

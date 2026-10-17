@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `tessellate` in Rust: every solid meshed on its own with `BRepMesh_IncrementalMesh`, nodes
 //! welded by position, closedness checked per solid, and the result written as
 //! `faris-facets/v1` with the unimprinted flag. The rules are those of `tessellate` in

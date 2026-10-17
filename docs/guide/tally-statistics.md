@@ -5,7 +5,7 @@ A Monte Carlo tally is a mean with an estimated error, and the error is itself a
 
 ## What FARIS keeps from a run
 
-The reactor worker writes `transport-batch-values.json` beside the transport artifact: one value per batch for every scalar response, the differences of consecutive OpenMC cumulative sums. FARIS computes everything below from those batch values. They are batch means, not per-history scores, and that decides what can and cannot be computed.
+The reactor worker writes `transport-batch-values.json` beside the transport artefact: one value per batch for every scalar response, the differences of consecutive OpenMC cumulative sums. FARIS computes everything below from those batch values. They are batch means, not per-history scores, and that decides what can and cannot be computed.
 
 | Needs | Source | Available |
 | --- | --- | --- |

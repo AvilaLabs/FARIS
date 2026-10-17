@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The browser version's own surface: the first-open card, the About text and
 //! the one-line reasons shown where a desktop feature is not available.
 //!

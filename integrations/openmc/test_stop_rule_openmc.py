@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The reactor worker's stop rule through the real OpenMC 0.15.3 (PERF-025, NUC-043).
 
 A small iron sphere with a neutron source at its centre and a fast-flux tally named as the worker's

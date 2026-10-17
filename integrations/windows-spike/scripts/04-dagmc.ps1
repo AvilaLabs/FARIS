@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 4: DAGMC 3.2.4, shared library. No Geant4, FLUKA, PyNE, UWUW, tally, tools or tests.
 # Default: with double-down (Embree). -NoDoubleDown builds the stock MOAB ray tracer variant into
 # its own prefix; it has the same exports, so its dagmc.dll can replace the other one for A/B runs.

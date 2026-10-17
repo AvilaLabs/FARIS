@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks that the files tracked by version control stay small and hold no nuclear data or archives (QA-090).
 
 Fails when the tracked files add up to more than 50 MB, when one file is larger than 10 MB, or when a

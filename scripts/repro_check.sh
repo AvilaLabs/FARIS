@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Reproducible-build check for the Linux `faris` command-line binary (requirement QA-063).
 #
 #   scripts/repro_check.sh [--cargo CMD] [--work DIR] [--evidence FILE]

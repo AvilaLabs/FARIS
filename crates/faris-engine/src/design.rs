@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Design-file import checks 1 to 9 and the first-draft writer (`design init`).
 //!
 //! The model crate holds the format and the pure checks. This module runs the

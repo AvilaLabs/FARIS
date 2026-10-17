@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Study export from the desktop: capture the 3D view, ask for a parent folder,
 //! write the export folder on a worker thread, then say where it went.
 //!

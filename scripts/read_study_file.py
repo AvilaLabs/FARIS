@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Independent reader for FARIS study files (.faris), written from docs/STUDY_FILE.md alone (INT-001).
 
 Standard library only; no FARIS code. It applies the reading rules of the specification (refusing what it

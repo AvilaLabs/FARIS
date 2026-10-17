@@ -50,13 +50,13 @@ manufactured tungsten armor, enriched-salt density assay, or compacted TiH2
 shield specifications. Do not attach engineering tolerances to the authored
 densities or compositions.
 
-## Source and normalization
+## Source and normalisation
 
 For a reproducible minimum source, use a uniform birth distribution over the
 authored toroidal plasma volume, isotropic in direction and monoenergetic at
 14.1 MeV per neutron. This is an explicit idealization, not an extracted ARC
 source distribution. Use identical source phase space for both allocations.
-Normalize per source neutron first; if absolute steady rates are displayed,
+Normalise per source neutron first; if absolute steady rates are displayed,
 define the scenario's 525 MW as total D-T fusion power, assume 17.6 MeV released
 per reaction and one source neutron per reaction, then derive
 
@@ -77,7 +77,7 @@ contain derived MT=205 `(n,Xt)` data at 294 K; OpenMC's `H3-production` score
 maps to that tritium-product reaction class. This is a dataset/code-path
 readiness check, **not yet a run-level tally test or measured TBR validation**.
 The eventual adapter must verify an actual nonzero score, nuclide attribution,
-units and normalization before accepting breeding results.
+units and normalisation before accepting breeding results.
 
 The audited nuclide files also parse secondary-photon product records with
 angle/energy distributions, and all requested photon-atomic files are present
@@ -94,7 +94,7 @@ MT=444 supplies damage-energy response, not displacements-per-atom without a
 declared displacement-energy model, and neither quantity by itself predicts
 magnet/coil failure. Report the Cu response as “surrogate-region fluence” or
 “surrogate-region damage-energy response” with tally volume/averaging, spectrum
-cut, units, standard error and source normalization. Do not convert it to a
+cut, units, standard error and source normalisation. Do not convert it to a
 service limit unless an applicable component-specific threshold and uncertainty
 model are separately established.
 
@@ -122,7 +122,7 @@ the hot ARC-like design case: ARC reports flowing FLiBe around 800–900 K, wher
 the available target nuclear data here are one 294 K group. No temperature
 interpolation, Doppler processing or extrapolation has been qualified for this
 scenario. The cold solid-salt density, phase, and no-flow assumption are not a
-substitute for liquid-salt thermophysical behavior.
+substitute for liquid-salt thermophysical behaviour.
 
 ## Claim boundary and next gates
 
@@ -139,7 +139,7 @@ authored materials, source, nuclear data and history. It cannot establish:
 Before treating even the cold comparison as ready, verify the exact region
 atom-density export and voids, one real H3-production tally, MT301 neutron
 heating semantics, photon-coupled heating if exposed, geometry/material volumes,
-and per-source to absolute normalization. For later design claims, require
+and per-source to absolute normalisation. For later design claims, require
 temperature-suitable nuclide data, material assays/densities at relevant
 temperatures, a source model with applicability, response-specific benchmark
 evidence, and independent uncertainty treatment. Missing inputs must stay
@@ -159,7 +159,7 @@ unresolved rather than be filled from the design paper's rounded totals.
   Table A.3 (Be, Ti, Fe, Cu elemental densities).
 - NIST, [iron density determination](https://nvlpubs.nist.gov/nistpubs/jres/26/jresv26n1p1_a1b.pdf)
   reports 7.874 ± 0.001 g/cm3 for pure iron.
-- NIST Center for Neutron Research, [selected metal properties at 295 K](https://www.nist.gov/ncnr/neutron-instruments/sample-environment/sample-mounting/reference-tables),
+- NIST Centre for Neutron Research, [selected metal properties at 295 K](https://www.nist.gov/ncnr/neutron-instruments/sample-environment/sample-mounting/reference-tables),
   reports copper 8.96 g/ml.
 - Du et al., [TiH2 powder compaction study](https://www.mdpi.com/2075-4701/13/2/360),
   gives theoretical TiH2 density 3.75 g/cm3; this is a crystal-density reference,

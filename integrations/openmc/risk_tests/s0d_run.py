@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0d driver: T1, then T3 if the rule asks for it, then T2, inside the 60 min box; then the rules.
 
     s0d_run.py --scratch ~/.cache/avila-night/cad-risk-tests/s0d

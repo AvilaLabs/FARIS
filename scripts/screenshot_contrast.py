@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Contrast of what was actually drawn, sampled from screenshots (A11Y-010, A11Y-011 method).
 
     python3 scripts/screenshot_contrast.py shot.png [more.png ...] [--json out.json] [--skip-background R,G,B ...]

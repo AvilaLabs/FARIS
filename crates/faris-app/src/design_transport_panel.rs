@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Design flux window: run `faris design transport` on a checked design and watch it.
 //!
 //! The run, its checks and its progress words live in `design_transport_run`, the wording of

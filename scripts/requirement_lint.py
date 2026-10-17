@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lint the requirement tables in docs/requirements/ (requirements QA-001, QA-008).
 
 Every table row must follow the conventions in docs/requirements/README.md: the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Shared study-brief arithmetic: per-arrangement numbers, the contrasts between
 //! arrangements, the plain-language takeaway, assumption rows with provenance and
 //! the caveats a reader needs. The desktop comparison view and the exported

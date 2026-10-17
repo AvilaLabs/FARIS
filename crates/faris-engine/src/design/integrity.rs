@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Check 8: FARIS's own integrity checks on the faceted model, in exact
 //! arithmetic (`CAD_INTEGRITY_CHECKS.md`, check 8).
 //!

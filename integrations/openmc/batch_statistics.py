@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Batch statistics shared by the design transport run and the reactor study's stop rule.
 
 One implementation of the running mean, standard error and variance of the variance (VOV) of per-batch values,

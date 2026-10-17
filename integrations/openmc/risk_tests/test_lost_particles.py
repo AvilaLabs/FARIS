@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Lost-particle counting through the real OpenMC library (GEO-025).
 
 A void sphere inside a void shell, with the shell missing on one side of a plane through the centre,

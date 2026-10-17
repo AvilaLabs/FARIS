@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The account client sends its token only to the host that issued it (SEC-042): a mock server on the
 //! loopback interface plays the issuing host and a second one plays any other host.
 #![cfg(not(target_arch = "wasm32"))]

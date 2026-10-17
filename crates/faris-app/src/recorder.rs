@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Development frame recorder: saves the app's own window as numbered PNGs at a
 //! fixed cadence (measured on frame time) for assembling README media. Frames
 //! are encoded on a worker thread behind a bounded queue; a full queue drops

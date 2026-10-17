@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Kill-during-save trials of the shared atomic writer (REL-010). The test
 //! binary starts itself as the child with `FARIS_KILL_CHILD` set.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris-facets/v1`: the faceted geometry the CAD helper exports for FARIS's own checks.
 //!
 //! One binary file and one JSON manifest. The helper reads the DAGMC `h5m` (or

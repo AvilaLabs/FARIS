@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use crate::{
     ArchiveKind, ArrangementRecord, BundleRecord, ENCODING_VERBATIM, EvidenceArchive,
     EvidenceLayer, EvidenceMode, MIMETYPE, Manifest, StudyError, is_safe_bundle_name,

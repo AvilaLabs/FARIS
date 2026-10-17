@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Package mode: opening the study a release package carries, with no launcher
 //! script. The package index binds every file the app reads at launch; this
 //! module checks that binding before anything is loaded, builds the inputs the

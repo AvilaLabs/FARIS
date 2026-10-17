@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0e follow-up rules (s0e_followup, Amendment 2). Standard library only.
 
 Run from the repository root:

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Small synthetic histories and ensembles for tests and development checks.
 //!
 //! Compiled only for the engine's own tests and when the `fixtures` feature is

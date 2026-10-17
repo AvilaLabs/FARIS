@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The interface size, kept between sessions (UX-060) as the shared `ui.scale` setting in the
 //! user settings file, so `faris config get ui.scale` and the desktop agree.
 //!

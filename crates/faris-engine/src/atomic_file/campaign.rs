@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Kill-during-save campaign driver (REL-010). A trial starts a child process
 //! that saves a new version over a known previous version, kills it with
 //! SIGKILL after a random delay, and asks the caller to classify what is on

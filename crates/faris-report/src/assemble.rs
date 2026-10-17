@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Assembly of a `ReportInput` from loaded transport records and calculated
 //! histories. The desktop and `faris study-file export` both call
 //! `assemble_report_input`, so the two exports cannot differ in what they pick.

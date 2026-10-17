@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Run every fuzz target for the same number of seconds and write the evidence file the release
 # gate reads (QA-033, scripts/release_gate.py --fuzz).
 #

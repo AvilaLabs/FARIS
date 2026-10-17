@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use clap::Subcommand;
 use faris_engine::transport::{TransportArtifact, normalize_transport_artifact};
 use faris_model::{

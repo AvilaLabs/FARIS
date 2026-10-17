@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Opening a study whose text is hostile runs nothing (SEC-001): the view and
 //! the recorded files carry shell metacharacters, `../` climbs, script text and
 //! the path of an executable; reading, verifying and unpacking the study must

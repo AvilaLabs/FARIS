@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Worker threads on both targets. The desktop uses `std::thread`. The browser
 //! page has no threads to start, so there each job runs to completion inside
 //! `spawn` and its result is waiting when the caller next polls; the channels

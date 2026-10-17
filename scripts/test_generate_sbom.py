@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the SBOM generator (SEC-030). They use a small synthetic cargo-metadata document."""
 import copy
 import json

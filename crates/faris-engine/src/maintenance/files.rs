@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Running the maintenance coupling from files: the designs file, the assumptions file and the
 //! verified transport runs they name. `faris maintenance run` and the desktop both call
 //! [`run_from_files`]; the module does its own bounded reads and no printing.

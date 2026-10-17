@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0e breakdown analysis of E0 (descriptive, no rule). Standard library only.
 
     s0e_analyse.py --e0 E0/produce.json --model-dir D --out breakdown-s0e.json [--md breakdown-s0e.md]

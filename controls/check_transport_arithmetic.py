@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Independent Decimal arithmetic control for identified FARIS run directories.
 
 Uses only Python's standard library, without importing FARIS or OpenMC. Checks

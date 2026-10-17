@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Check 1: the JSON parses, matches the schema, has no unknown keys and no
 //! nulls in required fields.
 

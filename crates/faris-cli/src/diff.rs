@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris diff A B` (COL-020, COL-023) and `faris geometry summary` (GEO-069).
 //!
 //! The comparison itself is `faris_engine::semantic_diff` and `faris_study::diff`; this file reads

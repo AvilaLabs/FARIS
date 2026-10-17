@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The limit tables, read from the data files embedded in the crate.
 //!
 //! `data/waste/nrc_10cfr61_55.json` holds Tables 1 and 2 of 10 CFR 61.55 beside the stored eCFR

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris adapters list` and the tool section of `faris doctor` (AUTO-066): each external
 //! tool FARIS can drive, with where it was found, the SHA-256 of that file, the version it
 //! reports and whether it answers. The health check runs only `<tool> --version` through

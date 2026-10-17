@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! One entry point for every classification regime, with the profile and the scheme choice
 //! recorded on the result and in a receipt (ACT-033, SAFE-011, SAFE-012).
 //!

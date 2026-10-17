@@ -24,7 +24,7 @@ Use three distinct validation layers:
    cross-code benchmark template. It is a computational reference, not an
    experimental observation. Compare OpenMC against the benchmark's declared
    reference-code tallies after auditing the exact response definitions,
-   library, source, and normalization. Do not call agreement “validation”.
+   library, source, and normalisation. Do not call agreement “validation”.
 2. **Experimental transport validation:** acquire the OECD-NEA SINBAD FNG
    ITER bulk stainless-steel shield benchmark package and reproduce its
    integral reaction-rate/attenuation responses first. This is the closest
@@ -32,7 +32,7 @@ Use three distinct validation layers:
    and magnet mock-up. Separately acquire the FNG HCPB TBM benchmark if FARIS
    will make breeding claims. Its measured tritium production is the relevant
    experimental response, but its heterogeneous solid-breeder system is not
-   the FARIS blanket and validates only modeled nuclear responses within its
+   the FARIS blanket and validates only modelled nuclear responses within its
    own geometry/material/source domain.
 3. **Design comparison:** only after the two above, calculate the two FARIS
    allocations. These outputs are design-level model predictions, not
@@ -60,7 +60,7 @@ benchmark specification and source experimental report.
 | Shield experiment | FNG ITER bulk SS shield, SINBAD SBE 10.002 / NEA-1553/69 | Benchmark summary is public; complete downloadable experiment/input files and response-specific uncertainty tables must be acquired and pinned |
 | Breeding experiment | FNG HCPB TBM (2005) SINBAD package | Published analyses report total uncertainty; use exact response-specific results from package/publication, not a single rounded statement |
 | FARIS materials | No reactor composition/density/enrichment/temperature is frozen here | Must derive from a primary ARC/blanket design source or explicitly classify as a FARIS-authored scenario assumption; never copy benchmark materials into the plant model by implication |
-| Source | D-T neutron source, physically tied to the stated fusion power only at the normalization boundary | Set energy/angular/spatial model from a cited plasma/source prescription; benchmark sources remain benchmark-specific and must not be reused as the tokamak source distribution |
+| Source | D-T neutron source, physically tied to the stated fusion power only at the normalisation boundary | Set energy/angular/spatial model from a cited plasma/source prescription; benchmark sources remain benchmark-specific and must not be reused as the tokamak source distribution |
 
 IAEA describes FENDL as fusion-evaluated data developed and assessed against
 integral experiments. That history is a reason to include it as the leading
@@ -78,7 +78,7 @@ qualification.
 
 Keep validation claims response-specific. Record measured and calculated
 quantities, location/volume, reaction/score, energy integration, source
-normalization, experimental uncertainty, Monte Carlo uncertainty, nuclear-data
+normalisation, experimental uncertainty, Monte Carlo uncertainty, nuclear-data
 uncertainty (when available), and geometry/material uncertainty separately.
 Compare like-for-like quantities and include covariance where the source report
 provides it.
@@ -100,7 +100,7 @@ published coverage factor/convention. Monte Carlo sampling contributes to
 `u_C`; nuclear-data covariance, geometry, composition and source uncertainties
 must be included where quantifiable. Set covariance to zero only when the
 calculation and measurement uncertainty components are defensibly independent
-for that response. Shared source normalization, common nuclear data, shared
+for that response. Shared source normalisation, common nuclear data, shared
 calibration, or other common-mode effects require covariance or a conservative
 bound; unsupported correlation cannot be presumed independent. If uncertainty
 is unavailable, or known correlation cannot be bounded, report the numeric
@@ -116,7 +116,7 @@ adequate benchmark relevance, checks for systematic bias and model-form error,
 complete material/source/geometry uncertainty treatment, and independent
 numerical verification. Preserve these as separate findings and scopes.
 
-For response ratios/attenuation profiles with correlated source normalization,
+For response ratios/attenuation profiles with correlated source normalisation,
 preserve the correlation rather than treating every depth point as independent.
 Assess a profile with the benchmark's covariance/chi-square method if supplied;
 otherwise publish pointwise residuals and uncertainties without a global pass.
@@ -130,8 +130,8 @@ uncertainty; use independent seeds or batch estimates as a stability check.
 
 | Evidence class | Permitted claim | Does not establish |
 |---|---|---|
-| Analytic numerical controls | Correct source-rate conversion, reaction-energy arithmetic, units, simple geometry volumes, volume/strength normalization, and Rust ledger conservation in limiting cases | Nuclear data accuracy or reactor-design accuracy |
-| Code-to-code benchmark (JADE ITER_1D) | Independent implementation/input agreement for identical modeled problem, after reconciling physics/data/settings | Agreement with nature; independence may be reduced by shared data and common modeling assumptions |
+| Analytic numerical controls | Correct source-rate conversion, reaction-energy arithmetic, units, simple geometry volumes, volume/strength normalisation, and Rust ledger conservation in limiting cases | Nuclear data accuracy or reactor-design accuracy |
+| Code-to-code benchmark (JADE ITER_1D) | Independent implementation/input agreement for identical modelled problem, after reconciling physics/data/settings | Agreement with nature; independence may be reduced by shared data and common modelling assumptions |
 | Experimental benchmark (FNG SINBAD) | Agreement of specified response(s) for measured mock-up, conditional on experiment/model uncertainty and exact benchmark reproduction | Whole-device performance, dissimilar materials/geometries, blanket self-sufficiency, magnet life, or economic/operating projections |
 | Design-level FARIS calculation | Conditional comparative consequence of the declared two FARIS inputs under the declared stationary transport and Rust assumptions | Qualified ARC design, lifetime, component survivability, thermal-hydraulic/stress safety, or tritium self-sufficiency in an engineered plant |
 
@@ -167,8 +167,8 @@ benchmark route. The FENDL photon files provide photoatomic interaction data,
 while production and energy deposition still need a declared coupled-transport
 or local-heating treatment.
 
-OpenMC tally scores have score-specific units and per-source normalization.
-Preserve raw tallies and normalize exactly once. Absolute neutron source rate
+OpenMC tally scores have score-specific units and per-source normalisation.
+Preserve raw tallies and normalise exactly once. Absolute neutron source rate
 must be derived using the chosen fusion reaction energy convention and must not
 equate fusion power with neutron power. Verify with an analytic unit control.
 The Rust model may then consume identified physical rates and explicitly
@@ -182,7 +182,7 @@ declared heat recovery fraction, conversion efficiency and auxiliary load.
 Before the first FARIS production result, resolve and record: (1) exact reactor
 material compositions, densities, isotope fractions/enrichment, temperatures,
 coolant/void and homogenization; (2) D-T source geometry, energy/angular
-distribution and fusion-power normalization; (3) evaluated library files and
+distribution and fusion-power normalisation; (3) evaluated library files and
 OpenMC coverage for all materials, reactions and heating treatment; (4) the
 penetration's location/shape/fill, affected volumes and no-feature control;
 (5) response scores, averaging domains and uncertainty sources; (6) the
@@ -201,6 +201,6 @@ unresolved in the generated study and blocks dependent physical claims.
 - [Batistoni et al., HCPB mock-up sensitivity/uncertainty analysis](https://doi.org/10.1016/j.fusengdes.2007.08.007) — response-specific prediction and combined uncertainty evidence.
 - [IAEA report INDC(NDS)-0631](https://www-nds.iaea.org/publications/indc/indc-nds-0631.pdf) — fusion neutronics experimental benchmark descriptions and measurement context.
 - [IAEA-NDS/open-benchmarks repository](https://github.com/IAEA-NDS/open-benchmarks) and [JADE benchmark input conventions](https://github.com/IAEA-NDS/open-benchmarks/blob/main/jade_open_benchmarks/jade_benchmarks.md) — local ITER_1D/HCPB templates, per-code input versions, and CC-BY-4.0 repository licensing (verify local pinned revision before use).
-- [OpenMC data configuration](https://docs.openmc.org/en/stable/usersguide/data.html) and [tallies](https://docs.openmc.org/en/stable/usersguide/tallies.html) — supported external data configuration, processing paths, score units, and normalization.
+- [OpenMC data configuration](https://docs.openmc.org/en/stable/usersguide/data.html) and [tallies](https://docs.openmc.org/en/stable/usersguide/tallies.html) — supported external data configuration, processing paths, score units, and normalisation.
 - [OpenMC distributed cross-section libraries](https://openmc.org/data/) — describes the downloadable FENDL-3.2 HDF5 library as converted from IAEA-NDS ACE data, with neutron data at 293.6 K and photoatomic data. This establishes the intended upstream library identity, not a byte-for-byte check of the local archive.
 - [IAEA INDC(NDS)-0797](https://www-nds.iaea.org/publications/indc/indc-nds-0797.pdf) — FENDL-3.2 technical meeting recommendations for total KERMA MT 301 heating and using TENDL-2017 activation MT 444 data for DPA; pin the relevant evaluation and response before an exposure claim.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The desktop's error catalogue (UX-044): every error the window can show for a failed file or
 //! start-up action has a code, what failed, why it matters and what to do, written once here.
 //!

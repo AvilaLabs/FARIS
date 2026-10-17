@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Weight windows for the reactor study's Production tier: the pure parts, with no OpenMC.
 
 The generator (window_generator.py) is shared with `faris design transport`; the helper that points it at the

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the S0e rules, mesh and breakdown analysis (s0e_common, s0e_analyse, s0e_run helpers).
 
 Standard library only; no OpenMC or numpy. Run from the repository root:

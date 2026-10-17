@@ -19,7 +19,7 @@ FARIS study generator → Avila Core compilation → readiness / execution / evi
 ```
 
 The current engine implements geometry, strict transport imports, checked
-normalization and bounded external execution. Reactor evaluation records remain
+normalisation and bounded external execution. Reactor evaluation records remain
 empty. The environment, state/history, comparisons and reactor adapters are
 future work. The app draws the engine's tessellated geometry in an egui paint callback
 with a depth buffer; it does not reproduce domain geometry in a second language.
@@ -38,7 +38,7 @@ with a depth buffer; it does not reproduce domain geometry in a second language.
   fields until a future result contract is implemented.
 - Display tessellation and the display cutaway are presentation approximations.
   Volumes are analytic full-torus values. Future solver export must use the full
-  scenario geometry, including explicitly modeled penetrations.
+  scenario geometry, including explicitly modelled penetrations.
 - `faris-transport-request/v0.1` and `faris-transport-artifact/v0.1` bind raw
   per-source tallies to exact scenario bytes, source and response definitions.
   Their checked conversions preserve integrated and averaged values. See
@@ -50,7 +50,7 @@ Every adapter will declare accepted inputs, supported domain, units, model/tool
 version, data identity, and returned fields. It must return an explicit unresolved
 or unevaluated state when input data or physics coverage is missing.
 
-Transport outputs need source-particle normalization, component volumes and
+Transport outputs need source-particle normalisation, component volumes and
 spectra, mesh coordinates, tritium-production rates, heating, statistical error,
 and applicable nuclear-data identity. Conversion from per-source-particle tallies
 to absolute rates is owned by a tested Rust boundary. Metres versus centimetres,
@@ -64,7 +64,7 @@ need shorter steps than the reporting timeline.
 
 The first adapters can call external programs or small Python utilities where
 an existing solver's Python interface is the practical entry point. Those
-utilities prepare/execute the solver and return documented artifacts; they do
+utilities prepare/execute the solver and return documented artefacts; they do
 not move the authoritative FARIS model or time loop out of Rust.
 
 ## Execution and evidence
@@ -82,7 +82,7 @@ and rigorous enclosures distinguishable rather than collapsing them into one ban
 
 The finished demo includes a Core-powered study experience. FARIS expands the
 selected domain analyses into their dependencies and generates a reusable study
-contract against a pinned registry/profile. Compilation, current artifact/run
+contract against a pinned registry/profile. Compilation, current artefact/run
 readiness, and scientific assessments remain separate. Core validates the
 declarations it receives; FARIS must explicitly encode the scientific dependencies.
 

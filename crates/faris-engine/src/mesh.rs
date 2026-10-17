@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Bounded display tessellation of the same toroidal shells used in geometry records.
 //! A cutaway changes display meshes only, never the full-torus volumes or solver inputs.
 

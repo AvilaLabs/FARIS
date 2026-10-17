@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The optional `preview.png` thumbnail: a small picture of the 3D view the
 //! author left open, for file managers and quick look. It carries no evidence,
 //! so it is not hashed or listed in the manifest, and a reader that cannot use

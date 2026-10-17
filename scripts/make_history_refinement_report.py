@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Generate the operating-history primary refinement report (schema v4).
 
 For each of the four transport runs (control/port x reference/breeder) and for the

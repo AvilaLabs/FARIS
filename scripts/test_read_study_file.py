@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for scripts/read_study_file.py, the clean-room reader of FARIS study files (INT-001, PRV-053).
 
 The archived fixtures in crates/faris-study/tests/fixtures/ were written by the Rust writer; the Rust test

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # usage: exclusive.sh <name> <cmd...>
 # Timing window: snapshots the load average and the busiest processes at start and end into <name>.ps, then runs the command.
 # Unlike S0b's wrapper it does not wait for cargo: another builder works on cores 4-7 by arrangement, so the snapshot records it.

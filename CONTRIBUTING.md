@@ -1,7 +1,7 @@
 <!-- kind: how-to -->
 # Development
 
-Read `AGENTS.md`, the demo scope, and the crate whose behavior changes. Keep
+Read `AGENTS.md`, the demo scope, and the crate whose behaviour changes. Keep
 scientific operations in the shared engine and UI code in the desktop crate.
 Prefer one small, demonstrable capability per change.
 
@@ -20,7 +20,7 @@ cargo test --workspace
 Every parser of outside bytes has a fuzz target; a new one needs an entry in `fuzz/entries` and a target
 file (`docs/FUZZING.md`).
 
-Use tests that establish meaningful behavior: geometry identities, independent
+Use tests that establish meaningful behaviour: geometry identities, independent
 volume checks, conservation, units, event semantics, unsupported-domain handling,
 or a named external reference. Future numerical-model changes need appropriate
 reference or measured controls; UI polish alone does not need physics tests.

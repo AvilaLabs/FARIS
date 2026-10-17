@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0b D5b: where D1S's time goes. Four RM-M configurations, 300 s each, 4 threads. OpenMC 0.15.3 (the D1 build).
 
     s0b_d5b.py --mode 1..4 --model-dir D --run-dir R --out record.json [--budget 300] [--seed S]

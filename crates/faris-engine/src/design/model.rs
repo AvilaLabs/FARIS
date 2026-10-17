@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! A faceted model ready for exact queries: the snapped mesh and one
 //! bounding-volume hierarchy over its triangles that have area.
 

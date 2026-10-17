@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Waste batches over plant life from a replacement schedule (requirement ACT-038).
 //!
 //! The maintenance engine says when each component is replaced; the plan says what one

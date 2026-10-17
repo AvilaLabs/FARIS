@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # D5c: S0's R2S neutron step + activation with two new seeds, photon step at 1 d only, on the D1 build (cores 4-7)
 cd /home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python

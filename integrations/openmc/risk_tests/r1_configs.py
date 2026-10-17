@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R1 configurations, seeds, mesh definitions and figures of merit (standard library only).
 
 The six configurations were declared before any R1 run and are not changed here:

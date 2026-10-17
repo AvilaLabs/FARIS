@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Adds the documentation licence statement to the foot of every handbook page (DOC-037).
 (function () {
   "use strict";

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 5: OpenMC 0.15.3 with the Windows patches. -Dagmc builds against the DAGMC from stage 4.
 param([switch]$Dagmc)
 . "$PSScriptRoot\common.ps1"

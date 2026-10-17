@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R6 (docs/notes/CAD_TRANSPORT_RISK_TESTS.md): choose the OpenMC version for R1-R3.
 
 Runs the R1 generation step and one analog run on RM-M with OpenMC 0.15.3 and

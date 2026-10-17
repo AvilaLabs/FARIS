@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The release gate (requirement QA-070): one script that blocks a release unless every condition passes.
 
     python3 scripts/release_gate.py --vv-report DIR --release-record FILE \\

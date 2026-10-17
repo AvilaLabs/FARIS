@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris config`: the user settings file and the layers over it (CFG-002, CFG-017, CFG-080).
 //! The rules live in `faris_model::settings`; this file reads and writes the file and prints.
 

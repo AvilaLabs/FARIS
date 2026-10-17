@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Running the maintenance computation from the Maintenance window: input checks, the
 //! worker thread, live progress and cancellation. The computation itself is
 //! `faris_engine::maintenance::files::run_from_files`, the same function `faris maintenance

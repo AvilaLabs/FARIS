@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # D5a for the 14.1 MeV source: all three materials, pinned to cores 4-7
 cd /home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 S=/home/connoravila/.cache/avila-night/faris-wt/s0b/integrations/openmc/risk_tests/s0b_d5a.py

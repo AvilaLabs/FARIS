@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! GEO-021 before imprinting. Imprinting can split overlapping solids into
 //! fragments, so an overlap may not survive into the imprinted model in a form
 //! the faceted check sees. The CAD helper therefore meshes every solid on its

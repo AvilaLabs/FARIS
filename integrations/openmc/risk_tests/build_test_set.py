@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Build the CAD transport test set: four deliberately different reactor models, STEP plus design file.
 
 Run with the CAD environment (cadquery 2.8, numpy):

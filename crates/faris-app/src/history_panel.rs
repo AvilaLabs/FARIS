@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Native presentation of the shared Rust history engine. No UI-owned physics.
 
 use crate::time::{Duration, Instant};

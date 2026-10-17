@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Runs requests in `faris-occt-worker`, a separate process with a wall-clock limit enforced
 //! here and address-space and CPU limits the worker sets on itself. OpenCASCADE can hang or
 //! crash on a bad file; this is what keeps that out of FARIS.

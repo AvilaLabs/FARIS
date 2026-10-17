@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Build the reference model RM-M: CadQuery solids, STEP, DAGMC h5m, model card and role map.
 
 Run with the CAD environment (cadquery 2.8, cad_to_dagmc 0.14.2, gmsh, h5py):

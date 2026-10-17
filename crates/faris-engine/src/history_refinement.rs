@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Per-run time-step refinement flag for the operating history (VAL-017).
 //!
 //! The history is run at its authored `maximum_step_s` and again at half that step. If the

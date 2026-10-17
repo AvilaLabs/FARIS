@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The reactor worker's target-error stop rule: trigger settings and the relaxed integrity checks.
 
 No OpenMC is needed: a stand-in module supplies the few OpenMC classes the rule configures. The run

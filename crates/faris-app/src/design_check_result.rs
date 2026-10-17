@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The words and numbers of a finished design check, and of a freshly written draft, built
 //! from the engine's results.
 //!

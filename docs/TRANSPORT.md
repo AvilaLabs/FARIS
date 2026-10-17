@@ -1,7 +1,7 @@
 <!-- kind: explanation -->
 # Fixed-source transport boundary
 
-Status: strict input/artifact types and checked Rust normalization are implemented.
+Status: strict input/artefact types and checked Rust normalisation are implemented.
 There is no ARC-inspired reactor solver adapter yet. Material assignments,
 source prescription, penetration, spectra/mesh mappings and physical validation
 remain prerequisites in [SCIENTIFIC_BASELINE.md](SCIENTIFIC_BASELINE.md).
@@ -29,7 +29,7 @@ production must use `particle_production` with `particle: "tritium"` and
 
 Imported identities and raw values are supplied by an adapter. Checking a hash
 string's shape is not authenticating its claimed contents. The import records
-hashes of the exact request and artifact bytes; it does not execute, reproduce
+hashes of the exact request and artefact bytes; it does not execute, reproduce
 or authenticate the asserted solver run. Scientific qualification remains
 `NOT_EVALUATED`. Only a subsequent owned adapter and independently reviewed
 evidence can bind an actual solver result to these records.
@@ -55,7 +55,7 @@ none is computed from an imported profile. Separate per-part labels (one each
 for strength, profile, energy and angle) are not stored yet; today they share
 the source's single label.
 
-## Dimensional normalization
+## Dimensional normalisation
 
 With fusion power `P_f` in MW, declared reaction energy `Q` in eV, and the exact
 SI elementary charge `e = 1.602176634 × 10⁻¹⁹ J/eV`, Rust calculates
@@ -83,7 +83,7 @@ For raw mean `x`, standard error `u`, and domain volume `V` in m³:
 The same positive conversion factor applies to `u`. Volumes may arrive in
 cm³ and are converted by `10⁻⁶`. Integrated and averaged means/errors remain
 available with explicit units, domain, source and estimator. Nonfinite or
-vanishing source normalization rejects. The output does not convert standard
+vanishing source normalisation rejects. The output does not convert standard
 error into a confidence interval or include material/data/source uncertainty.
 Correlated sums and differences require covariance; summing standard errors
 in quadrature without defensible independence is unsupported.
@@ -103,7 +103,7 @@ These dimensions follow the [OpenMC 0.15.3 tally specification](https://github.c
 bound; the magnet screening responses use 1e5 eV (0.1 MeV), the energy the REBCO
 fast-fluence value of Sorbom et al. (arXiv:1409.3540) refers to. The score is the
 same OpenMC track-length `flux` as the whole-energy response (raw cm per source
-neutron, normalized with the same factors), restricted by an energy filter that
+neutron, normalised with the same factors), restricted by an energy filter that
 runs from the bound to 1 GeV. It is a separate score from `flux`, so the
 energy-integrated flux and the per-component spectra are unchanged and a fast
 flux is never shown under the energy-integrated name.
@@ -179,7 +179,7 @@ vectors (ddof = 1) divided by `n`; method id `batch-means-sample-covariance/v1`.
 At least 2 batches are required. Only the final statepoint is kept; the
 intermediate ones are deleted after reading (about 0.3 MB each for the coarse
 mesh, so a 1000-batch run briefly holds a few hundred MB against the 512 MiB
-artifact cap).
+artefact cap).
 
 A reactor run can stop on an error (`target_relative_error` in the sampling plan, `--target-error` on
 the command line): the worker sets an OpenMC relative-error trigger on the `magnets-fast-flux` tally with at
@@ -187,7 +187,7 @@ least 30 batches and `batches` as the budget, and writes one statepoint per batc
 files cover batches 1..N exactly for an N between 30 and the budget, that the statepoint's realization count is
 N, and that the stop is explained (target met, or the whole budget used); the worker receipt carries
 `sampling_outcome` (batches and histories realized, achieved error, stop reason), which Rust re-reads and ties to
-the plan before accepting the artifact's history count. Without a target nothing changes: the batch count is
+the plan before accepting the artefact's history count. Without a target nothing changes: the batch count is
 exact and the receipt's stop reason is `fixed_count`.
 
 A target-error run can use weight windows (`--window-python`, the Window Python tool in the app). Before the run, the
@@ -241,7 +241,7 @@ per-batch raw values) and adds `response_covariance` to
 matrix (raw tally units per source, product units off the diagonal), and the
 batch-values file name and sha256. Rust scales entry `(i, j)` by the same
 per-response factors as `integrated_mean` (`cov_ij * s_i * s_j`) and records it
-as `response_covariance.integrated` in the normalized result. Artifacts without
+as `response_covariance.integrated` in the normalised result. Artefacts without
 the field still parse and give `None`; consumers that need correlations must
 then fail closed.
 
@@ -250,7 +250,7 @@ volume-estimate, nuclear-data or model uncertainty, and with fewer batches than
 responses the matrix is rank-deficient (at most `batches - 1` independent
 directions), so the estimated correlations are noisy and can be exactly +/-1.
 
-Normalization rejects the artifact if the method is unknown, the ids do not match
+Normalisation rejects the artefact if the method is unknown, the ids do not match
 the scalar results one-to-one, the matrix is not `n * n` or has a non-finite
 entry, it is asymmetric beyond 1e-12 relative, a diagonal entry differs from
 `integrated_standard_error^2` by more than 1e-6 relative, a zero-variance

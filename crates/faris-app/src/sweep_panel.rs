@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Allocation-sweep view: blanket/shield thickness against real transport runs.
 //!
 //! The panel only draws and schedules. Point extraction, history summaries and

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Impurity watch-list, the impurity gate on a waste verdict, and the largest impurity a target
 //! waste class allows (MAT-040 to MAT-044).
 //!

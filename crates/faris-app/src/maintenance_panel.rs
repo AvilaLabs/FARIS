@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Maintenance view: opens a `faris-maintenance-result/v0.1` file and shows, per
 //! design, the replacement outages computed from the decay heat of the components
 //! around the replaced part beside the authored (fixed) ones, and why each

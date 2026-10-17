@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Opening or checking a hostile file runs nothing (SEC-001). Fields hold shell
 //! metacharacters, `../` climbs and paths to an executable that would leave a
 //! marker if it ever ran; the tests assert that no child process starts and

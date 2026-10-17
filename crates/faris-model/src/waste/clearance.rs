@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Clearance index and recycling index (ACT-036, ACT-037).
 //!
 //! Clearance index: the sum over nuclides of the activity concentration (Bq/g, averaged over the

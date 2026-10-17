@@ -96,7 +96,7 @@ reference is wired into this control.
 The local JADE dummy fixture has an ITER_1D metadata label and a statepoint,
 but it lacks the run settings and input identities needed to prove that it
 corresponds to the current benchmark inputs. Another nearby JADE dummy result
-directory is labeled Oktavian. Neither is promoted to a numeric acceptance
+directory is labelled Oktavian. Neither is promoted to a numeric acceptance
 target. The fixture demonstrates that response files exist locally; without
 their exact source, geometry, materials, tally definitions, and nuclear data
 identities, it cannot supply a trustworthy benchmark value.

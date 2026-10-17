@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The words and numbers of a finished design flux run, built from the engine's report.
 //!
 //! No window and no physics: the report is the engine's, and this turns it into rows of text

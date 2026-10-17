@@ -1,4 +1,6 @@
 #![allow(clippy::disallowed_methods)]
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Plotting, colour and camera arithmetic only; nothing here is recorded as evidence.
 // The browser build compiles the desktop-only panels but never starts them.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code))]

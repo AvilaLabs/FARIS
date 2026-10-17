@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Validate CITATION.cff against Citation File Format 1.2.0 (requirements PRV-036, DOC-060).
 
     python3 scripts/check_citation.py

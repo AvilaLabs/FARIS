@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris doctor` end to end: what it reports and what it says about tools.
 
 use std::process::Command;

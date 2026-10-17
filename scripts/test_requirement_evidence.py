@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks on the repository's own configuration that requirements name as their acceptance criteria:
 the unsafe-code lint, dependency pinning, the CI steps, the data and update rules, and the font licences."""
 import re

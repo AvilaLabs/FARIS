@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Aiming for streaming paths (NUC-055): plan a windowed run that aims at targets FARIS finds in the model.
 
     streaming_aim.py MODEL.xml WORK_DIR --library /path/to/libopenmc.so [--response-material 4]

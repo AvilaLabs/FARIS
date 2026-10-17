@@ -1,4 +1,4 @@
-.PHONY: check occt-check app validate doctor
+.PHONY: check occt-check app validate doctor docs
 
 check:
 	cargo fmt --all --check
@@ -21,3 +21,7 @@ doctor:
 
 app:
 	cargo run -p faris-app
+
+# Rebuilds the handbook into dist/docs and checks two builds have the same hash (needs mdbook 0.5.4).
+docs:
+	python3 scripts/build_docs.py --out dist/docs

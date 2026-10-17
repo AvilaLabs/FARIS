@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris-occt-worker REQUEST.json RESPONSE.json` runs one request (see `faris_occt::worker`)
 //! and writes the response file. It sets its own memory and CPU limits first.
 //!

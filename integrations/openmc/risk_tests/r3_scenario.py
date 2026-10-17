@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3 scenario constants and pure helpers (standard library only).
 
 Scored region (authored): a regular mesh of 10 cm cubes over the equatorial port duct and the adjacent plasma chamber.

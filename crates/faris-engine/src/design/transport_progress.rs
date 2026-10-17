@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The progress of `design_transport` in plain words, and an estimate of what is left.
 //!
 //! Shared by the command line and the desktop so that both word a run the same way. The

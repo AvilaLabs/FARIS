@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The faceted model on the integer grid: snapped vertices, triangles grouped
 //! into surfaces, and the volumes on the two sides of each surface.
 //!

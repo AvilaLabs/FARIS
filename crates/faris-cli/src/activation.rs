@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris activation`: activation inventory, decay heat and decay-photon source through ACTINV.
 use crate::transport::{read_bounded, write_new_json};
 use clap::Subcommand;

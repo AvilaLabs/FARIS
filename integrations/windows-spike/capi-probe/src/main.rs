@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Runs a model through the OpenMC C API (no openmc.exe) and writes tally 1 as JSON.
 //!
 //!     capi-probe MODEL_DIR OUT.json

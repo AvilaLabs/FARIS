@@ -18,8 +18,8 @@ entry has a target file.
 | `history_assumptions` | operating histories, driving rates, maintenance assumptions, designs files | `design::scenario_facts`, `OperatingHistoryAssumptions` and `MaintenanceAssumptions` (parse and `validate`), `TransportDrivingRates`, `maintenance::files::parse_designs` |
 | `facets` | the facets binary and its manifest (geometry import) | `design::parse_facets`, `design::load_facets` |
 | `step_inspection` | the STEP helper's inspection report (STEP header facts) | `design::StepInspection::from_bytes` |
-| `transport_artifact` | raw transport artifacts, transport requests | `transport::TransportArtifact::from_bytes`, `TransportRequest` parse and `validate_against` |
-| `json_records` | recorded results read back: history results and ensembles, maintenance results, reactor runs, physics cases, normalized and raw transport results, recorded bundles, Core evidence runs, job results, import and material-audit reports, CAD worker responses | `serde_json` readers of those types |
+| `transport_artifact` | raw transport artefacts, transport requests | `transport::TransportArtifact::from_bytes`, `TransportRequest` parse and `validate_against` |
+| `json_records` | recorded results read back: history results and ensembles, maintenance results, reactor runs, physics cases, normalised and raw transport results, recorded bundles, Core evidence runs, job results, import and material-audit reports, CAD worker responses | `serde_json` readers of those types |
 | `helper_outputs` | what the design import reads back from its helpers and cache (worker result, window and piece records, cache key, progress lines) | `design::fuzz_helper_outputs` (hidden, for this target) |
 | `nuclear_data_audit` | the nuclear-data library audit and the cross-section file it names | `reactor::bind_audited_library` |
 | `actinv_result` | ACTINV result streams | `maintenance::actinv::scan_result` |

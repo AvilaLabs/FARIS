@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Rays and chords through the faceted model, decided exactly.
 //!
 //! Point-in-volume uses ray parity: a ray from the point to a far point outside

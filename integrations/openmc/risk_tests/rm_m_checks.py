@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Acceptance and R6 rule evaluation for the CAD transport risk tests.
 
 Pure Python (standard library only). Each function applies a rule fixed in

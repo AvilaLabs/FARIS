@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris design transport`: the neutron flux in the solids a fluence limit of a checked
 //! design applies to (the TF magnets, when the design has no such limit).
 //!

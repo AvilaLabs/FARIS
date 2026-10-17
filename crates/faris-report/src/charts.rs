@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The four study charts as SVG strings in a light print theme. Series colours
 //! are the app's arrangement colours; the geometry (not the data) is decided
 //! here, every number comes from the engine.

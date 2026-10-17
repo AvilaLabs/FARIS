@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The command registry (UX-030) and the keyboard command palette (A11Y-001).
 //!
 //! One table lists every app-level action with an id, label, search words,

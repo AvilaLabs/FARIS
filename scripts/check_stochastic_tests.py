@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Check that Monte Carlo dependent Python tests record their seed, acceptance and source.
 
 Applies QA-017 and QA-093 to the physics controls: `controls/` and the top-level

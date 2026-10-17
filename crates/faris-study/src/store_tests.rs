@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Core evidence as store trees in a study file: packed and referenced round
 //! trips, the embedded store as a store, tamper refusals and resolution order.
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Weight windows on a CSG model do not change the answer (PERF-025, NUC-043, NUC-051).
 
 The reactor study's Production tier runs with windows that `reactor_windows.py` makes on its CSG torus. This

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Statistical health of recorded transport tallies: reads the worker's per-batch values, runs the
 //! statistical checks of `faris_model::tally_statistics`, sets the interval and the digits shown, and
 //! refuses an interval and a verdict from a failing tally. Also sums tally parts with the recorded

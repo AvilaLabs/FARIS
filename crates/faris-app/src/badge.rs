@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Compact provenance and status badges.
 //!
 //! A badge keeps a scientific qualifier attached to a value without letting the

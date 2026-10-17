@@ -9,15 +9,15 @@ calculation.
 ## One-group pure-absorber sphere
 
 [`controls/pure_absorber_sphere.py`](../controls/pure_absorber_sphere.py)
-defines a fixed-source problem with a monoenergetic point source at the center
+defines a fixed-source problem with a monoenergetic point source at the centre
 of a homogeneous sphere, isotropic source direction, no scattering, and a
 vacuum boundary. The default radius is 10 cm and the synthetic macroscopic
 absorption cross section is 0.3 cm⁻¹. These values are deliberately selected
-for a mathematical solver and normalization control. They are not evaluated
+for a mathematical solver and normalisation control. They are not evaluated
 nuclear data, do not describe a material, and must not be used as a reactor
 benchmark.
 
-Every neutron starts at the center and travels a distance `R` to the boundary
+Every neutron starts at the centre and travels a distance `R` to the boundary
 if it survives. With exponentially distributed absorption distance and
 `Sigma_a > 0`, the exact per-source-particle expectations are:
 
@@ -49,7 +49,7 @@ and the OpenMC executable SHA-256 is
 statepoint SHA-256 is `730aca4b925ffbf96c4e73c126edf23d90135e6b07cf933544415d828dbb9af9`.
 The generated JSON, XML inputs, multigroup library, and statepoint are in the
 ignored local output directory `runs/openmc-pure-absorber-control-final-20260930f/`;
-they are verification artifacts, not bundled source data.
+they are verification artefacts, not bundled source data.
 
 An earlier completed run used control script SHA-256
 `564b19f76c0d4388d711018a18605636046b9e1ea806ffc20ceb0b33a280e780`; its
@@ -163,15 +163,15 @@ reactor results. Existing output and stale scenario identities were rejected.
 
 ### Scientific boundary
 
-This control tests a narrow chain: centered isotropic source setup, one-group
+This control tests a narrow chain: centred isotropic source setup, one-group
 fixed-source attenuation, integrated absorption and track-length tally units,
-and per-source normalization. It does not validate continuous-energy nuclear
-data, a FARIS reactor material, fusion source modeling, arbitrary geometry,
+and per-source normalisation. It does not validate continuous-energy nuclear
+data, a FARIS reactor material, fusion source modelling, arbitrary geometry,
 spatial mapping, shielding response, breeding, energy deposition, source-rate
-normalization, geometry volumes, time evolution, or Rust adapter correctness.
+normalisation, geometry volumes, time evolution, or Rust adapter correctness.
 It does not create any physical result for FARIS. A future FARIS comparison must
 retain the raw OpenMC run and input identities and independently check its own
-normalization, volume, units, and region mapping.
+normalisation, volume, units, and region mapping.
 
 Relevant OpenMC 0.15.3 documentation: [independent source](https://docs.openmc.org/en/v0.15.3/pythonapi/generated/openmc.IndependentSource.html),
 [fixed-source settings](https://docs.openmc.org/en/v0.15.3/usersguide/settings.html),

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 import unittest
 
 import check_repository_size as crs

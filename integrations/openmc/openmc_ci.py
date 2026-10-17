@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Shared helpers for the tests that need OpenMC, numpy or a small nuclear-data set.
 
 Locally such a test skips, with the reason, when what it needs is absent. The CI job `openmc-tests`

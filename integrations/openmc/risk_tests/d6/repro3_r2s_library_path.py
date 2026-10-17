@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """D6 candidate 3: R2SManager's neutron step ignores model.materials.cross_sections.
 
     python repro3_r2s_library_path.py /path/to/cross_sections.xml /path/to/chain.xml

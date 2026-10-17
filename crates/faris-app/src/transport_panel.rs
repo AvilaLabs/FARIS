@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use crate::time::{Duration, SystemTime, UNIX_EPOCH};
 use crate::{
     badge::{self, Kind},

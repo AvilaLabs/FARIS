@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for GEO-032 (faris_deviation.py) and the per-solid tessellation of faris_cad.py.
 
 The closed forms are compared with OpenCASCADE's own projection on random points for each

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Turn a verified recorded-demo package into the release downloads.
 
 Checks, before writing anything:
@@ -47,6 +48,10 @@ import tarfile
 import time
 import zipfile
 from pathlib import Path, PurePosixPath
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import package_scan  # noqa: E402
+import wording_lint  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SECTION = re.compile(r"^## (\d+\.\d+\.\d+) — (.+)$")
@@ -131,6 +136,12 @@ def split_package(package: Path, version: str) -> tuple[list[str], list[str], st
         fail("package files differ from its index: " + ", ".join(sorted(present ^ indexed)[:5]))
     if not evidence or len(app) < 3:
         fail("package has an empty app or evidence part")
+    restricted = package_scan.scan(package)
+    if restricted:
+        fail("restricted or unlisted binary in the package: " + "; ".join(restricted[:3]))
+    named = wording_lint.lint_listing(sorted(present), wording_lint.load_terms())
+    if named:
+        fail("internal codename in package file names: " + ", ".join(f.path for f in named[:5]))
     return sorted(app), sorted(evidence), f"{platform['os']}-{platform['arch']}"
 
 

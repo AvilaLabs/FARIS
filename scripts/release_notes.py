@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Release notes generated from the release record (requirements QA-074, PLAT-034, LEG-052).
 
     python3 scripts/release_notes.py --version 0.3.0 --release-record release-record.json \\

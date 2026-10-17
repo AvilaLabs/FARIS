@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Monte Carlo uncertainty of the operating history, as the history panel
 //! shows it: ranges beside the nominal outputs, bands on the timeline, the
 //! progress of the background job, and what it hands to the study file.

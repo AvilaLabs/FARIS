@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """RM-M model acceptance: the three checks that must pass before any risk test.
 
 Run with an OpenMC interpreter (0.15.3, ~/.venvs/w003env) under the memory cap:

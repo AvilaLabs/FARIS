@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R1 driver (docs/notes/CAD_TRANSPORT_RISK_TESTS.md): six window configurations plus the analog reference.
 
     r1_driver.py --model-dir DIR --work-dir DIR --out results-r1.json [--configs C1,C2,...] [--skip-analog]

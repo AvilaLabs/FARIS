@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3 cube check (docs/notes/CAD_TRANSPORT_RISK_TESTS.md): Mn-54 shutdown dose from a small iron cube, three ways.
 
     r3_cube_check.py OUT_DIR [--histories 30000000]

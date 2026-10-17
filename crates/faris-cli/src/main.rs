@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use clap::{Parser, Subcommand};
 use faris_engine::build_manifest;
 use faris_model::LoadedScenario;

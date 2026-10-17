@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The Units menu and the entry field for a quantity (UX-066, CFG-040, L10N-021, L10N-023).
 //!
 //! The menu chooses the unit system, a unit per quantity group and the number format. It changes

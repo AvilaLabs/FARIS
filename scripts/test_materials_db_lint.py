@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The materials database lint passes on the shipped files and catches each kind of damage (MAT-009)."""
 import importlib.util
 import json

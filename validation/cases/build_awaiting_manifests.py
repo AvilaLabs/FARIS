@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Write the manifests of the OpenMC-Fusion-Benchmarks cases that wait for an upstream specification.
 
     python3 build_awaiting_manifests.py --root DIR --step-dir DIR

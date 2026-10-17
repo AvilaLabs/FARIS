@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Explicit operating-history execution from reviewed JSON inputs.
 use clap::Subcommand;
 use faris_engine::{

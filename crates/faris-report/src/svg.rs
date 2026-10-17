@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! A small SVG writer for the charts: text, lines, rectangles, polylines.
 //! Every chart is built once as a string here; the same string is saved as
 //! `.svg`, rasterised to `.png` and drawn into the PDF.

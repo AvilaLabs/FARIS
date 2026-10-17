@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The installed application stays small (requirements PERF-045, PLAT-026).
 
     python3 scripts/check_install_size.py out [--limit-mb 150]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Impurity sensitivity: which trace elements of a material matter most for activation, decay
 //! heat and waste class (requirements ACT-025 and MAT-040).
 //!

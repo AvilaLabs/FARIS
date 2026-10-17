@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Running `faris design transport` from the desktop: input checks, the worker thread, live
 //! progress and cancellation. The run itself is `faris_engine::design::design_transport`, the
 //! function the command line calls; nothing here owns physics. The worker never touches egui

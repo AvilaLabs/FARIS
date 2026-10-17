@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Quantities as the desktop shows and reads them: the unit and number text of a widget come from
 //! the user's `DisplayPrefs` (units.system, units.<group>, format.decimal and format.grouping,
 //! CFG-037, CFG-040, UX-066), a value with an uncertainty is written by the engine's formatter with

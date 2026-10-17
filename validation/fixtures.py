@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Small valid manifest and run-record builders shared by the tests."""
 from __future__ import annotations
 

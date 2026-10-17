@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Work done one unit per frame. The browser page has no threads, so a list
 //! of long calculations is run one item at a time between frames: the page
 //! keeps painting and answering input while it works.

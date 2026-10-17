@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Sensitivity of lifetime net electricity and availability to each replacement duration
 //! (OPS-031), and the link from remote-handling constraints (OPS-033) to the history's
 //! replacement durations.

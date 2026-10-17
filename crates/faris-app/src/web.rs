@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Browser entry point. The app is the same one the desktop runs: this module
 //! hosts it on a canvas, brings the bundled recorded study into memory so the
 //! ordinary loaders can read it by path, takes files from the picker or a

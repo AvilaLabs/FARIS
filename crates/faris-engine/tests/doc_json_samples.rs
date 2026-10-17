@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The JSON examples of FARIS file formats in the handbook parse with the real parsers.
 //!
 //! `scripts/doc_samples.py` (QA-016) runs this test and counts it. Each handbook file lists how many

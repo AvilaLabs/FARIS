@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The reactor stop rule's variance guard continues a run from its last statepoint (NUC-043).
 
 A run that reaches its target error while the variance of the variance of a watched response is above the limit

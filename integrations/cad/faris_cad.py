@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """CAD helper for FARIS: reads a STEP file and reports what the design file must match.
 
 Run with the CAD environment (cadquery 2.8 and its OCP/OpenCASCADE), as a

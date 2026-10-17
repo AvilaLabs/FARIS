@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the faris-facets/v1 writer and the h5m reader.
 
 The pack/unpack tests use the standard library. Reading an h5m needs h5py, and the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Running `faris design init` and `faris design check` from the desktop: input checks, the
 //! worker threads, live stage progress and cancellation. The computations are
 //! `faris_engine::design::design_init_with_tools` and `check_design_with_tools`, the functions the

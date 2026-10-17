@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Generate and check the requirement-to-test trace (requirement QA-002).
 
 A test declares the requirements it verifies with a marker comment directly

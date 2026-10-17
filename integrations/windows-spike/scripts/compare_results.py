@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Compares two summaries from summarize_statepoint.py bin by bin, in combined sigma.
 
     compare_results.py A.json B.json [--label-a NAME --label-b NAME] [--out REPORT.md]

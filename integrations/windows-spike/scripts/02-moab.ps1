@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Stage 2: MOAB 5.6.0, shared, HDF5 on, no MPI, no Fortran, no tests.
 . "$PSScriptRoot\common.ps1"
 Get-Source moab 'https://bitbucket.org/fathomteam/moab.git' '5.6.0'

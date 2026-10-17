@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Links the import library libopenmc.lib from OPENMC_LIB_DIR.
 fn main() {
     let dir = std::env::var("OPENMC_LIB_DIR").expect("OPENMC_LIB_DIR must point at the folder holding libopenmc.lib");

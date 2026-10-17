@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Bounded OpenMC coupled-transport control for thermal 6Li neutron capture.
 
 This is a small, separately identified numerical control. It does not model

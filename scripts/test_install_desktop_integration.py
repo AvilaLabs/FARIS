@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Installs and uninstalls the Linux desktop integration under a scratch XDG folder and diffs the file systems."""
 import os
 import shutil

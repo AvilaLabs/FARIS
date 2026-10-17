@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The fusion power the design file's plasma profiles imply (SRC-010 closure).
 //!
 //! `plasma.fusion_power_mw` sets the source strength for transport; the ion density and

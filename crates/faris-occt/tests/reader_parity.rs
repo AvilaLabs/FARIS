@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The two CAD readers of `faris design check`, the native worker and the Python helper, run on
 //! the same STEP files through the engine's own backends: the STEP inspect and the per-solid
 //! tessellation must agree (facets byte for byte, inspect fields to rounding).

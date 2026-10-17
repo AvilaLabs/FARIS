@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Shared helpers and rules for stage S0f (docs/notes/CAD_TRANSPORT_S0F.md).
 
 `fill_invalid` is pure Python so test_s0f.py can check it without numpy or OpenMC; `fill_file` applies it to a

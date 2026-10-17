@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Per-case and suite validation reports, JSON and Markdown (requirements VAL-030, 035, 056, 091).
 
 One command:

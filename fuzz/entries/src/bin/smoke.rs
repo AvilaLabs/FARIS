@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! A blind mutation driver for the fuzz entries, for machines where `cargo fuzz` cannot be built.
 //!
 //! It is NOT coverage-guided and does not replace the libFuzzer targets; it mutates the seed corpus

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Software bill of materials in SPDX 2.3 and CycloneDX 1.5 JSON (requirement SEC-030).
 
     cargo metadata --locked --offline --format-version 1 > metadata.json

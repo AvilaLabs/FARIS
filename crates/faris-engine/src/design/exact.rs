@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Exact geometric predicates on the 1 nm integer grid.
 //!
 //! Every yes/no decision about the faceted model (which side of a plane, does

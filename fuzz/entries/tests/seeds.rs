@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Every entry runs on a few plain inputs and on any seed corpus present, so a change that makes a
 //! parser panic is caught by `cargo test` without the fuzzer (QA-033).
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Build ACTINV problem specs for FARIS components (0.2 activation test run).
 
 For every non-void component, and every installation of it in an operating

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # cores 0-3: the G0, G3, G4, G2 productions (G1 is NOT_EVALUATED: generation killed by the 6G cap)
 export PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
 source /home/connoravila/.cache/avila-night/cad-risk-tests/s0b/common.sh

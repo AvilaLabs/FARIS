@@ -65,6 +65,14 @@ jobs:
       # Every command and option is in the reference, generated from the binary's own help (DOC-021).
       - name: Command-line reference is current
         run: python3 scripts/cli_reference.py --faris target/debug/faris --check
+      - name: Install mdBook
+        uses: taiki-e/install-action@7623a79cdfecb99d681017af368ca353d9f49bb5 # v2.87.19
+        with:
+          tool: mdbook@0.5.4
+      - name: The handbook rebuilds from source with the same hash twice
+        run: python3 scripts/build_docs.py --out dist/docs
+      - name: Every handbook page carries the licence footer and every figure is credited
+        run: python3 scripts/check_doc_licence.py --built dist/docs
       - name: Documentation links resolve, glossary, changelog, deprecations, citation and known-issues page
         run: |
           python3 scripts/check_links.py
@@ -81,6 +89,19 @@ jobs:
           cargo metadata --locked --offline --format-version 1 > metadata.json
           python3 scripts/check_licences.py --metadata metadata.json
           python3 scripts/generate_sbom.py --metadata metadata.json --out sbom
+          # LEG-013: the committed Linux notices name exactly the packages of the Linux graph.
+          cargo metadata --locked --offline --format-version 1 --filter-platform x86_64-unknown-linux-gnu > metadata-linux.json
+          python3 scripts/check_platform_notices.py --metadata metadata-linux.json \
+            --root-crate faris-cli --root-crate faris-app --notices docs/THIRD_PARTY_NOTICES.md
+          # The notices each other shipped platform collects have a text for, and name exactly, its own graph.
+          for target in x86_64-pc-windows-msvc aarch64-apple-darwin; do
+            cargo metadata --locked --offline --format-version 1 --filter-platform "$target" > "metadata-$target.json"
+            python3 scripts/collect_dependency_notices.py --metadata "metadata-$target.json" \
+              --root-crate faris-cli --root-crate faris-app --platform-label "$target" --target-triple "$target" \
+              --output "notices-$target.md"
+            python3 scripts/check_platform_notices.py --metadata "metadata-$target.json" \
+              --root-crate faris-cli --root-crate faris-app --notices "notices-$target.md"
+          done
       - name: Requirement-to-test trace is current
         run: python3 scripts/requirement_trace.py --check
       - name: Requirement scorecard is current
@@ -89,6 +110,12 @@ jobs:
         run: python3 scripts/requirement_lint.py
       - name: Wording lint over user-facing text
         run: python3 scripts/wording_lint.py
+      - name: Prose style (British spelling, terminology) and readability
+        run: |
+          python3 scripts/style_lint.py
+          python3 scripts/readability.py
+      - name: Every source and script file carries its licence header
+        run: python3 scripts/check_spdx.py
       - name: Materials database and waste tables lint
         run: python3 scripts/materials_db_lint.py
       - name: Validation matrix, rule hashes and case manifests

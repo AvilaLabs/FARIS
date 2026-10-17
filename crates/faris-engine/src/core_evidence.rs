@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Portable recorded transport and actual executable stages for Avila Core.
 //! Core envelopes use canonical decimal strings; original Rust artifacts remain
 //! verbatim strings, so scientific values are never rounded by the interface.

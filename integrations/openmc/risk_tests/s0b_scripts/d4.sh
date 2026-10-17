@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # D4 (alone, 8 threads): the 60 s preview twice with G*'s windows (G6 + max_split 1000 + checkpoints), then the start-up split
 cd /home/connoravila/.cache/avila-night/cad-risk-tests/s0b
 PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python

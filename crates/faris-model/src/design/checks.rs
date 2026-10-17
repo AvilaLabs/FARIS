@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Import checks 2 to 5. Pure functions: the STEP file is represented by the
 //! hash FARIS computed and the CAD helper's inspection result. Each returns
 //! every finding of its stage; the caller stops before the next stage when a

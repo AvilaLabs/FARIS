@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Versioned jurisdiction profiles (SAFE-012).
 //!
 //! A profile (`data/waste/jurisdiction_profiles.json`, authored) names a jurisdiction, its

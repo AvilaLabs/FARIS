@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::fixtures::{assumptions, ensemble, rates_with_covariance, rates_without_covariance};
 use crate::history::{HistoryOutcome, run_operating_history};

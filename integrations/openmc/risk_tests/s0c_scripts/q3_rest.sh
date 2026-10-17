@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Q3 R2S runs after the 10 cm mesh (which used 20 x 100k neutrons and 20 x 100k photons): 2 cm mesh, 20 cm mesh, 2 cm cells.
 B=/home/connoravila/.cache/avila-night/cad-risk-tests/s0c
 RT=/home/connoravila/.cache/avila-night/faris-wt/s0c/integrations/openmc/risk_tests

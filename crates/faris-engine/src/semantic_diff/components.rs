@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Components of a model: the cells of the radial build, what changed in them between two
 //! versions (GEO-067), and the geometry summary table (GEO-069).
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Guided tour: a dimmed overlay with a spotlight on one part of the window and
 //! a short explanation card. The tour only presents the app; each stop names
 //! the step, field view and year it talks about, and `main.rs` applies them.

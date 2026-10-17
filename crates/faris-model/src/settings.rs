@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! User settings: how FARIS itself behaves on this machine (tool locations, memory caps,
 //! display), never what a scenario means (requirements CFG-002, CFG-006, CFG-017, CFG-070,
 //! CFG-080).

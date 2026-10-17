@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Generate and check the requirements scorecard.
 
 Reads the requirement tables in docs/requirements/ and the Verifies: markers

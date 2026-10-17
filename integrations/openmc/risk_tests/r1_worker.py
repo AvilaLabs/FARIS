@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """One R1 step on OpenMC 0.15.3. Run by r1_driver.py under the memory cap.
 
     r1_worker.py generate --config C2 --model-dir D --run-dir R --out step.json

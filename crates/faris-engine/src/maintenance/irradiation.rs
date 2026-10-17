@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The irradiation schedule an activation solver is given, taken from the operating history.
 //!
 //! The history (`crate::history`) records when the source is on (`operation_started` /

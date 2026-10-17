@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """E-smoke check: a window file's mesh is the H6 cylindrical mesh. OpenMC 0.15.3 (or 0.16.0).
 
     s0e_check_windows.py WINDOWS.h5 --out check.json

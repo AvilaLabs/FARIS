@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Exercise the real Core executable, with its own primary semantic fixtures.
 
 This checks software interpretation and FARIS declaration failures. It does not

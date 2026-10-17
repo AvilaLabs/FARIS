@@ -7,9 +7,9 @@ not a FARIS model, blanket result, materials qualification, evaluation
 validation, or engineering prediction. The medium is an authored mathematical
 idealization: pure Li-6 at `0.01 atom/barn-cm`, with no asserted physical
 temperature, in a 10 cm radius vacuum-bounded sphere. The source is one
-isotropic 0.0253 eV neutron at the center. All listed responses are per source
+isotropic 0.0253 eV neutron at the centre. All listed responses are per source
 neutron; the control does not apply a reactor source rate or volume
-normalization.
+normalisation.
 
 OpenMC 0.15.3 documents flux in particle-cm/source-particle, reaction rates in
 reactions/source-particle, `H3-production` as tritium-particle production, and
@@ -83,8 +83,8 @@ a hostile-code sandbox. The checker reopens the statepoint using OpenMC's
 Python API and rehashes the executable, library inputs, statepoint, and output
 tree.
 
-The 10-million-history local result is summarized in
+The 10-million-history local result is summarised in
 [`lithium-capture-control-verification.json`](../references/lithium-capture-control-verification.json).
 The statepoint itself and nuclear-data files remain local and ignored; the
 reference summary carries hashes and responses, not a redistributed simulation
-artifact.
+artefact.

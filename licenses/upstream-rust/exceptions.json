@@ -1,0 +1,21 @@
+{
+  "comment": "Accepted exceptions to LEG-014: packages whose licence text in docs/THIRD_PARTY_NOTICES.md comes from the upstream repository at the commit recorded in the published crate (.cargo_vcs_info.json), because the packaged crate holds no licence file for the package's own code. Each text is marked with its URL, stored in this folder and hash-checked (manifest.json); scripts/test_notice_sources.py requires this list to equal the set of URL-sourced entries.",
+  "packages": {
+    "accesskit 0.24.1": "published crate has no licence file; repository workspace root holds LICENSE-MIT and LICENSE-APACHE",
+    "ecolor 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "eframe 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "egui 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "egui-wgpu 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "egui-winit 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "egui_glow 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "emath 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "epaint 0.36.2": "published crate has no licence file; egui workspace root holds the texts",
+    "epaint_default_fonts 0.36.2": "published crate packages the font licences only, not the licence of the crate's own code; egui workspace root holds the texts",
+    "gl_generator 0.14.0": "published crate has no licence file; gl-rs repository holds LICENSE (Apache-2.0)",
+    "khronos_api 3.1.0": "published crate has no licence file; gl-rs repository holds LICENSE (Apache-2.0)",
+    "krilla 0.8.2": "published crate packages only the ICC profile licence (icc/LICENSE), not the licence of the crate's own code",
+    "krilla-svg 0.8.1": "published crate has no licence file; krilla repository holds LICENSE_MIT and LICENSE_APACHE",
+    "profiling 1.0.18": "published crate has no licence file; repository holds the texts",
+    "spirv 0.4.0+sdk-1.4.341.0": "published crate has no licence file; rspirv repository holds LICENSE (Apache-2.0)"
+  }
+}

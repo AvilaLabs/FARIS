@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::history::{
     DrivingCovariance, ELEMENTARY_CHARGE_J_PER_EV, RegionFluxRate, ScalarRate,

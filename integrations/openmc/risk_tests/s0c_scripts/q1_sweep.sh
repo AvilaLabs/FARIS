@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Q1 resolution sweep: for each spacing, windows by random ray then a 120 s production, all on cores 0-3 at 4 threads.
 B=/home/connoravila/.cache/avila-night/cad-risk-tests/s0c
 RT=/home/connoravila/.cache/avila-night/faris-wt/s0c/integrations/openmc/risk_tests

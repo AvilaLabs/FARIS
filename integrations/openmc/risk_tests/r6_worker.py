@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """One R6 step on one OpenMC version. Run by r6_version.py under the memory cap.
 
     r6_worker.py generate --model-dir D --run-dir R --out step.json     (MGXS, random-ray FW-CADIS, window file, short windowed run)

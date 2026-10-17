@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The two-page US Letter summary. Text is drawn as real text in the app's
 //! fonts (embedded, subset); charts are the exported SVGs drawn as vectors.
 

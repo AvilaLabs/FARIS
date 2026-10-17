@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Build the seed corpus for the fuzz targets (QA-033) from the repository's own fixtures.
 
     python3 scripts/fuzz_seed.py [--out fuzz/corpus]

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The semantic diff of two `.faris` study files (COL-020, COL-022, COL-023, COL-024).
 //!
 //! The comparison is made from the manifests first: two blobs with the same SHA-256 are the same

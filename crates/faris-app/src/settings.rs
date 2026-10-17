@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The desktop's small settings file: where the six external tools are (so nobody retypes them),
 //! the folders the design windows last used and the folders "Find tools" also searches.
 //!

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Write manifest.json for the ITER_1D code-to-code case from references/iter-1d-reference.json
 (the identities FARIS already registered, requirement VAL-044). No run is made and no
 benchmark file is read from or copied into this repository.

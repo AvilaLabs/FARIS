@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris waste`: classify an activated component's inventory under a regime you choose (10 CFR 61.55,
 //! IAEA clearance, UK waste thresholds, UK out-of-scope values, Fetter limits), give its IAEA
 //! clearance index and time, and its recycling index. Every command prints one JSON document.

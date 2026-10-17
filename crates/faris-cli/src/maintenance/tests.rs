@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 // Synthetic decay curve for a test input; not an evidence computation.
 #![allow(clippy::disallowed_methods)]
 

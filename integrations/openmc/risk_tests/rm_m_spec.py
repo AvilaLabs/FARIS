@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Dimensions, labels and poloidal profile geometry of the reference model RM-M.
 
 Pure Python (standard library only): this module defines what RM-M is, labels

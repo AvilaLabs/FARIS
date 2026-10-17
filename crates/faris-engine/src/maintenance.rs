@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Computed maintenance durations: the coupling loop of `scripts/maintenance_coupling_test.py`
 //! in Rust. A replacement outage is the cooldown of the components around the replaced part
 //! (until their decay heat per volume falls to q*) plus the work time; the operating history

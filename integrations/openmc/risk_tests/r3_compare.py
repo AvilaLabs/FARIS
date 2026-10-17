@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3 comparison of D1S and mesh-based R2S (numpy only).
 
     r3_compare.py --r2s DIR --d1s DIR --out results-r3.json

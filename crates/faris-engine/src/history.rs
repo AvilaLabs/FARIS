@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Deterministic, event-aware operating-history ledger.
 
 use crate::comparison::{MARGIN_BAND_SIGMAS, first_crossing_relative_uncertainty};

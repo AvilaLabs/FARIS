@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Writes one real `.faris` study file for the fuzz seed corpus: `study_seed <out.faris>`.
 
 use faris_study::{StudyDraft, ViewState, write_study};

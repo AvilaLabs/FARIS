@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """R3 follow-ups (docs/notes/CAD_TRANSPORT_RISK_TESTS.md): mesh R2S rerun from R3's stored neutron model file.
 
     r3p_r2s_rerun.py --r3-r2s DIR --out-dir R [r3_r2s.py options] [--groups NAME] [--voxel-cm 10]

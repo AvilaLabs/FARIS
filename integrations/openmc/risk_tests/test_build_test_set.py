@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Fast tests of the parameter helpers of build_test_set.py (standard library; the classifier test needs numpy)."""
 import copy
 import json

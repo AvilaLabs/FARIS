@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The operating-assumption presets offered next to the loaded assumptions, and
 //! how a recorded preset plus edited what-if values select the assumptions a
 //! study was last viewed with. Study files record the stable id; files saved

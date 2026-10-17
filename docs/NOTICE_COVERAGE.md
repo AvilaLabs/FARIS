@@ -14,9 +14,10 @@ need 70 packages that the committed file lacks (38 for Windows, 45 for macOS; so
 produced at packaging time by the workflow; they are listed here so a reviewer can see what the other platforms add and
 check each declared licence.
 
-This is a point-in-time list, not a generated check. Regenerate it with the commands above whenever `Cargo.lock`
-changes. The requirement that the committed notices cover every shipped platform (LEG-013) is met only when a script
-compares each platform's notices with its graph; that script does not exist yet.
+This list is a point-in-time record. The check is `scripts/check_platform_notices.py`: it compares a notices file with the
+packages of one platform's `cargo metadata --filter-platform` graph and fails on any missing, extra or textless entry. CI
+runs it on the committed Linux file (`docs/THIRD_PARTY_NOTICES.md`), and the desktop workflow runs it on the notices it
+collects for each shipped platform, so the notices of Windows, macOS and Linux each match their own graph (LEG-013).
 
 | Package | Declared licence |
 | --- | --- |

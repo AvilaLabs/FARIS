@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! Background Monte Carlo ensembles of the operating history.
 //!
 //! After the nominal histories of the loaded arrangements are calculated, the

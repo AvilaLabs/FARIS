@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Shared constants and rules for stage S0d (docs/notes/CAD_TRANSPORT_S0D.md).
 
 The rule functions are pure so test_s0d.py can check them without OpenMC. The OpenMC helpers take the module as an

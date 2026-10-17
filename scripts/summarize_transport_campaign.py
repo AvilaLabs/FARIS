@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Summarize a transport campaign from its run records, for the release support files.
 
 For each run: identity hashes, sampling plan, wall time, and the mean, standard

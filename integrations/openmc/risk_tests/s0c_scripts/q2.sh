@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Q2 (alone, 8 threads): cold start breakdown, then two warm previews of 60 s with the same seed, in one openmc.lib process.
 B=/home/connoravila/.cache/avila-night/cad-risk-tests/s0c
 RT=/home/connoravila/.cache/avila-night/faris-wt/s0c/integrations/openmc/risk_tests

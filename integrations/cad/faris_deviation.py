@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """GEO-032: the faceting deviation of a converted model from the CAD solids.
 
 The sample points are the centroids of a solid's triangles and the midpoints of their edges

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! `faris history` prints the research-screening statement after writing a
 //! result, and leaves the result file's bytes (receipt-bound) alone.
 

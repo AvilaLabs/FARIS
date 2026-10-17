@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # cores 0-3: D2 analog reference, then the five G0..G4 productions (windows from G0 for G3/G4)
 export PY=/home/connoravila/micromamba/envs/openmc0153dd/bin/python
 source /home/connoravila/.cache/avila-night/cad-risk-tests/s0b/common.sh

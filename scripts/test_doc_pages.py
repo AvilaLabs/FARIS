@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Checks on the documentation pages themselves: kind labels, the licence footer and the limitations page."""
 import re
 import unittest

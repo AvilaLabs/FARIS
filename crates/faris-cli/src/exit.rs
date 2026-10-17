@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: 2026 Avila Labs
 //! The command line's exit codes (AUTO-004): one per failure class, so a script can tell
 //! a bad argument from a rejected file from a solver that failed without reading text.
 //! `docs/USER_GUIDE.md` lists them; `EXIT_CODES` is the single table both the help text

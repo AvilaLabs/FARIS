@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Weight windows reach OpenMC as an HDF5 file, not as XML text, and give the same answer as the text did.
 
 On a large machine the windows' bounds are hundreds of megabytes of XML (475,695 voxels x 17 groups, lower and

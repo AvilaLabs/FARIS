@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """S0e driver: E-smoke, E0, E1, E2, E3 if the rules ask for it, inside the 75 min cap; then the rules.
 
     s0e_run.py --scratch ~/.cache/avila-night/cad-risk-tests/s0e

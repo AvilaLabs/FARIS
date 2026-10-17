@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Do weight windows change the answer? A paired windowed-against-analogue run on a small slab (NUC-051).
 
 The case is a 14.1 MeV neutron beam through 30 cm of iron (Fe56) and 30 cm of hydrogen (H1) into an empty

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Writes the two smoke-test models used by the Windows native spike.
 
 Run once with an OpenMC 0.15.3 Python environment; the generated XML is committed so the

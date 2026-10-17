@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Tests for the UX-079 baseline driver's logic (cad_to_answer_baseline). Standard library only."""
 
 import json
