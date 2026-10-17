@@ -424,11 +424,11 @@ pub static REGISTRY: &[SettingDef] = &[
     ),
     def(
         "ui.theme",
-        ValueType::Choice(&["system", "light", "dark"]),
+        ValueType::Choice(&["system", "light", "dark", "high-contrast"]),
         Some("system"),
         "",
         None,
-        "Colour theme. Reserved for the desktop, which does not read it yet.",
+        "Colour theme, read by the desktop at start. high-contrast is white on black with 7 to 1 text contrast; system, dark and light all give the ordinary dark theme for now.",
     ),
     def(
         "backups.keep",

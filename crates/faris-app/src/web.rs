@@ -69,6 +69,9 @@ const DEMO_BASE: &str = "demo/";
 const DEMO_ROOT: &str = "/demo";
 const DISCLAIMER_KEY: &str = "faris-browser-notice-seen";
 const TOUR_KEY: &str = "faris-tour-completed";
+/// Browser storage key of the colour theme (`default` or `high-contrast`), the browser's
+/// counterpart of the `ui.theme` setting.
+const THEME_KEY: &str = "faris-theme";
 
 /// The list of files that make up the bundled study.
 #[derive(Deserialize)]
@@ -484,6 +487,7 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
         sha256,
     });
 
+    let theme = crate::theme::Theme::from_setting(storage_get(THEME_KEY).as_deref());
     let tour_seen = storage_get(TOUR_KEY).is_some();
     let notice_seen = storage_get(DISCLAIMER_KEY).is_some();
     let sweep_files = manifest.sweep;
@@ -507,10 +511,7 @@ async fn boot(canvas: web_sys::HtmlCanvasElement) -> Result<(), String> {
                 if let Ok(mut held) = SURFACE_CONTEXT.lock() {
                     *held = Some(cc.egui_ctx.clone());
                 }
-                let mut visuals = egui::Visuals::dark();
-                visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
-                visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
-                cc.egui_ctx.set_visuals(visuals);
+                crate::theme::install(&cc.egui_ctx, theme);
                 cc.egui_ctx.all_styles_mut(crate::apply_text_sizes);
                 mark("boot: creating the app");
                 let mut app = FarisApp::new(

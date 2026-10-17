@@ -1196,7 +1196,11 @@ impl HistoryPanel {
                     "{glyph} {}",
                     arrangement_label(s.port, s.breeder)
                 ))
-                .color(if visible { color } else { egui::Color32::GRAY });
+                .color(if visible {
+                    crate::theme::pill_text(color)
+                } else {
+                    crate::theme::palette().text_weak
+                });
                 if is_active {
                     text = text.strong();
                 }
@@ -1204,13 +1208,17 @@ impl HistoryPanel {
                     .add(
                         egui::Button::new(text)
                             .fill(if visible {
-                                color.gamma_multiply(0.16)
+                                crate::theme::pill_fill(color)
                             } else {
                                 egui::Color32::TRANSPARENT
                             })
                             .stroke(egui::Stroke::new(
                                 if is_active { 1.6 } else { 1.0 },
-                                color.gamma_multiply(if visible { 0.9 } else { 0.35 }),
+                                if visible {
+                                    crate::theme::pill_border(color)
+                                } else {
+                                    crate::theme::palette().control_border
+                                },
                             ))
                             .corner_radius(10.0),
                     )
@@ -1409,12 +1417,13 @@ impl HistoryPanel {
             egui::Sense::click_and_drag(),
         );
         let painter = ui.painter_at(outer);
-        painter.rect_filled(outer, 4.0, egui::Color32::from_rgb(24, 26, 31));
+        painter.rect_filled(outer, 4.0, crate::theme::palette().plot);
         let area = egui::Rect::from_min_max(
             outer.min + egui::vec2(78.0, 26.0),
             outer.max - egui::vec2(18.0, 34.0),
         );
-        let text_color = egui::Color32::from_gray(190);
+        let text_color = crate::theme::palette().chart_text;
+        let axis_color = crate::theme::palette().chart_axis;
         let grid_color = egui::Color32::from_white_alpha(14);
         let limit = self.results.get(active).and_then(|h| {
             (plot == Plot::MagnetFluence)
@@ -1486,16 +1495,16 @@ impl HistoryPanel {
                     egui::pos2(x, area.bottom()),
                     egui::pos2(x, area.bottom() + if major { 4.0 } else { 2.0 }),
                 ],
-                egui::Stroke::new(1.0, text_color.gamma_multiply(0.6)),
+                egui::Stroke::new(1.0, axis_color),
             );
         }
         painter.line_segment(
             [area.left_bottom(), area.right_bottom()],
-            egui::Stroke::new(1.0, text_color.gamma_multiply(0.7)),
+            egui::Stroke::new(1.0, axis_color),
         );
         painter.line_segment(
             [area.left_top(), area.left_bottom()],
-            egui::Stroke::new(1.0, text_color.gamma_multiply(0.7)),
+            egui::Stroke::new(1.0, axis_color),
         );
         painter.text(
             egui::pos2(area.center().x, outer.bottom() - 4.0),
@@ -1509,7 +1518,7 @@ impl HistoryPanel {
             egui::Align2::LEFT_TOP,
             plot.title(),
             egui::FontId::proportional(12.0),
-            egui::Color32::from_gray(225),
+            crate::theme::palette().chart_title,
         );
 
         // Replacement outages of the active arrangement only.
@@ -1920,7 +1929,7 @@ fn event_label(event: &HistoryEvent) -> String {
 /// is the lighter shade of each family (the engine owns the palette).
 pub fn arrangement_color(port: bool, breeder: bool) -> egui::Color32 {
     let [r, g, b] = Arrangement { port, breeder }.rgb();
-    egui::Color32::from_rgb(r, g, b)
+    crate::theme::series(egui::Color32::from_rgb(r, g, b))
 }
 
 pub fn arrangement_label(port: bool, breeder: bool) -> &'static str {
