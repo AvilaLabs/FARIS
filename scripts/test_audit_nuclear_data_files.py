@@ -88,6 +88,28 @@ class NuclearDataAudit(unittest.TestCase):
             nested = self.make_package(temp, {"manifest.json": b"{}"}, {"inputs/H1.h5": HDF5})
             self.assertTrue(any("inputs/H1.h5" in f for f in AUDIT.audit_package(nested)))
 
+    # Verifies: NUC-069
+    def test_every_real_study_package_written_by_the_rust_writer_holds_no_data_file(self):
+        fixtures = sorted((HERE.parent / "crates" / "faris-study" / "tests" / "fixtures").glob("*.faris"))
+        self.assertGreaterEqual(len(fixtures), 24)
+        for package in fixtures:
+            self.assertEqual(AUDIT.audit_package(package), [], package.name)
+
+    # Verifies: NUC-069
+    def test_a_data_file_added_to_a_real_package_is_found_by_the_command_line(self):
+        package = HERE.parent / "crates" / "faris-study" / "tests" / "fixtures" / "21-evidence-store-packed.faris"
+        with tempfile.TemporaryDirectory() as temp:
+            copy = Path(temp) / "tampered.faris"
+            with zipfile.ZipFile(package) as source, zipfile.ZipFile(copy, "w") as target:
+                for info in source.infolist():
+                    target.writestr(info, source.read(info))
+                target.writestr("evidence/library/Fe56.h5", HDF5)
+            self.assertEqual(len(AUDIT.audit_package(copy)), 1)
+            completed = subprocess.run(["python3", str(HERE / "audit_nuclear_data_files.py"), "--root", str(HERE.parent),
+                                        "--package", str(copy)], capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 1)
+            self.assertIn("Fe56.h5", completed.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
