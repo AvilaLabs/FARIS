@@ -39,7 +39,7 @@ written as v0.2.
 
 Core's verified execution means the declared workflow completed. A compiled
 contract or verified receipt does not qualify reactor physics. The physical
-breeding requirement requires scientific qualification and a supported bounded
+breeding requirement requires scientific assessment and a supported bounded
 claim; the current nominal response remains **NOT_EVALUATED**. Monte Carlo
 standard errors are retained in Rust artifacts and are not silently converted
 into confidence bounds. Fixture PASS/FAIL/INCONCLUSIVE states test software

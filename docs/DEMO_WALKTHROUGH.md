@@ -167,8 +167,7 @@ seconds per job. Linux execution inherits 4 GiB address-space and 256 MiB
 per-file limits; the runner monitors at most 512 MiB and 2,048 regular artifact
 files across its working/output roots. These are process/output ceilings, not a
 complete hostile-code sandbox or a measured production resource budget. The
-CLI reports execution separately from scientific
-qualification. Ctrl-C cancels the owned job; a partial directory is not a
+CLI reports execution separately from scientific assessment. Ctrl-C cancels the owned job; a partial directory is not a
 completed result.
 
 ```bash
@@ -263,7 +262,7 @@ python3 scripts/package_recorded_demo.py \
   --faris target/release/faris \
   --faris-app target/release/faris-app \
   --core /tmp/faris-demo-avila-core \
-  --core-source-repo ../project-north-star-blanket \
+  --core-source-repo ../<core-source-repo> \
   --core-source-revision d6e984a67b978b85206a50f24fef95a5a3ec18ee \
   --control-scenario scenarios/arc-inspired/cold-coupled-control.scenario.json \
   --control-reference-run runs/<control-reference>/run.json \

@@ -31,7 +31,7 @@ report with:
 python3 -m validation report --out DIR [--runs RUNS_DIR --identity identity.json]
 ```
 
-The report also carries the methods, the V&V matrix, the qualified ranges, the known issues and the last run date of each case. Add `--release-record FILE` to write its SHA-256 into the release record. The release gate that checks the matrix and the report is described in [RELEASING.md](RELEASING.md).
+The report also carries the methods, the V&V matrix, the covered ranges, the known issues and the last run date of each case. Add `--release-record FILE` to write its SHA-256 into the release record. The release gate that checks the matrix and the report is described in [RELEASING.md](RELEASING.md).
 
 `RUNS_DIR` holds `<case-id>.run.json` records. `identity.json` is the current
 `library_sha256`, `code_version` and `adapter_sha256`. Without run records every case
@@ -141,7 +141,7 @@ power). The Rust code reads `validation/matrix.json` at build time, so a result 
 
 | State | What it means for a reader |
 | --- | --- |
-| validated within range | A benchmark with an experimental reference was scored and agrees within its rule. It holds only inside the benchmark's qualified range, which is in the matrix row. |
+| validated within range | A benchmark with an experimental reference was scored and agrees within its rule. It holds only inside the benchmark's covered range, which is in the matrix row. |
 | validated but out of range | At least one scored benchmark detector FAILs its rule. Treat the number as unreliable until the cause is found. |
 | code-to-code only | The only agreement is with another code (shared nuclear data and geometry are listed). That is verification, not validation (VAL-041). |
 | not validated | No FARIS run has been scored against a benchmark that measures this quantity. The number is a calculation with a stated sampling error and nothing more. Today every quantity is in this state. |
@@ -170,7 +170,7 @@ quantity) or as not calculated (with the reason).
    and so the hashes are checked, not typed.
 3. Declare the detectors with their response class, reference value and uncertainty;
    the rule (`k`, covariance, basis, date); the normalisation fields of VAL-029; the
-   `not_covered` list (VAL-075); and the qualified-range fields (VAL-070). Anything
+   `not_covered` list (VAL-075); and the `qualified_range` fields (VAL-070). Anything
    unresolved is stated as blocked or unconfirmed, with why and next step, not guessed.
 4. Add a runner that produces a sealed run record, and a `--i-have-the-cpu` guard if it
    starts transport.

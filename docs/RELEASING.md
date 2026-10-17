@@ -23,7 +23,7 @@ condition passes. It uses only the Python standard library.
 | Reproducible build (QA-063) | evidence file with two builds' hashes per artifact |
 | 0 open S1 defects and 0 open S2 defects without a waiver (QA-083) | the defect log, `docs/defects/faris-defects.json`, passed as `--defects` (linted in CI by `scripts/defect_log.py`, QA-080) |
 
-A condition the script cannot decide from the repository takes a file as input and FAILS when the file is absent,
+A condition the script cannot decide from the repository takes a file as input and fails when the file is absent,
 empty, not valid JSON or for another commit. Nothing passes by default. The formats are in the script's header.
 
 Before a release, regenerate both matrices and commit them (`python3 -m validation matrix` then
@@ -167,6 +167,6 @@ committed `matrix.json` differs from what the registry and manifests generate.
 
 `python3 -m validation report --out DIR --release-record FILE` writes `report.json`, `report.md` and `report.sha256`,
 and records the report's SHA-256 in the release record. The report holds the methods, the matrix, the C/E
-distributions per case and response class, the qualified ranges, the known issues and the date of the last run of
+distributions per case and response class, the covered ranges, the known issues and the date of the last run of
 each benchmark (`run_date` in the run record). List every row labelled "not validated" in the release notes
 (VAL-051).
