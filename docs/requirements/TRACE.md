@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 411 of 1419 requirements.
+Traced: 412 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -15,7 +15,7 @@ Traced: 411 of 1419 requirements.
 | [03-activation-and-materials.md](03-activation-and-materials.md) | 97 | 52 |
 | [04-plant-systems.md](04-plant-systems.md) | 99 | 8 |
 | [05-operation-and-life.md](05-operation-and-life.md) | 45 | 5 |
-| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 27 |
+| [06-accuracy-and-validation.md](06-accuracy-and-validation.md) | 72 | 28 |
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 18 |
 | [08-performance.md](08-performance.md) | 37 | 6 |
 | [09-usability.md](09-usability.md) | 73 | 18 |
@@ -180,6 +180,7 @@ Traced: 411 of 1419 requirements.
 | VAL-029 | F2 | `validation/test_manifest.py::test_case_record_fields_are_required`<br>`validation/test_scoring.py::test_unconfirmed_normalisation_keeps_ce_but_blocks_pass` |
 | VAL-030 | F2 | `validation/test_report.py::test_markdown_carries_the_distribution_and_worst_case`<br>`validation/test_scoring.py::test_distribution_matches_hand_values`<br>`validation/test_scoring.py::test_single_detector_has_no_standard_deviation`<br>`validation/test_scoring.py::test_two_response_classes_are_kept_apart`<br>`validation/test_scoring.py::test_worst_case_is_named_and_first` |
 | VAL-031 | F2 | `validation/test_scoring.py::test_bias_interval_brackets_the_mean_and_is_deterministic`<br>`validation/test_scoring.py::test_bias_recovers_a_known_value_and_interval`<br>`validation/test_scoring.py::test_fewer_than_five_detectors_is_labelled_too_few`<br>`validation/test_scoring.py::test_too_few_resamples_refused`<br>`validation/test_scoring.py::test_two_response_classes_are_kept_apart` |
+| VAL-034 | F2 | `validation/test_checks.py::test_ceilings_must_be_authored_cite_the_rule_and_cover_every_response` |
 | VAL-035 | F2 | `validation/test_scoring.py::test_one_class_one_library_one_version_aggregates`<br>`validation/test_scoring.py::test_refuses_to_mix_classes_libraries_or_code_versions` |
 | VAL-036 | F2 | `validation/test_manifest.py::test_literature_context_must_be_labelled`<br>`validation/test_oktavian_runner.py::test_run_record_is_sealed_as_a_faris_run`<br>`validation/test_scoring.py::test_literature_record_is_never_scored`<br>`validation/test_scoring.py::test_run_record_is_hash_bound` |
 | VAL-037 | F2 | `scripts/test_release_gate.py::test_a_changed_model_source_or_case_makes_the_matrices_stale_and_blocks_the_gate`<br>`validation/test_models.py::test_a_model_added_to_the_models_file_has_no_committed_row`<br>`validation/test_models.py::test_a_tree_equal_to_its_generation_is_current`<br>`validation/test_models.py::test_changing_a_case_the_registry_or_the_rules_marks_the_matrices_stale`<br>`validation/test_models.py::test_changing_a_model_source_marks_the_model_stale`<br>`validation/test_scoring.py::test_changed_identity_marks_rows_stale`<br>`validation/test_scoring.py::test_rows_record_library_code_and_adapter` |
@@ -187,7 +188,7 @@ Traced: 411 of 1419 requirements.
 | VAL-044 | F2 | `validation/test_manifest.py::test_both_evidence_classes_are_covered_and_literature_is_context` |
 | VAL-050 | F2 | `validation/test_matrix.py::test_every_calculated_quantity_has_a_row` |
 | VAL-051 | F2 | `scripts/test_release_gate.py::test_a_blank_matrix_cell_blocks_the_gate`<br>`scripts/test_release_gate.py::test_the_gate_reports_a_good_matrix_and_a_missing_one`<br>`validation/test_matrix.py::test_a_quantity_missing_from_the_matrix_or_the_registry_diff_is_found`<br>`validation/test_matrix.py::test_a_quantity_with_no_benchmark_is_labelled_not_validated_with_a_reason`<br>`validation/test_matrix.py::test_blank_cells_are_found`<br>`validation/test_matrix.py::test_no_benchmark_row_that_claims_validation_is_refused` |
-| VAL-052 | F2 | `validation/test_matrix.py::test_a_scored_benchmark_carries_bias_and_a_run_status` |
+| VAL-052 | F2 | `validation/test_matrix.py::test_a_scored_benchmark_carries_bias_and_a_run_status`<br>`validation/test_matrix.py::test_bias_and_uncertainty_carry_a_kind_label_a_sign_and_k` |
 | VAL-054 | F2 | `crates/faris-engine/src/brief.rs::every_field_of_the_summaries_is_classed`<br>`crates/faris-engine/src/comparison.rs::every_number_of_a_history_and_its_comparison_is_classed`<br>`crates/faris-engine/src/design/transport.rs::a_report_without_marks_still_reads_and_shows_the_current_state`<br>`crates/faris-engine/src/design/transport.rs::every_number_of_the_transport_report_is_classed_and_every_calculated_one_has_a_state`<br>`crates/faris-engine/src/design/transport.rs::the_text_tags_each_calculated_number_and_explains_each_quantity_once`<br>`crates/faris-engine/src/history_ensemble/tests.rs::every_ensemble_output_name_is_classed`<br>`crates/faris-engine/src/transport.rs::every_number_of_the_receipt_is_classed_and_every_response_has_a_state`<br>`crates/faris-model/src/validation.rs::a_note_serialises_with_the_state_why_and_next_step`<br>`crates/faris-model/src/validation.rs::a_quantity_the_matrix_lacks_is_not_validated_with_a_reason_and_a_next_step`<br>`crates/faris-model/src/validation.rs::every_state_in_the_matrix_parses_and_every_quantity_has_a_note`<br>`crates/faris-model/src/validation.rs::rows_of_one_quantity_combine_with_the_failing_state_first`<br>`crates/faris-model/src/validation.rs::the_embedded_matrix_is_the_file_in_the_repository`<br>`crates/faris-model/src/validation.rs::the_quantity_enum_is_the_registry`<br>`crates/faris-model/src/validation.rs::the_tag_and_the_notes_block_say_the_state_why_and_next_step`<br>`crates/faris-report/src/tests.rs::every_calculated_column_of_the_tables_has_a_validation_column`<br>`crates/faris-report/src/tests.rs::the_ensemble_tables_carry_a_state_on_every_row`<br>`crates/faris-report/src/tests.rs::the_pdf_marks_calculated_numbers_and_prints_the_legend`<br>`crates/faris-report/src/tests.rs::the_validation_table_gives_the_why_and_next_step_of_every_quantity_once` |
 | VAL-055 | F2 | `crates/faris-report/src/tests.rs::every_calculated_column_of_the_tables_has_a_validation_column` |
 | VAL-056 | F4 | `validation/test_report.py::test_coverage_comes_with_its_list` |
@@ -416,7 +417,7 @@ Traced: 411 of 1419 requirements.
 | QA-082 | F1 | `scripts/test_docs_policy.py::test_the_committed_page_equals_a_fresh_generation` |
 | QA-085 | F1 | `scripts/test_defect_log.py::test_the_regression_test_must_exist`<br>`scripts/test_docs_policy.py::test_release_documents_exist_and_the_migration_template_has_before_and_after`<br>`scripts/test_docs_policy.py::test_the_defect_log_lint_already_rejects_a_fixed_defect_without_an_existing_test` |
 | QA-090 | F1 | `scripts/test_check_repository_size.py::test_small_tree_passes`<br>`scripts/test_nuclear_data_policy.py::test_a_listed_file_is_refused_when_large_changed_or_without_provenance`<br>`scripts/test_nuclear_data_policy.py::test_the_tracked_files_meet_the_rule`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks` |
-| QA-091 | F2 | `validation/test_checks.py::test_the_tree_passes_its_own_checks`<br>`validation/test_checks.py::test_vendored_upstream_file_is_found` |
+| QA-091 | F2 | `validation/test_checks.py::test_library_entries_need_hash_source_version_licence_and_no_redistribution`<br>`validation/test_checks.py::test_the_tree_passes_its_own_checks`<br>`validation/test_checks.py::test_vendored_upstream_file_is_found` |
 | QA-092 | F2 | `crates/faris-study/src/fixture_tests.rs::every_archived_fixture_opens_verifies_and_matches_its_summary` |
 | QA-093 | F2 | `scripts/test_check_stochastic_tests.py::test_a_malformed_marker_or_seed_is_found`<br>`scripts/test_check_stochastic_tests.py::test_a_marked_seeded_test_passes`<br>`scripts/test_check_stochastic_tests.py::test_a_stochastic_test_without_a_marker_is_found`<br>`scripts/test_check_stochastic_tests.py::test_the_repository_controls_have_no_findings` |
 | DOC-001 | F1 | `scripts/test_doc_pages.py::test_the_handbook_adds_the_licence_footer_to_every_page` |

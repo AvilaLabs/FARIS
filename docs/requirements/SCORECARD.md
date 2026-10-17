@@ -8,7 +8,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Scope | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| All requirements | 1419 | 83 | 599 | 702 | 35 | 411 | 29 % | 504 | 150 | 459 | 116 | 431 | 98 |
+| All requirements | 1419 | 88 | 595 | 701 | 35 | 412 | 29 % | 504 | 150 | 459 | 116 | 431 | 98 |
 
 ## By category
 
@@ -19,7 +19,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Activation, waste and materials](03-activation-and-materials.md) | 97 | 20 | 40 | 37 | 0 | 52 | 54 % | 39 | 6 | 39 | 9 | 12 | 5 |
 | [Plant systems](04-plant-systems.md) | 99 | 4 | 19 | 76 | 0 | 8 | 8 % | 46 | 17 | 26 | 5 | 19 | 6 |
 | [Operation and life](05-operation-and-life.md) | 45 | 3 | 9 | 33 | 0 | 5 | 11 % | 17 | 5 | 18 | 5 | 6 | 2 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 6 | 32 | 34 | 0 | 27 | 38 % | 18 | 6 | 20 | 17 | 27 | 5 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | 72 | 10 | 29 | 33 | 0 | 28 | 39 % | 18 | 6 | 20 | 17 | 27 | 5 |
 | [Uncertainty](07-uncertainty.md) | 61 | 2 | 22 | 37 | 0 | 18 | 30 % | 10 | 3 | 14 | 8 | 29 | 2 |
 | [Performance](08-performance.md) | 37 | 1 | 13 | 17 | 6 | 6 | 16 % | 15 | 7 | 15 | 3 | 7 | 0 |
 | [Usability](09-usability.md) | 73 | 0 | 34 | 36 | 3 | 18 | 25 % | 37 | 12 | 30 | 10 | 5 | 6 |
@@ -34,7 +34,7 @@ Counts come from the requirement tables in this directory. The Now column is rec
 | [Reliability](18-reliability.md) | 38 | 3 | 21 | 13 | 1 | 15 | 39 % | 7 | 4 | 8 | 1 | 27 | 3 |
 | [Security](19-security.md) | 55 | 8 | 29 | 17 | 1 | 23 | 42 % | 14 | 3 | 7 | 0 | 36 | 10 |
 | [Platforms and distribution](20-platforms-and-distribution.md) | 45 | 3 | 25 | 17 | 0 | 11 | 24 % | 5 | 2 | 6 | 1 | 33 | 7 |
-| [Quality assurance](21-quality-assurance.md) | 77 | 3 | 37 | 36 | 1 | 25 | 32 % | 16 | 13 | 23 | 7 | 34 | 7 |
+| [Quality assurance](21-quality-assurance.md) | 77 | 4 | 36 | 36 | 1 | 25 | 32 % | 16 | 13 | 23 | 7 | 34 | 7 |
 | [Documentation and learning](22-documentation-and-learning.md) | 45 | 0 | 24 | 20 | 1 | 15 | 33 % | 13 | 1 | 22 | 11 | 4 | 2 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | 36 | 3 | 23 | 8 | 2 | 15 | 42 % | 13 | 3 | 2 | 1 | 21 | 2 |
 
@@ -42,8 +42,8 @@ Counts come from the requirement tables in this directory. The Now column is rec
 
 | Phase | Requirements | Met | Partial | No | Unmeasured | Traced | Traced % | [V] | [U] | FARIS choice | [internal] | No basis | Provisional |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| F1 | 445 | 45 | 300 | 83 | 17 | 223 | 50 % | 132 | 31 | 107 | 53 | 186 | 24 |
-| F2 | 497 | 27 | 225 | 229 | 16 | 158 | 32 % | 174 | 56 | 189 | 51 | 122 | 37 |
+| F1 | 445 | 46 | 299 | 83 | 17 | 223 | 50 % | 132 | 31 | 107 | 53 | 186 | 24 |
+| F2 | 497 | 31 | 222 | 228 | 16 | 159 | 32 % | 174 | 56 | 189 | 51 | 122 | 37 |
 | F3 | 66 | 1 | 8 | 57 | 0 | 4 | 6 % | 34 | 10 | 20 | 3 | 9 | 4 |
 | F4 | 173 | 6 | 32 | 133 | 2 | 12 | 7 % | 65 | 15 | 62 | 8 | 41 | 9 |
 | F5 | 33 | 3 | 5 | 25 | 0 | 4 | 12 % | 16 | 8 | 12 | 1 | 5 | 2 |
