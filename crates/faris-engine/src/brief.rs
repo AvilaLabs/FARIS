@@ -1417,6 +1417,53 @@ mod tests {
         );
     }
 
+    fn service_limit_kinds(history: &HistoryResult, preset: Option<f64>) -> Vec<StatusKind> {
+        assumption_rows(history, 100.0, preset)
+            .into_iter()
+            .filter(|r| r.name.contains("service limit"))
+            .map(|r| r.kind)
+            .collect()
+    }
+
+    // Verifies: PRV-011
+    #[test]
+    fn a_kind_label_follows_the_inputs_it_is_derived_from() {
+        let mut history = regional_history(
+            [(1.0e10, 1.0e8), (2.0e10, 4.0e8), (5.0e10, 1.0e10)],
+            [3.0e11; 3],
+        );
+        assert_eq!(
+            service_limit_kinds(&history, None),
+            vec![StatusKind::Literature; 3]
+        );
+        assert_eq!(magnet_limit(&history, None), Some((3.0e11, true)));
+        // Editing the recorded provenance of one limit changes that row's label and the
+        // magnet limit's, and nothing else is needed.
+        history.assumptions.service_limits[1].provenance = "authored by the user".into();
+        assert_eq!(
+            service_limit_kinds(&history, None),
+            vec![
+                StatusKind::Literature,
+                StatusKind::Authored,
+                StatusKind::Literature
+            ]
+        );
+        assert_eq!(magnet_limit(&history, None), Some((3.0e11, false)));
+        history.assumptions.service_limits[1].provenance = "literature, restored".into();
+        assert_eq!(
+            service_limit_kinds(&history, None),
+            vec![StatusKind::Literature; 3]
+        );
+        // Moving a limit away from the selected preset relabels it too.
+        assert_eq!(
+            service_limit_kinds(&history, Some(1.0e11)),
+            vec![StatusKind::Authored; 3]
+        );
+        // The text of a label comes from the kind and from nothing else.
+        let kinds = service_limit_kinds(&history, Some(1.0e11));
+        assert_eq!(kinds[0].label(), "authored");
+    }
+
     fn regional_history(fluxes: [(f64, f64); 3], limits: [f64; 3]) -> HistoryResult {
         use crate::history::{RegionFluxRate, ScalarRate, run_operating_history};
         use faris_model::history::ServiceLimit;

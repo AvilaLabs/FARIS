@@ -37,6 +37,27 @@ class InstallSizeTests(unittest.TestCase):
         self.assertLess(text.index("check_install_size.py"), text.index("actions/upload-artifact"))
         self.assertIn("LIMIT_MB = 150", SCRIPT.read_text(encoding="utf-8"))
 
+    # Verifies: PLAT-026
+    def test_the_install_is_timed_and_a_slow_install_fails(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            (root / "bin").mkdir()
+            (root / "bin" / "faris").write_bytes(bytes(1_000_000))
+            done = run(root, "--time-install")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertRegex(done.stdout, r"installed in \d+\.\d\d s \(limit 60 s\)")
+            slow = run(root, "--time-install", "--limit-s", "0")
+            self.assertEqual(slow.returncode, 1)
+            self.assertIn("took longer than the limit", slow.stderr)
+            self.assertNotIn("installed in", run(root).stdout)
+
+    # Verifies: PLAT-026
+    def test_the_release_build_workflow_times_the_install(self):
+        text = DESKTOP.read_text(encoding="utf-8")
+        self.assertIn("python3 scripts/check_install_size.py out --time-install", text)
+        self.assertNotIn("--limit-s", text)
+        self.assertIn("LIMIT_S = 60", SCRIPT.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -419,7 +419,7 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         (None, _) if s.swaps == Some(0) => Cell {
             text: "none in horizon".into(),
             kind: StatusKind::Conditional,
-            label: "conditional".into(),
+            label: StatusKind::Conditional.label().into(),
             muted: false,
         },
         (None, _) => none("—"),
@@ -446,7 +446,7 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         Some((m, se)) => Cell {
             text: format!("{m:.4} ± {se:.4}"),
             kind: StatusKind::Calculated,
-            label: "calculated".into(),
+            label: StatusKind::Calculated.label().into(),
             muted: false,
         },
         None => none("—"),
@@ -455,7 +455,7 @@ fn comparison_cells(d: &ArrangementData) -> [Cell; 5] {
         Some((m, se)) => Cell {
             text: format!("{} ± {}", fmt_sig(m), fmt_sig(se)),
             kind: StatusKind::Calculated,
-            label: "calculated".into(),
+            label: StatusKind::Calculated.label().into(),
             muted: false,
         },
         None => none("—"),
@@ -510,7 +510,7 @@ fn delta_cells(c: &Contrast) -> [Option<(String, StatusKind, &'static str)>; 5] 
             Some(BandVerdict::Separated) => (StatusKind::Checked, "beyond 2σ bands"),
             Some(BandVerdict::Overlapping) => (StatusKind::Partial, "within 2σ bands"),
             Some(BandVerdict::NoBand) => (StatusKind::Conditional, "conditional · no band"),
-            None => (StatusKind::Conditional, "conditional"),
+            None => (StatusKind::Conditional, StatusKind::Conditional.label()),
         };
         Some((text, kind, label))
     };
@@ -607,7 +607,7 @@ fn page_one(cv: &mut Canvas, c: &PdfContent) -> f32 {
         let pw = cv.pill(
             MARGIN + 8.0 + text_width(FontKind::Body, "What the study says", 7.4) + 10.0,
             y + 4.2,
-            "conditional",
+            StatusKind::Conditional.label(),
             StatusKind::Conditional,
             6.2,
         );
@@ -868,9 +868,9 @@ fn page_two(cv: &mut Canvas, c: &PdfContent, k: f32) -> f32 {
         y += 12.0;
         for (kind, text) in &c.sweep_findings {
             let label = if *kind == StatusKind::Calculated {
-                "calculated"
+                StatusKind::Calculated.label()
             } else {
-                "conditional"
+                StatusKind::Conditional.label()
             };
             let size = 7.4 * k;
             cv.pill(MARGIN, y + 0.8, label, *kind, 5.8 * k);

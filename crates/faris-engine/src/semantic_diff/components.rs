@@ -322,7 +322,7 @@ pub fn geometry_summary(
             density_kg_m3: density,
             mass_kg: mass,
             representation: "analytic torus shell",
-            kind_label: "calculated",
+            kind_label: crate::brief::StatusKind::Calculated.label(),
             note,
         });
     }

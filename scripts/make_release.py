@@ -48,6 +48,9 @@ import time
 import zipfile
 from pathlib import Path, PurePosixPath
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scan_package  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 SECTION = re.compile(r"^## (\d+\.\d+\.\d+) — (.+)$")
 
@@ -279,6 +282,9 @@ def main() -> int:
         fail(f"Cargo.toml workspace version is {workspace_version()}, not {args.version}")
     notes, _date = changelog_section(args.version)
     app_files, evidence_files, platform_name = split_package(package, args.version)
+    problems = scan_package.scan(package)
+    if problems:
+        fail("the package scan (SEC-072) found " + "; ".join(problems[:5]))
     index = json.loads((package / "package-index.json").read_text(encoding="utf-8"))
     if "desktop_build" in index:
         check_retargeted_binaries(package, index, args.version, platform_name)
