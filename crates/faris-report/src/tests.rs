@@ -709,6 +709,19 @@ fn a_failed_export_leaves_no_folder_behind() {
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
 }
 
+// Verifies: MAT-019
+#[test]
+fn the_fluence_chart_names_its_fluence_a_proxy_and_never_a_dpa_or_a_life() {
+    let (_guard, outcome) = exported();
+    let svg = text(&outcome.folder, "charts/magnet-fluence-timeline.svg");
+    assert!(svg.contains("a transport proxy"));
+    assert!(svg.contains("not dpa and not a service life"));
+    assert!(faris_model::FLUENCE_PROXY_NOTE.contains("proxy"));
+    let lower = svg.to_lowercase();
+    assert!(!lower.contains("displacement"));
+    assert!(!lower.contains("lifetime"));
+}
+
 // Verifies: VIS-041
 #[test]
 fn charts_are_written_as_svg_and_png_from_the_same_drawing() {

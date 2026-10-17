@@ -30,6 +30,11 @@ pub const MAX_LAYERS_PER_VARIANT: usize = 64;
 pub const RESEARCH_SCREENING_STATEMENT: &str =
     "Research screening only. These results are not a licensing, safety or design basis.";
 
+/// How a fluence shown beside a service limit is named wherever it is displayed (requirement MAT-019): the
+/// energy-integrated component-average flux times time is a transport proxy, never dpa and never a life.
+pub const FLUENCE_PROXY_NOTE: &str =
+    "energy-integrated flux × time, a transport proxy: not dpa and not a service life";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ScenarioError {
     #[error("scenario file: {0}")]

@@ -661,7 +661,7 @@ impl StudyReader {
         self.verify_structure()?;
         if self.embedded.is_some() {
             // Extract into a scratch folder and check it as a store would be.
-            let scratch = tempfile::tempdir().map_err(|e| {
+            let scratch = faris_engine::scratch::tempdir("faris-verify-").map_err(|e| {
                 StudyError::io("cannot create a scratch folder to verify evidence", e)
             })?;
             self.extract_embedded_store(scratch.path())?;

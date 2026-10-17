@@ -230,6 +230,7 @@ pub fn timeline_chart(
         &title,
         &[
             "component-average neutron fluence in the magnet envelope, n/m² · a swap resets it · conditional on authored assumptions",
+            &format!("Fluence here is {}", faris_model::FLUENCE_PROXY_NOTE),
         ],
     );
 

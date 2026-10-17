@@ -20,7 +20,7 @@ cxx = "=1.0.205"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-regex = { version = "1", default-features = false, features = ["std", "perf"] }
+regex = { workspace = true, features = ["std", "perf"] }
 nix = { workspace = true, features = ["resource"] }
 tempfile.workspace = true
 
