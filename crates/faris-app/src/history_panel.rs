@@ -39,7 +39,7 @@ mod uncertainty_view;
 const DEBOUNCE: Duration = Duration::from_millis(350);
 /// Upper bound on plotted points per series; scrubbing redraws every frame.
 const MAX_PLOT_POINTS: usize = 1500;
-const DAY_S: f64 = 86_400.0;
+const DAY_S: f64 = faris_model::units::DAY_S;
 
 type Histories = BTreeMap<String, HistoryResult>;
 
@@ -919,7 +919,7 @@ impl HistoryPanel {
                 if row_header(
                     ui,
                     "Magnet replacement duration",
-                    &format!("{days:.0} days"),
+                    &crate::quantity_text::quantity("time", "d", days * DAY_S, 0),
                     is_edited,
                 ) {
                     days = base_magnet_swap.unwrap_or(days);
@@ -993,7 +993,7 @@ impl HistoryPanel {
         if row_header(
             ui,
             "Processing delay",
-            &format!("{delay_days:.2} days"),
+            &crate::quantity_text::quantity("time", "d", delay_days * DAY_S, 2),
             is_edited,
         ) {
             delay_days = base_delay.unwrap_or(delay_days);
@@ -1344,7 +1344,10 @@ impl HistoryPanel {
         let next = spans.iter().find(|(start, _)| *start > t);
         let next_text = match (in_progress, next) {
             (true, _) => "underway".to_string(),
-            (false, Some((start, _))) => format!("in {:.1} y", (start - t) / JULIAN_YEAR_SECONDS),
+            (false, Some((start, _))) => format!(
+                "in {}",
+                crate::quantity_text::quantity("service_time", "yr", start - t, 1)
+            ),
             (false, None) => format!("none before {horizon_years:.0} y"),
         };
         ui.horizontal_wrapped(|ui| {
@@ -1361,7 +1364,7 @@ impl HistoryPanel {
             badge::metric(
                 ui,
                 "Usable tritium",
-                &format!("{:.2} kg", snapshot.available_tritium_kg),
+                &crate::quantity_text::quantity("mass", "kg", snapshot.available_tritium_kg, 2),
                 Kind::Calculated,
                 &format!(
                     "Usable stock; {:.3} kg is still in processing. Conditional on authored recovery and delay.",

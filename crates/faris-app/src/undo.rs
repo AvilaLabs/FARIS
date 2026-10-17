@@ -701,7 +701,7 @@ impl History {
 
 /// Clock time of a unix second count, "12:03:45 UTC".
 pub fn clock(unix: f64) -> String {
-    let s = (unix.max(0.0) as u64) % 86_400;
+    let s = (unix.max(0.0) as u64) % faris_model::units::DAY_S as u64;
     format!("{:02}:{:02}:{:02} UTC", s / 3600, (s / 60) % 60, s % 60)
 }
 

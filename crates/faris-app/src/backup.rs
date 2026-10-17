@@ -177,7 +177,7 @@ pub fn age_text(now_unix: u64, then_unix: u64) -> String {
         0..=59 => format!("{s} s ago"),
         60..=3599 => format!("{} min ago", s / 60),
         3600..=86_399 => format!("{} h ago", s / 3600),
-        _ => format!("{} days ago", s / 86_400),
+        _ => format!("{} days ago", s / faris_model::units::DAY_S as u64),
     }
 }
 

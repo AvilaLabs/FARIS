@@ -5,12 +5,15 @@
 //!
 //! Method notes with sources: `docs/guide/tally-statistics.md`.
 
-use crate::transport::{NormalizedTransportResult, RawEnergySpectrum, ResponseCovariance};
+use crate::transport::{
+    NormalizedTally, NormalizedTransportResult, RawEnergySpectrum, ResponseCovariance,
+};
 use faris_model::interval_display::{IntervalConvention, display_bounds, format_with_uncertainty};
 use faris_model::tally_statistics::{
     CostBasis, ErrorAgreement, MeshConvergence, TallyHealth, TallyInterval, TallyKind, TallyStatus,
     assess_tally, batch_error_agreement, combine_linear, mesh_convergence, tally_interval,
 };
+use faris_model::transport::ResponseDomain;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -399,10 +402,40 @@ pub fn spectrum_convergence(spectrum: &RawEnergySpectrum) -> Option<MeshConverge
     )
 }
 
+/// Convergence summary of a 3D mesh tally: the mean and standard error of every voxel of the
+/// mesh `mesh_id`, which has `voxels` bins. A bin with no result counts as unscored, never as
+/// converged. None when no result belongs to the mesh.
+pub fn mesh_tally_convergence(
+    results: &[NormalizedTally],
+    mesh_id: &str,
+    voxels: usize,
+) -> Option<MeshConvergence> {
+    let mut means = vec![0.0; voxels];
+    let mut errors = vec![0.0; voxels];
+    let mut any = false;
+    for result in results {
+        if let ResponseDomain::Mesh { mesh_id: id, bin } = &result.domain
+            && id == mesh_id
+            && let Ok(bin) = usize::try_from(*bin)
+            && bin < voxels
+        {
+            means[bin] = result.mean;
+            errors[bin] = result.standard_error;
+            any = true;
+        }
+    }
+    any.then(|| mesh_convergence(&means, &errors)).flatten()
+}
+
 /// The convergence summary as one line for a report.
 pub fn convergence_line(c: &MeshConvergence) -> String {
+    convergence_line_for(c, "bins")
+}
+
+/// The same line with the kind of cell counted ("bins" of a spectrum, "voxels" of a mesh).
+pub fn convergence_line_for(c: &MeshConvergence, noun: &str) -> String {
     format!(
-        "{} of {} bins ({:.1} %) have relative error of at most 10 %, {} ({:.1} %) at most 5 %; {} unscored, {} scored with fewer than 1000 effective scoring histories",
+        "{} of {} {noun} ({:.1} %) have relative error of at most 10 %, {} ({:.1} %) at most 5 %; {} unscored, {} scored with fewer than 1000 effective scoring histories",
         c.within_10_percent,
         c.voxels,
         100.0 * c.fraction_within_10_percent,

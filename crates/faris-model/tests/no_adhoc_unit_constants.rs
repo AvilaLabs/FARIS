@@ -70,6 +70,7 @@ fn no_unit_conversion_constants_outside_the_registry() {
         "faris-cli",
         "faris-report",
         "faris-study",
+        "faris-app",
     ] {
         sources(&crates.join(name).join("src"), &mut files);
     }

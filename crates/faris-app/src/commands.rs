@@ -932,8 +932,9 @@ impl FarisApp {
             });
         match tally {
             Some((mean, error)) => format!(
-                "Tritium breeding, {}: {mean:.4} ± {error:.4} H3 per source neutron (one Monte Carlo standard error). {}",
+                "Tritium breeding, {}: {} H3 per source neutron (one Monte Carlo standard error). {}",
                 crate::allocation_text(variant),
+                crate::quantity_text::measurement(mean, error),
                 crate::not_evaluated::NOT_QUALIFIED.line()
             ),
             None => format!(

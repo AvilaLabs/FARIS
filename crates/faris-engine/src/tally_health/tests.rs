@@ -215,6 +215,46 @@ fn the_sum_of_parts_uses_the_recorded_covariance_and_checks_the_total() {
 
 // Verifies: NUC-049
 #[test]
+fn a_mesh_tally_is_summarised_over_all_its_voxels() {
+    use crate::transport::{NormalizedTally, PhysicalUnit};
+    use faris_model::transport::{ResponseDomain, ScoreDefinition};
+    let voxel = |mesh: &str, bin: u64, mean: f64, error: f64| NormalizedTally {
+        response_id: format!("mesh-flux-{bin}"),
+        domain: ResponseDomain::Mesh {
+            mesh_id: mesh.into(),
+            bin,
+        },
+        score: ScoreDefinition::Flux,
+        estimator: TallyEstimator::Tracklength,
+        mean,
+        standard_error: error,
+        unit: PhysicalUnit::NeutronsPerSquareMetreSecond,
+        integrated_mean: mean,
+        integrated_standard_error: error,
+        integrated_unit: PhysicalUnit::NeutronMetresPerSecond,
+        volume_m3: 1.0,
+        volume_standard_error_m3: 0.0,
+    };
+    // Five voxels: 2 %, 4 %, 8 % and 20 % relative error, and bin 4 has no result at all.
+    // A voxel of another mesh and one past the end are ignored.
+    let results = vec![
+        voxel("m", 0, 1.0, 0.02),
+        voxel("m", 1, 1.0, 0.04),
+        voxel("m", 2, 1.0, 0.08),
+        voxel("m", 3, 1.0, 0.2),
+        voxel("other", 4, 1.0, 0.01),
+        voxel("m", 9, 1.0, 0.01),
+    ];
+    let c = mesh_tally_convergence(&results, "m", 5).unwrap();
+    assert_eq!((c.voxels, c.scored, c.unscored), (5, 4, 1));
+    assert_eq!((c.within_10_percent, c.within_5_percent), (3, 2));
+    let line = convergence_line_for(&c, "voxels");
+    assert!(line.contains("3 of 5 voxels (60.0 %)"), "{line}");
+    assert!(mesh_tally_convergence(&results, "none", 5).is_none());
+}
+
+// Verifies: NUC-049
+#[test]
 fn a_spectrum_is_summarised_by_its_converged_bins() {
     let spectrum = RawEnergySpectrum {
         component_id: "blanket".into(),
