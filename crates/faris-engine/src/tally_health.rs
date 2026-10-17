@@ -427,6 +427,18 @@ pub fn mesh_tally_convergence(
     any.then(|| mesh_convergence(&means, &errors)).flatten()
 }
 
+/// Convergence across the mesh voxels among `reports`: the responses a flux mesh writes, named
+/// `mesh-flux-<bin>`. None when the run has none.
+pub fn mesh_reports_convergence(reports: &[TallyReport]) -> Option<MeshConvergence> {
+    let voxels: Vec<_> = reports
+        .iter()
+        .filter(|r| r.response_id.starts_with("mesh-flux-"))
+        .collect();
+    let means: Vec<f64> = voxels.iter().map(|r| r.health.mean).collect();
+    let errors: Vec<f64> = voxels.iter().map(|r| r.health.standard_error).collect();
+    mesh_convergence(&means, &errors)
+}
+
 /// The convergence summary as one line for a report.
 pub fn convergence_line(c: &MeshConvergence) -> String {
     convergence_line_for(c, "bins")

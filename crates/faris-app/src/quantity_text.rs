@@ -92,6 +92,12 @@ fn choose_in(
     Ok(())
 }
 
+/// The text chosen for `key` (`units.system`, ...); None when nothing is set, which means each
+/// panel keeps its usual unit.
+pub fn chosen(key: &str) -> Option<String> {
+    with_choices(|choices| choices.value(key))
+}
+
 /// Forgets the choice for `key`, so the system default or the built-in default applies again.
 pub fn forget(key: &str) {
     let file = settings_file();
@@ -210,16 +216,95 @@ fn interval_text(p: &DisplayPrefs, value: f64, standard_error: f64, symbol: &str
     } else {
         format!(" {symbol}")
     };
-    let text = if pair.uncertainty.is_some() {
-        format!(
-            "{}{unit} ({})",
-            pair.text,
+    match (&pair.uncertainty, pair.exponent) {
+        // Written in plain form: both numbers take the decimal mark and the digit grouping.
+        (Some(error), None) => format!(
+            "{} ± {}{unit} ({})",
+            localize(p, &pair.value),
+            localize(p, error),
             IntervalConvention::OneSigma.label()
+        ),
+        (Some(_), Some(_)) => decimal_mark(
+            p,
+            format!(
+                "{}{unit} ({})",
+                pair.text,
+                IntervalConvention::OneSigma.label()
+            ),
+        ),
+        (None, _) => decimal_mark(p, format!("{}{unit}", pair.text)),
+    }
+}
+
+/// A plain decimal number rewritten with the format's decimal mark and grouping, keeping its digits.
+fn localize(p: &DisplayPrefs, number: &str) -> String {
+    let decimals = number.split_once('.').map_or(0, |(_, f)| f.len());
+    number
+        .parse::<f64>()
+        .map_or_else(|_| number.to_owned(), |x| p.number.fixed(x, decimals))
+}
+
+/// A relative standard error as `± 4.3 % (1 σ standard error)`.
+pub fn relative_error_with(p: &DisplayPrefs, fraction: f64) -> String {
+    format!(
+        "± {} % ({})",
+        p.number.fixed(100.0 * fraction, 1),
+        IntervalConvention::OneSigma.label()
+    )
+}
+
+pub fn relative_error(fraction: f64) -> String {
+    relative_error_with(&prefs(), fraction)
+}
+
+/// Scientific notation for a large or small quantity: in the unit the user chose, or in `habit`
+/// written as `habit_text` (for example `n/m2/s` shown as `n/m²/s`) while nothing is chosen.
+pub fn scientific_with(
+    p: &DisplayPrefs,
+    group: &str,
+    habit: &str,
+    habit_text: &str,
+    si: f64,
+    decimals: usize,
+) -> String {
+    if p.is_chosen(group) {
+        let unit = p.unit_for(group);
+        format!(
+            "{} {}",
+            p.number.scientific(unit.from_si(si), decimals),
+            unit.symbol
         )
     } else {
-        format!("{}{unit}", pair.text)
-    };
-    decimal_mark(p, text)
+        let unit = p.unit_or(group, habit);
+        format!(
+            "{} {habit_text}",
+            p.number.scientific(unit.from_si(si), decimals)
+        )
+    }
+}
+
+pub fn scientific(group: &str, habit: &str, habit_text: &str, si: f64, decimals: usize) -> String {
+    scientific_with(&prefs(), group, habit, habit_text, si, decimals)
+}
+
+/// An ISO date (`2026-10-15`) as the date format chosen writes it; text that is not an ISO date
+/// is returned as it is.
+pub fn date_with(p: &DisplayPrefs, iso: &str) -> String {
+    let mut parts = iso.trim().splitn(3, '-');
+    match (
+        parts.next().and_then(|y| y.parse::<i64>().ok()),
+        parts.next().and_then(|m| m.parse::<u32>().ok()),
+        parts.next().and_then(|d| d.parse::<u32>().ok()),
+    ) {
+        (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) && (1..=31).contains(&d) => {
+            p.date.render(y, m, d)
+        }
+        _ => iso.to_owned(),
+    }
+}
+
+pub fn date(iso: &str) -> String {
+    date_with(&prefs(), iso)
 }
 
 /// Reads text typed for a quantity of `group` and returns SI base units. A bare number is taken

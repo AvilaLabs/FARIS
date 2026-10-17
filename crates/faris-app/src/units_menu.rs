@@ -16,15 +16,23 @@ const ERROR_ID: &str = "units-menu-error";
 /// The Units menu of the top bar.
 pub fn menu(ui: &mut egui::Ui) {
     let current = text::prefs();
-    ui.menu_button(format!("Units: {}", current.system.name()), |ui| {
+    ui.menu_button(format!("Units: {}", text::chosen("units.system").unwrap_or_else(|| "usual".into())), |ui| {
         ui.label("Display units and number format");
         let mut problem: Option<String> = None;
+        let system = text::chosen("units.system");
+        if ui
+            .selectable_label(system.is_none(), "Usual units (per panel)")
+            .on_hover_text("Each panel keeps the unit it has always used (MW, d, yr, n/m2/s). Removes the unit-system setting.")
+            .clicked()
+        {
+            text::forget("units.system");
+        }
         for (value, label) in [
             ("si", "SI (m, s, W, J)"),
             ("fusion", "Fusion practical (MW, keV, cm, GWd, dpa)"),
         ] {
             if ui
-                .selectable_label(current.system.name() == value, label)
+                .selectable_label(system.as_deref() == Some(value), label)
                 .clicked()
             {
                 problem = text::choose("units.system", value).err();
@@ -118,7 +126,9 @@ pub fn entry_value(
 /// The value as a field shows it before it is edited: whole numbers without decimals.
 fn shown(p: &DisplayPrefs, group: &str, habit: &str, si: f64) -> String {
     let value = p.unit_or(group, habit).from_si(si);
-    if (value - value.round()).abs() < 1e-9 * value.abs().max(1.0) {
+    if value != 0.0 && !(1e-3..1e7).contains(&value.abs()) {
+        p.number.scientific(value, 3)
+    } else if (value - value.round()).abs() < 1e-9 * value.abs().max(1.0) {
         p.number.fixed(value, 0)
     } else {
         p.number.significant(value, 4)

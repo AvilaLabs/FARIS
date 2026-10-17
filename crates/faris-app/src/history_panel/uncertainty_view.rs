@@ -331,14 +331,29 @@ impl HistoryPanel {
             ui.colored_label(color, "   no uncertainty band here (no sample has a value)");
             return;
         };
-        ui.colored_label(
-            color,
-            format!(
-                "   P5–P95 {} to {}",
-                plot.format(lo * scale),
-                plot.format(hi * scale)
-            ),
-        );
+        let (lo, hi) = (lo * scale, hi * scale);
+        let middle = band.p50.get(index).copied().flatten().map(|m| m * scale);
+        // Digits from the narrower side of the band, with the percentile range named beside it.
+        let text = match middle.filter(|m| lo < *m && *m < hi) {
+            Some(m) => {
+                let (m, lo, hi, symbol) = plot.shown_triple(m, lo, hi);
+                format!(
+                    "{} {symbol}",
+                    faris_model::interval_display::display_bounds(
+                        m,
+                        lo,
+                        hi,
+                        faris_model::interval_display::IntervalConvention::Percentile {
+                            low: 5.0,
+                            high: 95.0
+                        },
+                        &[],
+                    )
+                )
+            }
+            None => format!("P5 to P95 range {} to {}", plot.format(lo), plot.format(hi)),
+        };
+        ui.colored_label(color, format!("   {text}"));
         let samples = ensemble.samples.len() as u32;
         if let Some(note) = band_coverage_note(band.n[index], samples) {
             ui.colored_label(color, format!("   {note}"));

@@ -103,10 +103,14 @@ fn finding_row(finding: &faris_model::design::Finding) -> FindingRow {
         location: finding
             .location_m
             .map(|p| format!("({:.6}, {:.6}, {:.6}) m", p[0], p[1], p[2])),
-        waived: finding
-            .waived
-            .as_ref()
-            .map(|w| format!("WAIVED by {} on {}: {}", w.author, w.date, w.reason)),
+        waived: finding.waived.as_ref().map(|w| {
+            format!(
+                "WAIVED by {} on {}: {}",
+                w.author,
+                crate::quantity_text::date(&w.date),
+                w.reason
+            )
+        }),
     }
 }
 
