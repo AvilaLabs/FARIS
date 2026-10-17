@@ -80,7 +80,7 @@ pub fn error_text(relative: Option<f64>) -> String {
 }
 
 fn flux_text(flux: f64) -> String {
-    crate::quantity_text::scientific("particle_flux", "n/m2/s", "n/m²/s", flux, 3)
+    crate::quantity_text::scientific("particle_flux", "n/m2/s", flux, 3)
 }
 
 pub fn status_word(status: LimitStatus) -> &'static str {
@@ -379,7 +379,7 @@ pub(crate) mod tests {
     fn every_number_carries_its_error_or_the_reason_it_has_none() {
         let view = result_view(&sample_report());
         assert_eq!(view.mean.error, "± 4.3 % (1 σ standard error)");
-        assert_eq!(view.mean.value, "2.000e14 n/m²/s");
+        assert_eq!(view.mean.value, "2.000e14 n/m2/s");
         let solid = view.highest_solid.unwrap();
         assert_eq!(solid.caption, "Highest solid: coil-b");
         assert!(

@@ -322,12 +322,12 @@ fn usual_units_is_the_choice_when_the_system_is_unset_and_returns_there_when_for
 fn a_chosen_unit_writes_large_quantities_in_scientific_form_and_otherwise_the_habit() {
     let none = prefs_of(&[]);
     assert_eq!(
-        scientific_with(&none, "particle_flux", "n/m2/s", "n/m²/s", 2.0e14, 3),
-        "2.000e14 n/m²/s"
+        scientific_with(&none, "particle_flux", "n/m2/s", 2.0e14, 3),
+        "2.000e14 n/m2/s"
     );
     let fusion = prefs_of(&[("units.system", "fusion")]);
     assert_eq!(
-        scientific_with(&fusion, "particle_flux", "n/m2/s", "n/m²/s", 2.0e14, 3),
+        scientific_with(&fusion, "particle_flux", "n/m2/s", 2.0e14, 3),
         "2.000e10 n/cm2/s"
     );
 }

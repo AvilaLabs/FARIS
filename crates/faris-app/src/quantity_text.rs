@@ -42,11 +42,23 @@ fn derive(
     DisplayPrefs::from_resolved(&resolved).unwrap_or_default()
 }
 
+/// The user settings file. Tests never read it: what the developer chose must not change them.
 fn settings_file() -> Option<std::path::PathBuf> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), not(test)))]
     return settings::default_path();
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", test))]
     None
+}
+
+/// An environment variable (FARIS_UNITS and the like); tests see none.
+fn env(name: &str) -> Option<std::ffi::OsString> {
+    #[cfg(not(test))]
+    return std::env::var_os(name);
+    #[cfg(test)]
+    {
+        let _ = name;
+        None
+    }
 }
 
 fn with_choices<T>(read: impl FnOnce(&mut Settings) -> T) -> T {
@@ -61,7 +73,7 @@ fn with_choices<T>(read: impl FnOnce(&mut Settings) -> T) -> T {
 /// chooses otherwise.
 pub fn prefs() -> DisplayPrefs {
     let file = settings_file().unwrap_or_default();
-    with_choices(|choices| derive(choices, &file, &|name| std::env::var_os(name)))
+    with_choices(|choices| derive(choices, &file, &env))
 }
 
 /// Chooses `key` (`units.system`, `units.<group>`, `format.decimal`, ...) for this session and,
@@ -81,9 +93,7 @@ fn choose_in(
 ) -> Result<(), String> {
     let mut trial = choices.clone();
     trial.set_value(key, text)?;
-    let resolved = trial.resolve(file.unwrap_or(Path::new("")), &|name| {
-        std::env::var_os(name)
-    });
+    let resolved = trial.resolve(file.unwrap_or(Path::new("")), &env);
     DisplayPrefs::from_resolved(&resolved).map_err(|p| p.join(" "))?;
     *choices = trial;
     if let Some(file) = file {
@@ -140,9 +150,7 @@ pub fn save_choice(file: &Path, key: &str, text: Option<&str>) {
 /// The preferences a settings file gives (SI and plain numbers when it chooses nothing).
 #[cfg(test)]
 pub fn prefs_from_file(file: &Path) -> DisplayPrefs {
-    derive(&settings::load(file).settings, file, &|name| {
-        std::env::var_os(name)
-    })
+    derive(&settings::load(file).settings, file, &env)
 }
 
 /// The number written in the unit shown for `group`, and the unit's symbol, always together
@@ -257,34 +265,25 @@ pub fn relative_error(fraction: f64) -> String {
     relative_error_with(&prefs(), fraction)
 }
 
-/// Scientific notation for a large or small quantity: in the unit the user chose, or in `habit`
-/// written as `habit_text` (for example `n/m2/s` shown as `n/m²/s`) while nothing is chosen.
+/// Scientific notation for a large or small quantity, in the unit the user chose or else in
+/// `habit`, always with the registry's symbol.
 pub fn scientific_with(
     p: &DisplayPrefs,
     group: &str,
     habit: &str,
-    habit_text: &str,
     si: f64,
     decimals: usize,
 ) -> String {
-    if p.is_chosen(group) {
-        let unit = p.unit_for(group);
-        format!(
-            "{} {}",
-            p.number.scientific(unit.from_si(si), decimals),
-            unit.symbol
-        )
-    } else {
-        let unit = p.unit_or(group, habit);
-        format!(
-            "{} {habit_text}",
-            p.number.scientific(unit.from_si(si), decimals)
-        )
-    }
+    let unit = p.unit_or(group, habit);
+    format!(
+        "{} {}",
+        p.number.scientific(unit.from_si(si), decimals),
+        unit.symbol
+    )
 }
 
-pub fn scientific(group: &str, habit: &str, habit_text: &str, si: f64, decimals: usize) -> String {
-    scientific_with(&prefs(), group, habit, habit_text, si, decimals)
+pub fn scientific(group: &str, habit: &str, si: f64, decimals: usize) -> String {
+    scientific_with(&prefs(), group, habit, si, decimals)
 }
 
 /// An ISO date (`2026-10-15`) as the date format chosen writes it; text that is not an ISO date
