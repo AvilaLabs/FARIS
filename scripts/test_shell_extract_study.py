@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """INT-002: the shell-only extraction script recovers the manifest and every blob of the archived study files."""
 import hashlib
 import json

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 # Recover a .faris study file with standard shell tools only (requirement INT-002): unzip and zipinfo for the entry
 # table, dd to cut each entry out of the container, zstd to decompress it, sha256sum and jq to check it. No FARIS
 # code and no Python. Info-ZIP unzip cannot decompress zip method 93 (zstd) itself, so the compressed bytes are cut

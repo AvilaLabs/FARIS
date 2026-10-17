@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Package scan for restricted tools and nuclear data (requirements SEC-072, LEG-016).
 
     python3 scripts/scan_package.py FOLDER_OR_ARCHIVE [...]

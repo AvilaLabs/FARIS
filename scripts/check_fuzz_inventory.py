@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """The parser inventory against the fuzz targets (requirement SEC-020).
 
     python3 scripts/check_fuzz_inventory.py
