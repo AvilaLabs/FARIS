@@ -66,15 +66,15 @@ A contribution is accepted under the licence of the project, AGPL-3.0-only, and 
 you state that you wrote it or have the right to submit it under that licence, as set out in the
 [Developer Certificate of Origin 1.1](https://developercertificate.org/).
 
-Say so by signing off every commit of a pull request from a fork:
+Say so by signing off every commit, the maintainers' included, from 18 October 2026 on:
 
 ```bash
 git commit -s
 ```
 
 This adds a `Signed-off-by: Your Name <you@example.org>` line, and the name and address must be those of the commit's
-author. The check `Rust checks / sign-off` in CI reads the commits of the pull request and fails when one is missing.
-Commits by the maintainers on branches of this repository are not covered by the check.
+author. The check `Rust checks / sign-off` in CI (`scripts/check_signoff.py`) reads the commits of every pull request
+and every push and fails when one is missing. Commits authored before that date are not checked.
 
 Do not add a third-party file, figure or data set without its licence text and a note in the notices
 (`docs/THIRD_PARTY_NOTICES.md`, `docs/NOTICE_COVERAGE.md`). New source files start with the line

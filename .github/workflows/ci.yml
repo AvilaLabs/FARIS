@@ -101,11 +101,13 @@ jobs:
         run: python3 scripts/defect_log.py
       - name: Tracked files stay small and hold no nuclear data
         run: python3 scripts/check_repository_size.py
+      - name: Larger data is fetched by a hash recorded in the manifest
+        run: python3 scripts/check_external_data.py
 
-  # Every commit of a pull request from a fork carries a Signed-off-by line whose address is the author's
-  # (LEG-005; the policy is in CONTRIBUTING.md). Branches of this repository are not checked.
+  # Every commit of a pull request or push carries a Signed-off-by line whose address is the author's, maintainers
+  # included, for commits authored from 18 October 2026 on (LEG-005; the policy is in CONTRIBUTING.md and the check
+  # is scripts/check_signoff.py).
   sign-off:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -115,24 +117,41 @@ jobs:
           persist-credentials: false
       - name: Commits are signed off by their authors
         env:
+          EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          status=0
-          for commit in $(git rev-list --no-merges "$BASE..$HEAD"); do
-            author=$(git show -s --format='%ae' "$commit")
-            if ! git show -s --format='%B' "$commit" | grep -i '^Signed-off-by: ' | grep -qiF "<${author}>"; then
-              echo "::error::Commit $commit has no Signed-off-by line for $author. Amend it with git commit -s --amend (see CONTRIBUTING.md)."
-              status=1
-            fi
-          done
-          exit $status
+          if [ "$EVENT" = pull_request ]; then
+            range="$BASE..$HEAD"
+          elif [ -n "$BEFORE" ] && [ -n "${BEFORE//0/}" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$BEFORE..$HEAD"
+          else
+            range="$HEAD"
+          fi
+          python3 scripts/check_signoff.py "$range"
+
+  # Requirement ids are never reused or dropped (QA-008) and every fixed S1 to S3 defect has its test at the fix
+  # commit (QA-085). Both read history, so this job fetches all of it with the tags; the main job's clone is shallow.
+  history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Requirement ids against the last release and every earlier commit
+        run: |
+          tag=$(git describe --tags --abbrev=0 --match 'v*')
+          python3 scripts/requirement_lint.py --against "$tag" --history
+      - name: Fixed defects have their test at the fix commit
+        run: python3 scripts/merge_audit.py
 
   # RustSec advisories against Cargo.lock (QA-039, SEC-031). A vulnerability, an unmaintained, unsound or yanked
   # crate fails the job unless scripts/audit_allowlist.json waives it with an owner, a reason and an expiry within
-  # 90 days; an expired or unused waiver fails too. cargo-deny would add banned crates, duplicate-version rules and
-  # a registry allow list in one config; the licence part is scripts/check_licences.py in the check job.
+  # 90 days; an expired or unused waiver fails too. cargo-deny (licences, bans, sources) is deny.yml, daily and on
+  # dependency changes; the licence policy also runs as scripts/check_licences.py in the check job.
   audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10

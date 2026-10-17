@@ -19,6 +19,9 @@ reads with `--defects` (scripts/release_gate.py, QA-083), so no separate evidenc
     disposition        what was wrong and what was done
     regression_test    fixed: "path/to/file::test_name", the file must exist and contain the name;
                        wont-fix: the reason; open: null is allowed
+    disclosed          YYYY-MM-DD the entry was first published on the known-issues page. An S1 that reached
+                       a release (affected_versions is not ["unreleased"]) needs it, no later than 7 days
+                       after `found` (QA-082); an open S1 without it fails once 7 days have passed
     waiver             optional, as the release gate defines it (open S2 only)
 
 Every problem is listed; exit status 1 if there is any. Upstream OpenMC drafts in docs/defects/*.md are not
@@ -30,7 +33,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -39,13 +42,14 @@ SEVERITIES = ("S1", "S2", "S3", "S4")
 STATUSES = ("open", "fixed", "wont-fix")
 ID = re.compile(r"^FARIS-\d{3,}$")
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+DISCLOSURE_DAYS = 7
 
 
 def text(value) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def lint_entry(d, root: Path) -> list[str]:
+def lint_entry(d, root: Path, today: date | None = None) -> list[str]:
     """The problems of one entry, each prefixed with its id."""
     if not isinstance(d, dict):
         return ["an entry is not an object"]
@@ -81,9 +85,32 @@ def lint_entry(d, root: Path) -> list[str]:
         out.extend(f"{name}: {p}" for p in test_problems(test, root))
     elif status == "wont-fix" and not text(test):
         bad("wont-fix but regression_test gives no reason")
+    out.extend(f"{name}: {p}" for p in disclosure_problems(d, today or date.today()))
     if d.get("waiver") is not None and not (status == "open" and d.get("severity") == "S2"):
         bad("a waiver applies only to an open S2 defect")
     return out
+
+
+def disclosure_problems(d: dict, today: date) -> list[str]:
+    """An S1 that reached a release is disclosed within 7 days of being found; a late one is a finding."""
+    if d.get("severity") != "S1" or d.get("affected_versions") == ["unreleased"]:
+        return []
+    try:
+        found = date.fromisoformat(d["found"])
+    except (KeyError, TypeError, ValueError):
+        return []  # reported as a bad date elsewhere
+    limit = found + timedelta(days=DISCLOSURE_DAYS)
+    if not text(d.get("disclosed")):
+        return [f"S1 has no disclosed date and {DISCLOSURE_DAYS} days have passed since {found}"] if today > limit else []
+    try:
+        disclosed = date.fromisoformat(d["disclosed"])
+    except ValueError:
+        return ["disclosed is not a YYYY-MM-DD date"]
+    if disclosed < found:
+        return [f"disclosed {disclosed} is before it was found ({found})"]
+    if disclosed > limit:
+        return [f"S1 disclosed {disclosed}, more than {DISCLOSURE_DAYS} days after {found}"]
+    return []
 
 
 def test_problems(test, root: Path) -> list[str]:
@@ -100,14 +127,14 @@ def test_problems(test, root: Path) -> list[str]:
     return []
 
 
-def lint(data, root: Path = ROOT) -> list[str]:
+def lint(data, root: Path = ROOT, today: date | None = None) -> list[str]:
     defects = data.get("defects") if isinstance(data, dict) else None
     if not isinstance(defects, list):
         return ["the log has no 'defects' list"]
     problems = []
     seen = set()
     for d in defects:
-        problems.extend(lint_entry(d, root))
+        problems.extend(lint_entry(d, root, today))
         ident = d.get("id") if isinstance(d, dict) else None
         if ident in seen:
             problems.append(f"{ident}: id is used twice")

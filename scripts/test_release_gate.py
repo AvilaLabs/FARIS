@@ -242,6 +242,26 @@ class ReleaseGate(unittest.TestCase):
                           ({**waiver, "expiry": (TODAY + timedelta(days=91)).isoformat()}, "more than 90 days"), ({**waiver, "expiry": "soon"}, "not a YYYY-MM-DD")):
             self.assertIn(text, gate_with([{"id": "D-2", "severity": "S2", "status": "open", "waiver": bad}])[1])
 
+    # Verifies: QA-072
+    def test_an_open_s2_defect_is_waived_in_the_waiver_file_by_its_id_under_the_same_rules(self):
+        make_root(self.d)
+        inputs = passing_inputs(self.d)
+        write(inputs["defects"], json.dumps({"defects": [{"id": "FARIS-020", "severity": "S2", "status": "open"}]}))
+        defects, waivers = "no open S1, no open S2 without a waiver", "gate waivers are complete and unexpired"
+        self.assertIn("no waiver recorded", results(rg.Gate(self.d, **inputs))[defects][1])
+        self.waiver_file(condition="FARIS-020")
+        res = results(rg.Gate(self.d, **inputs))
+        self.assertTrue(res[defects][0])
+        self.assertTrue(res[waivers][0])  # a defect id is a valid condition of a waiver
+        for fields, text in (({"owner": None}, "owner"), ({"expiry": str(TODAY - timedelta(days=1))}, "expired"),
+                             ({"expiry": str(TODAY + timedelta(days=91))}, "90 days")):
+            self.waiver_file(condition="FARIS-020", **fields)
+            res = results(rg.Gate(self.d, **inputs))
+            self.assertFalse(res[defects][0], fields)  # an incomplete or expired waiver blocks the release
+            self.assertIn(text, res[defects][1])
+        self.waiver_file(condition="FARIS-021")  # a waiver for another defect does not cover this one
+        self.assertFalse(results(rg.Gate(self.d, **inputs))[defects][0])
+
     # Verifies: VAL-051
     def test_a_blank_matrix_cell_blocks_the_gate(self):
         bad = good_matrix()

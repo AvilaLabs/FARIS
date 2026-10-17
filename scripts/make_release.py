@@ -20,7 +20,9 @@ Then writes, into a new --output-dir:
   FARIS-<version>/;
 - FARIS-<version>-evidence.tar.gz: the evidence part under the same top folder, so
   unpacking both into one place rebuilds the package;
-- SHA256SUMS for both archives;
+- FARIS-<version>-KNOWN_ISSUES.md: the known-issues page (docs/KNOWN_ISSUES.md, refused unless it equals a
+  fresh generation from the defect log), so every release carries the issues known when it was made (QA-082);
+- SHA256SUMS for the archives and the known-issues page;
 - RELEASE_NOTES.md: the changelog section and the downloads, for the GitHub release body.
 
 The archives are deterministic: entries sorted, owner and group zeroed, mtimes fixed
@@ -232,7 +234,24 @@ PLATFORM_NAMES = {
 }
 
 
-def downloads_section(version: str, app_names: list[str], evidence_name: str | None) -> str:
+def known_issues_name(version: str) -> str:
+    return f"FARIS-{version}-KNOWN_ISSUES.md"
+
+
+def write_known_issues(output_dir: Path, version: str, root: Path = ROOT) -> tuple[str, str]:
+    """Copy the known-issues page next to the archives; returns (name, sha256). The page must be current."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import known_issues
+    defects = json.loads((root / known_issues.LOG).read_text(encoding="utf-8"))["defects"]
+    page = (root / known_issues.PAGE).read_text(encoding="utf-8")
+    if page != known_issues.render(defects):
+        fail(f"{known_issues.PAGE} is out of date; run python3 scripts/known_issues.py")
+    path = output_dir / known_issues_name(version)
+    path.write_text(page, encoding="utf-8")
+    return path.name, sha256(path)
+
+
+def downloads_section(version: str, app_names: list[str], evidence_name: str | None, issues_name: str | None = None) -> str:
     lines = ["\n## Downloads\n\n"]
     for app_name in app_names:
         platform_name = re.fullmatch(rf"FARIS-{re.escape(version)}-(.+?)(\.tar\.gz|\.zip)", app_name).group(1)
@@ -246,6 +265,8 @@ def downloads_section(version: str, app_names: list[str], evidence_name: str | N
             "(the same bytes for every platform). Optional: unpack it into the same place as the app archive, "
             f"so both fill `FARIS-{version}/`. The app needs temporary space for the receipts while it runs; "
             "the package README gives the amount.\n")
+    if issues_name:
+        lines.append(f"- `{issues_name}`: the problems known when this release was made, from the project's defect log.\n")
     lines.append("- `SHA256SUMS`: check the downloads before unpacking. Linux: `sha256sum -c SHA256SUMS "
                  "--ignore-missing`. macOS: `shasum -a 256 -c SHA256SUMS --ignore-missing`. Windows: in PowerShell, "
                  f"`Get-FileHash FARIS-{version}-windows-x86_64.zip` must print the SHA-256 on that file's line.\n")
@@ -259,8 +280,11 @@ def write_release_notes(output_dir: Path, version: str, notes: str) -> None:
     app_names = sorted(name for name, _ in sums if name != evidence_name and (output_dir / name).is_file()
                        and re.fullmatch(rf"FARIS-{re.escape(version)}-.+(\.tar\.gz|\.zip)", name))
     has_evidence = evidence_name in dict(sums) and (output_dir / evidence_name).is_file()
+    issues = known_issues_name(version)
+    has_issues = issues in dict(sums) and (output_dir / issues).is_file()
     (output_dir / "RELEASE_NOTES.md").write_text(
-        notes + downloads_section(version, app_names, evidence_name if has_evidence else None)
+        notes + downloads_section(version, app_names, evidence_name if has_evidence else None,
+                                  issues if has_issues else None)
         + "".join(f"\nSHA-256 of `{name}`: `{digest}`\n" for name, digest in sums), encoding="utf-8")
 
 
@@ -313,6 +337,7 @@ def main() -> int:
             fail(f"{args.output_dir} exists; choose a new directory")
         args.output_dir.mkdir(parents=True)
         jobs = [(app_name, app_files), (f"{top}-evidence.tar.gz", evidence_files)]
+        issues_line = write_known_issues(args.output_dir, args.version)
     mtime = release_mtime()
     sums = []
     for name, files in jobs:
@@ -323,6 +348,8 @@ def main() -> int:
         print(f"{name}: {count} entries, {archive.stat().st_size / 1e6:.1f} MB, sha256 {digest}")
     with sums_path.open("a" if args.app_only else "w", encoding="utf-8") as stream:
         stream.write("".join(f"{digest}  {name}\n" for name, digest in sums))
+        if not args.app_only:
+            stream.write(f"{issues_line[1]}  {issues_line[0]}\n")
     write_release_notes(args.output_dir, args.version, notes)
     return 0
 

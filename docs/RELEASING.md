@@ -73,7 +73,8 @@ A gate condition that cannot pass for one release is waived in `docs/release-wai
 `condition` is a condition's name or its ID as the gate prints it. All three of owner, reason and expiry are required;
 the expiry must not have passed and must be within 90 days of the run. The waived line prints as `WAIVED` with the
 original failure, and the file is archived with the release record. An open S1 defect (QA-083) and the waiver check
-itself cannot be waived. A waiver that is not needed any more is deleted.
+itself cannot be waived. A waiver that is not needed any more is deleted. An open S2 defect is waived in the same file
+with its defect id as the condition (`"condition": "FARIS-020"`), under the same three fields and the same limits.
 
 ### Release notes, SBOM and the files to attach
 
@@ -85,6 +86,14 @@ section to `CHANGELOG.md`.
 
 An open S1 defect is never waived (QA-083). An open S2 defect needs a waiver with owner, reason and an expiry
 date within 90 days (QA-072).
+
+`python3 scripts/release_scorecard.py --gate gate-output.txt --out release-scorecard.md` writes the release's quality
+scorecard: the 15 measures that gate it, each with formula, threshold, source and the gate's verdict (QA-007); keep it
+with the release record. `scripts/make_release.py` puts the current known-issues page beside the archives as
+`FARIS-X.Y.Z-KNOWN_ISSUES.md` and lists it in `SHA256SUMS` (QA-082). An S1 defect that reached a release needs a
+`disclosed` date in the defect log within 7 days of `found`, or the defect-log lint fails. The `history` job in CI
+runs `scripts/merge_audit.py`, which checks that each fixed S1 to S3 defect has its regression test at the fix
+commit (QA-085).
 
 ## Documentation samples (QA-016)
 
