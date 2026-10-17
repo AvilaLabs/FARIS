@@ -114,7 +114,7 @@ Its main gaps against these targets:
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 42 | 1 | 27 |
 | [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 48 | 3 | 48 |
-| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 18 | 40 | 0 | 39 |
+| [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 20 | 40 | 0 | 37 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 4 | 19 | 0 | 76 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 3 | 9 | 0 | 33 |
 | [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 6 | 32 | 0 | 34 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 3 | 37 | 1 | 36 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 23 | 2 | 8 |
-| **Total** | | **1419** | **80** | **600** | **35** | **704** |
+| **Total** | | **1419** | **82** | **600** | **35** | **702** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 80 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 82 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control
