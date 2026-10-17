@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 404 of 1419 requirements.
+Traced: 406 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -19,7 +19,7 @@ Traced: 404 of 1419 requirements.
 | [07-uncertainty.md](07-uncertainty.md) | 61 | 18 |
 | [08-performance.md](08-performance.md) | 37 | 6 |
 | [09-usability.md](09-usability.md) | 73 | 18 |
-| [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 11 |
+| [10-accessibility-and-localisation.md](10-accessibility-and-localisation.md) | 57 | 13 |
 | [11-visualization.md](11-visualization.md) | 49 | 13 |
 | [12-configurability.md](12-configurability.md) | 63 | 26 |
 | [13-automation-and-extensibility.md](13-automation-and-extensibility.md) | 74 | 16 |
@@ -237,6 +237,8 @@ Traced: 404 of 1419 requirements.
 | A11Y-001 | F2 | `crates/faris-app/src/camera.rs::arrow_keys_move_the_camera_like_a_drag_and_plus_minus_zoom`<br>`crates/faris-app/src/commands.rs::core_tasks_t1_to_t5_are_reachable_with_key_events_only`<br>`crates/faris-app/src/commands.rs::each_panels_primary_actions_are_registered`<br>`crates/faris-app/src/commands.rs::every_command_runs_from_the_keyboard_or_says_why_not`<br>`crates/faris-app/src/commands.rs::every_registry_entry_is_complete_unique_and_in_the_palette`<br>`crates/faris-app/src/commands.rs::step_keys_and_command_shortcuts_dispatch_from_the_registry`<br>`crates/faris-app/src/commands.rs::the_keyboard_page_lists_every_shortcut_and_command`<br>`crates/faris-app/src/commands.rs::the_viewport_and_plot_keys_move_the_view_and_the_cursor_year` |
 | A11Y-008 | F2 | `crates/faris-app/src/commands.rs::the_viewport_and_plot_keys_move_the_view_and_the_cursor_year` |
 | A11Y-009 | F2 | `crates/faris-app/src/badge.rs::a_badge_explanation_opens_from_the_keyboard_without_hover`<br>`crates/faris-app/src/badge.rs::enter_pins_the_explanation_and_escape_closes_it` |
+| A11Y-010 | F1 | `crates/faris-app/src/theme.rs::every_theme_meets_the_contrast_targets`<br>`crates/faris-app/src/theme.rs::labels_on_data_coloured_fills_reach_the_theme_contrast`<br>`crates/faris-app/src/theme.rs::the_palette_check_covers_the_named_styles` |
+| A11Y-011 | F1 | `crates/faris-app/src/theme.rs::data_coloured_objects_are_outlined_at_graphic_contrast`<br>`crates/faris-app/src/theme.rs::every_theme_meets_the_contrast_targets`<br>`crates/faris-app/src/theme.rs::the_palette_check_covers_the_named_styles` |
 | A11Y-021 | F1 | `crates/faris-app/src/audit.rs::every_text_style_is_at_least_eleven_pixels_and_body_text_thirteen`<br>`crates/faris-app/src/audit.rs::no_text_style_is_set_below_eleven_pixels` |
 | A11Y-025 | F2 | `crates/faris-app/src/badge.rs::enter_pins_the_explanation_and_escape_closes_it` |
 | L10N-011 | F1 | `crates/faris-report/src/tests.rs::numbers_in_every_table_use_a_dot_and_no_grouping` |
