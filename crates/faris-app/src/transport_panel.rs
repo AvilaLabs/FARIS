@@ -838,7 +838,7 @@ impl TransportPanel {
         painter.rect_stroke(
             bar,
             1.0,
-            egui::Stroke::new(1.0, egui::Color32::from_gray(90)),
+            egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
             egui::StrokeKind::Outside,
         );
         let label_step = if bar_width / decades.max(1) as f32 >= 34.0 {
@@ -853,7 +853,7 @@ impl TransportPanel {
                     egui::pos2(x, bar.bottom()),
                     egui::pos2(x, bar.bottom() + 3.0),
                 ],
-                egui::Stroke::new(1.0, egui::Color32::from_gray(150)),
+                egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
             );
             if decade % label_step == 0 {
                 painter.text(
@@ -861,13 +861,13 @@ impl TransportPanel {
                     egui::Align2::CENTER_TOP,
                     format!("10^{:.0}", lower + decade as f64),
                     egui::FontId::monospace(11.0),
-                    egui::Color32::from_gray(185),
+                    crate::theme::palette().chart_text,
                 );
             }
         }
         // Clamp markers at the ends of the bar: a triangle where values outside the limits are
         // drawn at the end colour, so saturation is never silent.
-        let marker_color = egui::Color32::from_gray(230);
+        let marker_color = crate::theme::palette().marker;
         if counts.below > 0 {
             let (x, y) = (bar.left() - 8.0, bar.center().y);
             painter.add(egui::Shape::convex_polygon(
@@ -932,7 +932,7 @@ impl TransportPanel {
             for spectrum in spectra.iter().filter(|s|s.component_id==component) {
                 ui.strong(format!("{} group flux",spectrum.particle));
                 let (rect,_)=ui.allocate_exact_size(egui::vec2(ui.available_width(),100.0),egui::Sense::hover());
-                ui.painter().rect_filled(rect,2.0,egui::Color32::from_rgb(26,28,32));
+                ui.painter().rect_filled(rect,2.0,crate::theme::palette().plot);
                 let maximum=spectrum.mean_per_square_metre_second.iter().copied().fold(0.0,f64::max);
                 if maximum<=0.0 {ui.weak("No sampled nonzero group scores; no upper bound is inferred.");continue;}
                 let ymax=maximum.log10().ceil(); let ymin=ymax-8.0;
@@ -940,12 +940,12 @@ impl TransportPanel {
                 let xmax=spectrum.energy_edges_ev.last().expect("validated energy edges").log10();
                 let map_x=|e:f64|rect.left()+((e.max(10.0_f64.powf(xminimum)).log10()-xminimum)/(xmax-xminimum)) as f32*rect.width();
                 let map_y=|v:f64|rect.bottom()-((v.max(10.0_f64.powf(ymin)).log10()-ymin)/(ymax-ymin)).clamp(0.0,1.0) as f32*rect.height();
-                let color=if spectrum.particle=="neutron"{egui::Color32::from_rgb(108,183,238)}else{egui::Color32::from_rgb(234,164,83)};
+                let color=if spectrum.particle=="neutron"{crate::theme::SPECTRUM_NEUTRON}else{crate::theme::SPECTRUM_PHOTON};
                 for (i,value) in spectrum.mean_per_square_metre_second.iter().enumerate() {
                     let left=map_x(spectrum.energy_edges_ev[i]);let right=map_x(spectrum.energy_edges_ev[i+1]);
                     ui.painter().line_segment([egui::pos2(left,map_y(*value)),egui::pos2(right,map_y(*value))],egui::Stroke::new(1.5,color));
                     let error=spectrum.standard_error_per_square_metre_second[i];let x=(left+right)*0.5;
-                    ui.painter().line_segment([egui::pos2(x,map_y(value-error)),egui::pos2(x,map_y(value+error))],egui::Stroke::new(1.0,color.gamma_multiply(0.65)));
+                    ui.painter().line_segment([egui::pos2(x,map_y(value-error)),egui::pos2(x,map_y(value+error))],egui::Stroke::new(1.0,color.gamma_multiply(0.75)));
                 }
                 ui.small(format!("Energy: 10^{xminimum:.1}–10^{xmax:.1} eV (log). Flux: 10^{ymin:.0}–10^{ymax:.0} {}/m²/s per group (log).",spectrum.particle));
                 ui.small("Whiskers: ±1 Monte Carlo SE, clipped at display floor. First group includes zero energy; these are group integrals, not differential flux or heat spectra.");

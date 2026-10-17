@@ -493,6 +493,7 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_settings = crate::settings::default_path()
         .map(|path| crate::settings::load(&path).settings)
         .unwrap_or_default();
+    let theme = crate::theme::Theme::from_setting(user_settings.value("ui.theme").as_deref());
     let setting_number = |key: &str, default: u64, range: std::ops::RangeInclusive<u64>| {
         user_settings
             .value(key)
@@ -527,10 +528,7 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .ok_or_else(|| graphics_failure("no wgpu render state was created"))?;
             viewport::initialize(state);
             eprintln!("FARIS graphics: {:?}", state.adapter.get_info());
-            let mut visuals = egui::Visuals::dark();
-            visuals.panel_fill = egui::Color32::from_rgb(37, 39, 44);
-            visuals.selection.bg_fill = egui::Color32::from_rgb(67, 78, 125);
-            cc.egui_ctx.set_visuals(visuals);
+            crate::theme::install(&cc.egui_ctx, theme);
             cc.egui_ctx.all_styles_mut(crate::apply_text_sizes);
             // An explicit --interface-scale wins; otherwise the size saved last time.
             // Scripted runs (capture, recording, checks) always use the option.

@@ -16,7 +16,7 @@ A setting takes the first value found, looking from the strongest layer to the w
 
 The `units.*` and `format.*` settings choose how quantities, numbers and dates are shown and typed, never what is stored; see [Units and number formats](units.md).
 
-Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. `ui.theme` is stored and reported, and the desktop does not read it yet.
+Today the memory settings take effect in the command line. The six tool paths in your file are read by the desktop; the command-line commands that run tools still take them from their own flags and environment variables. The desktop reads `ui.scale` (the interface size, which its size menu saves here; an old `interface.txt` is moved into the file once) and shows where each tool path and the size come from. The desktop also reads `ui.theme` at start: `high-contrast` selects the high-contrast theme (the browser build reads the same choice from its browser storage key `faris-theme`); the other values give the ordinary dark theme.
 
 ## Your settings file
 
@@ -80,6 +80,6 @@ The table is checked against the program's list of settings by a test, so it can
 | `format.grouping` | one of none, thin-space, comma, point, apostrophe | `none` | - | - | Digit-group separator of displayed numbers, from five integer digits up. It must differ from the decimal separator. |
 | `format.date` | one of iso, dmy, mdy | `iso` | - | - | Date order of displayed dates: iso (2026-10-15), dmy (15.10.2026) or mdy (10/15/2026). Stored dates are always ISO. |
 | `ui.scale` | number 0.5 to 4 | `1` | x | - | Interface size as a multiple of the desktop's own scaling. The desktop reads it at start and saves it when you change the size; its size menu offers 0.75 to 2. |
-| `ui.theme` | one of system, light, dark | `system` | - | - | Colour theme. Reserved for the desktop, which does not read it yet. |
+| `ui.theme` | one of system, light, dark, high-contrast | `system` | - | - | Colour theme, read by the desktop at start. high-contrast is white on black with 7 to 1 text contrast; system, dark and light all give the ordinary dark theme for now. |
 | `backups.keep` | whole number 1 to 100 | `3` | versions | - | How many earlier versions of a study the desktop keeps beside the file each time you save. |
 | `crash.keep_days` | whole number 1 to 365 | `30` | days | - | How long the desktop keeps crash records, diagnostics bundles and recovery files on this computer before deleting them. Nothing is sent anywhere. |

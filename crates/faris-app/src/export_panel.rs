@@ -275,7 +275,7 @@ impl ExportPanel {
                     egui::Label::new(
                         egui::RichText::new(format!("Export failed: {error}"))
                             .small()
-                            .color(egui::Color32::from_rgb(240, 110, 110)),
+                            .color(crate::theme::palette().error),
                     )
                     .truncate(),
                 )

@@ -455,17 +455,13 @@ fn paired_bars(
                     egui::pos2(bar_left, y + 3.0),
                     egui::vec2(w.max(1.5), row_h - 6.0),
                 );
-                painter.rect_filled(
-                    bar,
-                    2.0,
-                    color.gamma_multiply(if *port { 1.0 } else { 0.7 }),
-                );
+                painter.rect_filled(bar, 2.0, crate::theme::bar_fill(color));
                 painter.text(
                     egui::pos2(bar.right() + 6.0, y + row_h / 2.0),
                     egui::Align2::LEFT_CENTER,
                     format!("{v:.decimals$} {unit}"),
                     egui::FontId::monospace(12.0),
-                    egui::Color32::from_gray(225),
+                    crate::theme::palette().chart_title,
                 );
             }
             None => {
@@ -474,7 +470,7 @@ fn paired_bars(
                     egui::Align2::LEFT_CENTER,
                     NOT_RECORDED,
                     egui::FontId::proportional(12.0),
-                    egui::Color32::GRAY,
+                    crate::theme::palette().text_weak,
                 );
             }
         }
@@ -485,7 +481,7 @@ fn paired_bars(
             egui::pos2(bar_left, rect.top()),
             egui::pos2(bar_left, rect.bottom()),
         ],
-        egui::Stroke::new(1.0, egui::Color32::from_gray(110)),
+        egui::Stroke::new(1.0, crate::theme::palette().chart_axis),
     );
 }
 

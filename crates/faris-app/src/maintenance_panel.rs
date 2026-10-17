@@ -771,9 +771,9 @@ fn summary_row(ui: &mut egui::Ui, name: &str, design: &DesignResult) {
 
 // ---------------------------------------------------------------------- chart --
 
-const FIXED_COLOR: egui::Color32 = egui::Color32::from_rgb(140, 152, 176);
-const COOLDOWN_COLOR: egui::Color32 = egui::Color32::from_rgb(224, 140, 60);
-const WORK_COLOR: egui::Color32 = egui::Color32::from_rgb(86, 156, 214);
+const FIXED_COLOR: egui::Color32 = crate::theme::SERIES_FIXED;
+const COOLDOWN_COLOR: egui::Color32 = crate::theme::SERIES_COOLDOWN;
+const WORK_COLOR: egui::Color32 = crate::theme::SERIES_WORK;
 
 fn legend_swatch(ui: &mut egui::Ui, color: egui::Color32, label: &str) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());

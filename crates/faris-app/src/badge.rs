@@ -109,10 +109,12 @@ pub fn explain(
 /// what would change it.
 pub fn badge(ui: &mut egui::Ui, kind: Kind, label: &str, explanation: &str) -> egui::Response {
     let color = kind.color();
-    let text = egui::RichText::new(label).small().color(color);
+    let text = egui::RichText::new(label)
+        .small()
+        .color(crate::theme::pill_text(color));
     let frame = egui::Frame::new()
-        .fill(color.gamma_multiply(0.14))
-        .stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.55)))
+        .fill(crate::theme::pill_fill(color))
+        .stroke(egui::Stroke::new(1.0, crate::theme::pill_border(color)))
         .corner_radius(8.0)
         .inner_margin(egui::Margin::symmetric(6, 1));
     let shown = frame

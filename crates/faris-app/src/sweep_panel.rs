@@ -922,7 +922,7 @@ fn draw_chart(
         }
         Chart::Histories => {
             if let Some(summaries) = data.summaries {
-                let bar = egui::Color32::from_rgb(120, 140, 175);
+                let bar = crate::theme::SWEEP_BAR;
                 for (p, s) in points.iter().zip(summaries) {
                     let Some(s) = s else { continue };
                     let x = px(p.blanket_m);
@@ -934,7 +934,7 @@ fn draw_chart(
                             egui::pos2(x + half, plot.bottom()),
                         ),
                         1.0,
-                        bar.gamma_multiply(0.75),
+                        crate::theme::bar_fill(bar),
                     );
                     text(
                         &painter,

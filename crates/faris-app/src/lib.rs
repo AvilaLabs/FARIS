@@ -38,6 +38,7 @@ mod settings;
 mod study_file;
 mod study_panel;
 mod sweep_panel;
+mod theme;
 mod thumbnail;
 mod tool_finder;
 mod tour;
@@ -2286,7 +2287,7 @@ impl eframe::App for FarisApp {
             });
         let mut viewport_points = [0.0; 2];
         egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(ui.style()).fill(egui::Color32::from_rgb(47, 50, 57)))
+            .frame(egui::Frame::central_panel(ui.style()).fill(crate::theme::palette().central))
             .show(ui, |ui| {
                 let content_width = ui.available_width();
                 let controls_max_height = (ui.available_height() * 0.4).max(42.0);
@@ -2426,12 +2427,12 @@ impl eframe::App for FarisApp {
                 let galley = ui.painter().layout(
                     caption.to_owned(),
                     egui::FontId::monospace(12.0),
-                    egui::Color32::from_gray(180),
+                    crate::theme::palette().caption,
                     (rect.width() - 32.0).max(1.0),
                 );
                 if rect.width() >= 200.0 && rect.height() >= 200.0 && galley.size().y + 32.0 <= rect.height() {
                     let caption_position = rect.left_bottom() + egui::vec2(16.0, -16.0 - galley.size().y);
-                    ui.painter().galley(caption_position, galley, egui::Color32::from_gray(180));
+                    ui.painter().galley(caption_position, galley, crate::theme::palette().caption);
                 }
                 response.on_hover_ui(|ui| {
                     if let Some(label) = &hovered_label {
