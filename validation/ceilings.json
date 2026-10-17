@@ -1,0 +1,47 @@
+{
+  "schema": "faris.validation-ceilings/1.0.0",
+  "note": "Experimental screening ceilings per response class (VAL-034). They are authored working expectations, provisional until the F2 gate, and are not the pass rule: the pass rule is the predeclared compatibility rule of each case (VAL-027).",
+  "rule": "VAL-027",
+  "ceilings": [
+    {
+      "id": "flux-reaction-rate-near-source",
+      "response": "flux and reaction rate",
+      "region": "near source",
+      "ceiling_percent": 20,
+      "kind": "authored",
+      "rule": "VAL-027"
+    },
+    {
+      "id": "flux-reaction-rate-deep",
+      "response": "flux and reaction rate",
+      "region": "deep",
+      "ceiling_percent": 30,
+      "kind": "authored",
+      "rule": "VAL-027"
+    },
+    {
+      "id": "heating",
+      "response": "heating",
+      "region": "all",
+      "ceiling_percent": 20,
+      "kind": "authored",
+      "rule": "VAL-027"
+    },
+    {
+      "id": "tritium-production",
+      "response": "tritium production",
+      "region": "all",
+      "ceiling_percent": 6,
+      "kind": "authored",
+      "rule": "VAL-027"
+    },
+    {
+      "id": "shutdown-dose-rate",
+      "response": "shutdown dose rate",
+      "region": "all",
+      "ceiling_percent": 30,
+      "kind": "authored",
+      "rule": "VAL-027"
+    }
+  ]
+}

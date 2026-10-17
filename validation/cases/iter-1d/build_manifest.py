@@ -67,7 +67,7 @@ def build(upstream: Path | None) -> dict:
             {"id": "neutron_absorption:cells-97", "response_class": "neutron_absorption", "reference": None, "reference_missing_why": WHY, "reference_missing_next_step": NEXT,
              "controlling_variable": {"name": "radial position", "value": None, "unit": "cm"}}],
         "not_covered": [
-            "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data and geometry with the reference code",
+            "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data, geometry and source (the 14.056 MeV normal source in cell 51) with the reference code",
             "photon transport, nuclear heating and activation (the registered control is neutron-only)",
             "three-dimensional effects, ports and streaming (one-dimensional cylindrical model)",
             "temperature dependence (single 293.6 K evaluation)"],

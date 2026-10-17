@@ -18,6 +18,7 @@
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -27,11 +28,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -41,11 +45,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "oktavian-al/neutron_leakage_spectrum",
       "bias": "not evaluated: no detector in this class has a C/E value from a current run",
+      "bias_kind": "not evaluated",
       "evidence_class": "experiment",
       "last_run": "never run: no FARIS run record for this case",
       "next_step": "run the case and resolve the blocked or missing detectors",
@@ -55,11 +62,14 @@
       "range_sha256": "27aee21f026031cc2f99ed0a6433828d9545008c6b89a91df8e40994c57cd3a5",
       "reason": "the benchmark is registered but no current FARIS run has a PASS or FAIL verdict on it. Scope: neutron leakage current spectrum of a sphere, not an interior flux",
       "status": "not validated",
-      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run"
+      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_k": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "oktavian-al-cad/neutron_leakage_spectrum",
       "bias": "not evaluated: no detector in this class has a C/E value from a current run",
+      "bias_kind": "not evaluated",
       "evidence_class": "experiment",
       "last_run": "never run: no FARIS run record for this case",
       "next_step": "run the case and resolve the blocked or missing detectors",
@@ -69,25 +79,31 @@
       "range_sha256": "27aee21f026031cc2f99ed0a6433828d9545008c6b89a91df8e40994c57cd3a5",
       "reason": "the benchmark is registered but no current FARIS run has a PASS or FAIL verdict on it. Scope: neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux",
       "status": "not validated",
-      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run"
+      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_k": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "iter-1d/neutron_flux",
       "bias": "not evaluated: no detector in this class has a C/E value from a current run",
+      "bias_kind": "not evaluated",
       "evidence_class": "code-to-code",
       "last_run": "never run: no FARIS run record for this case",
       "next_step": "run the case and resolve the blocked or missing detectors",
-      "not_covered": "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data and geometry with the reference code; photon transport, nuclear heating and activation (the registered control is neutron-only); three-dimensional effects, ports and streaming (one-dimensional cylindrical model); temperature dependence (single 293.6 K evaluation)",
+      "not_covered": "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data, geometry and source (the 14.056 MeV normal source in cell 51) with the reference code; photon transport, nuclear heating and activation (the registered control is neutron-only); three-dimensional effects, ports and streaming (one-dimensional cylindrical model); temperature dependence (single 293.6 K evaluation)",
       "qualified_range": "materials: ITER bulk shield and vacuum vessel region materials as in the benchmark (97 material cells). Geometry: one-dimensional concentric cylinder, reflective at z = +/-1000 cm, outer vacuum radius 1389.5 cm. Spectrum: 14.06 MeV D-T line source (normal, sigma 0.24 MeV) with moderated spectrum behind the first wall. Parameters: histories 10000 to 1e+07 histories. Cooling time: not applicable (prompt transport only)",
       "quantity": "flux",
       "range_sha256": "68a85c7856149f1dd0bd602ecf5341e53c6eaff5de290d52d27bc2402e72fe30",
       "reason": "the benchmark is registered but no current FARIS run has a PASS or FAIL verdict on it. Scope: track-length flux per material cell in a one-dimensional ITER model",
       "status": "not validated",
-      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run"
+      "uncertainty": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_k": "not evaluated: no detector in this class has a C/E value from a current run",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -97,11 +113,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -111,11 +130,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -125,11 +147,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -139,11 +164,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -153,11 +181,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -167,11 +198,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -181,11 +215,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -195,11 +232,14 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     },
     {
       "benchmark_id": "none",
       "bias": "not evaluated: no benchmark",
+      "bias_kind": "not evaluated",
       "evidence_class": "none",
       "last_run": "never run: no benchmark",
       "next_step": "register a benchmark case in validation/cases and name it in validation/quantities.json",
@@ -209,7 +249,9 @@
       "range_sha256": "none: no benchmark",
       "reason": "no benchmark is registered for this quantity",
       "status": "not validated",
-      "uncertainty": "not evaluated: no benchmark"
+      "uncertainty": "not evaluated: no benchmark",
+      "uncertainty_k": "not evaluated: no benchmark",
+      "uncertainty_kind": "not evaluated"
     }
   ],
   "schema": "faris.validation-matrix/1.0.0"

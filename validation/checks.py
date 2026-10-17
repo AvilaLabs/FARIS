@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Lints over the validation cases and the V&V matrix (requirements VAL-005, 041, 070, 075, 093, QA-091).
+"""Lints over the validation cases and the V&V matrix (requirements VAL-005, 034, 041, 070, 075, 093, QA-091).
 
     python3 -m validation.checks            # lint the tree; exit 1 on any finding that is not advisory
     python3 -m validation.checks --strict   # advisory findings fail too
@@ -11,11 +11,15 @@ Rules:
            force (the manifest's compatibility block plus protocol.json when the case has one). A changed
            rule without a new entry (a new version, a later date) is a finding.
   VAL-041  a code-to-code matrix row is never labelled validated, and names the shared inputs (nuclear data,
-           geometry, source). The source is advisory until the manifests name it.
+           geometry, source).
+  VAL-034  every response class has an experimental screening ceiling labelled "authored" that cites VAL-027 as
+           the pass rule (the ceiling is an expectation, never the rule).
   VAL-070  every benchmark row carries the hash of its case's qualified range, and it matches the manifest.
   VAL-075  every row has a not-covered list, and for a benchmark row it is the manifest's list.
   QA-091   every case pins its upstream files by sha256 and names source, retrieval date and licence, and
            vendors none of them (a restricted data set is never redistributed).
+           The same holds for every library entry in libraries.json (hash, source, version, licence, access
+           conditions), and no library is redistributed.
   VAL-093  `cross_thread_check` compares two run records of one case made with different thread counts.
 """
 from __future__ import annotations
@@ -37,8 +41,15 @@ CASES = HERE / "cases"
 MATRIX = HERE / "matrix.json"
 RULE_HASHES = HERE / "rule_hashes.json"
 RULES_SCHEMA = "faris.validation-rule-hashes/1.0.0"
+LIBRARIES = HERE / "libraries.json"
+LIBRARIES_SCHEMA = "faris.validation-libraries/1.0.0"
+LIBRARY_FIELDS = ("name", "version", "source", "licence", "redistribution", "access_conditions", "record")
+CEILINGS = HERE / "ceilings.json"
+CEILINGS_SCHEMA = "faris.validation-ceilings/1.0.0"
+# VAL-034: the response classes that must carry an experimental screening ceiling.
+CEILING_RESPONSES = {"flux and reaction rate", "heating", "tritium production", "shutdown dose rate"}
 # Findings of these rules are printed but do not fail the run unless --strict.
-ADVISORY = {"VAL-041-source"}
+ADVISORY: set[str] = set()
 SHARED_INPUTS = (("nuclear data", "VAL-041"), ("geometry", "VAL-041"), ("source", "VAL-041-source"))
 
 
@@ -155,6 +166,27 @@ def check_matrix_rows(matrix: dict, manifests: dict[str, dict]) -> list[tuple[st
     return findings
 
 
+def check_ceilings(data: dict) -> list[tuple[str, str]]:
+    """VAL-034: each response class has an authored ceiling that cites VAL-027 as the rule."""
+    if data.get("schema") != CEILINGS_SCHEMA:
+        return [("VAL-034", f"ceilings schema must be {CEILINGS_SCHEMA!r}")]
+    findings = []
+    seen = set()
+    for c in data.get("ceilings", []):
+        cid = c.get("id", "?")
+        seen.add(c.get("response"))
+        if c.get("kind") != "authored":
+            findings.append(("VAL-034", f"ceiling {cid}: kind must be 'authored', got {c.get('kind')!r}"))
+        if c.get("rule") != "VAL-027" or data.get("rule") != "VAL-027":
+            findings.append(("VAL-034", f"ceiling {cid}: must cite VAL-027 as the pass rule"))
+        pct = c.get("ceiling_percent")
+        if isinstance(pct, bool) or not isinstance(pct, (int, float)) or pct <= 0:
+            findings.append(("VAL-034", f"ceiling {cid}: ceiling_percent must be a positive number"))
+    for missing in sorted(CEILING_RESPONSES - seen):
+        findings.append(("VAL-034", f"no screening ceiling for response class {missing!r}"))
+    return findings
+
+
 def check_provenance(case_dirs: list[Path]) -> list[tuple[str, str]]:
     """QA-091: hash, source, version and licence for every case; nothing vendored."""
     findings = []
@@ -173,6 +205,34 @@ def check_provenance(case_dirs: list[Path]) -> list[tuple[str, str]]:
         vendored = sorted(p.name for p in case_dir.rglob("*") if p.is_file() and p.name in listed)
         if vendored:
             findings.append(("QA-091", f"{cid}: upstream file(s) stored in the repository: {', '.join(vendored)}"))
+    return findings
+
+
+def check_libraries(data: dict, root: Path = ROOT) -> list[tuple[str, str]]:
+    """QA-091: every library entry carries hash, source, version, licence and access conditions; none is redistributed."""
+    if data.get("schema") != LIBRARIES_SCHEMA:
+        return [("QA-091", f"libraries schema must be {LIBRARIES_SCHEMA!r}")]
+    findings = []
+    entries = data.get("libraries", [])
+    if not entries:
+        findings.append(("QA-091", "no library entries"))
+    for e in entries:
+        lid = e.get("id", "?")
+        for field in LIBRARY_FIELDS:
+            if not str(e.get(field, "")).strip():
+                findings.append(("QA-091", f"library {lid}: {field} is missing"))
+        if not SHA256.match(str(e.get("sha256", ""))):
+            findings.append(("QA-091", f"library {lid}: no valid sha256"))
+        if e.get("redistribution") != "not redistributed":
+            findings.append(("QA-091", f"library {lid}: redistribution must be 'not redistributed' (restricted or unresolved terms)"))
+        record = root / str(e.get("record", ""))
+        if not record.is_file():
+            findings.append(("QA-091", f"library {lid}: provenance record {e.get('record')} is missing"))
+        elif hashlib.sha256(record.read_bytes()).hexdigest() != e.get("record_sha256"):
+            findings.append(("QA-091", f"library {lid}: provenance record {e.get('record')} no longer matches record_sha256"))
+    ids = [e.get("id") for e in entries]
+    if len(set(ids)) != len(ids):
+        findings.append(("QA-091", "library ids are not unique"))
     return findings
 
 
@@ -208,6 +268,8 @@ def run_all(root: Path = ROOT, strict: bool = False) -> int:
     matrix = json.loads((root / "validation" / "matrix.json").read_text(encoding="utf-8"))
     findings = check_rule_hashes(case_dirs, root / "validation" / "rule_hashes.json")
     findings += check_matrix_rows(matrix, manifests) + check_provenance(case_dirs)
+    findings += check_libraries(json.loads((root / "validation" / "libraries.json").read_text(encoding="utf-8")), root)
+    findings += check_ceilings(json.loads((root / "validation" / "ceilings.json").read_text(encoding="utf-8")))
     failing = 0
     for rule, message in findings:
         advisory = rule in ADVISORY and not strict

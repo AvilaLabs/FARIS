@@ -68,6 +68,24 @@ class Matrix(unittest.TestCase):
         self.assertIn("mean log C/E", row["bias"])
         self.assertEqual(row["last_run"], "run date not recorded in the run record")
 
+    # Verifies: VAL-052
+    def test_bias_and_uncertainty_carry_a_kind_label_a_sign_and_k(self):
+        matrix = self.suite(with_run=True)["matrix"]
+        row = next(r for r in matrix["rows"] if r["quantity"] == "flux")
+        self.assertEqual((row["bias_kind"], row["uncertainty_kind"]), ("calculated", "calculated"))
+        self.assertRegex(row["bias"], r"mean log C/E [+-]\d")
+        self.assertRegex(row["uncertainty_k"], r"^k = \d")
+        self.assertEqual(M.check_matrix(matrix), [])
+        bad = clone(matrix)
+        bad_row = next(r for r in bad["rows"] if r["quantity"] == "flux")
+        bad_row["uncertainty_k"] = "unknown"
+        bad_row["bias_kind"] = "guessed"
+        problems = M.check_matrix(bad)
+        self.assertTrue(any("must state k" in p for p in problems))
+        self.assertTrue(any("bias_kind" in p for p in problems))
+        none_row = next(r for r in matrix["rows"] if r["benchmark_id"] == "none")
+        self.assertEqual(none_row["bias_kind"], "not evaluated")
+
     def test_a_benchmark_that_is_not_a_registered_response_is_an_error(self):
         bad = clone(REGISTRY)
         bad["quantities"][0]["benchmarks"][0]["response_class"] = "nothing"

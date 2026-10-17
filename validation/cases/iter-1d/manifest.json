@@ -112,7 +112,7 @@
     }
   ],
   "not_covered": [
-    "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data and geometry with the reference code",
+    "any experimental comparison: ITER_1D is a computational benchmark, so agreement is verification evidence only and shares nuclear data, geometry and source (the 14.056 MeV normal source in cell 51) with the reference code",
     "photon transport, nuclear heating and activation (the registered control is neutron-only)",
     "three-dimensional effects, ports and streaming (one-dimensional cylindrical model)",
     "temperature dependence (single 293.6 K evaluation)"

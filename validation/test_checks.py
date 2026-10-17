@@ -84,6 +84,25 @@ class Checks(unittest.TestCase):
         self.assertIn("VAL-041", {r for r, _ in bad})
         m["not_covered"] = ["shares nuclear data, geometry and source with the reference code"]
         self.assertEqual(C.check_matrix_rows({"rows": [row(m)]}, {m["case_id"]: m}), [])
+        m["not_covered"] = ["shares nuclear data and geometry with the reference code"]
+        self.assertIn("VAL-041-source", {r for r, _ in C.check_matrix_rows({"rows": [row(m)]}, {m["case_id"]: m})})
+        self.assertEqual(C.ADVISORY, set())  # the shared source is a blocking finding
+
+    # Verifies: VAL-034
+    def test_ceilings_must_be_authored_cite_the_rule_and_cover_every_response(self):
+        data = json.loads(C.CEILINGS.read_text(encoding="utf-8"))
+        self.assertEqual(C.check_ceilings(data), [])
+        by = {c["id"]: c["ceiling_percent"] for c in data["ceilings"]}
+        self.assertEqual((by["flux-reaction-rate-near-source"], by["flux-reaction-rate-deep"], by["heating"],
+                          by["tritium-production"], by["shutdown-dose-rate"]), (20, 30, 20, 6, 30))
+        bad = json.loads(json.dumps(data))
+        bad["ceilings"][0]["kind"] = "measured"
+        bad["ceilings"][1]["rule"] = "VAL-099"
+        del bad["ceilings"][3]
+        text = " ".join(msg for _, msg in C.check_ceilings(bad))
+        self.assertIn("authored", text)
+        self.assertIn("VAL-027", text)
+        self.assertIn("tritium production", text)
 
     # Verifies: QA-091
     def test_vendored_upstream_file_is_found(self):
@@ -92,6 +111,20 @@ class Checks(unittest.TestCase):
         self.assertEqual(C.check_provenance([d]), [])
         (d / "a.xml").write_text("x")
         self.assertTrue(any("stored in the repository" in msg for _, msg in C.check_provenance([d])))
+
+    # Verifies: QA-091
+    def test_library_entries_need_hash_source_version_licence_and_no_redistribution(self):
+        data = json.loads(C.LIBRARIES.read_text(encoding="utf-8"))
+        self.assertEqual(C.check_libraries(data), [])
+        self.assertGreaterEqual(len(data["libraries"]), 3)
+        bad = json.loads(json.dumps(data))
+        bad["libraries"][0]["sha256"] = "xyz"
+        bad["libraries"][1]["licence"] = ""
+        bad["libraries"][2]["redistribution"] = "bundled"
+        bad["libraries"][3]["record_sha256"] = "0" * 64
+        text = " ".join(msg for _, msg in C.check_libraries(bad))
+        for part in ("no valid sha256", "licence is missing", "not redistributed", "no longer matches"):
+            self.assertIn(part, text)
 
     # Verifies: VAL-093
     def test_cross_thread_records_agree_within_two_sigma(self):

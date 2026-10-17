@@ -5,7 +5,7 @@
       "fng-streaming-offaxis": "5885e1a79c87ac345ba71b27002eb85cbb65e6f28b08df5d978e7810a1a09a0d",
       "fng-streaming-onaxis": "ddf49ae657cc53418ed9a897c0f1380d637a9a849144531ebf7ebd72e978b35e",
       "fns-dogleg-duct": "7c70c26932045b307087b9f8a925847ad30827c95c686e8481b945f11a494a30",
-      "iter-1d": "448a68cccfb29c84dd9ee485865525a412e5dc8caa6cfc8416a8fd19eabc0cc0",
+      "iter-1d": "16c84ee534de823a7e21b205225f530e9af9baa24beab427343373db1f54b859",
       "oktavian-al": "7de31d0283027eaca125a85f769999de140b8ebd17de9ede9c5814161ba347d5",
       "oktavian-al-cad": "20b4c5b800b6213b6fda74a84efc08c4e77cb28f386956bea7eea37c61d076c7"
     },
@@ -438,7 +438,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/transport.rs": "b3cfe8863ad292942882e0bd2ba54a65227ab2eff07bd5d9cadf33c34ae9ace2"
+        "crates/faris-engine/src/design/transport.rs": "39fd1db3d59a5fc054dea9dfbba8f35405193db0354b574320da1b36e724d92e"
       },
       "status": "not validated",
       "validation": [
@@ -814,8 +814,8 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/comparison.rs": "81113e2ff38dd4123a39053dee9922046c81664bdfb90c444bd4be355ff47b1c",
-        "crates/faris-engine/src/history.rs": "6a8aadbf28cafe015210adea64246e849435b16df8569c909907d9c8a597666f"
+        "crates/faris-engine/src/comparison.rs": "41634c7cec10b39a57ab69d519ca9c9f961b5bf4c45d900080d0cd0fbba9bf42",
+        "crates/faris-engine/src/history.rs": "fdbddd5a02cc9644f4281564d75a058eaccf412cceff648c511835ad835a6888"
       },
       "status": "not validated",
       "validation": [
@@ -943,6 +943,12 @@
         {
           "catalogue": "BRIEF_OUTPUTS",
           "kind": "calculated",
+          "name": "tritium_zone_sum",
+          "quantity": "tbr"
+        },
+        {
+          "catalogue": "BRIEF_OUTPUTS",
+          "kind": "calculated",
           "name": "swaps",
           "quantity": "fluence"
         },
@@ -1050,7 +1056,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/brief.rs": "53c92e17b0f5114c68c74432b33839f612634637284c8338fa49a67f01b273c9"
+        "crates/faris-engine/src/brief.rs": "0580407730a18476abaca8d9b01a5f8341e78b712b11cf83b670ee5cdf51c798"
       },
       "status": "not validated",
       "validation": [
@@ -1198,7 +1204,7 @@
       "reason": "this model reports durations of maintenance steps in days, which are not one of the registry quantities; no benchmark is registered for its response",
       "reported_outputs": [],
       "source_sha256": {
-        "crates/faris-engine/src/maintenance.rs": "672aa7c4b807d7654670d9edfc194b9a57165dcbe37c9d4dcc08ad257b12d831"
+        "crates/faris-engine/src/maintenance.rs": "340436fa0baf962c586cbdb7c6c378584eecfdc592adfcb1a2a2480f7e854280"
       },
       "status": "not validated",
       "validation": [],

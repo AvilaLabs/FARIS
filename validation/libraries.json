@@ -1,0 +1,58 @@
+{
+  "schema": "faris.validation-libraries/1.0.0",
+  "note": "The nuclear data libraries behind the validation cases (QA-091): hash, source, version, licence and access conditions. None is stored in the repository; `record` is the committed provenance record and record_sha256 pins it.",
+  "libraries": [
+    {
+      "id": "fendl-3.2-hdf5",
+      "name": "FENDL-3.2 neutron data, OpenMC HDF5 build",
+      "version": "FENDL-3.2",
+      "source": "IAEA Nuclear Data Section, https://www-nds.iaea.org/fendl/",
+      "sha256": "bc67ab6dd3e31d0f6443bb12bdc06c352f55ab43de9de84dc7a20c51d4204674",
+      "sha256_of": "cross_sections.xml index of the downloaded HDF5 directory",
+      "licence": "IAEA NDS terms of use (terms not re-read for this build)",
+      "redistribution": "not redistributed",
+      "access_conditions": "public download from the IAEA NDS; FARIS keeps the files local and Git-ignored",
+      "record": "references/nuclear-data-library-v2-provenance.json",
+      "record_sha256": "9708b48a95e7e9bf361f4b06ea80abd0107bb1506ed0b700bf2f206a9a265236"
+    },
+    {
+      "id": "endfb-vii.1-photon",
+      "name": "ENDF/B-VII.1 photoatomic and atomic relaxation sublibraries",
+      "version": "ENDF/B-VII.1",
+      "source": "National Nuclear Data Center, https://www.nndc.bnl.gov/endf-b7.1/",
+      "sha256": "562419767eca909d32669650dee8b3ab99f88e8b8da9ce2afc0c06e974113a9f",
+      "sha256_of": "ENDF-B-VII.1-photoat.zip (the atomic relaxation archive is c5786a958338252293c57064c2ba58119d876f7a06dc878641542ff0d872792d)",
+      "licence": "no explicit licence stated by the publisher; NNDC release notices state no restriction on distribution and ask for credit",
+      "redistribution": "not redistributed",
+      "access_conditions": "public download from the NNDC. The NNDC download page states no explicit licence; redistribution rights are unresolved (docs/PHOTON_LIBRARY_ACQUISITION.md).",
+      "record": "references/photon-library-provenance.json",
+      "record_sha256": "465225601ab2e5a31bf8504610589bcde0e19e197e36b3030f104cbaddfadde6"
+    },
+    {
+      "id": "endfb-viii.1-hdf5",
+      "name": "ENDF/B-VIII.1 neutron and thermal scattering data, OpenMC HDF5 build",
+      "version": "ENDF/B-VIII.1",
+      "source": "National Nuclear Data Center via the OpenMC project, https://openmc.org/",
+      "sha256": "b8ffb6104a946bf951dc0f3b9a1f57a60f7f57c4b308cd66df4fd3dd4bc557ce",
+      "sha256_of": "cross_sections.xml index of the downloaded HDF5 directory",
+      "licence": "no licence text checked for this build; treated like NNDC data (local research use)",
+      "redistribution": "not redistributed",
+      "access_conditions": "public download through OpenMC; FARIS keeps the files local and Git-ignored",
+      "record": "references/nuclear-data-library-v2-provenance.json",
+      "record_sha256": "9708b48a95e7e9bf361f4b06ea80abd0107bb1506ed0b700bf2f206a9a265236"
+    },
+    {
+      "id": "fendl32-endfbvii1-v2",
+      "name": "FARIS combined library v2 (FENDL-3.2 neutron, ENDF/B-VII.1 photon, thermal scattering)",
+      "version": "v2",
+      "source": "assembled locally by scripts/build_nuclear_data_v2.py from the libraries above",
+      "sha256": "8ec755cb8bda2bdd802b88f1153ae9dc37be7cd1ed6b69d55b324329f040d959",
+      "sha256_of": "cross_sections.xml of the assembled library",
+      "licence": "inherits the terms of its inputs; FENDL-3.2 and ENDF/B-VII.1 as above",
+      "redistribution": "not redistributed",
+      "access_conditions": "built locally from public downloads; 'data/' is kept out of Git",
+      "record": "references/nuclear-data-library-v2-provenance.json",
+      "record_sha256": "9708b48a95e7e9bf361f4b06ea80abd0107bb1506ed0b700bf2f206a9a265236"
+    }
+  ]
+}
