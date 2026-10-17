@@ -36,8 +36,12 @@ At release time:
 python3 -m validation report --out vv --release-record release-record.json
 python3 scripts/release_gate.py --vv-report vv --release-record release-record.json \
     --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
-    --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
+    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json --archive gate-output.txt
 ```
+
+`a11y-previous.json` is the accessibility snapshot of the previous release (A11Y-055). Write the snapshot of each
+release with `python3 scripts/a11y_regression.py snapshot --tests tests.json --out a11y-snapshot.json` and archive it
+with the release record; the gate fails when a check of A11Y-001 to A11Y-046 that passed there fails or goes unrun now.
 
 Archive `gate-output.txt`, `release-record.json` and the `vv` directory with the release record. The gate is not a
 CI step on ordinary commits: it fails until the gate requirements are Met, which is the intended result. It is
@@ -52,7 +56,7 @@ checklist. Add `--faris` for the command-line reference and `--cargo` if cargo i
 ```sh
 python3 scripts/release_gate.py --faris target/release/faris --vv-report vv --release-record release-record.json \
     --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
-    --repro repro.json --doc-tests doc-tests.json --archive gate-output.txt
+    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json --archive gate-output.txt
 ```
 
 The extra conditions are: every requirement marked Met has a test marker (QA-071); the waivers file is complete and

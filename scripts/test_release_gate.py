@@ -107,6 +107,8 @@ def passing_inputs(d: Path) -> dict:
     write(paths["fuzz"], json.dumps(fuzz_evidence()))
     for target in FUZZ_TARGETS:
         write(d / "fuzz" / "fuzz_targets" / f"{target}.rs", "")
+    paths["a11y_baseline"] = d / "a11y-baseline.json"
+    write(paths["a11y_baseline"], json.dumps({"commit": "b" * 40, "results": {}}))
     paths["defects"] = d / "defects.json"
     write(paths["defects"], json.dumps({"defects": [{"id": "D-1", "severity": "S3", "status": "open"}]}))
     return dict(paths, vv_report=out, release_record=record, commit=COMMIT, today=TODAY, terms=TERMS)
@@ -186,6 +188,21 @@ class ReleaseGate(unittest.TestCase):
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
         write(inputs["tests"], "not json")
         self.assertFalse(results(rg.Gate(self.d, **inputs))["all tests pass"][0])
+
+    # Verifies: A11Y-055
+    def test_a_check_that_passed_in_the_previous_release_and_fails_now_blocks_the_gate(self):
+        make_root(self.d)
+        write(self.d / "scripts" / "test_focus.py", f"{MARK}A11Y-001\ndef test_focus_walk():\n    pass\n")
+        inputs = passing_inputs(self.d)
+        write(inputs["a11y_baseline"], json.dumps({"commit": "b" * 40, "results": {"A11Y-001": "PASS"}}))
+        write(inputs["tests"], json.dumps({"commit": COMMIT, "checks": [{"name": "test_focus_walk", "verdict": "PASS"}]}))
+        self.assertTrue(results(rg.Gate(self.d, **inputs))["no new accessibility failures"][0])
+        write(inputs["tests"], json.dumps({"commit": COMMIT, "checks": [{"name": "test_focus_walk", "verdict": "FAIL"}]}))
+        passed, reason = results(rg.Gate(self.d, **inputs))["no new accessibility failures"]
+        self.assertFalse(passed)
+        self.assertIn("A11Y-001: PASS -> FAIL", reason)
+        del inputs["a11y_baseline"]
+        self.assertIn("no accessibility snapshot", results(rg.Gate(self.d, **inputs))["no new accessibility failures"][1])
 
     # Verifies: QA-033
     # Verifies: SEC-021
