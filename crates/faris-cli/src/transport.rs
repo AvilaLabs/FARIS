@@ -172,6 +172,12 @@ fn statistics(
             text.push_str(&format!("  {line}\n"));
         }
     }
+    if let Some(c) = faris_engine::tally_health::mesh_reports_convergence(&reports) {
+        text.push_str(&format!(
+            "Mesh convergence: {}\n",
+            faris_engine::tally_health::convergence_line_for(&c, "voxels")
+        ));
+    }
     if let Some(path) = output {
         write_new_json(path, &reports)?;
     }
@@ -294,6 +300,33 @@ mod tests {
         assert!(text.contains("NOT_EVALUATED: interval refused"), "{text}");
         assert!(out.exists());
         assert!(statistics(&dir.path().join("none.json"), None, false, None).is_err());
+        assert!(!text.contains("Mesh convergence"), "{text}");
+    }
+
+    // Verifies: NUC-049
+    #[test]
+    fn statistics_prints_the_mesh_convergence_sentence_for_a_flux_mesh() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("transport-batch-values.json");
+        // Voxel 0 is tight (about 1 % error), voxel 1 is wide (about 50 %), voxel 2 scores nothing.
+        let tight: Vec<f64> = (0..100)
+            .map(|i| 1.0 + 0.1 * (((i * 37) % 17) as f64 / 8.0 - 1.0))
+            .collect();
+        let wide: Vec<f64> = (0..100)
+            .map(|i| 1.0 + 5.0 * (((i * 37) % 17) as f64 / 8.0 - 1.0))
+            .collect();
+        let doc = serde_json::json!({
+            "schema_version": "faris-transport-batch-values/v0.1",
+            "n_batches": 100,
+            "response_ids": ["mesh-flux-0", "mesh-flux-1", "mesh-flux-2"],
+            "values": {"mesh-flux-0": tight, "mesh-flux-1": wide, "mesh-flux-2": vec![0.0; 100]},
+        });
+        std::fs::write(&path, doc.to_string()).unwrap();
+        let text = statistics(&path, None, false, None).unwrap();
+        assert!(
+            text.contains("Mesh convergence: 1 of 3 voxels (33.3 %)"),
+            "{text}"
+        );
     }
 
     #[test]

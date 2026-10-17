@@ -42,11 +42,23 @@ fn derive(
     DisplayPrefs::from_resolved(&resolved).unwrap_or_default()
 }
 
+/// The user settings file. Tests never read it: what the developer chose must not change them.
 fn settings_file() -> Option<std::path::PathBuf> {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(target_arch = "wasm32"), not(test)))]
     return settings::default_path();
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", test))]
     None
+}
+
+/// An environment variable (FARIS_UNITS and the like); tests see none.
+fn env(name: &str) -> Option<std::ffi::OsString> {
+    #[cfg(not(test))]
+    return std::env::var_os(name);
+    #[cfg(test)]
+    {
+        let _ = name;
+        None
+    }
 }
 
 fn with_choices<T>(read: impl FnOnce(&mut Settings) -> T) -> T {
@@ -61,7 +73,7 @@ fn with_choices<T>(read: impl FnOnce(&mut Settings) -> T) -> T {
 /// chooses otherwise.
 pub fn prefs() -> DisplayPrefs {
     let file = settings_file().unwrap_or_default();
-    with_choices(|choices| derive(choices, &file, &|name| std::env::var_os(name)))
+    with_choices(|choices| derive(choices, &file, &env))
 }
 
 /// Chooses `key` (`units.system`, `units.<group>`, `format.decimal`, ...) for this session and,
@@ -81,15 +93,19 @@ fn choose_in(
 ) -> Result<(), String> {
     let mut trial = choices.clone();
     trial.set_value(key, text)?;
-    let resolved = trial.resolve(file.unwrap_or(Path::new("")), &|name| {
-        std::env::var_os(name)
-    });
+    let resolved = trial.resolve(file.unwrap_or(Path::new("")), &env);
     DisplayPrefs::from_resolved(&resolved).map_err(|p| p.join(" "))?;
     *choices = trial;
     if let Some(file) = file {
         save_choice(file, key, Some(text));
     }
     Ok(())
+}
+
+/// The text chosen for `key` (`units.system`, ...); None when nothing is set, which means each
+/// panel keeps its usual unit.
+pub fn chosen(key: &str) -> Option<String> {
+    with_choices(|choices| choices.value(key))
 }
 
 /// Forgets the choice for `key`, so the system default or the built-in default applies again.
@@ -134,9 +150,7 @@ pub fn save_choice(file: &Path, key: &str, text: Option<&str>) {
 /// The preferences a settings file gives (SI and plain numbers when it chooses nothing).
 #[cfg(test)]
 pub fn prefs_from_file(file: &Path) -> DisplayPrefs {
-    derive(&settings::load(file).settings, file, &|name| {
-        std::env::var_os(name)
-    })
+    derive(&settings::load(file).settings, file, &env)
 }
 
 /// The number written in the unit shown for `group`, and the unit's symbol, always together
@@ -210,16 +224,86 @@ fn interval_text(p: &DisplayPrefs, value: f64, standard_error: f64, symbol: &str
     } else {
         format!(" {symbol}")
     };
-    let text = if pair.uncertainty.is_some() {
-        format!(
-            "{}{unit} ({})",
-            pair.text,
+    match (&pair.uncertainty, pair.exponent) {
+        // Written in plain form: both numbers take the decimal mark and the digit grouping.
+        (Some(error), None) => format!(
+            "{} ± {}{unit} ({})",
+            localize(p, &pair.value),
+            localize(p, error),
             IntervalConvention::OneSigma.label()
-        )
-    } else {
-        format!("{}{unit}", pair.text)
-    };
-    decimal_mark(p, text)
+        ),
+        (Some(_), Some(_)) => decimal_mark(
+            p,
+            format!(
+                "{}{unit} ({})",
+                pair.text,
+                IntervalConvention::OneSigma.label()
+            ),
+        ),
+        (None, _) => decimal_mark(p, format!("{}{unit}", pair.text)),
+    }
+}
+
+/// A plain decimal number rewritten with the format's decimal mark and grouping, keeping its digits.
+fn localize(p: &DisplayPrefs, number: &str) -> String {
+    let decimals = number.split_once('.').map_or(0, |(_, f)| f.len());
+    number
+        .parse::<f64>()
+        .map_or_else(|_| number.to_owned(), |x| p.number.fixed(x, decimals))
+}
+
+/// A relative standard error as `± 4.3 % (1 σ standard error)`.
+pub fn relative_error_with(p: &DisplayPrefs, fraction: f64) -> String {
+    format!(
+        "± {} % ({})",
+        p.number.fixed(100.0 * fraction, 1),
+        IntervalConvention::OneSigma.label()
+    )
+}
+
+pub fn relative_error(fraction: f64) -> String {
+    relative_error_with(&prefs(), fraction)
+}
+
+/// Scientific notation for a large or small quantity, in the unit the user chose or else in
+/// `habit`, always with the registry's symbol.
+pub fn scientific_with(
+    p: &DisplayPrefs,
+    group: &str,
+    habit: &str,
+    si: f64,
+    decimals: usize,
+) -> String {
+    let unit = p.unit_or(group, habit);
+    format!(
+        "{} {}",
+        p.number.scientific(unit.from_si(si), decimals),
+        unit.symbol
+    )
+}
+
+pub fn scientific(group: &str, habit: &str, si: f64, decimals: usize) -> String {
+    scientific_with(&prefs(), group, habit, si, decimals)
+}
+
+/// An ISO date (`2026-10-15`) as the date format chosen writes it; text that is not an ISO date
+/// is returned as it is.
+pub fn date_with(p: &DisplayPrefs, iso: &str) -> String {
+    let mut parts = iso.trim().splitn(3, '-');
+    match (
+        parts.next().and_then(|y| y.parse::<i64>().ok()),
+        parts.next().and_then(|m| m.parse::<u32>().ok()),
+        parts.next().and_then(|d| d.parse::<u32>().ok()),
+    ) {
+        (Some(y), Some(m), Some(d)) if (1..=12).contains(&m) && (1..=31).contains(&d) => {
+            p.date.render(y, m, d)
+        }
+        _ => iso.to_owned(),
+    }
+}
+
+pub fn date(iso: &str) -> String {
+    date_with(&prefs(), iso)
 }
 
 /// Reads text typed for a quantity of `group` and returns SI base units. A bare number is taken

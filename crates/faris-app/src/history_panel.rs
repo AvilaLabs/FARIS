@@ -146,22 +146,56 @@ impl Plot {
             Plot::FullPower => None,
         }
     }
-    fn title(self) -> &'static str {
+    /// The quantity group of the plotted value, the SI value of one plotted unit, and the name of
+    /// the plotted unit while the user has chosen nothing for the group.
+    fn unit(self) -> (&'static str, f64, &'static str) {
         match self {
-            Plot::MagnetFluence => {
-                "Magnet fluence (flux × time, a transport proxy, not dpa) toward its service limit, n/m²"
-            }
-            Plot::Electricity => "Cumulative signed net electricity · TWh",
-            Plot::Tritium => "Usable tritium inventory · kg",
-            Plot::FullPower => "Cumulative full-power time · years",
+            Plot::MagnetFluence => ("fluence", 1.0, "n/m²"),
+            // One TWh is 3.6e15 J.
+            Plot::Electricity => ("energy_plant", 3.6e15, "TWh"),
+            Plot::Tritium => ("mass", 1.0, "kg"),
+            Plot::FullPower => ("service_time", faris_model::units::JULIAN_YEAR_S, "y"),
+        }
+    }
+    /// A plotted value in the unit shown (the chosen unit, else the plotted one), with its symbol.
+    fn shown(self, v: f64) -> (f64, String) {
+        let (group, per_unit, plotted) = self.unit();
+        let prefs = crate::quantity_text::prefs();
+        if prefs.is_chosen(group) {
+            let unit = prefs.unit_for(group);
+            (unit.from_si(v * per_unit), unit.symbol.to_string())
+        } else {
+            (v, plotted.to_string())
+        }
+    }
+    fn shown_triple(self, a: f64, b: f64, c: f64) -> (f64, f64, f64, String) {
+        let (a, symbol) = self.shown(a);
+        (a, self.shown(b).0, self.shown(c).0, symbol)
+    }
+    fn title(self) -> String {
+        let symbol = self.shown(0.0).1;
+        match self {
+            Plot::MagnetFluence => format!(
+                "Magnet fluence (flux × time, a transport proxy, not dpa) toward its service limit, {symbol}"
+            ),
+            Plot::Electricity => format!("Cumulative signed net electricity · {symbol}"),
+            Plot::Tritium => format!("Usable tritium inventory · {symbol}"),
+            Plot::FullPower => format!(
+                "Cumulative full-power time · {}",
+                if symbol == "y" { "years" } else { &symbol }
+            ),
         }
     }
     fn format(self, v: f64) -> String {
+        let (x, symbol) = self.shown(v);
+        if crate::quantity_text::prefs().is_chosen(self.unit().0) {
+            return format!("{} {symbol}", fmt_compact(x));
+        }
         match self {
-            Plot::MagnetFluence => format!("{} n/m²", fmt_sci(v)),
-            Plot::Electricity => format!("{v:.2} TWh"),
-            Plot::Tritium => format!("{v:.3} kg"),
-            Plot::FullPower => format!("{v:.2} y"),
+            Plot::MagnetFluence => format!("{} {symbol}", fmt_sci(x)),
+            Plot::Electricity => format!("{x:.2} {symbol}"),
+            Plot::Tritium => format!("{x:.3} {symbol}"),
+            Plot::FullPower => format!("{x:.2} {symbol}"),
         }
     }
 }
@@ -880,6 +914,14 @@ impl HistoryPanel {
                 limit.limit = base_magnet.unwrap_or(limit.limit);
                 changed = true;
             }
+            changed |= quantity_row(
+                ui,
+                "magnet-limit",
+                "fluence",
+                "n/m2",
+                &mut limit.limit,
+                1e21..=1e23,
+            );
             let response = log_slider(ui, &mut limit.limit, 1e21..=1e23);
             changed |= response.changed();
             if let Some(lit) = literature {
@@ -926,6 +968,17 @@ impl HistoryPanel {
                     *duration = days * DAY_S;
                     changed = true;
                 }
+                if quantity_row(
+                    ui,
+                    "magnet-swap-duration",
+                    "time",
+                    "d",
+                    duration,
+                    14.0 * DAY_S..=365.0 * DAY_S,
+                ) {
+                    days = (*duration / DAY_S).round();
+                    changed = true;
+                }
                 if full_slider(ui, &mut days, 14.0..=365.0, false, Some(1.0)).changed() {
                     *duration = days * DAY_S;
                     changed = true;
@@ -970,6 +1023,14 @@ impl HistoryPanel {
                 limit.limit = base_blanket.unwrap_or(limit.limit);
                 changed = true;
             }
+            changed |= quantity_row(
+                ui,
+                "blanket-limit",
+                "fluence",
+                "n/m2",
+                &mut limit.limit,
+                1e25..=1e27,
+            );
             changed |= log_slider(ui, &mut limit.limit, 1e25..=1e27).changed();
         }
 
@@ -1000,6 +1061,17 @@ impl HistoryPanel {
             a.processing_delay_s = delay_days * DAY_S;
             changed = true;
         }
+        if quantity_row(
+            ui,
+            "processing-delay",
+            "time",
+            "d",
+            &mut a.processing_delay_s,
+            0.0..=7.0 * DAY_S,
+        ) {
+            delay_days = a.processing_delay_s / DAY_S;
+            changed = true;
+        }
         if full_slider(ui, &mut delay_days, 0.0..=7.0, false, Some(0.25)).changed() {
             a.processing_delay_s = delay_days * DAY_S;
             changed = true;
@@ -1022,13 +1094,14 @@ impl HistoryPanel {
 
         ui.horizontal(|ui| {
             ui.label("Opening usable fuel / kg");
-            changed |= ui
-                .add(
-                    egui::DragValue::new(&mut a.initial_available_tritium_kg)
-                        .range(0.0..=1000.0)
-                        .speed(0.1),
-                )
-                .changed();
+            changed |= crate::units_menu::quantity_field(
+                ui,
+                "initial-fuel",
+                "mass",
+                "kg",
+                &mut a.initial_available_tritium_kg,
+                0.0..=1000.0,
+            );
         });
         if let Some(b) = base
             && *a != *b
@@ -1985,6 +2058,19 @@ fn full_slider(
     .inner
 }
 
+/// A typed entry for a quantity above its slider: shows the unit, refuses another dimension.
+fn quantity_row(
+    ui: &mut egui::Ui,
+    salt: &str,
+    group: &str,
+    habit: &str,
+    si: &mut f64,
+    range: std::ops::RangeInclusive<f64>,
+) -> bool {
+    ui.horizontal(|ui| crate::units_menu::quantity_field(ui, salt, group, habit, si, range))
+        .inner
+}
+
 fn log_slider(
     ui: &mut egui::Ui,
     value: &mut f64,
@@ -2061,7 +2147,20 @@ pub fn fmt_sci(v: f64) -> String {
     }
 }
 
+/// A number in the unit chosen: plain when it is of moderate size, else scientific.
+fn fmt_compact(x: f64) -> String {
+    let p = crate::quantity_text::prefs();
+    if x == 0.0 || (0.01..1e5).contains(&x.abs()) {
+        p.number.significant(x, 4)
+    } else {
+        p.number.scientific(x, 3)
+    }
+}
+
 fn fmt_tick(plot: Plot, v: f64, step: f64) -> String {
+    if crate::quantity_text::prefs().is_chosen(plot.unit().0) {
+        return fmt_compact(plot.shown(v).0);
+    }
     if plot == Plot::MagnetFluence {
         return fmt_sci(v);
     }

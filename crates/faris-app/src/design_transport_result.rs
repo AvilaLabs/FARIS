@@ -78,12 +78,12 @@ pub fn error_text(relative: Option<f64>) -> String {
              run more histories"
                 .to_string()
         },
-        |r| format!("± {:.1} %", 100.0 * r),
+        crate::quantity_text::relative_error,
     )
 }
 
 fn flux_text(flux: f64) -> String {
-    format!("{flux:.3e} n/m²/s")
+    crate::quantity_text::scientific("particle_flux", "n/m2/s", flux, 3)
 }
 
 pub fn status_word(status: LimitStatus) -> &'static str {
@@ -386,8 +386,8 @@ pub(crate) mod tests {
     #[test]
     fn every_number_carries_its_error_or_the_reason_it_has_none() {
         let view = result_view(&sample_report());
-        assert_eq!(view.mean.error, "± 4.3 %");
-        assert_eq!(view.mean.value, "2.000e14 n/m²/s");
+        assert_eq!(view.mean.error, "± 4.3 % (1 σ standard error)");
+        assert_eq!(view.mean.value, "2.000e14 n/m2/s");
         let solid = view.highest_solid.unwrap();
         assert_eq!(solid.caption, "Highest solid: coil-b");
         assert!(
@@ -395,7 +395,10 @@ pub(crate) mod tests {
                 .error
                 .starts_with("error unknown: fewer than two batches")
         );
-        assert_eq!(view.highest_piece.unwrap().error, "± 9.0 %");
+        assert_eq!(
+            view.highest_piece.unwrap().error,
+            "± 9.0 % (1 σ standard error)"
+        );
         assert_eq!(
             view.highest_piece_place.unwrap(),
             "r 4.00–4.20 m, z 0.50–0.70 m, 12.0 litres, the highest of 40 pieces"

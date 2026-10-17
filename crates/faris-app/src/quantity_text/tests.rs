@@ -266,3 +266,68 @@ fn the_convergence_summary_text_names_the_voxels_and_the_worst_error() {
         "{text}"
     );
 }
+
+// Verifies: CFG-037, UNC-081
+#[test]
+fn grouping_and_the_decimal_mark_reach_a_value_with_its_uncertainty() {
+    let thin = prefs_of(&[("format.grouping", "thin-space")]);
+    assert_eq!(
+        measurement_with(&thin, 123_456.0, 12.0),
+        "123\u{202f}456 ± 12 (1 σ standard error)"
+    );
+    let european = prefs_of(&[("format.decimal", "comma"), ("format.grouping", "point")]);
+    assert_eq!(
+        measurement_with(&european, 123_456.0, 1.2),
+        "123.456,0 ± 1,2 (1 σ standard error)"
+    );
+    // The relative error follows the decimal mark and states its convention.
+    assert_eq!(
+        relative_error_with(&european, 0.043),
+        "± 4,3 % (1 σ standard error)"
+    );
+}
+
+// Verifies: CFG-037
+#[test]
+fn dates_follow_the_date_format_and_other_text_is_left_alone() {
+    let iso = prefs_of(&[]);
+    let dmy = prefs_of(&[("format.date", "dmy")]);
+    let mdy = prefs_of(&[("format.date", "mdy")]);
+    assert_eq!(date_with(&iso, "2026-10-15"), "2026-10-15");
+    assert_eq!(date_with(&dmy, "2026-10-15"), "15.10.2026");
+    assert_eq!(date_with(&mdy, "2026-10-15"), "10/15/2026");
+    assert_eq!(date_with(&dmy, "last Tuesday"), "last Tuesday");
+}
+
+// Verifies: UX-066, CFG-040
+#[test]
+fn usual_units_is_the_choice_when_the_system_is_unset_and_returns_there_when_forgotten() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("settings.json");
+    let mut choices = Settings::default();
+    assert_eq!(choices.value("units.system"), None);
+    choose_in(&mut choices, Some(&file), "units.system", "fusion").unwrap();
+    assert_eq!(choices.value("units.system").as_deref(), Some("fusion"));
+    forget_in(&mut choices, Some(&file), "units.system");
+    assert_eq!(choices.value("units.system"), None);
+    let p = prefs_from_file(&file);
+    assert_eq!(unit_symbol_with(&p, "power", "GW"), "GW");
+    let written: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    assert!(written["values"].get("units.system").is_none());
+}
+
+// Verifies: CFG-040
+#[test]
+fn a_chosen_unit_writes_large_quantities_in_scientific_form_and_otherwise_the_habit() {
+    let none = prefs_of(&[]);
+    assert_eq!(
+        scientific_with(&none, "particle_flux", "n/m2/s", 2.0e14, 3),
+        "2.000e14 n/m2/s"
+    );
+    let fusion = prefs_of(&[("units.system", "fusion")]);
+    assert_eq!(
+        scientific_with(&fusion, "particle_flux", "n/m2/s", 2.0e14, 3),
+        "2.000e10 n/cm2/s"
+    );
+}
