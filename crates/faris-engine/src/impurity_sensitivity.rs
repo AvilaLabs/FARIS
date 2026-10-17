@@ -441,12 +441,42 @@ fn decay_info(
     names: &BTreeSet<String>,
     cancel: &Cancellation,
 ) -> Result<BTreeMap<String, DecayInfo>, String> {
+    // The names come from ACTINV's result file and become program arguments, so each must be a
+    // plain nuclide name (never an option such as `--out`).
+    if let Some(bad) = names.iter().find(|n| !is_nuclide_token(n)) {
+        return Err(format!(
+            "the activation result names a nuclide {bad:?} that is not a plain nuclide name (like Co60 or Hf178m2); it is not passed to actinv"
+        ));
+    }
     let (mut map, missing) = decay_from_file(config, &config.data.decay_primary, names, cancel)?;
     if let Some((fallback, _)) = &config.data.decay_fallback {
         let (more, _) = decay_from_file(config, fallback, &missing, cancel)?;
         map.extend(more);
     }
     Ok(map)
+}
+
+/// An element symbol, a mass number and an optional isomer mark: `Co60`, `Hf178m2`, `Tc99m`.
+fn is_nuclide_token(name: &str) -> bool {
+    let b = name.as_bytes();
+    let mut i = 0;
+    if b.first().is_none_or(|c| !c.is_ascii_uppercase()) {
+        return false;
+    }
+    i += 1;
+    while i < b.len() && i < 3 && b[i].is_ascii_lowercase() {
+        i += 1;
+    }
+    let digits = b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
+    if !(1..=3).contains(&digits) {
+        return false;
+    }
+    i += digits;
+    match &b[i..] {
+        [] | [b'm'] => true,
+        [b'm', d] => d.is_ascii_digit(),
+        _ => false,
+    }
 }
 
 // ----------------------------------------------------------------- responses --
@@ -834,6 +864,28 @@ pub fn impurity_sensitivity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: SEC-001
+    #[test]
+    fn only_plain_nuclide_names_can_become_actinv_arguments() {
+        for good in ["Co60", "Hf178m2", "Tc99m", "H3", "Nb94", "Rh114m1"] {
+            assert!(is_nuclide_token(good), "{good}");
+        }
+        for bad in [
+            "--out",
+            "-x",
+            "co60",
+            "Co",
+            "Co6000",
+            "Co60m12",
+            "Co60 --out",
+            "",
+            "Co60/..",
+            "C1o",
+        ] {
+            assert!(!is_nuclide_token(bad), "{bad}");
+        }
+    }
     use crate::activation::{ActivationData, GROUPS};
     use faris_model::math;
     use std::path::PathBuf;

@@ -51,12 +51,21 @@ pub fn tempdir(prefix: &str) -> std::io::Result<tempfile::TempDir> {
 mod tests {
     use super::*;
 
+    /// An absolute path on the platform running the test: `/x` here is `C:/x` on Windows, where a path with no
+    /// drive is not absolute and would be refused.
+    fn abs(path: &str) -> String {
+        match path.strip_prefix('/') {
+            Some(rest) if cfg!(windows) => format!("C:/{rest}"),
+            _ => path.to_owned(),
+        }
+    }
+
     fn env<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<PathBuf> + 'a {
         move |name| {
             pairs
                 .iter()
                 .find(|(k, _)| *k == name)
-                .map(|(_, v)| PathBuf::from(v))
+                .map(|(_, v)| PathBuf::from(abs(v)))
         }
     }
 
@@ -66,28 +75,28 @@ mod tests {
         let configured = env(&[(SCRATCH_ENV, "/data/faris-scratch"), ("HOME", "/home/a")]);
         assert_eq!(
             scratch_base_with("linux", &configured),
-            Some(PathBuf::from("/data/faris-scratch"))
+            Some(PathBuf::from(abs("/data/faris-scratch")))
         );
         let home = env(&[("HOME", "/home/a")]);
         assert_eq!(
             scratch_base_with("linux", &home),
-            Some(PathBuf::from("/home/a/.local/state/faris/scratch"))
+            Some(PathBuf::from(abs("/home/a/.local/state/faris/scratch")))
         );
         let xdg = env(&[("XDG_STATE_HOME", "/state"), ("HOME", "/home/a")]);
         assert_eq!(
             scratch_base_with("linux", &xdg),
-            Some(PathBuf::from("/state/faris/scratch"))
+            Some(PathBuf::from(abs("/state/faris/scratch")))
         );
         assert_eq!(
             scratch_base_with("macos", &home),
-            Some(PathBuf::from(
+            Some(PathBuf::from(abs(
                 "/home/a/Library/Application Support/FARIS/scratch"
-            ))
+            )))
         );
         let windows = env(&[("LOCALAPPDATA", "/c/Local")]);
         assert_eq!(
             scratch_base_with("windows", &windows),
-            Some(PathBuf::from("/c/Local/FARIS/scratch"))
+            Some(PathBuf::from(abs("/c/Local/FARIS/scratch")))
         );
         // A relative folder is not trusted.
         let relative = env(&[(SCRATCH_ENV, "scratch"), ("HOME", "relative")]);
