@@ -152,6 +152,9 @@ jobs:
           (out / "build.json").write_text(json.dumps(record, indent=2) + "\n")
           print(json.dumps(record, indent=2))
           EOF
+      - name: Installed size stays within 150 MB
+        shell: bash
+        run: python3 scripts/check_install_size.py out
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: faris-${{ matrix.platform }}
