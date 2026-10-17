@@ -3590,6 +3590,55 @@ mod tests {
         );
         assert!(at_done.cumulative_production_kg > 0.0 && at_done.cumulative_burn_kg > 0.0);
     }
+
+    /// Every key and string a run writes, so a test can audit what the output claims.
+    fn json_text(value: &serde_json::Value, keys: &mut Vec<String>, strings: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, inner) in map {
+                    keys.push(key.clone());
+                    json_text(inner, keys, strings);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for inner in items {
+                    json_text(inner, keys, strings);
+                }
+            }
+            serde_json::Value::String(text) => strings.push(text.clone()),
+            _ => {}
+        }
+    }
+
+    // Verifies: MAT-019
+    #[test]
+    fn an_energy_integrated_flux_is_never_written_as_dpa_or_service_life() {
+        let result = blanket_cycle_run(None);
+        let value = serde_json::to_value(&result).unwrap();
+        let (mut keys, mut strings) = (Vec::new(), Vec::new());
+        json_text(&value, &mut keys, &mut strings);
+        // The limit names its metric as an energy-integrated flux, and the run says what it does not claim.
+        assert!(strings.iter().any(|s| s == ENERGY_INTEGRATED_FLUX_METRIC));
+        assert!(result.notice.contains("No service-life"));
+        for key in &keys {
+            let lower = key.to_lowercase();
+            assert!(
+                !lower.contains("dpa")
+                    && !lower.contains("displacement")
+                    && !lower.contains("life"),
+                "{key}"
+            );
+        }
+        for text in &strings {
+            let lower = text.to_lowercase();
+            assert!(
+                !lower
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|w| w == "dpa"),
+                "{text}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
