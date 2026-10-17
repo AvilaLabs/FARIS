@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 423 of 1419 requirements.
+Traced: 428 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -31,8 +31,8 @@ Traced: 423 of 1419 requirements.
 | [19-security.md](19-security.md) | 55 | 24 |
 | [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 11 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 27 |
-| [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 15 |
-| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 15 |
+| [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 18 |
+| [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 17 |
 
 ## Traced requirements
 
@@ -436,28 +436,33 @@ Traced: 423 of 1419 requirements.
 | DOC-009 | F1 | `scripts/test_doc_pages.py::test_limitations_rows_name_a_requirement_that_exists` |
 | DOC-020 | F1 | `scripts/test_doc_samples.py::test_a_runnable_command_is_executed_and_a_failing_one_fails_the_check` |
 | DOC-021 | F1 | `scripts/test_doc_samples.py::test_a_flag_the_binary_does_not_have_fails`<br>`scripts/test_docs_policy.py::test_a_binary_that_fails_is_an_error_not_an_empty_page`<br>`scripts/test_docs_policy.py::test_contributing_states_the_regression_test_rule_and_the_template_has_the_checkbox`<br>`scripts/test_docs_policy.py::test_examples_come_from_the_handbook_and_missing_ones_are_listed` |
-| DOC-026 | F1 | `scripts/test_check_links.py::test_a_missing_file_a_missing_anchor_and_an_escape_from_the_repository_fail`<br>`scripts/test_check_links.py::test_external_links_are_only_syntax_checked_and_never_fetched`<br>`scripts/test_check_links.py::test_heading_slugs_follow_the_github_rule`<br>`scripts/test_check_links.py::test_html_anchors_count_and_code_is_ignored`<br>`scripts/test_check_links.py::test_reference_definitions_and_autolinks_are_checked`<br>`scripts/test_check_links.py::test_the_repositorys_own_documents_have_no_broken_link` |
+| DOC-026 | F1 | `scripts/test_check_links.py::do_HEAD`<br>`scripts/test_check_links.py::fetch`<br>`scripts/test_check_links.py::test_a_missing_file_a_missing_anchor_and_an_escape_from_the_repository_fail`<br>`scripts/test_check_links.py::test_a_nested_link_is_reported_as_malformed`<br>`scripts/test_check_links.py::test_external_links_are_only_syntax_checked_and_never_fetched`<br>`scripts/test_check_links.py::test_heading_slugs_follow_the_github_rule`<br>`scripts/test_check_links.py::test_html_anchors_count_and_code_is_ignored`<br>`scripts/test_check_links.py::test_online_check_fetches_each_address_once_and_separates_dead_from_refusing`<br>`scripts/test_check_links.py::test_reference_definitions_and_autolinks_are_checked`<br>`scripts/test_check_links.py::test_the_repositorys_own_documents_have_no_broken_link` |
 | DOC-034 | F2 | `scripts/test_docs_policy.py::test_a_long_definition_a_duplicate_and_a_missing_link_fail` |
-| DOC-037 | F1 | `scripts/test_doc_pages.py::test_the_handbook_adds_the_licence_footer_to_every_page` |
+| DOC-036 | F1 | `scripts/test_build_docs.py::test_every_file_the_book_reads_is_tracked`<br>`scripts/test_build_docs.py::test_the_tree_hash_depends_on_names_and_contents`<br>`scripts/test_build_docs.py::test_two_builds_of_the_handbook_have_the_same_hash` |
+| DOC-037 | F1 | `scripts/test_check_doc_licence.py::test_a_figure_without_a_credit_or_owner_is_reported`<br>`scripts/test_check_doc_licence.py::test_every_built_page_must_load_the_footer`<br>`scripts/test_check_doc_licence.py::test_the_repository_passes`<br>`scripts/test_doc_pages.py::test_the_handbook_adds_the_licence_footer_to_every_page` |
 | DOC-040 | F1 | `scripts/test_docs_policy.py::test_layout_rules` |
 | DOC-041 | F1 | `scripts/test_docs_policy.py::test_security_policy_has_a_private_channel_and_the_stated_targets` |
 | DOC-042 | F2 | `crates/faris-study/src/fixture_tests.rs::every_archived_fixture_opens_verifies_and_matches_its_summary` |
 | DOC-043 | F2 | `scripts/test_docs_policy.py::test_a_valid_entry_passes_and_the_two_minor_release_rule_is_enforced`<br>`scripts/test_docs_policy.py::test_missing_replacement_reached_removal_and_unknown_announcement_fail` |
+| DOC-053 | F2 | `scripts/test_readability.py::test_code_tables_headings_and_links_are_not_prose`<br>`scripts/test_readability.py::test_plain_text_scores_low_and_dense_text_scores_high`<br>`scripts/test_readability.py::test_syllables_and_passive_voice`<br>`scripts/test_readability.py::test_the_handbook_meets_the_gates` |
+| DOC-054 | F1 | `scripts/test_style_lint.py::test_american_spellings_in_prose_are_flagged`<br>`scripts/test_style_lint.py::test_code_links_and_urls_are_not_prose`<br>`scripts/test_style_lint.py::test_terminology_variants_are_flagged_and_the_allow_list_is_exact`<br>`scripts/test_style_lint.py::test_the_repository_prose_has_zero_findings` |
 | DOC-056 | F2 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row` |
 | DOC-060 | F1 | `scripts/test_docs_policy.py::test_invalid_files_are_rejected_with_the_reason` |
 | DOC-062 | F1 | `scripts/test_export_lint.py::test_a_claim_in_an_export_and_a_missing_twin_statement_are_found`<br>`scripts/test_export_lint.py::test_a_clean_export_has_no_finding_except_the_stamp`<br>`scripts/test_export_lint.py::test_the_statement_must_be_the_first_line`<br>`scripts/test_source_lint.py::test_the_tree_has_no_failing_finding` |
+| LEG-002 | F1 | `scripts/test_check_spdx.py::test_every_tracked_source_file_carries_the_header` |
 | LEG-003 | F1 | `scripts/test_check_licences.py::test_an_exception_matches_the_exact_expression_and_unused_ones_fail`<br>`scripts/test_check_licences.py::test_missing_and_unparseable_licences_fail`<br>`scripts/test_check_licences.py::test_older_slash_separators_and_exceptions_with_with`<br>`scripts/test_check_licences.py::test_the_repository_policy_is_well_formed_and_fails_a_gpl2_only_dependency`<br>`scripts/test_workflows.py::test_cargo_deny_runs_daily_and_on_dependency_changes_with_the_licence_policy_of_the_checker` |
 | LEG-005 | F1 | `scripts/test_qa_process.py::test_a_commit_signed_off_with_the_authors_address_passes_and_an_unsigned_or_misaddressed_one_fails`<br>`scripts/test_qa_process.py::test_commits_authored_before_the_policy_date_are_not_checked`<br>`scripts/test_qa_process.py::test_maintainers_commits_are_checked_too_and_a_fully_signed_range_passes`<br>`scripts/test_workflows.py::test_the_main_workflow_runs_the_static_analysis_and_size_and_sign_off_checks`<br>`scripts/test_workflows.py::test_the_sign_off_job_covers_every_pull_request_and_the_history_job_has_full_depth` |
 | LEG-007 | F1 | `scripts/test_requirement_evidence.py::test_the_combined_work_licence_and_the_account_client_licence_are_recorded` |
 | LEG-011 | F1 | `scripts/test_requirement_evidence.py::test_data_of_unclear_terms_is_ignored_by_git_documented_for_user_download_and_refused_by_the_packager` |
-| LEG-014 | F1 | `scripts/test_collect_dependency_notices.py::test_spdx_expression_parsing` |
+| LEG-013 | F1 | `scripts/test_check_platform_notices.py::test_a_missing_extra_or_stale_entry_is_reported`<br>`scripts/test_check_platform_notices.py::test_an_entry_without_a_licence_text_is_reported`<br>`scripts/test_check_platform_notices.py::test_matching_notices_have_no_difference`<br>`scripts/test_check_platform_notices.py::test_the_graph_is_the_registry_packages_reachable_from_the_roots` |
+| LEG-014 | F1 | `scripts/test_collect_dependency_notices.py::test_spdx_expression_parsing`<br>`scripts/test_notice_sources.py::test_the_core_runtime_notices_state_their_source_and_hash_for_every_text` |
 | LEG-015 | F1 | `scripts/test_requirement_evidence.py::test_both_font_licences_ship_with_the_program_and_are_in_the_notices` |
-| LEG-016 | F1 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row` |
+| LEG-016 | F1 | `scripts/test_doc_pages.py::test_the_external_tool_table_lists_a_licence_for_every_row`<br>`scripts/test_package_scan.py::test_an_unlisted_native_binary_is_reported`<br>`scripts/test_package_scan.py::test_listed_programs_and_text_files_pass`<br>`scripts/test_package_scan.py::test_restricted_tool_and_data_names_are_reported`<br>`scripts/test_package_scan.py::test_the_release_gate_refuses_a_package_with_a_restricted_file` |
 | LEG-027 | F1 | `crates/faris-app/src/crash.rs::records_are_deleted_after_thirty_days_and_beyond_the_count_and_clear_now_empties`<br>`crates/faris-app/src/crash.rs::recovery_files_and_bundles_expire_with_the_same_rule` |
 | LEG-040 | F1 | `crates/faris-cli/tests/history_screening.rs::history_run_and_ensemble_print_the_statement_without_changing_the_file`<br>`crates/faris-report/src/tests.rs::every_chart_svg_and_png_carries_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::every_csv_starts_with_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_ensemble_csvs_and_the_third_pdf_page_carry_the_research_screening_statement`<br>`crates/faris-report/src/tests.rs::the_manifest_and_both_pdf_pages_carry_the_research_screening_statement` |
 | LEG-041 | F1 | `scripts/test_wording_lint.py::test_advisory_documents_report_without_failing`<br>`scripts/test_wording_lint.py::test_allow_list_is_exact_sentence_and_must_be_used`<br>`scripts/test_wording_lint.py::test_claims_are_flagged`<br>`scripts/test_wording_lint.py::test_extra_directories_are_scanned_for_website_copy`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_negated_and_limited_uses_are_allowed`<br>`scripts/test_wording_lint.py::test_negation_must_be_in_the_same_sentence_and_close` |
 | LEG-042 | F1 | `scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_twin_is_flagged`<br>`scripts/test_wording_lint.py::test_twin_only_in_allow_listed_sentence` |
 | LEG-043 | F1 | `scripts/test_wording_lint.py::test_a_status_id_in_a_markdown_code_span_is_verbatim_but_prose_is_not`<br>`scripts/test_wording_lint.py::test_canonical_words_and_ordinary_english_are_clean`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_title_case_only_allowed_at_sentence_start`<br>`scripts/test_wording_lint.py::test_variant_spellings_are_flagged` |
-| LEG-044 | F1 | `scripts/test_wording_lint.py::test_codenames_are_flagged`<br>`scripts/test_wording_lint.py::test_codenames_are_whole_word_and_case_sensitive`<br>`scripts/test_wording_lint.py::test_file_names_are_checked`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not` |
+| LEG-044 | F1 | `scripts/test_make_release.py::test_a_codename_in_a_package_file_name_is_refused`<br>`scripts/test_wording_lint.py::test_codenames_are_flagged`<br>`scripts/test_wording_lint.py::test_codenames_are_whole_word_and_case_sensitive`<br>`scripts/test_wording_lint.py::test_file_names_are_checked`<br>`scripts/test_wording_lint.py::test_html_text_is_scanned_and_markup_is_not`<br>`scripts/test_wording_lint.py::test_listing_option_and_extra_dirs_check_file_names`<br>`scripts/test_wording_lint.py::test_package_and_website_listings_are_checked_in_every_path_component` |
 | LEG-050 | F1 | `scripts/test_docs_policy.py::test_the_export_control_statement_is_marked_as_a_draft_and_claims_no_review` |
 | LEG-052 | F1 | `scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line`<br>`scripts/test_docs_policy.py::test_the_export_control_statement_is_marked_as_a_draft_and_claims_no_review` |
