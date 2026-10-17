@@ -112,16 +112,16 @@ Its main gaps against these targets:
 <!-- counts:start -->
 | File | Prefixes | Requirements | Met | Partial | Unmeasured | No |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 3 | 42 | 1 | 27 |
-| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 8 | 48 | 3 | 48 |
+| [Geometry and model](01-geometry-and-model.md) | GEO | 73 | 4 | 41 | 1 | 27 |
+| [Radiation transport and neutron source](02-radiation-transport.md) | NUC, SRC | 107 | 9 | 47 | 3 | 48 |
 | [Activation, waste and materials](03-activation-and-materials.md) | ACT, MAT | 97 | 20 | 40 | 0 | 37 |
 | [Plant systems](04-plant-systems.md) | MAG, THM, FUEL, PWR, ECO, SAFE | 99 | 4 | 19 | 0 | 76 |
 | [Operation and life](05-operation-and-life.md) | OPS | 45 | 3 | 9 | 0 | 33 |
-| [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 10 | 29 | 0 | 33 |
+| [Accuracy and validation](06-accuracy-and-validation.md) | VAL | 72 | 13 | 27 | 0 | 32 |
 | [Uncertainty](07-uncertainty.md) | UNC | 61 | 2 | 22 | 0 | 37 |
 | [Performance](08-performance.md) | PERF | 37 | 1 | 13 | 6 | 17 |
-| [Usability](09-usability.md) | UX | 73 | 1 | 34 | 3 | 35 |
-| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 2 | 18 | 9 | 28 |
+| [Usability](09-usability.md) | UX | 73 | 4 | 34 | 3 | 32 |
+| [Accessibility and localisation](10-accessibility-and-localisation.md) | A11Y, L10N | 57 | 2 | 19 | 9 | 27 |
 | [Visualization](11-visualization.md) | VIS | 49 | 1 | 31 | 1 | 16 |
 | [Configurability](12-configurability.md) | CFG | 63 | 2 | 34 | 1 | 26 |
 | [Automation and extensibility](13-automation-and-extensibility.md) | AUTO | 74 | 1 | 25 | 0 | 48 |
@@ -135,9 +135,9 @@ Its main gaps against these targets:
 | [Quality assurance](21-quality-assurance.md) | QA | 77 | 12 | 29 | 1 | 35 |
 | [Documentation and learning](22-documentation-and-learning.md) | DOC | 45 | 0 | 24 | 1 | 20 |
 | [Compliance and privacy](23-compliance-and-privacy.md) | LEG | 36 | 3 | 23 | 2 | 8 |
-| **Total** | | **1419** | **101** | **586** | **35** | **697** |
+| **Total** | | **1419** | **109** | **583** | **35** | **692** |
 
-Counts are generated from the tables by `scripts/requirement_trace.py`. 101 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
+Counts are generated from the tables by `scripts/requirement_trace.py`. 109 of 1419 requirements are met today; that is the point of the set. It describes where FARIS is going, not where it is.
 <!-- counts:end -->
 
 ## Change control
