@@ -1,3 +1,4 @@
+<!-- kind: reference -->
 # Usability benchmark: analysis plan
 
 Written before the first session (requirements UX-070, UX-074). The protocol, tasks, success criteria,
