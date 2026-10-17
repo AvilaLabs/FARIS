@@ -39,6 +39,16 @@ class DefectLogTests(unittest.TestCase):
         self.assertEqual(dl.lint(data, REPO), [])
         self.assertTrue(data["defects"])
 
+    # Verifies: QA-080
+    def test_the_readme_defines_the_four_severities_and_the_log_uses_only_those(self):
+        readme = (REPO / "docs" / "defects" / "README.md").read_text(encoding="utf-8")
+        for severity in dl.SEVERITIES:
+            self.assertRegex(readme, rf"(?m)^\| {severity} \| .+ \|$")
+        data = json.loads((REPO / dl.LOG).read_text(encoding="utf-8"))
+        for d in data["defects"]:
+            for field in ("severity", "status", "affected_versions", "disposition", "regression_test"):
+                self.assertTrue(d.get(field), (d["id"], field))
+
     # Verifies: REL-044
     def test_data_loss_must_be_stated_on_s2_and_cannot_be_waived(self):
         self.assertTrue(self.problems(entry(severity="S2")))
