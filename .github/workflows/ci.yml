@@ -95,6 +95,8 @@ jobs:
         run: python3 -m validation.checks
       - name: Source rules for the calculation crates
         run: python3 scripts/source_lint.py
+      - name: Settings key history and environment variable audit
+        run: python3 scripts/check_settings.py
       - name: Platform support table names real CI jobs
         run: python3 scripts/platform_table.py --check
       - name: Defect log lint
