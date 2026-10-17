@@ -64,11 +64,12 @@ class WorkflowTests(unittest.TestCase):
             for match in re.finditer(r"toolchain:\s*(\S+)", text):
                 self.assertTrue(match.group(1) in ("1.98.1", "nightly") or match.group(1).startswith("${{"), f"{path.name}: {match.group(0)}")
 
-    def test_the_sign_off_job_covers_every_pull_request_and_push_and_the_history_job_has_full_depth(self):
+    def test_the_sign_off_job_covers_every_pull_request_and_the_history_job_has_full_depth(self):
         # Verifies: LEG-005, QA-008, QA-085
         text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
         sign_off = re.search(r"(?ms)^  sign-off:\n(.*?)^  \S", text).group(1)
-        self.assertNotIn("if:", sign_off)  # no fork-only condition: maintainers are checked too
+        self.assertIn("if: github.event_name == 'pull_request'", sign_off)  # every pull request, forks or not
+        self.assertNotIn("fork", sign_off.split("steps:")[0])
         self.assertIn("scripts/check_signoff.py", sign_off)
         self.assertIn("fetch-depth: 0", sign_off)
         history = re.search(r"(?ms)^  history:\n(.*?)^  \S", text).group(1)

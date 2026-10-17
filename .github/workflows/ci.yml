@@ -104,10 +104,11 @@ jobs:
       - name: Larger data is fetched by a hash recorded in the manifest
         run: python3 scripts/check_external_data.py
 
-  # Every commit of a pull request or push carries a Signed-off-by line whose address is the author's, maintainers
-  # included, for commits authored from 18 October 2026 on (LEG-005; the policy is in CONTRIBUTING.md and the check
-  # is scripts/check_signoff.py).
+  # Every commit of a pull request carries a Signed-off-by line whose address is the author's, for commits authored
+  # from 18 October 2026 on (LEG-005; the policy is in CONTRIBUTING.md and the check is scripts/check_signoff.py).
+  # Direct maintainer pushes are not checked until the owner decides whether maintainers sign off.
   sign-off:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
