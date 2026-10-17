@@ -6,7 +6,7 @@ requirement has at least one test; whether that test passes is decided by
 CI, and whether the requirement's target is fully met is the requirement's
 own Now column.
 
-Traced: 408 of 1419 requirements.
+Traced: 409 of 1419 requirements.
 
 | File | Requirements | Traced |
 | --- | ---: | ---: |
@@ -29,7 +29,7 @@ Traced: 408 of 1419 requirements.
 | [17-collaboration.md](17-collaboration.md) | 40 | 8 |
 | [18-reliability.md](18-reliability.md) | 38 | 15 |
 | [19-security.md](19-security.md) | 55 | 23 |
-| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 10 |
+| [20-platforms-and-distribution.md](20-platforms-and-distribution.md) | 45 | 11 |
 | [21-quality-assurance.md](21-quality-assurance.md) | 77 | 25 |
 | [22-documentation-and-learning.md](22-documentation-and-learning.md) | 45 | 15 |
 | [23-compliance-and-privacy.md](23-compliance-and-privacy.md) | 36 | 15 |
@@ -142,7 +142,7 @@ Traced: 408 of 1419 requirements.
 | MAT-015 | F2 | `crates/faris-model/src/materials_db/limits.rs::a_temperature_window_is_tested_when_a_limit_states_one`<br>`crates/faris-model/src/materials_db/limits.rs::conditions_outside_the_stated_window_make_the_comparison_conditional` |
 | MAT-016 | F3 | `crates/faris-model/src/materials_db/limits.rs::not_evaluated_limit_rows_give_their_reason` |
 | MAT-018 | F4 | `crates/faris-engine/src/history.rs::every_replacement_event_stores_criterion_value_limit_and_unit`<br>`crates/faris-engine/src/history.rs::first_regional_limit_replaces_the_component_and_resets_every_track`<br>`crates/faris-engine/src/history.rs::replacing_one_component_leaves_every_other_component_bit_identical`<br>`crates/faris-engine/src/history.rs::with_two_limits_on_a_component_the_event_names_the_one_reached_first`<br>`crates/faris-report/src/tests.rs::the_replacement_table_gives_each_trip_its_limit_value_and_band` |
-| MAT-019 | F2 | `crates/faris-engine/src/history.rs::an_energy_integrated_flux_is_never_written_as_dpa_or_service_life` |
+| MAT-019 | F2 | `crates/faris-engine/src/history.rs::an_energy_integrated_flux_is_never_written_as_dpa_or_service_life`<br>`crates/faris-report/src/tests.rs::the_fluence_chart_names_its_fluence_a_proxy_and_never_a_dpa_or_a_life`<br>`scripts/test_requirement_evidence.py::test_every_place_that_shows_the_accumulated_fluence_names_it_a_proxy` |
 | MAT-040 | F2 | `crates/faris-model/src/materials_db/impurity.rs::two_specifications_give_two_verdicts_and_the_inventory_must_match_the_one_chosen` |
 | MAT-041 | F2 | `crates/faris-model/src/materials_db/impurity.rs::the_watch_list_has_the_required_elements_each_with_a_reason_and_a_threshold` |
 | MAT-042 | F2 | `crates/faris-model/src/materials_db/impurity.rs::the_inverse_agrees_with_the_forward_classification_on_ten_cases`<br>`crates/faris-model/src/materials_db/impurity.rs::the_inverse_names_the_binding_column_and_flags_an_already_exceeded_base`<br>`crates/faris-model/src/materials_db/impurity.rs::the_maximum_moves_with_the_disposal_time` |
@@ -387,6 +387,7 @@ Traced: 408 of 1419 requirements.
 | PLAT-023 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
 | PLAT-024 | F1 | `scripts/test_install_desktop_integration.py::test_the_mime_entry_names_the_type_the_glob_and_the_icon` |
 | PLAT-026 | F1 | `scripts/test_check_install_size.py::test_a_folder_over_the_limit_fails_and_one_under_it_passes`<br>`scripts/test_check_install_size.py::test_the_release_build_workflow_runs_the_check_on_the_collected_folder_at_150_mb` |
+| PLAT-029 | F1 | `crates/faris-cli/tests/study_file.rs::verifying_and_exporting_a_study_leave_the_system_temporary_folder_empty`<br>`crates/faris-engine/src/scratch.rs::the_scratch_folder_is_configured_or_in_the_user_state_folder`<br>`scripts/test_requirement_evidence.py::test_only_small_probe_folders_use_the_system_temporary_folder` |
 | PLAT-030 | F4 | `scripts/test_requirement_evidence.py::test_no_update_check_exists_in_the_source_or_the_lock_file` |
 | PLAT-034 | F1 | `scripts/test_docs_policy.py::test_missing_inputs_refuse_to_produce_notes`<br>`scripts/test_docs_policy.py::test_notes_carry_numeric_changes_security_vv_status_gate_result_and_export_line` |
 | PLAT-053 | F1 | `scripts/test_requirement_evidence.py::test_data_of_unclear_terms_is_ignored_by_git_documented_for_user_download_and_refused_by_the_packager` |
