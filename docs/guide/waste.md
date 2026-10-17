@@ -107,8 +107,9 @@ of Solid Low Level Waste from the Nuclear Industry, February 2016; the same word
 Very low level waste in high volumes is waste with "maximum concentrations of four megabecquerels per tonne
 (MBq/te) of total activity", and 40 MBq/te for tritium. FARIS reads the first as two limits that both hold, one for
 alpha activity (the nuclides you flag `alpha_emitter: true`) and one for beta/gamma, and the second as a sum of
-fractions (non-tritium over 4 plus tritium over 40) not above 1, since the text states each limit alone and gives no
-rule for a mixture. The inventory needs `mass_g`, and every nuclide with activity needs an `alpha_emitter` flag
+fractions (non-tritium over 4 plus tritium over 40) not above 1. That combination is a FARIS choice and not the
+policy's rule: the text states each limit alone and gives no rule for a mixture. The output labels it "FARIS
+combination". The inventory needs `mass_g`, and every nuclide with activity needs an `alpha_emitter` flag
 (a missing flag is not taken as beta/gamma). Decay products you list count at their activity, because the
 definitions are of the radioactive content.
 
@@ -161,7 +162,11 @@ the nuclide's level in IAEA GSR Part 3 Table I.2 (the summation rule of paragrap
 would allow clearance; whether to clear is a regulator's decision. A nuclide with activity and no level makes the
 index `NOT_EVALUATED` and is named; mark a decay product that the table counts with its parent using `progeny_of`.
 
-`clearance-time` searches the window (default 1 to 100 years after the inventory reference) for the first time
+`clearance-time --scheme <scheme>` does the same search for every scheme that has one sum: the IAEA index (first time
+below 1), the England and Wales Schedule 23 Table 2 sum (`uk-epr2016-sch23-table2`), the Fetter sum at the lower limits
+(`fetter-specific-activity`) and the UK high-volume VLLW sum (`uk-llw-ilw`, the FARIS combination above), each
+the first time the sum is at most 1, since those are exceeded only above 1. 10 CFR 61.55 gives a class from
+several sums and is refused. The rest of this paragraph describes the search. `clearance-time` searches the window (default 1 to 100 years after the inventory reference) for the first time
 the index is below 1, by bisection, and says if it is already below 1 at the start or still at or above 1 at the
 end of the window.
 

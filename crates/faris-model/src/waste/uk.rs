@@ -223,7 +223,7 @@ fn exceeds(value: f64, bound: f64) -> bool {
     value > bound * (1.0 + BOUNDARY_TOLERANCE)
 }
 
-const INTERPRETATION: &str = "The LLW definition is read as two limits that both hold: alpha at most 4 GBq/te and beta/gamma at most 12 GBq/te, each over the activity of its own emission type. Every listed nuclide counts at its full decayed activity, decay products listed as progeny included, because the definitions are of the radioactive content. The high-volume VLLW test reads the 4 MBq/te total and the 40 MBq/te tritium limits as a sum of fractions (non-tritium over 4, tritium over 40) not above 1; the text states each limit alone and gives no rule for a mixture.";
+const INTERPRETATION: &str = "The LLW definition is read as two limits that both hold: alpha at most 4 GBq/te and beta/gamma at most 12 GBq/te, each over the activity of its own emission type. Every listed nuclide counts at its full decayed activity, decay products listed as progeny included, because the definitions are of the radioactive content. The high-volume VLLW test combines the 4 MBq/te total and the 40 MBq/te tritium limits as a sum of fractions (non-tritium over 4, tritium over 40) not above 1. That combination is a FARIS choice and not the policy's rule: the policy states each limit alone and gives no rule for a mixture. With only one of the two present, the test is the policy's own limit.";
 
 /// Classifies one component under the UK LLW definition at a disposal time.
 pub fn classify_uk_waste(inventory: &WasteInventory, disposal_time_years: f64) -> UkWasteResult {
@@ -377,7 +377,7 @@ fn fill_uk_waste(
         )
     } else if llw {
         format!(
-            "alpha {:.6} GBq/te (limit {}) and beta/gamma {:.6} GBq/te (limit {}) do not exceed the LLW limits; the high-volume VLLW sum {:.6} exceeds 1",
+            "alpha {:.6} GBq/te (limit {}) and beta/gamma {:.6} GBq/te (limit {}) do not exceed the LLW limits; the high-volume VLLW sum {:.6} (FARIS combination) exceeds 1",
             alpha_c.value,
             t.llw.alpha_gbq_per_te,
             bg_c.value,

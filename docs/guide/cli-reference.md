@@ -347,7 +347,7 @@ Commands:
   schemes         List the classification schemes with name, version and date, and which are implemented
   tables          Print the encoded limit tables with their source, retrieval date and licence
   classify        Classify an inventory at a disposal time under the regime you choose with --scheme. The regime and its jurisdiction profile (name, version, review date) are named on the result. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing, or when the profile is past its review date; it never defaults to Class A
-  clearance-time  Find the time the IAEA clearance index falls below 1, searched between two times
+  clearance-time  Find the time a scheme's sum of fractions falls below 1 (IAEA) or to at most 1 (the UK schedule, Fetter and UK VLLW sums), searched between two times. Decay only
   recycling       Recycling index: a dose rate over a dose-rate criterion you write. FARIS supplies no criterion
   help            Print this message or the help of the given subcommand(s)
 
@@ -449,17 +449,40 @@ Example: `faris waste classify`
 ## faris waste clearance-time
 
 ```text
-Find the time the IAEA clearance index falls below 1, searched between two times
+Find the time a scheme's sum of fractions falls below 1 (IAEA) or to at most 1 (the UK schedule, Fetter and UK VLLW sums), searched between two times. Decay only
 
 Usage: faris waste clearance-time [OPTIONS] --inventory <INVENTORY>
 
 Options:
-      --inventory <INVENTORY>    
-      --from-years <FROM_YEARS>  [default: 1]
-      --to-years <TO_YEARS>      [default: 100]
-      --setting <KEY=VALUE>      Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
-      --units <SYSTEM>           Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
-  -h, --help                     Print help
+      --inventory <INVENTORY>
+          
+
+      --scheme <SCHEME>
+          The scheme whose sum is searched; 10 CFR 61.55 has no single index and is refused
+
+          Possible values:
+          - nrc-10cfr61.55:           US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
+          - iaea-gsr3-table-i2:       IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
+          - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
+          - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
+          
+          [default: iaea-gsr3-table-i2]
+
+      --from-years <FROM_YEARS>
+          [default: 1]
+
+      --to-years <TO_YEARS>
+          [default: 100]
+
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+
+  -h, --help
+          Print help (see a summary with '-h')
 ```
 
 Example: `faris waste clearance-time --inventory <inventory.json>`

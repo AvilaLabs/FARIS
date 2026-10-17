@@ -178,15 +178,38 @@ pub fn clearance_time(
     start_years: f64,
     end_years: f64,
 ) -> ClearanceTimeResult {
+    time_to_below_one(
+        tables::iaea().scheme_info(),
+        inventory,
+        start_years,
+        end_years,
+        false,
+        "bisection on the decay-only clearance index (non-increasing in time); no ingrowth",
+        |t| index_lines(inventory, t).map(|(lines, _)| lines.iter().map(|l| l.ratio).sum()),
+    )
+}
+
+/// The search every index scheme shares: the first time in `[start, end]` at which `sum_at`
+/// falls below 1 (`inclusive` false, the IAEA rule "less than") or to at most 1 (`inclusive`
+/// true, the rule of the UK schedule, Fetter and VLLW sums, which are exceeded only above 1).
+/// `sum_at` must be non-increasing in time, which decay without ingrowth gives.
+pub fn time_to_below_one(
+    scheme: SchemeInfo,
+    inventory: &WasteInventory,
+    start_years: f64,
+    end_years: f64,
+    inclusive: bool,
+    method: &str,
+    sum_at: impl Fn(f64) -> Result<f64, NotEvaluated>,
+) -> ClearanceTimeResult {
     let mut out = ClearanceTimeResult {
-        scheme: tables::iaea().scheme_info(),
+        scheme,
         component_id: inventory.component_id.clone(),
         window_start_years: start_years,
         window_end_years: end_years,
         time: None,
         index_at_window_start: None,
-        method: "bisection on the decay-only clearance index (non-increasing in time); no ingrowth"
-            .to_string(),
+        method: method.to_string(),
         not_evaluated: None,
         kind: ResultKind::Calculated,
         research_screening: RESEARCH_SCREENING_STATEMENT.to_string(),
@@ -199,10 +222,14 @@ pub fn clearance_time(
         ));
         return out;
     }
-    let at = |t: f64| -> Result<f64, NotEvaluated> {
-        index_lines(inventory, t).map(|(lines, _)| lines.iter().map(|l| l.ratio).sum())
+    let met = |v: f64| {
+        if inclusive {
+            v <= 1.0 * (1.0 + super::BOUNDARY_TOLERANCE)
+        } else {
+            v < 1.0
+        }
     };
-    let first = match at(start_years) {
+    let first = match sum_at(start_years) {
         Ok(v) => v,
         Err(e) => {
             out.not_evaluated = Some(e);
@@ -210,18 +237,18 @@ pub fn clearance_time(
         }
     };
     out.index_at_window_start = Some(first);
-    if first < 1.0 {
+    if met(first) {
         out.time = Some(ClearanceTime::BelowOneAtWindowStart { years: start_years });
         return out;
     }
-    let last = match at(end_years) {
+    let last = match sum_at(end_years) {
         Ok(v) => v,
         Err(e) => {
             out.not_evaluated = Some(e);
             return out;
         }
     };
-    if last >= 1.0 {
+    if !met(last) {
         out.time = Some(ClearanceTime::NotWithinWindow {
             index_at_window_end: last,
         });
@@ -230,8 +257,8 @@ pub fn clearance_time(
     let (mut lo, mut hi) = (start_years, end_years);
     for _ in 0..200 {
         let mid = 0.5 * (lo + hi);
-        match at(mid) {
-            Ok(v) if v < 1.0 => hi = mid,
+        match sum_at(mid) {
+            Ok(v) if met(v) => hi = mid,
             _ => lo = mid,
         }
     }

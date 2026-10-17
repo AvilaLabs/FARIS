@@ -58,7 +58,7 @@ basis.
   heat criterion that separates UK ILW from HLW has no number and is not encoded; the low-volume VLLW limits are
   listed and not evaluated. Every result names its regime and a versioned jurisdiction profile (US NRC, UK, IAEA,
   and a literature profile for Fetter) with an authored review date; a profile past its review date turns the
-  class into NOT_EVALUATED. The scheme choice is stored in a receipt (`--receipt`, also in the printed result).
+  class into NOT_EVALUATED. `faris waste clearance-time --scheme` searches the time each sum (IAEA, UK Schedule 23, Fetter, UK high-volume VLLW) reaches 1. The scheme choice is stored in a receipt (`--receipt`, also in the printed result).
   The printed result now has the scheme's own result under `result`, beside `regime`, `class`, `profile`,
   `scheme_choice` and `receipt`; this command was not in an earlier release. See the handbook page "Waste
   classification".
