@@ -387,6 +387,127 @@ pub fn sum_with_covariance(
     })
 }
 
+/// The whole-model tritium production tally, the global tally the zone tallies are summed against.
+pub const TRITIUM_TOTAL_ID: &str = "total-tritium-production";
+
+/// What the sum of the per-zone tritium tallies shows, per source neutron (UNC-013).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ZoneSum {
+    pub zones: usize,
+    /// Sum of the zone tallies and its standard error from the full recorded covariance.
+    pub sum: f64,
+    pub standard_error: f64,
+    /// The global tally the sum is checked against.
+    pub total: f64,
+    /// Sum minus global tally, its error with the covariance between them, and the ratio.
+    pub difference: f64,
+    pub difference_standard_error: f64,
+    pub z: f64,
+    /// `|z| <= 3`.
+    pub within_3_sigma: bool,
+    /// Zones above 5 % of the sum all have a relative error of at most 2 %.
+    pub large_zones_within_2_percent: bool,
+}
+
+/// Why a record has no zone sum, shown where the sum would be.
+pub const ZONE_SUM_UNAVAILABLE: &str = "NOT_EVALUATED: this record has no covariance between its zone tritium tallies and the whole-model tally, so the error of their sum cannot be set; independence is never assumed. Next: rerun the transport with this FARIS version to record the batch-resolved results";
+
+/// The sum of the `*-tritium` zone tallies of a run against its whole-model tritium tally, scaled to
+/// per source neutron. The zones are those the recorded covariance holds; fewer than two, or no
+/// whole-model tally in the covariance, is an error with the reason.
+pub fn tritium_zone_sum(
+    cov: &ResponseCovariance,
+    integrated_mean: &dyn Fn(&str) -> Option<f64>,
+    source_neutron_rate_per_s: f64,
+) -> Result<ZoneSum, String> {
+    if !cov.response_ids.iter().any(|id| id == TRITIUM_TOTAL_ID) {
+        return Err(format!(
+            "{TRITIUM_TOTAL_ID} is not in the recorded covariance"
+        ));
+    }
+    let zones: Vec<&str> = cov
+        .response_ids
+        .iter()
+        .map(String::as_str)
+        .filter(|id| id.ends_with("-tritium") && *id != TRITIUM_TOTAL_ID)
+        .collect();
+    if zones.len() < 2 {
+        return Err(format!(
+            "{} zone tritium tallies are in the recorded covariance; a sum needs at least two",
+            zones.len()
+        ));
+    }
+    if !(source_neutron_rate_per_s.is_finite() && source_neutron_rate_per_s > 0.0) {
+        return Err("the source neutron rate is not a positive number".into());
+    }
+    let sum = sum_with_covariance(cov, integrated_mean, &zones, Some(TRITIUM_TOTAL_ID))?;
+    let check = sum
+        .against_total
+        .ok_or("the whole-model tally was not compared")?;
+    let per_source = 1.0 / source_neutron_rate_per_s;
+    Ok(ZoneSum {
+        zones: zones.len(),
+        sum: sum.value * per_source,
+        standard_error: sum.standard_error * per_source,
+        total: check.total * per_source,
+        difference: check.difference * per_source,
+        difference_standard_error: check.difference_standard_error * per_source,
+        z: check.z,
+        within_3_sigma: check.within_3_sigma,
+        large_zones_within_2_percent: sum.large_zones_within_2_percent,
+    })
+}
+
+/// [`tritium_zone_sum`] on a normalized record.
+pub fn tritium_zone_sum_of(result: &NormalizedTransportResult) -> Result<ZoneSum, String> {
+    let cov = result
+        .response_covariance
+        .as_ref()
+        .ok_or(ZONE_SUM_UNAVAILABLE)?;
+    tritium_zone_sum(
+        cov,
+        &|id| {
+            result
+                .results
+                .iter()
+                .find(|r| r.response_id == id)
+                .map(|r| r.integrated_mean)
+        },
+        result.source_neutron_rate_per_s,
+    )
+}
+
+impl ZoneSum {
+    /// The sum with its combined error, one line for the app and the report.
+    pub fn sum_line(&self) -> String {
+        format!(
+            "Sum of {} zone tallies: {} H3/source neutron (error from the recorded covariance, 1 σ)",
+            self.zones,
+            format_with_uncertainty(self.sum, self.standard_error).text
+        )
+    }
+
+    /// How the sum compares with the whole-model tally.
+    pub fn check_line(&self) -> String {
+        let zones = if self.large_zones_within_2_percent {
+            "every zone above 5 % of the sum is within 2 % relative error"
+        } else {
+            "a zone above 5 % of the sum has a relative error above 2 %"
+        };
+        format!(
+            "Whole-model tally {}; difference {} = {:.1} σ, {} 3 σ; {zones}",
+            format_with_uncertainty(self.total, self.difference_standard_error).text,
+            format_with_uncertainty(self.difference, self.difference_standard_error).text,
+            self.z,
+            if self.within_3_sigma {
+                "within"
+            } else {
+                "OUTSIDE"
+            },
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Convergence across a spectrum or mesh
 

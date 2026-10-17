@@ -191,6 +191,89 @@ fn exactly_the_seeded_edits_are_listed_over_250_trials() {
     assert!(edits >= 250);
 }
 
+const DESIGN: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/corpus/seeded-missing-material-boxes.design.json"
+);
+
+fn design() -> Value {
+    serde_json::from_slice(&std::fs::read(DESIGN).unwrap()).unwrap()
+}
+
+/// One random edit of a design file: a solid's material or role, its placement (a centroid
+/// coordinate) or volume, or a plasma value. Every edit moves its value away from the original and
+/// never back, so the edited paths are exactly the ones the diff must list.
+fn random_design_edit(doc: &mut Value, rng: &mut Lcg) -> String {
+    let solids = doc["solids"].as_array().unwrap().len();
+    let s = rng.below(solids);
+    let id = doc["solids"][s]["id"].as_str().unwrap().to_string();
+    let base = format!("solids[id={id}]");
+    match rng.below(5) {
+        0 => {
+            doc["solids"][s]["material_id"] = json!("edited-material");
+            format!("{base}.material_id")
+        }
+        1 => {
+            let k = rng.below(3);
+            let v = doc["solids"][s]["fingerprint"]["centroid_m"][k]
+                .as_f64()
+                .unwrap();
+            doc["solids"][s]["fingerprint"]["centroid_m"][k] = json!(v + 0.05);
+            format!("{base}.fingerprint.centroid_m[{k}]")
+        }
+        2 => {
+            let v = doc["solids"][s]["fingerprint"]["cad_volume_m3"]
+                .as_f64()
+                .unwrap();
+            doc["solids"][s]["fingerprint"]["cad_volume_m3"] = json!(v * 1.5 + 0.001);
+            format!("{base}.fingerprint.cad_volume_m3")
+        }
+        3 => {
+            doc["solids"][s]["role"] = json!("edited-role");
+            format!("{base}.role")
+        }
+        _ => {
+            let v = doc["plasma"]["major_radius_m"].as_f64().unwrap();
+            doc["plasma"]["major_radius_m"] = json!(v + 0.1);
+            "plasma.major_radius_m".into()
+        }
+    }
+}
+
+// Verifies: GEO-067
+#[test]
+fn exactly_the_seeded_edits_to_a_design_file_and_its_placements_are_listed_over_100_trials() {
+    let base = design();
+    assert_eq!(DocKind::detect(&base), DocKind::Design);
+    let mut rng = Lcg(4242);
+    let (mut edits, mut placements) = (0, 0);
+    for trial in 0..100 {
+        let mut edited = base.clone();
+        let mut expected = BTreeSet::new();
+        for _ in 0..1 + rng.below(4) {
+            expected.insert(random_design_edit(&mut edited, &mut rng));
+        }
+        let report = diff_models("base", &base, "edited", &edited);
+        let listed: BTreeSet<String> = report
+            .inputs
+            .iter()
+            .chain(&report.presentation)
+            .map(|c| c.path.clone())
+            .collect();
+        assert_eq!(listed, expected, "trial {trial}");
+        edits += expected.len();
+        placements += expected.iter().filter(|p| p.contains("centroid_m")).count();
+        for change in report.inputs.iter().chain(&report.presentation) {
+            assert_eq!(change.kind, ChangeKind::Changed);
+            assert_ne!(change.old, change.new);
+        }
+    }
+    assert!(
+        edits >= 100 && placements > 0,
+        "{edits} edits, {placements} placements"
+    );
+}
+
 fn unit_of_path(report: &DiffReport, path: &str) -> Option<String> {
     report
         .inputs

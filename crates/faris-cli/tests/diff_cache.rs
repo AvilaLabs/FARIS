@@ -121,6 +121,144 @@ fn diff_compares_two_model_files_and_refuses_a_mixed_pair() {
     assert!(text(&mixed.stderr).contains("Next step"));
 }
 
+/// The keywords `docs/schemas/faris-diff-1.schema.json` uses: `$ref`, `type`, `const`, `enum`,
+/// `oneOf`, `required`, `properties`, `additionalProperties: false`, `items`, `minimum`.
+fn schema_violations(schema: &Value, root: &Value, value: &Value, at: &str, out: &mut Vec<String>) {
+    if let Some(target) = schema.get("$ref").and_then(Value::as_str) {
+        let node = target
+            .trim_start_matches("#/")
+            .split('/')
+            .fold(root, |node, part| &node[part]);
+        return schema_violations(node, root, value, at, out);
+    }
+    if let Some(kind) = schema.get("type").and_then(Value::as_str) {
+        let ok = match kind {
+            "object" => value.is_object(),
+            "array" => value.is_array(),
+            "string" => value.is_string(),
+            "boolean" => value.is_boolean(),
+            "number" => value.is_number(),
+            "integer" => value.is_i64() || value.is_u64(),
+            "null" => value.is_null(),
+            other => panic!("schema type {other} not handled by this checker"),
+        };
+        if !ok {
+            out.push(format!("{at}: not a {kind}"));
+            return;
+        }
+    }
+    if schema.get("const").is_some_and(|c| c != value) {
+        out.push(format!("{at}: not {}", schema["const"]));
+    }
+    if let Some(options) = schema.get("enum").and_then(Value::as_array)
+        && !options.contains(value)
+    {
+        out.push(format!("{at}: {value} is not one of {options:?}"));
+    }
+    if let (Some(min), Some(v)) = (
+        schema.get("minimum").and_then(Value::as_f64),
+        value.as_f64(),
+    ) && v < min
+    {
+        out.push(format!("{at}: below {min}"));
+    }
+    if let Some(options) = schema.get("oneOf").and_then(Value::as_array) {
+        let matching = options
+            .iter()
+            .filter(|option| {
+                let mut inner = Vec::new();
+                schema_violations(option, root, value, at, &mut inner);
+                inner.is_empty()
+            })
+            .count();
+        if matching != 1 {
+            out.push(format!("{at}: matches {matching} of the oneOf options"));
+        }
+    }
+    if let Some(object) = value.as_object() {
+        for name in schema
+            .get("required")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if !object.contains_key(name.as_str().unwrap()) {
+                out.push(format!("{at}: missing {name}"));
+            }
+        }
+        let properties = schema.get("properties").and_then(Value::as_object);
+        for (key, child) in object {
+            match properties.and_then(|p| p.get(key)) {
+                Some(sub) => schema_violations(sub, root, child, &format!("{at}/{key}"), out),
+                None if schema.get("additionalProperties") == Some(&Value::Bool(false)) => {
+                    out.push(format!("{at}/{key}: unknown property"))
+                }
+                None => {}
+            }
+        }
+    }
+    if let (Some(items), Some(array)) = (schema.get("items"), value.as_array()) {
+        for (i, child) in array.iter().enumerate() {
+            schema_violations(items, root, child, &format!("{at}/{i}"), out);
+        }
+    }
+}
+
+fn diff_violations(report: &Value) -> Vec<String> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/schemas/faris-diff-1.schema.json"
+    );
+    let schema: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let mut out = Vec::new();
+    schema_violations(&schema, &schema, report, "", &mut out);
+    out
+}
+
+// Verifies: COL-023
+#[test]
+fn diff_json_validates_against_the_published_schema() {
+    // Two studies that differ, two identical, and two model files with a component edit.
+    let a = fixture("24-everything-but-store-evidence.faris");
+    let b = fixture("22-history-ensembles.faris");
+    let mut reports = Vec::new();
+    for pair in [[&a, &b], [&a, &a]] {
+        let out = faris(&["diff", pair[0], pair[1], "--json"]);
+        reports.push(serde_json::from_slice::<Value>(&out.stdout).unwrap());
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let mut scenario: Value = serde_json::from_slice(&std::fs::read(SCENARIO).unwrap()).unwrap();
+    let first = dir.path().join("a.json");
+    std::fs::write(&first, serde_json::to_vec(&scenario).unwrap()).unwrap();
+    scenario["variants"][0]["layers"][1]["thickness_m"] = json!(0.6);
+    scenario["variants"][0]["layers"][1]["material_id"] = json!("other-material");
+    let second = dir.path().join("b.json");
+    std::fs::write(&second, serde_json::to_vec(&scenario).unwrap()).unwrap();
+    let out = faris(&[
+        "diff",
+        first.to_str().unwrap(),
+        second.to_str().unwrap(),
+        "--json",
+    ]);
+    let models: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(!models["components"].as_array().unwrap().is_empty());
+    reports.push(models);
+    for report in &reports {
+        let found = diff_violations(report);
+        assert!(found.is_empty(), "{found:?}");
+    }
+    // The schema refuses what the report never contains.
+    let mut broken = reports[2].clone();
+    broken["schema"] = json!("faris-diff/v2");
+    broken["inputs"][0]["cost"] = json!("free");
+    broken["extra"] = json!(1);
+    broken["components"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("changes");
+    assert_eq!(diff_violations(&broken).len(), 4);
+}
+
 // Verifies: GEO-069
 #[test]
 fn geometry_summary_writes_the_csv_table() {

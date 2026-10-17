@@ -63,6 +63,9 @@ pub struct ResultView {
     pub speed_up: SpeedUpView,
     pub limits: Vec<LimitView>,
     pub notices: Vec<String>,
+    /// Set when part of the result came from the cache: what, when it was computed, by which
+    /// version and key (AUTO-039). The flux itself is always sampled in the run shown.
+    pub reused: Option<String>,
     pub not_evaluated: Vec<NotEvaluated>,
     pub run_directory: String,
 }
@@ -258,6 +261,10 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
         },
         limits: report.fluence_limits.iter().map(limit_view).collect(),
         notices: report.notices.clone(),
+        reused: report
+            .reused_from
+            .as_ref()
+            .map(|from| from.banner("Weight windows")),
         not_evaluated: report.not_evaluated.clone(),
         run_directory: report.run_directory.clone(),
     }
@@ -360,6 +367,7 @@ pub(crate) mod tests {
             },
             setup_seconds: 95.0,
             windows_reused: false,
+            reused_from: None,
             fluence_limits: vec![FluenceLimit {
                 group_id: "tf".into(),
                 basis: "peak_piece".into(),
@@ -479,6 +487,32 @@ pub(crate) mod tests {
         let mut aimed = sample_report();
         aimed.variance_reduction.mode = "aimed".into();
         assert!(result_view(&aimed).speed_up.next_step.is_none());
+    }
+
+    // Verifies: AUTO-039
+    #[test]
+    fn a_result_that_used_the_cache_says_so_with_the_date_the_version_and_the_key() {
+        use faris_engine::result_cache::CacheProvenance;
+        let fresh = result_view(&sample_report());
+        assert!(fresh.reused.is_none());
+        let mut report = sample_report();
+        report.windows_reused = true;
+        report.reused_from = Some(CacheProvenance {
+            kind: "design-transport".into(),
+            key: "0123456789abcdef0123".into(),
+            created_utc: "2026-09-14T08:30:00Z".into(),
+            faris_version: "1.0.0".into(),
+            compute_seconds: 95.0,
+        });
+        let text = result_view(&report).reused.unwrap();
+        for part in [
+            "reused from cache, computed on 2026-09-14",
+            "FARIS 1.0.0",
+            "95 s",
+            "0123456789ab",
+        ] {
+            assert!(text.contains(part), "{part} missing: {text}");
+        }
     }
 
     #[test]

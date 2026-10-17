@@ -45,6 +45,7 @@ Each row is a palette entry. Where a key is shown it also works on its own, with
 | Read out the tritium breeding ratio and its error | none, use the palette |
 | Explain why a value is NOT_EVALUATED and what would settle it | none, use the palette |
 | Maintenance window (toggle) | none, use the palette |
+| Compare versions window (toggle) | none, use the palette |
 | Design check window (toggle) | none, use the palette |
 | Design flux window (toggle) | none, use the palette |
 | Replay the guided tour | none, use the palette |

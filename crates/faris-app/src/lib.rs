@@ -21,6 +21,7 @@ mod design_transport_panel;
 mod design_transport_result;
 mod design_transport_run;
 mod dialog;
+mod diff_panel;
 mod error_catalogue;
 mod export_panel;
 mod history_panel;
@@ -52,6 +53,7 @@ type Suite = avila_account::ui_web::WebSuite;
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 mod steps;
+mod tally_sum;
 mod thread;
 mod time;
 mod uncertainty;
@@ -425,6 +427,7 @@ struct FarisApp {
     history: history_panel::HistoryPanel,
     sweep: Option<sweep_panel::SweepPanel>,
     maintenance: maintenance_panel::MaintenancePanel,
+    diff: diff_panel::DiffPanel,
     design_flux: design_transport_panel::DesignTransportPanel,
     design_check: design_check_panel::DesignCheckPanel,
     step: Step,
@@ -494,6 +497,7 @@ impl FarisApp {
             history,
             sweep: None,
             maintenance: maintenance_panel::MaintenancePanel::default(),
+            diff: diff_panel::DiffPanel::default(),
             design_flux: design_transport_panel::DesignTransportPanel::default(),
             design_check: design_check_panel::DesignCheckPanel::default(),
             step: Step::Design,
@@ -1974,6 +1978,8 @@ impl eframe::App for FarisApp {
                 interface_size_menu(ui);
                 ui.toggle_value(&mut self.maintenance.open, "Maintenance")
                     .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
+                ui.toggle_value(&mut self.diff.open, "Compare versions")
+                    .on_hover_text("Show what differs between two studies or two model files: changed parameters, components added, removed or moved, material and volume changes");
                 if browser::IS_BROWSER {
                     self.browser_menu(ui);
                 } else {
@@ -2028,6 +2034,7 @@ impl eframe::App for FarisApp {
         });
         let bar_bottom = bar.response.rect.bottom();
         self.maintenance.window(&ctx);
+        self.diff.window(&ctx, self.file.path.as_deref());
         self.design_check.window(&ctx);
         if let Some((design, report)) = self.design_check.take_flux_request() {
             self.design_flux.prefill(Some(&design), Some(&report));

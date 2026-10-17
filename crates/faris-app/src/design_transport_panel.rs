@@ -441,6 +441,17 @@ fn row_ui(ui: &mut egui::Ui, row: &Row) {
 fn show_result(ui: &mut egui::Ui, shown: &Shown) {
     let view = &shown.view;
     ui.heading(&view.heading);
+    if let Some(reused) = &view.reused {
+        ui.horizontal_wrapped(|ui| {
+            badge::badge(
+                ui,
+                Kind::Conditional,
+                "reused from cache",
+                "The weight windows came from the result cache, not from this run. The flux was sampled in this run.",
+            );
+            ui.label(reused);
+        });
+    }
     row_ui(ui, &view.mean);
     if let Some(row) = &view.highest_solid {
         row_ui(ui, row);
@@ -569,5 +580,56 @@ mod tests {
             saved: Ok(PathBuf::from("/runs/one/design-transport-report.json")),
         });
         frame(&mut panel);
+    }
+
+    /// The text a frame draws, to check what a person would read.
+    fn drawn_text(ctx: &egui::Context, shown: &Shown) -> String {
+        fn collect(shape: &egui::Shape, out: &mut String) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    out.push_str(text.galley.text());
+                    out.push('\n');
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = String::new();
+        let full = ctx.run_ui(egui::RawInput::default(), |ui| show_result(ui, shown));
+        for clipped in &full.shapes {
+            collect(&clipped.shape, &mut out);
+        }
+        full.drop_without_applying_deltas();
+        out
+    }
+
+    // Verifies: AUTO-039
+    #[test]
+    fn the_window_says_reused_from_cache_and_the_date_only_for_a_reused_result() {
+        use faris_engine::result_cache::CacheProvenance;
+        let ctx = egui::Context::default();
+        let shown = |report| Shown {
+            view: result_view(&report),
+            saved: Err("no folder".into()),
+        };
+        // Two frames: the first lays out, the second draws the text.
+        let fresh = shown(sample_report());
+        drawn_text(&ctx, &fresh);
+        assert!(!drawn_text(&ctx, &fresh).contains("reused from cache"));
+        let mut report = sample_report();
+        report.windows_reused = true;
+        report.reused_from = Some(CacheProvenance {
+            kind: "design-transport".into(),
+            key: "0123456789abcdef0123".into(),
+            created_utc: "2026-09-14T08:30:00Z".into(),
+            faris_version: "1.0.0".into(),
+            compute_seconds: 95.0,
+        });
+        let reused = shown(report);
+        drawn_text(&ctx, &reused);
+        let text = drawn_text(&ctx, &reused);
+        assert!(text.contains("reused from cache"), "{text}");
+        assert!(text.contains("computed on 2026-09-14"), "{text}");
+        assert!(text.contains("0123456789ab"), "{text}");
     }
 }

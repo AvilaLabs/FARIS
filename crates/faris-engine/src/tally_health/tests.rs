@@ -213,6 +213,69 @@ fn the_sum_of_parts_uses_the_recorded_covariance_and_checks_the_total() {
     assert!(sum_with_covariance(&cov, &lookup, &[], None).is_err());
 }
 
+// Verifies: UNC-013
+#[test]
+fn the_tritium_zone_sum_is_scaled_per_source_neutron_and_says_when_it_cannot_be_set() {
+    let b = normal_batches(20, 150, 4.0e20, 3.0e18);
+    let s = normal_batches(21, 150, 1.0e20, 3.0e18);
+    // The whole-model tally scores more than the two zones, so it is their sum plus its own noise.
+    let noise = normal_batches(22, 150, 0.0, 1.0e18);
+    let parts: Vec<f64> = (0..150).map(|i| b[i] + s[i]).collect();
+    let total: Vec<f64> = (0..150).map(|i| parts[i] + noise[i]).collect();
+    let columns: [&[f64]; 3] = [&b, &s, &total];
+    let ids = ["blanket-tritium", "shield-tritium", TRITIUM_TOTAL_ID];
+    let cov = ResponseCovariance {
+        method: "batch-means-sample-covariance/v1".into(),
+        batches: 150,
+        response_ids: ids.iter().map(|id| id.to_string()).collect(),
+        integrated: batch_mean_covariance(&columns).unwrap(),
+    };
+    let means: BTreeMap<&str, f64> = ids
+        .into_iter()
+        .zip(columns.iter().map(|col| col.iter().sum::<f64>() / 150.0))
+        .collect();
+    let lookup = |id: &str| means.get(id).copied();
+    let rate = 2.0e19;
+    let sum = tritium_zone_sum(&cov, &lookup, rate).unwrap();
+    let (parts_mean, parts_error) = mean_and_standard_error(&parts).unwrap();
+    let (_, direct) = mean_and_standard_error(&total).unwrap();
+    assert_eq!(sum.zones, 2);
+    assert!((sum.standard_error - parts_error / rate).abs() < 1e-9 * sum.standard_error);
+    assert!((sum.sum - parts_mean / rate).abs() < 1e-9 * sum.sum);
+    assert!(sum.within_3_sigma);
+    assert!(
+        sum.sum_line().contains("Sum of 2 zone tallies"),
+        "{}",
+        sum.sum_line()
+    );
+    assert!(
+        sum.check_line().contains("within 3 σ"),
+        "{}",
+        sum.check_line()
+    );
+    // A whole-model tally many sigma away is reported as outside.
+    let mut off = means.clone();
+    off.insert(TRITIUM_TOTAL_ID, means[TRITIUM_TOTAL_ID] + 30.0 * direct);
+    let far = tritium_zone_sum(&cov, &|id| off.get(id).copied(), rate).unwrap();
+    assert!(!far.within_3_sigma && far.check_line().contains("OUTSIDE"));
+    // Without the whole-model tally or with one zone, nothing is summed.
+    let mut one = cov.clone();
+    one.response_ids = vec!["blanket-tritium".into(), TRITIUM_TOTAL_ID.into()];
+    one.integrated = vec![1.0, 0.5, 0.5, 1.0];
+    assert!(
+        tritium_zone_sum(&one, &lookup, rate)
+            .unwrap_err()
+            .contains("at least two")
+    );
+    let mut none = cov.clone();
+    none.response_ids[2] = "other".into();
+    assert!(
+        tritium_zone_sum(&none, &lookup, rate)
+            .unwrap_err()
+            .contains("not in the recorded")
+    );
+}
+
 // Verifies: NUC-049
 #[test]
 fn a_spectrum_is_summarised_by_its_converged_bins() {

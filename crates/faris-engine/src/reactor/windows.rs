@@ -172,10 +172,7 @@ fn windows_cache_key(
             ("physics", base_input["physics"].clone()),
             ("request", solid_request(&base_input["request"])),
             ("cross_sections", serde_json::json!(cross_sections_sha256)),
-            (
-                "window_python",
-                serde_json::json!(python.display().to_string()),
-            ),
+            ("window_python", result_cache::interpreter_identity(python)),
             (
                 "helpers",
                 serde_json::json!([
@@ -236,7 +233,12 @@ pub fn prepare(
             ))));
         }
     };
-    let key = windows_cache_key(base_input, cross_sections_sha256, &python, job.adapter);
+    let key = windows_cache_key(
+        base_input,
+        cross_sections_sha256,
+        options.python,
+        job.adapter,
+    );
     let store = options.cache_dir.map(ResultCache::open);
     let entry = store.as_ref().map(|store| store.entry_dir(&key));
     let mut refused = None;

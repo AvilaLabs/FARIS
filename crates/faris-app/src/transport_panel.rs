@@ -702,6 +702,9 @@ impl TransportPanel {
                         "± one Monte Carlo standard error; total-model production per primary neutron.",
                     );
                 });
+                if let Some(normalized) = record.normalized.as_ref() {
+                    crate::tally_sum::zone_sum_ui(ui, normalized);
+                }
                 if let Some(breeder) = self.response(variant, "blanket-tritium") {
                     ui.horizontal_wrapped(|ui| {
                         ui.label(format!(

@@ -479,6 +479,16 @@ pub static REGISTRY: &[Command] = &[
         },
     ),
     command(
+        "tools.compare_versions",
+        "Compare versions window (toggle)",
+        &["diff", "difference", "changes", "semantic"],
+        None,
+        |app, _| {
+            app.diff.open = !app.diff.open;
+            app.message = window_message("Compare versions", app.diff.open);
+        },
+    ),
+    command(
         "tools.design_check",
         "Design check window (toggle)",
         &["step file", "cad", "import"],
@@ -579,6 +589,7 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ("Top bar", "Interface size menu", "interface.smaller"),
     ("Top bar", "Interface size menu", "interface.reset"),
     ("Top bar", "Maintenance", "tools.maintenance"),
+    ("Top bar", "Compare versions", "tools.compare_versions"),
     ("Top bar", "Design check", "tools.design_check"),
     ("Top bar", "Design flux", "tools.design_flux"),
     ("Top bar", "Tour", "tour.replay"),
