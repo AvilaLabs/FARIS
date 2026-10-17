@@ -1,0 +1,61 @@
+{
+ "schema": "faris-waste-tables/1",
+ "scheme_id": "uk-llw-ilw",
+ "scheme_name": "UK solid radioactive waste categories by activity concentration: LLW, VLLW (high volume) and above-LLW",
+ "scheme_version": "UK Strategy for the Management of Solid Low Level Waste from the Nuclear Industry, February 2016; definitions unchanged from the 2007 Defra/DTI policy",
+ "scheme_date": "2016-02",
+ "sources": [
+  {
+   "tag": "s2016",
+   "title": "UK Strategy for the Management of Solid Low Level Waste from the Nuclear Industry (DECC, February 2016)",
+   "kind": "primary",
+   "url": "https://assets.publishing.service.gov.uk/media/5a8087a3ed915d74e622efc0/NI_LLW_Strategy_Final.pdf",
+   "retrieved": "2026-10-16",
+   "original_sha256": "90aaa37042c0ec8ca070c342753fe29d4f7736991cd9103edc01e9be3e2ccdeb"
+  },
+  {
+   "tag": "p2007",
+   "title": "Policy for the Long Term Management of Solid Low Level Radioactive Waste in the United Kingdom (Defra, DTI and the Devolved Administrations, 26 March 2007)",
+   "kind": "primary",
+   "url": "https://assets.publishing.service.gov.uk/media/5a7cd9b7ed915d7c849ad9ec/Low_level_waste_policy.pdf",
+   "retrieved": "2026-10-16",
+   "original_sha256": "912afd7011ea3416a9ac2c8bae368666a5e9edb292f3f7be1068c3b9dacf0838"
+  }
+ ],
+ "snapshot_file": "uk_llw_policy_extracts.txt",
+ "snapshot_sha256": "8944f9f64e50ad8e954b7fb3e78d0c1849fc21fb3472c1456058b2465c23805c",
+ "licence": "Crown copyright; Open Government Licence",
+ "llw": {
+  "alpha_gbq_per_te": 4.0,
+  "beta_gamma_gbq_per_te": 12.0,
+  "quote": "radioactive waste having a radioactive content not exceeding four gigabecquerels per tonne (GBq/te) of alpha or 12 GBq/te of beta/gamma radioactivity",
+  "source_tag": "s2016"
+ },
+ "vllw_high_volume": {
+  "total_mbq_per_te": 4.0,
+  "tritium_mbq_per_te": 40.0,
+  "quote": "Radioactive waste with maximum concentrations of four megabecquerels per tonne (MBq/te) of total",
+  "tritium_quote": "the concentration limit for tritium is 40MBq/te",
+  "source_tag": "s2016"
+ },
+ "vllw_low_volume": {
+  "per_0_1_m3_kbq": 400.0,
+  "per_item_kbq": 40.0,
+  "per_0_1_m3_c14_h3_kbq": 4000.0,
+  "per_item_c14_h3_kbq": 400.0,
+  "quote": "each 0.1m 3 of waste containing less than 400 kilobecquerels (kBq) of total",
+  "source_tag": "s2016",
+  "evaluated_by_faris": false,
+  "reason": "the limits are per 0.1 m3 of waste and per single item; an inventory of one component does not say how the waste is packaged or itemised"
+ },
+ "ilw": {
+  "quote": "Radioactive wastes exceeding the upper activity boundaries for LLW but which do not need heat to be taken into account in the design of",
+  "source_tag": "s2016"
+ },
+ "hlw": {
+  "quote": "Radioactive wastes in which the temperature may rise significantly as a result of their",
+  "source_tag": "p2007",
+  "quantitative": false,
+  "reason": "the 2007 policy defines HLW by whether heat must be taken into account in the design of storage or disposal facilities, with no number; FARIS encodes no heat criterion"
+ }
+}

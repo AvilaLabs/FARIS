@@ -1,0 +1,58 @@
+{
+ "schema": "faris-jurisdiction-profiles/1",
+ "note": "Authored. A profile lists the classification schemes of one jurisdiction. Each limit of a listed scheme takes its citation, version and check date from that scheme's own source record (the retrieval date is the check date). review_by is the authored date after which the profile blocks verdicts until it is re-checked and re-dated.",
+ "profiles": [
+  {
+   "id": "us-nrc",
+   "name": "United States, NRC",
+   "version": "1",
+   "authored": "2026-10-16",
+   "review_by": "2027-01-16",
+   "framework": "Near-surface disposal classification, 10 CFR 61.55. Fusion machines would be licensed under the byproduct material framework (10 CFR Part 30) proposed by the NRC on 2026-02-26.",
+   "framework_status": "10 CFR 61.55 is in force. The Part 30 fusion-machine framework is a proposed rule: 'Regulatory Framework for Fusion Machines', proposed rule, document 2026-03865, published 2026-02-26, comments closed 2026-05-27. A Federal Register API search of NRC documents on 'fusion machines' on 2026-10-16 found no later document for it, so no final rule was found.",
+   "framework_citations": [
+    {"title": "Regulatory Framework for Fusion Machines (proposed rule)", "url": "https://www.federalregister.gov/documents/2026/02/26/2026-03865/regulatory-framework-for-fusion-machines", "checked": "2026-10-16"}
+   ],
+   "schemes": ["nrc-10cfr61.55"],
+   "review_note": "Three months, because a final fusion-machine rule may change the framework."
+  },
+  {
+   "id": "uk",
+   "name": "United Kingdom",
+   "version": "1",
+   "authored": "2026-10-16",
+   "review_by": "2027-04-16",
+   "framework": "UK solid LLW definitions (LLW, VLLW) from the UK LLW strategy and policy, and the England and Wales out-of-scope concentrations of the Environmental Permitting (England and Wales) Regulations 2016 Schedule 23.",
+   "framework_status": "The definitions are those of the February 2016 UK strategy, which repeats the 2007 policy wording. Energy Act 2023 section 156 (fusion energy facilities: nuclear site licence not required) was read on legislation.gov.uk on 2026-10-16. Schedule 23 values apply in England and Wales only; Scotland and Northern Ireland have their own regulations, which FARIS does not carry.",
+   "framework_citations": [
+    {"title": "Energy Act 2023 section 156", "url": "https://www.legislation.gov.uk/ukpga/2023/52/section/156", "checked": "2026-10-16"}
+   ],
+   "schemes": ["uk-llw-ilw", "uk-epr2016-sch23-table2"],
+   "review_note": "Six months."
+  },
+  {
+   "id": "iaea",
+   "name": "International Atomic Energy Agency",
+   "version": "1",
+   "authored": "2026-10-16",
+   "review_by": "2027-10-16",
+   "framework": "Clearance levels of IAEA GSR Part 3 Schedule I Table I.2 and the summation rule of paragraph I.14.",
+   "framework_status": "GSR Part 3 (STI/PUB/1578, 2014) is the standard whose table is encoded. The requirement basis also names GSG-18 (2023) for clearance; FARIS has not transcribed GSG-18 values.",
+   "framework_citations": [],
+   "schemes": ["iaea-gsr3-table-i2"],
+   "review_note": "Twelve months."
+  },
+  {
+   "id": "fetter-literature",
+   "name": "Literature limits, Fetter, Cheng and Mann (1990)",
+   "version": "1",
+   "authored": "2026-10-16",
+   "review_by": "2027-10-16",
+   "framework": "Specific-activity limits for Class C shallow-land burial of activated metal from the peer-reviewed literature. Not a regulation of any jurisdiction.",
+   "framework_status": "A 1990 journal article built on the 10 CFR 61 intruder model; it is not updated and carries no legal force. It is kept in its own profile so that it is never read as an NRC limit.",
+   "framework_citations": [],
+   "schemes": ["fetter-specific-activity"],
+   "review_note": "Twelve months."
+  }
+ ]
+}

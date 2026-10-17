@@ -346,7 +346,7 @@ Usage: faris waste [OPTIONS] <COMMAND>
 Commands:
   schemes         List the classification schemes with name, version and date, and which are implemented
   tables          Print the encoded limit tables with their source, retrieval date and licence
-  classify        Classify an inventory at a disposal time. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing; it never defaults to Class A
+  classify        Classify an inventory at a disposal time under the regime you choose with --scheme. The regime and its jurisdiction profile (name, version, review date) are named on the result. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing, or when the profile is past its review date; it never defaults to Class A
   clearance-time  Find the time the IAEA clearance index falls below 1, searched between two times
   recycling       Recycling index: a dose rate over a dose-rate criterion you write. FARIS supplies no criterion
   help            Print this message or the help of the given subcommand(s)
@@ -384,8 +384,11 @@ Usage: faris waste tables [OPTIONS]
 Options:
       --scheme <SCHEME>
           Possible values:
-          - nrc-10cfr61.55:     US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
-          - iaea-gsr3-table-i2: IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          - nrc-10cfr61.55:           US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
+          - iaea-gsr3-table-i2:       IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
+          - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
+          - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
           
           [default: nrc-10cfr61.55]
 
@@ -404,7 +407,7 @@ Example: `faris waste tables`
 ## faris waste classify
 
 ```text
-Classify an inventory at a disposal time. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing; it never defaults to Class A
+Classify an inventory at a disposal time under the regime you choose with --scheme. The regime and its jurisdiction profile (name, version, review date) are named on the result. Refuses (NOT_EVALUATED) when a needed nuclide, volume, mass or flag is missing, or when the profile is past its review date; it never defaults to Class A
 
 Usage: faris waste classify [OPTIONS] --inventory <INVENTORY> --time-years <TIME_YEARS>
 
@@ -417,10 +420,19 @@ Options:
 
       --scheme <SCHEME>
           Possible values:
-          - nrc-10cfr61.55:     US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
-          - iaea-gsr3-table-i2: IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          - nrc-10cfr61.55:           US NRC 10 CFR 61.55 Tables 1 and 2: Class A, B, C or greater than Class C
+          - iaea-gsr3-table-i2:       IAEA GSR Part 3 Table I.2: clearance index and the time it falls below 1
+          - uk-llw-ilw:               UK LLW definition (4 GBq/te alpha, 12 GBq/te beta/gamma) and high-volume VLLW (4 MBq/te): VLLW, LLW or above LLW
+          - uk-epr2016-sch23-table2:  UK (England and Wales) Environmental Permitting Regulations 2016 Schedule 23 Table 2 out-of-scope concentrations
+          - fetter-specific-activity: Fetter, Cheng and Mann (1990) Class C specific-activity limits for activated metal: sum of fractions
           
           [default: nrc-10cfr61.55]
+
+      --receipt <RECEIPT>
+          Write the receipt (scheme choice, scheme and profile versions, inventory hash, class) to this new file. The same receipt is in the printed result
+
+      --date <DATE>
+          Evaluation date YYYY-MM-DD for the profile review check. Default: today (UTC)
 
       --setting <KEY=VALUE>
           Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys

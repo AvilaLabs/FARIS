@@ -1,0 +1,82 @@
+Verbatim extracts (pdftotext -layout) from two UK government documents retrieved on 2026-10-16.
+[s2016] UK Strategy for the Management of Solid Low Level Waste from the Nuclear Industry, DECC, February 2016
+  https://assets.publishing.service.gov.uk/media/5a8087a3ed915d74e622efc0/NI_LLW_Strategy_Final.pdf
+  SHA-256 of the PDF: 90aaa37042c0ec8ca070c342753fe29d4f7736991cd9103edc01e9be3e2ccdeb
+[p2007] Policy for the Long Term Management of Solid Low Level Radioactive Waste in the United Kingdom, Defra, DTI and the Devolved Administrations, 26 March 2007
+  https://assets.publishing.service.gov.uk/media/5a7cd9b7ed915d7c849ad9ec/Low_level_waste_policy.pdf
+  SHA-256 of the PDF: 912afd7011ea3416a9ac2c8bae368666a5e9edb292f3f7be1068c3b9dacf0838
+Crown copyright, Open Government Licence / free reproduction as stated in each document.
+
+=== [s2016] 2016 strategy, Glossary, Low Level Waste (LLW) ===
+radioactive materials other than those acceptable for disposal with municipal and general commercial or industrial waste. It is defined as:
+“radioactive waste having a radioactive content not exceeding four gigabecquerels per tonne (GBq/te) of alpha or 12 GBq/te of beta/gamma
+radioactivity”.
+
+=== [s2016] 2016 strategy, Glossary, Intermediate level waste (ILW) ===
+Intermediate level waste (ILW)
+Radioactive wastes exceeding the upper activity boundaries for LLW but which do not need heat to be taken into account in the design of
+storage or disposal facilities.
+
+=== [s2016] 2016 strategy, Glossary, Very low level waste (VLLW) ===
+Very low level waste (VLLW)
+Covers waste with very low concentrations of radioactivity. It arises from a variety of sources, including hospitals and the wider non-nuclear
+industry. Because VLLW contains little total radioactivity, it has been safely treated by various means, such as disposal with municipal and
+general commercial and industrial waste directly at landfill sites or indirectly after incineration. Its formal definition is:
+(a) in the case of low volumes (‘dustbin loads’) of VLLW “Radioactive waste which can be safely disposed of to an unspecified destination with
+municipal, commercial or industrial waste (“dustbin” disposal), each 0.1m 3 of waste containing less than 400 kilobecquerels (kBq) of total
+activity or single items containing less than 40 kBq of total activity.
+For wastes containing carbon-14 or hydrogen-3 (tritium):
+(i) in each 0.1m3, the activity limit is 4,000 kBq for carbon- 14 and hydrogen-3 (tritium) taken together
+(ii) for any single item, the activity limit is 400 kBq for carbon-14 and hydrogen-3 (tritium) taken together
+Controls on disposal of this material, after removal from the premises where the wastes arose, are not necessary.
+(b) in the case of high volumes of VLLW “Radioactive waste with maximum concentrations of four megabecquerels per tonne (MBq/te) of total
+activity which can be disposed of to specified landfill sites. For waste containing hydrogen-3 (tritium), the concentration limit for tritium is
+40MBq/te. Controls on disposal of this material, after removal from the premises where the wastes arose, will be necessary in a manner
+specified by the environmental regulators”.
+
+=== [p2007] 2007 policy, Policy Statement paragraph 4 (LLW) ===
+4.     Within the UK, LLW is now defined as:
+
+       “radioactive waste having a radioactive content not exceeding four
+       gigabecquerels per tonne (GBq/te) of alpha or 12 GBq/te of beta/gamma
+       activity.
+
+=== [p2007] 2007 policy, Policy Statement paragraph 5 (VLLW) ===
+5.    Within the UK, Very Low Level Radioactive Waste (VLLW), sub-category of
+LLW is now defined as:
+
+       in the case of low volumes (‘dustbin loads’) – Low Volume VLLW:
+
+       “Radioactive waste which can be safely disposed of to an unspecified
+       destination with municipal, commercial or industrial waste (“dustbin” disposal),
+       each 0.1m3 of waste containing less than 400 kilobecquerels (kBq) of total
+       activity or single items containing less than 40 kBq of total activity.
+
+       For wastes containing carbon-14 or hydrogen-3 (tritium):
+
+            •   in each 0.1m3, the activity limit is 4,000 kBq for carbon-14 and
+                hydrogen-3 (tritium) taken together; and
+            •   for any single item, the activity limit is 400 kBq for carbon-14 and
+                hydrogen-3 (tritium) taken together.
+
+       Controls on disposal of this material, after removal from the premises where the
+       wastes arose, are not necessary4.”
+
+       OR
+
+       in the case of bulk disposals – High Volume VLLW:
+
+       “Radioactive waste with maximum concentrations of four megabecquerels per
+       tonne (MBq/te) of total activity which can be disposed of to specified landfill
+       sites. For waste containing hydrogen-3 (tritium), the concentration limit for
+       tritium is 40MBq/te. Controls on disposal of this material, after removal from the
+
+
+
+3
+
+=== [p2007] 2007 policy, Glossary, High Level Waste (HLW) ===
+High Level Waste (HLW)
+Radioactive wastes in which the temperature may rise significantly as a result of their
+radioactivity, so this factor has to be taken into account in the design of storage or
+disposal facilities. (See also refs 6 and 7 in the Policy Statement.)
