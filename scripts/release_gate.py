@@ -22,7 +22,8 @@ Conditions read from the repository (--root, default this checkout):
 - every requirement marked Met anywhere in the tables has a Verifies: marker in a test (QA-071);
 - the waivers file docs/release-waivers.json is complete and unexpired (QA-072).
 
-A condition that fails can be waived for one release by an entry in docs/release-waivers.json:
+An open S2 defect is waived in the same file with its defect id (FARIS-NNN) as the condition, or by a "waiver"
+on its defect-log entry. A condition that fails can be waived for one release by an entry in docs/release-waivers.json:
 {"waivers": [{"condition": NAME OR ID, "owner": ..., "reason": ..., "expiry": "YYYY-MM-DD"}]}. The waiver needs
 all three fields, must not be expired, and must expire within 90 days. A waived condition prints WAIVED with the
 original failure and counts as passing; an open S1 defect (QA-083) and the waiver check itself cannot be waived.
@@ -396,13 +397,16 @@ def check_defects(g: Gate):
     if not isinstance(defects, list):
         raise ValueError("the defect log has no 'defects' list")
     blocking = []
+    filed = {w.get("condition"): w for w in read_waivers(g.root) if isinstance(w, dict)}
     for d in defects:
         if d.get("status") != "open" or d.get("severity") not in ("S1", "S2"):
             continue
         if d["severity"] == "S1":
             blocking.append(f"{d.get('id')} (open S1, cannot be waived)")
         else:
-            problem = waiver_problem(d.get("waiver"), g.today)
+            # The waiver is on the defect entry or, with the other waivers, in docs/release-waivers.json under
+            # the defect's id (QA-072).
+            problem = waiver_problem(d.get("waiver") or filed.get(d.get("id")), g.today)
             if problem:
                 blocking.append(f"{d.get('id')} (open S2: {problem})")
     if blocking:
@@ -441,6 +445,7 @@ def check_met_rows_traced(g: Gate):
 
 WAIVERS = Path("docs") / "release-waivers.json"
 UNWAIVABLE = {"QA-083", "QA-072"}
+DEFECT_ID = re.compile(r"FARIS-\d{3,}")  # an open S2 defect is waived by its id (check_defects)
 
 
 def read_waivers(root: Path) -> list[dict]:
@@ -467,7 +472,7 @@ def check_waivers(g: Gate):
             problems.append(f"waiver for {label}: {why}")
         elif not str(w.get("condition") or "").strip():
             problems.append("a waiver names no condition")
-        elif w["condition"] not in known:
+        elif w["condition"] not in known and not DEFECT_ID.fullmatch(str(w["condition"])):
             problems.append(f"waiver names {w['condition']!r}, which is not a condition of this gate")
         elif w["condition"] in UNWAIVABLE:
             problems.append(f"{w['condition']} cannot be waived")

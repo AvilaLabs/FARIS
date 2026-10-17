@@ -1,0 +1,32 @@
+{
+ "policy": "Data too large to track in the repository (see AGENTS.md and scripts/nuclear_data_in_git.json) is fetched from its provider and checked against a hash recorded here. Every data URL that a workflow, script or procedure fetches is an entry; scripts/check_external_data.py fails on a fetched URL that is not listed, an entry that nothing fetches, and a hash that the named verifying file does not contain.",
+ "data": [
+  {
+   "name": "ENDF/B-VII.1 photo-atomic data",
+   "url": "https://www.nndc.bnl.gov/endf-b7.1/zips/ENDF-B-VII.1-photoat.zip",
+   "md5": "5192f94e61f0b385cf536f448ffab4a4",
+   "verified_in": ["integrations/openmc/convert_endfbvii1_photon.py", "docs/PHOTON_LIBRARY_ACQUISITION.md"],
+   "note": "The provider publishes MD5 sums; the conversion also records the SHA-256 of the file it used."
+  },
+  {
+   "name": "ENDF/B-VII.1 atomic relaxation data",
+   "url": "https://www.nndc.bnl.gov/endf-b7.1/zips/ENDF-B-VII.1-atomic_relax.zip",
+   "md5": "fddb6035e7f2b6931e51a58fc754bd10",
+   "verified_in": ["integrations/openmc/convert_endfbvii1_photon.py", "docs/PHOTON_LIBRARY_ACQUISITION.md"],
+   "note": "The provider publishes MD5 sums; the conversion also records the SHA-256 of the file it used."
+  },
+  {
+   "name": "FENDL-3.2 neutron HDF5 library (OpenMC data page archive)",
+   "url": "https://anl.box.com/shared/static/3cb7jetw7tmxaw6nvn77x6c578jnm2ey.xz",
+   "file_sha256": {
+    "H1.h5": "2bf2db322a188e5c435675cd732dd36b10b995e8cc6e7d6bd55d6aaf712f9b4d",
+    "Fe56.h5": "2c7eedbb5474ffe9cd1576d378d6fa61c5a1d3b8fb1e52bb88c2c255f85b2bf1"
+   },
+   "verified_in": ["integrations/openmc/openmc_ci.py"],
+   "note": "The archive itself is not pinned; the extracted files the tests use are, and the tests refuse any other bytes."
+  }
+ ],
+ "tools": [
+  {"url": "https://sh.rustup.rs", "why": "the Rust toolchain installer in the platform job; it pins the toolchain version and carries no data"}
+ ]
+}

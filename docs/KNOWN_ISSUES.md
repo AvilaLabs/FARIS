@@ -33,7 +33,7 @@ These were found in development and never shipped.
 | --- | --- | --- | --- |
 | FARIS-001 | S1 | Tritium release windows closed inconsistently at late times, creating mass | 542dcb3 |
 | FARIS-003 | S1 | OKTAVIAN-Al validation runner scored the wrong tally values | de12df4 |
-| FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | unreleased |
+| FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
 | FARIS-006 | S3 | The job artifact scanner stopped counting at the cap, so growth was unmeasurable | 9a93ef6 |
