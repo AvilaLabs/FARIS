@@ -501,6 +501,7 @@ def load_solids(step: Path, cache: Path | None = None):
 def convert(args) -> int:
     """Check 6: cad_to_dagmc as a bounded job, one tag per solid, imprint on."""
     import faris_facets
+    from dagmc_faceting_tolerance import correct_faceting_tolerance
 
     out_dir = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -509,6 +510,7 @@ def convert(args) -> int:
     if [e["step_index"] for e in tags] != list(range(len(tags))):
         print("faris_cad: the tag list must cover step indices 0..n-1 once each", file=sys.stderr)
         return 2
+    producer_h5m = out_dir / "model.producer.h5m"
     h5m = out_dir / "model.h5m"
     timing = {}
     started = time.monotonic()
@@ -533,7 +535,7 @@ def convert(args) -> int:
             model.add_cadquery_object(cq.Workplane("XY").add(solid), material_tags=[entry["tag"]])
         t = time.monotonic()
         model.export_dagmc_h5m_file(
-            filename=str(h5m),
+            filename=str(producer_h5m),
             implicit_complement_material_tag=args.implicit_complement,
             scale_factor=scale_to_cm,
             imprint=args.imprint_threads,
@@ -543,6 +545,9 @@ def convert(args) -> int:
         )
         timing["convert"] = time.monotonic() - t
     conversion_peak = peak_rss_mb()
+    t = time.monotonic()
+    faceting_metadata = correct_faceting_tolerance(producer_h5m, h5m, args.chord_cm)
+    timing["faceting_metadata"] = time.monotonic() - t
     t = time.monotonic()
     exported = faris_facets.export_h5m(h5m, out_dir / "model", 0.01)
     timing["export_facets"] = time.monotonic() - t
@@ -564,7 +569,9 @@ def convert(args) -> int:
         "timing_seconds": timing,
         "peak_rss_mb": max(conversion_peak, peak_rss_mb()),
         "peak_rss_mb_after_conversion": conversion_peak,
-        "h5m": {"file": h5m.name, "sha256": sha256_file(h5m), "bytes": h5m.stat().st_size},
+        "h5m": {"file": h5m.name, "sha256": sha256_file(h5m), "bytes": h5m.stat().st_size,
+                "producer_file": producer_h5m.name,
+                "faceting_tolerance_metadata": faceting_metadata},
         "facets": {
             "bin": Path(exported["bin"]).name,
             "json": Path(exported["json"]).name,

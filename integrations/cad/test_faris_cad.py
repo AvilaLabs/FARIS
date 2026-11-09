@@ -272,6 +272,14 @@ class OverlapPipeline(unittest.TestCase):
         self.assertEqual(result["tags"], json.loads(tags.read_text()))
         self.assertEqual(result["counts"]["volumes"], 2)
         self.assertEqual(result["h5m"]["sha256"], faris_cad.sha256_file(out_dir / "model.h5m"))
+        self.assertTrue((out_dir / "model.producer.h5m").is_file())
+        correction = result["h5m"]["faceting_tolerance_metadata"]
+        self.assertEqual(correction["tag_name"], "FACETING_TOL")
+        self.assertEqual(correction["tag_class"], "MB_TAG_SPARSE (1)")
+        self.assertEqual(correction["entity_handle"], 0)
+        self.assertEqual(correction["declared_mesher_tolerance_cm"], 0.1)
+        self.assertTrue(correction["source_unchanged"])
+        self.assertIn("not a certified maximum", correction["interpretation"])
         self.assertTrue((out_dir / result["facets"]["bin"]).is_file())
 
 
