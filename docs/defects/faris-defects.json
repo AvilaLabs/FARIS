@@ -187,6 +187,45 @@
       "fixed_in": null,
       "disposition": "Cold-cache ACTINV execution prepares a 275493400-byte library.actp, larger than the ordinary 256 MiB per-file job cap, and fails. Live activation reproducibility and impurity tests pass with a hash-verified already prepared cache; those results do not qualify cold startup. A bounded cache-specific allowance that preserves ordinary output limits is under implementation. The current workaround is to prepare the ACTINV cache separately using ACTINV and point ACTINV_CACHE_DIR at that verified cache.",
       "regression_test": null
+    },
+    {
+      "id": "FARIS-015",
+      "title": "ACTINV jobs ignored documented cache-root overrides",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "c2620a7",
+      "disposition": "The restricted job environment omitted ACTINV_CACHE_DIR and platform cache roots, so an explicitly configured prepared cache was ignored. Both adapters now use one allowlist that preserves documented cache roots, checked data configuration and platform environment-name behavior without inheriting unrelated variables. The controlled old allowlist failed the regression; the corrected allowlist and warm-cache live adapter tests pass. Cold preparation is tracked separately as FARIS-014.",
+      "regression_test": "crates/faris-engine/src/actinv_env.rs::actinv_job_keeps_documented_cache_roots_but_no_unrelated_environment"
+    },
+    {
+      "id": "FARIS-016",
+      "title": "Short target-error CAD runs bypassed the final lost-particle fraction guard",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "0b93a45",
+      "disposition": "An in-progress loss warmup also applied at finalization, so a target-error or budget stop before one million histories could be accepted above the one-in-a-million lost fraction. Finalization now checks the actual final fraction strictly above 1e-6 at any positive history count. The actual phase_run fixture with 1 lost neutron in 600000 histories failed before the fix and now reports lost_particles, target_reached false and geometry guidance.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_phase_run_finalization_overrides_a_short_target_stop_and_preserves_diagnostics"
+    },
+    {
+      "id": "FARIS-017",
+      "title": "Lost-particle diagnostics described birth positions as escape locations",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "0b93a45",
+      "disposition": "OpenMC particle files record birth positions, but FARIS told users to inspect the model where particles were lost. The worker guidance, shared report and native view now label those coordinates as birth points and do not imply they identify the escape boundary. The old wording failed the controlled guidance regression; worker-assembly and CLI/native presentation tests now preserve that distinction.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_lost_particle_guidance_does_not_mislabel_birth_positions_as_loss_locations"
     }
   ]
 }

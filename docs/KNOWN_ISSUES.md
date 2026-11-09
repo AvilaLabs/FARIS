@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-1 open, 0 will not be fixed, 2 fixed that affected a released version, 11 fixed before they reached a release.
+1 open, 0 will not be fixed, 2 fixed that affected a released version, 14 fixed before they reached a release.
 
 ## Open
 
@@ -37,6 +37,7 @@ These were found in development and never shipped.
 | FARIS-001 | S1 | Tritium release windows closed inconsistently at late times, creating mass | 542dcb3 |
 | FARIS-003 | S1 | OKTAVIAN-Al validation runner scored the wrong tally values | de12df4 |
 | FARIS-011 | S1 | Malformed Monte Carlo uncertainty bypassed the validation precision check | 9a071f1 |
+| FARIS-016 | S1 | Short target-error CAD runs bypassed the final lost-particle fraction guard | 0b93a45 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -44,4 +45,6 @@ These were found in development and never shipped.
 | FARIS-007 | S3 | Large models' weight windows written into model.xml exceeded the 256 MiB file limit | 9a93ef6 |
 | FARIS-009 | S3 | Aiming visibility runs left their statepoints in the run folder and tripped its 512 MB limit | 5e4b666 |
 | FARIS-012 | S3 | Release gate ignored the approved validation-access outcome | 1a6d6d2 |
+| FARIS-015 | S3 | ACTINV jobs ignored documented cache-root overrides | c2620a7 |
+| FARIS-017 | S3 | Lost-particle diagnostics described birth positions as escape locations | 0b93a45 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |
