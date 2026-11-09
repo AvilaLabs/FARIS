@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: 2026 Avila Labs
 """Build the reference model RM-M: CadQuery solids, STEP, DAGMC h5m, model card and role map.
 
-Run with the CAD environment (cadquery 2.8, cad_to_dagmc 0.14.2, gmsh, h5py):
+Run with the CAD environment (cadquery 2.8, cad_to_dagmc, cad-to-dagmc-mesher, h5py):
 
     build_rm_m.py --out-dir DIR [--tolerance-cm 0.05] [--angular-tolerance 0.1] [--random-ray]
 
@@ -224,6 +224,12 @@ def convert(cq, cad_to_dagmc, solids, h5m: Path, tolerance_cm: float, angular: f
     return time.time() - t0
 
 
+def write_card_files(out: Path, stem: str, card: dict, roles: list[dict]) -> None:
+    """Write the model card and role map after all build evidence is assembled."""
+    (out / f"{stem}_model_card.json").write_text(json.dumps(card, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    (out / f"{stem}_roles.json").write_text(json.dumps({"solids": roles}, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def match_roles(solids: list[dict], facets: dict) -> list[dict]:
     """Pair each CAD solid with the h5m volume of the same volume and centroid; return the role map."""
     summaries = [solid_summary(s) for s in solids]
@@ -281,6 +287,10 @@ def main() -> int:
 
     import h5m_volumes
     from retag_dagmc_materials import retag_void_h5m
+    cad_helper_dir = Path(__file__).resolve().parents[2] / "cad"
+    if str(cad_helper_dir) not in sys.path:
+        sys.path.insert(0, str(cad_helper_dir))
+    from dagmc_faceting_tolerance import correct_faceting_tolerance
 
     log = {"stages": {}}
     t0 = time.time()
@@ -301,14 +311,21 @@ def main() -> int:
     reread = reimport_step(cq, step, solids)
     log["stages"]["step"] = {"seconds": time.time() - t0, "peak_rss_mb": peak_mb()}
 
+    producer_h5m = out / f"{args.stem}.producer.h5m"
     h5m = out / f"{args.stem}.h5m"
     source = reread if args.convert_from == "step" else solids
-    seconds = convert(cq, cad_to_dagmc, source, h5m, args.tolerance_cm, args.angular_tolerance, "void", None, args.imprint_threads, args.backend)
+    seconds = convert(cq, cad_to_dagmc, source, producer_h5m, args.tolerance_cm, args.angular_tolerance, "void", None, args.imprint_threads, args.backend)
     log["stages"]["convert"] = {"seconds": seconds, "peak_rss_mb": peak_mb()}
+    t0 = time.time()
+    faceting_tolerance_proof = correct_faceting_tolerance(producer_h5m, h5m, args.tolerance_cm)
+    log["stages"]["faceting_tolerance_metadata"] = {"seconds": time.time() - t0, "peak_rss_mb": peak_mb()}
     facets = h5m_volumes.facet_volumes(str(h5m))
     roles = match_roles(solids, facets)
-    outputs = {"step": step.name, "step_sha256": sha256(step), "h5m": h5m.name, "h5m_sha256": sha256(h5m),
-               "h5m_bytes": h5m.stat().st_size}
+    outputs = {"step": step.name, "step_sha256": sha256(step),
+               "producer_h5m": producer_h5m.name, "producer_h5m_sha256": sha256(producer_h5m),
+               "producer_h5m_bytes": producer_h5m.stat().st_size,
+               "h5m": h5m.name, "h5m_sha256": sha256(h5m), "h5m_bytes": h5m.stat().st_size,
+               "faceting_tolerance_proof": faceting_tolerance_proof}
 
     if args.random_ray:
         rr = out / f"{args.stem}_rr.h5m"
@@ -340,6 +357,8 @@ def main() -> int:
         "build_implementation_sha256": {
             name: sha256(Path(__file__).resolve().parent / name)
             for name in ("build_rm_m.py", "rm_m_spec.py", "h5m_volumes.py", "retag_dagmc_materials.py")},
+        "faceting_tolerance_helper_sha256": sha256(cad_helper_dir / "dagmc_faceting_tolerance.py"),
+        "timed_driver_sha256": sha256(Path(__file__).with_name("run_rm_m_timed.py")),
         "outputs": outputs,
         "solids": roles,
         "tf_total_cad_volume_cm3": sum(s["cad_volume_cm3"] for s in summaries if s["name"].startswith("tf_coil")),
@@ -356,8 +375,9 @@ def main() -> int:
     problems = spec.check_labels(card)
     if problems:
         raise RuntimeError("model card labelling problems: " + "; ".join(problems))
-    (out / f"{args.stem}_model_card.json").write_text(json.dumps(card, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-    (out / f"{args.stem}_roles.json").write_text(json.dumps({"solids": roles}, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    t0 = time.time()
+    write_card_files(out, args.stem, card, roles)
+    log["stages"]["write_card"] = {"seconds": time.time() - t0, "peak_rss_mb": peak_mb()}
     print(json.dumps({"solids": len(solids), "h5m": str(h5m), "peak_rss_mb": peak_mb(), "stages": log["stages"]}, indent=1))
     return 0
 

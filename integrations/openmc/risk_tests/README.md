@@ -73,6 +73,49 @@ solid per coil (deviation D4); the tolerance of 0.1 cm gives every faceted solid
 The conversion peaks at about 5 GB with one imprint thread (the default);
 more imprint threads raise the peak.
 
+### Frozen, timed RM-M v3 build
+
+The v3 builder preserves the producer H5M as `rm_m.producer.h5m`, then writes
+`rm_m.h5m` as an audited copy with the declared faceting tolerance attached to
+the serialized DAGMC geometry root. The producer file is never retagged or
+overwritten; the metadata proof records its hash, the corrected hash, the
+nonzero root handle, and hashes of all unchanged geometry datasets. Optional
+random-ray retagging starts from this corrected H5M.
+
+`run_rm_m_timed.py` loads the frozen builder and writes append-only stage events
+and third-party file hashes beside the model. It times CAD construction,
+pre-build overlaps, STEP export and reimport, conversion, the mesher's original
+mesh-quality audit, writer array preparation, the HDF5 write, and card output.
+The audit is called unchanged; the wrapper records its start, finish, return,
+or exception. Stage trace lines are flushed as they occur, so an interrupted
+build retains the last reached boundary. Do not reuse an output directory.
+
+After the current serial Cargo checks release the CAD queue, run this single
+build under a fresh 90-minute service with the same memory and thread ceilings.
+The command declares `MemoryMax=6G`, no swap, `LimitAS=16G`, and one CAD/Rayon
+thread. It does not change the v2 output or any R3 statistics.
+
+```sh
+FARIS_ROOT="$HOME/Documents/Avila-Labs/project-faris"
+CAD_PY="$HOME/.cache/avila-night/envs/c2d-0143/bin/python"
+OUT="$FARIS_ROOT/runs/continuation/s0g-rm-m-v3"
+systemd-run --user --wait --collect \
+  --unit="faris-rm-m-v3-$(date +%s)" \
+  --property=RuntimeMaxSec=90min \
+  --property=MemoryMax=6G --property=MemorySwapMax=0 --property=LimitAS=16G \
+  --working-directory="$FARIS_ROOT/integrations/openmc/risk_tests" \
+  "$CAD_PY" run_rm_m_timed.py \
+  --out-dir "$OUT" --stem rm_m \
+  --tolerance-cm 0.05 --angular-tolerance 0.1 \
+  --imprint-threads 1 --mesher-threads 1 --convert-from step \
+  --backend cad-to-dagmc-mesher --random-ray
+```
+
+The trace and instrumentation receipt are `rm_m_build_trace.jsonl` and
+`rm_m_build_instrumentation.json`. The latter begins in `running` state and is
+updated at completion; a timeout leaves its final stage events and hashes
+available for diagnosis.
+
 ## 2. Accept RM-M
 
     OMP_NUM_THREADS=4 PYTHONPATH=$S/pylib $CAP ~/.venvs/w003env/bin/python accept_rm_m.py \
