@@ -1280,6 +1280,12 @@ fn run_staged_actinv_dose(
             .to_string(),
     };
     verify_ref(&neutron_openmc_library, "loaded OpenMC C API library")?;
+    let openmc_python_module = make_ref(Path::new(
+        runtime
+            .get("openmc_python_module")
+            .and_then(Value::as_str)
+            .ok_or("709 response receipt omits the loaded OpenMC Python module path")?,
+    ))?;
 
     let activation = run_actinv_event_batches(
         manifest,
@@ -1514,6 +1520,7 @@ fn run_staged_actinv_dose(
     artifacts.insert("709_neutron_response_record".into(), response_record);
     artifacts.insert("709_neutron_solver_model".into(), neutron_solver_model);
     artifacts.insert("openmc_c_api_library".into(), neutron_openmc_library);
+    artifacts.insert("openmc_python_module".into(), openmc_python_module);
     for (index, reference) in photon_solver_models.into_iter().enumerate() {
         artifacts.insert(format!("709_photon_solver_model_{index:03}"), reference);
     }
