@@ -161,3 +161,15 @@ and memory cap as above; the double-down build is `~/micromamba/envs/openmc0153d
 | `test_s0b.py` | Unit tests for the helpers. |
 
 `s0b_scripts/` holds the shell drivers the S0b run used (job ledger wrapper, exclusive-window wrapper, and the D1 to D5 drivers). `d2_d3a.sh` and `d3_gens.sh` are the launch scripts as first run; the G0 to G4 productions were restarted with `d3_prods.sh` after a batch-count fix, and G1 is not part of the final sequence because its generation exceeds the 6 GB cap.
+
+## NUC-050 inboard campaign
+
+`s0g_inboard_campaign.py` plans, prepares, runs and analyzes a bounded RM-M campaign for
+neutron flux above 0.1 MeV in TF-coil material within the declared inboard box. Its module
+help gives the commands and required preparation wrapper. The plan pins model, nuclear-data,
+solver and implementation identities; it refuses reused output directories. Four analog and
+four windowed production seeds are distinct from window-generation seeds. Completed runs must
+retain the actual terminal C API status, history and loss counts, exact solver model identity,
+and aggregate batch values. Analysis recomputes statistics and requires the declared bias,
+variance-of-variance and lower-confidence-bound checks before claiming the 100-fold gain.
+A successful synthetic protocol test or a void-sphere C API control is not an RM-M measurement.
