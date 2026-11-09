@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any
@@ -44,6 +45,30 @@ def make_learning(spec: dict[str, Any]):
 
 
 def make_availability(spec: dict[str, Any], seed: int):
+    if spec.get("kind") == "zero_unplanned":
+        if set(spec) != {"kind", "parameters"} or spec["parameters"] != {}:
+            raise ValueError("zero_unplanned availability takes no parameters")
+        # LifeCycle's documented extension point is OperationalAvailabilityStrategy
+        # with generate_distribution(n, integral). Keep its actual maintenance and
+        # timeline loop; this strategy only sets the unplanned distribution to zero.
+        import numpy as np
+        from bluemira.fuel_cycle.timeline_tools import LogNormalAvailabilityStrategy
+
+        class ZeroUnplannedAvailabilityStrategy(LogNormalAvailabilityStrategy):
+            def __init__(self):
+                # Initialize bluemira's native strategy state. sigma is bypassed by
+                # this deterministic override; it is not a claimed outage statistic.
+                super().__init__(sigma=1.0, rng_seed=seed)
+
+            def generate_distribution(self, n: int, integral: float):
+                if n < 0 or integral < -1e-12:
+                    raise ValueError("invalid unplanned distribution request")
+                if abs(integral) > 1e-9:
+                    raise ValueError("zero-unplanned control is incompatible with requested positive unplanned downtime")
+                return np.zeros(n)
+
+        return ZeroUnplannedAvailabilityStrategy()
+
     from bluemira.fuel_cycle.timeline_tools import (
         ExponentialAvailabilityStrategy,
         LogNormalAvailabilityStrategy,
@@ -53,7 +78,7 @@ def make_availability(spec: dict[str, Any], seed: int):
     kind = spec.get("kind")
     args = dict(spec.get("parameters", {}))
     if kind not in {"exponential", "lognormal", "truncated_normal"}:
-        raise ValueError("availability strategy must be exponential, lognormal, or truncated_normal")
+        raise ValueError("availability strategy must be zero_unplanned, exponential, lognormal, or truncated_normal")
     if "rng_seed" in args and args["rng_seed"] != seed:
         raise ValueError("availability strategy RNG seed must match the recorded lifecycle RNG seed")
     args["rng_seed"] = seed
@@ -91,11 +116,18 @@ def main() -> int:
                           config["inputs"], rng_seed=seed_text_to_int(seed_text))
     timeline = lifecycle.make_timeline()
     lifecycle.write(str(output_path))
+    calendar_years = json_safe(getattr(lifecycle, "T", None))
+    full_power_years = json_safe(getattr(lifecycle, "fpy", None))
+    effective_availability = None
+    if (isinstance(calendar_years, (int, float)) and math.isfinite(calendar_years) and calendar_years > 0
+            and isinstance(full_power_years, (int, float)) and math.isfinite(full_power_years)):
+        effective_availability = float(full_power_years) / float(calendar_years)
     native_metrics = {
         "version": actual,
-        "calendar_years": json_safe(getattr(lifecycle, "T", None)),
-        "full_power_years": json_safe(getattr(lifecycle, "fpy", None)),
-        "overall_availability": json_safe(getattr(lifecycle, "A_global", None)),
+        "calendar_years": calendar_years,
+        "full_power_years": full_power_years,
+        "overall_availability": effective_availability,
+        "target_global_availability": json_safe(getattr(lifecycle, "A_global", None)),
         "planned_maintenance": json_safe(getattr(lifecycle, "total_planned_maintenance", None)),
         "ramp_time": json_safe(getattr(lifecycle, "total_ramptime", None)),
         "unplanned_downtime": json_safe(getattr(lifecycle, "t_unplanned_m", None)),

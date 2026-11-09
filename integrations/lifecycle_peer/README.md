@@ -10,13 +10,30 @@ PROCESS supports a native fixed-duration availability model (`i_plant_availabili
 
 bluemira has no standalone LifeCycle command. Its public `bluemira.fuel_cycle.lifecycle.LifeCycle` API generates a damage-governed maintenance timeline and combines it with learning, pulsed operation and an operational-outage strategy. The adapter calls that native API and preserves its timeline. Its reproducible outage strategy and seed must be declared. It does not invent a replacement duration formula or a fake LifeCycle result. The LifeCycle can only enter a matched comparison when its pinned config can express the same plant horizon, component lifetimes, fixed maintenance durations and other downtime assumptions. Any unsupported correspondence must be labelled `unmapped` and the resulting availability/net-energy summary is marked incomplete.
 
-The conditional energy normalization is `matched net MW(e) × native full-power years × 8760 h/year`. PROCESS contributes its native capacity factor and plant lifetime from the official MFILE reader. bluemira contributes its native `fpy` and `T` lifecycle attributes. Energy is omitted for either model when its native horizon does not equal the manifest horizon. These are conditional model comparisons, not measured plant performance.
+The conditional energy normalization is `matched net MW(e) × native full-power years × 8760 h/year`. The full PROCESS CLI path contributes its native capacity factor and plant lifetime from the official MFILE reader. The controlled availability-submodel path contributes PROCESS's native Ward--Taylor metrics directly. bluemira contributes its native `fpy` and `T` lifecycle attributes. Energy is omitted for either model when its native horizon does not equal the case horizon. These are conditional model comparisons, not measured plant performance.
 
 ## FARIS maintenance reference available in this checkout
 
 `references/maintenance-0.2-parity.json` (SHA-256 `02822be5cc83b9c8b57d3b7fa3e198f6a3aecc06e7ef060e091caf7c44d92d71`) contains archived fixed and computed histories for `no-port__breeder` and three other designs over 946,728,000 seconds (30 Julian years). Its fixed/computed `lifetime_net_electricity_mwh` values come from the saved snapshots; this adapter does not rerun transport or activation physics. The adapter recomputes total downtime and availability from the archived replacement intervals using FARIS's `interval_union_duration_s` semantics and reports the archive's old summary alongside the recomputed summary. This preserves the archive unchanged and makes the method/source limitation explicit.
 
-For `no-port__breeder`, the archive records 11 fixed blanket events at 60 days each, and 9 computed blanket events with recorded durations. The saved net-energy snapshots are 35,272,721.86735174 MWh fixed and 30,566,655.251259945 MWh computed (computed minus fixed: -4,706,066.616091795 MWh). Those are historical FARIS outputs, not peer results. They provide a reference scenario and a fixed blanket work duration, but do not provide the DPA/fluence conversion needed to map FARIS's component replacement trigger to bluemira's LifeCycle damage limits. A peer comparison manifest must leave that lifetime correspondence incomplete until a sourced mapping is available; it must not present the outputs as an established matched baseline.
+For `no-port__breeder`, the archive records 11 fixed blanket events at 60 days each, and 9 computed blanket events with recorded durations. The saved net-energy snapshots are 35,272,721.86735174 MWh fixed and 30,566,655.251259945 MWh computed (computed minus fixed: -4,706,066.616091795 MWh). Those are historical FARIS outputs, not peer results. They remain separate reference context.
+
+## Authored controlled verification case
+
+`cases/controlled_fixed/manifest.json` now defines a two-cycle blanket-only control case. It uses the FARIS archived fixed blanket inter-event operating interval (79,859,518.2721506 seconds), an authored 60-day fixed blanket maintenance duration, and an explicit two-cycle horizon. PROCESS receives the explicit blanket life, pulse boundary, replacement durations, and zero-unplanned assumption. bluemira receives the fixed duration and an authored DPA threshold that encodes the same interval for its native damage-governed maintenance. That DPA mapping uses the documented EU-DEMO example's 10.2 dpa/FPY, scaled to an authored 1000 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or represent a measurement. Divertor/vessel/TF sentinel limits keep this case scoped to blanket replacement. One remote-handling system and 500 MW(e) are authored shared boundaries; bluemira has no matching native remote-handling count or electric-power calculation, so those values do not imply peer throughput or native MWh output.
+
+This case invokes the actual PROCESS `Availability.run(WARD_TAYLOR)` API with physics lifetime calculation bypassed and explicit lives. It invokes the actual bluemira `LifeCycle.make_timeline()` loop. For the deterministic control, a small subclass of bluemira's documented `LogNormalAvailabilityStrategy` overrides only its documented `generate_distribution(n, integral)` extension point to return zero unplanned downtime; it raises if the API asks it to represent positive unplanned downtime. Blanket damage limits still govern the native maintenance timeline. This is a scoped verification harness, not a whole PROCESS system-code run or physical validation.
+
+After the coordinator creates the separately pinned PROCESS 3.4.2 and bluemira 2.14.0 environments, run the concrete case with:
+
+```sh
+python3 integrations/lifecycle_peer/run_controlled_case.py \
+  --process-python /path/to/process-env/bin/python \
+  --bluemira-python /path/to/bluemira-env/bin/python \
+  --out runs/peer-lifecycle/no-port-breeder-two-blanket-cycles
+```
+
+The runner checks input hashes, launches each native API in a bounded separate process, and keeps the peer timelines/metrics under the selected output directory. It reports a matched controlled baseline only when both native outputs confirm the horizon, two blanket replacements, zero unplanned downtime, and availability agreement within 1e-6. Any failed check leaves the comparison incomplete. FARIS's 30-year fixed/computed outputs are reported separately and are never treated as matched peer outputs. No external framework was installed or executed when this case was authored.
 
 ## Sources, versions and licenses
 

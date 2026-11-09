@@ -1,0 +1,63 @@
+{
+  "authored_inputs": {
+    "archived_faris_blanket_campaign_interval_seconds": 79859518.2721506,
+    "blanket_cycle_count": 2,
+    "blanket_lifetime_full_power_years": 2.530595427793958,
+    "blue_blanket_damage_mapping": "Authored verification mapping: 10.2 dpa/FPY from bluemira's documented EU-DEMO example, linearly scaled from 2037 MW to 1000 MW fusion, multiplied by the authored blanket lifetime. This is only a deterministic trigger mapping for the peer test. It does not establish FARIS fluence-to-DPA correspondence or experimental validation.",
+    "blue_out_of_scope_sentinels": "Authored high damage/fluence thresholds for divertor, vessel, and TF to keep this restricted case focused on blanket maintenance; these are not material limits.",
+    "calendar_horizon_years": 5.3897329500437685,
+    "fixed_blanket_replacement_days": 60.0,
+    "net_electric_normalization_mw": 500.0,
+    "parallel_remote_handling_systems": 1,
+    "provenance": {
+      "archived_faris_blanket_campaign_interval_seconds": "FARIS archived fixed blanket event: next start minus previous event end in references/maintenance-0.2-parity.json, design no-port__breeder. Simulation output, not a measurement.",
+      "blanket_lifetime_full_power_years": "Authored by dividing the archived campaign interval by a 365.25-day year. This is a verification schedule interval, not inferred material service life.",
+      "calendar_horizon_years": "Authored as two (blanket lifetime + fixed replacement duration) cycles.",
+      "fixed_blanket_replacement_days": "Authored 60-day work duration from the archived FARIS fixed blanket histories; not measured maintenance time.",
+      "net_electric_normalization_mw": "Authored shared reporting normalization only; neither availability submodel calculates net electric power.",
+      "parallel_remote_handling_systems": "Authored single-system boundary; bluemira LifeCycle has no corresponding native remote-handling count input, so no throughput inference is made.",
+      "unplanned_unavailability": "Authored deterministic zero-unplanned verification assumption, not an empirical reliability estimate. PROCESS uses explicit zero fractions; bluemira uses its documented strategy extension point with a zero distribution and fails if it is asked to represent positive unplanned downtime."
+    },
+    "unplanned_unavailability": 0.0
+  },
+  "case_id": "no-port-breeder-two-blanket-cycles",
+  "faris_reference": {
+    "cases": [
+      "fixed",
+      "computed"
+    ],
+    "component_class": "blanket",
+    "design_id": "no-port__breeder",
+    "path_from_repository_root": "references/maintenance-0.2-parity.json",
+    "role": "Separate historical FARIS native reference output; its 30-year results are reported beside, but not normalized as though they shared the two-cycle peer horizon.",
+    "sha256": "02822be5cc83b9c8b57d3b7fa3e198f6a3aecc06e7ef060e091caf7c44d92d71"
+  },
+  "limits": {
+    "output_bytes": 1000000,
+    "timeout_seconds": 180
+  },
+  "match_rule": "Report a matched controlled peer baseline only if the native outputs show the authored horizon, two blanket replacements, zero unplanned downtime, and agreement of the two availability fractions within 1e-6. Otherwise report incomplete and preserve the native outputs/reason. Any MWh(e) figure is only the shared authored 500 MW(e) normalization times each peer's native full-power years; it is not peer-native electric generation.",
+  "peers": {
+    "bluemira": {
+      "api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline() using native damage-governed maintenance and the documented OperationalAvailabilityStrategy.generate_distribution extension point.",
+      "config": {
+        "path": "bluemira-config.json",
+        "sha256": "58e08503e1312953ba682aed4e9dfd4aa508afee89f5cdfea3dc023ef3581775"
+      },
+      "python": "Set by the coordinator at run time",
+      "rng_seed": 20261109,
+      "version": "2.14.0"
+    },
+    "process": {
+      "api": "process.models.availability.Availability.run(WARD_TAYLOR), with data.ife.ife=1 and the explicit authored lives above. No reactor physics or optimization run.",
+      "input": {
+        "path": "process-inputs.json",
+        "sha256": "a570d44680858c024470135928ffcde67c07fc788694abbd0c8bc09fec916b91"
+      },
+      "python": "Set by the coordinator at run time",
+      "version": "3.4.2"
+    }
+  },
+  "schema": "faris-controlled-lifecycle-case/0.1.0",
+  "scope": "Authored verification-only blanket availability control. It exercises the native PROCESS Ward-Taylor availability submodel and native bluemira LifeCycle timeline. It is not experimental validation, a whole-plant model, or measured plant data."
+}

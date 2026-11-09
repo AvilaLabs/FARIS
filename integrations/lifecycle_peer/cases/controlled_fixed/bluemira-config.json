@@ -1,0 +1,111 @@
+{
+  "availability_strategy": {
+    "kind": "zero_unplanned",
+    "parameters": {}
+  },
+  "inputs": {},
+  "learning_strategy": {
+    "kind": "uniform",
+    "parameters": {}
+  },
+  "lifecycle_config": {
+    "A_global": 0.9390429734643561,
+    "I_p": 19.2,
+    "blk_1_dpa": 12.671611862296697,
+    "blk_2_dpa": 12.671611862296697,
+    "bmd": 60.0,
+    "div_dpa": 1000000.0,
+    "dmd": 0.0,
+    "n_DD_reactions": 0.0,
+    "n_DT_reactions": 3.547e+20,
+    "s_ramp_down": 1000000000000000.0,
+    "s_ramp_up": 1000000000000000.0,
+    "t_cs_recharge": 0.0,
+    "t_pulse": 31557600.0,
+    "t_pumpdown": 0.0,
+    "tf_fluence": 1e+30,
+    "vv_dpa": 1000000.0
+  },
+  "provenance": {
+    "A_global": {
+      "kind": "authored",
+      "reference": "Authored 2*blanket campaign full-power years divided by case calendar horizon; target schedule fraction, not measured availability.",
+      "unit": "dimensionless"
+    },
+    "I_p": {
+      "kind": "authored",
+      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "unit": "MA"
+    },
+    "blk_1_dpa": {
+      "kind": "authored",
+      "reference": "Authored verification threshold = 5.00736377025037 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the 10.2 dpa/FPY, 2037 MW EU-DEMO example value linearly to 1000 MW fusion power; this does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "unit": "dpa"
+    },
+    "blk_2_dpa": {
+      "kind": "authored",
+      "reference": "Authored verification threshold = 5.00736377025037 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the 10.2 dpa/FPY, 2037 MW EU-DEMO example value linearly to 1000 MW fusion power; this does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "unit": "dpa"
+    },
+    "bmd": {
+      "kind": "authored",
+      "reference": "Authored 60 calendar-day blanket maintenance duration from the archived FARIS fixed-history scenario.",
+      "unit": "day"
+    },
+    "div_dpa": {
+      "kind": "authored",
+      "reference": "Authored high sentinel to keep divertor, vessel and TF limits outside this blanket-only verification scope; not a material limit.",
+      "unit": "dpa"
+    },
+    "dmd": {
+      "kind": "authored",
+      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "unit": "day"
+    },
+    "n_DD_reactions": {
+      "kind": "authored",
+      "reference": "Authored zero DD reaction rate for this controlled verification config.",
+      "unit": "reactions/s"
+    },
+    "n_DT_reactions": {
+      "kind": "authored",
+      "reference": "Authored verification reaction rate corresponding approximately to 1 GW fusion power divided by 17.6 MeV per D-T reaction; not measured and not an experimentally validated FARIS mapping.",
+      "unit": "reactions/s"
+    },
+    "s_ramp_down": {
+      "kind": "authored",
+      "reference": "Authored very-high ramp rate to make ramp downtime negligible in this controlled fixed-pulse boundary; not a design or measured plant limit.",
+      "unit": "MA/s"
+    },
+    "s_ramp_up": {
+      "kind": "authored",
+      "reference": "Authored very-high ramp rate to make ramp downtime negligible in this controlled fixed-pulse boundary; not a design or measured plant limit.",
+      "unit": "MA/s"
+    },
+    "t_cs_recharge": {
+      "kind": "authored",
+      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "unit": "s"
+    },
+    "t_pulse": {
+      "kind": "authored",
+      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "unit": "s"
+    },
+    "t_pumpdown": {
+      "kind": "authored",
+      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "unit": "s"
+    },
+    "tf_fluence": {
+      "kind": "authored",
+      "reference": "Authored high sentinel to keep divertor, vessel and TF limits outside this blanket-only verification scope; not a material limit.",
+      "unit": "n/m^2"
+    },
+    "vv_dpa": {
+      "kind": "authored",
+      "reference": "Authored high sentinel to keep divertor, vessel and TF limits outside this blanket-only verification scope; not a material limit.",
+      "unit": "dpa"
+    }
+  }
+}
