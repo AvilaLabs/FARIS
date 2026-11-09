@@ -1,0 +1,410 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "fns-decayheat-fe-1996-5min",
+  "title": "FNS Fe 1996 five-minute irradiation decay heat",
+  "evidence_class": "experiment",
+  "source": {
+    "url": "https://github.com/AvilaLabs/open-benchmarks",
+    "commit": "1914ed418b597398d758e7c6fa11e83158e2ca21",
+    "retrieved": "2026-11-09",
+    "benchmark": "JAEA Fusion Neutronics Source 1996 iron sample, five-minute irradiation, distributed by IAEA CoNDERC",
+    "original_archive_url": "https://www-nds.iaea.org/conderc/fusion/files/fns.zip",
+    "original_archive_sha256": "ba1dd6cb150a4aa3e0d81461054aec7d415ef19d946aba8b9886b31de218252d",
+    "original_archive_members": {
+      "fns/Fe/1996exp_5min.exp": "4eb4635d1d70498f691284d396d2a9276beb8ff161e1f568d1622256c80b6c64",
+      "fns/Fe/1996exp_5min_fluxes": "6c2a23393bd71bc5ac957ee53ca6b6ea747b8b0ed87d19361053f37505937d66",
+      "fns/Fe/TENDL-2017_1996exp_5min.i": "fdb943333dd293cdda057fad49df8bf152000cf3f48fa64b12afd54a57eda071",
+      "fns/Fe/total_1996exp_5min.pdf": "d6ea06aadbf0fc9c2ad91461054aec7d415ef19d946aba8b9886b31de218252d"
+    },
+    "processing_note": {
+      "path": "jade_open_benchmarks/fns_decay_heat.md",
+      "sha256": "7eaf6669f0aa3942579541cdf566cf41d9ea167fb3eb3fcea759028882740e11",
+      "bytes": 3419
+    },
+    "license_file": {
+      "path": "LICENSE",
+      "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94",
+      "bytes": 18656
+    },
+    "benchmark_definition": "https://jade-a-nuclear-data-libraries-vv-tool.readthedocs.io/en/latest/benchmarks/experimental.html#fns-decay-heat-iron-five-minute-irradiation",
+    "source_deck": "TENDL-2017_1996exp_5min.i: one gram Fe, 300 s, total flux 1.116e10 n/cm2/s; exact archived member hash listed above"
+  },
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "attribution": "JAEA FNS data distributed by IAEA CoNDERC; JADE processed inputs and measurement table from IAEA-NDS/open-benchmarks, repackaged at AvilaLabs/open-benchmarks commit 1914ed418b597398d758e7c6fa11e83158e2ca21. Attribution and redistribution terms follow the source repository's CC BY 4.0 license.",
+    "terms": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "files": [
+    {
+      "role": "ACTINV 1.0.0 problem specification",
+      "path_in_source": "jade_open_benchmarks/inputs/FNS-DecayHeat/Fe-1996-5min/actinv/spec.json",
+      "sha256": "72fb487dbc780c4fa3a316752615c934406b1e32e9549ee498b407e66748b558",
+      "bytes": 12039
+    },
+    {
+      "role": "processed FNS-96 Fe decay-heat measurement table",
+      "path_in_source": "jade_open_benchmarks/exp_results/FNS-DecayHeat/Fe-1996-5min Decay heat.csv",
+      "sha256": "98ed4d350b3c88335d86ed8b056de556af88cc207a80acb37d1cde0343ad74b8",
+      "bytes": 391
+    },
+    {
+      "role": "ACTINV benchmark metadata",
+      "path_in_source": "jade_open_benchmarks/inputs/FNS-DecayHeat/benchmark_metadata.json",
+      "sha256": "9a1b188ce8593a85df1a728fa03ea146b9ac5692ae022395a4cffafdf56c5c4b",
+      "bytes": 72
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "normalisation": {
+    "status": "confirmed",
+    "quantity": "decay heat per gram of sample at each cooling time after shutdown",
+    "units": "microW/g; ACTINV heat_W_per_g.total is converted to microW/g by multiplying by exactly 1e6",
+    "source_normalisation": "one gram elemental Fe; pinned FISPACT-709 group shape scaled by ACTINV to the source-deck total 1.116e10 n/cm2/s; 300 s irradiation",
+    "location": "non-spatial homogeneous inventory calculation; no geometry or density scaling",
+    "reaction_or_particle": "neutron activation followed by alpha, beta and gamma decay heat; response is their ACTINV total",
+    "energy_integration": "energy-integrated total decay heat",
+    "basis": "Original CoNDERC source archive/member SHA-256 values are recorded above. The pinned JADE problem reproduces its one-gram Fe, 300-second, 1.116e10 n/cm2/s irradiation and 709-group spectrum. Its raw group vector sum differs slightly from the declared total; ACTINV documentation states the declared total scales the vector while preserving shape, so the adapter retains both source inputs unchanged and relies on that documented behavior. JADE's benchmark documentation defines the processed table's Value as microW/g, time as seconds after shutdown, and Error as reported absolute error divided by measured heat. The input schedule is checked against all 20 endpoints."
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "reported experimental error magnitude",
+        "kind": "reported",
+        "meaning": "CSV Error is relative; manifest u is Value*Error in microW/g. Its confidence level and covariance across points are not stated."
+      },
+      {
+        "name": "ACTINV sampling uncertainty",
+        "kind": "none",
+        "meaning": "ACTINV is deterministic for this run and reports no sampling uncertainty; this does not quantify model or nuclear-data uncertainty."
+      }
+    ],
+    "note": "C/E is descriptive. The reported error magnitude is preserved without assigning a confidence level. Covariance is unknown, so the shared scorer must keep every row INCONCLUSIVE; no experimental PASS/FAIL or total prediction uncertainty is claimed."
+  },
+  "compatibility": {
+    "declared": "2026-11-09",
+    "k": 1.0,
+    "k_basis": "authored descriptive scale only; an acceptance interval is not asserted because reported-error confidence and calculation uncertainty are unavailable",
+    "covariance": {
+      "kind": "unknown",
+      "basis": "no covariance between deterministic ACTINV prediction and reported experiment is published; model/nuclear-data uncertainty is not quantified"
+    }
+  },
+  "response_classes": {
+    "decay_heat": {
+      "unit": "microW/g",
+      "description": "total decay heat per sample gram at each measured cooling time after shutdown"
+    }
+  },
+  "detectors": [
+    {
+      "id": "cooling-01",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 66.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.128,
+        "u": 0.0064
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-02",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 82.2,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.126,
+        "u": 0.0063
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-03",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 97.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.126,
+        "u": 0.0063
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-04",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 124.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.121,
+        "u": 0.00605
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-05",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 160.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.117,
+        "u": 0.00585
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-06",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 195.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.115,
+        "u": 0.00575
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-07",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 247.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.111,
+        "u": 0.00555
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-08",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 313.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.108,
+        "u": 0.0054
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-09",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 381.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.105,
+        "u": 0.00525
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-10",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 477.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.103,
+        "u": 0.00515
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-11",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 604.2,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0998,
+        "u": 0.00499
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-12",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 727.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.098,
+        "u": 0.0049
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-13",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 855.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0958,
+        "u": 0.00479
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-14",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 1039.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0938,
+        "u": 0.00469
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-15",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 1284.0,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0906,
+        "u": 0.00453
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-16",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 1531.2,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.088,
+        "u": 0.0044
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-17",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 1777.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0858,
+        "u": 0.00429
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-18",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 2206.2,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0826,
+        "u": 0.00413
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-19",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 2812.8,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0784,
+        "u": 0.00392
+      },
+      "reported_error_relative": 0.05
+    },
+    {
+      "id": "cooling-20",
+      "response_class": "decay_heat",
+      "controlling_variable": {
+        "name": "cooling time after shutdown",
+        "value": 3421.2,
+        "unit": "s"
+      },
+      "reference": {
+        "value": 0.0751,
+        "u": 0.003755
+      },
+      "reported_error_relative": 0.05
+    }
+  ],
+  "not_covered": [
+    "transport reconstruction of the FNS irradiation field; the benchmark uses its prescribed 709-group spectrum",
+    "predictive/model/nuclear-data uncertainty and experimental covariance; only the reported error magnitude is carried",
+    "a blind trial: this same FNS-96 Fe case has already been used in ACTINV validation work",
+    "any material, spectrum, irradiation duration or cooling time outside this one-gram Fe, 300-second case and its 20 measured endpoints",
+    "decay heat per component, volume, dose, whole-device shutdown dose, or plant qualification"
+  ],
+  "qualified_range": {
+    "materials": [
+      "elemental Fe, 100 wt%, sample mass 1.0 g"
+    ],
+    "geometry_class": "non-spatial inventory benchmark; geometry and density are not modeled",
+    "spectrum_class": "prescribed FISPACT-709 group spectrum, normalized to 1.116e10 n/cm2/s",
+    "parameters": [
+      {
+        "name": "irradiation time",
+        "min": 300,
+        "max": 300,
+        "unit": "s"
+      },
+      {
+        "name": "cooling time",
+        "min": 66.0,
+        "max": 3421.2,
+        "unit": "s"
+      }
+    ],
+    "cooling_time": "20 source measurements, all represented without interpolation"
+  },
+  "literature_context": []
+}
