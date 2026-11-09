@@ -513,6 +513,19 @@ pub static REGISTRY: &[Command] = &[
     )
     .blocked_by(|_| browser::IS_BROWSER.then(|| browser::desktop_only("The Design flux window"))),
     command(
+        "tools.design_heating",
+        "Design heating window (toggle)",
+        &["winding pack", "power density", "coupled heating", "openmc"],
+        None,
+        |app, _| {
+            app.design_heating.open = !app.design_heating.open;
+            app.message = window_message("Design heating", app.design_heating.open);
+        },
+    )
+    .blocked_by(|_| {
+        browser::IS_BROWSER.then(|| browser::desktop_only("The Design heating window"))
+    }),
+    command(
         "tour.replay",
         "Replay the guided tour",
         &["help", "introduction"],
@@ -598,6 +611,7 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ),
     ("Top bar", "Tools > Design check", "tools.design_check"),
     ("Top bar", "Tools > Design flux", "tools.design_flux"),
+    ("Top bar", "Tools > Design heating", "tools.design_heating"),
     ("Top bar", "Tour", "tour.replay"),
     #[cfg(target_arch = "wasm32")]
     ("Top bar", "Browser version menu", "browser.about"),

@@ -325,6 +325,12 @@ impl MaintenancePanel {
                             faris_model::validation::Quantity::NetElectricPower,
                         )
                         .tag();
+                    let availability_note = validation_hover_text(
+                        faris_model::validation::Quantity::Availability,
+                    );
+                    let electricity_note = validation_hover_text(
+                        faris_model::validation::Quantity::NetElectricPower,
+                    );
                     let lit_endpoint = tornado.bars.first().map_or("no endpoint", |bar| {
                         let is_low = preset.duration_s() == bar.low_s;
                         let is_high = preset.duration_s() == bar.high_s;
@@ -337,6 +343,11 @@ impl MaintenancePanel {
                     });
                     ui.label(format!(
                         "These are deterministic scenario sensitivities, not uncertainty bands. No model uncertainty is propagated. Current matrix validation: availability {availability_validation}; net electricity {electricity_validation}. The literature campaign value applies only at the {lit_endpoint}; the other endpoint is the current authored duration."
+                    ))
+                    .on_hover_text(format!(
+                        "Availability — {}\nNet electric power — {}",
+                        availability_note,
+                        electricity_note,
                     ));
                     ui.small(format!(
                         "Campaign endpoint source: {} · {} · {}",
@@ -778,6 +789,14 @@ fn input_label_text(label: &InputLabel) -> String {
 /// A duration in the unit the user chose for durations (days until they choose), unit attached.
 fn days_text(seconds: f64, decimals: usize) -> String {
     crate::quantity_text::quantity("time", "d", seconds, decimals)
+}
+
+fn validation_hover_text(quantity: faris_model::validation::Quantity) -> String {
+    let note = faris_model::validation::note(quantity);
+    format!(
+        "Scope: {}. Why: {}. Next step: {}",
+        note.scope, note.why, note.next_step
+    )
 }
 
 /// A time in service in the unit the user chose (years until they choose), unit attached.
@@ -1583,6 +1602,20 @@ mod tests {
         CoolingGrid, MAINTENANCE_ASSUMPTIONS_VERSION, MaintenanceAssumptions, MaintenanceClass,
         Threshold,
     };
+
+    #[test]
+    fn duration_tornado_validation_hover_explains_both_engine_quantities() {
+        for quantity in [
+            faris_model::validation::Quantity::Availability,
+            faris_model::validation::Quantity::NetElectricPower,
+        ] {
+            let note = faris_model::validation::note(quantity);
+            let detail = validation_hover_text(quantity);
+            assert!(detail.contains(&note.scope));
+            assert!(detail.contains(&note.why));
+            assert!(detail.contains(&note.next_step));
+        }
+    }
 
     const Y: f64 = JULIAN_YEAR_SECONDS;
 

@@ -234,11 +234,52 @@ impl DesignHeatingPanel {
                 Ok(report) => {
                     ui.separator();
                     ui.monospace(render_design_heating_text(report));
+                    ui.label(heating_validation_summary(&report.validation));
                 }
                 Err(message) => {
                     ui.colored_label(ui.visuals().error_fg_color, message);
                 }
             }
         }
+    }
+}
+
+/// The report renderer lists every heating result and its validation tag, but a tag alone does
+/// not explain what the benchmark covers or what would improve the evidence. Keep this alongside
+/// the result so the state is available without relying on a hover target over a long text block.
+fn heating_validation_summary(marks: &faris_model::validation::ValidationMarks) -> String {
+    use faris_model::validation::{Quantity, note};
+
+    let mark = marks.mark("power_density_kw_m3", Quantity::Heating);
+    let note = note(Quantity::Heating);
+    format!(
+        "Heating validation {}. Scope: {}. Why: {}. Next step: {}",
+        mark.tag(),
+        note.scope,
+        note.why,
+        note.next_step
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use faris_model::validation::{Quantity, ValidationMark, ValidationMarks, ValidationState};
+
+    #[test]
+    fn result_validation_summary_preserves_recorded_state_and_catalogue_explanation() {
+        let marks = ValidationMarks(std::collections::BTreeMap::from([(
+            "power_density_kw_m3".to_owned(),
+            ValidationMark {
+                quantity: Quantity::Heating,
+                state: ValidationState::CodeToCodeOnly,
+            },
+        )]));
+        let text = heating_validation_summary(&marks);
+        assert!(text.contains("[code-to-code only: heating]"));
+        assert!(text.contains("Scope:"));
+        assert!(text.contains("Why:"));
+        assert!(text.contains("Next step:"));
+        assert!(text.contains(&faris_model::validation::note(Quantity::Heating).next_step));
     }
 }
