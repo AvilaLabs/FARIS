@@ -51,6 +51,13 @@ class Iter1dResponseMapping(unittest.TestCase):
             checked = ITER.verify_registered_inputs(input_dir, benchmark_root, registration, manifest)
             self.assertEqual(set(checked), set(content))
             self.assertEqual(ITER.resolve_inputs(input_dir), input_dir.resolve())
+            # Direct --benchmark-dir <.../openmc> intake resolves the same
+            # directory and keeps the upstream metadata adjacent to it.
+            (input_dir.parent / "benchmark_metadata.json").write_bytes(content["benchmark_metadata.json"])
+            direct = ITER.resolve_inputs(input_dir)
+            self.assertEqual(direct, input_dir.resolve())
+            direct_checked = ITER.verify_registered_inputs(direct, direct, registration, manifest)
+            self.assertEqual(direct_checked["benchmark_metadata.json"]["sha256"], identity["benchmark_metadata.json"]["sha256"])
             original = (input_dir / "materials.xml").read_bytes()
             (input_dir / "materials.xml").write_bytes(bytes([original[0] ^ 1]) + original[1:])
             self.assertEqual(ITER.resolve_inputs(input_dir), input_dir.resolve())

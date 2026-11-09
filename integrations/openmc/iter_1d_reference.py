@@ -91,6 +91,7 @@ def verify_registered_inputs(
     metadata = identity.get("benchmark_metadata")
     metadata_candidates = [
         benchmark_root / "benchmark_metadata.json",
+        input_dir.parent / "benchmark_metadata.json",
         input_dir.parent.parent / "benchmark_metadata.json",
     ]
     metadata_path = next((candidate for candidate in metadata_candidates if candidate.is_file()), None)
