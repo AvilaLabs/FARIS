@@ -684,6 +684,21 @@ def main() -> int:
         except Exception as error:
             print(f"CAD dose preparation failed: {type(error).__name__}: {error}", file=sys.stderr)
             return 2
+    if request.get("schema") in {
+        "faris-maintenance-709-neutron-request/v0.1",
+        "faris-maintenance-709-photon-request/v0.1",
+    }:
+        try:
+            from maintenance_709_response import run_neutron_stage, run_photon_stage
+            request_sha = hashlib.sha256(request_bytes).hexdigest()
+            if request["schema"] == "faris-maintenance-709-neutron-request/v0.1":
+                run_neutron_stage(request, out, request_sha256=request_sha)
+            else:
+                run_photon_stage(request, out, request_sha256=request_sha)
+            return 0
+        except Exception as error:
+            print(f"709 shutdown-dose stage failed: {type(error).__name__}: {error}", file=sys.stderr)
+            return 2
     out.mkdir(parents=True, exist_ok=True)
     record = {"schema": RECEIPT_SCHEMA, "request_id": request.get("request_id"), "status": "NOT_EVALUATED",
               "request_sha256": hashlib.sha256(request_bytes).hexdigest(), "steps": {},
