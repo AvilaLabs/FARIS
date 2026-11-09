@@ -44,8 +44,11 @@
       "properties": {"process": {"$ref": "#/$defs/mappings"}, "bluemira": {"$ref": "#/$defs/mappings"}}
     },
     "faris": {
-      "type": "object", "additionalProperties": false, "required": ["fixed", "computed"],
-      "properties": {"fixed": {"$ref": "#/$defs/artifact"}, "computed": {"$ref": "#/$defs/artifact"}}
+      "type": "object", "additionalProperties": false, "required": ["design_id", "fixed", "computed"],
+      "properties": {
+        "design_id": {"type": "string", "minLength": 1},
+        "fixed": {"$ref": "#/$defs/farisArtifact"}, "computed": {"$ref": "#/$defs/farisArtifact"}
+      }
     },
     "peers": {
       "type": "object", "additionalProperties": false, "required": ["process", "bluemira"],
@@ -87,6 +90,13 @@
     "artifact": {
       "type": "object", "additionalProperties": false, "required": ["path", "sha256", "scope"],
       "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "scope": {"type": "string", "minLength": 1}}
+    },
+    "farisArtifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256", "scope", "component_class"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "scope": {"type": "string", "minLength": 1}, "component_class": {"type": "string", "minLength": 1}
+      }
     },
     "nativeMapping": {
       "type": "object", "additionalProperties": false,

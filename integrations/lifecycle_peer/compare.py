@@ -261,14 +261,18 @@ def validate_manifest(path: Path) -> tuple[dict[str, Any], dict[str, Path], list
     base = path.resolve().parent
     files: dict[str, Path] = {}
     faris = manifest["faris"]
-    if not isinstance(faris, dict) or set(faris) != {"fixed", "computed"}:
+    if not isinstance(faris, dict) or set(faris) != {"fixed", "computed", "design_id"}:
         raise ValueError("faris must reference fixed and computed native-run evidence")
+    if not isinstance(faris["design_id"], str) or not faris["design_id"].strip():
+        raise ValueError("faris.design_id must name a design in the native maintenance result")
     for case in ("fixed", "computed"):
         entry = faris[case]
-        if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "scope"}:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256", "scope", "component_class"}:
             raise ValueError(f"faris.{case} evidence needs path, sha256 and scope")
         if not isinstance(entry["scope"], str) or not entry["scope"].strip():
             raise ValueError(f"faris.{case}.scope must describe the authoritative FARIS output")
+        if not isinstance(entry["component_class"], str) or not entry["component_class"].strip():
+            raise ValueError(f"faris.{case}.component_class must identify the scoped native component class")
         files[f"faris.{case}"] = relative_file(base, entry["path"], entry["sha256"], f"faris.{case}")
 
     peers = manifest["peers"]
@@ -434,6 +438,22 @@ def run_manifest(manifest_path: Path, out_dir: Path) -> dict[str, Any]:
             "sha256": item["sha256"],
             "scope": item["scope"],
         }
+    faris_fixed = parse_faris_maintenance(files["faris.fixed"], manifest["faris"]["design_id"],
+                                          "fixed", manifest["faris"]["fixed"]["component_class"])
+    faris_computed = parse_faris_maintenance(files["faris.computed"], manifest["faris"]["design_id"],
+                                             "computed", manifest["faris"]["computed"]["component_class"])
+    report["faris_native_maintenance"] = {
+        "design_id": manifest["faris"]["design_id"],
+        "reference_schema": "faris-maintenance-result/v0.1",
+        "fixed": faris_fixed,
+        "computed": faris_computed,
+        "computed_minus_fixed": {
+            "lifetime_net_electricity_mwh": faris_computed["lifetime_net_electricity_mwh"] - faris_fixed["lifetime_net_electricity_mwh"],
+            "total_replacement_downtime_s": faris_computed["total_replacement_downtime_s"] - faris_fixed["total_replacement_downtime_s"],
+            "availability_fraction": faris_computed["availability_fraction"] - faris_fixed["availability_fraction"],
+        },
+        "comparison_scope": "Native FARIS record values; these are reference outputs and are not reinterpreted as peer inputs or physical validation.",
+    }
 
     process = manifest["peers"]["process"]
     process_dir = out_dir / "process"
@@ -483,6 +503,84 @@ def run_manifest(manifest_path: Path, out_dir: Path) -> dict[str, Any]:
     target = out_dir / "comparison.json"
     target.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
+
+
+def parse_faris_maintenance(path: Path, design_id: str, case: str, component_class: str) -> dict[str, Any]:
+    """Read numeric values from FARIS's native maintenance result schema."""
+    result = read_json(path)
+    if not isinstance(result, dict) or result.get("schema_version") != "faris-maintenance-result/v0.1":
+        raise ValueError("FARIS evidence must use faris-maintenance-result/v0.1")
+    designs = result.get("designs")
+    if not isinstance(designs, dict) or design_id not in designs:
+        raise ValueError(f"FARIS maintenance result has no design {design_id!r}")
+    design = designs[design_id]
+    if not isinstance(design, dict) or case not in {"fixed", "computed"}:
+        raise ValueError("FARIS maintenance design is malformed")
+    record = design.get(case) if case == "fixed" else design.get("computed", {}).get("summary")
+    if case == "computed" and str(design.get("computed", {}).get("status", "")).casefold() != "evaluated":
+        raise ValueError("FARIS computed maintenance result is not evaluated")
+    if not isinstance(record, dict):
+        raise ValueError(f"FARIS {case} maintenance summary is absent")
+    required_numbers = ("history_end_s", "lifetime_net_electricity_mwh", "total_replacement_downtime_s", "availability")
+    metrics: dict[str, Any] = {}
+    for key in required_numbers:
+        value = record.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"FARIS {case} maintenance summary lacks finite {key}")
+        metrics[key] = float(value)
+    events = record.get("replacements")
+    if not isinstance(events, list):
+        raise ValueError(f"FARIS {case} maintenance summary lacks replacement events")
+    scoped = [event for event in events if isinstance(event, dict) and event.get("class") == component_class]
+    if not scoped:
+        raise ValueError(f"FARIS {case} result has no {component_class!r} replacement events")
+    durations = []
+    for event in scoped:
+        start, end = event.get("start_s"), event.get("end_s")
+        end = metrics["history_end_s"] if end is None else end
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (start, end)) or end < start:
+            raise ValueError("FARIS replacement event has invalid start/end seconds")
+        durations.append(float(end - start))
+    all_intervals = []
+    for event in events:
+        if not isinstance(event, dict):
+            raise ValueError("FARIS replacement event record is malformed")
+        start, end = event.get("start_s"), event.get("end_s")
+        end = metrics["history_end_s"] if end is None else end
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in (start, end)) or end < start:
+            raise ValueError("FARIS replacement event has invalid start/end seconds")
+        all_intervals.append((float(start), float(end)))
+    corrected_downtime = interval_union_duration(all_intervals, metrics["history_end_s"])
+    return {
+        "status": "evaluated",
+        "history_end_s": metrics["history_end_s"],
+        "lifetime_net_electricity_mwh": metrics["lifetime_net_electricity_mwh"],
+        "total_replacement_downtime_s": corrected_downtime,
+        "availability_fraction": (1.0 - corrected_downtime / metrics["history_end_s"] if metrics["history_end_s"] > 0 else 1.0),
+        "summary_provenance": "Downtime and availability recomputed as the union of archived replacement intervals using crates/faris-engine/src/maintenance.rs::interval_union_duration_s semantics; archived net-electricity snapshot reused unchanged. No transport/activation physics rerun.",
+        "archived_pre_union_summary": {"total_replacement_downtime_s": metrics["total_replacement_downtime_s"], "availability_fraction": metrics["availability"]},
+        "scoped_component_class": component_class,
+        "scoped_replacement_count": len(scoped),
+        "scoped_replacement_durations_s": durations,
+        "scoped_replacement_downtime_s": sum(durations),
+    }
+
+
+def interval_union_duration(intervals: list[tuple[float, float]], horizon_s: float) -> float:
+    clipped = sorted((max(0.0, min(horizon_s, start)), max(0.0, min(horizon_s, end)))
+                     for start, end in intervals)
+    total = 0.0
+    union_end = -math.inf
+    for start, end in clipped:
+        if end <= start:
+            continue
+        if start > union_end:
+            total += end - start
+            union_end = end
+        elif end > union_end:
+            total += end - union_end
+            union_end = end
+    return total
 
 
 def conditional_metrics(manifest: dict[str, Any], process: dict[str, Any], bluemira: dict[str, Any]) -> dict[str, Any]:

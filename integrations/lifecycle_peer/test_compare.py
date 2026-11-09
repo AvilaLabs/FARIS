@@ -75,8 +75,9 @@ def manifest_fixture(root: Path) -> Path:
             "assumptions": [{"name": "duty_cycle", "value": "continuous", "unit": "text", "source": source()}],
         },
         "mapping": mapping(),
-        "faris": {"fixed": dict(pinned(faris_fixed), scope="authoritative fixed-duration output"),
-                  "computed": dict(pinned(faris_computed), scope="authoritative computed-duration output")},
+        "faris": {"design_id": "no-port__breeder",
+                  "fixed": dict(pinned(faris_fixed), scope="authoritative fixed-duration output", component_class="blanket"),
+                  "computed": dict(pinned(faris_computed), scope="authoritative computed-duration output", component_class="blanket")},
         "peers": {
             "process": {"version": "3.4.2", "executable": "process", "input": pinned(process_input), "python": sys.executable},
             "bluemira": {"version": "2.14.0", "python": sys.executable, "config": pinned(blue_config), "rng_seed": 1234},
@@ -101,6 +102,17 @@ class PeerLifecycleManifestTests(unittest.TestCase):
         self.assertIn("bluemira.config", files)
         self.assertTrue(any("process" in item for item in limitations))
         self.assertEqual(manifest["schema"], compare.SCHEMA)
+
+    def test_native_faris_reference_values_and_scoped_fixed_computed_delta_are_readable(self):
+        path = Path(__file__).resolve().parents[2] / "references" / "maintenance-0.2-parity.json"
+        fixed = compare.parse_faris_maintenance(path, "no-port__breeder", "fixed", "blanket")
+        computed = compare.parse_faris_maintenance(path, "no-port__breeder", "computed", "blanket")
+        self.assertEqual(fixed["status"], "evaluated")
+        self.assertEqual(fixed["history_end_s"], 946728000.0)
+        self.assertEqual(fixed["scoped_replacement_count"], 11)
+        self.assertEqual(fixed["scoped_replacement_durations_s"], [5184000.0] * 11)
+        self.assertEqual(computed["scoped_replacement_count"], 9)
+        self.assertAlmostEqual(computed["lifetime_net_electricity_mwh"] - fixed["lifetime_net_electricity_mwh"], -4706066.616091795)
 
     def test_missing_provenance_and_omitted_downtime_mapping_fail(self):
         path = manifest_fixture(self.root)

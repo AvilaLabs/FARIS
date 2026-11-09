@@ -12,6 +12,12 @@ bluemira has no standalone LifeCycle command. Its public `bluemira.fuel_cycle.li
 
 The conditional energy normalization is `matched net MW(e) × native full-power years × 8760 h/year`. PROCESS contributes its native capacity factor and plant lifetime from the official MFILE reader. bluemira contributes its native `fpy` and `T` lifecycle attributes. Energy is omitted for either model when its native horizon does not equal the manifest horizon. These are conditional model comparisons, not measured plant performance.
 
+## FARIS maintenance reference available in this checkout
+
+`references/maintenance-0.2-parity.json` (SHA-256 `02822be5cc83b9c8b57d3b7fa3e198f6a3aecc06e7ef060e091caf7c44d92d71`) contains archived fixed and computed histories for `no-port__breeder` and three other designs over 946,728,000 seconds (30 Julian years). Its fixed/computed `lifetime_net_electricity_mwh` values come from the saved snapshots; this adapter does not rerun transport or activation physics. The adapter recomputes total downtime and availability from the archived replacement intervals using FARIS's `interval_union_duration_s` semantics and reports the archive's old summary alongside the recomputed summary. This preserves the archive unchanged and makes the method/source limitation explicit.
+
+For `no-port__breeder`, the archive records 11 fixed blanket events at 60 days each, and 9 computed blanket events with recorded durations. The saved net-energy snapshots are 35,272,721.86735174 MWh fixed and 30,566,655.251259945 MWh computed (computed minus fixed: -4,706,066.616091795 MWh). Those are historical FARIS outputs, not peer results. They provide a reference scenario and a fixed blanket work duration, but do not provide the DPA/fluence conversion needed to map FARIS's component replacement trigger to bluemira's LifeCycle damage limits. A peer comparison manifest must leave that lifetime correspondence incomplete until a sourced mapping is available; it must not present the outputs as an established matched baseline.
+
 ## Sources, versions and licenses
 
 - [PROCESS official installation guide](https://ukaea.github.io/PROCESS/installation/installation/) supports Python 3.11+, an isolated environment, an official release checkout (the guide shows tag `v3.4.2`) and `pip install .`.
@@ -30,7 +36,7 @@ python3 integrations/lifecycle_peer/compare.py path/to/peer-comparison.json \
   --out runs/peer-lifecycle/<comparison-id>
 ```
 
-The PROCESS input is a pinned, user-reviewed `*_IN.DAT` prepared for the fixed-duration reference. The bluemira config is a pinned JSON object with `lifecycle_config`, `learning_strategy`, `availability_strategy`, `inputs`, and a `provenance` record for every numeric config parameter; its adapter emits the native LifeCycle timeline. `manifest.schema.json` is the JSON Schema contract.
+The PROCESS input is a pinned, user-reviewed `*_IN.DAT` prepared for the fixed-duration reference. The bluemira config is a pinned JSON object with `lifecycle_config`, `learning_strategy`, `availability_strategy`, `inputs`, and a `provenance` record for every numeric config parameter; its adapter emits the native LifeCycle timeline. `manifest.schema.json` is the JSON Schema contract. The archived FARIS parity fixture alone is insufficient to create a fully matched PROCESS/bluemira case: PROCESS can accept FPY directly but its normal plant model calculates lifetimes from design physics; bluemira LifeCycle derives replacements from DPA/fluence and planned maintenance, and no source in this fixture maps FARIS neutron-fluence triggers to its DPA thresholds. Until that correspondence is sourced, any run report must show it as incomplete and must not attribute output differences to FARIS computed outages.
 
 The runner uses argument arrays with no shell, a per-process timeout, an output-byte cap, SHA-256 input/output records, and separate working directories. It refuses to overwrite a non-empty output directory. The report keeps peer-native metrics distinct from its conditional MWh normalization.
 
