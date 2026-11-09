@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 import numpy as np
 
@@ -133,6 +134,9 @@ class ResponseMathTests(unittest.TestCase):
         settings = openmc.Settings()
         settings.run_mode = "fixed source"
         settings.photon_transport = True
+        constraint_info = worker.configure_material_source_sampling(settings)
+        self.assertEqual(settings.source_rejection_fraction, 1e-6)
+        self.assertEqual(constraint_info["strategy"], "resample")
         sources, total = worker._photon_sources(openmc, [{"material_id": 42,
             "photons_per_s": 5.0, "energy_groups": [
                 {"energy_ev": 1e6, "photons_per_s": 2.0},
@@ -149,6 +153,8 @@ class ResponseMathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             model.export_to_model_xml(temp)
             self.assertTrue((Path(temp) / "model.xml").is_file())
+            root = ET.parse(Path(temp) / "model.xml").getroot()
+            self.assertEqual(float(root.findtext("./settings/source_rejection_fraction")), 1e-6)
             neutron_settings = openmc.Settings()
             neutron_settings.run_mode = "fixed source"
             source_mesh = openmc.RegularMesh(mesh_id=21)

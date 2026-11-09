@@ -32,6 +32,7 @@ MAX_H5M_VERTEX_NODES = 20_000_000
 MAX_H5M_VERTEX_DATA_BYTES = 256 * 1024 * 1024
 MAX_H5M_VERTEX_CHUNK_BYTES = 64 * 1024 * 1024
 LOST_PARTICLE_FRACTION_LIMIT = 1e-6
+MATERIAL_SOURCE_REJECTION_FRACTION = 1e-6
 
 NEUTRON_REQUEST_SCHEMA = "faris-maintenance-709-neutron-request/v0.1"
 NEUTRON_RECEIPT_SCHEMA = "faris-maintenance-709-neutron-response-receipt/v0.1"
@@ -1008,6 +1009,18 @@ def _dose_tally(openmc, response: dict):
     return mesh, tally
 
 
+def configure_material_source_sampling(settings) -> dict:
+    """Retain unbiased domain resampling while avoiding OpenMC's coarse 5% default cutoff."""
+    settings.source_rejection_fraction = MATERIAL_SOURCE_REJECTION_FRACTION
+    return {
+        "strategy": "resample",
+        "source_rejection_fraction": MATERIAL_SOURCE_REJECTION_FRACTION,
+        "meaning": "minimum aggregate accepted-to-rejected source-site ratio before OpenMC aborts; execution control only",
+        "distribution_effect": "none; rejected box proposals are resampled within the exact constrained CAD material",
+        "limitation": "very small material fill fractions can still sample slowly or fail closed at OpenMC's rejection guard; OpenMC 0.16 also caps a site's retries at one million",
+    }
+
+
 def _photon_sources(openmc, emitters: list[dict], materials_by_id: dict):
     sources = []
     total_strength = 0.0
@@ -1081,6 +1094,7 @@ def run_photon_stage(request: dict, out: Path, openmc=None, request_sha256: str 
     settings = model.settings
     settings.run_mode = "fixed source"
     settings.photon_transport = True
+    source_constraint_execution = configure_material_source_sampling(settings)
     settings.particles = request["sampling"]["photon_particles"]
     settings.batches = request["sampling"]["photon_batches"]
     settings.seed = request["sampling"]["seed"]
@@ -1159,6 +1173,7 @@ def run_photon_stage(request: dict, out: Path, openmc=None, request_sha256: str 
         "source_normalization": "ACTINV group photons/s are absolute source strengths; no neutron or fusion rate is multiplied again.",
         "dose_quantity": "OpenMC AP effective dose coefficient times integrated photon flux, divided by scored volume; Sv/h",
         "source_spatial_model": "uniform source within each activation voxel, constrained to its exact cloned CAD material ID; group-centroid photon energies",
+        "source_constraint_execution": source_constraint_execution,
         "uncertainty_scope": "photon transport batch sampling conditional on the exact ACTINV source; excludes neutron response, activation, nuclear-data, material-volume, geometry and source-model uncertainty",
         "points": receipt_points,
         "limitations": ["One checked task-location voxel is scored.",
