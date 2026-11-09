@@ -335,7 +335,14 @@ pub fn power_density_kw_m3(
             "heating averaging volume must be finite and positive".into(),
         ));
     }
-    Ok(energy_ev_per_source * source_rate_per_s * ELEMENTARY_CHARGE_C / volume_m3 / 1000.0)
+    let result =
+        energy_ev_per_source * source_rate_per_s * ELEMENTARY_CHARGE_C / volume_m3 / 1000.0;
+    if !result.is_finite() {
+        return Err(DesignError::Tool(
+            "heating power-density conversion overflowed or became non-finite".into(),
+        ));
+    }
+    Ok(result)
 }
 
 /// Normalize a score and its MC sampling SE; volume uncertainty is attached as its own field.
@@ -769,6 +776,15 @@ pub fn design_heating(
             || !finite_score(&solid.electron)
             || !finite_score(&solid.positron)
             || !finite_score(&solid.total)
+            || !worker_component_maps_valid(std::slice::from_ref(solid))
+            || finite_abs_sum(&[
+                solid.neutron.mean_ev_per_source,
+                solid.photon.mean_ev_per_source,
+                solid.electron.mean_ev_per_source,
+                solid.positron.mean_ev_per_source,
+                solid.total.mean_ev_per_source,
+            ])
+            .is_none()
             || !finite_closure(&solid.closure_residual)
             || !closure_mean_matches(
                 solid.closure_residual.mean_ev_per_source,
@@ -796,14 +812,6 @@ pub fn design_heating(
                         .chain(voxel.z_cm.iter())
                         .any(|v| !v.is_finite())
                     || !finite_closure(&voxel.closure_residual)
-                    || ["neutron", "photon", "electron", "positron", "total"]
-                        .iter()
-                        .any(|component| {
-                            voxel
-                                .components
-                                .get(*component)
-                                .is_none_or(|score| !finite_score(score))
-                        })
                     || !closure_mean_matches(
                         voxel.closure_residual.mean_ev_per_source,
                         voxel
@@ -832,13 +840,6 @@ pub fn design_heating(
                     || peak.volume_estimator.sampling_uncertainty_reported
                         != peak.volume_estimator.sampling_relative_error.is_some()
                     || !finite_closure(&peak.closure_residual)
-                    || ["neutron", "photon", "electron", "positron", "total"]
-                        .iter()
-                        .any(|component| {
-                            peak.components
-                                .get(*component)
-                                .is_none_or(|score| !finite_score(score))
-                        })
                     || !closure_mean_matches(
                         peak.closure_residual.mean_ev_per_source,
                         peak.components
@@ -859,26 +860,23 @@ pub fn design_heating(
         ));
     }
     let closure_failed = worker.solids.iter().any(|solid| {
-        let solid_scale = solid.total.mean_ev_per_source.abs()
-            + solid.neutron.mean_ev_per_source.abs()
-            + solid.photon.mean_ev_per_source.abs()
-            + solid.electron.mean_ev_per_source.abs()
-            + solid.positron.mean_ev_per_source.abs();
+        let solid_scale = finite_abs_sum(&[
+            solid.total.mean_ev_per_source,
+            solid.neutron.mean_ev_per_source,
+            solid.photon.mean_ev_per_source,
+            solid.electron.mean_ev_per_source,
+            solid.positron.mean_ev_per_source,
+        ])
+        .expect("finite top-level score scale was validated");
         !closure_within_3se(&solid.closure_residual, solid_scale)
             || solid.voxel_scores.iter().any(|voxel| {
-                let scale = voxel
-                    .components
-                    .values()
-                    .map(|score| score.mean_ev_per_source.abs())
-                    .sum();
+                let scale = component_score_scale(&voxel.components)
+                    .expect("exact finite voxel component set was validated");
                 !closure_within_3se(&voxel.closure_residual, scale)
             })
             || solid.peak.as_ref().is_some_and(|peak| {
-                let scale = peak
-                    .components
-                    .values()
-                    .map(|score| score.mean_ev_per_source.abs())
-                    .sum();
+                let scale = component_score_scale(&peak.components)
+                    .expect("exact finite peak component set was validated");
                 !closure_within_3se(&peak.closure_residual, scale)
             })
     });
@@ -1037,24 +1035,84 @@ fn close_enough(left: f64, right: f64) -> bool {
     (left - right).abs() <= 1.0e-8 * scale
 }
 
+fn finite_abs_sum(values: &[f64]) -> Option<f64> {
+    values.iter().try_fold(0.0, |sum, value| {
+        if !value.is_finite() {
+            return None;
+        }
+        let next = sum + value.abs();
+        next.is_finite().then_some(next)
+    })
+}
+
+fn component_score_scale(scores: &BTreeMap<String, WorkerScore>) -> Option<f64> {
+    const COMPONENTS: [&str; 5] = ["neutron", "photon", "electron", "positron", "total"];
+    if scores.len() != COMPONENTS.len()
+        || COMPONENTS.iter().any(|name| {
+            scores.get(*name).is_none_or(|score| {
+                !score.mean_ev_per_source.is_finite()
+                    || score.mean_ev_per_source < 0.0
+                    || !score.standard_error_ev_per_source.is_finite()
+                    || score.standard_error_ev_per_source < 0.0
+            })
+        })
+    {
+        return None;
+    }
+    finite_abs_sum(&COMPONENTS.map(|name| {
+        scores
+            .get(name)
+            .expect("exact component names were checked")
+            .mean_ev_per_source
+    }))
+}
+
+fn worker_component_maps_valid(solids: &[WorkerSolid]) -> bool {
+    solids.iter().all(|solid| {
+        solid
+            .voxel_scores
+            .iter()
+            .all(|voxel| component_score_scale(&voxel.components).is_some())
+            && solid
+                .peak
+                .as_ref()
+                .is_none_or(|peak| component_score_scale(&peak.components).is_some())
+    })
+}
+
 fn closure_mean_matches(residual: f64, total: f64, components: &[f64]) -> bool {
+    if !residual.is_finite() || !total.is_finite() || components.iter().any(|v| !v.is_finite()) {
+        return false;
+    }
+    let Some(component_sum) = finite_abs_sum(components) else {
+        return false;
+    };
     let expected = total - components.iter().sum::<f64>();
-    let scale = total.abs() + components.iter().map(|value| value.abs()).sum::<f64>();
-    (residual - expected).abs() <= 1.0e-8 * scale.max(1.0e-300)
+    let Some(scale) = finite_abs_sum(&[total, component_sum]) else {
+        return false;
+    };
+    let difference = residual - expected;
+    difference.is_finite() && difference.abs() <= 1.0e-8 * scale.max(1.0e-300)
 }
 
 fn closure_within_3se(score: &WorkerScore, scale: f64) -> bool {
+    if !scale.is_finite()
+        || !score.mean_ev_per_source.is_finite()
+        || !score.standard_error_ev_per_source.is_finite()
+    {
+        return false;
+    }
     let expected_tolerance = 64.0
         * f64::EPSILON
         * scale
             .abs()
             .max(score.mean_ev_per_source.abs())
             .max(1.0e-300);
-    score.within_3se
-        == Some(
-            score.mean_ev_per_source.abs()
-                <= 3.0 * score.standard_error_ev_per_source + expected_tolerance,
-        )
+    let gate = 3.0 * score.standard_error_ev_per_source + expected_tolerance;
+    if !expected_tolerance.is_finite() || !gate.is_finite() {
+        return false;
+    }
+    score.within_3se == Some(score.mean_ev_per_source.abs() <= gate)
         && score.roundoff_tolerance_ev_per_source.is_some_and(|value| {
             (value - expected_tolerance).abs() <= expected_tolerance.max(1.0e-300) * 1.0e-8
         })
@@ -1304,6 +1362,59 @@ mod tests {
     fn invalid_dimensions_and_errors_are_rejected() {
         assert!(power_density_kw_m3(1.0, 1.0, 0.0).is_err());
         assert!(normalize_heating_ev_per_source(1.0, Some(f64::NAN), 1.0, 1.0, None).is_err());
+        assert!(power_density_kw_m3(f64::MAX, 1.0e308, 1.0e-300).is_err());
+        assert!(
+            normalize_heating_ev_per_source(1.0, Some(f64::MAX), 1.0e308, 1.0e-300, None).is_err()
+        );
+    }
+
+    #[test]
+    fn parsed_voxels_reject_extra_or_overflowing_component_scales() {
+        let score = |mean: f64| {
+            serde_json::json!({
+                "mean_ev_per_source": mean,
+                "standard_error_ev_per_source": 0.0
+            })
+        };
+        let voxel = |components| {
+            serde_json::json!({
+                "r_cm": [1.0, 2.0],
+                "z_cm": [3.0, 4.0],
+                "volume_cm3": 1.0,
+                "components": components,
+                "closure_residual": score(0.0),
+                "is_peak": true
+            })
+        };
+        let extra_components = serde_json::json!({
+            "neutron": score(1.0), "photon": score(1.0), "electron": score(1.0),
+            "positron": score(1.0), "total": score(4.0), "diagnostic_scale": score(1.0e308)
+        });
+        let extra: WorkerVoxel = serde_json::from_value(voxel(extra_components.clone())).unwrap();
+        assert!(component_score_scale(&extra.components).is_none());
+        let solid: WorkerSolid = serde_json::from_value(serde_json::json!({
+            "solid_id": "bad",
+            "neutron": score(1.0), "photon": score(1.0), "electron": score(1.0),
+            "positron": score(1.0), "total": score(4.0), "closure_residual": score(0.0),
+            "peak": null,
+            "voxel_scores": [voxel(extra_components)]
+        }))
+        .unwrap();
+        assert!(!worker_component_maps_valid(&[solid]));
+        let overflow: WorkerVoxel = serde_json::from_value(voxel(serde_json::json!({
+            "neutron": score(1.0e308), "photon": score(1.0e308), "electron": score(1.0e308),
+            "positron": score(1.0e308), "total": score(1.0e308)
+        })))
+        .unwrap();
+        assert!(
+            overflow
+                .components
+                .values()
+                .all(|s| s.mean_ev_per_source.is_finite())
+        );
+        assert!(component_score_scale(&overflow.components).is_none());
+        assert!(finite_abs_sum(&[1.0e308, 1.0e308]).is_none());
+        assert!(!closure_mean_matches(1.0e308, 1.0e308, &[1.0e308, 1.0e308]));
     }
 
     #[test]
