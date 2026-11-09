@@ -3,6 +3,35 @@
 
 Status: approved 2026-10-09. The version number is decided at release.
 
+## Current execution
+
+Continuation started 2026-11-09 from development commit `ddc1b80`. This plan's
+S0–S5 stages define the remaining release work. The broader F1/F2 requirements
+for 1.0 are a later completion boundary; passing this release's fixed gate does
+not establish that the full 1.0 target set is met.
+
+At this baseline, the requirement tables record 14 of the 44 release-gate IDs
+as Met. That count describes recorded evidence, not a fresh release-gate pass.
+Code already includes CAD import/check/transport, native design windows,
+activation, replacement groups and remote-handling calculations. Research
+results count toward product completion only when the required product path
+and its checks exist.
+
+| Stage | Current boundary | Remaining exit work |
+| --- | --- | --- |
+| S0 | Feasibility and streaming controls recorded; inboard transport gain has only a pilot | Replicate the inboard fast-flux performance measurement, retain uncertainty and bias checks, and settle version/data prerequisites |
+| S1 | CAD import, sidecar, defect corpus and blocking checks implemented | Close the partial geometry gates with actual converter, volume and lost-particle evidence |
+| S2 | Sources, target-error runs, windows and peak-flux paths implemented in part | Complete product integration, peak heating, seed/void controls and RM-M performance evidence |
+| S3 | Heat-governed maintenance, replacement groups and remote-handling model implemented | Add the spatial shutdown-dose workflow and D1S/R2S comparison; expose literature presets and duration sensitivity in the app |
+| S4 | Validation registry, scoring and report generation implemented | Produce the required sealed case runs and comparisons; complete validation-state presentation and resolve access-dependent coverage explicitly |
+| S5 | Quality checks and packaging tools implemented in part | Complete the outstanding product requirements and run the final tests, performance, accessibility, fuzz, reproducibility, documentation and release gates on the candidate |
+
+The coordinator integrates, reviews, validates and publishes each increment;
+Luna agents can implement independent changes. Builds and solver campaigns run
+under one coordinator. The next work is the unmet gate evidence and missing
+user paths above, with scientific limits retained. No completion date is claimed
+before the remaining solver and integration costs are measured.
+
 ## The question this release answers
 
 **How does a design choice change a fusion plant's life?** That means

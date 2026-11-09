@@ -5,9 +5,12 @@ This roadmap covers the long-term FARIS project. The focused first demo has its
 own [DEMO_ROADMAP.md](DEMO_ROADMAP.md), containing its detailed requirements,
 implementation milestones, and completion criteria.
 
-Status: high-level direction, 2026-09-30. Later phases are proposed development
-areas, not implemented capabilities or scheduled commitments. The current
-application is a Rust/native geometry scaffold.
+Status: direction reviewed 2026-11-09. The scoped functional demo is complete,
+and 0.2.0 added activation-driven maintenance to the recorded study. The next
+release is in development: CAD import, integrity checks and design transport
+already exist on the development branch. Remaining work and release criteria
+are in [NEXT_RELEASE_PLAN.md](NEXT_RELEASE_PLAN.md). Later phases remain proposed
+development areas, not implemented capabilities or scheduled commitments.
 
 ## Long-term objective
 
@@ -27,7 +30,9 @@ the simulation also remains usable independently through the CLI.
 
 ## Development phases
 
-The first phase is the immediate focus. Later phases can overlap where their
+The next release extends F1 and F2 through a bounded CAD-to-life study. It is a
+step toward the full 1.0 requirement set, not a declaration that all F1 and F2
+requirements have been met. Later phases can overlap where their
 dependencies are satisfied; their detailed requirements will be written around
 concrete research questions and available validation evidence.
 
@@ -77,10 +82,11 @@ starting point; integrating every listed framework is not a project milestone.
 
 ## How this roadmap grows
 
-Finish and evaluate the first demo before freezing detailed requirements for
-later phases. Use its scientific findings, integration costs, and user experience
-to choose the next bounded study. Expand the platform where that study exposes
-a consequential need, integrating existing tools before creating a new model.
+The first demo established a bounded numerical workflow; its scientific limits
+remain in the [acceptance record](DEMO_ACCEPTANCE.md). The approved next release
+uses a CAD-to-life study to extend that workflow. Expand the platform where the
+study exposes a consequential need, integrating existing tools before creating
+a new model.
 
 This project roadmap owns the broad direction. Each focused demo or subsequent
 delivery should have a separate plan with its own requirements and acceptance

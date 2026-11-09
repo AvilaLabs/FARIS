@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 1 fixed that affected a released version, 9 fixed before they reached a release.
+0 open, 0 will not be fixed, 1 fixed that affected a released version, 10 fixed before they reached a release.
 
 ## Open
 
@@ -33,6 +33,7 @@ These were found in development and never shipped.
 | --- | --- | --- | --- |
 | FARIS-001 | S1 | Tritium release windows closed inconsistently at late times, creating mass | 542dcb3 |
 | FARIS-003 | S1 | OKTAVIAN-Al validation runner scored the wrong tally values | de12df4 |
+| FARIS-011 | S1 | Malformed Monte Carlo uncertainty bypassed the validation precision check | 9a071f1 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
