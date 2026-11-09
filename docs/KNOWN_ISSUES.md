@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-1 open, 0 will not be fixed, 2 fixed that affected a released version, 14 fixed before they reached a release.
+1 open, 0 will not be fixed, 2 fixed that affected a released version, 16 fixed before they reached a release.
 
 ## Open
 
@@ -38,6 +38,7 @@ These were found in development and never shipped.
 | FARIS-003 | S1 | OKTAVIAN-Al validation runner scored the wrong tally values | de12df4 |
 | FARIS-011 | S1 | Malformed Monte Carlo uncertainty bypassed the validation precision check | 9a071f1 |
 | FARIS-016 | S1 | Short target-error CAD runs bypassed the final lost-particle fraction guard | 0b93a45 |
+| FARIS-018 | S1 | R3 aggregate dose errors discarded covariance between spatial and parent bins | cf675a7 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -47,4 +48,5 @@ These were found in development and never shipped.
 | FARIS-012 | S3 | Release gate ignored the approved validation-access outcome | 1a6d6d2 |
 | FARIS-015 | S3 | ACTINV jobs ignored documented cache-root overrides | c2620a7 |
 | FARIS-017 | S3 | Lost-particle diagnostics described birth positions as escape locations | 0b93a45 |
+| FARIS-019 | S3 | Legacy R3 reference methods were described as selecting equivalent decay-emitter domains | cf675a7 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

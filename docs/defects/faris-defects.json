@@ -226,6 +226,32 @@
       "fixed_in": "0b93a45",
       "disposition": "OpenMC particle files record birth positions, but FARIS told users to inspect the model where particles were lost. The worker guidance, shared report and native view now label those coordinates as birth points and do not imply they identify the escape boundary. The old wording failed the controlled guidance regression; worker-assembly and CLI/native presentation tests now preserve that distinction.",
       "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_lost_particle_guidance_does_not_mislabel_birth_positions_as_loss_locations"
+    },
+    {
+      "id": "FARIS-018",
+      "title": "R3 aggregate dose errors discarded covariance between spatial and parent bins",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "cf675a7",
+      "disposition": "The historical reference producers combined marginal bin errors in quadrature after spatial and parent weighting, which is invalid for correlated scores. Prospective producers now aggregate within each completed batch before estimating the standard error. The fully correlated synthetic control gives standard error 5 instead of the former 2.915 quadrature. Historical central values and archived files remain unchanged; their uncertainty estimates require requalification. Unknown D1S/R2S covariance gives INCONCLUSIVE and no propagated ratio error. R2S photon error remains explicitly conditional on its generated activation source.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_dose_statistics.py::test_fully_correlated_bins_use_batch_aggregate_standard_error"
+    },
+    {
+      "id": "FARIS-019",
+      "title": "Legacy R3 reference methods were described as selecting equivalent decay-emitter domains",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "cf675a7",
+      "disposition": "D1S MeshBornFilter follows each current particle birth, including secondary interaction sites, while the legacy R2S source activated only the response box. The old equivalence claim is retracted and those outputs are retained only as diagnostics. The prospective full-emission protocol removes the D1S birth filter and separately spans verified H5M geometry with the R2S activation mesh; the exporter refuses legacy or hidden birth-filter inputs. This corrects input qualification and interpretation, not physical dose validation: matched solver runs and source-resolution convergence remain pending under VAL-043.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_shutdown_dose_export.py::test_full_emission_protocol_rejects_a_meshborn_filter_in_d1s_xml"
     }
   ]
 }
