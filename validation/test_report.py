@@ -51,6 +51,28 @@ class Report(unittest.TestCase):
         with self.assertRaises(Exception):
             R.build_suite([m], {"fixture": run_record(m, [1.0] * 6)}, None)
 
+    def test_load_records_finds_nested_sealed_adapter_record_without_rewriting_it(self):
+        m = {"case_id": "oktavian-al"}
+        record = {"case_id": "oktavian-al", "run_id": "run_csg_final", "results": [{"value": 3.0}]}
+        with tempfile.TemporaryDirectory() as d:
+            nested = Path(d) / "oktavian-al-cad" / "records" / "csg-comparator"
+            nested.mkdir(parents=True)
+            path = nested / "oktavian-al.run.json"
+            path.write_text(json.dumps(record), encoding="utf-8")
+            loaded = R.load_records([m], Path(d))["oktavian-al"]
+            self.assertEqual(loaded, record)
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), record)
+
+    def test_load_records_rejects_ambiguous_nested_records(self):
+        m = {"case_id": "oktavian-al"}
+        with tempfile.TemporaryDirectory() as d:
+            for folder in ("a", "b"):
+                nested = Path(d) / folder
+                nested.mkdir()
+                (nested / "oktavian-al.run.json").write_text(json.dumps({"case_id": "oktavian-al"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "multiple run records"):
+                R.load_records([m], Path(d))
+
     # Verifies: VAL-091
     def test_one_command_writes_json_and_markdown_for_the_registered_cases(self):
         with tempfile.TemporaryDirectory() as d:

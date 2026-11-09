@@ -26,8 +26,10 @@ import traceback
 import xml.etree.ElementTree as ET
 
 SCHEMA = "faris.iter-1d-openmc-reference/1.0.0"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MAX_HISTORIES = 10_000_000
 MAX_SECONDS = 600
+MAX_PINNED_INPUT_BYTES = 64 * 1024 * 1024
 
 
 def sha256(path: Path) -> str:
@@ -47,9 +49,71 @@ def atomic_json(path: Path, value: object) -> None:
 def resolve_inputs(root: Path) -> Path:
     candidates = [root, root / "ITER_1D" / "openmc", root / "openmc"]
     for candidate in candidates:
-        if all((candidate / name).is_file() for name in ("geometry.xml", "materials.xml", "iter_1d_source.cpp")):
+        if all((candidate / name).is_file() for name in
+               ("geometry.xml", "materials.xml", "iter_1d_source.cpp", "CMakeLists.txt")):
             return candidate.resolve()
-    raise ValueError("benchmark input directory must contain geometry.xml, materials.xml, and iter_1d_source.cpp")
+    raise ValueError("benchmark input directory must contain the four pinned OpenMC files")
+
+
+def verify_registered_inputs(
+    input_dir: Path, benchmark_root: Path, registration: dict, case_manifest: dict
+) -> dict[str, dict[str, object]]:
+    """Check all translated inputs against the repository's pinned ITER_1D registration."""
+    identity = registration.get("input_identity")
+    if not isinstance(identity, dict):
+        raise ValueError("ITER_1D registration has no input_identity")
+    if case_manifest.get("case_id") != "iter-1d" or case_manifest.get("source", {}).get("commit") != "1d9855b00e05c5d5e25a11026ac56940dc75b516":
+        raise ValueError("ITER_1D validation manifest is not pinned to the registered upstream revision")
+    manifest_files = {Path(row.get("path_in_source", "")).name: row.get("sha256")
+                      for row in case_manifest.get("files", [])}
+    file_names = {
+        "geometry_xml": "geometry.xml",
+        "materials_xml": "materials.xml",
+        "iter_1d_source_cpp": "iter_1d_source.cpp",
+        "cmakelists_txt": "CMakeLists.txt",
+    }
+    result: dict[str, dict[str, object]] = {}
+    for key, name in file_names.items():
+        expected = identity.get(key)
+        path = input_dir / name
+        if not isinstance(expected, dict) or not path.is_file():
+            raise ValueError(f"pinned ITER_1D input is missing or unregistered: {name}")
+        if manifest_files.get(name) != expected.get("sha256"):
+            raise ValueError(f"ITER_1D case manifest and reference registration disagree for {name}")
+        size = path.stat().st_size
+        if size > MAX_PINNED_INPUT_BYTES or size != expected.get("bytes"):
+            raise ValueError(f"pinned ITER_1D input size differs from registration: {name}")
+        observed = sha256(path)
+        if observed != expected.get("sha256"):
+            raise ValueError(f"pinned ITER_1D input SHA-256 differs from registration: {name}")
+        result[name] = {"path": str(path.resolve()), "bytes": size, "sha256": observed}
+
+    metadata = identity.get("benchmark_metadata")
+    metadata_candidates = [
+        benchmark_root / "benchmark_metadata.json",
+        input_dir.parent.parent / "benchmark_metadata.json",
+    ]
+    metadata_path = next((candidate for candidate in metadata_candidates if candidate.is_file()), None)
+    if not isinstance(metadata, dict) or metadata_path is None:
+        raise ValueError("pinned ITER_1D benchmark_metadata.json is missing or unregistered")
+    if manifest_files.get("benchmark_metadata.json") != metadata.get("sha256"):
+        raise ValueError("ITER_1D case manifest and reference registration disagree for benchmark metadata")
+    metadata_size = metadata_path.stat().st_size
+    if metadata_size > MAX_PINNED_INPUT_BYTES:
+        raise ValueError("pinned ITER_1D benchmark metadata exceeds its input size limit")
+    metadata_sha = sha256(metadata_path)
+    if metadata_sha != metadata.get("sha256"):
+        raise ValueError("pinned ITER_1D benchmark metadata SHA-256 differs from registration")
+    try:
+        metadata_value = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid pinned ITER_1D benchmark metadata: {exc}") from exc
+    if metadata_value.get("name") != "ITER_1D" or metadata_value.get("version", {}).get("openmc") != "1.1":
+        raise ValueError("pinned benchmark metadata does not identify ITER_1D OpenMC input 1.1")
+    result["benchmark_metadata.json"] = {
+        "path": str(metadata_path.resolve()), "bytes": metadata_size, "sha256": metadata_sha,
+    }
+    return result
 
 
 def cylindrical_cell_volumes(root: ET.Element) -> tuple[dict[int, float], dict[str, object]]:
@@ -142,6 +206,78 @@ def cylindrical_cell_volumes(root: ET.Element) -> tuple[dict[int, float], dict[s
     }
 
 
+def map_material_cell_tally(
+    tally_cell_ids: list[int],
+    expected_cell_ids: list[int],
+    cell_volumes_cm3: dict[int, float],
+    means_per_source: list[float],
+    stds_per_source: list[float],
+) -> list[dict[str, float | int]]:
+    """Map one cell tally to its exact authored cell order and volume-average responses."""
+    if not expected_cell_ids or len(expected_cell_ids) != len(set(expected_cell_ids)):
+        raise ValueError("expected material-cell IDs must be nonempty and unique")
+    if tally_cell_ids != expected_cell_ids:
+        raise ValueError("statepoint tally cell IDs do not match the exact material-cell order")
+    if set(cell_volumes_cm3) != set(expected_cell_ids):
+        raise ValueError("analytic cell volumes do not exactly cover the material-cell IDs")
+    if len(means_per_source) != len(expected_cell_ids) or len(stds_per_source) != len(expected_cell_ids):
+        raise ValueError("tally means and standard deviations must exactly cover the material cells")
+    mapped = []
+    for cell_id, mean, std in zip(expected_cell_ids, means_per_source, stds_per_source):
+        volume = cell_volumes_cm3[cell_id]
+        if not (math.isfinite(volume) and volume > 0.0):
+            raise ValueError(f"cell {cell_id} has a non-positive or non-finite analytic volume")
+        if not (math.isfinite(mean) and mean >= 0.0 and math.isfinite(std) and std >= 0.0):
+            raise ValueError(f"cell {cell_id} has invalid tally mean or standard deviation")
+        mapped.append({
+            "cell_id": cell_id,
+            "volume_cm3": volume,
+            "mean_per_source": mean,
+            "std_dev_per_source": std,
+            "volume_average_per_source": mean / volume,
+            "volume_average_std_dev_per_source": std / volume,
+        })
+    return mapped
+
+
+def validate_response_coverage(results: dict, material_cell_ids: list[int]) -> int:
+    """Require flux and absorption over every one of ITER_1D's 97 material cells."""
+    expected = {
+        "ITER_1D_material_cell_neutron_flux_tracklength": ("flux", "tracklength"),
+        "ITER_1D_material_cell_absorption_analog": ("absorption", "analog"),
+    }
+    validate_material_cell_coverage(material_cell_ids)
+    if set(results) != set(expected):
+        missing = sorted(set(expected) - set(results))
+        extra = sorted(set(results) - set(expected))
+        raise ValueError(f"ITER_1D response classes are incomplete; missing {missing}, unexpected {extra}")
+    for name, (score, estimator) in expected.items():
+        response = results[name]
+        if response.get("score") != score or response.get("estimator") != estimator:
+            raise ValueError(f"ITER_1D {name} has the wrong score or estimator")
+        if response.get("filter_cell_ids") != material_cell_ids:
+            raise ValueError(f"ITER_1D {name} does not cover the exact 97 material cells")
+        bins = response.get("bins")
+        if not isinstance(bins, list) or [row.get("cell_id") for row in bins] != material_cell_ids:
+            raise ValueError(f"ITER_1D {name} bins do not cover the exact 97 material cells")
+    return len(expected) * len(material_cell_ids)
+
+
+def validate_material_cell_coverage(
+    material_cell_ids: list[int], cell_volumes_cm3: dict[int, float] | None = None
+) -> None:
+    """Preflight the full input mesh before OpenMC starts; no partial-cell run is accepted."""
+    if len(material_cell_ids) != 97 or len(material_cell_ids) != len(set(material_cell_ids)):
+        raise ValueError("ITER_1D response coverage requires exactly 97 unique material cells")
+    if cell_volumes_cm3 is None:
+        return
+    if set(cell_volumes_cm3) != set(material_cell_ids):
+        raise ValueError("ITER_1D analytic volumes do not exactly cover the 97 material cells")
+    if any(not math.isfinite(cell_volumes_cm3[cell_id]) or cell_volumes_cm3[cell_id] <= 0.0
+           for cell_id in material_cell_ids):
+        raise ValueError("ITER_1D preflight found a non-positive or non-finite material-cell volume")
+
+
 def terminate_group(proc: subprocess.Popen[bytes], grace: float = 5.0) -> None:
     if proc.poll() is not None:
         return
@@ -199,6 +335,22 @@ def main() -> int:
         if args.time_limit_sec < 1 or args.time_limit_sec > MAX_SECONDS:
             raise ValueError(f"time limit must be in [1, {MAX_SECONDS}] seconds")
         input_dir = resolve_inputs(args.benchmark_dir.expanduser())
+        registration_path = PROJECT_ROOT / "references" / "iter-1d-reference.json"
+        case_manifest_path = PROJECT_ROOT / "validation" / "cases" / "iter-1d" / "manifest.json"
+        registration = json.loads(registration_path.read_text(encoding="utf-8"))
+        case_manifest = json.loads(case_manifest_path.read_text(encoding="utf-8"))
+        if registration.get("reference_id") != "iaea-nds-iter-1d-openmc":
+            raise ValueError("unexpected ITER_1D reference registration")
+        pinned_inputs = verify_registered_inputs(
+            input_dir, args.benchmark_dir.expanduser().resolve(), registration, case_manifest
+        )
+        record["upstream_input_identity"] = {
+            "source_commit": case_manifest["source"]["commit"],
+            "registration_sha256": sha256(registration_path),
+            "case_manifest_sha256": sha256(case_manifest_path),
+            "files": pinned_inputs,
+            "identity_basis": "every translated input is matched by size and SHA-256 to references/iter-1d-reference.json and cross-checked against the registered validation case manifest",
+        }
         data_xml = args.cross_sections.expanduser().resolve(strict=True)
         executable = args.openmc_executable.expanduser().resolve(strict=True)
         if not os.access(executable, os.X_OK):
@@ -206,11 +358,12 @@ def main() -> int:
         record["openmc_executable_identity"] = {"path": str(executable), "sha256": sha256(executable)}
         input_copy = output / "inputs"
         input_copy.mkdir()
-        copied_names = ["geometry.xml", "materials.xml", "iter_1d_source.cpp"]
-        if (input_dir / "CMakeLists.txt").is_file():
-            copied_names.append("CMakeLists.txt")
+        copied_names = ["geometry.xml", "materials.xml", "iter_1d_source.cpp", "CMakeLists.txt", "benchmark_metadata.json"]
         for name in copied_names:
-            shutil.copy2(input_dir / name, input_copy / name)
+            source = Path(pinned_inputs[name]["path"])
+            shutil.copy2(source, input_copy / name)
+        copied_identities = verify_registered_inputs(input_copy, input_copy, registration, case_manifest)
+        record["copied_input_identities"] = copied_identities
         record["input_directory"] = str(input_dir)
         record["openmc_executable"] = str(executable)
         record["cross_sections_xml"] = str(data_xml)
@@ -219,9 +372,7 @@ def main() -> int:
             for name in copied_names
         }
         record["runner_identity"] = {"path": str(Path(__file__).resolve()), "sha256": sha256(Path(__file__).resolve())}
-        benchmark_metadata = args.benchmark_dir.expanduser().resolve() / "benchmark_metadata.json"
-        if benchmark_metadata.is_file():
-            record["benchmark_metadata_identity"] = {"path": str(benchmark_metadata), "sha256": sha256(benchmark_metadata)}
+        record["benchmark_metadata_identity"] = copied_identities["benchmark_metadata.json"]
         record["cross_sections_identity"] = {"path": str(data_xml), "sha256": sha256(data_xml)}
         record["bundled_source_library"] = {
             "present": (input_dir / "libsource.so").is_file(),
@@ -241,6 +392,7 @@ def main() -> int:
                 material_cell_ids.append(int(cell.get("id", "")))
         if not material_cell_ids:
             raise ValueError("geometry contains no explicitly material-filled cells")
+        validate_material_cell_coverage(material_cell_ids, cell_volumes)
         record["geometry_audit"] = {
             "cell_count": len(geometry_root.findall("cell")),
             "material_cell_ids": material_cell_ids,
@@ -451,17 +603,17 @@ def main() -> int:
                 stds = tally.std_dev.ravel().tolist()
                 if len(means) != len(material_cell_ids) or len(stds) != len(material_cell_ids):
                     raise RuntimeError(f"unexpected tally bin count for {expected_name}")
-                bins = []
-                for cell_id, mean, std in zip(material_cell_ids, means, stds):
-                    if not (math.isfinite(mean) and mean >= 0 and math.isfinite(std) and std >= 0):
-                        raise RuntimeError(f"invalid tally result in {expected_name}, cell {cell_id}")
-                    volume = cell_volumes[cell_id]
-                    bins.append({"cell_id": cell_id, "volume_cm3": volume,
-                                 "mean_per_source": mean, "std_dev_per_source": std,
-                                 "volume_average_per_source": mean / volume,
-                                 "volume_average_std_dev_per_source": std / volume})
+                bins = map_material_cell_tally(tally_cell_ids, material_cell_ids, cell_volumes, means, stds)
                 results[expected_name] = {"score": expected_score, "estimator": expected_estimator,
                                           "filter_cell_ids": tally_cell_ids, "bins": bins}
+            record["response_coverage"] = {
+                "status": "COMPLETE",
+                "response_classes": ["neutron_flux", "neutron_absorption"],
+                "material_cell_count": len(material_cell_ids),
+                "mapped_response_count": validate_response_coverage(results, material_cell_ids),
+                "scope": "input and tally coverage only; no scientific comparison or validation claim",
+                "missing_reference_values": "no eligible complete second-code response set is registered: JADE flux lacks qualified source equivalence, and absorption has no pinned reference table",
+            }
             global_tallies = []
             for item in sp.global_tallies:
                 global_tallies.append({"name": item["name"].decode().rstrip("\x00"),

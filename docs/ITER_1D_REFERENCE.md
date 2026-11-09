@@ -59,6 +59,21 @@ particle in the pinned release's
 [`tally API`](https://docs.openmc.org/en/v0.15.3/pythonapi/generated/openmc.Tally.html).
 The tally-bin cell IDs must match the geometry-derived material-cell IDs.
 
+The execution control preflights exactly 97 unique material-cell IDs and a
+positive analytic volume for every ID before launching OpenMC. It then maps
+both tally arrays by the exact filter order and records coverage of all 194
+cell responses (97 flux and 97 absorption bins). This checks run completeness;
+it does not supply comparison values. The pinned JADE total-flux table covers
+97 cells, but no eligible absorption reference table is registered, so the
+absorption comparison remains `NOT_EVALUATED`.
+
+Before preparation, the worker checks the byte count and SHA-256 of each
+translated XML/source/build input against both the reference registration and
+the validation case manifest, including the benchmark metadata. It repeats the
+check on the copied run inputs and uses those verified copies for execution.
+Same-shaped input edits therefore fail preflight instead of inheriting the
+registered case identity.
+
 Cell volumes are derived analytically from the benchmark's simple CSG: all
 cells are concentric z-cylinder annuli bounded by the shared reflective planes
 at ±1000 cm. Each volume is `π (r_outer² - r_inner²) (z_max - z_min)` cm³,

@@ -43,8 +43,27 @@ def load_records(manifests: list[dict], runs: Path | None) -> dict[str, dict]:
     if runs:
         for m in manifests:
             path = runs / f"{m['case_id']}.run.json"
-            if path.is_file():
-                records[m["case_id"]] = json.loads(path.read_text(encoding="utf-8"))
+            if not path.is_file():
+                # Permit --runs validation/cases (or a case tree) so sealed
+                # records can remain beside their registered manifests. Some
+                # adapters keep comparative runs in nested records/ folders.
+                candidates = sorted(runs.rglob(f"{m['case_id']}.run.json"))
+                candidates = [candidate for candidate in candidates if candidate.is_file()]
+                matching = []
+                for candidate in candidates:
+                    record = json.loads(candidate.read_text(encoding="utf-8"))
+                    if record.get("case_id") == m["case_id"]:
+                        matching.append((candidate, record))
+                if len(matching) > 1:
+                    paths = ", ".join(str(candidate) for candidate, _ in matching)
+                    raise ValueError(f"multiple run records for {m['case_id']} under {runs}: {paths}")
+                if matching:
+                    records[m["case_id"]] = matching[0][1]
+            else:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                if record.get("case_id") != m["case_id"]:
+                    raise ValueError(f"run record {path} has case_id {record.get('case_id')!r}, expected {m['case_id']!r}")
+                records[m["case_id"]] = record
     return records
 
 
