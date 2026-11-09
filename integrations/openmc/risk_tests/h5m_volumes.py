@@ -80,14 +80,24 @@ def facet_volumes(path: str) -> dict:
         surface_moment[handle] = (tet[:, None] * centroids).sum(axis=0)
         surface_count[handle] = len(tris)
 
-    # Material tag of a volume: the group set (NAME 'mat:...') that has it as a child.
+    # Material tag of a volume: the group set (NAME 'mat:...') that lists it in
+    # contents. The *_comp set is DAGMC's implicit-complement marker, not a
+    # material assignment; it can contain the same volume handles as physical
+    # material groups and must not overwrite their body tag.
     material_of = {}
     for index in range(len(rows)):
         handle = set_start + index
         name = names.get(handle, "")
-        if name.startswith("mat:"):
-            for child in set_children(index):
-                material_of[int(child)] = name[4:]
+        if name.startswith("mat:") and not name.endswith("_comp"):
+            for entity in set_contents(index):
+                entity = int(entity)
+                if dimension.get(entity) != 3:
+                    continue
+                prior = material_of.get(entity)
+                material = name[4:]
+                if prior is not None and prior != material:
+                    raise ValueError(f"DAGMC volume {entity} has conflicting material groups {prior!r} and {material!r}")
+                material_of[entity] = material
 
     result = {}
     for index in range(len(rows)):

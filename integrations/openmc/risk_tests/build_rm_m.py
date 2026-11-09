@@ -241,8 +241,11 @@ def match_roles(solids: list[dict], facets: dict) -> list[dict]:
         if best is None or best_score > 5.0:
             raise RuntimeError(f"no h5m volume matches {item['name']} (best score {best_score})")
         used.add(best)
+        material_tag = facets[best]["material_tag"]
+        if material_tag != item["tag"]:
+            raise RuntimeError(f"H5M material tag for {item['name']} is {material_tag!r}, expected {item['tag']!r}")
         roles.append({**item, "volume_id": best, "faceted_volume_cm3": facets[best]["faceted_volume"],
-                      "triangles": facets[best]["triangles"], "h5m_material_tag": item["tag"]})
+                      "triangles": facets[best]["triangles"], "h5m_material_tag": material_tag})
     return roles
 
 
@@ -253,6 +256,8 @@ def main() -> int:
     ap.add_argument("--angular-tolerance", type=float, default=0.1, help="surface angular tolerance in radians")
     ap.add_argument("--random-ray", action="store_true", help="also write a second h5m with the void tag replaced by 'filler'")
     ap.add_argument("--imprint-threads", type=int, default=1, help="threads for the imprint step (fewer lowers peak RAM)")
+    ap.add_argument("--mesher-threads", type=int, default=1,
+                    help="thread limit for OCCT, Rayon and numerical helper pools")
     ap.add_argument("--convert-from", choices=("step", "native"), default="step",
                     help="convert the re-imported STEP solids (the protocol path) or the in-memory CadQuery solids")
     ap.add_argument("--backend", choices=("cadquery", "cad-to-dagmc-mesher"), default="cad-to-dagmc-mesher",
@@ -260,14 +265,22 @@ def main() -> int:
     ap.add_argument("--stem", default="rm_m")
     ap.add_argument("--skip-overlap-checks", action="store_true")
     args = ap.parse_args()
+    if not 1 <= args.mesher_threads <= 32 or not 1 <= args.imprint_threads <= 32:
+        ap.error("mesher and imprint threads must be within 1..32")
+    thread_limits = {name: str(args.mesher_threads) for name in (
+        "RAYON_NUM_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS")}
+    os.environ.update(thread_limits)
     out = args.out_dir
     out.mkdir(parents=True, exist_ok=True)
 
     import cadquery as cq
+    from cadquery.occ_impl.shapes import setThreads
+    setThreads(args.mesher_threads)
     import cad_to_dagmc
     from importlib.metadata import version
 
     import h5m_volumes
+    from retag_dagmc_materials import retag_void_h5m
 
     log = {"stages": {}}
     t0 = time.time()
@@ -299,11 +312,18 @@ def main() -> int:
 
     if args.random_ray:
         rr = out / f"{args.stem}_rr.h5m"
-        seconds = convert(cq, cad_to_dagmc, source, rr, args.tolerance_cm, args.angular_tolerance, "filler", "filler", args.imprint_threads, args.backend)
-        log["stages"]["convert_random_ray"] = {"seconds": seconds, "peak_rss_mb": peak_mb()}
+        started = time.time()
+        retag = retag_void_h5m(h5m, rr, {r["volume_id"] for r in roles if r["tag"] == "void"})
+        log["stages"]["convert_random_ray"] = {
+            "method": "copy original mesh and retag exact void material groups; no remeshing",
+            "seconds": time.time() - started, "peak_rss_mb": peak_mb()}
         rr_facets = h5m_volumes.facet_volumes(str(rr))
-        same = all(abs(rr_facets[v]["faceted_volume"] / facets[v]["faceted_volume"] - 1.0) < 1e-9 for v in facets)
-        outputs.update({"h5m_random_ray": rr.name, "h5m_random_ray_sha256": sha256(rr), "random_ray_geometry_identical": same})
+        same = (rr_facets.keys() == facets.keys() and
+                all(rr_facets[v]["faceted_volume"] == facets[v]["faceted_volume"] for v in facets))
+        if not same:
+            raise RuntimeError("retagged random-ray model changed faceted geometry")
+        outputs.update({"h5m_random_ray": rr.name, "h5m_random_ray_sha256": sha256(rr),
+                        "random_ray_geometry_identical": same, "random_ray_retagging": retag})
 
     checks_v = volume_checks(solids)
     if not checks_v["uncut_pass"]:
@@ -315,7 +335,11 @@ def main() -> int:
         "tools": {"cadquery": version("cadquery"), "cad_to_dagmc": version("cad_to_dagmc"), "python": sys.version.split()[0]},
         "conversion_settings": {"tolerance_cm": args.tolerance_cm, "angular_tolerance_rad": args.angular_tolerance,
                                 "scale_factor": 0.1, "implicit_complement_tag": "void", "imprint_threads": args.imprint_threads,
+                                "mesher_threads": args.mesher_threads, "thread_limits": thread_limits,
                                 "converted_from": args.convert_from, "meshing_backend": args.backend},
+        "build_implementation_sha256": {
+            name: sha256(Path(__file__).resolve().parent / name)
+            for name in ("build_rm_m.py", "rm_m_spec.py", "h5m_volumes.py", "retag_dagmc_materials.py")},
         "outputs": outputs,
         "solids": roles,
         "tf_total_cad_volume_cm3": sum(s["cad_volume_cm3"] for s in summaries if s["name"].startswith("tf_coil")),

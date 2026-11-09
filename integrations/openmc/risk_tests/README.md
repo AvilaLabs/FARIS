@@ -2,8 +2,8 @@
 
 Scripts for stage S0 of the next-release plan. The frozen protocol is
 [docs/notes/CAD_TRANSPORT_RISK_TESTS.md](../../../docs/notes/CAD_TRANSPORT_RISK_TESTS.md);
-this folder implements "Reference model RM-M", its three acceptance checks and
-test R6 (OpenMC version). R1 to R3 are not here.
+this folder implements "Reference model RM-M", its acceptance checks, the OpenMC
+version controls and the later transport and dose campaigns described below.
 
 All scratch output goes under `~/.cache/avila-night/cad-risk-tests/`. Nothing
 large is committed. The model card (`rm_m_model_card.json`) is the one small
@@ -17,6 +17,7 @@ artefact worth keeping with the scripts.
 | `rm_m_checks.py` | any Python 3 | Rules: volume comparison, lost particles, source sites, 3-sigma agreement, the R6 choice. Standard library only. |
 | `h5m_volumes.py` | numpy + h5py | Faceted volume, centroid and material tag of every volume in a DAGMC h5m file, read straight from the file. |
 | `build_rm_m.py` | CAD environment | Builds RM-M in CadQuery, writes STEP, converts to DAGMC h5m, writes the model card and the solid role map. |
+| `retag_dagmc_materials.py` | numpy + h5py | Copies the production mesh for random ray, changes only the explicit void and complement material tags, and verifies the other HDF5 datasets are identical. |
 | `rm_m_openmc.py` | OpenMC environment | Library identity check, materials from the FARIS baseline, DAGMC model, tokamak source, TF flux tally, analog run helper. |
 | `accept_rm_m.py` | OpenMC 0.15.3 | The three acceptance checks. |
 | `r6_worker.py` | OpenMC 0.15.3 or 0.16.0 | One R6 step: the R1 generation step, or an analog run, or a window-file comparison. |
@@ -36,6 +37,12 @@ artefact worth keeping with the scripts.
   `references/openmc-library-audit.json` and that every nuclide RM-M uses is present.
 
 ## Memory cap and threads
+
+The RM-M builder defaults to one mesher thread (`--mesher-threads 1`) across OCCT,
+Rayon and numerical helper pools, in addition to its imprint limit. Its model card
+records those limits and the builder/helper hashes. The random-ray H5M reuses the
+production mesh with only void material tags changed to filler; it records exact
+dataset identity checks and verifies the actual material groups against the CAD roles.
 
 Every OpenMC or Python job runs under
 
