@@ -100,6 +100,11 @@ PROGRESS_SECONDS = 5.0
 LOST_FRACTION_LIMIT = 1.0e-6
 LOST_LOCATIONS = 10          # how many lost neutrons have their position recorded
 MAX_RECEIPT_FILE_BYTES = 12 * 1024**3
+MAX_HEATING_VOXEL_CELLS = 32_768
+MAX_HEATING_VOLUME_CELLS = 1_000_000
+MAX_HEATING_HISTORIES = 2_000_000_000
+MAX_HEATING_BATCHES = 100_000
+MAX_HEATING_SECONDS = 86_400
 # The peak inside a solid: rings of dr by dz about the machine axis, each cut by the solid.
 PEAK_TALLY_ID = 2
 PEAK_MESH_ID = 9001
@@ -216,6 +221,43 @@ def ring_edges(low: float, high: float, step: float | None) -> list[float]:
     return [low + i * step for i in range(count + 1)]
 
 
+def heating_mesh_cell_count(bounds, voxel_cm: list[float], solid_count: int) -> int:
+    """Conservative mesh-bin × solid count before ray sampling or tally allocation."""
+    dr, dz = voxel_cm
+    coordinates = (*bounds.lower_left, *bounds.upper_right)
+    if (len(voxel_cm) != 2 or any(not math.isfinite(float(value)) for value in coordinates)
+            or any(not math.isfinite(float(step)) or step <= 0.0 for step in (dr, dz))
+            or solid_count <= 0):
+        raise ValueError("the heating peak mesh needs finite geometry bounds, positive voxel widths and solids")
+    reach = max(math.hypot(x, y) for x in (bounds.lower_left[0], bounds.upper_right[0])
+                for y in (bounds.lower_left[1], bounds.upper_right[1]))
+    if not math.isfinite(reach):
+        raise ValueError("the heating peak mesh has non-finite radial extent")
+    r_count = max(1, math.ceil(math.ceil(reach) / dr - 1.0e-9))
+    z_span = math.ceil(bounds.upper_right[2]) - math.floor(bounds.lower_left[2])
+    z_count = max(1, math.ceil(z_span / dz - 1.0e-9))
+    return r_count * z_count * solid_count
+
+
+def heating_mesh_not_evaluated(cell_count: int, limit: int = MAX_HEATING_VOLUME_CELLS) -> str | None:
+    if cell_count > limit:
+        return (f"The requested peak mesh requires {cell_count:,} voxel-solid cells, above the bounded "
+                f"limit of {limit:,}.")
+    return None
+
+
+def heating_preflight_next_step(reason: str) -> str:
+    if reason.startswith("The requested peak mesh requires"):
+        return "Increase the radial or vertical peak voxel size, or narrow the explicitly authored winding-pack solids, then rerun heating."
+    if "planned source histories" in reason:
+        return f"Reduce the heating history limit so the planned run stays at or below {MAX_HEATING_HISTORIES:,} source histories."
+    if "batches" in reason and "bounded" in reason:
+        return f"Increase histories per batch or reduce the heating batch limit to at most {MAX_HEATING_BATCHES:,}."
+    if "time limits" in reason:
+        return f"Set the heating time limit between 1 and {MAX_HEATING_SECONDS:,} seconds."
+    return "Select a supported OpenMC runtime and library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element."
+
+
 def ranked_pieces(volumes, r_edges, dr_dz_cells: int | None = None, min_fill: float = PEAK_MIN_FILL):
     """Which pieces of each solid are compared (numpy): `volumes[solid, z, r]` in cm3 to a mask of that shape.
 
@@ -274,6 +316,21 @@ def peak_of(sums, squares, volumes, ranked, batches: int) -> dict | None:
         key = (bound > 0.0, bound if bound > 0.0 else mean / volume)
         if best is None or key > best_key:
             best, best_key = {"index": index, "mean": mean, "standard_error": error, "volume_cm3": volume}, key
+    return best
+
+
+def peak_of_moments(means, standard_errors, volumes, ranked) -> dict | None:
+    """Select the leading voxel from online per-batch means and standard errors."""
+    best, best_key = None, None
+    for index, (mean, error, volume, keep) in enumerate(zip(means, standard_errors, volumes, ranked)):
+        if not keep:
+            continue
+        mean, error, volume = float(mean), float(error), float(volume)
+        bound = (mean - PEAK_SIGMAS * error) / volume
+        key = (bound > 0.0, bound if bound > 0.0 else mean / volume)
+        if best is None or key > best_key:
+            best, best_key = {"index": index, "mean": mean, "standard_error": error,
+                              "volume_cm3": volume}, key
     return best
 
 
@@ -408,6 +465,26 @@ def geometry_copy(request: dict, target: Path, random_ray: bool) -> Path:
     return target
 
 
+def checked_heating_h5m_snapshot(request: dict, work: Path, purpose: str) -> tuple[Path, str]:
+    """Copy the exact preflight geometry to a stable input and verify both copies by hash."""
+    source = Path(request["h5m"])
+    preflight_path = work / "solver" / "heating-preflight.json"
+    preflight = json.loads(preflight_path.read_text())
+    expected = preflight.get("h5m_sha256")
+    if preflight.get("status") != "READY" or not isinstance(expected, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected):
+        raise ValueError("the coupled-heating preflight has no valid checked H5M identity")
+    if not sha256_file(source).lower() == expected.lower():
+        raise ValueError("the checked H5M changed after coupled-heating preflight")
+    snapshot = work / "geometry" / f"model-{purpose}-source.h5m"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, snapshot)
+    if not sha256_file(snapshot).lower() == expected.lower():
+        raise ValueError("the checked H5M changed while its stable worker snapshot was copied")
+    if not sha256_file(source).lower() == expected.lower():
+        raise ValueError("the checked H5M changed while its stable worker snapshot was copied")
+    return snapshot, expected
+
+
 def build_model(openmc, request: dict, geometry: Path, random_ray: bool = False):
     """Geometry in a vacuum sphere and one material per design material. Returns (model, universe, materials)."""
     materials = {}
@@ -501,7 +578,11 @@ def phase_volumes(request: dict, work: Path) -> dict:
         material.add_nuclide("H1", 1.0, percent_type="ao")
         material.set_density("kg/m3", FILLER_DENSITY_KG_M3)
         stand_ins.append(material)
-    universe = openmc.DAGMCUniverse(str(request["h5m"]))
+    volume_geometry = Path(request["h5m"])
+    volume_h5m_sha256 = None
+    if request.get("heating_mode"):
+        volume_geometry, volume_h5m_sha256 = checked_heating_h5m_snapshot(request, work, "volume")
+    universe = openmc.DAGMCUniverse(str(volume_geometry))
     box = universe.bounding_box
     reach = max(math.hypot(x, y) for x in (box.lower_left[0], box.upper_right[0])
                 for y in (box.lower_left[1], box.upper_right[1]))
@@ -523,13 +604,16 @@ def phase_volumes(request: dict, work: Path) -> dict:
     model.settings.particles, model.settings.batches = 10, 1
     model.settings.source = openmc.IndependentSource()
     mesh = openmc.CylindricalMesh(r_grid=r_edges, z_grid=z_edges, phi_grid=[0.0, 2.0 * math.pi])
+    volume_material_limit = min(len(selected), 64) if request.get("heating_mode") else min(len(numbers), 64)
     here = os.getcwd()
     os.chdir(out_dir)
     try:
-        measured = mesh.material_volumes(model, n_samples=PEAK_RAYS, max_materials=min(len(numbers), 64),
+        measured = mesh.material_volumes(model, n_samples=PEAK_RAYS, max_materials=volume_material_limit,
                                          output=False, args=["--threads", str(int(request["sampling"]["threads"]))])
     finally:
         os.chdir(here)
+    if volume_h5m_sha256 is not None and not sha256_file(volume_geometry).lower() == volume_h5m_sha256.lower():
+        raise RuntimeError("the stable H5M snapshot changed during winding-pack volume sampling")
     solids = request["response"]["solid_ids"]
     shape = (len(z_edges) - 1, len(r_edges) - 1)
     volumes = np.zeros((len(solids),) + shape)
@@ -550,6 +634,8 @@ def phase_volumes(request: dict, work: Path) -> dict:
         "solid_volume_cm3": [float(v.sum()) for v in volumes],
         "volumes_sha256": sha256_file(target), "seconds": time.monotonic() - started,
     }
+    if volume_h5m_sha256 is not None:
+        record["h5m_sha256"] = volume_h5m_sha256
     (out_dir / "record.json").write_text(json.dumps(record, indent=1) + "\n")
     return record
 
@@ -893,37 +979,78 @@ def heating_terminal_quality(status: int | None, batches: int, planned: int, sto
     return "CALCULATED", None
 
 
+class VectorMoments:
+    """Online population of aligned per-batch tally values with fixed-size Welford state."""
+
+    def __init__(self, shape):
+        import numpy as np
+
+        self.count = 0
+        self.mean = np.zeros(shape, dtype=float)
+        self.m2 = np.zeros(shape, dtype=float)
+
+    def add(self, values) -> None:
+        import numpy as np
+
+        values = np.asarray(values, dtype=float)
+        self.count += 1
+        delta = values - self.mean
+        self.mean += delta / self.count
+        self.m2 += delta * (values - self.mean)
+
+    @property
+    def standard_error(self):
+        import numpy as np
+
+        if self.count < 2:
+            return np.full_like(self.mean, np.nan)
+        return np.sqrt(np.maximum(self.m2, 0.0) / (self.count * (self.count - 1)))
+
+
 def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count: int, bins: int,
                             max_batches: int, max_seconds: float, started: float):
-    """Run the actual C API tally loop and retain aligned cumulative-to-batch differences."""
+    """Run C API batches using fixed-size online moments and exact same-batch closure residuals."""
     import numpy as np
 
     previous = {name: np.zeros(solid_count) for name in tallies}
-    batches = {name: [[] for _ in range(solid_count)] for name in tallies}
+    moments = {name: VectorMoments((solid_count,)) for name in tallies}
     voxel_previous = {name: np.zeros(bins * solid_count) for name in voxel_tallies}
-    voxel_batches = {name: [[] for _ in range(solid_count)] for name in voxel_tallies}
+    voxel_moments = {name: VectorMoments((bins, solid_count)) for name in voxel_tallies}
+    component_names = tuple(name for name in tallies if name != "total")
+    closure_moments = VectorMoments((solid_count,))
+    voxel_closure_moments = VectorMoments((bins, solid_count))
     stop_reason, terminal_status, batches_done = "history_limit", None, 0
     for _ in range(max_batches):
         terminal_status = lib.next_batch()
         batches_done += 1
+        batch_values = {}
+        voxel_batch_values = {}
         for name in tallies:
             cumulative = np.asarray(lib.tallies[tallies[name].id].results[:, 0, 1], dtype=float)
             batch = cumulative - previous[name]
             previous[name] = cumulative.copy()
-            for row, value in enumerate(batch):
-                batches[name][row].append(float(value))
+            batch_values[name] = batch
+            moments[name].add(batch)
             voxel_cumulative = np.asarray(
                 lib.tallies[voxel_tallies[name].id].results[:, 0, 1], dtype=float)
             voxel_batch = (voxel_cumulative - voxel_previous[name]).reshape(bins, solid_count)
             voxel_previous[name] = voxel_cumulative.copy()
-            for row in range(solid_count):
-                voxel_batches[name][row].append(voxel_batch[:, row].copy())
+            voxel_batch_values[name] = voxel_batch
+            voxel_moments[name].add(voxel_batch)
+        component_sum = np.zeros(solid_count)
+        voxel_component_sum = np.zeros((bins, solid_count))
+        for name in component_names:
+            component_sum += batch_values[name]
+            voxel_component_sum += voxel_batch_values[name]
+        closure_moments.add(batch_values["total"] - component_sum)
+        voxel_closure_moments.add(voxel_batch_values["total"] - voxel_component_sum)
         if time.monotonic() - started >= max_seconds and batches_done < max_batches:
             stop_reason = "time_limit"
             break
         if terminal_status not in (0, None):
             break
-    return batches, voxel_batches, batches_done, stop_reason, terminal_status
+    return (moments, voxel_moments, closure_moments, voxel_closure_moments,
+            batches_done, stop_reason, terminal_status)
 
 
 def normalize_heating_source(source) -> None:
@@ -951,9 +1078,13 @@ def validate_heating_request(request: dict) -> None:
     sampling = request["sampling"]
     if not (2 <= sampling["min_batches"] <= sampling["max_batches"]):
         raise ValueError("heating needs 2 <= min_batches <= max_batches")
+    if sampling["max_batches"] > MAX_HEATING_BATCHES:
+        raise ValueError(f"heating is bounded to {MAX_HEATING_BATCHES:,} batches; increase histories per batch")
+    if sampling["particles_per_batch"] * sampling["max_batches"] > MAX_HEATING_HISTORIES:
+        raise ValueError(f"heating is bounded to {MAX_HEATING_HISTORIES:,} planned source histories")
     if (sampling["particles_per_batch"] < 1 or not math.isfinite(sampling["max_seconds"])
-            or sampling["max_seconds"] <= 0):
-        raise ValueError("heating history and time limits must be positive")
+            or sampling["max_seconds"] <= 0 or sampling["max_seconds"] > MAX_HEATING_SECONDS):
+        raise ValueError(f"heating time limits must be positive and no greater than {MAX_HEATING_SECONDS:,} seconds")
     if not (1 <= sampling["threads"] <= 32):
         raise ValueError("heating threads must lie between 1 and 32")
     response = request["response"]
@@ -1082,15 +1213,23 @@ def phase_heating_preflight(request: dict, work: Path) -> dict:
     try:
         validate_heating_request(request)
         validate_coupled_openmc_support(openmc)
+        universe = openmc.DAGMCUniverse(str(request["h5m"]))
+        mesh_cells = heating_mesh_cell_count(
+            universe.bounding_box, request["response"]["peak_voxel_cm"],
+            len(request["response"]["solid_ids"]))
+        mesh_error = heating_mesh_not_evaluated(mesh_cells, MAX_HEATING_VOLUME_CELLS)
+        if mesh_error is not None:
+            raise ValueError(mesh_error)
         runtime = heating_runtime_identity(openmc)
         identity = heating_data_identity(request, openmc, h5py)
         record = {"schema": "faris-design-heating-preflight/v1", "status": "READY",
-                  **identity_hashes, "runtime_identity": runtime, "data_identity": identity}
+                  **identity_hashes, "mesh_voxel_solid_count": mesh_cells,
+                  "runtime_identity": runtime, "data_identity": identity}
     except (OSError, ValueError, KeyError, AttributeError) as exc:
+        reason = str(exc)
         record = {"schema": "faris-design-heating-preflight/v1", "status": "NOT_EVALUATED",
                   **identity_hashes, "runtime_identity": runtime,
-                  "why": str(exc),
-                  "next_step": "Select a library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element."}
+                  "why": reason, "next_step": heating_preflight_next_step(reason)}
     target.write_text(json.dumps(record, indent=1) + "\n")
     return record
 
@@ -1144,8 +1283,25 @@ def phase_heating(request: dict, work: Path) -> dict:
         return unavailable("Coupled-heating nuclear data or geometry identity changed after preflight.",
                            "Keep the checked geometry, selected Python/OpenMC runtime and nuclear data unchanged, then rerun heating.",
                            data_identity, runtime_identity)
+    mesh_cells = preflight.get("mesh_voxel_solid_count")
+    if (not isinstance(mesh_cells, int) or mesh_cells <= 0
+            or heating_mesh_not_evaluated(mesh_cells, MAX_HEATING_VOLUME_CELLS) is not None):
+        return unavailable("The ready preflight has no valid bounded heating mesh identity.",
+                           "Rerun coupled heating so the peak mesh is bounded before volume sampling.",
+                           data_identity, runtime_identity)
 
-    geometry = geometry_copy(request, work / "geometry" / "model-heating.h5m", random_ray=False)
+    try:
+        source_snapshot, expected_h5m_sha = checked_heating_h5m_snapshot(request, work, "heating")
+    except (OSError, ValueError, KeyError) as exc:
+        return unavailable(str(exc), "Keep the checked H5M unchanged and rerun coupled heating.",
+                           data_identity, runtime_identity)
+
+    geometry_request = {**request, "h5m": str(source_snapshot)}
+    geometry = geometry_copy(geometry_request, work / "geometry" / "model-heating.h5m", random_ray=False)
+    if not sha256_file(source_snapshot).lower() == expected_h5m_sha.lower():
+        return unavailable("The stable checked H5M snapshot changed while the transport geometry was prepared.",
+                           "Keep the run directory unchanged and rerun coupled heating.",
+                           data_identity, runtime_identity)
     model, _, _ = build_model(openmc, request, geometry)
     source = tokamak_source(**tokamak_arguments(request["plasma"]))
     normalize_heating_source(source)
@@ -1168,12 +1324,15 @@ def phase_heating(request: dict, work: Path) -> dict:
     peak_path = work / "peak" / "volumes.npz"
     if (sha256_file(peak_path) != peak_volume_record["volumes_sha256"]
             or peak_volume_record["solid_ids"] != solid_ids
-            or peak_volume_record["voxel_cm"] != request["response"]["peak_voxel_cm"]):
-        raise RuntimeError("the sampled winding-pack volumes do not match this heating request")
+            or peak_volume_record["voxel_cm"] != request["response"]["peak_voxel_cm"]
+            or peak_volume_record.get("h5m_sha256", "").lower() != preflight["h5m_sha256"].lower()):
+        return unavailable("The sampled winding-pack volumes do not match the exact checked H5M, solids, or voxel widths in this heating request.",
+                           "Keep the checked geometry and heating inputs unchanged, rerun the volume sampling, then rerun coupled heating.",
+                           data_identity, runtime_identity)
     pieces = np.load(peak_path)
     volume_by_solid = pieces["volumes_cm3"].reshape(len(solid_ids), -1)
     bins, solid_count = volume_by_solid.shape[1], len(solid_ids)
-    if bins * solid_count > 32_768:
+    if bins * solid_count > MAX_HEATING_VOXEL_CELLS:
         return unavailable("The requested peak mesh exceeds the bounded heating tally size.",
                            "Use larger peak voxels or split the winding pack into fewer authored solids.",
                            data_identity, runtime_identity)
@@ -1219,7 +1378,8 @@ def phase_heating(request: dict, work: Path) -> dict:
                 terminal_status = init_status
             started = time.monotonic()
             if terminal_status is None:
-                batches, voxel_batches, batches_done, stop_reason, terminal_status = collect_heating_batches(
+                (batch_moments, voxel_moments, closure_moments, voxel_closure_moments,
+                 batches_done, stop_reason, terminal_status) = collect_heating_batches(
                     openmc.lib, tallies, voxel_tallies, len(solid_ids), bins,
                     int(sampling["max_batches"]), float(sampling["max_seconds"]), started)
             openmc.lib.simulation_finalize()
@@ -1256,21 +1416,20 @@ def phase_heating(request: dict, work: Path) -> dict:
     for row, solid_id in enumerate(solid_ids):
         values = {}
         for name in tallies:
-            column = batches[name][row]
-            mean = math.fsum(column) / len(column)
-            variance = math.fsum((v - mean) ** 2 for v in column) / (len(column) - 1)
-            values[name] = {"mean_ev_per_source": mean, "standard_error_ev_per_source": math.sqrt(variance / len(column))}
-        closure_mean, closure_se = heating_batch_closure(
-            batches["total"][row], [batches[name][row] for name in components])
+            mean = float(batch_moments[name].mean[row])
+            standard_error = float(batch_moments[name].standard_error[row])
+            values[name] = {"mean_ev_per_source": mean,
+                            "standard_error_ev_per_source": standard_error}
+        closure_mean = float(closure_moments.mean[row])
+        closure_se = float(closure_moments.standard_error[row])
         closure_scale = abs(values["total"]["mean_ev_per_source"]) + math.fsum(
             abs(values[name]["mean_ev_per_source"]) for name in components)
         values["closure_residual"] = {"mean_ev_per_source": closure_mean, "standard_error_ev_per_source": closure_se,
                                       **heating_closure_quality(closure_mean, closure_se, closure_scale)}
-        voxel_total = np.stack(voxel_batches["total"][row])
-        voxel_sum = voxel_total.sum(axis=0)
-        voxel_squares = (voxel_total * voxel_total).sum(axis=0)
         ranked = ranked_pieces(pieces["volumes_cm3"], pieces["r_edges_cm"]).reshape(solid_count, -1)[row]
-        peak = peak_of(voxel_sum, voxel_squares, volume_by_solid[row], ranked, len(voxel_total))
+        peak = peak_of_moments(voxel_moments["total"].mean[:, row],
+                               voxel_moments["total"].standard_error[:, row],
+                               volume_by_solid[row], ranked)
         peak_index = None
         if peak is not None:
             if peak["mean"] <= 0.0:
@@ -1287,16 +1446,14 @@ def phase_heating(request: dict, work: Path) -> dict:
                                         "sampling_relative_error": None,
                                         "sampling_uncertainty_reported": False}
             peak_index = index
-            closure_mean, closure_se = heating_batch_closure(
-                [float(batch[peak_index]) for batch in voxel_batches["total"][row]],
-                [[float(batch[peak_index]) for batch in voxel_batches[name][row]] for name in components])
+            closure_mean = float(voxel_closure_moments.mean[peak_index, row])
+            closure_se = float(voxel_closure_moments.standard_error[peak_index, row])
             peak_components = {}
             for name in components + ("total",):
-                samples = [float(batch[peak_index]) for batch in voxel_batches[name][row]]
-                mean = math.fsum(samples) / len(samples)
-                variance = math.fsum((value - mean) ** 2 for value in samples) / (len(samples) - 1)
-                peak_components[name] = {"mean_ev_per_source": mean,
-                                         "standard_error_ev_per_source": math.sqrt(variance / len(samples))}
+                peak_components[name] = {
+                    "mean_ev_per_source": float(voxel_moments[name].mean[peak_index, row]),
+                    "standard_error_ev_per_source": float(voxel_moments[name].standard_error[peak_index, row]),
+                }
             peak["components"] = peak_components
             closure_scale = abs(peak_components["total"]["mean_ev_per_source"]) + math.fsum(
                 abs(peak_components[name]["mean_ev_per_source"]) for name in components)
@@ -1310,18 +1467,13 @@ def phase_heating(request: dict, work: Path) -> dict:
                 continue
             iz, ir = divmod(index, pieces["volumes_cm3"].shape[2])
             component_scores = {}
-            columns = {}
             for name in components + ("total",):
-                samples = [float(batch[index]) for batch in voxel_batches[name][row]]
-                mean = math.fsum(samples) / len(samples)
-                variance = math.fsum((value - mean) ** 2 for value in samples) / (len(samples) - 1)
-                columns[name] = samples
                 component_scores[name] = {
-                    "mean_ev_per_source": mean,
-                    "standard_error_ev_per_source": math.sqrt(variance / len(samples)),
+                    "mean_ev_per_source": float(voxel_moments[name].mean[index, row]),
+                    "standard_error_ev_per_source": float(voxel_moments[name].standard_error[index, row]),
                 }
-            residual_mean, residual_se = heating_batch_closure(
-                columns["total"], [columns[name] for name in components])
+            residual_mean = float(voxel_closure_moments.mean[index, row])
+            residual_se = float(voxel_closure_moments.standard_error[index, row])
             voxel_scores.append({
                 "r_cm": [float(pieces["r_edges_cm"][ir]), float(pieces["r_edges_cm"][ir + 1])],
                 "z_cm": [float(pieces["z_edges_cm"][iz]), float(pieces["z_edges_cm"][iz + 1])],
