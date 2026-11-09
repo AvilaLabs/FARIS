@@ -984,7 +984,7 @@ pub fn design_heating(
     report.elapsed_seconds = elapsed;
     report.data_identity = worker.data_identity;
     report.solids = solids;
-    if report.status == "CALCULATED" {
+    if !report.solids.is_empty() {
         report.validation = ValidationMarks::for_catalogue(DESIGN_HEATING_OUTPUTS);
     }
     report.notices.push("The reported peak is the highest sampled ring voxel resolved by this tally; unsampled sub-voxel peaks may be higher.".into());
