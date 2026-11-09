@@ -2,6 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Avila Labs
 """Pure GEO-030 request and unit-conversion tests; no OpenMC import or solver run."""
 import sys
+import importlib.util
+import math
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -42,6 +45,44 @@ class StochasticVolumeContract(unittest.TestCase):
         low, high = dv.padded_bounds_cm(request()["bounds_m"])
         self.assertEqual(low, [-55.0, -55.0, -15.0])
         self.assertEqual(high, [55.0, 55.0, 15.0])
+
+    def test_origin_sphere_contains_every_mixed_sign_corner(self):
+        lower = [-100.0, -20.0, -100.0]
+        upper = [10.0, 200.0, 10.0]
+        radius = dv.bounding_sphere_radius(lower, upper)
+        for x in (lower[0], upper[0]):
+            for y in (lower[1], upper[1]):
+                for z in (lower[2], upper[2]):
+                    self.assertLessEqual(math.sqrt(x * x + y * y + z * z), radius)
+
+    def test_far_is_material_tags_normalize_against_openmc_names(self):
+        self.assertEqual(dv.dagmc_material_name("mat:core"), "core")
+        self.assertEqual(
+            dv.resolve_dummy_material_names(
+                ["mat:core", "mat:shell"], ["core", "shell", "void"]
+            ),
+            ["core", "shell", "void"],
+        )
+        with self.assertRaisesRegex(ValueError, "absent"):
+            dv.resolve_dummy_material_names(["mat:missing"], ["core", "void"])
+
+
+@unittest.skipUnless(importlib.util.find_spec("openmc") and importlib.util.find_spec("h5py"),
+                     "OpenMC and h5py are needed for the metadata-only H5M API check")
+class DagmcNameApiContract(unittest.TestCase):
+    def test_tracked_h5m_manifest_tags_match_openmc_names_after_prefix_normalization(self):
+        import openmc
+
+        cad_dir = HERE.parent / "cad"
+        sys.path.insert(0, str(cad_dir))
+        import faris_facets
+
+        h5m = cad_dir / "fixtures" / "three-boxes.h5m"
+        with tempfile.TemporaryDirectory() as temporary:
+            exported = faris_facets.export_h5m(h5m, Path(temporary) / "fixture")
+        tags = [item["material_tag"] for item in exported["manifest"]["volumes"]]
+        actual = openmc.DAGMCUniverse(str(h5m.resolve())).material_names
+        self.assertEqual(dv.resolve_dummy_material_names(tags, actual), sorted(actual))
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ import argparse
 import hashlib
 import json
 import math
+import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -84,6 +86,42 @@ def padded_bounds_cm(bounds_m: dict) -> tuple[list[float], list[float]]:
     return ([a - pad for a in lo], [b + pad for b in hi])
 
 
+def dagmc_material_name(material_tag: str) -> str:
+    """Map a FARIS H5M NAME tag to OpenMC's DAGMC material name."""
+    if not material_tag.startswith("mat:") or material_tag == "mat:":
+        raise ValueError(f"invalid FARIS DAGMC material tag: {material_tag!r}")
+    return material_tag[4:]
+
+
+def resolve_dummy_material_names(target_tags, dagmc_material_names) -> list[str]:
+    """Validate target tags against OpenMC's view and initialize every H5M material."""
+    expected = {dagmc_material_name(tag) for tag in target_tags}
+    actual = sorted(set(dagmc_material_names))
+    if not expected.issubset(actual):
+        missing = sorted(expected - set(actual))
+        raise ValueError(f"FARIS material tags are absent from OpenMC DAGMC material names: {missing}")
+    if not actual or any(not isinstance(name, str) or not name for name in actual):
+        raise ValueError("OpenMC DAGMC material names must be non-empty strings")
+    return actual
+
+
+def bounding_sphere_radius(bounds_lo: list[float], bounds_hi: list[float]) -> float:
+    """Return a padded origin-centered sphere containing every bounding-box corner."""
+    max_abs = [max(abs(lo), abs(hi)) for lo, hi in zip(bounds_lo, bounds_hi)]
+    return 1.05 * math.sqrt(sum(value * value for value in max_abs))
+
+
+def selected_cli_version(openmc_exec: Path) -> str:
+    completed = subprocess.run(
+        [str(openmc_exec), "--version"], capture_output=True, text=True,
+        timeout=10, check=True,
+    )
+    match = re.search(r"^OpenMC version ([^\r\n]+)$", completed.stdout, re.MULTILINE)
+    if not match:
+        raise RuntimeError("selected OpenMC CLI did not report a recognizable version")
+    return match.group(1).strip()
+
+
 def calculate(request: dict, h5m: Path, cross_sections: Path, openmc_exec: Path, out_dir: Path,
               request_sha256: str) -> dict:
     import openmc
@@ -97,9 +135,16 @@ def calculate(request: dict, h5m: Path, cross_sections: Path, openmc_exec: Path,
         raise ValueError("cross_sections.xml sha256 does not match the request")
     openmc_cli_hash = sha256_file(openmc_exec)
     python_executable_hash = sha256_file(Path(sys.executable))
+    cli_version = selected_cli_version(openmc_exec)
+    if cli_version != openmc.__version__:
+        raise RuntimeError(
+            f"selected OpenMC CLI version {cli_version} does not match Python API {openmc.__version__}"
+        )
 
     dagmc = openmc.DAGMCUniverse(str(h5m.resolve()))
-    material_names = sorted({target["material_tag"] for target in request["targets"]})
+    material_names = resolve_dummy_material_names(
+        (target["material_tag"] for target in request["targets"]), dagmc.material_names,
+    )
     dummy_materials = []
     for number, name in enumerate(material_names, start=1):
         material = openmc.Material(material_id=number, name=name)
@@ -119,8 +164,7 @@ def calculate(request: dict, h5m: Path, cross_sections: Path, openmc_exec: Path,
         raise ValueError("DAGMC global IDs leave no safe OpenMC ID for the bounding cell and surface")
 
     bbox_lo, bbox_hi = padded_bounds_cm(request["bounds_m"])
-    radius = 1.05 * max(math.sqrt(sum(c * c for c in corner))
-                        for corner in (bbox_lo, bbox_hi))
+    radius = bounding_sphere_radius(bbox_lo, bbox_hi)
     sphere = openmc.Sphere(surface_id=outer_surface_id, r=radius, boundary_type="vacuum")
     outer = openmc.Cell(cell_id=outer_cell_id, fill=dagmc, region=-sphere)
     materials = openmc.Materials(dummy_materials)
@@ -176,7 +220,9 @@ def calculate(request: dict, h5m: Path, cross_sections: Path, openmc_exec: Path,
         "unit": "cm3",
         "bounds_cm": {"lower_left": bbox_lo, "upper_right": bbox_hi},
         "dummy_material_names": material_names,
-        "versions": {"openmc": openmc.__version__, "python": sys.version.split()[0],
+        "versions": {"openmc_python_package_version": openmc.__version__,
+                     "openmc_selected_cli_version": cli_version,
+                     "python_runtime_version": sys.version.split()[0],
                      "python_executable": str(Path(sys.executable).resolve()),
                      "python_executable_sha256": python_executable_hash,
                      "openmc_cli": str(openmc_exec.resolve()),

@@ -942,17 +942,25 @@ pub(super) fn stochastic_volumes(
             "the OpenMC stochastic volume report has invalid cm bounds".into(),
         ));
     }
-    let expected_dummy_names: std::collections::BTreeSet<&str> = request
+    let expected_dummy_names: std::collections::BTreeSet<String> = request
         .targets
         .iter()
-        .map(|target| target.material_tag.as_str())
+        .map(|target| {
+            target
+                .material_tag
+                .strip_prefix("mat:")
+                .unwrap_or(target.material_tag.as_str())
+                .to_owned()
+        })
         .collect();
     let actual_dummy_names: std::collections::BTreeSet<&str> = report
         .dummy_material_names
         .iter()
         .map(String::as_str)
         .collect();
-    if actual_dummy_names != expected_dummy_names
+    if !expected_dummy_names
+        .iter()
+        .all(|name| actual_dummy_names.contains(name.as_str()))
         || actual_dummy_names.len() != report.dummy_material_names.len()
     {
         return Err(DesignError::Tool(
