@@ -1247,6 +1247,7 @@ pub fn run_dose_maintenance(
 
 /// Runs the same coupling while requesting a physical curve when an exact history/event curve
 /// is absent. New curves are retained only in this invocation's in-memory bundle.
+#[allow(clippy::too_many_arguments)]
 pub fn run_dose_maintenance_with_provider(
     assumptions: &MaintenanceAssumptions,
     designs: &[DesignInput],

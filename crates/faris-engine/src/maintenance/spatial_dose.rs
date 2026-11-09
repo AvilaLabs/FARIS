@@ -666,7 +666,7 @@ fn ratio_standard_error(pair: &DosePointPair) -> Option<f64> {
     let numerator = d1s.value_sv_h;
     let first = d1s.standard_error_sv_h / denominator;
     let second = numerator / denominator * pair.r2s.standard_error_sv_h / denominator;
-    let result = first.hypot(second);
+    let result = faris_model::math::hypot(first, second);
     result.is_finite().then_some(result)
 }
 
@@ -716,10 +716,9 @@ impl CurveBundle {
             for point in &mut curve.points {
                 if let DoseCovarianceAssessment::IndependentAssumed { evidence, .. } =
                     &mut point.covariance
+                    && !evidence.path.is_absolute()
                 {
-                    if !evidence.path.is_absolute() {
-                        evidence.path = base.join(&evidence.path);
-                    }
+                    evidence.path = base.join(&evidence.path);
                 }
                 for estimate in point.d1s.iter_mut().chain(std::iter::once(&mut point.r2s)) {
                     if !estimate.run_record.path.is_absolute() {
@@ -915,6 +914,7 @@ impl CurveBundle {
 
     /// Find only a curve matching the exact history and event identity. Returning `None` is a
     /// physics/data gap; callers must report NOT_EVALUATED instead of reusing another event.
+    #[allow(clippy::too_many_arguments)]
     pub fn event_curve(
         &self,
         design: &str,
@@ -951,8 +951,9 @@ impl CurveBundle {
         let points: Vec<_> = curve.points.iter().map(|pair| {
             let status = compare(pair);
             if status == ComparisonStatus::OutsideBand { overall = ComparisonStatus::OutsideBand; }
-            else if status == ComparisonStatus::InconclusiveCovariance && overall == ComparisonStatus::InBand { overall = status.clone(); }
-            else if status == ComparisonStatus::NotEvaluated && overall != ComparisonStatus::OutsideBand { overall = status.clone(); }
+            else if (status == ComparisonStatus::InconclusiveCovariance && overall == ComparisonStatus::InBand)
+                || (status == ComparisonStatus::NotEvaluated && overall != ComparisonStatus::OutsideBand)
+            { overall = status.clone(); }
             let selected_sv_h = match method {
                 DoseMethod::D1s => pair.d1s.as_ref().map(|d| d.value_sv_h),
                 DoseMethod::R2s => Some(pair.r2s.value_sv_h),

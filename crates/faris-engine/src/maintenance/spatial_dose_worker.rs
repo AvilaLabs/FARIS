@@ -158,7 +158,8 @@ pub fn prepare_dose_cad(
             *path = base.join(&*path);
         }
     }
-    for reference in [&mut config.cross_sections_xml] {
+    {
+        let reference = &mut config.cross_sections_xml;
         if !reference.path.is_absolute() {
             reference.path = base.join(&reference.path);
         }
@@ -401,7 +402,12 @@ fn run_actinv_event_batches(
     let batch_bytes = read_bounded(&batch_ref.path, MAX_ACTINV_BATCH_BYTES)?;
     let batches: ActinvEventBatchFile =
         serde_json::from_slice(&batch_bytes).map_err(|e| e.to_string())?;
-    if batches.schema != "faris-maintenance-actinv-event-batches/v0.1" || batches.batches.is_empty()
+    if batches.schema != "faris-maintenance-actinv-event-batches/v0.1"
+        || batches.batches.is_empty()
+        || batches.uncertainty_scope.trim().is_empty()
+        || batches.spatial_approximation.trim().is_empty()
+        || batches.source_rate_normalization.trim().is_empty()
+        || !batches.provenance.is_object()
     {
         return Err("709 response helper returned no supported ACTINV event batches".into());
     }
@@ -1182,13 +1188,12 @@ fn run_staged_actinv_dose(
     let source = neutron_receipt
         .get("source")
         .ok_or("709 response receipt omits source normalization")?;
+    let expected_base_rate = source_groups_base_rate(neutron_request)?;
     if source.get("unit_strength").and_then(Value::as_f64) != Some(1.0)
         || source
             .get("base_source_rate_n_s")
             .and_then(Value::as_f64)
-            .is_none_or(|x| {
-                (x - source_groups_base_rate(neutron_request)?).abs() > x.abs().max(1.0) * 1e-12
-            })
+            .is_none_or(|x| (x - expected_base_rate).abs() > x.abs().max(1.0) * 1e-12)
     {
         return Err(
             "709 response receipt source normalization differs from the event request".into(),
@@ -2191,7 +2196,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                           "location_sha256": location.sha256},
                 "base_source_rate_n_s": context.neutron_rate_n_s,
                 "photon_energy_edges_ev": backend.photon_group_boundaries_ev,
-                "response_location_artifacts": {location.id: location_ref},
+                "response_location_artifacts": {location.id.clone(): location_ref},
                 "sampling": sampling,
             })
         } else {
@@ -2525,6 +2530,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_run_record(
     run_dir: &Path,
     curve: &EventDoseCurve,
@@ -2658,7 +2664,7 @@ mod receipt_tests {
 }
 
 fn validate_bounds(bounds: &MeshBounds, label: &str) -> Result<(), String> {
-    if bounds.dimension.iter().any(|d| *d == 0)
+    if bounds.dimension.contains(&0)
         || bounds
             .dimension
             .iter()
@@ -2771,6 +2777,7 @@ fn write_exact(path: &Path, bytes: &[u8]) -> Result<(), String> {
     file.sync_all().map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn launch_bounded(
     python: &Path,
     worker: &Path,
@@ -2918,13 +2925,13 @@ fn worker_environment(
     plasma_source_path: Option<&Path>,
     inherited_path: Option<OsString>,
 ) -> Result<Vec<(OsString, OsString)>, String> {
-    if let Some(path) = plasma_source_path {
-        if !path.is_absolute() || !path.join("openmc_plasma_source").is_dir() {
-            return Err(format!(
-                "FARIS_PLASMA_SOURCE_PATH must be an absolute directory holding openmc_plasma_source: {}",
-                path.display()
-            ));
-        }
+    if let Some(path) = plasma_source_path
+        && (!path.is_absolute() || !path.join("openmc_plasma_source").is_dir())
+    {
+        return Err(format!(
+            "FARIS_PLASMA_SOURCE_PATH must be an absolute directory holding openmc_plasma_source: {}",
+            path.display()
+        ));
     }
     let mut path_entries = Vec::new();
     if let Some(parent) = python.parent() {

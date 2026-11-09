@@ -825,12 +825,12 @@ pub fn design_heating(
     }
     report.data_identity = preflight.data_identity.clone();
     report.runtime_identity = preflight.runtime_identity.clone();
-    if let Some(runtime) = &preflight.runtime_identity {
-        if !verify_runtime_identity(runtime, &run_dir) {
-            return Err(DesignError::Tool(
+    if let Some(runtime) = &preflight.runtime_identity
+        && !verify_runtime_identity(runtime, &run_dir)
+    {
+        return Err(DesignError::Tool(
                 "the heating preflight runtime receipt does not match the selected Python, loaded OpenMC C API library, or staged worker helper".into(),
             ));
-        }
     }
     if preflight.status == "NOT_EVALUATED" {
         report.elapsed_seconds = elapsed;
@@ -881,12 +881,12 @@ pub fn design_heating(
             "the heating run runtime or nuclear-data identity differs from READY preflight".into(),
         ));
     }
-    if let Some(runtime) = &worker.runtime_identity {
-        if !verify_runtime_identity(runtime, &run_dir) {
-            return Err(DesignError::Tool(
+    if let Some(runtime) = &worker.runtime_identity
+        && !verify_runtime_identity(runtime, &run_dir)
+    {
+        return Err(DesignError::Tool(
                 "the heating run runtime receipt does not match the selected Python, loaded OpenMC C API library, or staged worker helper".into(),
             ));
-        }
     }
     if let Some(execution) = &worker.execution_identity {
         if !verify_execution_identity(execution, &run_dir) {
@@ -898,7 +898,7 @@ pub fn design_heating(
     }
     if worker.status.as_deref() == Some("NOT_EVALUATED") {
         if worker.histories > 0
-            && (worker.histories % options.particles_per_batch != 0
+            && (!worker.histories.is_multiple_of(options.particles_per_batch)
                 || worker.batches != worker.histories / options.particles_per_batch
                 || worker.histories > options.max_histories
                 || worker.target_relative_error != Some(options.target_relative_error)
@@ -1677,6 +1677,33 @@ mod tests {
                 "roundoff_tolerance_ev_per_source": 2.1316282072803006e-13
             })
         };
+        let solid = serde_json::json!({
+            "solid_id": "winding",
+            "neutron": {"mean_ev_per_source": 5.0, "standard_error_ev_per_source": 1.0},
+            "photon": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
+            "electron": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
+            "positron": {"mean_ev_per_source": 0.0, "standard_error_ev_per_source": 0.0},
+            "total": {"mean_ev_per_source": 8.0, "standard_error_ev_per_source": 1.0},
+            "closure_residual": score(1.0, 0.0),
+            "peak": {
+                "mean": 0.0,
+                "standard_error": null,
+                "volume_cm3": 1000.0,
+                "r_cm": [100.0, 105.0],
+                "z_cm": [-5.0, 0.0],
+                "pieces_ranked": 1,
+                "volume_estimator": {"method": "fixture", "rays": 1000,
+                                     "sampling_relative_error": null,
+                                     "sampling_uncertainty_reported": false},
+                "closure_residual": score(0.0, 0.0),
+                "components": {
+                    "neutron": score(0.0, 0.0), "photon": score(0.0, 0.0),
+                    "electron": score(0.0, 0.0), "positron": score(0.0, 0.0),
+                    "total": score(0.0, 0.0)
+                }
+            },
+            "voxel_scores": []
+        });
         let raw = serde_json::json!({
             "schema": RESULT_SCHEMA,
             "status": "INCONCLUSIVE",
@@ -1705,33 +1732,7 @@ mod tests {
             "stop_reason": "history_limit",
             "h5m_sha256": "h",
             "cross_sections_sha256": "x",
-            "solids": [{
-                "solid_id": "winding",
-                "neutron": {"mean_ev_per_source": 5.0, "standard_error_ev_per_source": 1.0},
-                "photon": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
-                "electron": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
-                "positron": {"mean_ev_per_source": 0.0, "standard_error_ev_per_source": 0.0},
-                "total": {"mean_ev_per_source": 8.0, "standard_error_ev_per_source": 1.0},
-                "closure_residual": score(1.0, 0.0),
-                "peak": {
-                    "mean": 0.0,
-                    "standard_error": null,
-                    "volume_cm3": 1000.0,
-                    "r_cm": [100.0, 105.0],
-                    "z_cm": [-5.0, 0.0],
-                    "pieces_ranked": 1,
-                    "volume_estimator": {"method": "fixture", "rays": 1000,
-                                         "sampling_relative_error": null,
-                                         "sampling_uncertainty_reported": false},
-                    "closure_residual": score(0.0, 0.0),
-                    "components": {
-                        "neutron": score(0.0, 0.0), "photon": score(0.0, 0.0),
-                        "electron": score(0.0, 0.0), "positron": score(0.0, 0.0),
-                        "total": score(0.0, 0.0)
-                    }
-                },
-                "voxel_scores": []
-            }]
+            "solids": [solid]
         });
         let worker: WorkerResult = serde_json::from_value(raw).unwrap();
         assert_eq!(worker.status.as_deref(), Some("INCONCLUSIVE"));

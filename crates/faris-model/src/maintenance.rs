@@ -126,7 +126,7 @@ impl MaintenanceAssumptions {
             && self.schema_version != MAINTENANCE_DOSE_ASSUMPTIONS_VERSION
         {
             return Err(format!(
-                "dose-governed durations require {MAINTENANCE_DOSE_ASSUMPTIONS_VERSION} and hash-bound spatial dose curves; contact-dose proxies are not accepted"
+                "dose-governed durations require {MAINTENANCE_DOSE_ASSUMPTIONS_VERSION} and hash-bound spatial dose curves at the named task location"
             ));
         }
         if self.classes.is_empty() {

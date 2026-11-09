@@ -578,11 +578,7 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                                         .d1s_standard_error_sv_h
                                         .map_or("not available".into(), |se| format!("{se:.3e}")),
                                 );
-                                ui.label(
-                                    point
-                                        .r2s_standard_error_sv_h
-                                        .map_or("not available".into(), |se| format!("{se:.3e}")),
-                                );
+                                ui.label(format!("{:.3e}", point.r2s_standard_error_sv_h));
                                 ui.label(
                                     point
                                         .ratio_standard_error
