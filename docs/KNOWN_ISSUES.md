@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 1 fixed that affected a released version, 10 fixed before they reached a release.
+0 open, 0 will not be fixed, 1 fixed that affected a released version, 11 fixed before they reached a release.
 
 ## Open
 
@@ -40,4 +40,5 @@ These were found in development and never shipped.
 | FARIS-006 | S3 | The job artifact scanner stopped counting at the cap, so growth was unmeasurable | 9a93ef6 |
 | FARIS-007 | S3 | Large models' weight windows written into model.xml exceeded the 256 MiB file limit | 9a93ef6 |
 | FARIS-009 | S3 | Aiming visibility runs left their statepoints in the run folder and tripped its 512 MB limit | 5e4b666 |
+| FARIS-012 | S3 | Release gate ignored the approved validation-access outcome | 1a6d6d2 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

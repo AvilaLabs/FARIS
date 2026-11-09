@@ -147,6 +147,19 @@
       "fixed_in": "9a071f1",
       "disposition": "A supplied NaN, infinity or negative Monte Carlo uncertainty was silently ignored by the compatibility precision check and could produce PASS. Supplied non-finite, negative and boolean uncertainties now produce INCONCLUSIVE with a reason and next step. The regression reproduced PASS for NaN, infinity and negative uncertainty before the fix; the validation suite passes after it.",
       "regression_test": "validation/test_scoring.py::test_invalid_supplied_monte_carlo_uncertainty_is_inconclusive"
+    },
+    {
+      "id": "FARIS-012",
+      "title": "Release gate ignored the approved validation-access outcome",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "1a6d6d2",
+      "disposition": "The gate extracted VAL-023 from the approved release list but ignored its explicit access-outcome alternative, requiring Met even when the authorized outcome was recorded. The gate now checks the narrowly authorized, hash-pinned access evidence and accounts for its trace separately while retaining NOT_EVALUATED and not-validated matrix rows. Other requirements still require Met. The original checker rejected the controlled complete access fixture; the corrected checker accepts that condition without changing its No requirement status or physical validation state.",
+      "regression_test": "scripts/test_release_gate.py::test_val023_access_outcome_is_an_explicit_non_met_alternative"
     }
   ]
 }
