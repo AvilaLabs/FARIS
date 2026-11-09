@@ -296,6 +296,7 @@ class FnsTofHelpers(unittest.TestCase):
                                    "openmc_python_version": "0.15.3",
                                    "python_path": str(Path(sys.executable).resolve()),
                                    "python_sha256": R.hash_file(Path(sys.executable).resolve())}, "cases": case_rows}
+            control["receipt_sha256"] = R.imp0_control_receipt_sha256(control)
             path = root / "control.json"; path.write_text(json.dumps(control))
             def statepoint_reader(statepoint):
                 total, birth, entry, _flux, _current = expected[statepoint.stem]
@@ -305,10 +306,19 @@ class FnsTofHelpers(unittest.TestCase):
             with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
                 self.assertEqual(R.verify_imp0_control_receipt(path, runtime)["status"], "PASS")
             control["cases"][0]["diagnostics"]["faris_mcnp_imp0_kill_events"] = 0
+            control["receipt_sha256"] = R.imp0_control_receipt_sha256(control)
             path.write_text(json.dumps(control))
             with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
                 with self.assertRaisesRegex(ValueError, "kill-counter control failed"):
                     R.verify_imp0_control_receipt(path, runtime)
+
+    def test_imp0_control_canonical_sha_detects_receipt_mutation(self):
+        control = {"schema": "faris.openmc-mcnp-imp0-control/1.0.0", "status": "PASS", "cases": []}
+        digest = R.imp0_control_receipt_sha256(control)
+        control["receipt_sha256"] = digest
+        self.assertEqual(R.imp0_control_receipt_sha256(control), digest)
+        control["status"] = "FAILED"
+        self.assertNotEqual(R.imp0_control_receipt_sha256(control), digest)
 
     def test_record_mapping_binds_source_f5_to_actual_openmc_tally_and_filter_ids(self):
         filters = [type("CellFilter", (), {"id": 81})(), type("EnergyFilter", (), {"id": 82})()]

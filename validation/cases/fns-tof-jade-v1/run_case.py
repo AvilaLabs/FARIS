@@ -400,6 +400,14 @@ def read_imp0_statepoint(path: Path) -> dict:
             "source": "child statepoint datasets; imp0 kills and normal lost count are distinct"}
 
 
+def imp0_control_receipt_sha256(document: dict) -> str:
+    """Hash the canonical control JSON with its self-digest field excluded."""
+    unsigned = dict(document)
+    unsigned.pop("receipt_sha256", None)
+    canonical = json.dumps(unsigned, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return sha256_bytes(canonical)
+
+
 def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
     """Require the small source-birth/entry/photon/unmarked control on this exact runtime."""
     require(path.is_file(), "the patched OpenMC MCNP imp0 runtime-control receipt is required before any FNS transport")
@@ -407,6 +415,10 @@ def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
             "MCNP imp0 control receipt exceeds the bounded JSON input size")
     receipt = json.loads(path.read_text(encoding="utf-8"))
     require(isinstance(receipt, dict), "MCNP imp0 control receipt must be a JSON object")
+    receipt_sha256 = receipt.get("receipt_sha256")
+    require(isinstance(receipt_sha256, str) and re.fullmatch(r"[0-9a-f]{64}", receipt_sha256) is not None
+            and receipt_sha256 == imp0_control_receipt_sha256(receipt),
+            "MCNP imp0 control canonical receipt SHA256 is missing or invalid")
     require(receipt.get("schema") == "faris.openmc-mcnp-imp0-control/1.0.0" and receipt.get("status") == "PASS",
             "MCNP imp0 runtime-control receipt has wrong schema or did not pass")
     recorded = receipt.get("runtime", {})
