@@ -61,6 +61,16 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def verify_archive_members(manifest: dict, source_note: bytes) -> None:
+    """Bind the archive member identities to the hash-pinned upstream provenance table."""
+    rows = re.findall(r"\|\s*`([^`]+)`\s*\|\s*`([0-9a-f]{64})`\s*\|", source_note.decode("utf-8"))
+    expected = {f"fns/Fe/{name}": digest for name, digest in rows}
+    require(len(expected) == 4 and len(rows) == 4,
+            "pinned source note must contain the four original archive member identities")
+    require(manifest["source"].get("original_archive_members") == expected,
+            "original archive member hashes differ from the pinned upstream source note")
+
+
 def load_inputs(upstream: Path, manifest_path: Path | None = None) -> tuple[dict, dict, bytes, bytes]:
     upstream = upstream.expanduser().resolve()
     path = manifest_path or HERE / "manifest.json"
@@ -87,6 +97,8 @@ def load_inputs(upstream: Path, manifest_path: Path | None = None) -> tuple[dict
         shown = subprocess.run(["git", "-C", str(upstream), "show", f"{SOURCE_COMMIT}:{relative}"], capture_output=True)
         require(shown.returncode == 0 and sha256_bytes(shown.stdout) == expected,
                 f"pinned source commit does not match provenance file {relative}")
+        if relative == manifest["source"]["processing_note"]["path"]:
+            verify_archive_members(manifest, shown.stdout)
     spec_path, csv_path = upstream / SPEC_REL, upstream / CSV_REL
     require(spec_path.stat().st_size <= 16_384, "ACTINV problem exceeds the 16384-byte intake bound")
     require(csv_path.stat().st_size <= 1_024, "measurement table exceeds the 1024-byte intake bound")

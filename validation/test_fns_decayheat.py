@@ -55,6 +55,18 @@ class FnsDecayHeatCase(unittest.TestCase):
         self.assertEqual(checked["compatibility"]["covariance"]["kind"], "unknown")
         self.assertEqual(checked["source"]["original_archive_sha256"], BM.ARCHIVE_SHA256)
 
+    def test_archive_member_identities_are_checked_against_pinned_source_note(self):
+        source_members = dict(BM.ARCHIVE_MEMBERS)
+        source_members["fns/Fe/total_1996exp_5min.pdf"] = "d6ea06aadbf0fc9c2ad91452b32e8e0e64afe692c5624d07ccd03fb1673bb876"
+        note = "\n".join(f"| `{Path(name).name}` | `{digest}` |" for name, digest in source_members.items()).encode()
+        RC.verify_archive_members(MANIFEST, note)
+        bad = copy.deepcopy(MANIFEST)
+        bad["source"]["original_archive_members"]["fns/Fe/total_1996exp_5min.pdf"] = "d6ea06aadbf0fc9c2ad91461054aec7d415ef19d946aba8b9886b31de218252d"
+        with self.assertRaisesRegex(ValueError, "archive member hashes differ"):
+            RC.verify_archive_members(bad, note)
+        with self.assertRaisesRegex(ValueError, "four original"):
+            RC.verify_archive_members(MANIFEST, b"no archive member table")
+
     def test_reported_relative_error_is_converted_to_absolute_without_confidence_claim(self):
         lines = ["time,Value,Error"]
         for detector in MANIFEST["detectors"]:
