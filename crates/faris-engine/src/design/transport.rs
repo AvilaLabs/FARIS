@@ -471,6 +471,68 @@ pub(super) fn material_entries(
     Ok(entries)
 }
 
+/// Trusted numeric input for the separate maintenance-dose CAD preparation worker. The H5M and
+/// materials are taken only from the same complete checked Design/ImportReport pair used by the
+/// ordinary design-transport path.
+pub(crate) fn maintenance_dose_cad_request(
+    design_path: &Path,
+    check_report_path: &Path,
+    cross_sections: &Path,
+    openmc_helper: &Path,
+    solid_history_components: BTreeMap<String, String>,
+) -> Result<serde_json::Value, DesignError> {
+    let design_bytes = read_bounded(design_path)?;
+    let design_sha256 = sha256_hex(&design_bytes);
+    let design = design::parse_design(&design_bytes)
+        .design
+        .ok_or_else(|| tool("the design file does not parse"))?;
+    let report_bytes = read_bounded(check_report_path)?;
+    let report: ImportReport = serde_json::from_slice(&report_bytes)
+        .map_err(|e| tool(format!("invalid Design ImportReport: {e}")))?;
+    accept_check_report(&report, &design_sha256)?;
+    let conversion = report
+        .geometry
+        .conversion
+        .as_ref()
+        .ok_or_else(|| tool("the ImportReport records no checked CAD conversion"))?;
+    let h5m = converted_model(&conversion.directory)?;
+    if !h5m.is_file() || !sha256_file(&h5m)?.eq_ignore_ascii_case(&conversion.h5m_sha256) {
+        return Err(tool(
+            "checked CAD H5M is missing or differs from the ImportReport",
+        ));
+    }
+    let expected: std::collections::BTreeSet<String> = design
+        .solids
+        .iter()
+        .filter(|s| s.material_id.as_deref().is_some_and(|m| m != "void"))
+        .map(|s| s.id.clone())
+        .collect();
+    let supplied: std::collections::BTreeSet<String> =
+        solid_history_components.keys().cloned().collect();
+    if expected != supplied {
+        return Err(tool(
+            "solid-to-history-component mapping must cover every nonvoid checked solid exactly",
+        ));
+    }
+    let cross_sections = cross_sections
+        .canonicalize()
+        .map_err(|e| io_error(cross_sections, e))?;
+    let openmc_helper = openmc_helper
+        .canonicalize()
+        .map_err(|e| io_error(openmc_helper, e))?;
+    Ok(serde_json::json!({
+        "schema": "faris-maintenance-dose-cad-prepare/v0.1",
+        "h5m": h5m,
+        "h5m_sha256": conversion.h5m_sha256,
+        "cross_sections": cross_sections,
+        "solids": solid_entries(&design, &report)?,
+        "materials": material_entries(&design, &report)?,
+        "plasma": design.plasma,
+        "solid_history_components": solid_history_components,
+        "openmc_helper": openmc_helper,
+    }))
+}
+
 /// Every solid with its DAGMC volume from the check's binding; `material_id` null for empty space.
 pub(super) fn solid_entries(
     design: &Design,

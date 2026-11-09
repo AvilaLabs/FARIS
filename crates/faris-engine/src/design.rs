@@ -48,7 +48,7 @@ mod source;
 #[cfg(test)]
 mod testutil;
 mod topology;
-mod transport;
+pub(crate) mod transport;
 mod transport_progress;
 
 pub use geometry::{
