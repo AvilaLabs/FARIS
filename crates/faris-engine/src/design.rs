@@ -60,7 +60,10 @@ pub use geometry::{
     WaiverUse,
 };
 pub use heating::{
-    ELEMENTARY_CHARGE_C, HeatingEstimate, normalize_heating_ev_per_source, power_density_kw_m3,
+    DESIGN_HEATING_OUTPUTS, DesignHeatingOptions, DesignHeatingReport, ELEMENTARY_CHARGE_C,
+    HeatingEstimate, HeatingPeak, HeatingScore, SolidHeating, VolumeEstimator, VoxelHeating,
+    design_heating, normalize_heating_ev_per_source, power_density_kw_m3,
+    render_design_heating_text,
 };
 pub use life::{
     FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,

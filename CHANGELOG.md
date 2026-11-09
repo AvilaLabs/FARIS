@@ -212,6 +212,11 @@ basis.
     and progress is printed while the run samples.
   - A design that gives an emissivity table or a fuel other than D-T is refused; it is never run with the
     tokamak D-T source in its place.
+- `faris design heating`: an independent all-energy coupled OpenMC run for solids explicitly classified as winding
+  pack. It records total and particle-component heating, per-batch closure, raw eV/source-neutron voxel scores and a
+  sampled peak in kW/m³ with the averaging volume. Missing winding-pack identity or required photon, MT=301 or
+  atomic-relaxation data returns `NOT_EVALUATED`. The geometric volume ray count and missing volume-SE limit are
+  stated separately from the heating Monte Carlo error. This quantity has no registered validation benchmark.
 - The desktop has a **Design check** window that takes a STEP file to a checked design without a terminal: it writes the
   draft design file (`faris design init`) and says which fields are still empty, and it runs the nine import checks
   (`faris design check`) with the stage line, elapsed time and Cancel. It shows each check's status word, every finding's
@@ -221,6 +226,8 @@ basis.
 - The desktop has a **Design flux** window that runs `faris design transport` without a terminal: it names the tools
   the run needs and which are missing, shows the step, the errors against the target and a labelled estimate of the
   time left while it runs, offers Cancel, and shows the result with every number's error and every limit's why and next step.
+- The desktop has a **Design heating** window that runs the separate coupled heating job off the UI thread, offers
+  Cancel, and shows the sampled peak, its voxel volume, Monte Carlo uncertainty and the separate volume-estimator limits.
 - A second local nuclear-data library, built by `scripts/build_nuclear_data_v2.py`: all FENDL-3.2 neutron
   nuclides, ENDF/B-VII.1 photon data for every element in them, and ENDF/B-VIII.1 thermal-scattering tables for
   fusion materials, with a provenance record and an audit of the new `fusion-materials-v1` nuclide set

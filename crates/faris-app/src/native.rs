@@ -581,6 +581,7 @@ pub(crate) fn main() -> Result<(), Box<dyn std::error::Error>> {
             // One set of tool paths for both design windows, kept between sessions.
             let tools = design_tools::ToolsModel::load().shared();
             app.design_flux.use_tools(tools.clone());
+            app.design_heating.use_tools(tools.clone());
             app.design_check.use_tools(tools.clone());
             app.tools = Some(tools);
             app.design_flux.prefill(

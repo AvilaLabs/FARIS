@@ -69,6 +69,8 @@ fn optional_winding_pack_classification_is_backward_compatible_and_authored() {
     let parsed = parse(&value).design.unwrap();
     assert_eq!(parsed.solids[0].classification, None);
 
+    value["solids"][0]["classification"] = Value::Null;
+    assert!(parse(&value).findings.is_empty());
     value["solids"][0]["classification"] = json!("winding_pack");
     let parsed = parse(&value).design.unwrap();
     assert_eq!(

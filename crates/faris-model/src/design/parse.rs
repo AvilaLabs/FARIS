@@ -13,11 +13,12 @@ const CHECK: u8 = 1;
 
 /// Paths where `null` is a legal value in v0.1. `*` stands for any array index
 /// or map key. Every other `null` is a field the user has not filled in.
-const NULLABLE: [&str; 7] = [
+const NULLABLE: [&str; 8] = [
     "cad.faceting_tolerance_m",
     "plasma.min_first_wall_clearance_m",
     "solids[*].step_name",
     "solids[*].replacement_group_id",
+    "solids[*].classification",
     "materials[*].temperature_k",
     "replacement_groups[*].limits[*].averaging.voxel_m[*]",
     // `reference_id` is null for authored values; the published rule is checked below.

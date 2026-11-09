@@ -3,6 +3,30 @@
 
 You do not need this to explore the recorded study. Use it to run new fixed-source transport yourself, for example to record a case with your own seed or history count. It uses the same engine from the command line and from the desktop.
 
+## Coupled winding-pack heating
+
+`faris design heating DESIGN --check-report JSON --out DIR` is a separate all-energy fixed-source job. It follows
+neutrons without the fast-flux cutoff and transports photons and charged secondaries with atomic relaxation enabled
+and the LED electron treatment. The unfiltered total heating tally is reported beside neutron, photon, electron and
+positron components. A residual and its sampling error are computed from aligned batch values, so shared batch
+fluctuations are retained in the closure check.
+
+Only solids authored with `classification: "winding_pack"` and the broad `tf_magnet` role are included. A role by
+itself does not establish winding-pack identity. If no such solid is identified, or if the used nuclear data lacks
+MT=301 heating, photon data or complete atomic-relaxation shell maps, the result is `NOT_EVALUATED` with a next step.
+The separate neutron flux command remains available with its existing energy threshold.
+
+The headline is the highest resolved sampled cylindrical ring voxel at `--peak-voxel-m DR,DZ` (default `0.05,0.05`
+metres). Its raw score is retained in eV per source neutron; the engine converts it once to kW/m³ using the D-T
+source rate and the sampled voxel volume. The report keeps the ray-sampled volume method and ray count separate from
+the heating Monte Carlo error. The current volume adapter does not provide a volume sampling standard error, so the
+report states that limit explicitly. The heating quantity has no registered validation benchmark; its tag and scope
+do not establish physical validation or a met design requirement.
+
+The history, time, seed and thread limits use `--max-histories`, `--max-seconds`, `--seed` and `--threads`. The job
+can be cancelled, has bounded memory and output, and needs an OpenMC Python environment, the audited
+`cross_sections.xml` and `openmc_plasma_source` configured as for design transport.
+
 ## What you need
 
 - OpenMC 0.15.3 in an environment you provide. The run refuses any other version.

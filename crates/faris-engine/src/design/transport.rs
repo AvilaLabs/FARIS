@@ -416,7 +416,7 @@ fn tool(message: impl Into<String>) -> DesignError {
     DesignError::Tool(message.into())
 }
 
-fn read_bounded(path: &Path) -> Result<Vec<u8>, DesignError> {
+pub(super) fn read_bounded(path: &Path) -> Result<Vec<u8>, DesignError> {
     let metadata = std::fs::metadata(path).map_err(|e| io_error(path, e))?;
     if !metadata.is_file() || metadata.len() > MAX_JSON_BYTES {
         return Err(io_error(path, "not a regular file under 64 MiB"));
@@ -425,7 +425,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, DesignError> {
 }
 
 /// One entry per design material in use: its nuclide vector from the check's audit and its density.
-fn material_entries(
+pub(super) fn material_entries(
     design: &Design,
     report: &ImportReport,
 ) -> Result<Vec<serde_json::Value>, DesignError> {
@@ -472,7 +472,7 @@ fn material_entries(
 }
 
 /// Every solid with its DAGMC volume from the check's binding; `material_id` null for empty space.
-fn solid_entries(
+pub(super) fn solid_entries(
     design: &Design,
     report: &ImportReport,
 ) -> Result<Vec<serde_json::Value>, DesignError> {
@@ -534,7 +534,7 @@ fn linked_history(
 
 /// The run's source is the tokamak formula for a D-T plasma. A design that asks for another
 /// source is refused, so that it is never run with the wrong one.
-fn refuse_unsupported_source(design: &Design) -> Result<(), DesignError> {
+pub(super) fn refuse_unsupported_source(design: &Design) -> Result<(), DesignError> {
     if design.plasma.emissivity_table.is_some() {
         return Err(tool(
             "the design gives an emissivity table, which this command cannot use yet: it would \
@@ -778,7 +778,10 @@ fn keep_for_later(dir: &Path, entry: &Path, windows_reused: bool) -> Result<(), 
 }
 
 /// The check report must describe this design file and a complete, passing import.
-fn accept_check_report(report: &ImportReport, design_sha256: &str) -> Result<(), DesignError> {
+pub(super) fn accept_check_report(
+    report: &ImportReport,
+    design_sha256: &str,
+) -> Result<(), DesignError> {
     if !report.design.sha256.eq_ignore_ascii_case(design_sha256) {
         return Err(tool(
             "the check report was written for a different version of the design file; run \
@@ -799,7 +802,7 @@ fn accept_check_report(report: &ImportReport, design_sha256: &str) -> Result<(),
 /// never a program or an argument to one (the OpenMC step receives it as data inside its request
 /// file); it is still held to a path FARIS itself wrote: absolute, with no `..`, holding a plain
 /// `model.h5m` that is not a link to somewhere else. SEC-001.
-fn converted_model(directory: &str) -> Result<PathBuf, DesignError> {
+pub(super) fn converted_model(directory: &str) -> Result<PathBuf, DesignError> {
     let refuse = |why: &str| {
         tool(format!(
             "the check report names the conversion directory {directory:?}, which {why}; run \

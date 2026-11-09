@@ -4,9 +4,9 @@
 
 use clap::{Args, Subcommand};
 use faris_engine::design::{
-    CadReader, DesignTransportOptions, GeometryOptions, ImportReport, ToolPaths,
-    check_design_with_tools, design_init_with_tools, design_transport, render_text,
-    render_transport_text,
+    CadReader, DesignHeatingOptions, DesignTransportOptions, GeometryOptions, ImportReport,
+    ToolPaths, check_design_with_tools, design_heating, design_init_with_tools, design_transport,
+    render_design_heating_text, render_text, render_transport_text,
 };
 use faris_model::design::LengthUnit;
 use std::{
@@ -165,6 +165,32 @@ pub enum DesignCommand {
         #[command(flatten)]
         tools: ToolArguments,
     },
+    /// Run separate all-energy coupled neutron/photon/electron heating in explicitly authored
+    /// winding-pack solids, then score the highest sampled ring voxel.
+    Heating {
+        design: PathBuf,
+        #[arg(long, value_name = "JSON")]
+        check_report: PathBuf,
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Radial and vertical peak voxel widths, in metres: --peak-voxel-m 0.05,0.05.
+        #[arg(long, value_delimiter = ',', num_args = 2, default_values_t = [0.05, 0.05])]
+        peak_voxel_m: Vec<f64>,
+        #[arg(long, default_value_t = 50_000_000)]
+        max_histories: u64,
+        #[arg(long, default_value_t = 3600)]
+        max_seconds: u64,
+        #[arg(long, default_value_t = 20_000)]
+        particles: u64,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(long, default_value_t = 4, value_parser = clap::value_parser!(u32).range(1..=32))]
+        threads: u32,
+        #[command(flatten)]
+        tools: ToolArguments,
+    },
 }
 
 /// A failed check: the report was already printed.
@@ -316,6 +342,49 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 Err(Box::new(DesignCheckFailed(
                     "the transport run stopped before its target error".into(),
                 )))
+            }
+        }
+        DesignCommand::Heating {
+            design,
+            check_report,
+            out,
+            report,
+            peak_voxel_m,
+            max_histories,
+            max_seconds,
+            particles,
+            seed,
+            threads,
+            tools,
+        } => {
+            let interrupts = crate::control::interrupt_cancellation()?;
+            #[cfg(unix)]
+            let cancellation = interrupts.cancellation.clone();
+            #[cfg(not(unix))]
+            let cancellation = interrupts.clone();
+            let options = DesignHeatingOptions {
+                check_report,
+                out_dir: out,
+                peak_voxel_m: [peak_voxel_m[0], peak_voxel_m[1]],
+                particles_per_batch: particles,
+                max_histories,
+                max_seconds,
+                seed,
+                threads,
+                cancellation,
+            };
+            let result = design_heating(&design, &tools.paths(), &options)?;
+            print!("{}", render_design_heating_text(&result));
+            if let Some(path) = report {
+                write_json(&path, &result)?;
+                println!("Report written to {}", path.display());
+            }
+            if result.status == "CALCULATED" {
+                Ok(())
+            } else {
+                Err(Box::new(DesignCheckFailed(result.why.unwrap_or_else(
+                    || "coupled heating was not evaluated".into(),
+                ))))
             }
         }
     }

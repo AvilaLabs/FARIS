@@ -84,6 +84,20 @@ Open the file in any editor. You do five things.
    `plasma_chamber`, `first_wall`, `divertor`, `blanket`, `multiplier`, `shield`, `vacuum_vessel`, `tf_magnet`,
    `pf_magnet`, `cs_magnet`, `structure`, `port_plug` and `vacuum`.
 
+   A role describes a broad function. It does not identify a coil winding pack. For a coupled winding-pack heating
+   run, add `"classification": "winding_pack"` only to the exact CAD solids that represent the winding pack;
+   keep it absent for magnet cases, housings, supports and other homogenized or unsplit assemblies. Older design
+   files without this optional field still parse, and heating stays `NOT_EVALUATED` until the identity is authored.
+
+   ```json
+   {
+     "id": "tf-winding-pack-01",
+     "material_id": "tf-copper",
+     "role": "tf_magnet",
+     "classification": "winding_pack"
+   }
+   ```
+
    You may rename a solid's `id`. Ids use 1 to 28 lower-case letters, digits and hyphens. `vacuum`, `graveyard`
    and `void` are reserved, in any letter case.
 

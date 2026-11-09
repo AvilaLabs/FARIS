@@ -236,6 +236,19 @@ class WindowHelpersTest(unittest.TestCase):
         assigned = re.findall(r"\.seed = ([^\n]+)", source)
         self.assertEqual(sorted(assigned), sorted(["MGXS_SEED", "WINDOW_SEED", 'int(sampling["seed"])']))
 
+    def test_heating_request_requires_explicit_winding_pack_and_all_energy(self):
+        request = copy.deepcopy(REQUEST)
+        request["solids"][1]["classification"] = "winding_pack"
+        request["response"] = {"solid_ids": ["coil-a"], "energy_min_ev": 0.0, "peak_voxel_cm": [5.0, 5.0]}
+        DT.validate_heating_request(request)
+        request["response"]["energy_min_ev"] = 1.0e5
+        with self.assertRaisesRegex(ValueError, "all neutron energies"):
+            DT.validate_heating_request(request)
+        request["response"]["energy_min_ev"] = 0.0
+        request["solids"][1]["classification"] = None
+        with self.assertRaisesRegex(ValueError, "explicit winding-pack"):
+            DT.validate_heating_request(request)
+
     def test_window_grid_reproduces_the_research_mesh_on_the_reference_model(self):
         lower, upper, dimension = DT.window_grid([-645.0, -645.0, -381.0], [645.0, 645.0, 381.0])
         self.assertEqual((lower, upper), ([-650.0, -650.0, -386.0], [650.0, 650.0, 386.0]))

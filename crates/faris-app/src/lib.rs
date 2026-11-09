@@ -17,6 +17,7 @@ mod crash;
 mod design_check_panel;
 mod design_check_result;
 mod design_check_run;
+mod design_heating_panel;
 mod design_shared;
 mod design_tools;
 mod design_transport_panel;
@@ -434,6 +435,7 @@ struct FarisApp {
     maintenance: maintenance_panel::MaintenancePanel,
     diff: diff_panel::DiffPanel,
     design_flux: design_transport_panel::DesignTransportPanel,
+    design_heating: design_heating_panel::DesignHeatingPanel,
     design_check: design_check_panel::DesignCheckPanel,
     step: Step,
     benchmark: Option<Benchmark>,
@@ -504,6 +506,7 @@ impl FarisApp {
             maintenance: maintenance_panel::MaintenancePanel::default(),
             diff: diff_panel::DiffPanel::default(),
             design_flux: design_transport_panel::DesignTransportPanel::default(),
+            design_heating: design_heating_panel::DesignHeatingPanel::default(),
             design_check: design_check_panel::DesignCheckPanel::default(),
             step: Step::Design,
             benchmark: None,
@@ -1993,7 +1996,9 @@ impl eframe::App for FarisApp {
                 interface_size_menu(ui);
                 units_menu::menu(ui);
                 // The tool windows share one menu so the top bar fits a 1440-point window.
-                let running = self.design_check.is_running() || self.design_flux.is_running();
+                let running = self.design_check.is_running()
+                    || self.design_flux.is_running()
+                    || self.design_heating.is_running();
                 let tools_label = if running { "Tools (running)" } else { "Tools" };
                 ui.menu_button(tools_label, |ui| {
                     ui.checkbox(&mut self.maintenance.open, "Maintenance")
@@ -2015,6 +2020,13 @@ impl eframe::App for FarisApp {
                         };
                         ui.checkbox(&mut self.design_flux.open, flux_label)
                             .on_hover_text("Run the neutron flux of a checked design in its magnets, compared with its fluence limit, and watch it");
+                        let heating_label = if self.design_heating.is_running() {
+                            "Design heating (running)"
+                        } else {
+                            "Design heating"
+                        };
+                        ui.checkbox(&mut self.design_heating.open, heating_label)
+                            .on_hover_text("Run separate all-energy coupled heating in explicitly classified winding-pack solids");
                     }
                 })
                 .response
@@ -2086,9 +2098,11 @@ impl eframe::App for FarisApp {
         self.design_check.window(&ctx);
         if let Some((design, report)) = self.design_check.take_flux_request() {
             self.design_flux.prefill(Some(&design), Some(&report));
+            self.design_heating.prefill(Some(&design), Some(&report));
             self.design_flux.open = true;
         }
         self.design_flux.window(&ctx);
+        self.design_heating.window(&ctx);
         if self.sign_in_prompt
             && !self.tour.active
             && !self.notice.open
