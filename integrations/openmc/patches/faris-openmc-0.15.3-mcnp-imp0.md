@@ -124,3 +124,29 @@ and loss counts, the live-cell crossing, surface-current scoring, photon
 behavior, and explicit-marker scope. They do not qualify any FNS benchmark or
 reactor physics. Each benchmark run still needs its source, geometry, code,
 tally, and uncertainty evidence.
+
+## Coordinator-owned isolated build and control
+
+After reviewing the local disk reserve and the actual combined library path, the
+coordinator can prepare a fresh AIM-patched source snapshot, apply only the
+importance-zero patch to that copy, build with one job, check the runtime-linked
+shared library, and run the live control with:
+
+```bash
+/home/connoravila/micromamba/envs/openmc0153dd/bin/python \
+  integrations/openmc/risk_tests/build_mcnp_imp0_runtime.py \
+  --cross-sections data/raw/combined-fendl32-endfbvii1/cross_sections.xml
+```
+
+The driver refuses to reuse its output directory and requires at least 12 GiB
+free before building, preserving an 8 GiB reserve plus 4 GiB build headroom. It
+uses the full pinned OpenMC checkout at `27e38e894697bb32a1dac7848d2618818b6b8daf`;
+the checked-in AIM patch must exactly match that checkout's nine-file working
+diff. It copies that AIM-patched tree without `.git`, `build`, or `install`,
+verifies source and vendored-submodule identities before and after copying, and
+applies the imp0 patch only to the copy. The earlier `0feb9f3` development
+repository is a small patch-authoring subset and is not a buildable OpenMC
+source tree. The resulting toolchain and `build-receipt.json` are stored under
+`runs/continuation/toolchains/`; the live control receipt is written separately
+to `runs/continuation/mcnp-imp0-control-20261109-v1/control.json` only when all
+checks pass. This driver does not modify installed OpenMC environments.

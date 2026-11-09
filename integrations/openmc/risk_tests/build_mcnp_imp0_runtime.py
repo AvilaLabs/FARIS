@@ -1,0 +1,406 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
+"""Coordinator-only isolated builder and live control for OpenMC 0.15.3 imp:n=0.
+
+This driver intentionally performs a C++ build and four live transport controls
+when invoked. Review paths and free-space policy before running it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parents[3]
+SOURCE_REPO = Path("/home/connoravila/.cache/avila-night/openmc-presplit/src")
+SOURCE_HEAD = "27e38e894697bb32a1dac7848d2618818b6b8daf"
+PATCH_DEV_BASE = "0feb9f335b645988f118db264243eb0896b5b75e"
+AIM_PATCH = ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-aim.patch"
+AIM_PATCH_SHA256 = "8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc"
+IMP0_PATCH = ROOT / "integrations/openmc/patches/faris-openmc-0.15.3-mcnp-imp0.patch"
+IMP0_PATCH_SHA256 = "477bd0b0cb9e1c801c9895da44cbe0a4075426a7ea19eb48232c61e71aea7156"
+AIM_DIRTY_PATHS = {
+    "include/openmc/distribution.h",
+    "include/openmc/distribution_angle.h",
+    "include/openmc/physics.h",
+    "include/openmc/weight_windows.h",
+    "src/distribution.cpp",
+    "src/distribution_angle.cpp",
+    "src/physics.cpp",
+    "src/simulation.cpp",
+    "src/weight_windows.cpp",
+}
+SUBMODULES = {
+    "vendor/Catch2": "5a40b2275caa05cf809bf04df848764a9d7df2e2",
+    "vendor/fmt": "0c9fce2ffefecfdce794e1859584e25877b7b592",
+    "vendor/pugixml": "ee86beb30e4973f5feffe3ce63bfa4fbadf72f38",
+    "vendor/xtensor": "3634f2ded19e0cf38208c8b86cea9e1d7c8e397d",
+    "vendor/xtl": "a7c1c5444dfc57f76620391af4c94785ff82c8d6",
+}
+RESERVE_BYTES = 8 * 1024**3
+BUILD_HEADROOM_BYTES = 4 * 1024**3
+PATCH_VERSION_SYMBOL = "faris_openmc_mcnp_imp0_patch_version"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def source_manifest(root: Path) -> list[dict[str, object]]:
+    excluded = {".git", "build", "install", "__pycache__"}
+    entries: list[dict[str, object]] = []
+    for directory, names, filenames in os.walk(root):
+        current = Path(directory)
+        kept_names = []
+        for name in sorted(names):
+            path = current / name
+            if name in excluded:
+                continue
+            if path.is_symlink():
+                entries.append({
+                    "path": path.relative_to(root).as_posix(),
+                    "kind": "symlink",
+                    "target": os.readlink(path),
+                })
+                continue
+            kept_names.append(name)
+        names[:] = kept_names
+        for filename in sorted(filenames):
+            if filename == ".git":
+                continue
+            path = current / filename
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                entries.append({"path": relative, "kind": "symlink", "target": os.readlink(path)})
+            elif path.is_file():
+                entries.append({"path": relative, "kind": "file", "sha256": sha256_file(path)})
+    return entries
+
+
+def manifest_digest(manifest: list[dict[str, object]]) -> str:
+    body = json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return sha256_bytes(body.encode("utf-8"))
+
+
+def run(command: list[str], *, cwd: Path | None = None, env: dict[str, str] | None = None,
+        log: Path | None = None) -> str:
+    if log is None:
+        result = subprocess.run(command, cwd=cwd, env=env, check=True, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return result.stdout.rstrip()
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("wb") as stream:
+        subprocess.run(command, cwd=cwd, env=env, check=True, stdout=stream,
+                       stderr=subprocess.STDOUT)
+    return str(log)
+
+
+def require_free_space(path: Path, minimum_bytes: int, stage: str) -> int:
+    free = shutil.disk_usage(path).free
+    if free < minimum_bytes:
+        raise RuntimeError(
+            f"refusing {stage}: {free / 1024**3:.2f} GiB free; "
+            f"required at least {minimum_bytes / 1024**3:.2f} GiB"
+        )
+    return free
+
+
+def protected_install_hashes() -> dict[str, str]:
+    paths = []
+    for env_name in ("openmc0153dd", "openmc016"):
+        prefix = Path("/home/connoravila/micromamba/envs") / env_name
+        paths.extend([
+            prefix / "bin/openmc",
+            prefix / "lib/libopenmc.so",
+            prefix / "lib/python3.13/site-packages/openmc/__init__.py",
+            prefix / "lib/python3.13/site-packages/openmc/statepoint.py",
+        ])
+    paths.extend([
+        Path("/home/connoravila/micromamba/envs/openmc0153dd/lib/libdagmc.so"),
+        Path("/home/connoravila/micromamba/envs/openmc0153dd/lib/libuwuw.so"),
+        Path("/home/connoravila/micromamba/envs/openmc0153dd/lib/libpyne_dagmc.so"),
+        Path("/home/connoravila/micromamba/envs/openmc0153dd/lib/libMOAB.so"),
+        Path("/home/connoravila/micromamba/envs/openmc0153dd/lib/libhdf5.so"),
+    ])
+    missing = [str(path) for path in paths if not path.is_file()]
+    if missing:
+        raise RuntimeError(f"protected OpenMC/dependency runtime files are missing: {missing}")
+    return {str(path): sha256_file(path) for path in paths}
+
+
+def verify_cross_sections(path: Path) -> tuple[Path, str]:
+    selected = path.expanduser().resolve(strict=True)
+    if not selected.is_file() or selected.name != "cross_sections.xml":
+        raise ValueError("--cross-sections must be an existing cross_sections.xml file")
+    if "combined-fendl32-endfbvii1" not in selected.as_posix():
+        raise ValueError(
+            "--cross-sections must point to the audited combined-fendl32-endfbvii1 library"
+        )
+    root = ET.parse(selected).getroot()
+    if root.tag != "cross_sections":
+        raise ValueError("cross_sections.xml has an unexpected root element")
+    libraries = root.findall("library")
+    neutron_materials = {
+        material
+        for node in libraries if node.get("type") == "neutron"
+        for material in node.get("materials", "").split()
+    }
+    photon_materials = {
+        material
+        for node in libraries if node.get("type") == "photon"
+        for material in node.get("materials", "").split()
+    }
+    if len(neutron_materials) != 22:
+        raise ValueError(
+            f"combined FENDL-3.2 index must list 22 neutron nuclides; found {len(neutron_materials)}"
+        )
+    expected_photons = {"H", "Li", "Be", "F", "Ti", "Fe", "Cu", "W"}
+    if photon_materials != expected_photons:
+        raise ValueError(
+            "combined ENDF/B-VII.1 overlay must list exactly H, Li, Be, F, Ti, Fe, Cu, W"
+        )
+    return selected, sha256_file(selected)
+
+
+def verify_source_identity(source: Path) -> tuple[str, list[str], dict[str, str]]:
+    head = run(["git", "-C", str(source), "rev-parse", "HEAD"])
+    if head != SOURCE_HEAD:
+        raise RuntimeError(f"frozen OpenMC base changed: {head} != {SOURCE_HEAD}")
+    status = run(["git", "-C", str(source), "status", "--porcelain", "--untracked-files=all"])
+    modified = {line[3:] for line in status.splitlines() if line}
+    if modified != AIM_DIRTY_PATHS:
+        raise RuntimeError(f"AIM source modifications changed: {sorted(modified)}")
+    aim_diff = run_bytes(["git", "-C", str(source), "diff", "--binary", "HEAD"])
+    if sha256_bytes(aim_diff) != AIM_PATCH_SHA256:
+        raise RuntimeError("dirty AIM diff does not match the checked-in AIM patch")
+    submodule_lines = run(["git", "-C", str(source), "submodule", "status", "--recursive"])
+    submodules: dict[str, str] = {}
+    for line in submodule_lines.splitlines():
+        marker = line[0]
+        parts = line[1:].split()
+        if marker not in " " or len(parts) < 2:
+            raise RuntimeError(f"OpenMC submodule is not at its pinned commit: {line}")
+        submodules[parts[1]] = parts[0]
+    if submodules != SUBMODULES:
+        raise RuntimeError(f"OpenMC vendored submodule identities changed: {submodules}")
+    return head, sorted(modified), submodules
+
+
+def run_bytes(command: list[str], *, cwd: Path | None = None) -> bytes:
+    return subprocess.run(command, cwd=cwd, check=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE).stdout
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cross-sections", type=Path, required=True)
+    parser.add_argument(
+        "--output-dir", type=Path,
+        default=ROOT / "runs/continuation/toolchains/faris-openmc-0153-imp0-20261109-v1",
+    )
+    parser.add_argument(
+        "--openmc-python", type=Path,
+        default=Path("/home/connoravila/micromamba/envs/openmc0153dd/bin/python"),
+    )
+    args = parser.parse_args()
+
+    if sys.platform != "linux":
+        raise RuntimeError("this reviewed toolchain identity check is Linux-only (ldd)")
+    if Path("/tmp") in ROOT.resolve().parents:
+        raise RuntimeError("run the coordinator build from the primary checkout, not a /tmp worktree")
+    if not SOURCE_REPO.is_dir():
+        raise RuntimeError(f"frozen full OpenMC source checkout is missing: {SOURCE_REPO}")
+    output = args.output_dir.expanduser().resolve(strict=False)
+    if output.exists():
+        raise RuntimeError(f"refusing to reuse toolchain directory: {output}")
+    if not output.is_relative_to(ROOT):
+        raise RuntimeError("toolchain output must remain under this repository's ignored runs/ tree")
+    if subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", str(output.relative_to(ROOT))],
+                      check=False).returncode != 0:
+        raise RuntimeError("toolchain output path is not ignored by Git")
+
+    cross_sections, cross_sections_sha = verify_cross_sections(args.cross_sections)
+    openmc_python = args.openmc_python.expanduser().resolve(strict=True)
+    if not openmc_python.is_file() or not os.access(openmc_python, os.X_OK):
+        raise RuntimeError("--openmc-python must name an executable file")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    initial_free = require_free_space(output.parent, RESERVE_BYTES + BUILD_HEADROOM_BYTES,
+                                     "starting isolated OpenMC build")
+    head, dirty_files, submodules = verify_source_identity(SOURCE_REPO)
+    if sha256_file(AIM_PATCH) != AIM_PATCH_SHA256:
+        raise RuntimeError("checked-in AIM patch hash changed")
+    if sha256_file(IMP0_PATCH) != IMP0_PATCH_SHA256:
+        raise RuntimeError("checked-in imp0 patch hash changed")
+    license_path = SOURCE_REPO / "LICENSE"
+    license_sha = sha256_file(license_path)
+    manifest_before = source_manifest(SOURCE_REPO)
+    manifest_before_sha = manifest_digest(manifest_before)
+    protected_before = protected_install_hashes()
+
+    output.mkdir()
+    source = output / "source"
+    shutil.copytree(
+        SOURCE_REPO,
+        source,
+        ignore=shutil.ignore_patterns(".git", "build", "install", "__pycache__"),
+        symlinks=True,
+    )
+    manifest_copied = source_manifest(source)
+    manifest_after_copy = source_manifest(SOURCE_REPO)
+    if manifest_copied != manifest_before or manifest_after_copy != manifest_before:
+        raise RuntimeError("source tree changed during copy or differs from its frozen manifest")
+    if (source / ".git").exists() or (source / "build").exists() or (source / "install").exists():
+        raise RuntimeError("source snapshot unexpectedly contains Git metadata or build/install outputs")
+
+    patch_log = output / "patch-application.log"
+    with patch_log.open("wb") as stream:
+        subprocess.run(["patch", "--dry-run", "--batch", "-p1", "-i", str(IMP0_PATCH)],
+                       cwd=source, check=True, stdout=stream, stderr=subprocess.STDOUT)
+    with patch_log.open("ab") as stream:
+        subprocess.run(["patch", "--batch", "-p1", "-i", str(IMP0_PATCH)],
+                       cwd=source, check=True, stdout=stream, stderr=subprocess.STDOUT)
+    with patch_log.open("ab") as stream:
+        subprocess.run(["patch", "--dry-run", "--batch", "-R", "-p1", "-i", str(IMP0_PATCH)],
+                       cwd=source, check=True, stdout=stream, stderr=subprocess.STDOUT)
+    if source_manifest(SOURCE_REPO) != manifest_before:
+        raise RuntimeError("the original OpenMC source changed while preparing the copy")
+
+    build = output / "build"
+    cmake = [
+        "cmake", "-S", str(source), "-B", str(build), "-G", "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        f"-DCMAKE_CXX_COMPILER=/usr/bin/c++",
+        f"-DCMAKE_MAKE_PROGRAM=/home/connoravila/.cache/avila-night/envs/buildtools/bin/ninja",
+        f"-DCMAKE_INSTALL_PREFIX={build / 'install'}",
+        "-DOPENMC_USE_DAGMC=ON", "-DOPENMC_USE_LIBMESH=OFF",
+        "-DOPENMC_USE_MPI=OFF", "-DOPENMC_USE_OPENMP=ON", "-DOPENMC_USE_UWUW=OFF",
+        "-DHDF5_ROOT=/home/connoravila/micromamba/envs/openmc0153dd",
+        "-DDAGMC_DIR=/home/connoravila/.cache/avila-night/openmc-presplit/cmake-shim/dagmc",
+        "-DMOAB_DIR=/home/connoravila/.cache/avila-night/openmc-presplit/cmake-shim/MOAB",
+    ]
+    require_free_space(output, RESERVE_BYTES, "configuring OpenMC")
+    run(cmake, log=output / "cmake-configure.log")
+    require_free_space(output, RESERVE_BYTES, "building OpenMC")
+    run(["cmake", "--build", str(build), "--target", "openmc", "--parallel", "1"],
+        log=output / "cmake-build.log")
+    require_free_space(output, RESERVE_BYTES, "running the live control")
+
+    executable = build / "bin/openmc"
+    library = build / "lib/libopenmc.so"
+    if not executable.is_file() or not library.is_file():
+        raise RuntimeError("expected patched OpenMC CLI/shared library outputs are missing")
+    runtime_env = os.environ.copy()
+    prior_library_path = runtime_env.get("LD_LIBRARY_PATH", "")
+    runtime_env["LD_LIBRARY_PATH"] = str(library.parent) + (
+        os.pathsep + prior_library_path if prior_library_path else ""
+    )
+    linked = run(["ldd", str(executable)], env=runtime_env)
+    if str(library.resolve()) not in linked:
+        raise RuntimeError("built CLI does not resolve to the new isolated libopenmc.so")
+    dll = ctypes.CDLL(str(library.resolve()))
+    try:
+        patch_version = ctypes.c_int.in_dll(dll, PATCH_VERSION_SYMBOL).value
+    except ValueError as error:
+        raise RuntimeError("isolated shared library lacks the imp0 capability symbol") from error
+    if patch_version != 1:
+        raise RuntimeError(f"unexpected isolated patch version {patch_version}")
+    py_version = run([str(openmc_python), "-c", "import openmc; print(openmc.__version__)"])
+    if py_version != "0.15.3":
+        raise RuntimeError(f"OpenMC Python runtime is {py_version}, expected 0.15.3")
+
+    control_dir = ROOT / "runs/continuation/mcnp-imp0-control-20261109-v1"
+    if control_dir.exists():
+        raise RuntimeError(f"refusing to reuse existing control directory: {control_dir}")
+    control_cmd = [
+        str(openmc_python), str(ROOT / "integrations/openmc/risk_tests/imp0_entry_control.py"),
+        "--openmc-executable", str(executable),
+        "--cross-sections", str(cross_sections),
+        "--output-dir", str(control_dir),
+    ]
+    run(control_cmd, env=runtime_env, log=output / "imp0-control.log")
+    control_path = control_dir / "control.json"
+    control = json.loads(control_path.read_text(encoding="utf-8"))
+    receipt_digest = control.get("receipt_sha256")
+    body = {key: value for key, value in control.items() if key != "receipt_sha256"}
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if receipt_digest != sha256_bytes(canonical) or control.get("status") != "PASS":
+        raise RuntimeError("the live imp0 control receipt failed its status or canonical digest check")
+    protected_after = protected_install_hashes()
+    if protected_after != protected_before:
+        raise RuntimeError("an installed OpenMC runtime or shared dependency changed during the build")
+
+    patched_manifest = source_manifest(source)
+    report = {
+        "schema": "faris.openmc-mcnp-imp0-build/1.0.0",
+        "status": "PASS",
+        "source": {
+            "path": str(SOURCE_REPO), "git_head": head,
+            "patch_development_subset_commit_nonbuildable": PATCH_DEV_BASE,
+            "dirty_aim_files": dirty_files,
+            "aim_patch_sha256": AIM_PATCH_SHA256,
+            "imp0_patch_sha256": IMP0_PATCH_SHA256,
+            "license_path": str(license_path), "license_sha256": license_sha,
+            "manifest_sha256": manifest_before_sha,
+            "copied_manifest_sha256": manifest_digest(manifest_copied),
+            "source_manifest_after_copy_sha256": manifest_digest(manifest_after_copy),
+            "patched_source_manifest_sha256": manifest_digest(patched_manifest),
+            "submodules": submodules,
+        },
+        "build": {
+            "source_path": str(source), "build_path": str(build),
+            "cmake_command": cmake, "parallel_jobs": 1,
+            "cmake_version": run(["cmake", "--version"]).splitlines()[0],
+            "cxx_compiler_path": "/usr/bin/c++",
+            "openmc_cli_path": str(executable), "openmc_cli_sha256": sha256_file(executable),
+            "linked_library_path": str(library.resolve()),
+            "linked_library_sha256": sha256_file(library),
+            "ldd": linked, "patch_version": patch_version,
+            "openmc_python_path": str(openmc_python),
+            "openmc_python_sha256": sha256_file(openmc_python),
+            "openmc_python_version": py_version,
+        },
+        "protected_installed_runtime_hashes_before_after": {
+            path: {"before_sha256": digest, "after_sha256": protected_after[path]}
+            for path, digest in protected_before.items()
+        },
+        "control": {
+            "path": str(control_path), "receipt_sha256": receipt_digest,
+            "file_sha256": sha256_file(control_path),
+            "cross_sections_path": str(cross_sections),
+            "cross_sections_sha256": cross_sections_sha,
+        },
+        "disk": {
+            "initial_free_bytes": initial_free,
+            "free_after": shutil.disk_usage(output).free,
+            "required_reserve_bytes": RESERVE_BYTES,
+        },
+    }
+    (output / "build-receipt.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
+    )
+    print(json.dumps({"status": "PASS", "toolchain": str(output),
+                      "receipt": str(output / "build-receipt.json"),
+                      "control": str(control_path)}, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
