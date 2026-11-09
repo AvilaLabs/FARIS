@@ -40,6 +40,8 @@ pub const DEFAULT_DEVIATION_POINTS: usize = 2000;
 pub const DEFAULT_DEVIATION_BOUND_QUERIES: usize = 100_000;
 /// Maximum recursive facet subdivision depth for the global GEO-032 bound.
 pub const DEFAULT_DEVIATION_BOUND_DEPTH: usize = 18;
+/// DAGMC stochastic volume samples per cell for GEO-030.
+pub const DEFAULT_STOCHASTIC_VOLUME_SAMPLES: usize = 100_000;
 /// Threads the converter imprints with.
 pub const DEFAULT_IMPRINT_THREADS: u32 = 4;
 
@@ -246,6 +248,70 @@ pub struct DeviationOutcome {
     pub method: String,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct StochasticVolumeTarget {
+    pub volume: u32,
+    pub global_id: i64,
+    pub solid_id: String,
+    pub material_tag: String,
+    pub cad_volume_m3: f64,
+    pub faceted_volume_m3: f64,
+}
+
+pub struct StochasticVolumeRequest<'a> {
+    pub h5m: &'a Path,
+    pub h5m_sha256: &'a str,
+    pub targets: &'a [StochasticVolumeTarget],
+    pub surface_ids: &'a [i64],
+    pub bounds_m: [[f64; 3]; 2],
+    pub samples: usize,
+    pub seed: u64,
+    pub directory: &'a Path,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct StochasticVolumeRow {
+    pub volume: u32,
+    pub global_id: i64,
+    pub solid_id: String,
+    pub material_tag: String,
+    pub cad_volume_cm3: f64,
+    pub faceted_volume_cm3: f64,
+    pub openmc_volume_cm3: f64,
+    pub standard_error_cm3: f64,
+    pub samples: u64,
+    pub absolute_difference_cm3: f64,
+    pub allowed_difference_cm3: f64,
+    pub relative_difference: f64,
+    pub verdict: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct StochasticVolumeBoundsCm {
+    pub lower_left: [f64; 3],
+    pub upper_right: [f64; 3],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct StochasticVolumeOutcome {
+    pub run_directory: String,
+    pub scope: String,
+    pub criterion: String,
+    pub source_h5m_sha256: String,
+    pub cross_sections_sha256: String,
+    pub request_sha256: String,
+    pub volume_result_sha256: String,
+    pub samples: u64,
+    pub seed: u64,
+    pub unit: String,
+    pub bounds_cm: StochasticVolumeBoundsCm,
+    pub dummy_material_names: Vec<String>,
+    pub versions: serde_json::Value,
+    pub seconds: f64,
+    pub rows: Vec<StochasticVolumeRow>,
+    pub helper_sha256: String,
+}
+
 pub struct SourceRequest<'a> {
     pub plasma: &'a Plasma,
     pub count: usize,
@@ -284,6 +350,7 @@ pub struct GeometryOptions {
     pub deviation_points: usize,
     pub deviation_bound_queries: usize,
     pub deviation_bound_depth: usize,
+    pub stochastic_volume_samples: usize,
     pub imprint_threads: u32,
     pub cancellation: Cancellation,
     pub progress: Option<ProgressFn>,
@@ -302,6 +369,7 @@ impl Default for GeometryOptions {
             deviation_points: DEFAULT_DEVIATION_POINTS,
             deviation_bound_queries: DEFAULT_DEVIATION_BOUND_QUERIES,
             deviation_bound_depth: DEFAULT_DEVIATION_BOUND_DEPTH,
+            stochastic_volume_samples: DEFAULT_STOCHASTIC_VOLUME_SAMPLES,
             imprint_threads: DEFAULT_IMPRINT_THREADS,
             cancellation: Cancellation::default(),
             progress: None,
@@ -448,6 +516,9 @@ pub struct GeometryRecords {
     /// Per-solid faceted volume against the CAD volume, and the tolerance it was converted at.
     #[serde(default)]
     pub volume_gate: Option<VolumeGate>,
+    /// OpenMC geometry-only stochastic volumes against CAD volumes (GEO-030).
+    #[serde(default)]
+    pub stochastic_volume: Option<StochasticVolumeOutcome>,
     pub integrity: Option<IntegrityRecord>,
     pub deviation: Option<DeviationRecord>,
     pub sources: Option<SourceRecord>,
@@ -943,11 +1014,13 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         .unwrap_or(model.mesh.diagonal() * 1.0e-9);
     let mut bound = binding::bind(design, &stats, diagonal);
     records.binding = bound.rows.clone();
+    let binding_resolved = bound.volume_solid.is_some() && bound.findings.is_empty();
     let (gate, gate_findings) = binding::volume_gate(
         &bound.rows,
         chord_m,
         design.cad.faceting_tolerance_m.is_some(),
     );
+    let faceted_volume_gate_passed = gate_findings.is_empty();
     bound.findings.extend(gate_findings);
     let largest = bound
         .rows
@@ -955,7 +1028,6 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         .filter_map(|r| r.volume_relative_difference)
         .map(f64::abs)
         .fold(0.0, f64::max);
-    clock(&mut records, "check 7", started);
     let mut subs7 = vec![sub("binding by volume and centroid", &[])];
     subs7[0].note = Some(format!(
         "the largest volume difference is {:.4} % of the CAD volume; the limit is {:.1} % at the {} faceting tolerance of {chord_m:.3e} m",
@@ -964,6 +1036,119 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         gate.tolerance_source
     ));
     records.volume_gate = Some(gate.clone());
+    let mut stochastic_sub = sub("OpenMC stochastic cell volumes (GEO-030)", &["GEO-030"]);
+    let mut stochastic_findings = Vec::new();
+    if !binding_resolved || !faceted_volume_gate_passed {
+        stochastic_sub.not_evaluated = Some((
+            "OpenMC stochastic volumes were skipped because binding or the faceted volume gate did not pass".into(),
+            "Resolve the earlier GEO-019/GEO-030 findings, then run design check again.".into(),
+        ));
+    } else {
+        let mut targets = Vec::with_capacity(bound.rows.len());
+        let mut mapping_problem = None;
+        for volume in &converted.manifest.volumes {
+            let Some(row) = bound.rows.iter().find(|row| row.volume == volume.index) else {
+                mapping_problem = Some(format!(
+                    "converted volume {} has no bound CAD solid",
+                    volume.index
+                ));
+                break;
+            };
+            let (Some(solid_id), Some(cad_volume_m3), Some(material_tag)) = (
+                row.solid_id.as_ref(),
+                row.cad_volume_m3,
+                volume.material_tag.as_ref(),
+            ) else {
+                mapping_problem = Some(format!(
+                    "converted volume {} does not have a bound CAD solid and material tag",
+                    volume.index
+                ));
+                break;
+            };
+            if row.global_id != volume.global_id || row.material_tag.as_ref() != Some(material_tag)
+            {
+                mapping_problem = Some(format!(
+                    "converted volume {} has a manifest/binding ID or material-tag mismatch",
+                    volume.index
+                ));
+                break;
+            }
+            targets.push(StochasticVolumeTarget {
+                volume: volume.index,
+                global_id: volume.global_id,
+                solid_id: solid_id.clone(),
+                material_tag: material_tag.clone(),
+                cad_volume_m3,
+                faceted_volume_m3: row.faceted_volume_m3,
+            });
+        }
+        if let Some(why) = mapping_problem {
+            stochastic_sub.not_evaluated = Some((
+                why,
+                "Repair the converted DAGMC volume mapping and run design check again.".into(),
+            ));
+        } else {
+            let h5m = work.join("convert").join(&converted.report.h5m.file);
+            let surface_ids: Vec<i64> = converted
+                .manifest
+                .surfaces
+                .iter()
+                .map(|s| s.global_id)
+                .collect();
+            let bounds_m = [
+                mesh::to_metres(model.mesh.lo),
+                mesh::to_metres(model.mesh.hi),
+            ];
+            match backends.stochastic_volumes(&StochasticVolumeRequest {
+                h5m: &h5m,
+                h5m_sha256: &converted.report.h5m.sha256,
+                targets: &targets,
+                surface_ids: &surface_ids,
+                bounds_m,
+                samples: options.stochastic_volume_samples,
+                seed: options.seed,
+                directory: &work.join("stochastic-volume"),
+            })? {
+                ToolResult::Done(out) => {
+                    for row in &out.rows {
+                        if row.verdict == "EXCEEDED" {
+                            stochastic_findings.push(
+                                Finding::new(
+                                    7,
+                                    format!("solid {:?}: OpenMC stochastic volume", row.solid_id),
+                                    format!(
+                                        "OpenMC volume {:.6e} cm3 differs from CAD volume {:.6e} cm3 by {:.6e} cm3, beyond max(0.5% of CAD, 3 SE) = {:.6e} cm3 ({} samples, SE {:.6e} cm3)",
+                                        row.openmc_volume_cm3, row.cad_volume_cm3,
+                                        row.absolute_difference_cm3, row.allowed_difference_cm3,
+                                        row.samples, row.standard_error_cm3,
+                                    ),
+                                    "Check the CAD solid, its DAGMC cell mapping, and the conversion tolerance; then run design check again.",
+                                )
+                                .requirement("GEO-030")
+                                .cells(vec![row.solid_id.clone()]),
+                            );
+                        }
+                    }
+                    records.stochastic_volume = Some(out);
+                }
+                ToolResult::Unavailable { why, next_step } => {
+                    stochastic_sub.not_evaluated = Some((why, next_step));
+                }
+                ToolResult::Failed { why, next_step } => {
+                    stochastic_findings.push(tool_finding(
+                        7,
+                        "OpenMC stochastic cell volumes",
+                        why,
+                        next_step,
+                        "GEO-030",
+                    ));
+                }
+            }
+        }
+    }
+    subs7.push(stochastic_sub);
+    bound.findings.extend(stochastic_findings);
+    clock(&mut records, "check 7", started);
     let seven = finish(7, bound.findings, subs7, &mut waivers);
     let seven_pass = seven.status == CheckStatus::Pass;
     report.checks.push(seven);

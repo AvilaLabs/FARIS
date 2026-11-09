@@ -111,6 +111,9 @@ pub enum DesignCommand {
         /// Maximum recursive subdivision depth for the GEO-032 global proof.
         #[arg(long, default_value_t = 18)]
         deviation_bound_depth: usize,
+        /// Stochastic OpenMC volume samples per DAGMC cell for GEO-030.
+        #[arg(long, default_value_t = 100_000)]
+        stochastic_volume_samples: usize,
         /// Threads the converter may use to imprint.
         #[arg(long, default_value_t = 4)]
         imprint_threads: u32,
@@ -251,6 +254,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             deviation_points,
             deviation_bound_queries,
             deviation_bound_depth,
+            stochastic_volume_samples,
             threads,
             seed,
             samples,
@@ -274,6 +278,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 deviation_points,
                 deviation_bound_queries,
                 deviation_bound_depth,
+                stochastic_volume_samples,
                 imprint_threads,
                 cancellation: cancel,
                 progress: Some(progress_printer()),

@@ -17,8 +17,10 @@ struct Geo {
     booleans: RefCell<Vec<BooleanResult>>,
     convert_failure: Option<String>,
     deviation: Option<Vec<DeviationRow>>,
+    stochastic_volume_exceeded: bool,
+    stochastic_volume_unavailable: bool,
     sites: Vec<[f64; 3]>,
-    calls: Cell<[u32; 5]>,
+    calls: Cell<[u32; 6]>,
 }
 
 impl Geo {
@@ -155,12 +157,85 @@ impl Backends for Geo {
         })
     }
     fn source_sites(&self, _: &SourceRequest) -> Result<ToolResult<SourceOutcome>, DesignError> {
-        self.bump(4);
+        self.bump(5);
         Ok(ToolResult::Done(SourceOutcome {
             points: self.sites.clone(),
             versions: serde_json::json!({"openmc": "0.15.3"}),
             bin_sha256: "s".repeat(64),
             seconds: 0.2,
+        }))
+    }
+    fn stochastic_volumes(
+        &self,
+        request: &StochasticVolumeRequest,
+    ) -> Result<ToolResult<StochasticVolumeOutcome>, DesignError> {
+        self.bump(4);
+        let rows = request
+            .targets
+            .iter()
+            .map(|target| {
+                let cad_volume_cm3 = target.cad_volume_m3 * 1.0e6;
+                let openmc_volume_cm3 = cad_volume_cm3
+                    * if self.stochastic_volume_exceeded {
+                        1.006
+                    } else {
+                        1.0
+                    };
+                let standard_error_cm3 = cad_volume_cm3 * 0.001;
+                let allowed_difference_cm3 =
+                    binding::stochastic_volume_allowance_cm3(cad_volume_cm3, standard_error_cm3);
+                StochasticVolumeRow {
+                    volume: target.volume,
+                    global_id: target.global_id,
+                    solid_id: target.solid_id.clone(),
+                    material_tag: target.material_tag.clone(),
+                    cad_volume_cm3,
+                    faceted_volume_cm3: target.faceted_volume_m3 * 1.0e6,
+                    openmc_volume_cm3,
+                    standard_error_cm3,
+                    samples: request.samples as u64,
+                    absolute_difference_cm3: (openmc_volume_cm3 - cad_volume_cm3).abs(),
+                    allowed_difference_cm3,
+                    relative_difference: (openmc_volume_cm3 - cad_volume_cm3) / cad_volume_cm3,
+                    verdict: if self.stochastic_volume_exceeded {
+                        "EXCEEDED"
+                    } else {
+                        "WITHIN"
+                    }
+                    .into(),
+                }
+            })
+            .collect();
+        if self.stochastic_volume_unavailable {
+            return Ok(ToolResult::Unavailable {
+                why: "OpenMC unavailable in fixture".into(),
+                next_step: "Configure OpenMC".into(),
+            });
+        }
+        Ok(ToolResult::Done(StochasticVolumeOutcome {
+            run_directory: "fixture-run".into(),
+            scope: "geometry-only test fixture".into(),
+            criterion: "absolute difference <= max(0.5% of CAD volume, 3 standard errors)".into(),
+            source_h5m_sha256: request.h5m_sha256.into(),
+            cross_sections_sha256: "c".repeat(64),
+            request_sha256: "r".repeat(64),
+            volume_result_sha256: "v".repeat(64),
+            samples: request.samples as u64,
+            seed: request.seed,
+            unit: "cm3".into(),
+            bounds_cm: StochasticVolumeBoundsCm {
+                lower_left: [-1.0; 3],
+                upper_right: [1.0; 3],
+            },
+            dummy_material_names: request
+                .targets
+                .iter()
+                .map(|t| t.material_tag.clone())
+                .collect(),
+            versions: serde_json::json!({"openmc":"fixture"}),
+            seconds: 0.1,
+            rows,
+            helper_sha256: "h".repeat(64),
         }))
     }
 }
@@ -218,8 +293,10 @@ fn geo() -> Geo {
                 at_m: Some([0.0, 0.0, 2.0]),
             },
         ]),
+        stochastic_volume_exceeded: false,
+        stochastic_volume_unavailable: false,
         sites,
-        calls: Cell::new([0; 5]),
+        calls: Cell::new([0; 6]),
     }
 }
 
@@ -321,6 +398,17 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     assert!(conv.volumes[0].triangles > 0 && conv.volumes[0].vertices > 0);
     assert_eq!(g.binding.len(), 2);
     assert_eq!(g.binding[0].solid_id.as_deref(), Some("shell"));
+    let stochastic = g.stochastic_volume.as_ref().unwrap();
+    assert_eq!(stochastic.rows.len(), 2);
+    assert_eq!(stochastic.samples, 100_000);
+    assert_eq!(stochastic.unit, "cm3");
+    assert!(stochastic.scope.contains("geometry-only"));
+    assert!(stochastic.rows.iter().all(|row| row.verdict == "WITHIN"));
+    for (stochastic, binding) in stochastic.rows.iter().zip(&g.binding) {
+        assert_eq!(stochastic.volume, binding.volume);
+        assert_eq!(stochastic.global_id, binding.global_id);
+        assert_eq!(stochastic.solid_id, binding.solid_id.as_deref().unwrap());
+    }
     let integrity = g.integrity.as_ref().unwrap();
     assert_eq!(integrity.volumes.len(), 2);
     assert!(integrity.partition.as_ref().unwrap().sigmas <= 3.0);
@@ -367,6 +455,44 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
         ("design file", 0.005)
     );
     assert_eq!(gate.solids[0].verdict, "WITHIN");
+}
+
+// Verifies: GEO-030
+#[test]
+fn openmc_stochastic_volume_exceedance_is_reported_per_cell_and_cannot_be_waived() {
+    let mut backend = geo();
+    backend.stochastic_volume_exceeded = true;
+    let report = run_with(&design(Vec::new()), &backend);
+    assert_eq!(report.checks[1].status, Fail);
+    let finding = report.checks[1]
+        .findings
+        .iter()
+        .find(|finding| finding.requirement.as_deref() == Some("GEO-030"))
+        .unwrap();
+    assert_eq!(finding.cells, ["shell"]);
+    assert!(finding.why.contains("max(0.5% of CAD, 3 SE)"));
+    assert!(!finding.waivable);
+    assert_eq!(
+        report.geometry.stochastic_volume.as_ref().unwrap().rows[0].verdict,
+        "EXCEEDED"
+    );
+    let waived = run_with(&design(vec![waiver("GEO-030", &["shell"])]), &backend);
+    assert_eq!(waived.checks[1].status, Fail);
+}
+
+#[test]
+fn missing_openmc_volume_measurement_is_not_evaluated_or_accepted() {
+    let mut backend = geo();
+    backend.stochastic_volume_unavailable = true;
+    let report = run_with(&design(Vec::new()), &backend);
+    assert_eq!(report.checks[1].status, NotEvaluated);
+    assert!(report.geometry.stochastic_volume.is_none());
+    assert_eq!(report.checks.len(), 2);
+    assert_eq!(
+        backend.count(5),
+        0,
+        "check 8 cannot follow an unresolved GEO-030 gate"
+    );
 }
 
 // Verifies: GEO-021
@@ -450,7 +576,11 @@ fn a_tag_on_the_wrong_solid_stops_at_check_7() {
             .why
             .contains("tag on the wrong solid")
     );
-    assert_eq!(b.count(3) + b.count(4), 0, "later stages did not run");
+    assert_eq!(
+        b.count(3) + b.count(4) + b.count(5),
+        0,
+        "later stages did not run"
+    );
 }
 
 // Verifies: GEO-020
@@ -472,7 +602,7 @@ fn an_integrity_failure_stops_before_the_source_sites() {
             .iter()
             .any(|f| f.requirement.as_deref() == Some("GEO-020") && !f.waivable)
     );
-    assert_eq!(b.count(4), 0);
+    assert_eq!(b.count(5), 0);
 }
 
 // Verifies: GEO-032

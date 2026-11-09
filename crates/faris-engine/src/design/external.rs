@@ -5,18 +5,20 @@
 //! bounded job. The helpers are embedded in the binary and written next to the
 //! job's products, so what ran is what the report's hash says.
 
+use super::binding;
 use super::geometry::{
     BooleanOutcome, BooleanRequest, ConversionReport, ConvertOutcome, ConvertRequest,
     DeviationOutcome, DeviationRequest, DeviationRow, SourceOutcome, SourceRequest,
-    TessellateOutcome, TessellateRequest, ToolResult,
+    StochasticVolumeBoundsCm, StochasticVolumeOutcome, StochasticVolumeRequest,
+    StochasticVolumeRow, TessellateOutcome, TessellateRequest, ToolResult,
 };
 use super::overlap::BooleanResult;
 use super::reader::{ActiveReader, NativeReader, ReaderStamp};
 use super::{
     BOOLEAN_TIMEOUT, CAD_ADDRESS_SPACE, CAD_DEVIATION_HELPER, CAD_FACETS_HELPER, CAD_HELPER,
-    CONVERT_TIMEOUT, DEVIATION_TIMEOUT, DesignError, ExternalBackends, Launched,
-    SOURCE_SITES_HELPER, SOURCE_TIMEOUT, TESSELLATE_TIMEOUT, io_error, launch_python,
-    read_json_bounded, sha256_file, sha256_hex, tail,
+    CONVERT_TIMEOUT, DESIGN_VOLUME_HELPER, DEVIATION_TIMEOUT, DesignError, ExternalBackends,
+    Launched, SOURCE_SITES_HELPER, SOURCE_TIMEOUT, STOCHASTIC_VOLUME_TIMEOUT, TESSELLATE_TIMEOUT,
+    io_error, launch_python, read_json_bounded, sha256_file, sha256_hex, tail,
 };
 use crate::jobs::ResourceLimits;
 use faris_model::design::{LengthUnit, load_facets};
@@ -28,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     ffi::OsString,
     path::{Path, PathBuf},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 fn missing_python<T>(what: &str, kind: &str) -> ToolResult<T> {
@@ -732,6 +734,304 @@ pub(super) fn deviation(
         rows: report.solids,
         seconds: report.timing_seconds.get("total").copied().unwrap_or(0.0),
         method: report.method,
+    }))
+}
+
+#[derive(Deserialize)]
+struct RawStochasticVolumeRow {
+    volume: u32,
+    global_id: i64,
+    solid_id: String,
+    material_tag: String,
+    cad_volume_cm3: f64,
+    faceted_volume_cm3: f64,
+    openmc_volume_cm3: f64,
+    standard_error_cm3: f64,
+    samples: u64,
+}
+
+#[derive(Deserialize)]
+struct StochasticVolumeReport {
+    schema: String,
+    scope: String,
+    source_h5m_sha256: String,
+    cross_sections_sha256: String,
+    request_sha256: String,
+    volume_result_sha256: String,
+    samples: u64,
+    seed: u64,
+    unit: String,
+    bounds_cm: StochasticVolumeBoundsCm,
+    dummy_material_names: Vec<String>,
+    versions: serde_json::Value,
+    seconds: f64,
+    rows: Vec<RawStochasticVolumeRow>,
+}
+
+/// Run OpenMC's measured DAGMC stochastic volume calculation as a geometry-only bounded job.
+pub(super) fn stochastic_volumes(
+    ext: &ExternalBackends,
+    request: &StochasticVolumeRequest,
+) -> Result<ToolResult<StochasticVolumeOutcome>, DesignError> {
+    let Some(python) = ext.tools.openmc_python.as_deref() else {
+        return Ok(ToolResult::Unavailable {
+            why: "no OpenMC interpreter is configured, so per-cell stochastic volumes cannot be measured".into(),
+            next_step: "Pass --openmc-python PATH to an OpenMC installation and check again.".into(),
+        });
+    };
+    let Some(cross_sections) = ext.tools.cross_sections.as_deref() else {
+        return Ok(ToolResult::Unavailable {
+            why: "no cross_sections.xml is configured for OpenMC geometry initialization".into(),
+            next_step: "Pass --cross-sections PATH (or set FARIS_CROSS_SECTIONS) and check again."
+                .into(),
+        });
+    };
+    let h5m = request
+        .h5m
+        .canonicalize()
+        .map_err(|e| io_error(request.h5m, e))?;
+    let actual_h5m_sha256 = sha256_file(&h5m)?;
+    if !actual_h5m_sha256.eq_ignore_ascii_case(request.h5m_sha256) {
+        return Ok(ToolResult::Failed {
+            why: format!(
+                "the DAGMC H5M changed before its stochastic volume check (expected {}, got {actual_h5m_sha256})",
+                request.h5m_sha256
+            ),
+            next_step: "Keep the converted model directory intact and run design check again."
+                .into(),
+        });
+    }
+    let cross_sections = cross_sections
+        .canonicalize()
+        .map_err(|e| io_error(cross_sections, e))?;
+    if !cross_sections.is_file() {
+        return Ok(ToolResult::Unavailable {
+            why: format!("{} is not a file", cross_sections.display()),
+            next_step: "Pass a readable cross_sections.xml and check again.".into(),
+        });
+    }
+    let cross_sections_sha256 = sha256_file(&cross_sections)?;
+    let py_abs = std::path::absolute(python).unwrap_or_else(|_| python.to_path_buf());
+    let Some(bin_dir) = py_abs.parent() else {
+        return Ok(ToolResult::Unavailable {
+            why: "the OpenMC interpreter path has no parent directory from which to select its paired CLI".into(),
+            next_step: "Pass --openmc-python from an OpenMC environment that also contains the openmc CLI.".into(),
+        });
+    };
+    #[cfg(windows)]
+    let openmc_exec = bin_dir.join("openmc.exe");
+    #[cfg(not(windows))]
+    let openmc_exec = bin_dir.join("openmc");
+    if !openmc_exec.is_file() {
+        return Ok(ToolResult::Unavailable {
+            why: format!("the OpenMC CLI paired with {} was not found at {}", python.display(), openmc_exec.display()),
+            next_step: "Pass --openmc-python from an OpenMC environment that contains its matching openmc executable.".into(),
+        });
+    }
+    let openmc_cli_sha256 = sha256_file(&openmc_exec)?;
+    let python_sha256 = sha256_file(python)?;
+
+    let base_dir = request.directory;
+    std::fs::create_dir_all(base_dir).map_err(|e| io_error(base_dir, e))?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let dir = base_dir.join(format!("run-{}-{stamp}", std::process::id()));
+    std::fs::create_dir(&dir).map_err(|e| io_error(&dir, e))?;
+    let dir = dir.canonicalize().map_err(|e| io_error(&dir, e))?;
+    let helper = dir.join("design_volume.py");
+    write_text(&helper, DESIGN_VOLUME_HELPER)?;
+    let request_path = dir.join("volume_request.json");
+    let body = serde_json::json!({
+        "schema": "faris-design-volume-request/v1",
+        "h5m_sha256": request.h5m_sha256,
+        "cross_sections_sha256": cross_sections_sha256,
+        "targets": request.targets,
+        "surface_ids": request.surface_ids,
+        "bounds_m": {"lower_left": request.bounds_m[0], "upper_right": request.bounds_m[1]},
+        "samples": request.samples,
+        "seed": request.seed,
+    });
+    write_text(&request_path, &body.to_string())?;
+    let report_path = dir.join("stochastic_volumes.json");
+    let arguments: Vec<OsString> = vec![
+        helper.into_os_string(),
+        "--request".into(),
+        request_path.into_os_string(),
+        "--h5m".into(),
+        h5m.as_os_str().to_owned(),
+        "--cross-sections".into(),
+        cross_sections.into_os_string(),
+        "--openmc-exec".into(),
+        openmc_exec.as_os_str().to_owned(),
+        "--out-dir".into(),
+        dir.as_os_str().to_owned(),
+        "--report".into(),
+        report_path.clone().into_os_string(),
+    ];
+    let mut env = job_environment(&dir)?;
+    // OpenMC may initialize MPI even though the calculation is geometry-only.
+    env.push(("HOME".into(), dir.as_os_str().to_owned()));
+    match launch_python(
+        python,
+        arguments,
+        &dir,
+        STOCHASTIC_VOLUME_TIMEOUT,
+        "the OpenMC stochastic volume calculation",
+        ext.cancellation,
+        env,
+        ResourceLimits::default(),
+    )? {
+        Launched::Succeeded(_) => {}
+        Launched::Failed(text) => {
+            return Ok(ToolResult::Failed {
+                why: text,
+                next_step: "Check the selected OpenMC Python and matching CLI, DAGMC cell IDs, H5M, and cross_sections.xml; then check again.".into(),
+            });
+        }
+    }
+    if sha256_file(&h5m)? != actual_h5m_sha256
+        || sha256_file(&cross_sections)? != cross_sections_sha256
+        || sha256_file(&openmc_exec)? != openmc_cli_sha256
+        || sha256_file(python)? != python_sha256
+    {
+        return Ok(ToolResult::Failed {
+            why: "OpenMC, Python, or cross_sections.xml changed while the stochastic volume check was running".into(),
+            next_step: "Keep the selected OpenMC environment and cross_sections.xml unchanged and run design check again.".into(),
+        });
+    }
+    let report: StochasticVolumeReport = read_json(&report_path, "the stochastic volume report")?;
+    if report.schema != "faris-design-volume-check/v1"
+        || report.unit != "cm3"
+        || report.source_h5m_sha256 != actual_h5m_sha256
+        || report.cross_sections_sha256 != cross_sections_sha256
+        || !sha256_file(&request_path)?.eq_ignore_ascii_case(&report.request_sha256)
+        || report.samples != request.samples as u64
+        || report.seed != request.seed
+        || report.rows.len() != request.targets.len()
+        || report.scope
+            != "DAGMC geometry-only stochastic cell volumes; inert H1 dummy materials initialize geometry; no material or transport physics validation"
+        || report
+            .versions
+            .get("openmc_cli_sha256")
+            .and_then(serde_json::Value::as_str)
+            != Some(openmc_cli_sha256.as_str())
+        || report
+            .versions
+            .get("python_executable_sha256")
+            .and_then(serde_json::Value::as_str)
+            != Some(python_sha256.as_str())
+    {
+        return Err(DesignError::Tool(
+            "the OpenMC stochastic volume report does not match its checked request".into(),
+        ));
+    }
+    if report
+        .bounds_cm
+        .lower_left
+        .iter()
+        .zip(report.bounds_cm.upper_right)
+        .any(|(lo, hi)| !lo.is_finite() || !hi.is_finite() || hi <= *lo)
+    {
+        return Err(DesignError::Tool(
+            "the OpenMC stochastic volume report has invalid cm bounds".into(),
+        ));
+    }
+    let expected_dummy_names: std::collections::BTreeSet<&str> = request
+        .targets
+        .iter()
+        .map(|target| target.material_tag.as_str())
+        .collect();
+    let actual_dummy_names: std::collections::BTreeSet<&str> = report
+        .dummy_material_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    if actual_dummy_names != expected_dummy_names
+        || actual_dummy_names.len() != report.dummy_material_names.len()
+    {
+        return Err(DesignError::Tool(
+            "the OpenMC report's geometry-only dummy material names do not match the H5M tags"
+                .into(),
+        ));
+    }
+    let volume_file = dir.join("volume_1.h5");
+    if !volume_file.is_file()
+        || !sha256_file(&volume_file)?.eq_ignore_ascii_case(&report.volume_result_sha256)
+    {
+        return Err(DesignError::Tool(
+            "the OpenMC stochastic volume result is missing or its recorded sha256 does not match"
+                .into(),
+        ));
+    }
+    let mut rows = Vec::with_capacity(report.rows.len());
+    for (raw, target) in report.rows.into_iter().zip(request.targets) {
+        let cad_cm3 = target.cad_volume_m3 * 1.0e6;
+        let faceted_cm3 = target.faceted_volume_m3 * 1.0e6;
+        if raw.volume != target.volume
+            || raw.global_id != target.global_id
+            || raw.solid_id != target.solid_id
+            || raw.material_tag != target.material_tag
+            || raw.samples != report.samples
+            || (raw.cad_volume_cm3 - cad_cm3).abs() > 1.0e-10 * cad_cm3
+            || (raw.faceted_volume_cm3 - faceted_cm3).abs() > 1.0e-10 * faceted_cm3
+            || !raw.openmc_volume_cm3.is_finite()
+            || raw.openmc_volume_cm3 <= 0.0
+            || !raw.standard_error_cm3.is_finite()
+            || raw.standard_error_cm3 < 0.0
+        {
+            return Err(DesignError::Tool(format!(
+                "the OpenMC volume row for {} does not match the requested cell",
+                target.solid_id
+            )));
+        }
+        let absolute_difference_cm3 = (raw.openmc_volume_cm3 - cad_cm3).abs();
+        let allowed_difference_cm3 =
+            binding::stochastic_volume_allowance_cm3(cad_cm3, raw.standard_error_cm3);
+        let verdict = if binding::stochastic_volume_within_limit(
+            cad_cm3,
+            raw.openmc_volume_cm3,
+            raw.standard_error_cm3,
+        ) {
+            "WITHIN"
+        } else {
+            "EXCEEDED"
+        };
+        rows.push(StochasticVolumeRow {
+            volume: raw.volume,
+            global_id: raw.global_id,
+            solid_id: raw.solid_id,
+            material_tag: raw.material_tag,
+            cad_volume_cm3: cad_cm3,
+            faceted_volume_cm3: faceted_cm3,
+            openmc_volume_cm3: raw.openmc_volume_cm3,
+            standard_error_cm3: raw.standard_error_cm3,
+            samples: raw.samples,
+            absolute_difference_cm3,
+            allowed_difference_cm3,
+            relative_difference: (raw.openmc_volume_cm3 - cad_cm3) / cad_cm3,
+            verdict: verdict.into(),
+        });
+    }
+    let result_sha = report.volume_result_sha256.clone();
+    Ok(ToolResult::Done(StochasticVolumeOutcome {
+        run_directory: dir.display().to_string(),
+        scope: report.scope,
+        criterion: "absolute difference <= max(0.5% of CAD volume, 3 standard errors)".into(),
+        source_h5m_sha256: report.source_h5m_sha256,
+        cross_sections_sha256: report.cross_sections_sha256,
+        request_sha256: report.request_sha256,
+        volume_result_sha256: result_sha,
+        samples: report.samples,
+        seed: report.seed,
+        unit: report.unit,
+        bounds_cm: report.bounds_cm,
+        dummy_material_names: report.dummy_material_names,
+        versions: report.versions,
+        seconds: report.seconds,
+        rows,
+        helper_sha256: sha256_hex(DESIGN_VOLUME_HELPER.as_bytes()),
     }))
 }
 

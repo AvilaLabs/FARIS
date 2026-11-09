@@ -28,6 +28,27 @@ pub const VOLUME_TOLERANCE: f64 = 0.005;
 pub const DEFAULT_VOLUME_LIMIT: f64 = 0.001;
 pub const CENTROID_FRACTION: f64 = 1.0e-3;
 pub const SECOND_BEST_FACTOR: f64 = 10.0;
+/// Provisional GEO-030 relative threshold for a stochastic OpenMC cell volume.
+pub const STOCHASTIC_VOLUME_RELATIVE_LIMIT: f64 = 0.005;
+
+/// Absolute stochastic-volume allowance in cm3: 0.5% of CAD volume OR three standard errors.
+pub fn stochastic_volume_allowance_cm3(cad_volume_cm3: f64, standard_error_cm3: f64) -> f64 {
+    (STOCHASTIC_VOLUME_RELATIVE_LIMIT * cad_volume_cm3).max(3.0 * standard_error_cm3)
+}
+
+pub fn stochastic_volume_within_limit(
+    cad_volume_cm3: f64,
+    openmc_volume_cm3: f64,
+    standard_error_cm3: f64,
+) -> bool {
+    cad_volume_cm3.is_finite()
+        && cad_volume_cm3 > 0.0
+        && openmc_volume_cm3.is_finite()
+        && standard_error_cm3.is_finite()
+        && standard_error_cm3 >= 0.0
+        && (openmc_volume_cm3 - cad_volume_cm3).abs()
+            <= stochastic_volume_allowance_cm3(cad_volume_cm3, standard_error_cm3)
+}
 
 /// One solid's faceted volume against its CAD volume, with the verdict against the limit.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -550,6 +571,18 @@ mod tests {
         design.solids[1].fingerprint.cad_volume_m3 = stats[1].faceted_volume_m3 / 1.0009;
         let out = bind(&design, &stats, mesh.diagonal() / 1e9);
         assert!(volume_gate(&out.rows, 1.0e-3, false).1.is_empty());
+    }
+
+    // Verifies: GEO-030 stochastic threshold uses max(0.5% of CAD volume, 3 SE), not their sum.
+    #[test]
+    fn stochastic_volume_accepts_either_independent_tolerance_and_rejects_sum_only_cases() {
+        let cad = 1000.0;
+        assert!(stochastic_volume_within_limit(cad, 1004.9, 1.0));
+        assert!(stochastic_volume_within_limit(cad, 1007.0, 3.0));
+        assert!(!stochastic_volume_within_limit(cad, 1010.0, 3.0));
+        // 0.5% + 3 SE would allow 1010 here; the max rule correctly rejects it.
+        assert_eq!(stochastic_volume_allowance_cm3(cad, 3.0), 9.0);
+        assert!(!stochastic_volume_within_limit(cad, 900.0, 1.0));
     }
 
     #[test]

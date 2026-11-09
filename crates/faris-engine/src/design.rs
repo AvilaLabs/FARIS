@@ -53,11 +53,13 @@ mod transport_progress;
 
 pub use geometry::{
     BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
-    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DEFAULT_DEVIATION_POINTS,
-    DEFAULT_IMPRINT_THREADS, DeviationOutcome, DeviationRecord, DeviationRequest, DeviationRow,
-    GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome, SourceRecord,
-    SourceRequest, StageClock, TagEntry, TessellateOutcome, TessellateRequest, ToolResult,
-    WaiverUse,
+    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DEFAULT_DEVIATION_BOUND_DEPTH,
+    DEFAULT_DEVIATION_BOUND_QUERIES, DEFAULT_DEVIATION_POINTS, DEFAULT_IMPRINT_THREADS,
+    DEFAULT_STOCHASTIC_VOLUME_SAMPLES, DeviationOutcome, DeviationRecord, DeviationRequest,
+    DeviationRow, GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome,
+    SourceRecord, SourceRequest, StageClock, StochasticVolumeBoundsCm, StochasticVolumeOutcome,
+    StochasticVolumeRequest, StochasticVolumeRow, StochasticVolumeTarget, TagEntry,
+    TessellateOutcome, TessellateRequest, ToolResult, WaiverUse,
 };
 pub use heating::{
     DESIGN_HEATING_OUTPUTS, DesignHeatingOptions, DesignHeatingReport, ELEMENTARY_CHARGE_C,
@@ -85,6 +87,7 @@ const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
 const CAD_FACETS_HELPER: &str = include_str!("../../../integrations/cad/faris_facets.py");
 const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris_deviation.py");
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
+const DESIGN_VOLUME_HELPER: &str = include_str!("../../../integrations/openmc/design_volume.py");
 const DESIGN_TRANSPORT_WORKER: &str =
     include_str!("../../../integrations/openmc/design_transport.py");
 const WINDOW_GENERATOR_HELPER: &str =
@@ -106,6 +109,7 @@ const CONVERT_TIMEOUT: Duration = Duration::from_secs(3 * 3600);
 const TESSELLATE_TIMEOUT: Duration = Duration::from_secs(3600);
 const BOOLEAN_TIMEOUT: Duration = Duration::from_secs(2 * 3600);
 const DEVIATION_TIMEOUT: Duration = Duration::from_secs(2 * 3600);
+const STOCHASTIC_VOLUME_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const SOURCE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// A CAD conversion of a whole reactor model peaks above the runner's 4 GiB default
 /// (RM-M: 4.6 GB resident), so conversion and measurement jobs ask for more address space.
@@ -309,6 +313,16 @@ pub trait Backends {
     /// GEO-032: faceting deviation from the CAD solids.
     fn deviation(&self, _: &DeviationRequest) -> Result<ToolResult<DeviationOutcome>, DesignError> {
         Ok(not_configured("the faceting deviation"))
+    }
+    /// GEO-030: stochastic OpenMC volume for each DAGMC cell against its CAD solid.
+    fn stochastic_volumes(
+        &self,
+        _: &StochasticVolumeRequest,
+    ) -> Result<ToolResult<StochasticVolumeOutcome>, DesignError> {
+        Ok(ToolResult::Unavailable {
+            why: "OpenMC stochastic cell volumes are not available from this tool set".into(),
+            next_step: "Pass --openmc-python and --cross-sections and check again.".into(),
+        })
     }
     /// Check 9: sample source sites from the plasma block.
     fn source_sites(&self, _: &SourceRequest) -> Result<ToolResult<SourceOutcome>, DesignError> {
@@ -515,6 +529,12 @@ impl Backends for ExternalBackends<'_> {
         request: &DeviationRequest,
     ) -> Result<ToolResult<DeviationOutcome>, DesignError> {
         external::deviation(self, request)
+    }
+    fn stochastic_volumes(
+        &self,
+        request: &StochasticVolumeRequest,
+    ) -> Result<ToolResult<StochasticVolumeOutcome>, DesignError> {
+        external::stochastic_volumes(self, request)
     }
     fn source_sites(
         &self,
@@ -1378,6 +1398,29 @@ fn render_geometry(g: &GeometryRecords) -> String {
             p.boolean_seconds.map_or("none needed".into(), |t| format!("{t:.1} s")),
             if p.booleans_reused { " (REUSED, recorded time)" } else { "" },
         ));
+    }
+    if let Some(v) = &g.stochastic_volume {
+        out.push_str(&format!(
+            "\nOpenMC stochastic cell volumes (GEO-030, {:.1} s): {} samples per cell, seed {}, units {}, source H5M sha256 {}\n  result directory: {}\n  criterion: {}\n  {}\n",
+            v.seconds, v.samples, v.seed, v.unit,
+            &v.source_h5m_sha256[..16.min(v.source_h5m_sha256.len())], v.run_directory,
+            v.criterion, v.scope
+        ));
+        out.push_str(&format!(
+            "  OpenMC: {}; cross_sections sha256 {}; request sha256 {}; volume result sha256 {}\n",
+            v.versions,
+            &v.cross_sections_sha256[..16.min(v.cross_sections_sha256.len())],
+            &v.request_sha256[..16.min(v.request_sha256.len())],
+            &v.volume_result_sha256[..16.min(v.volume_result_sha256.len())]
+        ));
+        for row in &v.rows {
+            out.push_str(&format!(
+                "  {:<28} cell {}: OpenMC {:.6e} +/- {:.3e} cm3; CAD {:.6e} cm3; difference {:.3e} cm3, allowance {:.3e} cm3: {}\n",
+                row.solid_id, row.global_id, row.openmc_volume_cm3, row.standard_error_cm3,
+                row.cad_volume_cm3, row.absolute_difference_cm3, row.allowed_difference_cm3,
+                row.verdict
+            ));
+        }
     }
     if let Some(i) = &g.integrity {
         out.push_str(&format!(
