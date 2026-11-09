@@ -850,6 +850,86 @@ def heating_batch_closure(total_batches: list[float], component_batches: list[li
     return mean, math.sqrt(variance / len(residuals))
 
 
+def heating_closure_quality(mean: float, standard_error: float, component_scale: float) -> dict:
+    """Three-SE covariance-aware closure gate with an explicit floating-point floor."""
+    # The residual is formed from the same batch samples, so its SE already includes
+    # component covariance. Permit only roundoff when that uncertainty is exactly zero.
+    tolerance = 64.0 * sys.float_info.epsilon * max(abs(component_scale), abs(mean), 1.0e-300)
+    within = abs(mean) <= 3.0 * standard_error + tolerance
+    return {"within_3se": within, "roundoff_tolerance_ev_per_source": tolerance}
+
+
+def heating_terminal_quality(status: int | None, batches: int, planned: int, stop_reason: str,
+                             lost: int | None, histories: int) -> tuple[str, str | None]:
+    """Validate C API completion and final lost-particle count before accepting scores."""
+    if status not in (0, 1, 2):
+        return "NOT_EVALUATED", f"OpenMC returned unknown terminal status {status!r}."
+    if status == 2:
+        return "NOT_EVALUATED", "OpenMC terminated with C API status 2; the heating tally is incomplete."
+    if status == 1 and batches != planned:
+        return "NOT_EVALUATED", f"OpenMC reported planned-batch completion after only {batches} of {planned} batches."
+    if status == 0 and (stop_reason != "time_limit" or batches < 30):
+        return "NOT_EVALUATED", "OpenMC stopped before a valid time-budget endpoint or before 30 batches."
+    if lost is None:
+        return "NOT_EVALUATED", "OpenMC did not expose the final lost-particle count."
+    if lost < 0:
+        return "NOT_EVALUATED", "OpenMC exposed an invalid negative lost-particle count."
+    if histories <= 0 or lost / histories > LOST_FRACTION_LIMIT:
+        return "INCONCLUSIVE", f"{lost} of {histories} source histories were lost, exceeding the strict one-in-a-million limit."
+    return "CALCULATED", None
+
+
+def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count: int, bins: int,
+                            max_batches: int, max_seconds: float, started: float):
+    """Run the actual C API tally loop and retain aligned cumulative-to-batch differences."""
+    import numpy as np
+
+    previous = {name: np.zeros(solid_count) for name in tallies}
+    batches = {name: [[] for _ in range(solid_count)] for name in tallies}
+    voxel_previous = {name: np.zeros(bins * solid_count) for name in voxel_tallies}
+    voxel_batches = {name: [[] for _ in range(solid_count)] for name in voxel_tallies}
+    stop_reason, terminal_status, batches_done = "history_limit", None, 0
+    for _ in range(max_batches):
+        terminal_status = lib.next_batch()
+        batches_done += 1
+        for name in tallies:
+            cumulative = np.asarray(lib.tallies[tallies[name].id].results[:, 0, 1], dtype=float)
+            batch = cumulative - previous[name]
+            previous[name] = cumulative.copy()
+            for row, value in enumerate(batch):
+                batches[name][row].append(float(value))
+            voxel_cumulative = np.asarray(
+                lib.tallies[voxel_tallies[name].id].results[:, 0, 1], dtype=float)
+            voxel_batch = (voxel_cumulative - voxel_previous[name]).reshape(bins, solid_count)
+            voxel_previous[name] = voxel_cumulative.copy()
+            for row in range(solid_count):
+                voxel_batches[name][row].append(voxel_batch[:, row].copy())
+        if time.monotonic() - started >= max_seconds and batches_done < max_batches:
+            stop_reason = "time_limit"
+            break
+        if terminal_status not in (0, None):
+            break
+    return batches, voxel_batches, batches_done, stop_reason, terminal_status
+
+
+def normalize_heating_source(source) -> None:
+    """Make the OpenMC source distribution sum to exactly one source neutron."""
+    source_total = float(source.strength)
+    if not math.isfinite(source_total) or source_total <= 0.0:
+        raise ValueError("the coupled-heating source strength must be finite and positive")
+    for element in source.sources.ravel():
+        element.strength = float(element.strength) / source_total
+    source.strength = 1.0
+
+
+def heating_tally_filters(openmc, component: str, cell_filter, mesh=None):
+    """Keep the total unfiltered and attach one particle filter to each component tally."""
+    filters = [openmc.MeshFilter(mesh), cell_filter] if mesh is not None else [cell_filter]
+    if component != "total":
+        filters.append(openmc.ParticleFilter([component]))
+    return filters
+
+
 def validate_heating_request(request: dict) -> None:
     """Validate the bounded all-energy request independently from the neutron flux request."""
     if request.get("schema") != REQUEST_SCHEMA:
@@ -999,10 +1079,7 @@ def phase_heating(request: dict, work: Path) -> dict:
     geometry = geometry_copy(request, work / "geometry" / "model-heating.h5m", random_ray=False)
     model, _, _ = build_model(openmc, request, geometry)
     source = tokamak_source(**tokamak_arguments(request["plasma"]))
-    source_total = float(source.strength)
-    for element in source.sources.ravel():
-        element.strength = float(element.strength) / source_total
-    source.strength = 1.0
+    normalize_heating_source(source)
     settings = model.settings
     settings.source = [source]
     settings.photon_transport = True
@@ -1035,15 +1112,14 @@ def phase_heating(request: dict, work: Path) -> dict:
     components = ("neutron", "photon", "electron", "positron")
     tallies, voxel_tallies, all_tallies = {}, {}, []
     for index, component in enumerate(components + ("total",)):
-        particle_filter = [] if component == "total" else [openmc.ParticleFilter([component])]
         tally = openmc.Tally(tally_id=100 + index, name=f"heating-{component}")
-        tally.filters = [cell_filter] + particle_filter
+        tally.filters = heating_tally_filters(openmc, component, cell_filter)
         tally.nuclides = ["total"]
         tally.scores = ["heating"]
         tally.estimator = "collision"
         tallies[component] = tally
         voxel_tally = openmc.Tally(tally_id=110 + index, name=f"heating-voxel-{component}")
-        voxel_tally.filters = [openmc.MeshFilter(mesh), cell_filter] + particle_filter
+        voxel_tally.filters = heating_tally_filters(openmc, component, cell_filter, mesh)
         voxel_tally.nuclides = ["total"]
         voxel_tally.scores = ["heating"]
         voxel_tally.estimator = "collision"
@@ -1055,41 +1131,38 @@ def phase_heating(request: dict, work: Path) -> dict:
     model.export_to_model_xml(model_xml)
     here = os.getcwd()
     os.chdir(model_xml.parent)
-    previous = {name: np.zeros(len(solid_ids)) for name in tallies}
-    batches = {name: [[] for _ in solid_ids] for name in tallies}
-    voxel_previous = {name: np.zeros(bins * solid_count) for name in voxel_tallies}
-    voxel_batches = {name: [[] for _ in solid_ids] for name in voxel_tallies}
+    batches = voxel_batches = None
     started = None
     batches_done = 0
     stop_reason = "history_limit"
+    terminal_status = None
     try:
         openmc.lib.init(["--threads", str(int(sampling["threads"])), str(model_xml)])
         try:
-            openmc.lib.simulation_init()
+            init_status = openmc.lib.simulation_init()
+            if init_status not in (None, 0):
+                terminal_status = init_status
             started = time.monotonic()
-            for _ in range(int(sampling["max_batches"])):
-                openmc.lib.next_batch()
-                batches_done += 1
-                for name in tallies:
-                    cumulative = np.asarray(openmc.lib.tallies[tallies[name].id].results[:, 0, 1], dtype=float)
-                    batch = cumulative - previous[name]
-                    previous[name] = cumulative
-                    for row, value in enumerate(batch):
-                        batches[name][row].append(float(value))
-                    voxel_cumulative = np.asarray(
-                        openmc.lib.tallies[voxel_tallies[name].id].results[:, 0, 1], dtype=float)
-                    voxel_batch = (voxel_cumulative - voxel_previous[name]).reshape(bins, solid_count)
-                    voxel_previous[name] = voxel_cumulative
-                    for row in range(solid_count):
-                        voxel_batches[name][row].append(voxel_batch[:, row].copy())
-                if time.monotonic() - started >= float(sampling["max_seconds"]):
-                    stop_reason = "time_limit"
-                    break
+            if terminal_status is None:
+                batches, voxel_batches, batches_done, stop_reason, terminal_status = collect_heating_batches(
+                    openmc.lib, tallies, voxel_tallies, len(solid_ids), bins,
+                    int(sampling["max_batches"]), float(sampling["max_seconds"]), started)
             openmc.lib.simulation_finalize()
         finally:
             openmc.lib.finalize()
     finally:
         os.chdir(here)
+    histories = batches_done * int(sampling["particles_per_batch"])
+    lost = lost_count(getattr(openmc.lib, "_dll", None))
+    terminal_quality, terminal_why = heating_terminal_quality(
+        terminal_status, batches_done, int(sampling["max_batches"]), stop_reason, lost, histories)
+    if terminal_quality == "NOT_EVALUATED":
+        result = unavailable(terminal_why or "The OpenMC heating run did not complete with a recognized status.",
+                             "Use an OpenMC build with the supported C API terminal status and lost-particle counter, then rerun heating.")
+        result.update({"c_api_terminal_status": terminal_status, "lost_particles": lost,
+                       "histories": histories, "stop_reason": stop_reason})
+        (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
+        return result
     if batches_done < int(sampling["min_batches"]):
         return unavailable(f"The heating run stopped after {batches_done} batches, below the minimum {sampling['min_batches']} batches.",
                            "Increase the time limit and rerun coupled heating.")
@@ -1103,7 +1176,10 @@ def phase_heating(request: dict, work: Path) -> dict:
             values[name] = {"mean_ev_per_source": mean, "standard_error_ev_per_source": math.sqrt(variance / len(column))}
         closure_mean, closure_se = heating_batch_closure(
             batches["total"][row], [batches[name][row] for name in components])
-        values["closure_residual"] = {"mean_ev_per_source": closure_mean, "standard_error_ev_per_source": closure_se}
+        closure_scale = abs(values["total"]["mean_ev_per_source"]) + math.fsum(
+            abs(values[name]["mean_ev_per_source"]) for name in components)
+        values["closure_residual"] = {"mean_ev_per_source": closure_mean, "standard_error_ev_per_source": closure_se,
+                                      **heating_closure_quality(closure_mean, closure_se, closure_scale)}
         voxel_total = np.stack(voxel_batches["total"][row])
         voxel_sum = voxel_total.sum(axis=0)
         voxel_squares = (voxel_total * voxel_total).sum(axis=0)
@@ -1125,8 +1201,6 @@ def phase_heating(request: dict, work: Path) -> dict:
             closure_mean, closure_se = heating_batch_closure(
                 [float(batch[peak_index]) for batch in voxel_batches["total"][row]],
                 [[float(batch[peak_index]) for batch in voxel_batches[name][row]] for name in components])
-            peak["closure_residual"] = {"mean_ev_per_source": closure_mean,
-                                        "standard_error_ev_per_source": closure_se}
             peak_components = {}
             for name in components + ("total",):
                 samples = [float(batch[peak_index]) for batch in voxel_batches[name][row]]
@@ -1135,6 +1209,11 @@ def phase_heating(request: dict, work: Path) -> dict:
                 peak_components[name] = {"mean_ev_per_source": mean,
                                          "standard_error_ev_per_source": math.sqrt(variance / len(samples))}
             peak["components"] = peak_components
+            closure_scale = abs(peak_components["total"]["mean_ev_per_source"]) + math.fsum(
+                abs(peak_components[name]["mean_ev_per_source"]) for name in components)
+            peak["closure_residual"] = {"mean_ev_per_source": closure_mean,
+                                        "standard_error_ev_per_source": closure_se,
+                                        **heating_closure_quality(closure_mean, closure_se, closure_scale)}
         values["peak"] = peak
         voxel_scores = []
         for index, volume_cm3 in enumerate(volume_by_solid[row]):
@@ -1162,14 +1241,29 @@ def phase_heating(request: dict, work: Path) -> dict:
                 "closure_residual": {
                     "mean_ev_per_source": residual_mean,
                     "standard_error_ev_per_source": residual_se,
+                    **heating_closure_quality(residual_mean, residual_se,
+                        abs(component_scores["total"]["mean_ev_per_source"]) + math.fsum(
+                            abs(component_scores[name]["mean_ev_per_source"]) for name in components)),
                 },
                 "is_peak": index == peak_index,
             })
         values["voxel_scores"] = voxel_scores
         result_solids.append({"solid_id": solid_id, **values})
-    result = {"schema": "faris-design-heating/v1", "openmc": openmc.__version__,
+    closure_failed = any(
+        not score["closure_residual"]["within_3se"]
+        for solid in result_solids
+        for score in [solid, *solid["voxel_scores"], *([solid["peak"]] if solid["peak"] else [])])
+    result = {"schema": "faris-design-heating/v1", "status": "INCONCLUSIVE" if closure_failed or terminal_quality == "INCONCLUSIVE" else "CALCULATED",
+              "why": terminal_why if terminal_quality == "INCONCLUSIVE" else (
+                  "At least one per-coil or per-voxel correlated batch closure residual exceeded three standard errors plus the explicit floating-point tolerance."
+                  if closure_failed else None),
+              "next_step": ("Inspect the preserved closure residuals and tally configuration; do not use this result as a closed energy balance."
+                            if closure_failed else ("Inspect the checked geometry for gaps or overlaps and rerun `faris design check`."
+                                                    if terminal_quality == "INCONCLUSIVE" else None)),
+              "c_api_terminal_status": terminal_status, "lost_particles": lost,
+              "openmc": openmc.__version__,
               "h5m_sha256": sha256_file(request["h5m"]), "cross_sections_sha256": sha256_file(xml),
-              "histories": batches_done * int(sampling["particles_per_batch"]),
+              "histories": histories,
               "stop_reason": stop_reason,
               "normalization": "per_source_neutron", "unit": "eV/source_neutron",
               "particle_components": list(components), "data_identity": data_identity,

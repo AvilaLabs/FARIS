@@ -465,6 +465,211 @@ class PeakTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "aligned batches"):
             DT.heating_batch_closure([1.0, 2.0], [[1.0]])
 
+    def test_three_se_gate_accepts_only_noise_or_explicit_roundoff(self):
+        tolerance = DT.heating_closure_quality(0.0, 0.0, 10.0)
+        self.assertTrue(tolerance["within_3se"])
+        self.assertGreater(tolerance["roundoff_tolerance_ev_per_source"], 0.0)
+        self.assertFalse(DT.heating_closure_quality(1.0, 0.0, 10.0)["within_3se"])
+        self.assertTrue(DT.heating_closure_quality(0.3, 0.1, 10.0)["within_3se"])
+
+    def test_terminal_quality_checks_status_and_lost_count_even_for_short_runs(self):
+        self.assertEqual(DT.heating_terminal_quality(1, 100, 100, "history_limit", 0, 100_000)[0], "CALCULATED")
+        self.assertEqual(DT.heating_terminal_quality(1, 99, 100, "history_limit", 0, 99_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(0, 30, 100, "time_limit", 0, 30_000)[0], "CALCULATED")
+        self.assertEqual(DT.heating_terminal_quality(0, 29, 100, "time_limit", 0, 29_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(0, 30, 100, "history_limit", 0, 30_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(2, 100, 100, "history_limit", 0, 100_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(99, 100, 100, "history_limit", 0, 100_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(1, 100, 100, "history_limit", None, 100_000)[0], "NOT_EVALUATED")
+        self.assertEqual(DT.heating_terminal_quality(1, 100, 100, "history_limit", 1, 100)[0], "INCONCLUSIVE")
+        self.assertEqual(DT.heating_terminal_quality(1, 1_000_000, 1_000_000, "history_limit", 1, 1_000_000)[0], "CALCULATED")
+        self.assertEqual(DT.heating_terminal_quality(1, 1_000_000, 1_000_000, "history_limit", 2, 1_000_000)[0], "INCONCLUSIVE")
+
+    def test_fake_c_api_exercises_actual_tally_batch_differencing(self):
+        import numpy as np
+        from types import SimpleNamespace
+
+        class FakeLib:
+            def __init__(self):
+                self.batch = 0
+                self.tallies = {}
+
+            def next_batch(self):
+                self.batch += 1
+                for item in self.tallies.values():
+                    item.results[:, 0, 1] += item.increments
+                return 1 if self.batch == 30 else 0
+
+        lib = FakeLib()
+        components = ("neutron", "photon", "electron", "positron", "total")
+        tally_refs, voxel_refs = {}, {}
+        for i, name in enumerate(components):
+            tid, vid = i + 1, i + 11
+            # Two voxel bins for the peak-volume basis. Cumulative values advance each batch.
+            component_value = 8.0 if name == "neutron" else (1.0 if name in ("photon", "electron") else 0.0)
+            lib.tallies[tid] = SimpleNamespace(results=np.zeros((1, 1, 2)), increments=np.array([component_value]))
+            voxel_values = [component_value * 0.75, component_value * 0.25]
+            lib.tallies[vid] = SimpleNamespace(results=np.zeros((2, 1, 2)), increments=np.array(voxel_values))
+            tally_refs[name], voxel_refs[name] = SimpleNamespace(id=tid), SimpleNamespace(id=vid)
+        # Provide nonzero, fluctuating neutron tallies while preserving the same per-batch total.
+        neutron = lib.tallies[tally_refs["neutron"].id]
+        total = lib.tallies[tally_refs["total"].id]
+        neutron.increments = np.array([8.0])
+        total.increments = np.array([10.0])
+        for lib_tally in (lib.tallies[voxel_refs["neutron"].id], lib.tallies[voxel_refs["total"].id]):
+            lib_tally.increments = np.array([7.5, 2.5]) if lib_tally is lib.tallies[voxel_refs["total"].id] else np.array([6.0, 2.0])
+        batch, voxel_batch, count, stop, status = DT.collect_heating_batches(
+            lib, tally_refs, voxel_refs, 1, 2, 30, 1e9, 0.0)
+        self.assertEqual((count, stop, status), (30, "history_limit", 1))
+        self.assertEqual(batch["total"][0], [10.0] * 30)
+        self.assertEqual(voxel_batch["total"][0][0].tolist(), [7.5, 2.5])
+        self.assertEqual(DT.heating_batch_closure(batch["total"][0], [batch[n][0] for n in components[:-1]]), (0.0, 0.0))
+        # Source normalization is a unit-strength convention; the worker never rescales tally results afterward.
+        source_scores = [sum(batch[name][0]) / count for name in components]
+        self.assertEqual(source_scores[-1], 10.0)
+        self.assertEqual(DT.heating_closure_quality(0.0, 0.0, sum(source_scores)), {"within_3se": True,
+                         "roundoff_tolerance_ev_per_source": DT.heating_closure_quality(0.0, 0.0, sum(source_scores))["roundoff_tolerance_ev_per_source"]})
+
+    def test_heating_source_already_at_one_remains_one_source_per_history(self):
+        from types import SimpleNamespace
+        import numpy as np
+        elements = [SimpleNamespace(strength=0.25), SimpleNamespace(strength=0.75)]
+        source = SimpleNamespace(strength=1.0, sources=np.array(elements, dtype=object))
+        DT.normalize_heating_source(source)
+        self.assertEqual(source.strength, 1.0)
+        self.assertEqual([element.strength for element in elements], [0.25, 0.75])
+
+    def test_heating_tally_total_has_no_particle_filter_and_components_do(self):
+        from types import SimpleNamespace
+        class FakeOpenMC:
+            @staticmethod
+            def ParticleFilter(particles):
+                return ("particle", particles)
+            @staticmethod
+            def MeshFilter(mesh):
+                return ("mesh", mesh)
+        cell, mesh = object(), object()
+        self.assertEqual(DT.heating_tally_filters(FakeOpenMC, "total", cell), [cell])
+        self.assertEqual(DT.heating_tally_filters(FakeOpenMC, "photon", cell), [cell, ("particle", ["photon"])])
+        self.assertEqual(DT.heating_tally_filters(FakeOpenMC, "electron", cell, mesh),
+                         [("mesh", mesh), cell, ("particle", ["electron"])])
+
+    def test_fake_openmc_phase_writes_raw_report_for_engine_parser(self):
+        import json
+        import tempfile
+        import types
+        from unittest.mock import patch
+        import numpy as np
+
+        class FakeTally:
+            def __init__(self, tally_id, name):
+                self.id, self.name = tally_id, name
+
+        class FakeLib(types.ModuleType):
+            def __init__(self):
+                super().__init__("openmc.lib")
+                self.tallies, self.batch = {}, 0
+                self._dll = object()
+            def init(self, args):
+                self.args = args
+            def simulation_init(self):
+                return None
+            def next_batch(self):
+                self.batch += 1
+                for tally in self.tallies.values():
+                    tally.results[:, 0, 1] += tally.increments
+                return 1 if self.batch == 30 else 0
+            def simulation_finalize(self):
+                pass
+            def finalize(self):
+                pass
+
+        lib = FakeLib()
+        openmc = types.ModuleType("openmc")
+        openmc.__version__, openmc.lib = "0.16.0", lib
+        openmc.Tally = FakeTally
+        openmc.Tallies = lambda values: list(values)
+        openmc.CellFilter = lambda values: ("cells", values)
+        openmc.ParticleFilter = lambda values: ("particle", values)
+        openmc.MeshFilter = lambda mesh: ("mesh", mesh)
+        openmc.CylindricalMesh = lambda **kwargs: ("cylindrical_mesh", kwargs)
+
+        total_bias = {"value": 0.0}
+        class FakeModel:
+            def __init__(self):
+                self.settings = types.SimpleNamespace()
+            def export_to_model_xml(self, path):
+                Path(path).write_text("fake model")
+                increments = {"neutron": ([8.0], [6.0, 2.0]), "photon": ([1.0], [0.75, 0.25]),
+                              "electron": ([1.0], [0.75, 0.25]), "positron": ([0.0], [0.0, 0.0]),
+                              "total": ([10.0], [7.5, 2.5])}
+                for tally in self.tallies:
+                    name = tally.name.removeprefix("heating-voxel-").removeprefix("heating-")
+                    is_voxel = "voxel" in tally.name
+                    values = list(increments[name][1 if is_voxel else 0])
+                    if name == "total" and not is_voxel:
+                        values[0] += total_bias["value"]
+                    lib.tallies[tally.id] = types.SimpleNamespace(
+                        results=np.zeros((len(values), 1, 2)), increments=np.asarray(values))
+
+        model = FakeModel()
+        source_elements = [types.SimpleNamespace(strength=1.0)]
+        source = types.SimpleNamespace(strength=1.0, sources=np.array(source_elements, dtype=object))
+        plasma_source = types.ModuleType("openmc_plasma_source")
+        plasma_source.tokamak_source = lambda **kwargs: source
+        request = {
+            "schema": DT.REQUEST_SCHEMA, "h5m": "model.h5m", "cross_sections": "cross_sections.xml",
+            "solids": [{"solid_id": "coil", "volume_id": 2, "material_id": "steel",
+                        "classification": "winding_pack"}],
+            "materials": [], "plasma": {}, "response": {"solid_ids": ["coil"], "energy_min_ev": 0.0,
+                                                               "peak_voxel_cm": [5.0, 5.0]},
+            "sampling": {"particles_per_batch": 1000, "min_batches": 30, "max_batches": 30,
+                         "max_seconds": 1000.0, "seed": 5, "threads": 1}}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            for name in ("model.h5m", "cross_sections.xml"):
+                (work / name).write_text("identity")
+            request["h5m"] = str(work / "model.h5m")
+            request["cross_sections"] = str(work / "cross_sections.xml")
+            (work / "solver").mkdir()
+            (work / "peak").mkdir()
+            (work / "solver" / "heating-preflight.json").write_text(json.dumps({
+                "status": "READY", "data_identity": {"source": "fixture"},
+                "cross_sections_sha256": "fixture-hash", "h5m_sha256": "fixture-hash"}))
+            np.savez(work / "peak" / "volumes.npz", volumes_cm3=np.array([[[10000.0, 20000.0]]]),
+                     r_edges_cm=np.array([100.0, 105.0, 110.0]), z_edges_cm=np.array([-5.0, 0.0]))
+            (work / "peak" / "record.json").write_text(json.dumps({
+                "volumes_sha256": "fixture-hash", "solid_ids": ["coil"], "voxel_cm": [5.0, 5.0], "rays": 1000}))
+            fake_modules = {"openmc": openmc, "openmc.lib": lib, "openmc_plasma_source": plasma_source,
+                            "h5py": types.ModuleType("h5py")}
+            with patch.dict("sys.modules", fake_modules), \
+                 patch.object(DT, "heating_data_identity", return_value={"source": "fixture"}), \
+                 patch.object(DT, "sha256_file", return_value="fixture-hash"), \
+                 patch.object(DT, "geometry_copy", side_effect=lambda request, target, random_ray: target), \
+                 patch.object(DT, "build_model", return_value=(model, None, None)), \
+                 patch.object(DT, "tokamak_arguments", return_value={}), \
+                 patch.object(DT, "lost_count", return_value=0):
+                raw = DT.phase_heating(request, work)
+                stored = json.loads((work / "solver" / "heating-result.json").read_text())
+                self.assertEqual(raw, stored)
+                self.assertEqual(raw["status"], "CALCULATED")
+                self.assertEqual(raw["normalization"], "per_source_neutron")
+                self.assertEqual(raw["solids"][0]["total"]["mean_ev_per_source"], 10.0)
+                self.assertEqual(raw["solids"][0]["peak"]["volume_cm3"], 10000.0)
+                self.assertEqual(raw["solids"][0]["peak"]["closure_residual"]["within_3se"], True)
+                self.assertEqual(source.strength, 1.0)
+                total = next(t for t in model.tallies if t.name == "heating-total")
+                photon = next(t for t in model.tallies if t.name == "heating-photon")
+                self.assertNotIn("particle", str(total.filters))
+                self.assertIn(("particle", ["photon"]), photon.filters)
+                total_bias["value"] = 1.0
+                lib.batch = 0
+                inconclusive = DT.phase_heating(request, work)
+                self.assertEqual(inconclusive["status"], "INCONCLUSIVE")
+                self.assertEqual(inconclusive["solids"][0]["closure_residual"]["mean_ev_per_source"], 1.0)
+                self.assertFalse(inconclusive["solids"][0]["closure_residual"]["within_3se"])
+
     def test_a_piece_one_rare_score_landed_in_does_not_lead(self):
         # Piece 0: 100 in one batch of four (mean 25, error 25). Piece 1: a steady 10 with a small error.
         peak = DT.peak_of([100.0, 40.0], [10000.0, 400.4], [100.0, 100.0], [True, True], 4)

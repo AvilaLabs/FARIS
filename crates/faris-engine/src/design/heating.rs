@@ -111,6 +111,8 @@ pub struct DesignHeatingReport {
     pub energy_per_reaction_ev: f64,
     pub fusion_power_mw: f64,
     pub histories: u64,
+    pub c_api_terminal_status: Option<i32>,
+    pub lost_particles: Option<u64>,
     pub stop_reason: String,
     pub elapsed_seconds: f64,
     pub seed: u64,
@@ -185,6 +187,14 @@ pub const DESIGN_HEATING_OUTPUTS: &[Output] = &[
     ),
     not_calculated("histories", "A run count, not a heating response."),
     not_calculated(
+        "c_api_terminal_status",
+        "An OpenMC execution terminal code, not a heating response.",
+    ),
+    not_calculated(
+        "lost_particles",
+        "A transport quality count, not a heating response.",
+    ),
+    not_calculated(
         "stop_reason",
         "A sampling budget endpoint, not a heating response.",
     ),
@@ -211,6 +221,10 @@ pub struct HeatingEstimate {
 struct WorkerScore {
     mean_ev_per_source: f64,
     standard_error_ev_per_source: f64,
+    #[serde(default)]
+    within_3se: Option<bool>,
+    #[serde(default)]
+    roundoff_tolerance_ev_per_source: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -266,6 +280,10 @@ struct WorkerResult {
     cross_sections_sha256: Option<String>,
     #[serde(default)]
     histories: u64,
+    #[serde(default)]
+    c_api_terminal_status: Option<i32>,
+    #[serde(default)]
+    lost_particles: Option<u64>,
     #[serde(default)]
     stop_reason: String,
     #[serde(default)]
@@ -432,6 +450,8 @@ pub fn design_heating(
         energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
         fusion_power_mw,
         histories: 0,
+        c_api_terminal_status: None,
+        lost_particles: None,
         stop_reason: "not_started".into(),
         elapsed_seconds: 0.0,
         seed: options.seed,
@@ -668,12 +688,17 @@ pub fn design_heating(
     }
     if worker.status.as_deref() == Some("NOT_EVALUATED") {
         report.elapsed_seconds = elapsed;
+        report.histories = worker.histories;
+        report.c_api_terminal_status = worker.c_api_terminal_status;
+        report.lost_particles = worker.lost_particles;
         report.why = worker.why;
         report.next_step = worker.next_step;
         return write_report(&run_dir, &report).map(|()| report);
     }
-    if worker.status.is_some()
-        || !matches!(worker.stop_reason.as_str(), "history_limit" | "time_limit")
+    if !matches!(
+        worker.status.as_deref(),
+        Some("CALCULATED" | "INCONCLUSIVE")
+    ) || !matches!(worker.stop_reason.as_str(), "history_limit" | "time_limit")
         || worker
             .h5m_sha256
             .as_deref()
@@ -685,6 +710,18 @@ pub fn design_heating(
         || worker.histories < MIN_BATCHES * options.particles_per_batch
         || worker.histories > options.max_histories
         || worker.histories % options.particles_per_batch != 0
+        || worker.c_api_terminal_status.is_none()
+        || worker.lost_particles.is_none()
+        || !valid_terminal_status(
+            &worker,
+            options.max_histories / options.particles_per_batch,
+            options.particles_per_batch,
+        )
+        || (worker.status.as_deref() == Some("CALCULATED")
+            && worker
+                .lost_particles
+                .is_some_and(|lost| lost as f64 / worker.histories as f64 > 1.0e-6))
+        || (worker.status.as_deref() == Some("INCONCLUSIVE") && worker.why.is_none())
         || worker.solids.len() != response.len()
         || worker
             .solids
@@ -714,6 +751,10 @@ pub fn design_heating(
         score.mean_ev_per_source.is_finite()
             && score.standard_error_ev_per_source.is_finite()
             && score.standard_error_ev_per_source >= 0.0
+            && score.within_3se.is_some()
+            && score
+                .roundoff_tolerance_ev_per_source
+                .is_some_and(|v| v.is_finite() && v >= 0.0)
     };
     if worker.solids.iter().any(|solid| {
         !finite_score(&solid.neutron)
@@ -810,6 +851,38 @@ pub fn design_heating(
             "the heating worker returned a non-finite score or no peak volume".into(),
         ));
     }
+    let closure_failed = worker.solids.iter().any(|solid| {
+        let solid_scale = solid.total.mean_ev_per_source.abs()
+            + solid.neutron.mean_ev_per_source.abs()
+            + solid.photon.mean_ev_per_source.abs()
+            + solid.electron.mean_ev_per_source.abs()
+            + solid.positron.mean_ev_per_source.abs();
+        !closure_within_3se(&solid.closure_residual, solid_scale)
+            || solid.voxel_scores.iter().any(|voxel| {
+                let scale = voxel
+                    .components
+                    .values()
+                    .map(|score| score.mean_ev_per_source.abs())
+                    .sum();
+                !closure_within_3se(&voxel.closure_residual, scale)
+            })
+            || solid.peak.as_ref().is_some_and(|peak| {
+                let scale = peak
+                    .components
+                    .values()
+                    .map(|score| score.mean_ev_per_source.abs())
+                    .sum();
+                !closure_within_3se(&peak.closure_residual, scale)
+            })
+    });
+    if (worker.status.as_deref() == Some("CALCULATED") && closure_failed)
+        || (worker.status.as_deref() == Some("INCONCLUSIVE") && worker.why.is_none())
+    {
+        return Err(DesignError::Tool(
+            "the heating worker status does not agree with its preserved closure diagnostics"
+                .into(),
+        ));
+    }
     let mut solids = Vec::new();
     for worker_solid in worker.solids {
         let peak = worker_solid.peak.expect("checked above");
@@ -895,14 +968,25 @@ pub fn design_heating(
             voxels,
         });
     }
-    report.status = "CALCULATED".into();
+    report.status = worker
+        .status
+        .clone()
+        .unwrap_or_else(|| "NOT_EVALUATED".into());
+    if report.status == "INCONCLUSIVE" {
+        report.why = worker.why.clone();
+        report.next_step = worker.next_step.clone();
+    }
     report.openmc = worker.openmc;
     report.histories = worker.histories;
+    report.c_api_terminal_status = worker.c_api_terminal_status;
+    report.lost_particles = worker.lost_particles;
     report.stop_reason = worker.stop_reason;
     report.elapsed_seconds = elapsed;
     report.data_identity = worker.data_identity;
     report.solids = solids;
-    report.validation = ValidationMarks::for_catalogue(DESIGN_HEATING_OUTPUTS);
+    if report.status == "CALCULATED" {
+        report.validation = ValidationMarks::for_catalogue(DESIGN_HEATING_OUTPUTS);
+    }
     report.notices.push("The reported peak is the highest sampled ring voxel resolved by this tally; unsampled sub-voxel peaks may be higher.".into());
     report.notices.push("The voxel volume estimator uses ray sampling. This adapter records ray count but does not provide its volume standard error; that geometric uncertainty is not included in the Monte Carlo heating error.".into());
     write_report(&run_dir, &report)?;
@@ -946,21 +1030,74 @@ fn closure_mean_matches(residual: f64, total: f64, components: &[f64]) -> bool {
     (residual - expected).abs() <= 1.0e-8 * scale.max(1.0e-300)
 }
 
+fn closure_within_3se(score: &WorkerScore, scale: f64) -> bool {
+    let expected_tolerance = 64.0
+        * f64::EPSILON
+        * scale
+            .abs()
+            .max(score.mean_ev_per_source.abs())
+            .max(1.0e-300);
+    score.within_3se
+        == Some(
+            score.mean_ev_per_source.abs()
+                <= 3.0 * score.standard_error_ev_per_source + expected_tolerance,
+        )
+        && score.roundoff_tolerance_ev_per_source.is_some_and(|value| {
+            (value - expected_tolerance).abs() <= expected_tolerance.max(1.0e-300) * 1.0e-8
+        })
+}
+
+fn valid_terminal_status(
+    worker: &WorkerResult,
+    planned_batches: u64,
+    particles_per_batch: u64,
+) -> bool {
+    let batches = worker.histories / particles_per_batch;
+    match worker.c_api_terminal_status {
+        Some(1) => batches == planned_batches && worker.stop_reason == "history_limit",
+        Some(0) => {
+            worker.stop_reason == "time_limit"
+                && batches >= MIN_BATCHES
+                && batches < planned_batches
+        }
+        _ => false,
+    }
+}
+
 pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
     use std::fmt::Write as _;
     let mut text = format!("Winding-pack heating: {}\n", report.status);
     if let Some(why) = &report.why {
-        let _ = writeln!(text, "  Not evaluated: {why}");
+        let label = if report.status == "INCONCLUSIVE" {
+            "  Reason"
+        } else {
+            "  Not evaluated"
+        };
+        let _ = writeln!(text, "{label}: {why}");
     }
     if let Some(next) = &report.next_step {
         let _ = writeln!(text, "  Next: {next}");
     }
-    if report.status == "CALCULATED" {
+    if report.histories > 0 {
         let _ = writeln!(
             text,
             "  Histories: {}; stopped at {}",
             report.histories, report.stop_reason
         );
+    }
+    if let Some(status) = report.c_api_terminal_status {
+        let _ = writeln!(text, "  OpenMC C API terminal status: {status}");
+    }
+    if let Some(lost) = report.lost_particles {
+        let fraction = if report.histories > 0 {
+            format!(
+                " ({:.3e} of histories)",
+                lost as f64 / report.histories as f64
+            )
+        } else {
+            String::new()
+        };
+        let _ = writeln!(text, "  Lost particles: {lost}{fraction}");
     }
     for solid in &report.solids {
         let _ = writeln!(
@@ -1037,6 +1174,49 @@ mod tests {
     use super::*;
 
     #[test]
+    fn worker_parser_preserves_failed_correlated_closure_and_terminal_controls() {
+        let score = |mean: f64, se: f64| {
+            serde_json::json!({
+                "mean_ev_per_source": mean,
+                "standard_error_ev_per_source": se,
+                "within_3se": false,
+                "roundoff_tolerance_ev_per_source": 2.1316282072803006e-13
+            })
+        };
+        let raw = serde_json::json!({
+            "schema": RESULT_SCHEMA,
+            "status": "INCONCLUSIVE",
+            "why": "closure outside three SE",
+            "c_api_terminal_status": 1,
+            "lost_particles": 0,
+            "histories": 100_000,
+            "stop_reason": "history_limit",
+            "h5m_sha256": "h",
+            "cross_sections_sha256": "x",
+            "solids": [{
+                "solid_id": "winding",
+                "neutron": {"mean_ev_per_source": 5.0, "standard_error_ev_per_source": 1.0},
+                "photon": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
+                "electron": {"mean_ev_per_source": 1.0, "standard_error_ev_per_source": 1.0},
+                "positron": {"mean_ev_per_source": 0.0, "standard_error_ev_per_source": 0.0},
+                "total": {"mean_ev_per_source": 8.0, "standard_error_ev_per_source": 1.0},
+                "closure_residual": score(1.0, 0.0),
+                "peak": null,
+                "voxel_scores": []
+            }]
+        });
+        let worker: WorkerResult = serde_json::from_value(raw).unwrap();
+        assert_eq!(worker.status.as_deref(), Some("INCONCLUSIVE"));
+        assert_eq!(worker.c_api_terminal_status, Some(1));
+        assert_eq!(worker.lost_particles, Some(0));
+        let residual = &worker.solids[0].closure_residual;
+        assert_eq!(residual.mean_ev_per_source, 1.0);
+        assert!(!closure_within_3se(residual, 15.0));
+        assert!(valid_terminal_status(&worker, 100, 1_000));
+        assert!(!valid_terminal_status(&worker, 101, 1_000));
+    }
+
+    #[test]
     fn two_volumes_scale_density_and_sampling_error_independently() {
         let a =
             normalize_heating_ev_per_source(1000.0, Some(100.0), 1.0e18, 0.01, Some(0.02)).unwrap();
@@ -1106,6 +1286,8 @@ mod tests {
             energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
             fusion_power_mw: 283.0,
             histories: 600_000,
+            c_api_terminal_status: Some(1),
+            lost_particles: Some(0),
             stop_reason: "history_limit".into(),
             elapsed_seconds: 30.0,
             seed: 7,
