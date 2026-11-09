@@ -7,6 +7,10 @@ const SOURCES: &[(&str, &str)] = &[
     ("history_panel.rs", include_str!("history_panel.rs")),
     ("lib.rs", include_str!("lib.rs")),
     ("maintenance_panel.rs", include_str!("maintenance_panel.rs")),
+    (
+        "maintenance_dose_panel.rs",
+        include_str!("maintenance_dose_panel.rs"),
+    ),
     ("sweep_panel.rs", include_str!("sweep_panel.rs")),
     ("transport_panel.rs", include_str!("transport_panel.rs")),
     (

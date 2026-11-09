@@ -13,6 +13,7 @@ use faris_engine::maintenance::{
         BUILDER_NOT_FOUND, DoseRunConfig, RunConfig, default_builder, run_dose_from_files,
         run_from_files,
     },
+    parse_dose_result,
 };
 #[cfg(test)]
 use faris_engine::{
@@ -352,7 +353,7 @@ fn report(path: &Path, format: ReportFormat) -> Result<(), Box<dyn std::error::E
         .and_then(serde_json::Value::as_str)
         == Some(MAINTENANCE_DOSE_RESULT_VERSION)
     {
-        let result: DoseMaintenanceResult = serde_json::from_value(value.clone())?;
+        let result: DoseMaintenanceResult = parse_dose_result(&bytes)?;
         match format {
             ReportFormat::Json => println!("{}", serde_json::to_string_pretty(&value)?),
             ReportFormat::Markdown => print!("{}", dose_markdown(&result)),

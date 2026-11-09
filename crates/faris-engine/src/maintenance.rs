@@ -616,6 +616,25 @@ pub struct DoseMaintenanceResult {
     pub produced_by: Option<ProducedBy>,
 }
 
+/// Bounded parser for `faris-maintenance-result/v0.2`, used by app, CLI and fuzz coverage.
+pub fn parse_dose_result(bytes: &[u8]) -> Result<DoseMaintenanceResult, String> {
+    if bytes.len() > MAX_DOSE_RESULT_BYTES {
+        return Err("dose maintenance result exceeds the 16 MiB limit".into());
+    }
+    let result: DoseMaintenanceResult =
+        serde_json::from_slice(bytes).map_err(|e| format!("dose maintenance result JSON: {e}"))?;
+    if result.schema_version != MAINTENANCE_DOSE_RESULT_VERSION {
+        return Err(format!(
+            "result schema_version must be {MAINTENANCE_DOSE_RESULT_VERSION}"
+        ));
+    }
+    result.assumptions.validate()?;
+    if result.assumptions.governing_quantity != faris_model::maintenance::GoverningQuantity::Dose {
+        return Err("dose maintenance result must carry dose-governed assumptions".into());
+    }
+    Ok(result)
+}
+
 // --------------------------------------------------------------------- loop --
 
 fn cancelled() -> String {
@@ -1237,6 +1256,7 @@ pub fn run_dose_maintenance(
     }
 
     let mut outputs = BTreeMap::new();
+    let mut verified_schedule_shas = BTreeSet::new();
     let required_cooling_grid = cooling_grid_s(&assumptions.cooling);
     for fixed_design in &fixed {
         let name = fixed_design.input.name.as_str();
@@ -1337,7 +1357,21 @@ pub fn run_dose_maintenance(
                                 && record.shutdown_s.to_bits() == event.start_s.to_bits()
                         })
                         .ok_or_else(|| "dose event curve disappeared during lookup".to_string())?;
-                    bundle.verify_irradiation_schedule(record, &history)?;
+                    let schedule = irradiation::irradiation_schedule(
+                        &history,
+                        Some((&event.component, event.start_s)),
+                        &record.irradiation_rule,
+                        &[event.start_s],
+                    )?;
+                    if schedule.input_sha256 != record.irradiation_schedule_sha256 {
+                        return Err(format!(
+                            "dose curve for {} replacement #{} has a stale irradiation schedule hash",
+                            event.component, event.k
+                        ));
+                    }
+                    if verified_schedule_shas.insert(schedule.input_sha256.clone()) {
+                        bundle.verify_irradiation_schedule(record, &history)?;
+                    }
                 }
                 let fixed_s = fixed_design.durations_s[&event.class];
                 let old = used

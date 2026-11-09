@@ -97,9 +97,23 @@
       "sources": ["crates/faris-engine/src/maintenance.rs"],
       "verification": [
         {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/tests.rs", "name": "cooldown_matches_the_reference", "what": "cooldown against a reference computation"},
-        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/tests.rs", "name": "calibrated_loop_converges_and_lengthens_cooldowns_with_age", "what": "the coupling loop converges"}
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/tests.rs", "name": "calibrated_loop_converges_and_lengthens_cooldowns_with_age", "what": "the heat coupling loop converges"}
       ],
-      "not_covered": ["no independent benchmark of maintenance durations", "shutdown dose rate is not computed"]
+      "not_covered": ["no independent benchmark of maintenance durations", "shutdown dose governed durations use a separate spatial-dose maintenance model"]
+    },
+    {
+      "id": "spatial-dose-maintenance",
+      "label": "Dose-governed replacement cooldown from exact event, history and task-location bound external estimates",
+      "page": "docs/guide/maintenance-spatial-dose.md",
+      "catalogues": [],
+      "quantities": [],
+      "reports": "authored replacement durations derived from externally produced ICRP-116 AP photon effective dose curves at a named location; no transport solve is generated",
+      "sources": ["crates/faris-engine/src/maintenance.rs", "crates/faris-engine/src/maintenance/spatial_dose.rs", "crates/faris-engine/src/maintenance/files.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/spatial_dose.rs", "name": "only_exact_history_event_design_and_location_curve_is_selectable", "what": "event curves bind exact histories, design inputs, installations, task locations, input artifact bytes and run-record identities; changing the outer event hash cannot relabel a historical run"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/spatial_dose.rs", "name": "central_ratio_outside_band_never_passes_validation", "what": "out-of-band central D1S/R2S ratios are refused and missing covariance remains inconclusive"}
+      ],
+      "not_covered": ["general event-specific D1S/R2S production is not implemented", "no independent transport or facility benchmark validates imported dose estimates", "crossing-time uncertainty is not computed"]
     },
     {
       "id": "geometry-checks",

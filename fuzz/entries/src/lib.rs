@@ -34,6 +34,7 @@ pub const ENTRIES: &[Entry] = &[
     ("nuclear_data_audit", nuclear_data_audit),
     ("actinv_result", actinv_result),
     ("shutdown_dose_records", shutdown_dose_records),
+    ("maintenance_spatial_dose", maintenance_spatial_dose),
     ("png_header", png_header),
     ("file_readers", file_readers),
     ("study_file", study_file),
@@ -176,6 +177,12 @@ pub fn json_records(data: &[u8]) {
             faris_occt_client::protocol::Response,
         >(body)),
     }
+}
+
+/// Bounded external event-dose curve input and the resulting v0.2 dose-maintenance record.
+pub fn maintenance_spatial_dose(data: &[u8]) {
+    let _ = maintenance::spatial_dose::CurveBundle::parse(data);
+    let _ = maintenance::parse_dose_result(data);
 }
 
 /// What the design import reads back from the helpers and its own cache.

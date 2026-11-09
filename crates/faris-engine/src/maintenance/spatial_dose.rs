@@ -17,7 +17,9 @@ use std::path::{Path, PathBuf};
 
 pub const CURVES_SCHEMA: &str = "faris-maintenance-spatial-dose-curves/v0.1";
 pub const ESTIMATE_SCHEMA: &str = "faris-maintenance-spatial-dose-estimate/v0.1";
+pub const RUN_RECORD_SCHEMA: &str = "faris-maintenance-spatial-dose-run-record/v0.1";
 pub const MAX_CURVE_FILE_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_TOTAL_ARTIFACT_BYTES: u64 = 512 * 1024 * 1024;
 pub const MAX_EVENT_COUNT: usize = 100_000;
 pub const MAX_POINTS_PER_EVENT: usize = 512;
 const D1S_R2S_RATIO_MIN: f64 = 0.85;
@@ -53,16 +55,15 @@ pub struct DoseEstimate {
     pub location: TaskLocation,
     pub cooling_s: f64,
     pub value_sv_h: f64,
-    pub standard_error_sv_h: Option<f64>,
+    pub standard_error_sv_h: f64,
+    /// IDs copied from the run record. Different labels alone do not establish independence.
+    pub random_streams: Vec<String>,
     /// Hashes for geometry, materials, source, irradiation, response and location inputs.
     pub physical_input_sha256: BTreeMap<String, String>,
     /// The actual artifacts whose bytes produced those hashes. Hash strings without their
     /// corresponding input artifacts do not establish a checked physical basis.
     pub physical_input_artifacts: BTreeMap<String, ArtifactRef>,
     pub run_record: ArtifactRef,
-    /// Covariance between compared point estimates, when supplied by the producer. Pointwise
-    /// standard errors do not imply temporal covariance.
-    pub comparison_covariance: Option<f64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -87,6 +88,21 @@ pub struct EventDoseCurve {
 pub struct DosePointPair {
     pub d1s: DoseEstimate,
     pub r2s: DoseEstimate,
+    #[serde(default)]
+    pub covariance: DoseCovarianceAssessment,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DoseCovarianceAssessment {
+    /// Fail-closed: no comparison uncertainty is reported.
+    #[default]
+    Unknown,
+    /// Authored independence assumption with a hash-verified evidence file.
+    IndependentAssumed {
+        rationale: String,
+        evidence: ArtifactRef,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -111,9 +127,10 @@ pub struct ValidatedDosePoint {
     pub selected_sv_h: f64,
     pub d1s_sv_h: f64,
     pub r2s_sv_h: f64,
-    pub d1s_standard_error_sv_h: Option<f64>,
-    pub r2s_standard_error_sv_h: Option<f64>,
-    pub comparison_covariance: Option<f64>,
+    pub d1s_standard_error_sv_h: f64,
+    pub r2s_standard_error_sv_h: f64,
+    pub covariance_assumption: String,
+    pub covariance_evidence_sha256: Option<String>,
     pub source_normalization: String,
     pub physical_input_sha256: BTreeMap<String, String>,
     pub run_record_d1s_sha256: String,
@@ -147,15 +164,16 @@ fn valid_sha(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-fn hash_file(path: &Path) -> Result<String, String> {
-    let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
+fn hash_file(path: &Path) -> Result<(String, u64), String> {
+    let file = open_regular_file(path)?;
+    let metadata = file.metadata().map_err(|e| e.to_string())?;
     if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
         return Err(format!(
             "artifact {} is not a bounded regular file",
             path.display()
         ));
     }
-    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut file = file;
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
     let mut total = 0usize;
@@ -170,17 +188,206 @@ fn hash_file(path: &Path) -> Result<String, String> {
         }
         digest.update(&buffer[..n]);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    Ok((format!("{:x}", digest.finalize()), total as u64))
 }
 
-fn verify_artifact(reference: &ArtifactRef, base: &Path) -> Result<(), String> {
-    if !valid_sha(&reference.sha256) {
-        return Err("artifact reference needs a SHA-256".into());
+fn open_regular_file(path: &Path) -> Result<std::fs::File, String> {
+    let metadata = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "{}: expected a regular file; special files and directories are refused",
+            path.display()
+        ));
     }
-    let path = base.join(&reference.path);
-    let got = hash_file(&path)?;
-    if got != reference.sha256 {
-        return Err(format!("artifact {} SHA-256 mismatch", path.display()));
+    let file = std::fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if !file.metadata().map_err(|e| e.to_string())?.is_file() {
+        return Err(format!(
+            "{}: opened object is not a regular file",
+            path.display()
+        ));
+    }
+    Ok(file)
+}
+
+fn read_bounded(path: &Path) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    open_regular_file(path)?
+        .take((MAX_CURVE_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    if bytes.len() > MAX_CURVE_FILE_BYTES {
+        return Err(format!("{}: file exceeds 16 MiB limit", path.display()));
+    }
+    Ok(bytes)
+}
+
+#[derive(Default)]
+struct ArtifactVerifier {
+    json_records: BTreeMap<PathBuf, (String, serde_json::Value)>,
+    total_bytes_read: u64,
+}
+
+impl ArtifactVerifier {
+    fn verify(&mut self, reference: &ArtifactRef, base: &Path) -> Result<PathBuf, String> {
+        if !valid_sha(&reference.sha256) {
+            return Err("artifact reference needs a SHA-256".into());
+        }
+        let path = base.join(&reference.path);
+        let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
+            return Err(format!(
+                "artifact {} is not a bounded regular file",
+                path.display()
+            ));
+        }
+        let (got, bytes_read) = hash_file(&path)?;
+        self.total_bytes_read = self.total_bytes_read.saturating_add(bytes_read);
+        if self.total_bytes_read > MAX_TOTAL_ARTIFACT_BYTES {
+            return Err("artifact reads exceed the 512 MiB aggregate verification budget".into());
+        }
+        if !got.eq_ignore_ascii_case(&reference.sha256) {
+            return Err(format!("artifact {} SHA-256 mismatch", path.display()));
+        }
+        Ok(path)
+    }
+
+    fn json_record(
+        &mut self,
+        reference: &ArtifactRef,
+        base: &Path,
+    ) -> Result<(PathBuf, serde_json::Value), String> {
+        let path = base.join(&reference.path);
+        let bytes = read_bounded(&path)?;
+        self.total_bytes_read = self.total_bytes_read.saturating_add(bytes.len() as u64);
+        if self.total_bytes_read > MAX_TOTAL_ARTIFACT_BYTES {
+            return Err("artifact reads exceed the 512 MiB aggregate verification budget".into());
+        }
+        let digest = format!("{:x}", Sha256::digest(&bytes));
+        if !digest.eq_ignore_ascii_case(&reference.sha256) {
+            return Err(format!("artifact {} SHA-256 mismatch", path.display()));
+        }
+        if let Some((cached_sha, record)) = self.json_records.get(&path) {
+            if cached_sha.eq_ignore_ascii_case(&digest) {
+                return Ok((path, record.clone()));
+            }
+        }
+        let record: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| format!("{}: JSON: {e}", path.display()))?;
+        self.json_records
+            .insert(path.clone(), (digest, record.clone()));
+        Ok((path, record))
+    }
+}
+
+fn verify_artifact(
+    reference: &ArtifactRef,
+    base: &Path,
+    verifier: &mut ArtifactVerifier,
+) -> Result<(), String> {
+    verifier.verify(reference, base)?;
+    Ok(())
+}
+
+fn close_time(a: f64, b: f64) -> bool {
+    a.is_finite() && b.is_finite() && (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0)
+}
+
+fn validate_run_record(
+    e: &DoseEstimate,
+    event: &EventDoseCurve,
+    event_sha256: &str,
+    base: &Path,
+    verifier: &mut ArtifactVerifier,
+) -> Result<(), String> {
+    let (path, run) = verifier.json_record(&e.run_record, base)?;
+    let method = match e.method {
+        DoseMethod::D1s => "d1s",
+        DoseMethod::R2s => "r2s",
+    };
+    let estimate = run.get("estimate");
+    let response = run.get("response");
+    let artifacts = run.get("artifacts");
+    let run_streams = run
+        .get("random_streams")
+        .and_then(|value| serde_json::from_value::<Vec<String>>(value.clone()).ok());
+    let event_record = run.get("event");
+    let design_hashes = serde_json::to_value(&event.design_input_sha256).ok();
+    let event_matches = event_record.is_some_and(|actual| {
+        actual.get("identity_sha256").and_then(|v| v.as_str()) == Some(event_sha256)
+            && actual.get("history_sha256").and_then(|v| v.as_str())
+                == Some(event.history_sha256.as_str())
+            && actual.get("design").and_then(|v| v.as_str()) == Some(event.design.as_str())
+            && actual.get("design_input_sha256") == design_hashes.as_ref()
+            && actual.get("class").and_then(|v| v.as_str()) == Some(event.class.as_str())
+            && actual.get("component").and_then(|v| v.as_str()) == Some(event.component.as_str())
+            && actual.get("replacement_k").and_then(|v| v.as_u64())
+                == Some(u64::from(event.replacement_k))
+            && actual
+                .get("shutdown_s")
+                .and_then(|v| v.as_f64())
+                .is_some_and(|v| close_time(v, event.shutdown_s))
+            && actual
+                .get("install_s")
+                .and_then(|v| v.as_f64())
+                .is_some_and(|v| close_time(v, event.install_s))
+            && actual
+                .get("irradiation_schedule_sha256")
+                .and_then(|v| v.as_str())
+                == Some(event.irradiation_schedule_sha256.as_str())
+            && actual
+                .get("location")
+                .and_then(|v| v.get("id"))
+                .and_then(|v| v.as_str())
+                == Some(event.location.id.as_str())
+            && actual
+                .get("location")
+                .and_then(|v| v.get("sha256"))
+                .and_then(|v| v.as_str())
+                .is_some_and(|v| v.eq_ignore_ascii_case(&event.location.sha256))
+    });
+    let estimate_matches = estimate.is_some_and(|actual| {
+        actual.get("value").and_then(|v| v.as_f64()) == Some(e.value_sv_h)
+            && actual.get("standard_error").and_then(|v| v.as_f64()) == Some(e.standard_error_sv_h)
+    });
+    let response_matches = [
+        ("quantity", e.quantity.as_str()),
+        ("unit", e.unit.as_str()),
+        ("normalization", e.normalization.as_str()),
+    ]
+    .iter()
+    .all(|(key, expected)| {
+        response.and_then(|r| r.get(key)).and_then(|v| v.as_str()) == Some(*expected)
+    });
+    let basis_keys = [
+        ("geometry_sha256", "geometry"),
+        ("materials_sha256", "materials"),
+        ("source_sha256", "source"),
+        ("irradiation_sha256", "irradiation"),
+        ("response_sha256", "response"),
+        ("location_sha256", "location"),
+    ];
+    let basis_matches = basis_keys.iter().all(|(record_key, input_key)| {
+        artifacts
+            .and_then(|a| a.get(*record_key))
+            .and_then(|v| v.as_str())
+            .is_some_and(|v| v.eq_ignore_ascii_case(&e.physical_input_sha256[*input_key]))
+    });
+    if run.get("schema").and_then(|v| v.as_str()) != Some(RUN_RECORD_SCHEMA)
+        || run.get("method").and_then(|v| v.as_str()) != Some(method)
+        || run
+            .get("cooling_time_s")
+            .and_then(|v| v.as_f64())
+            .is_none_or(|v| !close_time(v, e.cooling_s))
+        || run_streams.as_ref() != Some(&e.random_streams)
+        || !event_matches
+        || !estimate_matches
+        || !response_matches
+        || !basis_matches
+    {
+        return Err(format!(
+            "{}: run record method, cooling time, estimate, response, event identity, input hashes or random streams do not match the estimate",
+            path.display()
+        ));
     }
     Ok(())
 }
@@ -194,10 +401,12 @@ fn validate_location(location: &TaskLocation) -> Result<(), String> {
 
 fn validate_estimate(
     e: &DoseEstimate,
+    event: &EventDoseCurve,
     method: DoseMethod,
     location: &TaskLocation,
     expected_event_sha256: &str,
     base: &Path,
+    verifier: &mut ArtifactVerifier,
 ) -> Result<(), String> {
     if e.schema != ESTIMATE_SCHEMA {
         return Err(format!("estimate schema must be {ESTIMATE_SCHEMA}"));
@@ -225,13 +434,8 @@ fn validate_estimate(
     {
         return Err("cooling time and dose rate must be finite, and cooling time positive".into());
     }
-    if e.standard_error_sv_h
-        .is_some_and(|v| !v.is_finite() || v < 0.0)
-    {
+    if !e.standard_error_sv_h.is_finite() || e.standard_error_sv_h < 0.0 {
         return Err("standard error must be finite and nonnegative".into());
-    }
-    if e.comparison_covariance.is_some_and(|v| !v.is_finite()) {
-        return Err("comparison covariance must be finite".into());
     }
     for required in [
         "geometry",
@@ -257,7 +461,7 @@ fn validate_estimate(
                 "estimate {required} artifact hash differs from its declared input hash"
             ));
         }
-        verify_artifact(artifact, base)?;
+        verify_artifact(artifact, base, verifier)?;
     }
     if e.physical_input_sha256["location"] != location.sha256 {
         return Err("location input hash differs from event location hash".into());
@@ -270,7 +474,23 @@ fn validate_estimate(
     if !valid_sha(&e.physical_input_sha256["event"]) {
         return Err("event input hash is not SHA-256".into());
     }
-    verify_artifact(&e.run_record, base)
+    if e.random_streams.is_empty()
+        || e.random_streams.len() > 128
+        || e.random_streams
+            .iter()
+            .any(|s| s.trim().is_empty() || s.len() > 256)
+    {
+        return Err(
+            "run record must name 1–128 nonempty random streams, each at most 256 bytes".into(),
+        );
+    }
+    let mut streams = e.random_streams.clone();
+    streams.sort();
+    streams.dedup();
+    if streams.len() != e.random_streams.len() {
+        return Err("random stream IDs must be unique".into());
+    }
+    validate_run_record(e, event, expected_event_sha256, base, verifier)
 }
 
 /// Hash of the exact event key, with fixed field order and serde's compact JSON encoding.
@@ -305,11 +525,7 @@ fn compare(pair: &DosePointPair) -> ComparisonStatus {
     if !(D1S_R2S_RATIO_MIN..=D1S_R2S_RATIO_MAX).contains(&ratio) {
         return ComparisonStatus::OutsideBand;
     }
-    if pair.d1s.comparison_covariance.is_none()
-        || pair.d1s.comparison_covariance != pair.r2s.comparison_covariance
-        || pair.d1s.standard_error_sv_h.is_none()
-        || pair.r2s.standard_error_sv_h.is_none()
-    {
+    if matches!(pair.covariance, DoseCovarianceAssessment::Unknown) {
         return ComparisonStatus::InconclusiveCovariance;
     }
     ComparisonStatus::InBand
@@ -317,20 +533,42 @@ fn compare(pair: &DosePointPair) -> ComparisonStatus {
 
 fn ratio_standard_error(pair: &DosePointPair) -> Option<f64> {
     let denominator = pair.r2s.value_sv_h;
-    let sigma_d1s = pair.d1s.standard_error_sv_h?;
-    let sigma_r2s = pair.r2s.standard_error_sv_h?;
-    let covariance = pair.d1s.comparison_covariance?;
-    if pair.r2s.comparison_covariance != Some(covariance) || denominator <= 0.0 {
+    if !matches!(
+        pair.covariance,
+        DoseCovarianceAssessment::IndependentAssumed { .. }
+    ) || denominator <= 0.0
+    {
         return None;
     }
     let numerator = pair.d1s.value_sv_h;
-    let variance = sigma_d1s.powi(2) / denominator.powi(2)
-        + numerator.powi(2) * sigma_r2s.powi(2) / denominator.powi(4)
-        - 2.0 * numerator * covariance / denominator.powi(3);
-    variance.is_finite().then_some(variance.max(0.0).sqrt())
+    let first = pair.d1s.standard_error_sv_h / denominator;
+    let second = numerator / denominator * pair.r2s.standard_error_sv_h / denominator;
+    let result = first.hypot(second);
+    result.is_finite().then_some(result)
 }
 
 impl CurveBundle {
+    /// Bounded, side-effect-free JSON parser shared by the CLI, native UI and fuzz harness.
+    pub fn parse(bytes: &[u8]) -> Result<Self, String> {
+        if bytes.len() > MAX_CURVE_FILE_BYTES {
+            return Err("spatial dose curve file exceeds 16 MiB limit".into());
+        }
+        let bundle: Self =
+            serde_json::from_slice(bytes).map_err(|e| format!("spatial dose curves JSON: {e}"))?;
+        if bundle.schema != CURVES_SCHEMA {
+            return Err(format!("curve schema must be {CURVES_SCHEMA}"));
+        }
+        if bundle.curves.len() > MAX_EVENT_COUNT
+            || bundle
+                .curves
+                .iter()
+                .any(|c| c.points.len() > MAX_POINTS_PER_EVENT)
+        {
+            return Err("spatial dose curve bundle exceeds its event or point bound".into());
+        }
+        Ok(bundle)
+    }
+
     /// Load a bounded external curve file and verify every referenced run artifact.
     pub fn read(path: &Path) -> Result<Self, String> {
         let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
@@ -340,18 +578,24 @@ impl CurveBundle {
             );
         }
         let mut bytes = Vec::new();
-        std::fs::File::open(path)
-            .map_err(|e| e.to_string())?
+        open_regular_file(path)?
             .take((MAX_CURVE_FILE_BYTES + 1) as u64)
             .read_to_end(&mut bytes)
             .map_err(|e| e.to_string())?;
         if bytes.len() > MAX_CURVE_FILE_BYTES {
             return Err("spatial dose curve file exceeds 16 MiB limit".into());
         }
-        let mut bundle: Self = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        let mut bundle = Self::parse(&bytes)?;
         let base = path.parent().unwrap_or(Path::new("."));
         for curve in &mut bundle.curves {
             for point in &mut curve.points {
+                if let DoseCovarianceAssessment::IndependentAssumed { evidence, .. } =
+                    &mut point.covariance
+                {
+                    if !evidence.path.is_absolute() {
+                        evidence.path = base.join(&evidence.path);
+                    }
+                }
                 for estimate in [&mut point.d1s, &mut point.r2s] {
                     if !estimate.run_record.path.is_absolute() {
                         estimate.run_record.path = base.join(&estimate.run_record.path);
@@ -376,6 +620,7 @@ impl CurveBundle {
             return Err("too many event dose curves".into());
         }
         let mut keys = BTreeSet::new();
+        let mut verifier = ArtifactVerifier::default();
         for curve in &self.curves {
             validate_location(&curve.location)?;
             if curve.design.trim().is_empty()
@@ -442,17 +687,21 @@ impl CurveBundle {
             for pair in &curve.points {
                 validate_estimate(
                     &pair.d1s,
+                    curve,
                     DoseMethod::D1s,
                     &curve.location,
                     &expected_event_sha256,
                     base,
+                    &mut verifier,
                 )?;
                 validate_estimate(
                     &pair.r2s,
+                    curve,
                     DoseMethod::R2s,
                     &curve.location,
                     &expected_event_sha256,
                     base,
+                    &mut verifier,
                 )?;
                 if pair.d1s.cooling_s != pair.r2s.cooling_s || pair.d1s.cooling_s <= prior {
                     return Err(
@@ -475,18 +724,15 @@ impl CurveBundle {
                 }
                 reference_basis.get_or_insert_with(|| pair.d1s.physical_input_sha256.clone());
                 reference_normalization.get_or_insert(&pair.d1s.normalization);
-                if pair.d1s.comparison_covariance != pair.r2s.comparison_covariance {
-                    return Err("D1S and R2S records disagree on comparison covariance".into());
-                }
-                if let (Some(cov), Some(sx), Some(sy)) = (
-                    pair.d1s.comparison_covariance,
-                    pair.d1s.standard_error_sv_h,
-                    pair.r2s.standard_error_sv_h,
-                ) && cov.abs() > sx * sy * (1.0 + 1e-9)
+                if let DoseCovarianceAssessment::IndependentAssumed {
+                    rationale,
+                    evidence,
+                } = &pair.covariance
                 {
-                    return Err(
-                        "D1S/R2S covariance exceeds the pointwise standard-error bound".into(),
-                    );
+                    if rationale.trim().is_empty() || rationale.len() > 2048 {
+                        return Err("independent covariance assumption needs a rationale of at most 2048 bytes".into());
+                    }
+                    verify_artifact(evidence, base, &mut verifier)?;
                 }
                 prior = pair.d1s.cooling_s;
             }
@@ -540,7 +786,14 @@ impl CurveBundle {
                 r2s_sv_h: pair.r2s.value_sv_h,
                 d1s_standard_error_sv_h: pair.d1s.standard_error_sv_h,
                 r2s_standard_error_sv_h: pair.r2s.standard_error_sv_h,
-                comparison_covariance: pair.d1s.comparison_covariance,
+                covariance_assumption: match &pair.covariance {
+                    DoseCovarianceAssessment::Unknown => "unknown".into(),
+                    DoseCovarianceAssessment::IndependentAssumed { rationale, .. } => format!("independent_assumed: {rationale}"),
+                },
+                covariance_evidence_sha256: match &pair.covariance {
+                    DoseCovarianceAssessment::Unknown => None,
+                    DoseCovarianceAssessment::IndependentAssumed { evidence, .. } => Some(evidence.sha256.clone()),
+                },
                 source_normalization: pair.d1s.normalization.clone(),
                 physical_input_sha256: pair.d1s.physical_input_sha256.clone(),
                 run_record_d1s_sha256: pair.d1s.run_record.sha256.clone(),
@@ -579,46 +832,35 @@ impl CurveBundle {
                 event.component, event.replacement_k
             ));
         }
-        let mut prior_artifact_sha = None;
-        for pair in &event.points {
-            for estimate in [&pair.d1s, &pair.r2s] {
-                let artifact = estimate
-                    .physical_input_artifacts
-                    .get("irradiation")
-                    .ok_or("dose estimate omits the irradiation schedule artifact")?;
-                if prior_artifact_sha
-                    .as_ref()
-                    .is_some_and(|sha| sha != &artifact.sha256)
-                {
-                    return Err(
-                        "D1S/R2S points use different irradiation schedule artifacts".into(),
-                    );
-                }
-                prior_artifact_sha = Some(artifact.sha256.clone());
-                let path = artifact.path.clone();
-                let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
-                if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
-                    return Err("irradiation schedule artifact must be a regular file no larger than 16 MiB".into());
-                }
-                let mut bytes = Vec::new();
-                std::fs::File::open(&path)
-                    .map_err(|e| e.to_string())?
-                    .take((MAX_CURVE_FILE_BYTES + 1) as u64)
-                    .read_to_end(&mut bytes)
-                    .map_err(|e| e.to_string())?;
-                if bytes.len() > MAX_CURVE_FILE_BYTES {
-                    return Err("irradiation schedule artifact exceeds 16 MiB limit".into());
-                }
-                let receipt: super::irradiation::IrradiationSchedule =
-                    serde_json::from_slice(&bytes)
-                        .map_err(|e| format!("invalid irradiation schedule artifact: {e}"))?;
-                if !receipt.verify() || receipt != expected {
-                    return Err(format!(
-                        "irradiation schedule artifact for {} replacement #{} does not match the exact history event",
-                        event.component, event.replacement_k
-                    ));
-                }
-            }
+        let pair = event
+            .points
+            .first()
+            .ok_or("event dose curve has no points")?;
+        let reference = pair
+            .d1s
+            .physical_input_artifacts
+            .get("irradiation")
+            .ok_or("dose estimate omits the irradiation schedule artifact")?;
+        let expected_sha = &pair.d1s.physical_input_sha256["irradiation"];
+        if !reference.sha256.eq_ignore_ascii_case(expected_sha)
+            || !pair.r2s.physical_input_sha256["irradiation"].eq_ignore_ascii_case(expected_sha)
+        {
+            return Err(
+                "D1S/R2S event points do not share the exact irradiation artifact hash".into(),
+            );
+        }
+        let bytes = read_bounded(&reference.path)?;
+        let actual_sha = format!("{:x}", Sha256::digest(&bytes));
+        if !actual_sha.eq_ignore_ascii_case(expected_sha) {
+            return Err("irradiation schedule artifact SHA-256 mismatch".into());
+        }
+        let receipt: super::irradiation::IrradiationSchedule = serde_json::from_slice(&bytes)
+            .map_err(|e| format!("invalid irradiation schedule artifact: {e}"))?;
+        if !receipt.verify() || receipt != expected {
+            return Err(format!(
+                "irradiation schedule artifact for {} replacement #{} does not match the exact history event",
+                event.component, event.replacement_k
+            ));
         }
         Ok(())
     }
@@ -647,7 +889,14 @@ mod tests {
             location: location.clone(),
             cooling_s: 10.0,
             value_sv_h: value,
-            standard_error_sv_h: Some(value * 0.01),
+            standard_error_sv_h: value * 0.01,
+            random_streams: vec![
+                match method {
+                    DoseMethod::D1s => "d1s-stream",
+                    DoseMethod::R2s => "r2s-stream",
+                }
+                .into(),
+            ],
             physical_input_sha256: [
                 "geometry",
                 "materials",
@@ -675,18 +924,19 @@ mod tests {
             .collect(),
             physical_input_artifacts: BTreeMap::new(),
             run_record: ArtifactRef {
-                path: "run.json".into(),
+                path: match method {
+                    DoseMethod::D1s => "run-d1s.json",
+                    DoseMethod::R2s => "run-r2s.json",
+                }
+                .into(),
                 sha256: run_sha.into(),
             },
-            comparison_covariance: Some(0.0),
         }
     }
 
     #[test]
     fn only_exact_history_event_design_and_location_curve_is_selectable() {
         let temp = tempfile::tempdir().unwrap();
-        std::fs::write(temp.path().join("run.json"), b"synthetic test artifact").unwrap();
-        let run_sha = sha(b"synthetic test artifact");
         let mut artifact_refs = BTreeMap::new();
         for name in [
             "geometry",
@@ -721,8 +971,8 @@ mod tests {
         .into_iter()
         .map(|n| (n.to_string(), "c".repeat(64)))
         .collect::<BTreeMap<_, _>>();
-        let mut d1s = estimate(DoseMethod::D1s, &location, &run_sha, 9.0e-5);
-        let mut r2s = estimate(DoseMethod::R2s, &location, &run_sha, 1.0e-4);
+        let mut d1s = estimate(DoseMethod::D1s, &location, &"0".repeat(64), 9.0e-5);
+        let mut r2s = estimate(DoseMethod::R2s, &location, &"0".repeat(64), 1.0e-4);
         for e in [&mut d1s, &mut r2s] {
             e.physical_input_sha256 = artifact_refs
                 .iter()
@@ -742,7 +992,11 @@ mod tests {
             irradiation_rule: super::super::irradiation::CondensationRule::LOSSLESS,
             irradiation_schedule_sha256: "f".repeat(64),
             location: location.clone(),
-            points: vec![DosePointPair { d1s, r2s }],
+            points: vec![DosePointPair {
+                d1s,
+                r2s,
+                covariance: DoseCovarianceAssessment::Unknown,
+            }],
         };
         let event_sha = event_identity_sha256(&event).unwrap();
         event.points[0]
@@ -752,7 +1006,55 @@ mod tests {
         event.points[0]
             .r2s
             .physical_input_sha256
-            .insert("event".into(), event_sha);
+            .insert("event".into(), event_sha.clone());
+        let covariance_evidence =
+            b"synthetic format-test evidence for the authored independence assumption";
+        std::fs::write(temp.path().join("covariance.json"), covariance_evidence).unwrap();
+        event.points[0].covariance = DoseCovarianceAssessment::IndependentAssumed {
+            rationale: "synthetic fixture only".into(),
+            evidence: ArtifactRef {
+                path: "covariance.json".into(),
+                sha256: sha(covariance_evidence),
+            },
+        };
+        for estimate in [&mut event.points[0].d1s, &mut event.points[0].r2s] {
+            let method = match estimate.method {
+                DoseMethod::D1s => "d1s",
+                DoseMethod::R2s => "r2s",
+            };
+            let run = serde_json::json!({
+                "schema": RUN_RECORD_SCHEMA,
+                "method": method,
+                "cooling_time_s": estimate.cooling_s,
+                "estimate": { "value": estimate.value_sv_h, "standard_error": estimate.standard_error_sv_h },
+                "response": { "quantity": estimate.quantity, "unit": estimate.unit, "normalization": estimate.normalization },
+                "artifacts": {
+                    "geometry_sha256": estimate.physical_input_sha256["geometry"],
+                    "materials_sha256": estimate.physical_input_sha256["materials"],
+                    "source_sha256": estimate.physical_input_sha256["source"],
+                    "irradiation_sha256": estimate.physical_input_sha256["irradiation"],
+                    "response_sha256": estimate.physical_input_sha256["response"],
+                    "location_sha256": estimate.physical_input_sha256["location"]
+                },
+                "random_streams": estimate.random_streams,
+                "event": {
+                    "identity_sha256": event_sha,
+                    "history_sha256": event.history_sha256,
+                    "design": event.design,
+                    "design_input_sha256": event.design_input_sha256,
+                    "class": event.class,
+                    "component": event.component,
+                    "replacement_k": event.replacement_k,
+                    "shutdown_s": event.shutdown_s,
+                    "install_s": event.install_s,
+                    "irradiation_schedule_sha256": event.irradiation_schedule_sha256,
+                    "location": event.location
+                }
+            });
+            let bytes = serde_json::to_vec(&run).unwrap();
+            std::fs::write(temp.path().join(&estimate.run_record.path), &bytes).unwrap();
+            estimate.run_record.sha256 = sha(&bytes);
+        }
         let bundle = CurveBundle {
             schema: CURVES_SCHEMA.into(),
             curves: vec![event],
@@ -774,6 +1076,7 @@ mod tests {
             .unwrap();
         assert_eq!(selected.comparison, ComparisonStatus::InBand);
         assert_eq!(selected.points[0].d1s_over_r2s, Some(0.9));
+        assert!(selected.points[0].ratio_standard_error.is_some());
         assert!(
             bundle
                 .event_curve(
@@ -807,6 +1110,19 @@ mod tests {
                 )
                 .is_err()
         );
+        let mut relabeled = bundle.clone();
+        relabeled.curves[0].history_sha256 = "e".repeat(64);
+        let new_event_sha = event_identity_sha256(&relabeled.curves[0]).unwrap();
+        for estimate in [
+            &mut relabeled.curves[0].points[0].d1s,
+            &mut relabeled.curves[0].points[0].r2s,
+        ] {
+            estimate
+                .physical_input_sha256
+                .insert("event".into(), new_event_sha.clone());
+        }
+        let error = relabeled.validate(temp.path()).unwrap_err();
+        assert!(error.contains("run record method"), "{error}");
     }
 
     #[test]
@@ -838,11 +1154,12 @@ mod tests {
                     1.0,
                 )
             },
+            covariance: DoseCovarianceAssessment::Unknown,
         };
         assert_eq!(compare(&pair), ComparisonStatus::OutsideBand);
         let mut unknown = pair;
         unknown.d1s.value_sv_h = 0.9;
-        unknown.d1s.comparison_covariance = None;
+        unknown.covariance = DoseCovarianceAssessment::Unknown;
         assert_eq!(compare(&unknown), ComparisonStatus::InconclusiveCovariance);
     }
 }

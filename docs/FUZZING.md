@@ -21,6 +21,7 @@ entry has a target file.
 | `transport_artifact` | raw transport artefacts, transport requests | `transport::TransportArtifact::from_bytes`, `TransportRequest` parse and `validate_against` |
 | `json_records` | recorded results read back: history results and ensembles, maintenance results, reactor runs, physics cases, normalised and raw transport results, recorded bundles, Core evidence runs, job results, import and material-audit reports, CAD worker responses | `serde_json` readers of those types |
 | `helper_outputs` | what the design import reads back from its helpers and cache (transport and coupled-heating worker/preflight results, window and piece records, cache key, progress lines) | `design::fuzz_helper_outputs` (hidden, for this target) |
+| `maintenance_spatial_dose` | bounded D1S/R2S event-curve bundles and dose-maintenance v0.2 results | `maintenance::spatial_dose::CurveBundle::parse`, `maintenance::parse_dose_result` |
 | `nuclear_data_audit` | the nuclear-data library audit and the cross-section file it names | `reactor::bind_audited_library` |
 | `actinv_result` | ACTINV result streams | `maintenance::actinv::scan_result` |
 | `shutdown_dose_records` | imported D1S/R2S estimate records and compare requests | `shutdown_dose::parse_request`, `shutdown_dose::parse_estimate_record` |

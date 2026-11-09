@@ -6,8 +6,9 @@
 use eframe::egui;
 use faris_engine::jobs::Cancellation;
 use faris_engine::maintenance::{
-    DoseMaintenanceResult, MAINTENANCE_DOSE_RESULT_VERSION, MAX_DOSE_RESULT_BYTES,
+    DoseMaintenanceResult, MAX_DOSE_RESULT_BYTES,
     files::{DoseRunConfig, run_dose_from_files},
+    parse_dose_result,
     spatial_dose::ComparisonStatus,
 };
 use std::{
@@ -77,16 +78,7 @@ impl Default for MaintenanceDosePanel {
 }
 
 pub fn parse_result(bytes: &[u8]) -> Result<DoseMaintenanceResult, String> {
-    let result: DoseMaintenanceResult = serde_json::from_slice(bytes)
-        .map_err(|e| format!("not a readable dose maintenance result: {e}"))?;
-    if result.schema_version != MAINTENANCE_DOSE_RESULT_VERSION {
-        return Err(format!(
-            "schema_version is {}, expected {MAINTENANCE_DOSE_RESULT_VERSION}",
-            result.schema_version
-        ));
-    }
-    result.assumptions.validate()?;
-    Ok(result)
+    parse_dose_result(bytes).map_err(|e| format!("not a readable dose maintenance result: {e}"))
 }
 
 fn load(path: PathBuf) -> Result<DoseMaintenanceResult, String> {

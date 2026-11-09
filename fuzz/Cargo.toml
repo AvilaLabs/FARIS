@@ -142,3 +142,10 @@ path = "fuzz_targets/nuclear_data_audit.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "maintenance_spatial_dose"
+path = "fuzz_targets/maintenance_spatial_dose.rs"
+test = false
+doc = false
+bench = false
