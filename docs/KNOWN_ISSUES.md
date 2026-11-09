@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 29 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 30 fixed before they reached a release.
 
 ## Open
 
@@ -60,4 +60,5 @@ These were found in development and never shipped.
 | FARIS-028 | S3 | Restarted study transport read batch counters before restart restoration | 8a0d4dc |
 | FARIS-029 | S3 | Solver capture receipts retained private byte buffers and could not serialize | e5f9597 |
 | FARIS-031 | S3 | Thin material photon-source regions hit the default OpenMC rejection cutoff | 4d48429 |
+| FARIS-032 | S3 | FNS decay-heat provenance recorded the wrong source PDF hash | 5559beb |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

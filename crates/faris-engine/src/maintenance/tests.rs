@@ -646,7 +646,7 @@ fn bad_input_is_an_error_not_a_verdict() {
     assert!(
         go(&dose, &designs(), &mut runner, &mut source)
             .unwrap_err()
-            .contains("use heat")
+            .contains("hash-bound spatial dose curves at the named task location")
     );
     // A class whose component has no replaceable limit in a design.
     let mut other = calibrated();

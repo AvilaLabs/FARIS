@@ -117,7 +117,7 @@ impl Backends for Geo {
         }
         if let Some(why) = self.convert_failure.as_ref().filter(|_| {
             self.convert_failure_after
-                .map_or(true, |after| self.count(2) > after as u32)
+                .is_none_or(|after| self.count(2) > after as u32)
         }) {
             return Ok(ToolResult::Failed {
                 why: why.clone(),
@@ -555,7 +555,7 @@ fn the_default_refinement_schedule_is_bounded_and_explicit_tolerance_is_single_s
 
 #[test]
 fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_chord() {
-    let mut backend = geo();
+    let backend = geo();
     backend
         .conversion_candidates
         .borrow_mut()
@@ -656,7 +656,7 @@ fn later_conversion_unavailability_marks_the_previous_candidate_as_unusable_for_
 
 #[test]
 fn adaptive_chord_stops_immediately_when_conversion_drops_a_solid() {
-    let mut backend = geo();
+    let backend = geo();
     backend
         .conversion_candidates
         .borrow_mut()
