@@ -10,6 +10,8 @@ way out, and records everything that identifies the run.
 Every number is research screening. The result carries that statement and says nothing about whether any
 regulation or limit is met.
 
+For a comparison of imported spatial shutdown-dose estimates from D1S and R2S, see [Comparing shutdown-dose methods](shutdown-dose.md).
+
 ## What you need
 
 - **ACTINV** and its data (the v1.1.0 catalogue). See [actinv.avilalabs.org](https://actinv.avilalabs.org). ACTINV 1.5.0 or later is recommended: before it, the auto mode could hold a radioactive starting material constant. FARIS sends the coupled mode for any start from named nuclides and records that in the result, and it refuses an explicit trace mode there.
@@ -78,6 +80,10 @@ treated as zero anywhere.
 Each number carries a kind: `calculated` (a solver result), `authored` (mass, composition, schedule) or
 `conditional` (a lower bound). What FARIS cannot give is listed as NOT_EVALUATED, each with the reason and the
 next step.
+
+Previously calculated spatial D1S and R2S dose estimates can be checked with the
+[shutdown-dose comparison command](shutdown-dose.md). It imports identified results;
+it does not execute photon transport or turn a contact-dose proxy into a spatial dose.
 
 ## Which impurities matter
 

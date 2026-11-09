@@ -142,7 +142,7 @@ applies to the published result files.
 boundary of each tallied cell; F4 is a whole-cell volume-averaged response,
 not a point value at that boundary. Dividing by the explicit FM204 multiplier
 produces `particle/cm2 per source neutron`; the same factor is applied to the
-published statistical standard uncertainty. Geometry and normalization
+published statistical standard uncertainty. Geometry and normalisation
 mapping are therefore explicit, while the score remains blocked per detector.
 
 The source spectrum remains a qualification gap. The pinned MCNP deck uses
@@ -154,7 +154,7 @@ samples a normal energy variate with its own mean and standard deviation.
 OpenMC's [`stats.muir`](https://docs.openmc.org/en/stable/_modules/openmc/stats/univariate.html)
 also defines its Muir helper as a normal distribution; the benchmark's source
 parameters are not shown equivalent to MCNP's `-6` defaults. This is an
-approximation and parameterization question, not evidence of an automatically
+approximation and parameterisation question, not evidence of an automatically
 identical spectrum. It requires source sensitivity qualification or
 documented parameter equivalence before scoring. JADE's
 result metadata also does not bind output to hashes of the executable,

@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 
 use faris_engine::{
     case_archive, core_evidence, evidence_store, history, history_ensemble, jobs, maintenance,
-    memory, reactor, transport,
+    memory, reactor, shutdown_dose, transport,
 };
 use faris_model::{LoadedScenario, design as model_design};
 
@@ -33,6 +33,7 @@ pub const ENTRIES: &[Entry] = &[
     ("proc_and_config_text", proc_and_config_text),
     ("nuclear_data_audit", nuclear_data_audit),
     ("actinv_result", actinv_result),
+    ("shutdown_dose_records", shutdown_dose_records),
     ("png_header", png_header),
     ("file_readers", file_readers),
     ("study_file", study_file),
@@ -227,6 +228,12 @@ pub fn nuclear_data_audit(data: &[u8]) {
 /// An ACTINV result file, read as a stream.
 pub fn actinv_result(data: &[u8]) {
     let _ = maintenance::actinv::scan_result(Cursor::new(data));
+}
+
+/// D1S/R2S comparison requests and estimate records (serde JSON schema parsers).
+pub fn shutdown_dose_records(data: &[u8]) {
+    let _ = shutdown_dose::parse_request(data);
+    let _ = shutdown_dose::parse_estimate_record(data);
 }
 
 /// The size of a PNG preview, read from its header.

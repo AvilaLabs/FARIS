@@ -22,6 +22,18 @@ class FuzzSeed(unittest.TestCase):
                 self.assertTrue(any((Path(out) / target).iterdir()))
             self.assertEqual(set(counts) - set(targets), set(), "seeds for a target that does not exist")
 
+    def test_shutdown_dose_target_gets_both_documented_parser_formats(self):
+        with tempfile.TemporaryDirectory() as out:
+            counts = fuzz_seed.build(Path(out))
+            self.assertGreaterEqual(counts.get("shutdown_dose_records", 0), 2)
+            target = Path(out) / "shutdown_dose_records"
+            schemas = {
+                fuzz_seed.schema_of(seed.read_bytes())
+                for seed in target.iterdir()
+            }
+            self.assertIn("faris-shutdown-dose-compare-request/v0.1", schemas)
+            self.assertIn("faris-shutdown-dose-estimate/v0.1", schemas)
+
 
 if __name__ == "__main__":
     unittest.main()

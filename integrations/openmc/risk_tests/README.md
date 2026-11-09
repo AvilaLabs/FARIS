@@ -110,12 +110,29 @@ coil toroidal width) on the TF material, and the peak voxel is reported. Run the
 
 ## 5. R3 (D1S against R2S), OpenMC 0.15.3 only
 
-    r3_r2s.py --model-dir $S/models/rm-m --out-dir $S/r3/r2s --neutron-particles 20000 --neutron-batches 40 --photon-particles 20000 --photon-budget 3000
+    r3_r2s.py --model-dir $S/models/rm-m --out-dir $S/r3/r2s --activation-cell-cm 100 --neutron-particles 20000 --neutron-batches 40 --photon-particles 20000 --photon-budget 3000
     r3_d1s.py --model-dir $S/models/rm-m --out-dir $S/r3/d1s --particles 5000 --budget 7000
     r3_compare.py --r2s $S/r3/r2s --d1s $S/r3/d1s --out $S/results-r3.json
+    python3 integrations/openmc/risk_tests/r3_shutdown_dose_export.py --d1s $S/r3/d1s --r2s $S/r3/r2s --out-dir $S/r3/shutdown-dose
+    faris shutdown-dose compare --request $S/r3/shutdown-dose/shutdown-dose-request.json --output $S/r3/shutdown-dose/report.json
 
-The mesh is in `r3_scenario.py`. Both methods score the ICRP-116 AP photon dose on it. The D1S tally has a one-bin
-`MeshBornFilter` over the same box so both methods use photons born in the box. R2S workarounds are recorded in its result.
+The scoring mesh is fixed in `r3_scenario.py`. Protocol `r3-full-emission-reference/v1` removes D1S's `MeshBornFilter`,
+so all transported photons and descendants can score in the response region. R2S uses a separate activation mesh spanning
+the exact H5M node-coordinate bounds; those bounds are verified against the H5M hash pinned in the RM-M model card. The
+activation mesh defaults to 100 cm cells, is aligned outward to those bounds, and records dimensions, bounds, cell count,
+and a mesh-array memory estimate. The hard cap is 262144 cells and 256 MiB for that estimate. It covers four material-volume
+slots, the 42-group flux array, and a small per-cell allowance; it excludes sparse material-domain multiplicity, MicroXS
+tensors, depletion inventories and solver allocations, so it is not a total-memory guarantee. Full-volume R2S material
+sampling and activation cost more than the old response-region activation run.
+
+The 100 cm mesh is a starting discretization, not a source-resolution adequacy claim. Before reading a D1S/R2S ratio as a
+method comparison, predeclare and run 100, 50 and 25 cm activation meshes. Require the aggregate R2S response to change by
+no more than 5% across each of two successive halvings at each cooling time; otherwise report the activation source as
+unresolved. Once that diagnostic is met, retain the approved 0.85–1.15 ratio band unchanged. The ratio remains a software
+method comparison; unknown D1S/R2S covariance keeps the verdict inconclusive and no physical dose validation is claimed.
+The exporter requires this protocol, the no-born-filter D1S model, the full-geometry R2S activation record, hashed common
+inputs and batch-aggregated results. Old MeshBornFilter and response-mesh activation outputs remain legacy diagnostics and
+are refused as equivalent comparison inputs. R2S workarounds are recorded in its result.
 
 ## Tests
 

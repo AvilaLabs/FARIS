@@ -6,6 +6,9 @@
 //! `json` blocks it holds, so a new example fails here until it is checked.
 
 use faris_engine::maintenance::files::parse_designs;
+use faris_engine::shutdown_dose::{
+    CovarianceAssessment, ESTIMATE_SCHEMA, REQUEST_SCHEMA, parse_estimate_record, parse_request,
+};
 use faris_model::design::{NON_WAIVABLE_IDS, Waiver, waiver_id_is_known};
 use faris_model::maintenance::MaintenanceAssumptions;
 use std::path::PathBuf;
@@ -117,4 +120,41 @@ fn waste_lifetime_plan_example_parses() {
         serde_json::from_str(&blocks[0]).unwrap();
     assert_eq!(plan.components.len(), 2);
     assert!(plan.components.iter().all(|c| c.mass_kg_each > 0.0));
+}
+
+// Verifies: QA-016
+#[test]
+fn shutdown_dose_request_and_estimate_examples_parse() {
+    let blocks = json_blocks("docs/guide/shutdown-dose.md");
+    assert_eq!(blocks.len(), 2, "a new json example needs a check here");
+
+    let request = parse_request(blocks[0].as_bytes()).expect("the comparison request parses");
+    assert_eq!(request.schema, REQUEST_SCHEMA);
+    assert_eq!(request.case_id, "synthetic-format-example");
+    assert_eq!(request.points.len(), 1);
+    assert_eq!(request.points[0].cooling_time_s, 86_400.0);
+    assert_eq!(request.points[0].covariance, CovarianceAssessment::Unknown);
+    for reference in [&request.points[0].d1s, &request.points[0].r2s] {
+        assert_eq!(reference.sha256, "0".repeat(64));
+    }
+
+    let estimate =
+        parse_estimate_record(blocks[1].as_bytes()).expect("the method estimate record parses");
+    assert_eq!(estimate.schema, ESTIMATE_SCHEMA);
+    assert_eq!(estimate.method, faris_engine::shutdown_dose::Method::D1s);
+    assert_eq!(estimate.cooling_time_s, request.points[0].cooling_time_s);
+    assert_eq!(estimate.estimate.value, 1.0);
+    assert_eq!(estimate.estimate.standard_error, 0.1);
+    assert_eq!(estimate.random_streams, ["synthetic-stream-id".to_string()]);
+    for reference in [
+        &estimate.geometry,
+        &estimate.materials,
+        &estimate.source,
+        &estimate.irradiation,
+        &estimate.response,
+        &estimate.location,
+        &estimate.run_record,
+    ] {
+        assert_eq!(reference.sha256, "0".repeat(64));
+    }
 }

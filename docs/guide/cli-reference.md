@@ -6,7 +6,7 @@
 Every `faris` command with its help text, which lists every option. The examples are command lines from the
 rest of this handbook; [Command line](cli.md) explains how the commands fit together.
 
-81 of 85 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
+83 of 87 commands have an example in the handbook; these have none yet: `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
 
 ## faris
 
@@ -16,27 +16,28 @@ Fusion Analysis and Reactor Integration Simulator
 Usage: faris [OPTIONS] <COMMAND>
 
 Commands:
-  history      Calculate or validate the shared Rust operating-history ledger
-  activation   Activation inventory, decay heat and decay-photon source of zones through ACTINV
-  maintenance  Compute replacement outages from activation decay heat and compare them with fixed ones
-  waste        Waste classification (10 CFR 61.55), IAEA clearance index and recycling index of activated components
-  materials    The cited materials and limits database: compositions, impurity limits, damage and gas limits
-  evidence     Package and execute identified simulation evidence with real Avila Core
-  design       Write and check the design file that says what a STEP model's solids are
-  diff         Compare two .faris studies, or two scenario, physics, assumptions or design files: every changed parameter with old and new value and unit, causes apart from effects, and which results the change invalidates. Exits 0 when identical, 6 when they differ
-  geometry     Tables about a model's geometry
-  cache        Look at, check and trim the result cache
-  config       Show and change your settings, and which layer supplies each value
-  validate     Validate a scenario without running physics
-  export       Export geometry metadata (--scenario), or a study's PDF brief, CSV and charts (--study)
-  doctor       Inspect optional tool availability and file hashes without executing tools
-  adapters     List the external tools FARIS can drive with version, hash and health
-  control      Execute independently specified mathematical controls through the job runner
-  transport    Check and normalize raw fixed-source transport artifacts; no solver invocation
-  study        Generate and semantically compile a declared Core study; no solver runs
-  study-file   Create, inspect, verify and unpack .faris study files
-  reactor      Execute a fixed-source cold-data numerical reference through OpenMC
-  help         Print this message or the help of the given subcommand(s)
+  history        Calculate or validate the shared Rust operating-history ledger
+  activation     Activation inventory, decay heat and decay-photon source of zones through ACTINV
+  shutdown-dose  Compare already-run spatial D1S and R2S shutdown-dose estimates
+  maintenance    Compute replacement outages from activation decay heat and compare them with fixed ones
+  waste          Waste classification (10 CFR 61.55), IAEA clearance index and recycling index of activated components
+  materials      The cited materials and limits database: compositions, impurity limits, damage and gas limits
+  evidence       Package and execute identified simulation evidence with real Avila Core
+  design         Write and check the design file that says what a STEP model's solids are
+  diff           Compare two .faris studies, or two scenario, physics, assumptions or design files: every changed parameter with old and new value and unit, causes apart from effects, and which results the change invalidates. Exits 0 when identical, 6 when they differ
+  geometry       Tables about a model's geometry
+  cache          Look at, check and trim the result cache
+  config         Show and change your settings, and which layer supplies each value
+  validate       Validate a scenario without running physics
+  export         Export geometry metadata (--scenario), or a study's PDF brief, CSV and charts (--study)
+  doctor         Inspect optional tool availability and file hashes without executing tools
+  adapters       List the external tools FARIS can drive with version, hash and health
+  control        Execute independently specified mathematical controls through the job runner
+  transport      Check and normalize raw fixed-source transport artifacts; no solver invocation
+  study          Generate and semantically compile a declared Core study; no solver runs
+  study-file     Create, inspect, verify and unpack .faris study files
+  reactor        Execute a fixed-source cold-data numerical reference through OpenMC
+  help           Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -292,6 +293,42 @@ Options:
 ```
 
 Example: `faris activation impurities --request impurities.json --actinv ~/.local/bin/actinv --data-dir ~/actinv-data --output impurities-result.json --cache cache/`
+
+## faris shutdown-dose
+
+```text
+Compare already-run spatial D1S and R2S shutdown-dose estimates
+
+Usage: faris shutdown-dose [OPTIONS] <COMMAND>
+
+Commands:
+  compare  Compare already-run spatial D1S and R2S estimates; this command runs no solver
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris shutdown-dose compare --request dose-comparison.json --output dose-comparison-result.json`
+
+## faris shutdown-dose compare
+
+```text
+Compare already-run spatial D1S and R2S estimates; this command runs no solver
+
+Usage: faris shutdown-dose compare [OPTIONS] --request <REQUEST> --output <OUTPUT>
+
+Options:
+      --request <REQUEST>    faris-shutdown-dose-compare-request/v0.1 JSON (record paths are relative to it)
+      --output <OUTPUT>      New faris-shutdown-dose-comparison/v0.1 report; existing paths are refused
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris shutdown-dose compare --request dose-comparison.json --output dose-comparison-result.json`
 
 ## faris maintenance
 

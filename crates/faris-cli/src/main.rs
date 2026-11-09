@@ -18,6 +18,7 @@ mod history;
 mod maintenance;
 mod materials;
 mod reactor;
+mod shutdown_dose;
 mod study;
 mod study_export;
 mod study_file;
@@ -55,6 +56,11 @@ enum Command {
     Activation {
         #[command(subcommand)]
         command: activation::ActivationCommand,
+    },
+    /// Compare already-run spatial D1S and R2S shutdown-dose estimates.
+    ShutdownDose {
+        #[command(subcommand)]
+        command: shutdown_dose::ShutdownDoseCommand,
     },
     /// Compute replacement outages from activation decay heat and compare them with fixed ones.
     Maintenance {
@@ -203,6 +209,7 @@ fn run(arguments: Arguments) -> Result<(), Box<dyn std::error::Error>> {
         Command::Config { command } => config::run(command, &settings)?,
         Command::History { command } => history::run(command)?,
         Command::Activation { command } => activation::run(command)?,
+        Command::ShutdownDose { command } => shutdown_dose::run(command)?,
         Command::Maintenance { command } => maintenance::run(command)?,
         Command::Waste { command } => waste::run(command)?,
         Command::Materials { command } => materials::run(command)?,

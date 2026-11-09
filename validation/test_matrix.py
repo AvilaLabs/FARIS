@@ -103,10 +103,12 @@ class Matrix(unittest.TestCase):
         self.assertEqual(M.check_matrix(generated, registry), [])
         self.assertEqual({r["status"] for r in generated["rows"]}, {"not validated"})  # no FARIS run has been scored
 
-    def test_registered_quantities_are_the_twelve_of_val_050(self):
+    def test_registered_quantities_include_val_050_and_dimensionless_method_comparison(self):
         ids = {q["id"] for q in M.load_registry()["quantities"]}
-        self.assertEqual(len(ids), 12)
-        self.assertLessEqual({"tbr", "heating", "flux", "dpa", "decay_heat", "net_electric_power"}, ids)
+        self.assertEqual(len(ids), 13)
+        self.assertLessEqual({"tbr", "heating", "flux", "dpa", "decay_heat", "net_electric_power", "shutdown_dose_ratio"}, ids)
+        ratio = next(q for q in M.load_registry()["quantities"] if q["id"] == "shutdown_dose_ratio")
+        self.assertEqual(ratio["benchmarks"], [], "adding a comparison does not establish physical validation")
 
     def test_matrix_command_writes_the_file(self):
         with tempfile.TemporaryDirectory() as d:

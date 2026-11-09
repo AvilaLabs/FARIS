@@ -85,6 +85,22 @@ def schema_of(data: bytes) -> str:
     return ""
 
 
+def markdown_json_blocks(path: str) -> list[bytes]:
+    """Read fenced JSON examples as bytes so their documentation remains the source of truth."""
+    text = (ROOT / path).read_text(encoding="utf-8")
+    blocks: list[bytes] = []
+    current: list[str] | None = None
+    for line in text.splitlines():
+        if current is None and line == "```json":
+            current = []
+        elif current is not None and line == "```":
+            blocks.append(("\n".join(current) + "\n").encode())
+            current = None
+        elif current is not None:
+            current.append(line)
+    return blocks
+
+
 def study_files() -> list[bytes]:
     manifest = {"format": "faris-study/1", "mimetype": "application/vnd.avila-labs.faris-study"}
     out = []
@@ -167,6 +183,8 @@ def build(out: Path) -> dict[str, int]:
         corpus.add("tar_gz", data)
     for data in store_indexes():
         corpus.add("evidence_store", data)
+    for data in markdown_json_blocks("docs/guide/shutdown-dose.md"):
+        corpus.add("shutdown_dose_records", data)
     case = [
         ("execution-report.json", b"{}"),
         ("package.json", b'{"schema_version": "avila.core/package/v0.2-draft"}'),

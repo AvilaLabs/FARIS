@@ -22,14 +22,24 @@ basis.
   controlled 100-second regression, downtime changes from 21 to 18 seconds and availability from 79 to 82 %;
   each component's replacement durations are unchanged. Existing recorded result files retain their original
   values; rerun their summaries to apply the correction.
+- New R3 shutdown-dose runs estimate aggregate Monte Carlo error from batch totals after spatial and
+  parent-nuclide weighting. The former quadrature of marginal bin errors omitted covariance; the correlated
+  synthetic regression gives standard error 5 instead of 2.915. Archived values are unchanged, but their
+  aggregate and ratio error estimates need requalification. Unknown method covariance no longer produces a
+  ratio error or an in-band PASS. A separate prospective full-emission protocol also replaces the old
+  non-equivalent D1S particle-birth and R2S response-box source selections; its solver and source-resolution
+  evidence is pending, so the historical central ratios remain diagnostics.
 
 ### Added
 
+- Design transport summaries now show the nominal D-T neutron share alongside fusion power, including
+  the declared neutron-to-reaction-energy fraction; it is labelled separately from tallied heating.
+- `faris shutdown-dose compare` imports hash-bound spatial D1S/R2S estimates and checks their central ratio
+  against the declared comparison band. It records matched input identities and validation states, and retains
+  INCONCLUSIVE when covariance is unknown. It runs no solver; see the handbook's shutdown-dose comparison page.
 - Maintenance now offers the literature campaign presets as explicitly authored per-component what-ifs and
   compares duration endpoints on a worker thread. Compare, sweep and operating-event details show the engine's
   uncertainty bands or the reason no interval exists, alongside validation states.
-- Design transport summaries now show the nominal D-T neutron share alongside fusion power, including
-  the declared neutron-to-reaction-energy fraction; it is labelled separately from tallied heating.
 - A high-contrast theme (white on black, every text style at least 7 to 1), chosen with the `ui.theme`
   setting on the desktop. A palette test in CI checks every text style and control colour of both themes, and
   `scripts/screenshot_contrast.py` checks the contrast of what was actually drawn, from screenshots.
@@ -391,15 +401,15 @@ basis.
 
 ### Fixed
 
-- CAD transport now checks the final lost-particle fraction even when a target-error or budget stop occurs
-  before one million histories. A short run above the one-in-a-million limit is no longer accepted.
-- Lost-neutron diagnostics now identify OpenMC's recorded positions as birth points. They do not identify the
-  boundary where a neutron escaped; guidance now directs users to the geometry checks without claiming one.
 - ACTINV jobs now preserve the documented cache-root settings without inheriting unrelated environment
   variables. Windows variable names retain their case-insensitive lookup and canonical output spelling.
 - The release gate now checks the plan's explicit VAL-023 access-outcome alternative without marking the
   benchmark validated or exempting other requirements. The recorded review distinguishes the public curve from
   the missing uncertainty, provenance and permitted-use basis needed for the complete benchmark.
+- CAD transport now checks the final lost-particle fraction even when a target-error or budget stop occurs
+  before one million histories. A short run above the one-in-a-million limit is no longer accepted.
+- Lost-neutron diagnostics now identify OpenMC's recorded positions as birth points. They do not identify the
+  boundary where a neutron escaped; guidance now directs users to the geometry checks without claiming one.
 - Validation comparisons now return INCONCLUSIVE when a supplied Monte Carlo uncertainty is non-finite,
   negative or a boolean. Such an input previously bypassed the precision check and could produce PASS.
 - Large machines no longer fail writing their weight windows: `faris design transport` died with "File too large"

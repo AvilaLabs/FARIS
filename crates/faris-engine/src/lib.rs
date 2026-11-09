@@ -36,6 +36,7 @@ pub mod reactor;
 pub mod result_cache;
 pub mod scratch;
 pub mod semantic_diff;
+pub mod shutdown_dose;
 pub mod study;
 pub mod sweep;
 pub mod tally_health;

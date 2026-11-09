@@ -17,6 +17,7 @@
 - [Operate: the 30-year history](operate.md)
 - [Computed maintenance durations](maintenance.md)
 - [Activation and decay heat](activation.md)
+- [D1S/R2S shutdown-dose comparison](shutdown-dose.md)
 - [Uncertainty ensembles](uncertainty.md)
 - [Tally statistics](tally-statistics.md)
 - [Compare and the allocation sweep](compare.md)

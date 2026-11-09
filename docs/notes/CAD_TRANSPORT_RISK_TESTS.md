@@ -781,3 +781,21 @@ the burnt-out case again. The run below, on the amended script, is the one the r
 - **This closes the diagnosis for now.** Of the two methods, D1S is the one that uses the real geometry and
   continuous energy; nothing found here says its value is the wrong one.
 
+## R3 uncertainty review (2026-11-09)
+
+This review supersedes the uncertainty interpretation of the earlier R3 and R3′ tables; it does
+not change their recorded central values, frozen protocols or archived run files. Their aggregate
+standard errors were formed from marginal spatial/parent-bin errors without preserving covariance.
+Those errors, and ratio errors derived from them, are not current qualification evidence. A
+synthetic fully correlated control gives aggregate standard error 5 versus 2.915 from marginal
+quadrature. New producers aggregate within each batch after parent-specific time weighting.
+R2S photon sampling error remains conditional on its generated source, and D1S/R2S covariance
+is unknown, so the new comparison is INCONCLUSIVE while retaining central out-of-band flags.
+
+The legacy emission domains above also differ: D1S used a particle `MeshBornFilter`, whereas
+R2S activated sources within the response box. The filter follows each secondary particle's birth,
+not its original decay emitter, so these are not equivalent source selections. Common primary-neutron
+input hashes do not prove equivalence. The new, separately versioned full-emission protocol removes
+the D1S birth filter and uses a full-geometry R2S activation mesh with the original response mesh.
+Matched solver runs and the predeclared activation-source resolution checks are still required.
+Neither the legacy diagnostics nor format/serializer/API controls qualify a maintenance-task dose field.

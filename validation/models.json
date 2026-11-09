@@ -114,6 +114,20 @@
         {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/integrity.rs", "name": "overlapping_solids_are_found_by_triangles_sampling_and_chords", "what": "seeded overlaps are found by three independent methods"}
       ],
       "not_covered": ["tolerances are authored, with no equations behind them"]
+    },
+    {
+      "id": "shutdown-dose-method-comparison",
+      "label": "Comparison of imported spatial D1S and R2S shutdown-dose estimates",
+      "page": "docs/guide/shutdown-dose.md",
+      "catalogues": ["SHUTDOWN_DOSE_OUTPUTS"],
+      "quantities": [],
+      "sources": ["crates/faris-engine/src/shutdown_dose.rs"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/shutdown_dose.rs", "name": "reports_ratio_and_propagates_error_only_under_explicit_assumption", "what": "ratio arithmetic and error propagation under a declared independence assumption"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/shutdown_dose.rs", "name": "covariance_unknown_is_inconclusive_even_when_seed_labels_differ", "what": "different stream labels alone do not establish independence"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/shutdown_dose.rs", "name": "estimate_value_tampering_is_rejected_even_when_outer_hash_is_updated", "what": "the imported estimate must match the hash-verified source record"}
+      ],
+      "not_covered": ["no solver is executed", "record hashes establish identity, not scientific correctness", "no experimental validation or handling-dose qualification", "a central ratio-band flag is not a physical engineering verdict"]
     }
   ]
 }

@@ -116,6 +116,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "shutdown_dose_records"
+path = "fuzz_targets/shutdown_dose_records.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "tar_gz"
 path = "fuzz_targets/tar_gz.rs"
 test = false

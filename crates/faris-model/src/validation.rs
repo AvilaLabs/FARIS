@@ -85,13 +85,14 @@ pub enum Quantity {
     Activation,
     DecayHeat,
     ShutdownDoseRate,
+    ShutdownDoseRatio,
     TritiumInventory,
     Availability,
     NetElectricPower,
 }
 
 impl Quantity {
-    pub const ALL: [Quantity; 12] = [
+    pub const ALL: [Quantity; 13] = [
         Self::Tbr,
         Self::Heating,
         Self::Flux,
@@ -101,6 +102,7 @@ impl Quantity {
         Self::Activation,
         Self::DecayHeat,
         Self::ShutdownDoseRate,
+        Self::ShutdownDoseRatio,
         Self::TritiumInventory,
         Self::Availability,
         Self::NetElectricPower,
@@ -118,6 +120,7 @@ impl Quantity {
             Self::Activation => "activation",
             Self::DecayHeat => "decay_heat",
             Self::ShutdownDoseRate => "shutdown_dose_rate",
+            Self::ShutdownDoseRatio => "shutdown_dose_ratio",
             Self::TritiumInventory => "tritium_inventory",
             Self::Availability => "availability",
             Self::NetElectricPower => "net_electric_power",
@@ -135,6 +138,7 @@ impl Quantity {
             Self::Activation => "activation",
             Self::DecayHeat => "decay heat",
             Self::ShutdownDoseRate => "shutdown dose rate",
+            Self::ShutdownDoseRatio => "shutdown dose method ratio",
             Self::TritiumInventory => "tritium inventory",
             Self::Availability => "availability",
             Self::NetElectricPower => "net electric power",
@@ -153,6 +157,7 @@ impl Quantity {
             Self::Activation => "activation",
             Self::DecayHeat => "decay heat",
             Self::ShutdownDoseRate => "dose rate",
+            Self::ShutdownDoseRatio => "dose method ratio",
             Self::TritiumInventory => "tritium",
             Self::Availability => "availability",
             Self::NetElectricPower => "net power",

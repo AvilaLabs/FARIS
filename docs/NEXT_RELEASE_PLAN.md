@@ -230,6 +230,15 @@ that depends on it starts.
      group structure and voxel size are ruled out or bounded, and on a thin iron
      cube both methods match a hand calculation within 0.3 %. The offset is a
      geometry effect on RM-M and is reported as measured.
+   - Review 2026-11-09: those central ratios are historical observations. Their
+     aggregate errors were formed from marginal bin errors without the required
+     spatial/parent covariance, so the quoted ratio errors are not current
+     uncertainty evidence. New runs use batch aggregates; method covariance
+     remains unknown and the comparison is INCONCLUSIVE, with the central
+     1 d ratio still visibly outside the band. The old D1S particle-birth filter
+     and restricted R2S activation mesh also select different emitter ancestry.
+     A separate full-emission protocol is implemented prospectively; matched
+     solver runs and source-resolution checks are pending requalification.
 4. **Real CAD quality.** Real machine STEP files often contain overlaps.
    - GEO-010 asks for a 50-file real STEP corpus, and an open corpus of that size
      is not known to exist.

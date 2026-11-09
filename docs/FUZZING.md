@@ -23,6 +23,7 @@ entry has a target file.
 | `helper_outputs` | what the design import reads back from its helpers and cache (worker result, window and piece records, cache key, progress lines) | `design::fuzz_helper_outputs` (hidden, for this target) |
 | `nuclear_data_audit` | the nuclear-data library audit and the cross-section file it names | `reactor::bind_audited_library` |
 | `actinv_result` | ACTINV result streams | `maintenance::actinv::scan_result` |
+| `shutdown_dose_records` | imported D1S/R2S estimate records and compare requests | `shutdown_dose::parse_request`, `shutdown_dose::parse_estimate_record` |
 | `file_readers` | the readers that take a path: ACTINV points, worker point files, physics cases, reactor runs, recorded bundles, study descriptors | `actinv::read_points`, `protocol::read_points`, `reactor::load_physics_case`, `load_reactor_run`, `core_evidence::load_recorded_bundle`, `scenario_from_bundle_file`, `faris_study::descriptor_evidence`, `evidence_from_descriptor` |
 | `study_file` | `.faris` study files | `StudyReader::open`, `preview_status`, `preview`, `blob_infos`, `ensembles`, `verify`, `materialize` |
 | `tar_gz` | evidence archives and recorded-tree manifests | `faris_study::extract_tar_gz`, `extract_recorded_tree` |

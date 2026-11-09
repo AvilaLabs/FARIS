@@ -12,6 +12,7 @@
 //! shared state; the short ones read the preferences the user chose.
 
 use crate::settings::{self, Settings};
+use faris_engine::output_uncertainty::OutputUncertainty;
 use faris_engine::tally_health;
 use faris_model::display::{Decimal, DisplayPrefs};
 use faris_model::interval_display::{IntervalConvention, format_with_uncertainty};
@@ -170,6 +171,12 @@ pub fn quantity_with(
 
 pub fn quantity(group: &str, habit: &str, si: f64, decimals: usize) -> String {
     quantity_with(&prefs(), group, habit, si, decimals)
+}
+
+/// The engine's per-output uncertainty state, including its basis or the reason and next step
+/// when no interval is available. Kept as engine-authored text so the UI never infers a band.
+pub fn output_uncertainty(state: &OutputUncertainty, decimals: usize) -> String {
+    state.text(decimals)
 }
 
 /// The symbol of the unit shown for `group`.

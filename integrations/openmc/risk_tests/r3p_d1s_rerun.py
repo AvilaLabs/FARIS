@@ -88,12 +88,12 @@ def main() -> int:
             label = sc.COOLING_LABELS[idx]
             corrected = d1s.apply_time_correction(t, tcf, index=idx, sum_nuclides=True)
             mean = np.asarray(corrected.mean).reshape(sc.MESH_DIMENSION[::-1]).copy()
-            std = np.asarray(corrected.std_dev).reshape(sc.MESH_DIMENSION[::-1]).copy()
             factors = np.array([tcf[nuc][idx] for nuc in nuclides])
-            np.savez(args.out_dir / f"dose_time_{idx}.npz", mean=mean, std=std)
+            np.savez(args.out_dir / f"dose_time_{idx}.npz", mean=mean)
             by_nuc = (mean_all * factors).sum(axis=0)
             per_nuclide_tot[label] = {nuc: float(v) for nuc, v in zip(nuclides, by_nuc) if v > 0.0}
-            record["photon"][label] = {"time_index": idx, "sum_pSv_cm_per_s": float(mean.sum())}
+            record["photon"][label] = {"time_index": idx, "sum_pSv_cm3_per_s": float(mean.sum()),
+                                       "unit": "pSv.cm3/s per voxel (track length x dose coefficient x time-corrected source rate)"}
     record["dose_by_parent_nuclide_pSv_cm_per_s"] = {k: sc.top_contributors(v, 10) for k, v in per_nuclide_tot.items()}
     (args.out_dir / "d1s_record.json").write_text(json.dumps(record, indent=1, sort_keys=True, default=str) + "\n")
     print(json.dumps({"histories": record["histories"], "photon": record["photon"]}))

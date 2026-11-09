@@ -97,6 +97,7 @@ NEEDS = {
     ("geometry", "summary"): "needs the reader's scenario and physics case files",
     ("activation", "run"): "needs ACTINV and its data and a transport run's group spectra",
     ("activation", "impurities"): "needs ACTINV and its data and the reader's impurity request",
+    ("shutdown-dose", "compare"): "needs the reader's spatial D1S/R2S records and their hash-bound input files",
     ("waste", "lifetime"): "needs the reader's lifetime plan and a maintenance result",
     ("diff",): "needs two study or model files of the reader's",
 }
@@ -135,6 +136,7 @@ JSON_TESTS = {
     "docs/guide/maintenance.md": ["maintenance_examples_parse_and_validate"],
     "docs/guide/activation.md": ["activation_zones_example_parses"],
     "docs/guide/waste.md": ["waste_lifetime_plan_example_parses"],
+    "docs/guide/shutdown-dose.md": ["shutdown_dose_request_and_estimate_examples_parse"],
 }
 RUST_JSON_TEST = ("faris-engine", "doc_json_samples")
 DOCTESTED = {"faris-model", "faris-engine", "faris-study", "faris-report", "faris-occt-client"}
