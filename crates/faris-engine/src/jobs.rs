@@ -1156,7 +1156,7 @@ mod tests {
     fn prepared_cache_aggregate_and_symlink_limits_fail_closed() {
         let (_dir, spec, policy) = cache_job(
             "/usr/bin/head -c 768 /dev/zero > \"$CACHE_ROOT/one\"; /usr/bin/head -c 768 /dev/zero > \"$CACHE_ROOT/two\"",
-            1024,
+            2048,
             1024,
             4,
         );
@@ -1221,6 +1221,8 @@ mod tests {
         );
         spec.environment
             .push(("CACHE_ROOT".into(), policy.root.as_os_str().to_owned()));
+        // This fixture launches 500 rename processes while the cache scanner is active.
+        spec.timeout = Duration::from_secs(10);
         let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
         assert_eq!(result.prepared_cache_files_observed, Some(1));

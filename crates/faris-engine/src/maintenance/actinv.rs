@@ -671,6 +671,7 @@ impl ActinvDecaySource {
     }
 
     /// Runs one tool through the job boundary; `Err("cancelled")` on cancellation.
+    #[allow(clippy::too_many_arguments)] // Each argument names an external-operation boundary.
     fn run_tool(
         &self,
         program: &Path,

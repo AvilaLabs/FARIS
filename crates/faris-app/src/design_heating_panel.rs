@@ -214,18 +214,18 @@ impl DesignHeatingPanel {
         });
         ui.horizontal(|ui| {
             if !self.is_running() {
-                if ui.button("Run coupled heating").clicked() {
-                    if let Err(message) = self.start() {
-                        self.result = Some(Err(message));
-                    }
+                if ui.button("Run coupled heating").clicked()
+                    && let Err(message) = self.start()
+                {
+                    self.result = Some(Err(message));
                 }
             } else {
                 ui.spinner();
                 ui.label("OpenMC coupled heating is running");
-                if ui.button("Cancel").clicked() {
-                    if let Some(job) = &self.running {
-                        job.cancellation.cancel();
-                    }
+                if ui.button("Cancel").clicked()
+                    && let Some(job) = &self.running
+                {
+                    job.cancellation.cancel();
                 }
             }
         });

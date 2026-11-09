@@ -3,13 +3,14 @@
 //! Unit conversion for coupled design heating. The OpenMC score remains raw eV per source
 //! neutron until this boundary; sampled volume uncertainty is recorded separately from MC SE.
 
+use super::transport::read_bounded;
 use super::{
     CAD_ADDRESS_SPACE, DesignError, DesignIdentity, ImportReport, Launched, MAX_JSON_BYTES,
     ToolPaths, io_error, launch_python_with_lines, sha256_file, sha256_hex,
 };
 use crate::jobs::{Cancellation, ResourceLimits};
 use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
-use faris_model::design::{self, Design, Role};
+use faris_model::design::{self, Role};
 use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -355,8 +356,7 @@ pub fn normalize_heating_ev_per_source(
             "volume sampling error must be finite and non-negative".into(),
         ));
     }
-    let power_density_kw_m3 =
-        power_density_kw_m3(energy_ev_per_source, source_rate_per_s, volume_m3)?;
+    let density_kw_m3 = power_density_kw_m3(energy_ev_per_source, source_rate_per_s, volume_m3)?;
     let sampling_se_kw_m3 = sampling_se_ev_per_source
         .map(|se| power_density_kw_m3(se, source_rate_per_s, volume_m3))
         .transpose()?;
@@ -365,7 +365,7 @@ pub fn normalize_heating_ev_per_source(
         sampling_se_ev_per_source,
         source_rate_per_s,
         volume_m3,
-        power_density_kw_m3,
+        power_density_kw_m3: density_kw_m3,
         sampling_se_kw_m3,
         volume_sampling_relative_error,
     })
@@ -571,7 +571,7 @@ pub fn design_heating(
         "response": {
             "solid_ids": response.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
             "energy_min_ev": 0.0,
-            "peak_voxel_cm": options.peak_voxel_m.map(|v| [v[0] * 100.0, v[1] * 100.0]),
+            "peak_voxel_cm": options.peak_voxel_m.map(|v| v * 100.0),
         },
         "sampling": {
             "particles_per_batch": options.particles_per_batch,
@@ -716,7 +716,7 @@ pub fn design_heating(
             .is_none_or(|hash| !hash.eq_ignore_ascii_case(&report.cross_sections_sha256))
         || worker.histories < MIN_BATCHES * options.particles_per_batch
         || worker.histories > options.max_histories
-        || worker.histories % options.particles_per_batch != 0
+        || !worker.histories.is_multiple_of(options.particles_per_batch)
         || worker.c_api_terminal_status.is_none()
         || worker.lost_particles.is_none()
         || !valid_terminal_status(
@@ -1318,10 +1318,11 @@ mod tests {
             sampling_relative_error: None,
             sampling_uncertainty_reported: false,
         };
-        let components = ["neutron", "photon", "electron", "positron", "total"]
-            .into_iter()
-            .map(|name| (name.into(), score.clone()))
-            .collect();
+        let components: BTreeMap<String, HeatingScore> =
+            ["neutron", "photon", "electron", "positron", "total"]
+                .into_iter()
+                .map(|name| (name.into(), score.clone()))
+                .collect();
         let peak = HeatingPeak {
             energy_ev_per_source: 1000.0,
             sampling_se_ev_per_source: Some(100.0),
