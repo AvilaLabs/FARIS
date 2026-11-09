@@ -794,15 +794,21 @@ def openmc_capi_runner(argv: list[str]) -> int:
     if sha256(library) != args.library_sha256:
         raise RuntimeError("selected OpenMC library changed before the C API runner loaded it")
     dll = ctypes.CDLL(str(library))
-    for symbol in ("openmc_init", "openmc_run", "openmc_finalize", "n_lost_particles", "current_batch", "openmc_err_msg"):
+    for symbol in ("openmc_init", "openmc_simulation_init", "openmc_next_batch",
+                   "openmc_simulation_finalize", "openmc_finalize", "n_lost_particles",
+                   "current_batch", "openmc_err_msg"):
         try:
             getattr(dll, symbol)
         except AttributeError as error:
             raise RuntimeError(f"selected OpenMC library lacks required C API symbol {symbol}") from error
     dll.openmc_init.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p), ctypes.c_void_p]
     dll.openmc_init.restype = ctypes.c_int
-    dll.openmc_run.argtypes = []
-    dll.openmc_run.restype = ctypes.c_int
+    dll.openmc_simulation_init.argtypes = []
+    dll.openmc_simulation_init.restype = ctypes.c_int
+    dll.openmc_next_batch.argtypes = [ctypes.POINTER(ctypes.c_int)]
+    dll.openmc_next_batch.restype = ctypes.c_int
+    dll.openmc_simulation_finalize.argtypes = []
+    dll.openmc_simulation_finalize.restype = ctypes.c_int
     dll.openmc_finalize.argtypes = []
     dll.openmc_finalize.restype = ctypes.c_int
 
@@ -823,32 +829,55 @@ def openmc_capi_runner(argv: list[str]) -> int:
         raise RuntimeError(f"OpenMC C API {operation} failed ({code}): {msg or 'no error detail'}")
 
     initialized = False
+    simulation_initialized = False
     try:
         check(dll.openmc_init(len(encoded), c_argv, None), "initialization")
         initialized = True
+        # The CLI's openmc_run wraps these three lifecycle operations.  Reading
+        # counters after simulation_init is essential: restart state is loaded
+        # there, after openmc_init has returned.
+        check(dll.openmc_simulation_init(), "simulation initialization")
+        simulation_initialized = True
         start_batch = _capi_int(dll, "current_batch")
-        check(dll.openmc_run(), "run")
+        start_lost = _capi_int(dll, "n_lost_particles")
+        if start_batch < 0 or start_lost < 0:
+            raise RuntimeError("OpenMC C API returned invalid start counters")
+        while True:
+            status = ctypes.c_int()
+            check(dll.openmc_next_batch(ctypes.byref(status)), "batch")
+            if status.value == 0:
+                continue
+            if status.value in (1, 2):
+                break
+            raise RuntimeError(f"OpenMC C API returned unsupported batch status {status.value}")
         end_batch = _capi_int(dll, "current_batch")
-        lost = _capi_int(dll, "n_lost_particles")
-        if start_batch < 0 or end_batch <= start_batch or lost < 0:
+        end_lost = _capi_int(dll, "n_lost_particles")
+        lost = end_lost - start_lost
+        if end_batch <= start_batch or lost < 0:
             raise RuntimeError("OpenMC C API returned invalid batch or lost-particle counters")
         if sha256(library) != args.library_sha256:
             raise RuntimeError("selected OpenMC library changed during the C API run")
         receipt = {
-            "schema_version": "faris-openmc-loss-pass/v0.1",
-            "method": "openmc-c-api-n_lost_particles/v1",
+            "schema_version": "faris-openmc-loss-pass/v0.2",
+            "method": "openmc-c-api-n_lost_particles-delta/v1",
             "library_path": str(library),
             "library_sha256": sha256(library),
             "start_batch": start_batch,
             "end_batch": end_batch,
+            "start_lost_particle_events": start_lost,
+            "end_lost_particle_events": end_lost,
             "lost_particle_events": lost,
         }
         temporary = args.receipt.with_name(f".{args.receipt.name}.tmp")
         temporary.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
         os.replace(temporary, args.receipt)
     finally:
-        if initialized:
-            check(dll.openmc_finalize(), "finalization")
+        try:
+            if simulation_initialized:
+                check(dll.openmc_simulation_finalize(), "simulation finalization")
+        finally:
+            if initialized:
+                check(dll.openmc_finalize(), "finalization")
     return 0
 
 
@@ -1561,8 +1590,8 @@ def sample_until_settled(openmc, out: Path, command: list[str], env: dict[str, s
                 receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as error:
                 raise ValueError(f"OpenMC lost-particle receipt is missing or unreadable: {error}") from error
-            require(receipt.get("schema_version") == "faris-openmc-loss-pass/v0.1"
-                    and receipt.get("method") == "openmc-c-api-n_lost_particles/v1",
+            require(receipt.get("schema_version") == "faris-openmc-loss-pass/v0.2"
+                    and receipt.get("method") == "openmc-c-api-n_lost_particles-delta/v1",
                     "OpenMC lost-particle receipt is missing or uses an unsupported method")
             require(Path(receipt["library_path"]).resolve() == capi_library.resolve()
                     and receipt["library_sha256"] == capi_library_sha256

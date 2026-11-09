@@ -39,7 +39,7 @@ class ReactorLossAccounting(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "RUNPATH"):
                     WORKER.selected_openmc_library(executable, python, {})
 
-    def test_capi_child_runs_selected_library_and_writes_real_counter_receipt(self):
+    def test_capi_restart_receipt_reads_counters_after_lifecycle_restores_restart(self):
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)
             library = root / "libopenmc.so"
@@ -50,34 +50,65 @@ class ReactorLossAccounting(unittest.TestCase):
             calls = []
 
             class Api:
-                def __init__(self, name, result=0):
-                    self.name = name
-                    self.result = result
+                def __init__(self, callback):
+                    self.callback = callback
 
                 def __call__(self, *args):
-                    calls.append((self.name, *args))
-                    return self.result
+                    return self.callback(*args)
 
             class FakeDll:
                 n_lost_particles = 0
                 current_batch = 0
                 openmc_err_msg = 0
-                openmc_init = Api("init")
-                openmc_run = Api("run")
-                openmc_finalize = Api("finalize")
 
             fake_dll = FakeDll()
-            counters = iter([0, 30, 4])
+            def init(*args):
+                calls.append("init")
+                return 0
+
+            def simulation_init():
+                calls.append("simulation_init")
+                # Restart restoration occurs during this lifecycle call.
+                fake_dll.current_batch = 1
+                fake_dll.n_lost_particles = 100
+                return 0
+
+            def next_batch(status_ptr):
+                calls.append("next_batch")
+                fake_dll.current_batch += 1
+                fake_dll.n_lost_particles += 1000
+                status_ptr._obj.value = 1 if fake_dll.current_batch == 3 else 0
+                return 0
+
+            def simulation_finalize():
+                calls.append("simulation_finalize")
+                return 0
+
+            def finalize():
+                calls.append("finalize")
+                return 0
+
+            fake_dll.openmc_init = Api(init)
+            fake_dll.openmc_simulation_init = Api(simulation_init)
+            fake_dll.openmc_next_batch = Api(next_batch)
+            fake_dll.openmc_simulation_finalize = Api(simulation_finalize)
+            fake_dll.openmc_finalize = Api(finalize)
             with patch.object(WORKER.ctypes, "CDLL", return_value=fake_dll), \
-                    patch.object(WORKER, "_capi_int", side_effect=lambda dll, symbol: next(counters)):
+                    patch.object(WORKER, "_capi_int", side_effect=lambda dll, symbol: getattr(dll, symbol)):
                 result = WORKER.openmc_capi_runner([
                     "--capi-runner", "--library", str(library), "--library-sha256", WORKER.sha256(library),
-                    "--executable", str(executable), "--receipt", str(receipt),
+                    "--executable", str(executable), "--receipt", str(receipt), "-r", "statepoint.1.h5",
                 ])
             self.assertEqual(result, 0)
-            self.assertEqual([call[0] for call in calls], ["init", "run", "finalize"])
+            self.assertEqual(calls, ["init", "simulation_init", "next_batch", "next_batch",
+                                     "simulation_finalize", "finalize"])
             written = json.loads(receipt.read_text())
-            self.assertEqual((written["start_batch"], written["end_batch"], written["lost_particle_events"]), (0, 30, 4))
+            self.assertEqual((written["start_batch"], written["end_batch"],
+                              written["start_lost_particle_events"],
+                              written["end_lost_particle_events"],
+                              written["lost_particle_events"]), (1, 3, 100, 2100, 2000))
+            self.assertEqual(written["schema_version"], "faris-openmc-loss-pass/v0.2")
+            self.assertEqual(written["method"], "openmc-c-api-n_lost_particles-delta/v1")
             self.assertEqual(written["library_sha256"], WORKER.sha256(library))
 
     def test_repetitive_loss_warnings_are_bounded_without_becoming_the_count(self):
@@ -102,8 +133,8 @@ class ReactorLossAccounting(unittest.TestCase):
             def fake_solver(command, cwd, env, log_limit, append=False):
                 receipt = Path(command[command.index("--receipt") + 1])
                 receipt.write_text(json.dumps({
-                    "schema_version": "faris-openmc-loss-pass/v0.1",
-                    "method": "openmc-c-api-n_lost_particles/v1",
+                    "schema_version": "faris-openmc-loss-pass/v0.2",
+                    "method": "openmc-c-api-n_lost_particles-delta/v1",
                     "library_path": str(library),
                     "library_sha256": WORKER.sha256(library),
                     "start_batch": 0,
@@ -162,8 +193,8 @@ class ReactorLossAccounting(unittest.TestCase):
                 start, end, losses = (0, 30, 1) if calls == 1 else (30, 38, 0)
                 receipt = Path(command[command.index("--receipt") + 1])
                 receipt.write_text(json.dumps({
-                    "schema_version": "faris-openmc-loss-pass/v0.1",
-                    "method": "openmc-c-api-n_lost_particles/v1",
+                    "schema_version": "faris-openmc-loss-pass/v0.2",
+                    "method": "openmc-c-api-n_lost_particles-delta/v1",
                     "library_path": str(library),
                     "library_sha256": WORKER.sha256(library),
                     "start_batch": start,
