@@ -183,14 +183,45 @@ pub fn prepare_dose_cad(
     if receipt.get("schema").and_then(Value::as_str) != Some(PREP_RECEIPT_SCHEMA) {
         return Err("dose CAD preparation receipt has an unsupported schema".into());
     }
+    let expected_request_sha = sha256(&read_bounded(&request_path, MAX_WORKER_REQUEST_BYTES)?);
+    if receipt.get("request_sha256").and_then(Value::as_str) != Some(expected_request_sha.as_str())
+    {
+        return Err(
+            "dose CAD preparation receipt does not bind the exact Rust request bytes".into(),
+        );
+    }
     let model_xml = path_from_receipt(&receipt, "model_xml")?;
     let geometry_h5m = path_from_receipt(&receipt, "geometry_h5m")?;
     let component_map = path_from_receipt(&receipt, "component_material_map")?;
+    let prepared_root = out.canonicalize().map_err(|e| e.to_string())?;
+    for path in [&model_xml, &geometry_h5m, &component_map] {
+        let canonical = path.canonicalize().map_err(|e| e.to_string())?;
+        if !canonical.starts_with(&prepared_root) || !canonical.is_file() {
+            return Err(
+                "dose CAD preparation receipt names an output outside its isolated work directory"
+                    .into(),
+            );
+        }
+    }
+    let model_ref = make_ref(&model_xml)?;
+    let geometry_ref = make_ref(&geometry_h5m)?;
+    let map_ref = make_ref(&component_map)?;
+    for (key, reference) in [
+        ("model_xml_sha256", &model_ref),
+        ("derived_h5m_sha256", &geometry_ref),
+        ("component_material_map_sha256", &map_ref),
+    ] {
+        if receipt.get(key).and_then(Value::as_str) != Some(reference.sha256.as_str()) {
+            return Err(format!(
+                "dose CAD preparation receipt {key} does not match its artifact"
+            ));
+        }
+    }
     let manifest = serde_json::json!({
         "schema_version": DOSE_PHYSICS_SCHEMA,
-        "model_xml": make_ref(&model_xml)?,
-        "geometry_h5m": make_ref(&geometry_h5m)?,
-        "component_material_map": make_ref(&component_map)?,
+        "model_xml": model_ref,
+        "geometry_h5m": geometry_ref,
+        "component_material_map": map_ref,
         "cross_sections_xml": config.cross_sections_xml,
         "chain_xml": config.chain_xml,
         "activation_mesh": config.activation_mesh,
