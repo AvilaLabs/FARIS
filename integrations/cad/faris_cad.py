@@ -32,9 +32,8 @@ geometry, `faris-facets/v1` files, see faris_facets.py):
                      for the overlap test); each solid's mesh is checked for closure
     overlap-booleans OCCT BRepAlgoAPI_Common on candidate solid pairs, in worker
                      processes (GEO-021 before imprinting)
-    deviation        triangle centroids and edge midpoints (each edge once) against the owning solid:
-                     closed form on plane, cylinder, cone, sphere and torus faces,
-                     OpenCASCADE projection on the rest (GEO-032, faris_deviation.py)
+    deviation        sample diagnostics plus a bounded 1-Lipschitz upper bound over every
+                     facet triangle against its owning solid (GEO-032)
 """
 from __future__ import annotations
 
@@ -880,12 +879,12 @@ def overlap_booleans(args) -> int:
 
 
 def deviation(args) -> int:
-    """GEO-032: the largest distance from triangle centroids and edge midpoints to the owning solid.
+    """GEO-032: sample diagnostics and a bounded global upper bound over all facet triangles.
 
-    Faces on a plane, cylinder, cone, sphere or torus are measured in closed form (faris_deviation),
-    every other face by OpenCASCADE on an even stride of at most `--occt-points` points per solid.
-    The report gives each solid's coverage, so the result reads "maximum over all points" or
-    "sampled maximum".
+    The global bound evaluates nearest-boundary distances at triangle centroids and adds the
+    maximum centroid-to-vertex radius, subdividing triangles whose upper bound exceeds tolerance.
+    Sample diagnostics use closed forms on analytic faces and may stride OpenCASCADE projections;
+    they do not determine the global pass/fail result.
     """
     import numpy as np
 
@@ -905,7 +904,7 @@ def deviation(args) -> int:
     solids = load_solids(args.step, args.shape_cache)
     timing["read_step"] = time.monotonic() - started
     to_shape = 1.0 / args.shape_unit_m
-    point_sets, faces = [], []
+    point_sets, triangle_sets, faces = [], [], []
     t = time.monotonic()
     for entry in mapping:
         volume, index = entry["volume"], entry["step_index"]
@@ -913,6 +912,7 @@ def deviation(args) -> int:
         picks = [np.arange(int(surfaces["first"][i]), int(surfaces["first"][i]) + int(surfaces["count"][i])) for i in owned]
         corners = triangles[np.concatenate(picks)]
         p = vertices[corners] * to_shape  # (n, 3 corners, 3)
+        triangle_sets.append(p)
         # Edge midpoints once per edge: neighbouring triangles share them.
         edges = np.sort(np.concatenate([corners[:, [0, 1]], corners[:, [1, 2]], corners[:, [2, 0]]]), axis=1)
         edges = np.unique(edges, axis=0)
@@ -923,6 +923,15 @@ def deviation(args) -> int:
     t = time.monotonic()
     rows, phases = faris_deviation.measure(faces, point_sets, workers=args.workers, occt_points=args.occt_points, block=args.block_points)
     timing["measure"] = time.monotonic() - t
+    t = time.monotonic()
+    certifications = [
+        faris_deviation.certify_triangles(
+            face, triangles, args.tolerance_m / args.shape_unit_m,
+            max_queries=args.max_bound_queries, max_depth=args.max_bound_depth,
+        )
+        for face, triangles in zip(faces, triangle_sets)
+    ]
+    timing["global_bound"] = time.monotonic() - t
     timing.update({f"measure_{k}": v for k, v in phases.items()})
     per_solid = []
     for entry, row, solid in zip(mapping, rows, faces):
@@ -937,7 +946,15 @@ def deviation(args) -> int:
             "occt_calls": row["occt_calls"],
             "faces": len(solid),
             "faces_closed_form": int(solid.analytic.sum()),
-            "max_distance_m": row["worst"] * args.shape_unit_m,
+            "sampled_max_distance_m": row["worst"] * args.shape_unit_m,
+            "global_bound_status": certification["status"],
+            "global_upper_bound_m": (
+                None if certification["upper_bound"] is None
+                else certification["upper_bound"] * args.shape_unit_m
+            ),
+            "global_bound_queries": certification["queries"],
+            "global_bound_max_queries": certification["max_queries"],
+            "global_bound_max_depth": certification["max_depth"],
         }
         if row["at"] is not None:
             out["at_m"] = [c * args.shape_unit_m for c in row["at"]]
@@ -948,7 +965,8 @@ def deviation(args) -> int:
         "versions": tool_versions(),
         "method": (
             "closed-form distance to plane, cylinder, cone, sphere and torus faces (accepted when the foot point is in the face, "
-            "by OpenCASCADE's face classifier); BRepExtrema_DistShapeShape for other faces and for points whose foot point is outside the face"
+            "by OpenCASCADE's face classifier); BRepExtrema_DistShapeShape for other faces and for points whose foot point is outside the face; "
+            "global triangle coverage uses the 1-Lipschitz distance bound with bounded recursive subdivision"
         ),
         "solids": per_solid,
         "timing_seconds": timing,
@@ -1014,6 +1032,11 @@ def main(argv: list[str] | None = None) -> int:
     dev.add_argument("--block-points", type=int, default=512, help="points measured together in closed form")
     dev.add_argument("--occt-points", type=int, default=2000,
                      help="points per solid measured by OpenCASCADE, on an even stride (0: all of them)")
+    dev.add_argument("--tolerance-m", type=float, required=True, help="declared faceting tolerance in metres")
+    dev.add_argument("--max-bound-queries", type=int, default=100_000,
+                     help="maximum CAD distance queries per solid for global triangle bound")
+    dev.add_argument("--max-bound-depth", type=int, default=18,
+                     help="maximum recursive subdivision depth for global triangle bound")
 
     args = parser.parse_args(argv)
     if args.command == "export-facets":

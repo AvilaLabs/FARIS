@@ -1416,29 +1416,35 @@ fn render_geometry(g: &GeometryRecords) -> String {
         }
     }
     if let Some(d) = &g.deviation {
-        let worst = d
-            .solids
-            .iter()
-            .max_by(|a, b| a.max_distance_m.total_cmp(&b.max_distance_m));
+        let worst = d.solids.iter().max_by(|a, b| {
+            a.global_upper_bound_m
+                .unwrap_or(a.max_distance_m)
+                .total_cmp(&b.global_upper_bound_m.unwrap_or(b.max_distance_m))
+        });
         out.push_str(&format!(
             "\nFaceting deviation (GEO-032, {:.1} s): {}\n  {} solid(s); {}\n",
             d.seconds,
             d.statement,
             d.solids.len(),
             worst.map_or(String::new(), |w| format!(
-                "largest {:.3e} m in {} against the tolerance {:.3e} m",
-                w.max_distance_m, w.solid_id, d.chord_tolerance_m
+                "largest certified upper bound {:.3e} m in {} against the tolerance {:.3e} m",
+                w.global_upper_bound_m.unwrap_or(w.max_distance_m),
+                w.solid_id,
+                d.chord_tolerance_m
             ))
         ));
         for s in &d.solids {
             out.push_str(&format!(
-                "  {:<28} {:.3e} m  {}: {}\n",
+                "  {:<28} sampled {:.3e} m, global {:?} ({}; {} queries)  {}: {}\n",
                 s.solid_id,
                 s.max_distance_m,
+                s.global_upper_bound_m,
+                s.global_bound_status,
+                s.global_bound_queries,
                 if s.complete {
-                    "maximum over all points"
+                    "maximum over all diagnostic points"
                 } else {
-                    "sampled maximum"
+                    "maximum over diagnostic sample"
                 },
                 if s.complete {
                     format!(

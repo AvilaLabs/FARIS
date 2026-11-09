@@ -36,6 +36,10 @@ pub const DEFAULT_CHORD_M: f64 = 1.0e-3;
 pub const DEFAULT_ANGULAR_RAD: f64 = 0.1;
 /// OpenCASCADE projections per solid in the faceting deviation (GEO-032).
 pub const DEFAULT_DEVIATION_POINTS: usize = 2000;
+/// Per-solid distance queries for the global GEO-032 facet bound.
+pub const DEFAULT_DEVIATION_BOUND_QUERIES: usize = 100_000;
+/// Maximum recursive facet subdivision depth for the global GEO-032 bound.
+pub const DEFAULT_DEVIATION_BOUND_DEPTH: usize = 18;
 /// Threads the converter imprints with.
 pub const DEFAULT_IMPRINT_THREADS: u32 = 4;
 
@@ -186,6 +190,7 @@ pub struct BooleanOutcome {
 pub struct DeviationRequest<'a> {
     pub step: &'a Path,
     pub shape_unit_m: f64,
+    pub tolerance_m: f64,
     pub facets_bin: &'a Path,
     /// `(volume, step_index)`.
     pub map: &'a [(u32, usize)],
@@ -193,6 +198,8 @@ pub struct DeviationRequest<'a> {
     pub workers: usize,
     /// Points per solid measured by OpenCASCADE projection, on an even stride; 0 for all.
     pub occt_points: usize,
+    pub bound_queries: usize,
+    pub bound_depth: usize,
     pub shape_cache: Option<&'a Path>,
 }
 
@@ -215,7 +222,20 @@ pub struct DeviationRow {
     #[serde(default)]
     pub points_occt_needed: u64,
     pub faces: u64,
+    #[serde(rename = "sampled_max_distance_m", alias = "max_distance_m")]
     pub max_distance_m: f64,
+    /// Certified upper bound over every point of every facet triangle, when the bounded proof completes.
+    #[serde(default)]
+    pub global_upper_bound_m: Option<f64>,
+    /// Whether the 1-Lipschitz subdivision proved the declared tolerance over all facet triangles.
+    #[serde(default)]
+    pub global_bound_status: String,
+    #[serde(default)]
+    pub global_bound_queries: u64,
+    #[serde(default)]
+    pub global_bound_max_queries: u64,
+    #[serde(default)]
+    pub global_bound_max_depth: u64,
     #[serde(default)]
     pub at_m: Option<[f64; 3]>,
 }
@@ -262,6 +282,8 @@ pub struct GeometryOptions {
     /// cylinder, cone, sphere or torus face, or whose foot point falls outside the face); 0 projects
     /// all of them. A positive number takes an even stride of them, which is recorded.
     pub deviation_points: usize,
+    pub deviation_bound_queries: usize,
+    pub deviation_bound_depth: usize,
     pub imprint_threads: u32,
     pub cancellation: Cancellation,
     pub progress: Option<ProgressFn>,
@@ -278,6 +300,8 @@ impl Default for GeometryOptions {
             chords: 100_000,
             source_sites: 100_000,
             deviation_points: DEFAULT_DEVIATION_POINTS,
+            deviation_bound_queries: DEFAULT_DEVIATION_BOUND_QUERIES,
+            deviation_bound_depth: DEFAULT_DEVIATION_BOUND_DEPTH,
             imprint_threads: DEFAULT_IMPRINT_THREADS,
             cancellation: Cancellation::default(),
             progress: None,
@@ -339,7 +363,18 @@ pub struct PreImprintRecord {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct DeviationSolid {
     pub solid_id: String,
+    #[serde(rename = "sampled_max_distance_m", alias = "max_distance_m")]
     pub max_distance_m: f64,
+    #[serde(default)]
+    pub global_upper_bound_m: Option<f64>,
+    #[serde(default)]
+    pub global_bound_status: String,
+    #[serde(default)]
+    pub global_bound_queries: u64,
+    #[serde(default)]
+    pub global_bound_max_queries: u64,
+    #[serde(default)]
+    pub global_bound_max_depth: u64,
     pub at_m: Option<[f64; 3]>,
     pub points: u64,
     #[serde(default)]
@@ -967,22 +1002,33 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     match backends.deviation(&DeviationRequest {
         step,
         shape_unit_m,
+        tolerance_m: chord_m,
         facets_bin: &converted.facets_bin,
         map: &map,
         directory: &deviation_dir,
         workers: options.threads.clamp(1, 4),
         occt_points: options.deviation_points,
+        bound_queries: options.deviation_bound_queries,
+        bound_depth: options.deviation_bound_depth,
         shape_cache,
     })? {
         ToolResult::Done(out) => {
             let mut solids = Vec::new();
+            let mut unresolved_bounds = 0usize;
             for row in &out.rows {
                 let label = labels_by_step
                     .get(&row.step_index)
                     .copied()
                     .unwrap_or("?")
                     .to_string();
-                let above = row.max_distance_m > chord_m;
+                let certified =
+                    row.global_bound_status == "certified" && row.global_upper_bound_m.is_some();
+                if !certified {
+                    unresolved_bounds += 1;
+                }
+                let above = row
+                    .global_upper_bound_m
+                    .is_some_and(|bound| certified && bound > chord_m);
                 let complete = row.points >= row.points_available;
                 if above {
                     let mut f = Finding::new(
@@ -991,19 +1037,14 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                         format!(
                             "the facets deviate from the CAD surface by {:.3e} m ({}), \
                              above the declared faceting tolerance of {chord_m:.3e} m",
-                            row.max_distance_m,
-                            if complete {
-                                "maximum over all points"
-                            } else {
-                                "sampled maximum"
-                            }
+                            row.global_upper_bound_m.unwrap_or(row.max_distance_m),
+                            "certified global upper bound"
                         ),
                         "Set cad.faceting_tolerance_m smaller so the facets follow the surfaces \
                          more closely, then convert again.",
                     )
                     .requirement("GEO-032")
-                    .cells(vec![label.clone()])
-                    .waivable();
+                    .cells(vec![label.clone()]);
                     if let Some(p) = row.at_m {
                         f = f.at(p);
                     }
@@ -1012,6 +1053,11 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 solids.push(DeviationSolid {
                     solid_id: label,
                     max_distance_m: row.max_distance_m,
+                    global_upper_bound_m: row.global_upper_bound_m,
+                    global_bound_status: row.global_bound_status.clone(),
+                    global_bound_queries: row.global_bound_queries,
+                    global_bound_max_queries: row.global_bound_max_queries,
+                    global_bound_max_depth: row.global_bound_max_depth,
                     at_m: row.at_m,
                     points: row.points,
                     points_available: row.points_available,
@@ -1022,7 +1068,12 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                     above_tolerance: above,
                 });
             }
-            let sampled = solids.iter().filter(|s| !s.complete).count();
+            if unresolved_bounds > 0 {
+                deviation_sub.not_evaluated = Some((
+                    format!("the global triangle bound was unresolved for {unresolved_bounds} of {} solid(s)", solids.len()),
+                    "Increase the GEO-032 bound query/depth budget or refine the facets, then run design check again.".into(),
+                ));
+            }
             // The sliver rule that compares the deviation with the thickness needs it per solid.
             let deviations: Vec<integrity::SolidDeviation> = solids
                 .iter()
@@ -1041,20 +1092,15 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 method: out.method,
                 chord_tolerance_m: chord_m,
                 seconds: out.seconds,
-                statement: if sampled == 0 {
-                    "maximum over all points: every triangle centroid and edge midpoint of every \
-                     solid was measured, in closed form on plane, cylinder, cone, sphere and torus \
-                     faces and by OpenCASCADE projection elsewhere; it is not a bound over points \
-                     between them"
+                statement: if unresolved_bounds == 0 {
+                    "certified upper bound over every point of every facet triangle by 1-Lipschitz \
+                     subdivision; triangle distance queries were measured against the CAD boundary"
                         .to_string()
                 } else {
                     format!(
-                        "sampled maximum for {sampled} of {} solid(s): their points that need \
-                         OpenCASCADE projection (--deviation-points) are an even stride of at \
-                         most {} per solid, the others are measured in closed form; the maximum \
-                         is exact over the points measured, not a bound over every point",
-                        solids.len(),
-                        options.deviation_points
+                        "global bound unresolved for {unresolved_bounds} of {} solid(s); GEO-032 \
+                         was not evaluated for those solids (bounded query/depth budget exhausted)",
+                        solids.len()
                     )
                 },
                 solids,

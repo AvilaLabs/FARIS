@@ -193,6 +193,11 @@ fn geo() -> Geo {
                 points_occt_needed: 0,
                 faces: 12,
                 max_distance_m: 1.0e-5,
+                global_upper_bound_m: Some(2.0e-5),
+                global_bound_status: "certified".into(),
+                global_bound_queries: 24,
+                global_bound_max_queries: 100_000,
+                global_bound_max_depth: 18,
                 at_m: Some([1.0, 0.0, 0.0]),
             },
             DeviationRow {
@@ -205,6 +210,11 @@ fn geo() -> Geo {
                 points_occt_needed: 0,
                 faces: 6,
                 max_distance_m: 2.0e-5,
+                global_upper_bound_m: Some(2.0e-5),
+                global_bound_status: "certified".into(),
+                global_bound_queries: 12,
+                global_bound_max_queries: 100_000,
+                global_bound_max_depth: 18,
                 at_m: Some([0.0, 0.0, 2.0]),
             },
         ]),
@@ -467,22 +477,21 @@ fn an_integrity_failure_stops_before_the_source_sites() {
 
 // Verifies: GEO-032
 #[test]
-fn deviation_above_the_tolerance_blocks_and_can_be_waived() {
+fn unresolved_global_deviation_bound_does_not_accept_a_sampled_run_or_allow_waiver() {
     let mut b = geo();
-    b.deviation.as_mut().unwrap()[1].max_distance_m = 5.0e-3;
-    b.deviation.as_mut().unwrap()[1].points = 40;
+    b.deviation.as_mut().unwrap()[1].global_bound_status = "unresolved".into();
+    b.deviation.as_mut().unwrap()[1].global_upper_bound_m = Some(5.0e-3);
     let report = run_with(&design(Vec::new()), &b);
-    assert_eq!(report.checks[2].status, Fail);
-    let f = report.checks[2]
-        .findings
-        .iter()
-        .find(|f| f.requirement.as_deref() == Some("GEO-032"))
-        .unwrap();
-    assert_eq!(f.cells, ["core"]);
-    assert!(f.why.contains("sampled maximum"));
-    assert!(report.geometry.deviation.as_ref().unwrap().solids[1].above_tolerance);
+    assert_eq!(report.checks[2].status, NotEvaluated);
+    assert!(
+        report.checks[2]
+            .why
+            .as_deref()
+            .unwrap()
+            .contains("global triangle bound was unresolved")
+    );
     let waived = run_with(&design(vec![waiver("GEO-032", &["core"])]), &b);
-    assert_eq!(waived.checks[2].status, Pass);
+    assert_eq!(waived.checks[2].status, NotEvaluated);
     assert_eq!(statuses(&waived).len(), 4);
 }
 
@@ -493,42 +502,35 @@ fn a_capped_deviation_says_it_measured_a_stride() {
     b.deviation.as_mut().unwrap()[0].points = 50;
     let report = run_with(&design(Vec::new()), &b);
     let record = report.geometry.deviation.as_ref().unwrap();
-    assert!(record.statement.contains("--deviation-points"));
-    assert!(record.statement.contains("sampled maximum"));
+    assert!(record.statement.contains("certified upper bound"));
     assert_eq!(record.solids[0].points_available, 100);
     assert!(!record.solids[0].complete && record.solids[1].complete);
+    let row_json = serde_json::to_value(&record.solids[0]).unwrap();
+    assert!(row_json.get("sampled_max_distance_m").is_some());
+    assert!(row_json.get("max_distance_m").is_none());
     let plain = run_with(&design(Vec::new()), &geo());
     let statement = &plain.geometry.deviation.as_ref().unwrap().statement;
     assert!(
-        statement.starts_with("maximum over all points"),
+        statement.starts_with("certified upper bound"),
         "{statement}"
     );
-    assert!(!statement.contains("--deviation-points"));
+    assert_eq!(record.solids[0].global_bound_status, "certified");
 }
 
 // Verifies: GEO-032
 #[test]
-fn the_finding_above_the_tolerance_says_sampled_only_when_it_was() {
+fn a_large_sample_distance_cannot_substitute_for_a_global_bound() {
     let mut b = geo();
     b.deviation.as_mut().unwrap()[1].max_distance_m = 5.0e-3;
+    b.deviation.as_mut().unwrap()[1].global_bound_status = "unresolved".into();
     let all = run_with(&design(Vec::new()), &b);
-    let why = |r: &ImportReport| {
-        r.checks[2]
+    assert_eq!(all.checks[2].status, NotEvaluated);
+    assert!(
+        !all.checks[2]
             .findings
             .iter()
-            .find(|f| f.requirement.as_deref() == Some("GEO-032"))
-            .unwrap()
-            .why
-            .clone()
-    };
-    assert!(
-        why(&all).contains("maximum over all points"),
-        "{}",
-        why(&all)
+            .any(|f| f.requirement.as_deref() == Some("GEO-032"))
     );
-    b.deviation.as_mut().unwrap()[1].points = 10;
-    let some = run_with(&design(Vec::new()), &b);
-    assert!(why(&some).contains("sampled maximum"), "{}", why(&some));
 }
 
 // Verifies: GEO-032

@@ -697,6 +697,12 @@ pub(super) fn deviation(
         request.workers.to_string().into(),
         "--occt-points".into(),
         request.occt_points.to_string().into(),
+        "--tolerance-m".into(),
+        format!("{:e}", request.tolerance_m).into(),
+        "--max-bound-queries".into(),
+        request.bound_queries.to_string().into(),
+        "--max-bound-depth".into(),
+        request.bound_depth.to_string().into(),
         "--report".into(),
         report_path.clone().into_os_string(),
     ];

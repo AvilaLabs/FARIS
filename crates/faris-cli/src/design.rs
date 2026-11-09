@@ -102,9 +102,15 @@ pub enum DesignCommand {
         /// Points per solid the faceting deviation (GEO-032) lets OpenCASCADE project. Faces on a
         /// plane, cylinder, cone, sphere or torus are measured in closed form at every point;
         /// the points on other surfaces take an even stride of at most this many [0: all of
-        /// them]. The report says which solids were sampled.
+        /// them]. These diagnostics are separate from the global triangle bound.
         #[arg(long, default_value_t = 2000)]
         deviation_points: usize,
+        /// Bounded CAD distance queries per solid for the GEO-032 global proof.
+        #[arg(long, default_value_t = 100_000)]
+        deviation_bound_queries: usize,
+        /// Maximum recursive subdivision depth for the GEO-032 global proof.
+        #[arg(long, default_value_t = 18)]
+        deviation_bound_depth: usize,
         /// Threads the converter may use to imprint.
         #[arg(long, default_value_t = 4)]
         imprint_threads: u32,
@@ -243,6 +249,8 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             work_dir,
             no_reuse,
             deviation_points,
+            deviation_bound_queries,
+            deviation_bound_depth,
             threads,
             seed,
             samples,
@@ -264,6 +272,8 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 chords,
                 source_sites,
                 deviation_points,
+                deviation_bound_queries,
+                deviation_bound_depth,
                 imprint_threads,
                 cancellation: cancel,
                 progress: Some(progress_printer()),

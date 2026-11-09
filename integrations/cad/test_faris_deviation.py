@@ -57,6 +57,30 @@ else:
     from OCP.ElSLib import ElSLib
     from OCP.gp import gp_Pnt
 
+    class PlaneOracle:
+        """Boundary-distance fixture for the Lipschitz subdivision proof."""
+        def point_distance(self, point, floor=0.0):
+            return abs(float(point[2])), 0
+
+    class CertifiedTriangleBound(unittest.TestCase):
+        def test_subdivision_certifies_every_point_when_global_upper_is_under_tolerance(self):
+            triangles = np.array([[[0.0, 0.0, 0.09], [0.2, 0.0, 0.09], [0.0, 0.2, 0.09]]])
+            result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1000, max_depth=8)
+            self.assertEqual(result["status"], "certified")
+            self.assertLessEqual(result["upper_bound"], 0.1)
+            self.assertGreater(result["queries"], 1)
+
+        def test_budget_exhaustion_is_unresolved_not_a_sampled_pass(self):
+            triangles = np.array([[[0.0, 0.0, 0.09], [0.2, 0.0, 0.09], [0.0, 0.2, 0.09]]])
+            result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1, max_depth=8)
+            self.assertEqual(result["status"], "unresolved")
+
+        def test_outside_tolerance_remains_unresolved_without_a_proven_lower_bound(self):
+            triangles = np.array([[[0.0, 0.0, 0.11], [0.2, 0.0, 0.11], [0.0, 0.2, 0.11]]])
+            result = fd.certify_triangles(PlaneOracle(), triangles, 0.1, max_queries=1000, max_depth=8)
+            self.assertEqual(result["status"], "unresolved")
+            self.assertGreater(result["upper_bound"], 0.1)
+
     def shapes():
         """Solids with one analytic surface type each, cut so that some faces are partial."""
         box = cq.Workplane().box(40, 30, 20).val()

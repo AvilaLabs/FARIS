@@ -835,3 +835,95 @@ def measure(solids, point_sets, workers=3, occt_points=2000, block=512):
     for row in rows:
         row["points"] = row["points_closed_form"] + row["points_occt"]
     return rows, timing
+
+
+def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_depth=18):
+    """Bound distance to the CAD boundary over every point of every facet triangle.
+
+    Distance to a closed set is 1-Lipschitz. For a triangle with centroid ``c``, every point is
+    within ``max(|vertex-c|)`` of c, so ``distance(c) + radius`` is an upper bound everywhere
+    on that triangle. Subdivide only triangles whose bound exceeds the requested tolerance.
+    ``point_distance`` returns the attained nearest-boundary distance; query limits or a depth
+    limit leave the result unresolved, never certified by sampling alone.
+    """
+    import heapq
+    import time
+
+    started = time.monotonic()
+    triangles = np.asarray(triangles, dtype=np.float64)
+    if triangles.ndim != 3 or triangles.shape[1:] != (3, 3):
+        raise ValueError("facet triangles must have shape (n, 3, 3)")
+    if not math.isfinite(tolerance) or tolerance < 0 or max_queries < 1 or max_depth < 0:
+        raise ValueError("invalid certification limits")
+    if len(triangles) == 0:
+        return {"status": "unresolved", "upper_bound": None, "queries": 0,
+                "max_queries": max_queries, "max_depth": max_depth,
+                "seconds": time.monotonic() - started}
+    # Largest unresolved upper bound first, so each query reduces the current global bound.
+    pending = []
+    serial = 0
+    queries = 0
+    sampled_distance_upper = 0.0
+    certified_upper = 0.0
+    unresolved_upper = 0.0
+    unresolved = False
+
+    def evaluate(tri, depth):
+        nonlocal queries, sampled_distance_upper
+        center = tri.mean(axis=0)
+        value, _calls = solid.point_distance(center, floor=0.0)
+        queries += 1
+        radius = float(np.linalg.norm(tri - center, axis=1).max())
+        # Round outward by a scale-aware floating point allowance. This does not remove the
+        # separate kernel tolerance; it prevents arithmetic rounding from shrinking the bound.
+        scale = max(1.0, float(np.abs(tri).max()), abs(value), radius)
+        # Include OpenCASCADE's face-classifier tolerance as outward slack. The query distance is
+        # an attained boundary distance (hence an upper bound on the minimum distance).
+        upper = value + radius + CLASSIFY_TOLERANCE + 64.0 * np.finfo(np.float64).eps * scale
+        sampled_distance_upper = max(sampled_distance_upper, value)
+        return upper, center, depth
+
+    if len(triangles) > max_queries:
+        return {
+            "status": "unresolved", "upper_bound": None, "queries": 0,
+            "max_queries": max_queries, "max_depth": max_depth,
+            "seconds": time.monotonic() - started,
+        }
+    for tri in triangles:
+        upper, center, depth = evaluate(tri, 0)
+        if upper <= tolerance:
+            certified_upper = max(certified_upper, upper)
+        else:
+            heapq.heappush(pending, (-upper, serial, tri, depth))
+            serial += 1
+
+    while pending:
+        neg_upper, _serial, tri, depth = heapq.heappop(pending)
+        upper = -neg_upper
+        if upper <= tolerance:
+            certified_upper = max(certified_upper, upper)
+            continue
+        if queries + 4 > max_queries or depth >= max_depth:
+            unresolved = True
+            unresolved_upper = max(unresolved_upper, upper)
+            continue
+        a, b, c = tri
+        ab, bc, ca = (a + b) / 2.0, (b + c) / 2.0, (c + a) / 2.0
+        for child in (np.array([a, ab, ca]), np.array([ab, b, bc]),
+                      np.array([ca, bc, c]), np.array([ab, bc, ca])):
+            child_upper, _center, child_depth = evaluate(child, depth + 1)
+            if child_upper <= tolerance:
+                certified_upper = max(certified_upper, child_upper)
+            else:
+                heapq.heappush(pending, (-child_upper, serial, child, child_depth))
+                serial += 1
+
+    return {
+        "status": "unresolved" if unresolved else "certified",
+        "sampled_distance_upper": sampled_distance_upper,
+        "upper_bound": max(certified_upper, unresolved_upper),
+        "queries": queries,
+        "max_queries": max_queries,
+        "max_depth": max_depth,
+        "seconds": time.monotonic() - started,
+    }
