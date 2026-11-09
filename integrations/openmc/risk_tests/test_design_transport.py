@@ -472,6 +472,13 @@ class PeakTest(unittest.TestCase):
         self.assertFalse(DT.heating_closure_quality(1.0, 0.0, 10.0)["within_3se"])
         self.assertTrue(DT.heating_closure_quality(0.3, 0.1, 10.0)["within_3se"])
 
+    def test_peak_quality_rejects_zero_and_relative_error_over_ten_percent(self):
+        self.assertEqual(DT.heating_peak_quality(0.0, 0.0),
+                         (False, "The sampled peak response is zero; relative heating uncertainty is unavailable."))
+        self.assertEqual(DT.heating_peak_quality(1.0, None)[0], False)
+        self.assertEqual(DT.heating_peak_quality(1.0, 0.1000001)[0], False)
+        self.assertEqual(DT.heating_peak_quality(1.0, 0.1), (True, None))
+
     def test_terminal_quality_checks_status_and_lost_count_even_for_short_runs(self):
         self.assertEqual(DT.heating_terminal_quality(1, 100, 100, "history_limit", 0, 100_000)[0], "CALCULATED")
         self.assertEqual(DT.heating_terminal_quality(1, 99, 100, "history_limit", 0, 99_000)[0], "NOT_EVALUATED")
@@ -594,7 +601,7 @@ class PeakTest(unittest.TestCase):
         openmc.MeshFilter = lambda mesh: ("mesh", mesh)
         openmc.CylindricalMesh = lambda **kwargs: ("cylindrical_mesh", kwargs)
 
-        total_bias = {"value": 0.0}
+        total_bias, zero_scores = {"value": 0.0}, {"value": False}
         class FakeModel:
             def __init__(self):
                 self.settings = types.SimpleNamespace()
@@ -607,6 +614,8 @@ class PeakTest(unittest.TestCase):
                     name = tally.name.removeprefix("heating-voxel-").removeprefix("heating-")
                     is_voxel = "voxel" in tally.name
                     values = list(increments[name][1 if is_voxel else 0])
+                    if zero_scores["value"]:
+                        values = [0.0] * len(values)
                     if name == "total" and not is_voxel:
                         values[0] += total_bias["value"]
                     lib.tallies[tally.id] = types.SimpleNamespace(
@@ -669,6 +678,14 @@ class PeakTest(unittest.TestCase):
                 self.assertEqual(inconclusive["status"], "INCONCLUSIVE")
                 self.assertEqual(inconclusive["solids"][0]["closure_residual"]["mean_ev_per_source"], 1.0)
                 self.assertFalse(inconclusive["solids"][0]["closure_residual"]["within_3se"])
+                total_bias["value"] = 0.0
+                zero_scores["value"] = True
+                lib.batch = 0
+                zero = DT.phase_heating(request, work)
+                self.assertEqual(zero["status"], "INCONCLUSIVE")
+                self.assertIn("relative heating uncertainty is unavailable", zero["why"])
+                self.assertEqual(zero["solids"][0]["peak"]["mean"], 0.0)
+                self.assertIsNone(zero["solids"][0]["peak"]["standard_error"])
 
     def test_a_piece_one_rare_score_landed_in_does_not_lead(self):
         # Piece 0: 100 in one batch of four (mean 25, error 25). Piece 1: a steady 10 with a small error.

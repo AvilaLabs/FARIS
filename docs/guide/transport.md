@@ -26,6 +26,8 @@ do not establish physical validation or a met design requirement.
 The history, time, seed and thread limits use `--max-histories`, `--max-seconds`, `--seed` and `--threads`. The job
 can be cancelled, has bounded memory and output, and needs an OpenMC Python environment, the audited
 `cross_sections.xml` and `openmc_plasma_source` configured as for design transport.
+Heating currently stops at its configured history or time budget; target-relative-error stopping is not implemented
+yet (NUC-043 remains open).
 
 ## What you need
 

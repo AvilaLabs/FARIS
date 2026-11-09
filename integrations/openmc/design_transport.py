@@ -859,6 +859,18 @@ def heating_closure_quality(mean: float, standard_error: float, component_scale:
     return {"within_3se": within, "roundoff_tolerance_ev_per_source": tolerance}
 
 
+def heating_peak_quality(mean: float, standard_error: float | None) -> tuple[bool, str | None]:
+    """Require a positive peak with a reported relative Monte Carlo error no greater than 10%."""
+    if not math.isfinite(mean) or mean <= 0.0:
+        return False, "The sampled peak response is zero; relative heating uncertainty is unavailable."
+    if standard_error is None or not math.isfinite(standard_error) or standard_error < 0.0:
+        return False, "The sampled peak has no usable Monte Carlo uncertainty estimate."
+    relative_error = standard_error / mean
+    if relative_error > 0.10:
+        return False, f"The sampled peak relative Monte Carlo standard error is {100.0 * relative_error:.2f}%, above 10%; heating is unconverged."
+    return True, None
+
+
 def heating_terminal_quality(status: int | None, batches: int, planned: int, stop_reason: str,
                              lost: int | None, histories: int) -> tuple[str, str | None]:
     """Validate C API completion and final lost-particle count before accepting scores."""
@@ -1187,6 +1199,9 @@ def phase_heating(request: dict, work: Path) -> dict:
         peak = peak_of(voxel_sum, voxel_squares, volume_by_solid[row], ranked, len(voxel_total))
         peak_index = None
         if peak is not None:
+            if peak["mean"] <= 0.0:
+                # Keep the measured zero, while making its undefined relative uncertainty explicit.
+                peak["standard_error"] = None
             index = peak.pop("index")
             peak_index = index
             iz, ir = divmod(index, pieces["volumes_cm3"].shape[2])
@@ -1253,13 +1268,23 @@ def phase_heating(request: dict, work: Path) -> dict:
         not score["closure_residual"]["within_3se"]
         for solid in result_solids
         for score in [solid, *solid["voxel_scores"], *([solid["peak"]] if solid["peak"] else [])])
-    result = {"schema": "faris-design-heating/v1", "status": "INCONCLUSIVE" if closure_failed or terminal_quality == "INCONCLUSIVE" else "CALCULATED",
-              "why": terminal_why if terminal_quality == "INCONCLUSIVE" else (
-                  "At least one per-coil or per-voxel correlated batch closure residual exceeded three standard errors plus the explicit floating-point tolerance."
-                  if closure_failed else None),
-              "next_step": ("Inspect the preserved closure residuals and tally configuration; do not use this result as a closed energy balance."
-                            if closure_failed else ("Inspect the checked geometry for gaps or overlaps and rerun `faris design check`."
-                                                    if terminal_quality == "INCONCLUSIVE" else None)),
+    peak_reasons = []
+    for solid in result_solids:
+        if solid["peak"] is not None:
+            _, quality_reason = heating_peak_quality(
+                solid["peak"]["mean"], solid["peak"]["standard_error"])
+            if quality_reason:
+                peak_reasons.append(quality_reason)
+    reasons = []
+    if closure_failed:
+        reasons.append("At least one per-coil or per-voxel correlated batch closure residual exceeded three standard errors plus the explicit floating-point tolerance.")
+    reasons.extend(peak_reasons)
+    if terminal_quality == "INCONCLUSIVE" and terminal_why:
+        reasons.append(terminal_why)
+    result = {"schema": "faris-design-heating/v1", "status": "INCONCLUSIVE" if reasons else "CALCULATED",
+              "why": " ".join(reasons) if reasons else None,
+              "next_step": ("Increase histories or investigate the closure diagnostics and sampled peak uncertainty, then rerun coupled heating."
+                            if reasons else None),
               "c_api_terminal_status": terminal_status, "lost_particles": lost,
               "openmc": openmc.__version__,
               "h5m_sha256": sha256_file(request["h5m"]), "cross_sections_sha256": sha256_file(xml),

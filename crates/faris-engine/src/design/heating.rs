@@ -468,7 +468,7 @@ pub fn design_heating(
         solids: Vec::new(),
         why: None,
         next_step: None,
-        notices: Vec::new(),
+        notices: vec!["Heating currently stops at its configured history or time budget; target-relative-error stopping is not implemented yet (NUC-043 remains open).".into()],
         validation: ValidationMarks::default(),
     };
     let record_not_evaluated = |mut report: DesignHeatingReport,
@@ -882,11 +882,17 @@ pub fn design_heating(
                 !closure_within_3se(&peak.closure_residual, scale)
             })
     });
-    if (worker.status.as_deref() == Some("CALCULATED") && closure_failed)
+    let peak_unconverged = worker.solids.iter().any(|solid| {
+        solid
+            .peak
+            .as_ref()
+            .is_none_or(|peak| !heating_peak_is_converged(peak.mean, peak.standard_error))
+    });
+    if (worker.status.as_deref() == Some("CALCULATED") && (closure_failed || peak_unconverged))
         || (worker.status.as_deref() == Some("INCONCLUSIVE") && worker.why.is_none())
     {
         return Err(DesignError::Tool(
-            "the heating worker status does not agree with its preserved closure diagnostics"
+            "the heating worker status does not agree with its preserved closure and peak-uncertainty diagnostics"
                 .into(),
         ));
     }
@@ -1071,9 +1077,22 @@ fn valid_terminal_status(
     }
 }
 
+fn heating_peak_is_converged(mean: f64, standard_error: Option<f64>) -> bool {
+    mean.is_finite()
+        && mean > 0.0
+        && standard_error.is_some_and(|se| se.is_finite() && se >= 0.0 && se / mean <= 0.10)
+}
+
 pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
     use std::fmt::Write as _;
     let mut text = format!("Winding-pack heating: {}\n", report.status);
+    let _ = writeln!(
+        text,
+        "  Design: {}",
+        report.design.id.as_deref().unwrap_or("(no authored id)")
+    );
+    let _ = writeln!(text, "  Input path: {}", report.design.path);
+    let _ = writeln!(text, "  Input SHA-256: {}", report.design.sha256);
     if let Some(why) = &report.why {
         let label = if report.status == "INCONCLUSIVE" {
             "  Reason"
@@ -1106,17 +1125,27 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
         };
         let _ = writeln!(text, "  Lost particles: {lost}{fraction}");
     }
-    for solid in &report.solids {
+    if report.solids.is_empty() {
         let _ = writeln!(
             text,
-            "  {}: {:.6e} kW/m³",
-            solid.solid_id,
-            solid
-                .peak
-                .as_ref()
-                .map_or(0.0, |peak| peak.power_density_kw_m3)
+            "  Peak power density: not available (no evaluated peak result)"
         );
+    }
+    for solid in &report.solids {
         if let Some(peak) = &solid.peak {
+            if peak.energy_ev_per_source > 0.0 {
+                let _ = writeln!(
+                    text,
+                    "  {} peak power density: {:.6e} kW/m³",
+                    solid.solid_id, peak.power_density_kw_m3
+                );
+            } else {
+                let _ = writeln!(
+                    text,
+                    "  {} peak power density: not available (zero sampled response; relative heating uncertainty is unavailable)",
+                    solid.solid_id
+                );
+            }
             let _ = writeln!(
                 text,
                 "    sampled voxel volume: {:.6e} m³; heating MC SE: {}",
@@ -1127,7 +1156,7 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
                         if peak.power_density_kw_m3 > 0.0 {
                             format!("{:.3}%", 100.0 * se / peak.power_density_kw_m3)
                         } else {
-                            "undefined (zero mean)".into()
+                            "not available (zero mean)".into()
                         }
                     }
                 )
@@ -1157,6 +1186,12 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
                 peak.volume_estimator
                     .sampling_relative_error
                     .map_or_else(|| "not reported".into(), |se| format!("{:.3}%", 100.0 * se))
+            );
+        } else {
+            let _ = writeln!(
+                text,
+                "  {} peak power density: not available (no resolved sampled voxel)",
+                solid.solid_id
             );
         }
     }
@@ -1208,7 +1243,23 @@ mod tests {
                 "positron": {"mean_ev_per_source": 0.0, "standard_error_ev_per_source": 0.0},
                 "total": {"mean_ev_per_source": 8.0, "standard_error_ev_per_source": 1.0},
                 "closure_residual": score(1.0, 0.0),
-                "peak": null,
+                "peak": {
+                    "mean": 0.0,
+                    "standard_error": null,
+                    "volume_cm3": 1000.0,
+                    "r_cm": [100.0, 105.0],
+                    "z_cm": [-5.0, 0.0],
+                    "pieces_ranked": 1,
+                    "volume_estimator": {"method": "fixture", "rays": 1000,
+                                         "sampling_relative_error": null,
+                                         "sampling_uncertainty_reported": false},
+                    "closure_residual": score(0.0, 0.0),
+                    "components": {
+                        "neutron": score(0.0, 0.0), "photon": score(0.0, 0.0),
+                        "electron": score(0.0, 0.0), "positron": score(0.0, 0.0),
+                        "total": score(0.0, 0.0)
+                    }
+                },
                 "voxel_scores": []
             }]
         });
@@ -1219,8 +1270,20 @@ mod tests {
         let residual = &worker.solids[0].closure_residual;
         assert_eq!(residual.mean_ev_per_source, 1.0);
         assert!(!closure_within_3se(residual, 15.0));
+        let peak = worker.solids[0].peak.as_ref().unwrap();
+        assert!(!heating_peak_is_converged(peak.mean, peak.standard_error));
+        assert_eq!(peak.mean, 0.0);
+        assert_eq!(peak.standard_error, None);
         assert!(valid_terminal_status(&worker, 100, 1_000));
         assert!(!valid_terminal_status(&worker, 101, 1_000));
+    }
+
+    #[test]
+    fn peak_sampling_quality_requires_positive_mean_and_at_most_ten_percent_error() {
+        assert!(!heating_peak_is_converged(0.0, Some(0.0)));
+        assert!(!heating_peak_is_converged(1.0, None));
+        assert!(heating_peak_is_converged(1.0, Some(0.10)));
+        assert!(!heating_peak_is_converged(1.0, Some(0.100_001)));
     }
 
     #[test]
@@ -1340,6 +1403,35 @@ mod tests {
                 < 1e-12
         );
         assert_eq!(report.solids[0].voxels[0].volume_m3, 0.01);
+        let rendered = render_design_heating_text(&report);
+        assert!(rendered.contains("Design: case"));
+        assert!(rendered.contains("Input path: design.json"));
+        assert!(rendered.contains(&format!("Input SHA-256: {}", "d".repeat(64))));
+        let mut missing_peak = report.clone();
+        missing_peak.solids[0].peak = None;
+        missing_peak.status = "NOT_EVALUATED".into();
+        let missing_text = render_design_heating_text(&missing_peak);
+        assert!(
+            missing_text.contains("peak power density: not available (no resolved sampled voxel)")
+        );
+        assert!(!missing_text.contains("peak power density: 0.000000e0"));
+        missing_peak.solids.clear();
+        let no_result = render_design_heating_text(&missing_peak);
+        assert!(no_result.contains("Peak power density: not available (no evaluated peak result)"));
+        let mut zero_peak = report.clone();
+        zero_peak.status = "INCONCLUSIVE".into();
+        let zero = zero_peak.solids[0].peak.as_mut().unwrap();
+        zero.energy_ev_per_source = 0.0;
+        zero.sampling_se_ev_per_source = None;
+        zero.power_density_kw_m3 = 0.0;
+        zero.sampling_se_kw_m3 = None;
+        let zero_text = render_design_heating_text(&zero_peak);
+        assert!(
+            zero_text
+                .contains("zero sampled response; relative heating uncertainty is unavailable")
+        );
+        assert!(zero_text.contains("peak raw total: 0.000000e0 eV/source neutron"));
+        assert!(!zero_text.contains("peak power density: 0.000000e0"));
         for output in DESIGN_HEATING_OUTPUTS {
             if let faris_model::validation::Class::Calculated(quantity) = output.class {
                 assert_eq!(report.validation.0[output.name].quantity, quantity);
