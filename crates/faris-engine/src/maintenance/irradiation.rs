@@ -351,6 +351,7 @@ pub fn irradiation_schedule(
         Some((id, shutdown_s)) => installations(history, id)?
             .into_iter()
             .find(|(a, b)| *a < shutdown_s && shutdown_s <= *b)
+            .map(|(install_s, _)| (install_s, shutdown_s))
             .ok_or_else(|| format!("{id}: no installation in place at {shutdown_s} s"))?,
     };
     let steps = full_steps(history, window, shutdown_times_s)?;

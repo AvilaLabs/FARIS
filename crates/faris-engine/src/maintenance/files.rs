@@ -53,6 +53,23 @@ pub fn default_builder() -> Option<PathBuf> {
     builder_search(exe_dir.as_deref(), &repository)
 }
 
+/// Event-specific OpenMC worker script used for native R2S curve production.
+pub fn default_event_dose_worker() -> Option<PathBuf> {
+    option_env!("FARIS_SOURCE_DIR")
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| Path::new(dir).join("integrations/openmc/maintenance_event_r2s.py"))
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| {
+                    exe.parent()
+                        .map(|dir| dir.join("../tools/maintenance_event_r2s.py"))
+                })
+                .filter(|path| path.is_file())
+        })
+}
+
 /// [`default_builder`] with the program's folder and the repository script supplied.
 pub fn builder_search(exe_dir: Option<&Path>, repository_script: &Path) -> Option<PathBuf> {
     exe_dir
@@ -82,6 +99,8 @@ struct DesignEntry {
     history_run: PathBuf,
     spectrum_run: PathBuf,
     history_assumptions: PathBuf,
+    #[serde(default)]
+    dose_physics: Option<PathBuf>,
 }
 
 /// One design with its five files resolved against the designs file's folder.
@@ -92,6 +111,8 @@ pub struct ResolvedDesign {
     pub history_run: PathBuf,
     pub spectrum_run: PathBuf,
     pub history_assumptions: PathBuf,
+    /// Optional native OpenMC event-dose adapter manifest; absent means dose NOT_EVALUATED.
+    pub dose_physics: Option<PathBuf>,
 }
 
 impl ResolvedDesign {
@@ -131,6 +152,7 @@ pub fn parse_designs(
             history_run: base.join(entry.history_run),
             spectrum_run: base.join(entry.spectrum_run),
             history_assumptions: base.join(entry.history_assumptions),
+            dose_physics: entry.dose_physics.map(|path| base.join(path)),
         };
         for (what, path) in resolved.files() {
             if !path.is_file() {
@@ -139,6 +161,14 @@ pub fn parse_designs(
                     path.display()
                 ));
             }
+        }
+        if let Some(path) = &resolved.dose_physics
+            && !path.is_file()
+        {
+            return Err(format!(
+                "design {name}: dose_physics {} is not a file",
+                path.display()
+            ));
         }
         out.insert(name, resolved);
     }
@@ -237,7 +267,12 @@ pub struct RunConfig {
 pub struct DoseRunConfig {
     pub designs: PathBuf,
     pub assumptions: PathBuf,
-    pub spatial_dose_curves: PathBuf,
+    /// Optional curve bundle used as a hash-bound cache/seed; missing event curves are sent to
+    /// the event-specific OpenMC provider when a design declares dose_physics.
+    pub spatial_dose_curves: Option<PathBuf>,
+    pub python: PathBuf,
+    pub worker_script: PathBuf,
+    pub work_dir: PathBuf,
 }
 
 /// One progress report. [`RunProgress::line`] is the text `faris maintenance run` prints.
@@ -442,10 +477,18 @@ pub fn run_dose_from_files(
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let designs = parse_designs(&read_bounded(&config.designs)?, base)?;
-    let bundle = super::spatial_dose::CurveBundle::read(&config.spatial_dose_curves)?;
+    let bundle = if let Some(path) = &config.spatial_dose_curves {
+        super::spatial_dose::CurveBundle::read(path)?
+    } else {
+        super::spatial_dose::CurveBundle {
+            schema: super::spatial_dose::CURVES_SCHEMA.into(),
+            curves: Vec::new(),
+        }
+    };
     let mut rates = BTreeMap::new();
     let mut input_hashes = BTreeMap::new();
     let mut design_inputs = Vec::new();
+    let mut dose_contexts = BTreeMap::new();
     for (name, design) in &designs {
         if cancel.is_cancelled() {
             return Err("cancelled".into());
@@ -459,10 +502,14 @@ pub fn run_dose_from_files(
         });
         let scenario = LoadedScenario::from_bytes(&read_bounded(&design.scenario)?)
             .map_err(|e| e.to_string())?;
-        rates.insert(
-            name.clone(),
-            rates_from_run(&scenario, &design.history_run)?,
-        );
+        let design_rates = rates_from_run(&scenario, &design.history_run)?;
+        rates.insert(name.clone(), design_rates.clone());
+        if let Some(context) = &design.dose_physics {
+            dose_contexts.insert(
+                name.clone(),
+                (context.clone(), design_rates.neutron_source_rate_per_s),
+            );
+        }
         let history_assumptions: OperatingHistoryAssumptions =
             serde_json::from_slice(&read_bounded(&design.history_assumptions)?)
                 .map_err(|e| e.to_string())?;
@@ -477,15 +524,17 @@ pub fn run_dose_from_files(
         for (what, path) in design.files() {
             hashes.insert(what.to_string(), sha256_file(path)?);
         }
+        if let Some(context) = &design.dose_physics {
+            hashes.insert("dose_physics".into(), sha256_file(context)?);
+        }
         input_hashes.insert(name.clone(), hashes);
     }
     let mut input_files = BTreeMap::new();
     input_files.insert("assumptions".into(), sha256_file(&config.assumptions)?);
     input_files.insert("designs".into(), sha256_file(&config.designs)?);
-    input_files.insert(
-        "spatial_dose_curves".into(),
-        sha256_file(&config.spatial_dose_curves)?,
-    );
+    if let Some(path) = &config.spatial_dose_curves {
+        input_files.insert("spatial_dose_curves".into(), sha256_file(path)?);
+    }
     for (name, hashes) in &input_hashes {
         for (what, sha) in hashes {
             input_files.insert(format!("design/{name}/{what}"), sha.clone());
@@ -500,12 +549,19 @@ pub fn run_dose_from_files(
             .ok_or_else(|| format!("no transport rates for design {design}"))?;
         run_operating_history_cancellable(assumptions, rates, cancel)
     };
-    let mut result = run_dose_maintenance(
+    let mut provider = super::spatial_dose_worker::OpenMcDoseProvider::new(
+        config.python.clone(),
+        config.worker_script.clone(),
+        config.work_dir.clone(),
+        dose_contexts,
+    )?;
+    let mut result = super::run_dose_maintenance_with_provider(
         &assumptions,
         &design_inputs,
         &input_hashes,
         &bundle,
         &mut runner,
+        &mut provider,
         cancel,
         &mut |design, iteration, message| {
             progress(RunProgress {

@@ -16,7 +16,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-pub const CURVES_SCHEMA: &str = "faris-maintenance-spatial-dose-curves/v0.1";
+pub const CURVES_SCHEMA: &str = "faris-maintenance-spatial-dose-curves/v0.2";
+pub const CURVES_SCHEMA_V1: &str = "faris-maintenance-spatial-dose-curves/v0.1";
 pub const ESTIMATE_SCHEMA: &str = "faris-maintenance-spatial-dose-estimate/v0.1";
 pub const RUN_RECORD_SCHEMA: &str = "faris-maintenance-spatial-dose-run-record/v0.1";
 pub const MAX_CURVE_FILE_BYTES: usize = 16 * 1024 * 1024;
@@ -88,8 +89,12 @@ pub struct EventDoseCurve {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DosePointPair {
-    pub d1s: DoseEstimate,
+    #[serde(default)]
+    pub d1s: Option<DoseEstimate>,
     pub r2s: DoseEstimate,
+    /// Required when D1S cannot represent this event's component-specific irradiation histories.
+    #[serde(default)]
+    pub d1s_not_evaluated: Option<String>,
     #[serde(default)]
     pub covariance: DoseCovarianceAssessment,
 }
@@ -126,18 +131,19 @@ pub enum ComparisonStatus {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct ValidatedDosePoint {
     pub cooling_s: f64,
-    pub selected_sv_h: f64,
-    pub d1s_sv_h: f64,
+    pub selected_sv_h: Option<f64>,
+    pub d1s_sv_h: Option<f64>,
     pub r2s_sv_h: f64,
-    pub d1s_standard_error_sv_h: f64,
+    pub d1s_standard_error_sv_h: Option<f64>,
     pub r2s_standard_error_sv_h: f64,
     pub covariance_assumption: String,
     pub covariance_evidence_sha256: Option<String>,
     pub source_normalization: String,
     pub physical_input_sha256: BTreeMap<String, String>,
-    pub run_record_d1s_sha256: String,
+    pub run_record_d1s_sha256: Option<String>,
     pub run_record_r2s_sha256: String,
     pub d1s_over_r2s: Option<f64>,
+    pub d1s_not_evaluated: Option<String>,
     /// Delta-method uncertainty of the central method ratio at this point only.
     pub ratio_standard_error: Option<f64>,
     pub comparison: ComparisonStatus,
@@ -601,8 +607,15 @@ fn validate_estimate(
 
 /// Hash of the exact event key, with fixed field order and serde's compact JSON encoding.
 pub fn event_identity_sha256(curve: &EventDoseCurve) -> Result<String, String> {
+    event_identity_sha256_for_schema(curve, CURVES_SCHEMA)
+}
+
+fn event_identity_sha256_for_schema(
+    curve: &EventDoseCurve,
+    schema: &str,
+) -> Result<String, String> {
     let bytes = serde_json::to_vec(&(
-        CURVES_SCHEMA,
+        schema,
         &curve.design,
         &curve.design_input_sha256,
         &curve.history_sha256,
@@ -620,14 +633,17 @@ pub fn event_identity_sha256(curve: &EventDoseCurve) -> Result<String, String> {
 }
 
 fn compare(pair: &DosePointPair) -> ComparisonStatus {
+    let Some(d1s) = &pair.d1s else {
+        return ComparisonStatus::NotEvaluated;
+    };
     if pair.r2s.value_sv_h == 0.0 {
-        return if pair.d1s.value_sv_h > 0.0 {
+        return if d1s.value_sv_h > 0.0 {
             ComparisonStatus::OutsideBand
         } else {
             ComparisonStatus::InconclusiveCovariance
         };
     }
-    let ratio = pair.d1s.value_sv_h / pair.r2s.value_sv_h;
+    let ratio = d1s.value_sv_h / pair.r2s.value_sv_h;
     if !(D1S_R2S_RATIO_MIN..=D1S_R2S_RATIO_MAX).contains(&ratio) {
         return ComparisonStatus::OutsideBand;
     }
@@ -638,6 +654,7 @@ fn compare(pair: &DosePointPair) -> ComparisonStatus {
 }
 
 fn ratio_standard_error(pair: &DosePointPair) -> Option<f64> {
+    let d1s = pair.d1s.as_ref()?;
     let denominator = pair.r2s.value_sv_h;
     if !matches!(
         pair.covariance,
@@ -646,8 +663,8 @@ fn ratio_standard_error(pair: &DosePointPair) -> Option<f64> {
     {
         return None;
     }
-    let numerator = pair.d1s.value_sv_h;
-    let first = pair.d1s.standard_error_sv_h / denominator;
+    let numerator = d1s.value_sv_h;
+    let first = d1s.standard_error_sv_h / denominator;
     let second = numerator / denominator * pair.r2s.standard_error_sv_h / denominator;
     let result = first.hypot(second);
     result.is_finite().then_some(result)
@@ -661,8 +678,10 @@ impl CurveBundle {
         }
         let bundle: Self =
             serde_json::from_slice(bytes).map_err(|e| format!("spatial dose curves JSON: {e}"))?;
-        if bundle.schema != CURVES_SCHEMA {
-            return Err(format!("curve schema must be {CURVES_SCHEMA}"));
+        if !matches!(bundle.schema.as_str(), CURVES_SCHEMA | CURVES_SCHEMA_V1) {
+            return Err(format!(
+                "curve schema must be {CURVES_SCHEMA} or {CURVES_SCHEMA_V1}"
+            ));
         }
         if bundle.curves.len() > MAX_EVENT_COUNT
             || bundle
@@ -702,7 +721,7 @@ impl CurveBundle {
                         evidence.path = base.join(&evidence.path);
                     }
                 }
-                for estimate in [&mut point.d1s, &mut point.r2s] {
+                for estimate in point.d1s.iter_mut().chain(std::iter::once(&mut point.r2s)) {
                     if !estimate.run_record.path.is_absolute() {
                         estimate.run_record.path = base.join(&estimate.run_record.path);
                     }
@@ -719,8 +738,10 @@ impl CurveBundle {
     }
 
     pub fn validate(&self, base: &Path) -> Result<(), String> {
-        if self.schema != CURVES_SCHEMA {
-            return Err(format!("curve schema must be {CURVES_SCHEMA}"));
+        if !matches!(self.schema.as_str(), CURVES_SCHEMA | CURVES_SCHEMA_V1) {
+            return Err(format!(
+                "curve schema must be {CURVES_SCHEMA} or {CURVES_SCHEMA_V1}"
+            ));
         }
         if self.curves.len() > MAX_EVENT_COUNT {
             return Err("too many event dose curves".into());
@@ -760,14 +781,30 @@ impl CurveBundle {
             ]
             .into_iter()
             .collect();
-            if curve
+            let actual_design_inputs: BTreeSet<&str> = curve
                 .design_input_sha256
                 .keys()
                 .map(String::as_str)
-                .collect::<BTreeSet<_>>()
-                != expected_design_inputs
+                .collect();
+            let mut with_physics = expected_design_inputs.clone();
+            with_physics.insert("dose_physics");
+            if actual_design_inputs != expected_design_inputs
+                && actual_design_inputs != with_physics
             {
-                return Err("event curve must bind all five named design input hashes".into());
+                return Err("event curve must bind the five design inputs and, when present, the dose-physics manifest".into());
+            }
+            if self.schema == CURVES_SCHEMA_V1 && actual_design_inputs != expected_design_inputs {
+                return Err(
+                    "legacy v0.1 event curves bind exactly the five original design inputs".into(),
+                );
+            }
+            if self.schema == CURVES_SCHEMA
+                && curve.points.iter().any(|point| point.d1s.is_none())
+                && !actual_design_inputs.contains("dose_physics")
+            {
+                return Err(
+                    "R2S-only v0.2 curves must bind the explicit dose-physics manifest".into(),
+                );
             }
             let key = (
                 &curve.design,
@@ -783,7 +820,7 @@ impl CurveBundle {
             if curve.points.is_empty() || curve.points.len() > MAX_POINTS_PER_EVENT {
                 return Err("event dose curve has no points or exceeds the 512 point limit".into());
             }
-            let expected_event_sha256 = event_identity_sha256(curve)?;
+            let expected_event_sha256 = event_identity_sha256_for_schema(curve, &self.schema)?;
             if !valid_sha(&curve.irradiation_schedule_sha256) {
                 return Err("event curve needs the irradiation schedule SHA-256".into());
             }
@@ -791,15 +828,37 @@ impl CurveBundle {
             let mut reference_basis: Option<BTreeMap<String, String>> = None;
             let mut reference_normalization: Option<&str> = None;
             for pair in &curve.points {
-                validate_estimate(
-                    &pair.d1s,
-                    curve,
-                    DoseMethod::D1s,
-                    &curve.location,
-                    &expected_event_sha256,
-                    base,
-                    &mut verifier,
-                )?;
+                if let Some(d1s) = &pair.d1s {
+                    if pair.d1s_not_evaluated.is_some() {
+                        return Err(
+                            "D1S estimate and D1S NOT_EVALUATED reason cannot both be present"
+                                .into(),
+                        );
+                    }
+                    validate_estimate(
+                        d1s,
+                        curve,
+                        DoseMethod::D1s,
+                        &curve.location,
+                        &expected_event_sha256,
+                        base,
+                        &mut verifier,
+                    )?;
+                } else {
+                    let Some(reason) = pair.d1s_not_evaluated.as_deref() else {
+                        return Err(
+                            "missing D1S estimate requires a D1S NOT_EVALUATED reason".into()
+                        );
+                    };
+                    if self.schema == CURVES_SCHEMA_V1 {
+                        return Err(
+                            "legacy v0.1 curve bundles require matched D1S/R2S pairs".into()
+                        );
+                    }
+                    if reason.trim().is_empty() || reason.len() > 2048 {
+                        return Err("D1S NOT_EVALUATED reason must contain 1 to 2048 bytes".into());
+                    }
+                }
                 validate_estimate(
                     &pair.r2s,
                     curve,
@@ -809,27 +868,35 @@ impl CurveBundle {
                     base,
                     &mut verifier,
                 )?;
-                if pair.d1s.cooling_s != pair.r2s.cooling_s || pair.d1s.cooling_s <= prior {
+                if pair
+                    .d1s
+                    .as_ref()
+                    .is_some_and(|d1s| d1s.cooling_s != pair.r2s.cooling_s)
+                    || pair.r2s.cooling_s <= prior
+                {
                     return Err(
                         "D1S/R2S points must have identical strictly ascending cooling times"
                             .into(),
                     );
                 }
-                if pair.d1s.physical_input_sha256 != pair.r2s.physical_input_sha256 {
-                    return Err("D1S/R2S physical input hashes differ".into());
+                if let Some(d1s) = &pair.d1s {
+                    if d1s.physical_input_sha256 != pair.r2s.physical_input_sha256 {
+                        return Err("D1S/R2S physical input hashes differ".into());
+                    }
+                    if d1s.normalization != pair.r2s.normalization {
+                        return Err("D1S/R2S source normalization differs".into());
+                    }
                 }
-                if pair.d1s.normalization != pair.r2s.normalization {
-                    return Err("D1S/R2S source normalization differs".into());
-                }
+                let reference = &pair.r2s;
                 if reference_basis
                     .as_ref()
-                    .is_some_and(|basis| basis != &pair.d1s.physical_input_sha256)
-                    || reference_normalization.is_some_and(|norm| norm != pair.d1s.normalization)
+                    .is_some_and(|basis| basis != &reference.physical_input_sha256)
+                    || reference_normalization.is_some_and(|norm| norm != reference.normalization)
                 {
                     return Err("physical input basis and normalization must be stable across cooling points for one event".into());
                 }
-                reference_basis.get_or_insert_with(|| pair.d1s.physical_input_sha256.clone());
-                reference_normalization.get_or_insert(&pair.d1s.normalization);
+                reference_basis.get_or_insert_with(|| reference.physical_input_sha256.clone());
+                reference_normalization.get_or_insert(&reference.normalization);
                 if let DoseCovarianceAssessment::IndependentAssumed {
                     rationale,
                     evidence,
@@ -840,7 +907,7 @@ impl CurveBundle {
                     }
                     verify_artifact(evidence, base, &mut verifier)?;
                 }
-                prior = pair.d1s.cooling_s;
+                prior = pair.r2s.cooling_s;
             }
         }
         Ok(())
@@ -885,12 +952,17 @@ impl CurveBundle {
             let status = compare(pair);
             if status == ComparisonStatus::OutsideBand { overall = ComparisonStatus::OutsideBand; }
             else if status == ComparisonStatus::InconclusiveCovariance && overall == ComparisonStatus::InBand { overall = status.clone(); }
+            else if status == ComparisonStatus::NotEvaluated && overall != ComparisonStatus::OutsideBand { overall = status.clone(); }
+            let selected_sv_h = match method {
+                DoseMethod::D1s => pair.d1s.as_ref().map(|d| d.value_sv_h),
+                DoseMethod::R2s => Some(pair.r2s.value_sv_h),
+            };
             ValidatedDosePoint {
-                cooling_s: pair.d1s.cooling_s,
-                selected_sv_h: match method { DoseMethod::D1s => pair.d1s.value_sv_h, DoseMethod::R2s => pair.r2s.value_sv_h },
-                d1s_sv_h: pair.d1s.value_sv_h,
+                cooling_s: pair.r2s.cooling_s,
+                selected_sv_h,
+                d1s_sv_h: pair.d1s.as_ref().map(|d| d.value_sv_h),
                 r2s_sv_h: pair.r2s.value_sv_h,
-                d1s_standard_error_sv_h: pair.d1s.standard_error_sv_h,
+                d1s_standard_error_sv_h: pair.d1s.as_ref().map(|d| d.standard_error_sv_h),
                 r2s_standard_error_sv_h: pair.r2s.standard_error_sv_h,
                 covariance_assumption: match &pair.covariance {
                     DoseCovarianceAssessment::Unknown => "unknown".into(),
@@ -900,11 +972,12 @@ impl CurveBundle {
                     DoseCovarianceAssessment::Unknown => None,
                     DoseCovarianceAssessment::IndependentAssumed { evidence, .. } => Some(evidence.sha256.clone()),
                 },
-                source_normalization: pair.d1s.normalization.clone(),
-                physical_input_sha256: pair.d1s.physical_input_sha256.clone(),
-                run_record_d1s_sha256: pair.d1s.run_record.sha256.clone(),
+                source_normalization: pair.r2s.normalization.clone(),
+                physical_input_sha256: pair.r2s.physical_input_sha256.clone(),
+                run_record_d1s_sha256: pair.d1s.as_ref().map(|d| d.run_record.sha256.clone()),
                 run_record_r2s_sha256: pair.r2s.run_record.sha256.clone(),
-                d1s_over_r2s: (pair.r2s.value_sv_h > 0.0).then_some(pair.d1s.value_sv_h / pair.r2s.value_sv_h),
+                d1s_over_r2s: pair.d1s.as_ref().and_then(|d| (pair.r2s.value_sv_h > 0.0).then_some(d.value_sv_h / pair.r2s.value_sv_h)),
+                d1s_not_evaluated: pair.d1s_not_evaluated.clone(),
                 ratio_standard_error: ratio_standard_error(pair),
                 comparison: status,
                 selected_method: method,
@@ -912,9 +985,23 @@ impl CurveBundle {
             }
         }).collect();
         Ok(Some(ValidatedDoseCurve {
-            design: curve.design.clone(), design_input_sha256: curve.design_input_sha256.clone(), history_sha256: curve.history_sha256.clone(), class: curve.class.clone(), component: curve.component.clone(), replacement_k: curve.replacement_k, shutdown_s: curve.shutdown_s, install_s: curve.install_s, irradiation_schedule_sha256: curve.irradiation_schedule_sha256.clone(), location: curve.location.clone(), points,
+            design: curve.design.clone(),
+            design_input_sha256: curve.design_input_sha256.clone(),
+            history_sha256: curve.history_sha256.clone(),
+            class: curve.class.clone(),
+            component: curve.component.clone(),
+            replacement_k: curve.replacement_k,
+            shutdown_s: curve.shutdown_s,
+            install_s: curve.install_s,
+            irradiation_schedule_sha256: curve.irradiation_schedule_sha256.clone(),
+            location: curve.location.clone(),
+            points,
             comparison: overall,
-            validation_scope: "Authored external spatial estimate; D1S/R2S comparison only. Not a product-generated transport solve or a complete physical validation.".into(),
+            validation_scope: if curve.points.iter().any(|point| point.d1s.is_none()) {
+                "Spatial R2S selected for this event. D1S is NOT_EVALUATED because component-specific histories cannot share stock D1S time factors; this is not a completed D1S/R2S comparison, complete physical validation, or product-generated transport result.".into()
+            } else {
+                "Authored spatial estimate with matched D1S/R2S comparison. This is not a product-generated transport solve or a complete physical validation.".into()
+            },
         }))
     }
 
@@ -943,13 +1030,16 @@ impl CurveBundle {
             .first()
             .ok_or("event dose curve has no points")?;
         let reference = pair
-            .d1s
+            .r2s
             .physical_input_artifacts
             .get("irradiation")
             .ok_or("dose estimate omits the irradiation schedule artifact")?;
-        let expected_sha = &pair.d1s.physical_input_sha256["irradiation"];
-        if !reference.sha256.eq_ignore_ascii_case(expected_sha)
-            || !pair.r2s.physical_input_sha256["irradiation"].eq_ignore_ascii_case(expected_sha)
+        let expected_sha = &pair.r2s.physical_input_sha256["irradiation"];
+        if !reference.sha256.eq_ignore_ascii_case(expected_sha) {
+            return Err("R2S event point irradiation artifact hash mismatch".into());
+        }
+        if let Some(d1s) = &pair.d1s
+            && !d1s.physical_input_sha256["irradiation"].eq_ignore_ascii_case(expected_sha)
         {
             return Err(
                 "D1S/R2S event points do not share the exact irradiation artifact hash".into(),
@@ -1137,14 +1227,17 @@ mod tests {
             irradiation_schedule_sha256: "f".repeat(64),
             location: location.clone(),
             points: vec![DosePointPair {
-                d1s,
+                d1s: Some(d1s),
                 r2s,
+                d1s_not_evaluated: None,
                 covariance: DoseCovarianceAssessment::Unknown,
             }],
         };
         let event_sha = event_identity_sha256(&event).unwrap();
         event.points[0]
             .d1s
+            .as_mut()
+            .unwrap()
             .physical_input_sha256
             .insert("event".into(), event_sha.clone());
         event.points[0]
@@ -1161,7 +1254,8 @@ mod tests {
                 sha256: sha(covariance_evidence),
             },
         };
-        for estimate in [&mut event.points[0].d1s, &mut event.points[0].r2s] {
+        let point = &mut event.points[0];
+        for estimate in point.d1s.iter_mut().chain(std::iter::once(&mut point.r2s)) {
             let method = match estimate.method {
                 DoseMethod::D1s => "d1s",
                 DoseMethod::R2s => "r2s",
@@ -1257,10 +1351,8 @@ mod tests {
         let mut relabeled = bundle.clone();
         relabeled.curves[0].history_sha256 = "e".repeat(64);
         let new_event_sha = event_identity_sha256(&relabeled.curves[0]).unwrap();
-        for estimate in [
-            &mut relabeled.curves[0].points[0].d1s,
-            &mut relabeled.curves[0].points[0].r2s,
-        ] {
+        let point = &mut relabeled.curves[0].points[0];
+        for estimate in point.d1s.iter_mut().chain(std::iter::once(&mut point.r2s)) {
             estimate
                 .physical_input_sha256
                 .insert("event".into(), new_event_sha.clone());
@@ -1272,7 +1364,7 @@ mod tests {
     #[test]
     fn central_ratio_outside_band_never_passes_validation() {
         let pair = DosePointPair {
-            d1s: DoseEstimate {
+            d1s: Some(DoseEstimate {
                 value_sv_h: 2.0,
                 cooling_s: 10.0,
                 ..estimate(
@@ -1284,7 +1376,7 @@ mod tests {
                     &"b".repeat(64),
                     1.0,
                 )
-            },
+            }),
             r2s: DoseEstimate {
                 value_sv_h: 1.0,
                 cooling_s: 10.0,
@@ -1298,12 +1390,37 @@ mod tests {
                     1.0,
                 )
             },
+            d1s_not_evaluated: None,
             covariance: DoseCovarianceAssessment::Unknown,
         };
         assert_eq!(compare(&pair), ComparisonStatus::OutsideBand);
         let mut unknown = pair;
-        unknown.d1s.value_sv_h = 0.9;
+        unknown.d1s.as_mut().unwrap().value_sv_h = 0.9;
         unknown.covariance = DoseCovarianceAssessment::Unknown;
         assert_eq!(compare(&unknown), ComparisonStatus::InconclusiveCovariance);
+    }
+
+    #[test]
+    fn heterogeneous_history_is_r2s_only_without_a_synthetic_d1s_value() {
+        let pair = DosePointPair {
+            d1s: None,
+            r2s: DoseEstimate {
+                value_sv_h: 1.0,
+                cooling_s: 10.0,
+                ..estimate(
+                    DoseMethod::R2s,
+                    &TaskLocation {
+                        id: "x".into(),
+                        sha256: "a".repeat(64),
+                    },
+                    &"b".repeat(64),
+                    1.0,
+                )
+            },
+            d1s_not_evaluated: Some("component irradiation histories differ".into()),
+            covariance: DoseCovarianceAssessment::Unknown,
+        };
+        assert_eq!(compare(&pair), ComparisonStatus::NotEvaluated);
+        assert_eq!(ratio_standard_error(&pair), None);
     }
 }
