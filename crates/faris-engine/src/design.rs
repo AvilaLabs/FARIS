@@ -34,6 +34,7 @@ mod corpus_tests;
 mod exact;
 mod external;
 mod geometry;
+mod heating;
 mod integrity;
 mod intersections;
 mod life;
@@ -57,6 +58,9 @@ pub use geometry::{
     GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome, SourceRecord,
     SourceRequest, StageClock, TagEntry, TessellateOutcome, TessellateRequest, ToolResult,
     WaiverUse,
+};
+pub use heating::{
+    ELEMENTARY_CHARGE_C, HeatingEstimate, normalize_heating_ev_per_source, power_density_kw_m3,
 };
 pub use life::{
     FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,
@@ -1607,6 +1611,7 @@ pub fn build_draft(
             role: None,
             replacement_group_id: None,
             tally: true,
+            classification: None,
         });
     }
     let null_profile = || Profile {

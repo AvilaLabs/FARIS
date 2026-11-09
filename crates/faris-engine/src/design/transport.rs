@@ -500,6 +500,9 @@ fn solid_entries(
                 "solid_id": solid.id,
                 "volume_id": volume,
                 "material_id": (material != "void").then_some(material),
+                "classification": solid.classification.map(|kind| match kind {
+                    faris_model::design::SolidClassification::WindingPack => "winding_pack",
+                }),
             }))
         })
         .collect()

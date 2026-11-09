@@ -67,6 +67,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 from batch_statistics import VOV_LIMIT, RunningSum  # noqa: F401  (the tests reach these through this module)
 from window_generator import (  # noqa: F401  (the tests and the other steps reach these through this module)
@@ -824,9 +825,159 @@ def phase_run(request: dict, work: Path) -> dict:
     return result
 
 
+def heating_batch_closure(total_batches: list[float], component_batches: list[list[float]]) -> tuple[float, float]:
+    """Mean and standard error of total minus particle components, preserving batch covariance."""
+    if len(total_batches) < 2 or any(len(values) != len(total_batches) for values in component_batches):
+        raise ValueError("heating closure needs at least two aligned batches")
+    residuals = [total - math.fsum(values[i] for values in component_batches)
+                 for i, total in enumerate(total_batches)]
+    mean = math.fsum(residuals) / len(residuals)
+    variance = math.fsum((value - mean) ** 2 for value in residuals) / (len(residuals) - 1)
+    return mean, math.sqrt(variance / len(residuals))
+
+
+def phase_heating(request: dict, work: Path) -> dict:
+    """Separate coupled heating run. It deliberately has no neutron energy cutoff."""
+    import h5py
+    import numpy as np
+    import openmc
+    import openmc.lib
+    from openmc_plasma_source import tokamak_source
+
+    sampling = request["sampling"]
+    solid_ids = request["response"]["solid_ids"]
+    solids = {solid["solid_id"]: solid for solid in request["solids"]}
+
+    def unavailable(reason: str, next_step: str) -> dict:
+        report = {"schema": "faris-design-heating/v1", "status": "NOT_EVALUATED", "why": reason,
+                  "next_step": next_step, "normalization": "per_source_neutron",
+                  "unit": "eV/source_neutron", "solids": []}
+        target = work / "solver" / "heating-result.json"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(report, indent=1) + "\n")
+        return report
+
+    if not solid_ids or any(solids[sid].get("classification") != "winding_pack" for sid in solid_ids):
+        return unavailable("No authored winding-pack solid identity is present in the request.",
+                           "Assign classification: winding_pack to the CAD solids that represent the winding pack, then rerun design check.")
+    try:
+        xml = Path(request["cross_sections"])
+        root = ET.parse(xml).getroot()
+        neutron, photon = {}, {}
+        for library in root.findall("library"):
+            if library.get("type") == "neutron":
+                neutron.update({name: library.get("path") for name in library.get("materials", "").split()})
+            elif library.get("type") == "photon":
+                photon.update({name: library.get("path") for name in library.get("materials", "").split()})
+        nuclides = sorted({n for material in request["materials"] for n in material["nuclide_atom_fractions"]})
+        elements = sorted({re.match(r"[A-Z][a-z]?", n).group(0) for n in nuclides})
+        data_identity = {"neutron_mt301": {}, "photon": {}, "atomic_relaxation": "enabled", "electron_treatment": "led"}
+        for nuclide in nuclides:
+            if nuclide not in neutron:
+                raise ValueError(f"coupled heating needs neutron data for {nuclide}")
+            data = openmc.data.IncidentNeutron.from_hdf5(str((xml.parent / neutron[nuclide]).resolve(strict=True)))
+            if 301 not in data.reactions:
+                raise ValueError(f"coupled heating needs MT=301 for {nuclide}")
+            data_identity["neutron_mt301"][nuclide] = True
+        for element in elements:
+            if element not in photon:
+                raise ValueError(f"coupled heating needs photon data for {element}")
+            path = (xml.parent / photon[element]).resolve(strict=True)
+            data = openmc.data.IncidentPhoton.from_hdf5(str(path))
+            with h5py.File(path, "r") as lib:
+                shells = set(lib[element]["subshells"].keys())
+            relaxation = data.atomic_relaxation
+            if (not shells or relaxation is None or shells - set(relaxation.binding_energy)
+                    or shells - set(relaxation.num_electrons)):
+                raise ValueError(f"coupled heating needs complete atomic-relaxation shell data for {element}")
+            data_identity["photon"][element] = {"sha256": sha256_file(path), "shell_count": len(shells)}
+    except (OSError, ValueError, KeyError, AttributeError) as exc:
+        return unavailable(str(exc), "Select a library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element.")
+
+    geometry = geometry_copy(request, work / "geometry" / "model-heating.h5m", random_ray=False)
+    model, _, _ = build_model(openmc, request, geometry)
+    source = tokamak_source(**tokamak_arguments(request["plasma"]))
+    source_total = float(source.strength)
+    for element in source.sources.ravel():
+        element.strength = float(element.strength) / source_total
+    source.strength = 1.0
+    settings = model.settings
+    settings.source = [source]
+    settings.photon_transport = True
+    settings.atomic_relaxation = True
+    settings.electron_treatment = "led"
+    settings.particles = int(sampling["particles_per_batch"])
+    settings.batches = int(sampling["max_batches"])
+    seed_value = int(sampling["seed"])
+    setattr(settings, "seed", seed_value)
+    # No energy_neutron cutoff is set: this is a coupled, all-energy heat run.
+    settings.output = {"tallies": False, "summary": False}
+    settings.sourcepoint = {"write": False}
+    settings.statepoint = {"batches": []}
+    ids = volume_ids(request)
+    cell_filter = openmc.CellFilter([ids[sid] for sid in solid_ids])
+    components = ("neutron", "photon", "electron", "positron")
+    tallies = {}
+    for component in components + ("total",):
+        tally = openmc.Tally(name=f"heating-{component}")
+        tally.filters = [cell_filter]
+        if component != "total":
+            tally.filters.append(openmc.ParticleFilter([component]))
+        tally.nuclides = ["total"]
+        tally.scores = ["heating"]
+        tally.estimator = "collision"
+        tallies[component] = tally
+    model.tallies = openmc.Tallies(list(tallies.values()))
+    model_xml = work / "solver" / "heating-model.xml"
+    model_xml.parent.mkdir(parents=True, exist_ok=True)
+    model.export_to_model_xml(model_xml)
+    here = os.getcwd()
+    os.chdir(model_xml.parent)
+    previous = {name: np.zeros(len(solid_ids)) for name in tallies}
+    batches = {name: [[] for _ in solid_ids] for name in tallies}
+    try:
+        openmc.lib.init(["--threads", str(int(sampling["threads"])), str(model_xml)])
+        try:
+            openmc.lib.simulation_init()
+            for _ in range(int(sampling["max_batches"])):
+                openmc.lib.next_batch()
+                for name in tallies:
+                    cumulative = np.asarray(openmc.lib.tallies[tallies[name].id].results[:, 0, 1], dtype=float)
+                    batch = cumulative - previous[name]
+                    previous[name] = cumulative
+                    for row, value in enumerate(batch):
+                        batches[name][row].append(float(value))
+            openmc.lib.simulation_finalize()
+        finally:
+            openmc.lib.finalize()
+    finally:
+        os.chdir(here)
+    result_solids = []
+    for row, solid_id in enumerate(solid_ids):
+        values = {}
+        for name in tallies:
+            column = batches[name][row]
+            mean = math.fsum(column) / len(column)
+            variance = math.fsum((v - mean) ** 2 for v in column) / (len(column) - 1)
+            values[name] = {"mean_ev_per_source": mean, "standard_error_ev_per_source": math.sqrt(variance / len(column))}
+        closure_mean, closure_se = heating_batch_closure(
+            batches["total"][row], [batches[name][row] for name in components])
+        values["closure_residual"] = {"mean_ev_per_source": closure_mean, "standard_error_ev_per_source": closure_se}
+        result_solids.append({"solid_id": solid_id, **values})
+    result = {"schema": "faris-design-heating/v1", "openmc": openmc.__version__,
+              "h5m_sha256": sha256_file(request["h5m"]), "cross_sections_sha256": sha256_file(xml),
+              "histories": int(sampling["max_batches"]) * int(sampling["particles_per_batch"]),
+              "normalization": "per_source_neutron", "unit": "eV/source_neutron",
+              "particle_components": list(components), "data_identity": data_identity,
+              "solids": result_solids,
+              "limitations": ["Voxel peak and averaging volumes are not scored by this worker."]}
+    (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
+    return result
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--phase", choices=("run", "mgxs", "windows", "volumes"), required=True)
+    parser.add_argument("--phase", choices=("run", "mgxs", "windows", "volumes", "heating"), required=True)
     parser.add_argument("--request", type=Path, required=True)
     parser.add_argument("--work-dir", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -838,7 +989,8 @@ def main(argv=None) -> int:
         return 2
     work = args.work_dir.resolve()
     work.mkdir(parents=True, exist_ok=True)
-    {"run": phase_run, "mgxs": phase_mgxs, "windows": phase_windows, "volumes": phase_volumes}[args.phase](request, work)
+    {"run": phase_run, "mgxs": phase_mgxs, "windows": phase_windows, "volumes": phase_volumes,
+     "heating": phase_heating}[args.phase](request, work)
     return 0
 
 

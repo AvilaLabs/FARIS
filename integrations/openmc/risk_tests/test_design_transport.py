@@ -439,6 +439,19 @@ class PeakTest(unittest.TestCase):
         # Batch values with mean 6 and mean square 36.075: variance of the mean 0.075 / 3.
         self.assertAlmostEqual(peak["standard_error"], 0.025 ** 0.5)
 
+    def test_coupled_heating_closure_uses_correlated_batch_residuals(self):
+        total = [11.0, 9.0, 13.0, 7.0]
+        components = [[8.0, 6.0, 10.0, 4.0], [1.0, 1.0, 1.0, 1.0],
+                      [1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]]
+        mean, se = DT.heating_batch_closure(total, components)
+        # Each individual tally fluctuates, but their aligned per-batch residual is constant.
+        self.assertEqual(mean, 1.0)
+        self.assertEqual(se, 0.0)
+
+    def test_coupled_heating_closure_rejects_misaligned_batches(self):
+        with self.assertRaisesRegex(ValueError, "aligned batches"):
+            DT.heating_batch_closure([1.0, 2.0], [[1.0]])
+
     def test_a_piece_one_rare_score_landed_in_does_not_lead(self):
         # Piece 0: 100 in one batch of four (mean 25, error 25). Piece 1: a steady 10 with a small error.
         peak = DT.peak_of([100.0, 40.0], [10000.0, 400.4], [100.0, 100.0], [True, True], 4)

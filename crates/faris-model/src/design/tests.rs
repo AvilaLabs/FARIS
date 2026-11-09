@@ -62,6 +62,22 @@ fn the_pass_fixture_parses_without_findings() {
 }
 
 #[test]
+fn optional_winding_pack_classification_is_backward_compatible_and_authored() {
+    let mut value = base();
+    let solid = value["solids"][0].as_object_mut().unwrap();
+    solid.remove("classification");
+    let parsed = parse(&value).design.unwrap();
+    assert_eq!(parsed.solids[0].classification, None);
+
+    value["solids"][0]["classification"] = json!("winding_pack");
+    let parsed = parse(&value).design.unwrap();
+    assert_eq!(
+        parsed.solids[0].classification,
+        Some(SolidClassification::WindingPack)
+    );
+}
+
+#[test]
 fn not_json_is_a_finding() {
     let outcome = parse_design(b"{ nope");
     assert!(outcome.design.is_none());

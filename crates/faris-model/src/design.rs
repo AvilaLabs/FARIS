@@ -359,6 +359,16 @@ pub struct Solid {
     pub replacement_group_id: Option<String>,
     #[serde(default = "default_true")]
     pub tally: bool,
+    /// Authored physical subassembly identity. `role` describes broad function;
+    /// only an explicit winding-pack classification is eligible for S2 heating.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classification: Option<SolidClassification>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SolidClassification {
+    WindingPack,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
