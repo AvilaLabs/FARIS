@@ -976,10 +976,26 @@ fn run_staged_actinv_dose(
     }
     if response_record_value.get("activation_mesh") != neutron_receipt.get("activation_mesh")
         || response_record_value.get("source") != neutron_receipt.get("source")
-        || response_record_value.get("solver") != neutron_receipt.get("solver")
         || response_record_value.get("runtime") != neutron_receipt.get("runtime")
     {
         return Err("internal and external neutron response execution records disagree".into());
+    }
+    for key in [
+        "particles",
+        "batches",
+        "histories",
+        "lost_particles",
+        "lost_particle_fraction_limit",
+        "solver_status",
+        "stop_reason",
+    ] {
+        if response_record_value.pointer(&format!("/solver/{key}"))
+            != neutron_receipt.pointer(&format!("/solver/{key}"))
+        {
+            return Err(format!(
+                "internal and external neutron response solver field {key} disagrees"
+            ));
+        }
     }
     let activation_batches = worker_artifact(
         &neutron_receipt,
@@ -1105,6 +1121,10 @@ fn run_staged_actinv_dose(
         .get("lost_particles")
         .and_then(Value::as_u64)
         .ok_or("709 response receipt has no lost-particle count")?;
+    let histories = solver
+        .get("histories")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt has no completed history count")?;
     let requested_particles = neutron_request
         .pointer("/sampling/neutron_particles")
         .and_then(Value::as_u64)
@@ -1119,6 +1139,7 @@ fn run_staged_actinv_dose(
         || solver.get("stop_reason").and_then(Value::as_str) != Some("batch_limit")
         || batches < 2
         || particles == 0
+        || histories != particles.saturating_mul(batches)
         || lost as f64 > 1e-6 * (particles as f64) * (batches as f64)
     {
         return Err(
