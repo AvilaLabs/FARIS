@@ -78,7 +78,8 @@ history schedules; that fixed-geometry assumption must hold over the modelled hi
 Create a `faris-maintenance-dose-cad-config/v0.2` file. The CAD-solid mapping is authored once
 for the design; schedules are reconstructed automatically from the exact history at each event.
 The supported general event backend uses the hash-pinned ACTINV FISPACT-709 neutron library and
-the configured decay data. Paths are explicit user configuration, not study-provided plugins.
+the configured decay data. `timeout_s` bounds all native ACTINV zone runs for an event, including
+cache and result processing. Paths are explicit user configuration, not study-provided plugins.
 
 ```json
 {

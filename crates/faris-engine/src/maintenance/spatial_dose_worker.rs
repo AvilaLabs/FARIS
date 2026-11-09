@@ -22,7 +22,9 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 pub const DOSE_PHYSICS_SCHEMA: &str = "faris-maintenance-dose-physics/v0.2";
 pub const DOSE_PHYSICS_SCHEMA_V1: &str = "faris-maintenance-dose-physics/v0.1";
@@ -467,7 +469,14 @@ fn run_actinv_event_batches(
     let mut emitter_groups = 0usize;
     let mut material_volume_by_element: BTreeMap<u32, f64> = BTreeMap::new();
     let mut bins_seen: std::collections::BTreeSet<(u32, u32)> = std::collections::BTreeSet::new();
+    let activation_deadline = Instant::now() + Duration::from_secs_f64(backend.timeout_s);
     for (batch_index, batch) in batches.batches.into_iter().enumerate() {
+        if Instant::now() >= activation_deadline {
+            return Err(format!(
+                "ACTINV event activation exceeded its {:.0} second budget",
+                backend.timeout_s
+            ));
+        }
         if batch.component.trim().is_empty() || !seen_components.insert(batch.component.clone()) {
             return Err("ACTINV event batches have an empty or repeated history component".into());
         }
@@ -589,8 +598,46 @@ fn run_actinv_event_batches(
         );
         config.timeout = Duration::from_secs_f64(backend.timeout_s);
         config.cache_dir = Some(backend.cache_dir.clone());
-        let (result, stats) =
-            crate::activation::run_activation(&batch.activation_request, &config, cancel)?;
+        let activation_cancel = Cancellation::default();
+        let worker_cancel = activation_cancel.clone();
+        let user_cancel = cancel.clone();
+        let deadline = activation_deadline;
+        let finished = Arc::new(AtomicBool::new(false));
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let watchdog_finished = finished.clone();
+        let watchdog_timed_out = timed_out.clone();
+        let watchdog_cancel = worker_cancel.clone();
+        let watchdog = std::thread::spawn(move || {
+            while !watchdog_finished.load(Ordering::Acquire) {
+                if user_cancel.is_cancelled() {
+                    watchdog_cancel.cancel();
+                    return;
+                }
+                if Instant::now() >= deadline {
+                    watchdog_timed_out.store(true, Ordering::Release);
+                    watchdog_cancel.cancel();
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        });
+        let activation_result = crate::activation::run_activation(
+            &batch.activation_request,
+            &config,
+            &activation_cancel,
+        );
+        if !cancel.is_cancelled() && Instant::now() >= deadline {
+            timed_out.store(true, Ordering::Release);
+        }
+        finished.store(true, Ordering::Release);
+        let _ = watchdog.join();
+        if timed_out.load(Ordering::Acquire) {
+            return Err(format!(
+                "ACTINV event activation exceeded its {:.0} second budget",
+                backend.timeout_s
+            ));
+        }
+        let (result, stats) = activation_result?;
         if result.zones.len() != batch.activation_request.zones.len()
             || result.cooling_s != cooling_s
             || result.zones.iter().any(|z| {
@@ -880,6 +927,10 @@ fn run_staged_actinv_dose(
         "OpenMC 709 neutron response",
         manifest.sampling.run_budget_s,
     )?;
+    let neutron_job_record = run_dir.join("709-neutron-job.json");
+    if !neutron_job_record.is_file() {
+        return Err("bounded neutron worker omitted its job metadata artifact".into());
+    }
     let neutron_receipt_path = neutron_dir.join("709_neutron_receipt.json");
     let neutron_receipt = parse_stage_receipt(
         &read_bounded(&neutron_receipt_path, MAX_MANIFEST_BYTES)?,
@@ -976,10 +1027,28 @@ fn run_staged_actinv_dose(
     }
     if response_record_value.get("activation_mesh") != neutron_receipt.get("activation_mesh")
         || response_record_value.get("source") != neutron_receipt.get("source")
-        || response_record_value.get("runtime") != neutron_receipt.get("runtime")
     {
         return Err("internal and external neutron response execution records disagree".into());
     }
+    for key in [
+        "openmc_python_version",
+        "openmc_c_library",
+        "openmc_c_library_sha256",
+    ] {
+        if response_record_value.pointer(&format!("/runtime/{key}"))
+            != neutron_receipt.pointer(&format!("/runtime/{key}"))
+        {
+            return Err(format!(
+                "internal and external neutron response runtime field {key} disagrees"
+            ));
+        }
+    }
+    let neutron_solver_model = worker_artifact(
+        &neutron_receipt,
+        "solver_model",
+        &neutron_dir,
+        "actual OpenMC neutron solver model XML",
+    )?;
     for key in [
         "particles",
         "batches",
@@ -1088,6 +1157,28 @@ fn run_staged_actinv_dose(
             "709 response receipt activation mesh differs from the prepared manifest".into(),
         );
     }
+    let vertex_bounds = neutron_receipt
+        .get("h5m_vertex_bounds")
+        .ok_or("709 response receipt omits checked H5M vertex bounds")?;
+    let vertex_nodes = vertex_bounds
+        .get("node_count")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt omits H5M vertex count")?;
+    let vertex_bytes = vertex_bounds
+        .get("coordinate_data_bytes")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt omits H5M coordinate byte count")?;
+    if vertex_nodes == 0 || vertex_nodes > 20_000_000 || vertex_bytes > 256 * 1024 * 1024 {
+        return Err("H5M geometry coverage evidence exceeds the bounded vertex limits".into());
+    }
+    let geometry_lower = value_vec3(vertex_bounds, "lower_left_cm")?;
+    let geometry_upper = value_vec3(vertex_bounds, "upper_right_cm")?;
+    if (0..3).any(|axis| {
+        manifest.activation_mesh.lower_left_cm[axis] > geometry_lower[axis]
+            || manifest.activation_mesh.upper_right_cm[axis] < geometry_upper[axis]
+    }) {
+        return Err("activation mesh does not cover the full checked H5M vertex bounds".into());
+    }
     let source = neutron_receipt
         .get("source")
         .ok_or("709 response receipt omits source normalization")?;
@@ -1125,6 +1216,10 @@ fn run_staged_actinv_dose(
         .get("histories")
         .and_then(Value::as_u64)
         .ok_or("709 response receipt has no completed history count")?;
+    let loss_limit = solver
+        .get("lost_particle_fraction_limit")
+        .and_then(Value::as_f64)
+        .ok_or("709 response receipt has no declared lost-particle fraction limit")?;
     let requested_particles = neutron_request
         .pointer("/sampling/neutron_particles")
         .and_then(Value::as_u64)
@@ -1140,6 +1235,8 @@ fn run_staged_actinv_dose(
         || batches < 2
         || particles == 0
         || histories != particles.saturating_mul(batches)
+        || !loss_limit.is_finite()
+        || loss_limit > 1e-6
         || lost as f64 > 1e-6 * (particles as f64) * (batches as f64)
     {
         return Err(
@@ -1169,6 +1266,20 @@ fn run_staged_actinv_dose(
     {
         return Err("709 response receipt omits actual OpenMC runtime identity".into());
     }
+    let neutron_openmc_library = ArtifactRef {
+        path: PathBuf::from(
+            runtime
+                .get("openmc_c_library")
+                .and_then(Value::as_str)
+                .unwrap(),
+        ),
+        sha256: runtime
+            .get("openmc_c_library_sha256")
+            .and_then(Value::as_str)
+            .unwrap()
+            .to_string(),
+    };
+    verify_ref(&neutron_openmc_library, "loaded OpenMC C API library")?;
 
     let activation = run_actinv_event_batches(
         manifest,
@@ -1234,6 +1345,10 @@ fn run_staged_actinv_dose(
         "OpenMC full-geometry photon response",
         manifest.sampling.run_budget_s,
     )?;
+    let photon_job_record = run_dir.join("709-photon-job.json");
+    if !photon_job_record.is_file() {
+        return Err("bounded photon worker omitted its job metadata artifact".into());
+    }
     let photon_receipt_path = photon_dir.join("709_photon_receipt.json");
     let mut photon_receipt = parse_stage_receipt(
         &read_bounded(&photon_receipt_path, MAX_MANIFEST_BYTES)?,
@@ -1274,6 +1389,8 @@ fn run_staged_actinv_dose(
     if photon_points.len() != cooling_s.len() {
         return Err("photon response point count differs from the cooling grid".into());
     }
+    let mut photon_solver_models = Vec::with_capacity(photon_points.len());
+    let mut photon_openmc_library: Option<ArtifactRef> = None;
     for (index, point) in photon_points.iter().enumerate() {
         let batches = point
             .get("batches")
@@ -1291,6 +1408,10 @@ fn run_staged_actinv_dose(
             .get("lost_particles")
             .and_then(Value::as_u64)
             .ok_or("photon point omits lost-particle count")?;
+        let loss_limit = point
+            .get("lost_particle_fraction_limit")
+            .and_then(Value::as_f64)
+            .ok_or("photon point omits lost-particle fraction limit")?;
         let requested_batches = sampling
             .get("photon_batches")
             .and_then(Value::as_u64)
@@ -1309,6 +1430,8 @@ fn run_staged_actinv_dose(
                 .get("seed")
                 .and_then(Value::as_u64)
                 .is_none_or(|seed| seed == 0)
+            || !loss_limit.is_finite()
+            || loss_limit > 1e-6
             || lost as f64 > 1e-6 * histories as f64
         {
             return Err(
@@ -1319,6 +1442,40 @@ fn run_staged_actinv_dose(
         if value_f64(point, "standard_error_sv_h")? < 0.0 {
             return Err("photon point standard error is negative".into());
         }
+        let model_holder = json!({"solver_model": point.get("model_xml")
+            .ok_or("photon point omits its actual solver model XML artifact")?});
+        let solver_model = worker_artifact(
+            &model_holder,
+            "solver_model",
+            &photon_dir,
+            "actual OpenMC photon solver model XML",
+        )?;
+        let library: ArtifactRef = serde_json::from_value(
+            point
+                .get("c_api_library")
+                .cloned()
+                .ok_or("photon point omits its loaded OpenMC C API library")?,
+        )
+        .map_err(|e| format!("photon C API library reference: {e}"))?;
+        verify_ref(&library, "loaded OpenMC photon C API library")?;
+        if library.sha256 != neutron_openmc_library.sha256
+            || library.path != neutron_openmc_library.path
+        {
+            return Err(
+                "photon transport loaded a different OpenMC C API library than neutron transport"
+                    .into(),
+            );
+        }
+        if let Some(previous) = &photon_openmc_library {
+            if previous != &library {
+                return Err(
+                    "OpenMC C API library identity changed between photon cooling points".into(),
+                );
+            }
+        } else {
+            photon_openmc_library = Some(library);
+        }
+        photon_solver_models.push(solver_model);
         if value_f64(point, "cooling_s")? != cooling_s[index]
             || (value_f64(point, "source_strength_photons_s")?
                 - activation.total_photons_by_cooling[index])
@@ -1336,6 +1493,7 @@ fn run_staged_actinv_dose(
     } else {
         photon_receipt["d1s"] = json!({"status":"NOT_EVALUATED", "reason":"ACTINV 709 backend does not perform compatible CE D1S", "points": []});
     }
+    photon_receipt["runtime"] = neutron_receipt["runtime"].clone();
     photon_receipt["activation_receipt"] = json!(activation.receipt_ref);
     let final_receipt_path = run_dir.join("709-dose-receipt.json");
     write_exact(
@@ -1354,12 +1512,27 @@ fn run_staged_actinv_dose(
     artifacts.insert("709_neutron_request".into(), neutron_request_ref);
     artifacts.insert("709_neutron_response".into(), response_npz);
     artifacts.insert("709_neutron_response_record".into(), response_record);
+    artifacts.insert("709_neutron_solver_model".into(), neutron_solver_model);
+    artifacts.insert("openmc_c_api_library".into(), neutron_openmc_library);
+    for (index, reference) in photon_solver_models.into_iter().enumerate() {
+        artifacts.insert(format!("709_photon_solver_model_{index:03}"), reference);
+    }
     artifacts.insert("709_neutron_receipt".into(), neutron_receipt_ref);
     artifacts.insert("actinv_batches".into(), activation_batches);
     artifacts.insert("actinv_receipt".into(), activation.receipt_ref);
     artifacts.insert("actinv_emitters".into(), emitters_ref);
     artifacts.insert("709_photon_request".into(), photon_request_ref.clone());
     artifacts.insert("709_photon_receipt".into(), make_ref(&photon_receipt_path)?);
+    artifacts.insert("709_neutron_worker_log".into(), make_ref(&neutron_log)?);
+    artifacts.insert(
+        "709_neutron_worker_job".into(),
+        make_ref(&neutron_job_record)?,
+    );
+    artifacts.insert("709_photon_worker_log".into(), make_ref(&photon_log)?);
+    artifacts.insert(
+        "709_photon_worker_job".into(),
+        make_ref(&photon_job_record)?,
+    );
     Ok(StagedActinvDose {
         receipt: photon_receipt,
         request_ref: photon_request_ref,
@@ -2189,8 +2362,16 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                 .and_then(|r| r.get("openmc_python_version"))
                 .and_then(Value::as_str)
                 .unwrap_or("unknown");
-            let r2s_seed = context.manifest.sampling.seed;
-            let r2s_random = format!("OpenMC-R2S:{r2s_stream}:seed-{r2s_seed}");
+            let r2s_seed = r2s_point
+                .get("seed")
+                .and_then(Value::as_u64)
+                .ok_or("photon receipt omits the actual seed used for this cooling point")?;
+            let openmc_c_library_sha = r2s_point
+                .pointer("/c_api_library/sha256")
+                .and_then(Value::as_str)
+                .ok_or("photon point omits loaded C API library hash")?;
+            let r2s_random =
+                format!("OpenMC-R2S:{r2s_stream}:{openmc_c_library_sha}:seed-{r2s_seed}");
             let mut r2s_artifact_hashes = artifact_hashes(&input_refs);
             r2s_artifact_hashes.extend([
                 (
@@ -2689,7 +2870,14 @@ fn launch_bounded(
         "job": &result,
     }))
     .map_err(|e| e.to_string())?;
-    write_exact(&log.with_file_name("worker-job.json"), &metadata)?;
+    let job_stem = log
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .ok_or("worker log must have a UTF-8 file stem")?;
+    write_exact(
+        &log.with_file_name(format!("{job_stem}-job.json")),
+        &metadata,
+    )?;
     Ok(result)
 }
 
