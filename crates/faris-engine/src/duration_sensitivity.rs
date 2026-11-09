@@ -30,7 +30,7 @@ pub struct DurationRange {
 pub struct TornadoOutputs {
     /// Absent when the history has no net-electricity result (its energy inputs are missing).
     pub net_electricity_mwh: Option<f64>,
-    /// 1 - replacement downtime / history end, over every replaceable component.
+    /// Plant availability: 1 minus the union of replacement downtime / history end.
     pub availability: f64,
 }
 
@@ -56,12 +56,12 @@ pub struct DurationTornado {
     pub bars: Vec<TornadoBar>,
 }
 
-/// Replacement downtime summed over every replaceable component, to the history end.
-fn replacement_downtime_s(history: &HistoryResult) -> f64 {
-    let end = history_end_s(history);
+/// Plant downtime is the union of all replacement intervals: the history stops operating when
+/// any component is being replaced, so overlapping replacements do not add extra plant downtime.
+fn replacement_downtime_s(events: &[crate::history::HistoryEvent], end: f64) -> f64 {
     let mut open: BTreeMap<&str, f64> = BTreeMap::new();
-    let mut total = 0.0;
-    for e in &history.events {
+    let mut intervals = Vec::new();
+    for e in events {
         let Some(id) = e.component_id.as_deref() else {
             continue;
         };
@@ -71,16 +71,17 @@ fn replacement_downtime_s(history: &HistoryResult) -> f64 {
             }
             EventKind::ReplacementCompleted => {
                 if let Some(start) = open.remove(id) {
-                    total += e.time_s - start;
+                    intervals.push((start, e.time_s));
                 }
             }
             _ => {}
         }
     }
-    total + open.values().map(|start| end - start).sum::<f64>()
+    intervals.extend(open.values().map(|&start| (start, end)));
+    crate::maintenance::interval_union_duration_s(&intervals, end)
 }
 
-fn outputs(history: &HistoryResult) -> TornadoOutputs {
+pub(crate) fn outputs(history: &HistoryResult) -> TornadoOutputs {
     let end = history_end_s(history);
     TornadoOutputs {
         net_electricity_mwh: history
@@ -88,7 +89,7 @@ fn outputs(history: &HistoryResult) -> TornadoOutputs {
             .last()
             .and_then(|s| s.cumulative_net_electricity_mwh),
         availability: if end > 0.0 {
-            1.0 - replacement_downtime_s(history) / end
+            1.0 - replacement_downtime_s(&history.events, end) / end
         } else {
             1.0
         },
@@ -200,6 +201,7 @@ pub fn duration_tornado(
 mod tests {
     use super::*;
     use crate::fixtures::{assumptions, rates_without_covariance};
+    use crate::history::HistoryEvent;
     use faris_model::history::ServiceLimit;
     use faris_model::remote_handling::maintenance_preset;
 
@@ -223,6 +225,43 @@ mod tests {
             high_s: high,
             label: InputLabel::Authored,
         }
+    }
+
+    fn replacement_event(time_s: f64, component_id: &str, kind: EventKind) -> HistoryEvent {
+        HistoryEvent {
+            time_s,
+            order: 0,
+            kind,
+            component_id: Some(component_id.into()),
+            response_id: None,
+            mass_kg: None,
+            note: String::new(),
+            trip: None,
+        }
+    }
+
+    #[test]
+    fn availability_downtime_unions_simultaneous_staggered_and_horizon_intervals() {
+        use EventKind::{ReplacementCompleted as Done, ReplacementStarted as Start};
+
+        let simultaneous = [
+            replacement_event(2.0, "a", Start),
+            replacement_event(2.0, "b", Start),
+            replacement_event(8.0, "a", Done),
+            replacement_event(8.0, "b", Done),
+        ];
+        assert_eq!(replacement_downtime_s(&simultaneous, 10.0), 6.0);
+
+        let staggered = [
+            replacement_event(1.0, "a", Start),
+            replacement_event(3.0, "b", Start),
+            replacement_event(5.0, "a", Done),
+            replacement_event(8.0, "b", Done),
+        ];
+        assert_eq!(replacement_downtime_s(&staggered, 10.0), 7.0);
+
+        let at_horizon = [replacement_event(8.0, "a", Start)];
+        assert_eq!(replacement_downtime_s(&at_horizon, 10.0), 2.0);
     }
 
     // Verifies: OPS-031

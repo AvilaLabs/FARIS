@@ -2,8 +2,10 @@
 // SPDX-FileCopyrightText: 2026 Avila Labs
 use super::*;
 use crate::fixtures;
-use crate::history::{HistoryResult, run_operating_history_cancellable};
-use faris_model::maintenance::{GoverningQuantity, MAINTENANCE_ASSUMPTIONS_VERSION};
+use crate::history::{EventKind, HistoryEvent, HistoryResult, run_operating_history_cancellable};
+use faris_model::maintenance::{
+    GoverningQuantity, MAINTENANCE_ASSUMPTIONS_VERSION, MaintenanceClass, Threshold,
+};
 use serde_json::Value;
 
 // ---------------------------------------------------------------- parity ----
@@ -770,4 +772,75 @@ fn replacement_events_are_counted_per_component_in_time_order() {
         .sum();
     close(total_downtime_s(&history, &a.classes), total, "downtime");
     assert_eq!(history_end_s(&history), 100.0);
+}
+
+#[test]
+fn overlapping_replacements_share_plant_downtime_in_summary_and_tornado() {
+    let mut history = crate::history::run_operating_history(
+        &fixtures::assumptions(),
+        &fixtures::rates_without_covariance(0.0, 'a'),
+    )
+    .unwrap();
+    // Retain a real engine HistoryResult and its 100 s timeline, with a controlled replacement
+    // event set that overlaps across components and reaches the horizon.
+    history.events.retain(|e| {
+        !matches!(
+            e.kind,
+            EventKind::ReplacementStarted | EventKind::ReplacementCompleted
+        )
+    });
+    history.events.extend([
+        replacement_event(2.0, 1, "magnets", EventKind::ReplacementStarted),
+        replacement_event(5.0, 2, "blanket", EventKind::ReplacementStarted),
+        replacement_event(8.0, 3, "magnets", EventKind::ReplacementCompleted),
+        replacement_event(10.0, 4, "blanket", EventKind::ReplacementCompleted),
+        replacement_event(90.0, 5, "magnets", EventKind::ReplacementStarted),
+    ]);
+
+    let mut classes = calibrated().classes;
+    classes.insert(
+        "blanket".into(),
+        MaintenanceClass {
+            component_id: "blanket".into(),
+            governing: vec![],
+            work_s: 0.0,
+            threshold: Threshold::QStar {
+                q_star_w_per_m3: 1.0,
+            },
+        },
+    );
+    let summary = summarize(&history, &classes);
+    let tornado = crate::duration_sensitivity::outputs(&history);
+
+    // [2, 10] and [90, 100] are plant downtime; component records remain distinct.
+    assert_eq!(summary.total_replacement_downtime_s, 18.0);
+    assert!((summary.availability - 0.82).abs() < 1e-15);
+    assert_eq!(tornado.availability, summary.availability);
+    assert!((0.0..=1.0).contains(&summary.availability));
+    assert_eq!(summary.replacements.len(), 3);
+    assert_eq!(
+        summary
+            .replacements
+            .iter()
+            .map(|e| (e.component.as_str(), e.start_s, e.end_s))
+            .collect::<Vec<_>>(),
+        vec![
+            ("magnets", 2.0, Some(8.0)),
+            ("blanket", 5.0, Some(10.0)),
+            ("magnets", 90.0, None),
+        ]
+    );
+}
+
+fn replacement_event(time_s: f64, order: u32, component_id: &str, kind: EventKind) -> HistoryEvent {
+    HistoryEvent {
+        time_s,
+        order,
+        kind,
+        component_id: Some(component_id.into()),
+        response_id: None,
+        mass_kg: None,
+        note: "controlled interval-union fixture".into(),
+        trip: None,
+    }
 }

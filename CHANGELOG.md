@@ -15,6 +15,14 @@ basis.
 
 ## Unreleased
 
+### Numerical changes
+
+- Replacement availability in maintenance summaries and duration sensitivities now counts the union of
+  component outages. Overlapping replacements previously counted the same plant downtime twice. In the
+  controlled 100-second regression, downtime changes from 21 to 18 seconds and availability from 79 to 82 %;
+  each component's replacement durations are unchanged. Existing recorded result files retain their original
+  values; rerun their summaries to apply the correction.
+
 ### Added
 
 - A high-contrast theme (white on black, every text style at least 7 to 1), chosen with the `ui.theme`

@@ -229,6 +229,30 @@ pub fn history_end_s(history: &HistoryResult) -> f64 {
     }
 }
 
+/// Length of the union of intervals inside the history horizon. This is plant downtime: the
+/// operating history is stopped whenever any selected component is being replaced.
+pub(crate) fn interval_union_duration_s(intervals: &[(f64, f64)], end_s: f64) -> f64 {
+    let mut clipped: Vec<_> = intervals
+        .iter()
+        .map(|&(start, end)| (start.max(0.0).min(end_s), end.max(0.0).min(end_s)))
+        .filter(|(start, end)| end > start)
+        .collect();
+    clipped.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.total_cmp(&b.1)));
+
+    let mut total = 0.0;
+    let mut union_end = f64::NEG_INFINITY;
+    for (start, end) in clipped {
+        if start > union_end {
+            total += end - start;
+            union_end = end;
+        } else if end > union_end {
+            total += end - union_end;
+            union_end = end;
+        }
+    }
+    total
+}
+
 /// Replacements per class, in time order.
 pub fn replacement_events(
     history: &HistoryResult,
@@ -276,10 +300,11 @@ pub fn total_downtime_s(
     classes: &BTreeMap<String, MaintenanceClass>,
 ) -> f64 {
     let end = history_end_s(history);
-    replacement_events(history, classes)
+    let intervals: Vec<_> = replacement_events(history, classes)
         .iter()
-        .map(|e| e.end_s.unwrap_or(end) - e.start_s)
-        .sum()
+        .map(|e| (e.start_s, e.end_s.unwrap_or(end)))
+        .collect();
+    interval_union_duration_s(&intervals, end)
 }
 
 // ------------------------------------------------------------------- inputs --
@@ -370,13 +395,14 @@ pub struct HistorySummary {
     pub outcome: HistoryOutcome,
     pub history_end_s: f64,
     pub lifetime_net_electricity_mwh: Option<f64>,
+    /// Union of selected component replacement intervals (plant downtime), clipped to history end.
     pub total_replacement_downtime_s: f64,
-    /// 1 - downtime / history end.
+    /// 1 - plant replacement downtime / history end.
     pub availability: f64,
     pub replacements: Vec<ReplacementSummary>,
 }
 
-fn summarize(
+pub(crate) fn summarize(
     history: &HistoryResult,
     classes: &BTreeMap<String, MaintenanceClass>,
 ) -> HistorySummary {
