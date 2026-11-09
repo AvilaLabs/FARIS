@@ -7,8 +7,8 @@ use eframe::egui;
 use faris_engine::jobs::Cancellation;
 use faris_engine::maintenance::{
     DoseMaintenanceResult, MAX_DOSE_RESULT_BYTES,
-    files::{DoseRunConfig, run_dose_from_files},
-    parse_dose_result,
+    files::{DoseRunConfig, default_event_dose_worker, run_dose_from_files},
+    parse_dose_result, prepare_dose_cad,
     spatial_dose::ComparisonStatus,
 };
 use std::{
@@ -37,6 +37,9 @@ pub struct MaintenanceDosePanel {
     selected_design: Option<String>,
     inputs: DoseInputs,
     run: Option<DoseRunState>,
+    prepare: Option<DosePrepareState>,
+    prepare_config: String,
+    prepare_message: Option<String>,
 }
 
 #[derive(Default)]
@@ -53,12 +56,18 @@ struct DoseRunState {
     progress: Arc<std::sync::Mutex<Option<String>>>,
 }
 
+struct DosePrepareState {
+    cancel: Cancellation,
+    receiver: Receiver<Result<PathBuf, String>>,
+}
+
 #[derive(Clone, Copy)]
 enum DoseField {
     Designs,
     Assumptions,
     Curves,
     Output,
+    PrepareConfig,
     Result,
 }
 
@@ -73,6 +82,9 @@ impl Default for MaintenanceDosePanel {
             selected_design: None,
             inputs: DoseInputs::default(),
             run: None,
+            prepare: None,
+            prepare_config: String::new(),
+            prepare_message: None,
         }
     }
 }
@@ -100,11 +112,14 @@ fn load(path: PathBuf) -> Result<DoseMaintenanceResult, String> {
 
 impl MaintenanceDosePanel {
     pub fn is_pending(&self) -> bool {
-        self.run.is_some() || self.loading.is_some() || self.dialog.is_some()
+        self.run.is_some()
+            || self.prepare.is_some()
+            || self.loading.is_some()
+            || self.dialog.is_some()
     }
 
     pub fn is_running(&self) -> bool {
-        self.run.is_some()
+        self.run.is_some() || self.prepare.is_some()
     }
 
     pub fn window(&mut self, ctx: &egui::Context) {
@@ -137,6 +152,7 @@ impl MaintenanceDosePanel {
                                     DoseField::Assumptions => self.inputs.assumptions = value,
                                     DoseField::Curves => self.inputs.curves = value,
                                     DoseField::Output => self.inputs.output = value,
+                                    DoseField::PrepareConfig => self.prepare_config = value,
                                     DoseField::Result => unreachable!(),
                                 }
                             }
@@ -184,14 +200,47 @@ impl MaintenanceDosePanel {
                 Err(TryRecvError::Empty) => {}
             }
         }
+        if let Some(prepare) = &self.prepare {
+            match prepare.receiver.try_recv() {
+                Ok(Ok(path)) => {
+                    self.prepare_message =
+                        Some(format!("Prepared physics manifest: {}", path.display()));
+                    self.prepare = None;
+                }
+                Ok(Err(error)) => {
+                    self.state = LoadState::Failed(error);
+                    self.prepare = None;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    self.state = LoadState::Failed("CAD dose preparation worker stopped".into());
+                    self.prepare = None;
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+        }
         let mut open = self.open;
         egui::Window::new("Dose-governed maintenance result").open(&mut open).default_width(780.0).show(ctx, |ui| {
             if !crate::browser::IS_BROWSER {
                 ui.collapsing("Run dose-governed maintenance", |ui| {
+                    ui.label("Prepare dose physics from a passing checked CAD Design and ImportReport. The preparation config authors the solid-to-history-component map and spatial inputs; FARIS clones materials per solid and builds the full-geometry model.");
+                    path_row(ui, "CAD dose preparation config", &mut self.prepare_config, DoseField::PrepareConfig, &mut self.dialog);
+                    ui.horizontal(|ui| {
+                        if self.prepare.is_none() && ui.button("Prepare CAD dose physics").clicked() {
+                            match start_dose_prepare(&self.prepare_config) {
+                                Ok(state) => { self.prepare = Some(state); self.prepare_message = None; }
+                                Err(error) => self.state = LoadState::Failed(error),
+                            }
+                        }
+                        if let Some(prepare) = &self.prepare {
+                            if ui.button("Cancel preparation").clicked() { prepare.cancel.cancel(); }
+                            ui.spinner();
+                        }
+                    });
+                    if let Some(message) = &self.prepare_message { ui.label(message); }
                     ui.label("Provide event-specific D1S/R2S spatial curves. FARIS computes the history coupling and duration; this workflow does not run a general D1S/R2S transport solver.");
                     path_row(ui, "Designs", &mut self.inputs.designs, DoseField::Designs, &mut self.dialog);
                     path_row(ui, "Assumptions", &mut self.inputs.assumptions, DoseField::Assumptions, &mut self.dialog);
-                    path_row(ui, "Spatial dose curves", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog);
+                    path_row(ui, "Optional spatial dose curve cache", &mut self.inputs.curves, DoseField::Curves, &mut self.dialog);
                     path_row(ui, "New result file", &mut self.inputs.output, DoseField::Output, &mut self.dialog);
                     ui.horizontal(|ui| {
                         if self.run.is_none() && ui.button("Run bounded dose coupling").clicked() {
@@ -252,15 +301,21 @@ fn path_row(
 fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
     let designs = required_path("designs", &inputs.designs)?;
     let assumptions = required_path("assumptions", &inputs.assumptions)?;
-    let curves = required_path("spatial dose curves", &inputs.curves)?;
+    let curves = optional_path(&inputs.curves);
     let output = required_path("new result file", &inputs.output)?;
     if output.exists() {
         return Err(format!("refusing to overwrite {}", output.display()));
     }
+    let worker_script = default_event_dose_worker().ok_or(
+        "OpenMC event-dose worker script was not found in the application package or source tree",
+    )?;
     let config = DoseRunConfig {
         designs,
         assumptions,
         spatial_dose_curves: curves,
+        python: PathBuf::from("python3"),
+        worker_script,
+        work_dir: output.with_extension("dose-work"),
     };
     let cancel = Cancellation::default();
     let worker_cancel = cancel.clone();
@@ -296,6 +351,22 @@ fn start_dose_run(inputs: &DoseInputs) -> Result<DoseRunState, String> {
     })
 }
 
+fn start_dose_prepare(config: &str) -> Result<DosePrepareState, String> {
+    let config = required_path("dose CAD preparation config", config)?;
+    let worker = default_event_dose_worker().ok_or(
+        "OpenMC event-dose worker script was not found in the application package or source tree",
+    )?;
+    let cancel = Cancellation::default();
+    let worker_cancel = cancel.clone();
+    let python = PathBuf::from("python3");
+    let (tx, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let result = prepare_dose_cad(&config, &python, &worker, &worker_cancel);
+        let _ = tx.send(result);
+    });
+    Ok(DosePrepareState { cancel, receiver })
+}
+
 fn required_path(label: &str, value: &str) -> Result<PathBuf, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -305,8 +376,13 @@ fn required_path(label: &str, value: &str) -> Result<PathBuf, String> {
     }
 }
 
+fn optional_path(value: &str) -> Option<PathBuf> {
+    let trimmed = value.trim();
+    (!trimmed.is_empty()).then(|| Path::new(trimmed).to_path_buf())
+}
+
 fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut Option<String>) {
-    ui.label("Criterion: ICRP-116 AP photon effective dose rate at a hash-identified task location (Sv/h). Curves are external authored D1S/R2S estimates; this result does not claim a product-generated transport solve.");
+    ui.label("Criterion: ICRP-116 AP photon effective dose rate at the authored task location (Sv/h). Missing curves are computed with the bounded OpenMC event worker when a design supplies a dose-physics adapter; heterogeneous histories use R2S with D1S marked NOT_EVALUATED.");
     let names: Vec<_> = result.designs.keys().cloned().collect();
     if selected
         .as_ref()
@@ -486,7 +562,11 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                             ui.end_row();
                             for point in &curve.points {
                                 ui.label(format!("{:.4}", point.cooling_s / 86_400.0));
-                                ui.label(format!("{:.6e}", point.d1s_sv_h));
+                                ui.label(
+                                    point
+                                        .d1s_sv_h
+                                        .map_or("NOT_EVALUATED".into(), |v| format!("{v:.6e}")),
+                                );
                                 ui.label(format!("{:.6e}", point.r2s_sv_h));
                                 ui.label(
                                     point
@@ -520,6 +600,13 @@ fn show_result(ui: &mut egui::Ui, result: &DoseMaintenanceResult, selected: &mut
                                 ui.colored_label(color, format!("{:?}", point.comparison));
                                 ui.label(&point.crossing_uncertainty);
                                 ui.end_row();
+                                if let Some(reason) = &point.d1s_not_evaluated {
+                                    ui.colored_label(
+                                        egui::Color32::from_rgb(165, 90, 20),
+                                        format!("D1S NOT_EVALUATED: {reason}"),
+                                    );
+                                    ui.end_row();
+                                }
                             }
                         });
                     },

@@ -80,6 +80,9 @@ def prepare_checked_cad_model(request: dict, out: Path) -> dict:
         raise ValueError("solid history mapping must cover every nonvoid checked CAD solid exactly")
     if any(not isinstance(v, str) or not v.strip() for v in mapping.values()):
         raise ValueError("each nonvoid solid needs an authored history component ID")
+    trusted_helper = Path(__file__).with_name("design_transport.py").resolve(strict=True)
+    if helper != trusted_helper:
+        raise ValueError("only the bundled FARIS design_transport.py source helper is accepted")
     import importlib.util
     spec = importlib.util.spec_from_file_location("faris_checked_design_transport", helper)
     if spec is None or spec.loader is None:
@@ -633,7 +636,7 @@ def main() -> int:
         raise SystemExit(f"request exceeds {MAX_REQUEST_BYTES} bytes")
     request = json.loads(request_bytes)
     out = args.out.resolve()
-    if args.prepare_request is not None:
+    if args.prepare_request is not None or request.get("schema") == "faris-maintenance-dose-cad-prepare/v0.1":
         try:
             receipt = prepare_checked_cad_model(request, out)
             receipt["request_sha256"] = hashlib.sha256(request_bytes).hexdigest()

@@ -211,6 +211,25 @@ pub fn calibrate(
 
 // ------------------------------------------------------------------ history --
 
+/// Supplies an event curve only for a new exact history/event key. Implementations must return
+/// physical R2S data and may omit D1S only with an explicit NOT_EVALUATED reason.
+pub trait DoseEventCurveProvider {
+    #[allow(clippy::too_many_arguments)]
+    fn produce(
+        &mut self,
+        design: &str,
+        design_input_sha256: &BTreeMap<String, String>,
+        exact_history_bytes: &[u8],
+        history_sha256: &str,
+        event: &ReplacementEvent,
+        install_s: f64,
+        location: &spatial_dose::TaskLocation,
+        method: faris_model::maintenance::DoseMethod,
+        cooling_grid_s: &[f64],
+        cancel: &Cancellation,
+    ) -> Result<Option<spatial_dose::EventDoseCurve>, String>;
+}
+
 /// One replacement outage: counted per component (`k` from 1), `end_s` absent when the
 /// horizon ends first.
 #[derive(Clone, Debug, PartialEq)]
@@ -1214,7 +1233,54 @@ pub fn run_dose_maintenance(
     cancel: &Cancellation,
     progress: &mut dyn FnMut(&str, u32, &str),
 ) -> Result<DoseMaintenanceResult, String> {
-    use faris_model::maintenance::{GoverningQuantity, Threshold};
+    run_dose_maintenance_inner(
+        assumptions,
+        designs,
+        design_input_hashes,
+        bundle,
+        runner,
+        None,
+        cancel,
+        progress,
+    )
+}
+
+/// Runs the same coupling while requesting a physical curve when an exact history/event curve
+/// is absent. New curves are retained only in this invocation's in-memory bundle.
+pub fn run_dose_maintenance_with_provider(
+    assumptions: &MaintenanceAssumptions,
+    designs: &[DesignInput],
+    design_input_hashes: &BTreeMap<String, BTreeMap<String, String>>,
+    bundle: &spatial_dose::CurveBundle,
+    runner: &mut dyn HistoryRunner,
+    provider: &mut dyn DoseEventCurveProvider,
+    cancel: &Cancellation,
+    progress: &mut dyn FnMut(&str, u32, &str),
+) -> Result<DoseMaintenanceResult, String> {
+    run_dose_maintenance_inner(
+        assumptions,
+        designs,
+        design_input_hashes,
+        bundle,
+        runner,
+        Some(provider),
+        cancel,
+        progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_dose_maintenance_inner(
+    assumptions: &MaintenanceAssumptions,
+    designs: &[DesignInput],
+    design_input_hashes: &BTreeMap<String, BTreeMap<String, String>>,
+    bundle: &spatial_dose::CurveBundle,
+    runner: &mut dyn HistoryRunner,
+    mut provider: Option<&mut dyn DoseEventCurveProvider>,
+    cancel: &Cancellation,
+    progress: &mut dyn FnMut(&str, u32, &str),
+) -> Result<DoseMaintenanceResult, String> {
+    use faris_model::maintenance::{DoseMethod, GoverningQuantity, Threshold};
     use spatial_dose::{ComparisonStatus, TaskLocation};
 
     assumptions.validate()?;
@@ -1222,6 +1288,7 @@ pub fn run_dose_maintenance(
         return Err("dose maintenance requires governing_quantity=dose".into());
     }
     bundle.validate(Path::new("."))?;
+    let mut dose_bundle = bundle.clone();
     if designs.is_empty() {
         return Err("at least one design is required".into());
     }
@@ -1320,7 +1387,7 @@ pub fn run_dose_maintenance(
                     id: location_id.clone(),
                     sha256: location_sha256.clone(),
                 };
-                let curve = bundle.event_curve(
+                let mut curve = dose_bundle.event_curve(
                     name,
                     input_hashes,
                     &history_hash,
@@ -1331,6 +1398,46 @@ pub fn run_dose_maintenance(
                     &location,
                     *method,
                 )?;
+                if curve.is_none()
+                    && let Some(active_provider) = provider.as_deref_mut()
+                {
+                    let installation = actinv::installations(&history, &event.component)?;
+                    let install_index =
+                        actinv::installation_at(&history, &event.component, event.start_s)?;
+                    let install_s = install_index
+                        .and_then(|index| installation.get(index as usize - 1))
+                        .map(|(start, _)| *start)
+                        .ok_or_else(|| format!("{} installation at replacement shutdown {:.0} s is not present in history", event.component, event.start_s))?;
+                    let exact_history_bytes =
+                        serde_json::to_vec(&history).map_err(|e| e.to_string())?;
+                    progress(name, number, "event-specific shutdown-dose R2S");
+                    if let Some(generated) = active_provider.produce(
+                        name,
+                        input_hashes,
+                        &exact_history_bytes,
+                        &history_hash,
+                        &event,
+                        install_s,
+                        &location,
+                        *method,
+                        &required_cooling_grid,
+                        cancel,
+                    )? {
+                        dose_bundle.curves.push(generated);
+                        dose_bundle.validate(Path::new("."))?;
+                        curve = dose_bundle.event_curve(
+                            name,
+                            input_hashes,
+                            &history_hash,
+                            &event.class,
+                            &event.component,
+                            event.k,
+                            event.start_s,
+                            &location,
+                            *method,
+                        )?;
+                    }
+                }
                 if let Some(curve) = &curve {
                     let installation = actinv::installations(&history, &event.component)?;
                     let installation_index =
@@ -1345,7 +1452,7 @@ pub fn run_dose_maintenance(
                             event.component, event.k, curve.install_s, expected_install_s
                         ));
                     }
-                    let record = bundle
+                    let record = dose_bundle
                         .curves
                         .iter()
                         .find(|record| {
@@ -1370,7 +1477,7 @@ pub fn run_dose_maintenance(
                         ));
                     }
                     if verified_schedule_shas.insert(schedule.input_sha256.clone()) {
-                        bundle.verify_irradiation_schedule(record, &history)?;
+                        dose_bundle.verify_irradiation_schedule(record, &history)?;
                     }
                 }
                 let fixed_s = fixed_design.durations_s[&event.class];
@@ -1448,10 +1555,29 @@ pub fn run_dose_maintenance(
                 if curve.comparison == ComparisonStatus::InconclusiveCovariance {
                     validation = ComparisonStatus::InconclusiveCovariance;
                 }
+                if curve.comparison == ComparisonStatus::NotEvaluated && *method == DoseMethod::R2s
+                {
+                    validation = ComparisonStatus::NotEvaluated;
+                }
+                if *method == DoseMethod::D1s
+                    && curve.points.iter().any(|p| p.selected_sv_h.is_none())
+                {
+                    validation = ComparisonStatus::NotEvaluated;
+                    let ne = not_evaluated(
+                        format!(
+                            "iteration {number}: D1S is not evaluated for this component-specific irradiation history"
+                        ),
+                        "select R2S for the computed dose curve; D1S cannot use a component-specific history unless its source history is common",
+                    );
+                    record.not_evaluated = Some(ne.clone());
+                    records.push(record);
+                    overall_ne = Some(ne);
+                    break;
+                }
                 let points: Vec<_> = curve
                     .points
                     .iter()
-                    .map(|p| (p.cooling_s, p.selected_sv_h))
+                    .filter_map(|p| p.selected_sv_h.map(|v| (p.cooling_s, v)))
                     .collect();
                 let cd = match cooldown(&points, *value_sv_h, assumptions.cooling.max_s) {
                     Ok(v) => v,
@@ -1533,6 +1659,8 @@ pub mod actinv;
 pub mod files;
 pub mod irradiation;
 pub mod spatial_dose;
+pub mod spatial_dose_worker;
+pub use spatial_dose_worker::{DoseCadPrepareConfig, prepare_dose_cad};
 
 #[cfg(test)]
 mod tests;

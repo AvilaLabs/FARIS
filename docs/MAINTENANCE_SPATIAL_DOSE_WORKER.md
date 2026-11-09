@@ -73,6 +73,34 @@ H5M, exported model, and map. It neither mutates the checked geometry nor loads 
 or compiled source plugins. The irradiated geometry/material state is reused across component
 history schedules; that fixed-geometry assumption must hold over the modeled history.
 
+## Prepare and run
+
+Create a `faris-maintenance-dose-cad-config/v0.1` file. The CAD-solid mapping is authored once
+for the design; schedules are reconstructed automatically from the exact history at each event.
+
+```json
+{
+  "schema_version": "faris-maintenance-dose-cad-config/v0.1",
+  "design_file": "design.json",
+  "import_report": "design-check-report.json",
+  "cross_sections_xml": {"path": "nuclear-data/cross_sections.xml", "sha256": "..."},
+  "chain_xml": {"path": "nuclear-data/chain.xml", "sha256": "..."},
+  "solid_history_components": {"solid-blanket-1": "blanket-1", "solid-shield-1": "shield-1"},
+  "activation_mesh": {"lower_left_cm": [-500, -500, -500], "upper_right_cm": [500, 500, 500], "dimension": [20, 20, 20]},
+  "response_locations": {"port-a": {"path": "locations/port-a.json", "sha256": "..."}},
+  "sampling": {"neutron_particles": 1000, "neutron_batches": 20, "photon_particles": 1000, "photon_batches": 20, "seed": 271828, "threads": 2, "mat_vol_samples": 50000, "activation_groups": "VITAMIN-J-42", "run_budget_s": 3600},
+  "work_dir": "dose-cad-preparation-work",
+  "output_manifest": "dose-physics.json"
+}
+```
+
+Run `faris maintenance dose-prepare --config dose-cad-config.json --python /path/to/openmc-python`.
+This separate, cancellable bounded step writes `dose-physics.json`; add that file as the design's
+`dose_physics` entry in `faris-maintenance-designs/v0.1`, then run the ordinary
+`faris maintenance dose-run` command. The desktop dose-maintenance window exposes the same
+preparation action. `dose-prepare` reopens its generated manifest through the same immutable-hash
+validator that `dose-run` uses before it reports success.
+
 The activation preflight rejects chain nuclides with listed depletion reactions that are absent
 from the selected neutron cross-section index. OpenMC's MicroXS path otherwise silently leaves
 missing nuclide rows at zero. Presence in the index does not establish that every channel is

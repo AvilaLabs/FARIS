@@ -10,10 +10,10 @@ use faris_engine::maintenance::{
     MAINTENANCE_DOSE_RESULT_VERSION, MAINTENANCE_RESULT_VERSION, MAX_DOSE_RESULT_BYTES,
     MaintenanceResult, Status,
     files::{
-        BUILDER_NOT_FOUND, DoseRunConfig, RunConfig, default_builder, run_dose_from_files,
-        run_from_files,
+        BUILDER_NOT_FOUND, DoseRunConfig, RunConfig, default_builder, default_event_dose_worker,
+        run_dose_from_files, run_from_files,
     },
-    parse_dose_result,
+    parse_dose_result, prepare_dose_cad,
 };
 #[cfg(test)]
 use faris_engine::{
@@ -97,12 +97,33 @@ pub enum MaintenanceCommand {
         /// faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes.
         #[arg(long)]
         assumptions: PathBuf,
-        /// Hash-verified faris-maintenance-spatial-dose-curves/v0.1 estimates.
+        /// Optional hash-verified faris-maintenance-spatial-dose-curves/v0.2 cache.
         #[arg(long)]
-        spatial_dose_curves: PathBuf,
+        spatial_dose_curves: Option<PathBuf>,
+        /// Python interpreter with the validated OpenMC runtime.
+        #[arg(long, default_value = "python3")]
+        python: PathBuf,
+        /// Event-specific OpenMC R2S worker script [default: installed worker].
+        #[arg(long)]
+        worker: Option<PathBuf>,
+        /// Work directory for bounded OpenMC event jobs [default: OUTPUT.dose-work].
+        #[arg(long)]
+        work_dir: Option<PathBuf>,
         /// New result file (faris-maintenance-result/v0.2); existing paths are refused.
         #[arg(long)]
         output: PathBuf,
+    },
+    /// Clone checked CAD materials per solid and build the event-dose physics adapter.
+    DosePrepare {
+        /// faris-maintenance-dose-cad-config/v0.1 preparation request.
+        #[arg(long)]
+        config: PathBuf,
+        /// Python interpreter with the validated OpenMC runtime and plasma-source package.
+        #[arg(long, default_value = "python3")]
+        python: PathBuf,
+        /// Event-dose worker [default: installed worker].
+        #[arg(long)]
+        worker: Option<PathBuf>,
     },
     /// Print a maintenance result: downtime, availability and electricity under both models,
     /// every replacement with its governing component, and the differences between designs.
@@ -150,25 +171,71 @@ pub fn run(command: MaintenanceCommand) -> Result<(), Box<dyn std::error::Error>
             designs,
             assumptions,
             spatial_dose_curves,
+            python,
+            worker,
+            work_dir,
             output,
-        } => run_dose_designs(designs, assumptions, spatial_dose_curves, output),
+        } => run_dose_designs(
+            designs,
+            assumptions,
+            spatial_dose_curves,
+            python,
+            worker,
+            work_dir,
+            output,
+        ),
+        MaintenanceCommand::DosePrepare {
+            config,
+            python,
+            worker,
+        } => run_dose_prepare(config, python, worker),
         MaintenanceCommand::Report { result, format } => report(&result, format),
     }
+}
+
+fn run_dose_prepare(
+    config: PathBuf,
+    python: PathBuf,
+    worker: Option<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let worker = worker
+        .or_else(default_event_dose_worker)
+        .ok_or("OpenMC event-dose worker script not found; pass --worker")?;
+    let interrupts = crate::control::interrupt_cancellation()?;
+    #[cfg(unix)]
+    let cancellation = &interrupts.cancellation;
+    #[cfg(not(unix))]
+    let cancellation = &interrupts;
+    let manifest = prepare_dose_cad(&config, &python, &worker, cancellation)?;
+    println!(
+        "Prepared event-dose physics manifest: {}",
+        manifest.display()
+    );
+    Ok(())
 }
 
 fn run_dose_designs(
     designs: PathBuf,
     assumptions: PathBuf,
-    spatial_dose_curves: PathBuf,
+    spatial_dose_curves: Option<PathBuf>,
+    python: PathBuf,
+    worker: Option<PathBuf>,
+    work_dir: Option<PathBuf>,
     output: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if output.exists() {
         return Err(format!("refusing to overwrite {}", output.display()).into());
     }
+    let worker_script = worker
+        .or_else(default_event_dose_worker)
+        .ok_or("OpenMC event-dose worker script not found; pass --worker")?;
     let config = DoseRunConfig {
         designs,
         assumptions,
         spatial_dose_curves,
+        python,
+        worker_script,
+        work_dir: work_dir.unwrap_or_else(|| output.with_extension("dose-work")),
     };
     let interrupts = crate::control::interrupt_cancellation()?;
     #[cfg(unix)]
