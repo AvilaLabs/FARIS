@@ -106,6 +106,10 @@ LOST_LOCATIONS = 10          # how many lost neutrons have their position record
 MAX_RECEIPT_FILE_BYTES = 12 * 1024**3
 MAX_HEATING_VOXEL_CELLS = 32_768
 MAX_HEATING_VOLUME_CELLS = 1_000_000
+MAX_VOLUME_MATERIAL_CELLS = 1_000_000
+MAX_VOLUME_MATERIAL_BYTES = 512 * 1024 * 1024
+OPENMC_VOLUME_MATERIAL_SLOT_FACTOR = 2
+OPENMC_VOLUME_MATERIAL_SLOT_BYTES = 4 + 8  # int32 material ID plus float64 estimated volume
 MAX_HEATING_HISTORIES = 2_000_000_000
 MAX_HEATING_BATCHES = 100_000
 HEATING_VOV_LIMIT = 0.1
@@ -227,22 +231,51 @@ def ring_edges(low: float, high: float, step: float | None) -> list[float]:
     return [low + i * step for i in range(count + 1)]
 
 
-def heating_mesh_cell_count(bounds, voxel_cm: list[float], solid_count: int) -> int:
-    """Conservative mesh-bin × solid count before ray sampling or tally allocation."""
+def volume_mesh_dimensions(bounds, voxel_cm: list[float | None]) -> tuple[int, int]:
+    """Bound radial/vertical bins before constructing mesh edge arrays."""
+    if len(voxel_cm) != 2:
+        raise ValueError("a cylindrical peak mesh needs two voxel widths")
     dr, dz = voxel_cm
     coordinates = (*bounds.lower_left, *bounds.upper_right)
-    if (len(voxel_cm) != 2 or any(not math.isfinite(float(value)) for value in coordinates)
-            or any(not math.isfinite(float(step)) or step <= 0.0 for step in (dr, dz))
-            or solid_count <= 0):
-        raise ValueError("the heating peak mesh needs finite geometry bounds, positive voxel widths and solids")
+    if (any(not math.isfinite(float(value)) for value in coordinates)
+            or any(step is not None and (not math.isfinite(float(step)) or step <= 0.0) for step in (dr, dz))):
+        raise ValueError("the peak mesh needs finite geometry bounds and positive voxel widths")
     reach = max(math.hypot(x, y) for x in (bounds.lower_left[0], bounds.upper_right[0])
                 for y in (bounds.lower_left[1], bounds.upper_right[1]))
     if not math.isfinite(reach):
         raise ValueError("the heating peak mesh has non-finite radial extent")
-    r_count = max(1, math.ceil(math.ceil(reach) / dr - 1.0e-9))
+    r_count = 1 if dr is None else max(1, math.ceil(math.ceil(reach) / dr - 1.0e-9))
     z_span = math.ceil(bounds.upper_right[2]) - math.floor(bounds.lower_left[2])
-    z_count = max(1, math.ceil(z_span / dz - 1.0e-9))
+    z_count = 1 if dz is None else max(1, math.ceil(z_span / dz - 1.0e-9))
+    return r_count, z_count
+
+
+def heating_mesh_cell_count(bounds, voxel_cm: list[float], solid_count: int) -> int:
+    """Conservative mesh-bin × solid count before ray sampling or tally allocation."""
+    if (len(voxel_cm) != 2 or any(not math.isfinite(float(step)) or step <= 0.0 for step in voxel_cm)
+            or solid_count <= 0):
+        raise ValueError("the heating peak mesh needs positive voxel widths and solids")
+    r_count, z_count = volume_mesh_dimensions(bounds, voxel_cm)
     return r_count * z_count * solid_count
+
+
+def volume_material_allocation(mesh_elements: int, material_count: int) -> tuple[int, int]:
+    """OpenMC 0.15+ initial MMV allocation: two hash slots per estimated material per mesh element."""
+    if mesh_elements <= 0 or material_count <= 0:
+        raise ValueError("material-volume sampling needs positive mesh-element and material counts")
+    slots = OPENMC_VOLUME_MATERIAL_SLOT_FACTOR * material_count
+    return mesh_elements * slots * OPENMC_VOLUME_MATERIAL_SLOT_BYTES, slots
+
+
+def volume_material_allocation_not_evaluated(mesh_elements: int, material_count: int) -> str | None:
+    estimated_bytes, _ = volume_material_allocation(mesh_elements, material_count)
+    if mesh_elements > MAX_VOLUME_MATERIAL_CELLS:
+        return (f"The material-volume mesh requires {mesh_elements:,} elements, above the bounded "
+                f"limit of {MAX_VOLUME_MATERIAL_CELLS:,}.")
+    if estimated_bytes > MAX_VOLUME_MATERIAL_BYTES:
+        return (f"The material-volume result needs an estimated {estimated_bytes:,} bytes for "
+                f"{material_count:,} geometry materials, above the {MAX_VOLUME_MATERIAL_BYTES:,}-byte bound.")
+    return None
 
 
 def heating_mesh_not_evaluated(cell_count: int, limit: int = MAX_HEATING_VOLUME_CELLS) -> str | None:
@@ -255,6 +288,8 @@ def heating_mesh_not_evaluated(cell_count: int, limit: int = MAX_HEATING_VOLUME_
 def heating_preflight_next_step(reason: str) -> str:
     if reason.startswith("The requested peak mesh requires"):
         return "Increase the radial or vertical peak voxel size, or narrow the explicitly authored winding-pack solids, then rerun heating."
+    if reason.startswith("The material-volume mesh requires") or reason.startswith("The material-volume result needs"):
+        return "Increase the radial or vertical peak voxel size, or review whether the checked CAD model contains unnecessary solid subdivisions, then rerun heating."
     if "planned source histories" in reason:
         return f"Reduce the heating history limit so the planned run stays at or below {MAX_HEATING_HISTORIES:,} source histories."
     if "batches" in reason and "bounded" in reason:
@@ -533,7 +568,11 @@ def build_model(openmc, request: dict, geometry: Path, random_ray: bool = False)
         materials[FILLER] = filler_material(openmc, len(entries) + 1)
     universe = openmc.DAGMCUniverse(str(geometry))
     box = universe.bounding_box
-    radius = 1.05 * max(math.sqrt(sum(c * c for c in corner)) for corner in (box.lower_left, box.upper_right))
+    axis_reaches = [max(abs(float(lower)), abs(float(upper)))
+                    for lower, upper in zip(box.lower_left, box.upper_right)]
+    radius = 1.05 * math.hypot(*axis_reaches)
+    if not math.isfinite(radius) or radius <= 0.0:
+        raise ValueError("the DAGMC universe needs finite nonzero bounds for its enclosing vacuum sphere")
     # Ids far above the DAGMC volumes and surfaces, which keep the numbers of the h5m.
     sphere = openmc.Sphere(surface_id=OUTER_ID, r=radius, boundary_type="vacuum")
     model = openmc.Model(geometry=openmc.Geometry([openmc.Cell(cell_id=OUTER_ID, fill=universe, region=-sphere)]),
@@ -595,7 +634,8 @@ def phase_volumes(request: dict, work: Path) -> dict:
     out_dir = work / "peak"
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    # The checked h5m tags each solid with its own id: one stand-in material per solid tells the solids apart.
+    # OpenMC material_volumes has no selected-material filter. Give every geometry solid a unique stand-in ID,
+    # account for every one in its bounded allocation, then extract only the response IDs below.
     selected = request["response"]["solid_ids"]
     selected_set = set(selected)
     if request.get("heating_mode"):
@@ -619,8 +659,19 @@ def phase_volumes(request: dict, work: Path) -> dict:
     reach = max(math.hypot(x, y) for x in (box.lower_left[0], box.upper_right[0])
                 for y in (box.lower_left[1], box.upper_right[1]))
     dr, dz = request["response"]["peak_voxel_cm"]
+    radial_bins, vertical_bins = volume_mesh_dimensions(box, [dr, dz])
+    mesh_elements = radial_bins * vertical_bins
+    # Account for every unique stand-in plus OpenMC's explicit void entry.
+    volume_material_limit = len(numbers) + 1
+    allocation_error = volume_material_allocation_not_evaluated(mesh_elements, volume_material_limit)
+    if allocation_error is not None:
+        raise ValueError(allocation_error)
+    volume_estimated_bytes, volume_slot_count = volume_material_allocation(
+        mesh_elements, volume_material_limit)
     r_edges = ring_edges(0.0, math.ceil(reach), dr)
     z_edges = ring_edges(math.floor(box.lower_left[2]), math.ceil(box.upper_right[2]), dz)
+    if (len(r_edges) - 1) * (len(z_edges) - 1) != mesh_elements:
+        raise ValueError("the material-volume mesh dimensions changed during bounded preflight")
     # The rays start on the box around the mesh, so the model must reach past it. Ids clear of the h5m's.
     half, low, high = r_edges[-1] + 20.0, z_edges[0] - 20.0, z_edges[-1] + 20.0
     sides = [openmc.XPlane(-half, surface_id=OUTER_ID + 1), openmc.XPlane(half, surface_id=OUTER_ID + 2),
@@ -636,7 +687,7 @@ def phase_volumes(request: dict, work: Path) -> dict:
     model.settings.particles, model.settings.batches = 10, 1
     model.settings.source = openmc.IndependentSource()
     mesh = openmc.CylindricalMesh(r_grid=r_edges, z_grid=z_edges, phi_grid=[0.0, 2.0 * math.pi])
-    volume_material_limit = min(len(selected), 64) if request.get("heating_mode") else min(len(numbers), 64)
+    # OpenMC also tracks unfilled/void regions as a distinct material-like entry.
     here = os.getcwd()
     os.chdir(out_dir)
     try:
@@ -663,6 +714,12 @@ def phase_volumes(request: dict, work: Path) -> dict:
     discard(out_dir, {"volumes.npz"})
     record = {
         "openmc": openmc.__version__, "rays": PEAK_RAYS, "voxel_cm": [dr, dz], "solid_ids": solids,
+        "mesh_element_count": mesh_elements,
+        "geometry_standin_material_count": len(numbers),
+        "material_volume_max_materials": volume_material_limit,
+        "material_volume_hash_slots_per_element": volume_slot_count,
+        "material_volume_estimated_bytes": volume_estimated_bytes,
+        "material_volume_scope": "All per-solid stand-ins plus OpenMC void capacity; requested response solids are extracted by unique stand-in ID.",
         "solid_volume_cm3": [float(v.sum()) for v in volumes],
         "volumes_sha256": sha256_file(target), "seconds": time.monotonic() - started,
     }
@@ -1334,10 +1391,22 @@ def phase_heating_preflight(request: dict, work: Path) -> dict:
         mesh_error = heating_mesh_not_evaluated(mesh_cells, MAX_HEATING_VOLUME_CELLS)
         if mesh_error is not None:
             raise ValueError(mesh_error)
+        volume_elements = heating_mesh_cell_count(
+            universe.bounding_box, request["response"]["peak_voxel_cm"], 1)
+        volume_material_count = len(request["solids"]) + 1  # all stand-ins plus void
+        volume_error = volume_material_allocation_not_evaluated(volume_elements, volume_material_count)
+        if volume_error is not None:
+            raise ValueError(volume_error)
+        volume_estimated_bytes, volume_slot_count = volume_material_allocation(
+            volume_elements, volume_material_count)
         runtime = heating_runtime_identity(openmc)
         identity = heating_data_identity(request, openmc, h5py)
         record = {"schema": "faris-design-heating-preflight/v1", "status": "READY",
                   **identity_hashes, "mesh_voxel_solid_count": mesh_cells,
+                  "volume_mesh_element_count": volume_elements,
+                  "volume_max_materials": volume_material_count,
+                  "volume_material_slot_count": volume_slot_count,
+                  "volume_material_estimated_bytes": volume_estimated_bytes,
                   "runtime_identity": runtime, "data_identity": identity}
     except (OSError, ValueError, KeyError, AttributeError) as exc:
         reason = str(exc)
@@ -1398,8 +1467,23 @@ def phase_heating(request: dict, work: Path) -> dict:
                            "Keep the checked geometry, selected Python/OpenMC runtime and nuclear data unchanged, then rerun heating.",
                            data_identity, runtime_identity)
     mesh_cells = preflight.get("mesh_voxel_solid_count")
+    volume_elements = preflight.get("volume_mesh_element_count")
+    volume_material_count = preflight.get("volume_max_materials")
+    volume_slots = preflight.get("volume_material_slot_count")
+    volume_bytes = preflight.get("volume_material_estimated_bytes")
+    if isinstance(volume_elements, int) and volume_elements > 0:
+        expected_volume_bytes, expected_volume_slots = volume_material_allocation(
+            volume_elements, len(request["solids"]) + 1)
+    else:
+        expected_volume_bytes, expected_volume_slots = None, None
     if (not isinstance(mesh_cells, int) or mesh_cells <= 0
-            or heating_mesh_not_evaluated(mesh_cells, MAX_HEATING_VOLUME_CELLS) is not None):
+            or heating_mesh_not_evaluated(mesh_cells, MAX_HEATING_VOLUME_CELLS) is not None
+            or not isinstance(volume_elements, int) or volume_elements <= 0
+            or mesh_cells != volume_elements * len(solid_ids)
+            or volume_material_count != len(request["solids"]) + 1
+            or volume_slots != expected_volume_slots
+            or volume_bytes != expected_volume_bytes
+            or volume_material_allocation_not_evaluated(volume_elements, len(request["solids"]) + 1) is not None):
         return unavailable("The ready preflight has no valid bounded heating mesh identity.",
                            "Rerun coupled heating so the peak mesh is bounded before volume sampling.",
                            data_identity, runtime_identity)

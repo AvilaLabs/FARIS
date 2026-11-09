@@ -4,6 +4,7 @@
 
 import copy
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -438,6 +439,147 @@ class LostParticleTest(unittest.TestCase):
 
 
 class PeakTest(unittest.TestCase):
+    def test_openmc_material_volume_capacity_uses_all_geometry_materials(self):
+        elements = 100_000
+        selected_count = 18
+        geometry_material_count = 41  # 40 stand-ins plus the OpenMC void entry
+        selected_bytes, _ = DT.volume_material_allocation(elements, selected_count)
+        geometry_bytes, slots = DT.volume_material_allocation(elements, geometry_material_count)
+        self.assertEqual(slots, 2 * geometry_material_count)
+        self.assertEqual(geometry_bytes, elements * slots * 12)
+        self.assertGreater(geometry_bytes, selected_bytes)
+        self.assertIn("estimated", DT.volume_material_allocation_not_evaluated(
+            1_000_000, geometry_material_count))
+        self.assertIn("elements", DT.volume_material_allocation_not_evaluated(
+            DT.MAX_VOLUME_MATERIAL_CELLS + 1, 1))
+
+    def test_build_model_sphere_contains_mixed_sign_extents(self):
+        captured = {}
+
+        class FakeSphere:
+            def __neg__(self):
+                return self
+
+        class FakeMaterials(list):
+            pass
+
+        class FakeMaterial:
+            def __init__(self, material_id, name):
+                self.id, self.name = material_id, name
+            def add_nuclide(self, *args, **kwargs):
+                pass
+            def set_density(self, *args):
+                pass
+
+        class FakeModel:
+            def __init__(self, geometry, materials):
+                self.geometry, self.materials = geometry, materials
+                self.settings = SimpleNamespace()
+
+        openmc = SimpleNamespace(
+            Material=FakeMaterial,
+            Materials=FakeMaterials,
+            DAGMCUniverse=lambda _path: SimpleNamespace(bounding_box=SimpleNamespace(
+                lower_left=(-10.0, -1.0, -1.0), upper_right=(1.0, 9.0, 1.0))),
+            Sphere=lambda **kwargs: (captured.update(kwargs) or FakeSphere()),
+            Cell=lambda **kwargs: kwargs,
+            Geometry=lambda cells: cells,
+            Model=FakeModel,
+        )
+        _, _, _ = DT.build_model(openmc, {"materials": [], "cross_sections": "xs.xml"}, Path("model.h5m"))
+        self.assertAlmostEqual(captured["r"], 1.05 * math.sqrt(10.0**2 + 9.0**2 + 1.0**2))
+
+    def test_volume_api_counts_all_standins_and_keeps_shared_material_solids_separate(self):
+        import numpy as np
+
+        created_materials = []
+        call = {}
+        standin_count = 4
+
+        class FakeMaterial:
+            def __init__(self, material_id, name):
+                self.id, self.name = material_id, name
+                created_materials.append((material_id, name))
+            def add_nuclide(self, *args, **kwargs):
+                pass
+            def set_density(self, *args):
+                pass
+
+        class FakeSurface:
+            boundary_type = None
+            def __pos__(self):
+                return self
+            def __neg__(self):
+                return self
+            def __and__(self, other):
+                return self
+
+        class FakeMesh:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+            def material_volumes(self, model, *, n_samples, max_materials, output, args):
+                call.update(n_samples=n_samples, max_materials=max_materials, output=output, args=args)
+                # The real API retries with a larger hash table if its initial estimate is low.
+                return {number: np.full(8, float(number)) for number in range(1, standin_count + 1)}
+
+        class FakeMaterials(list):
+            pass
+
+        class FakeModel:
+            def __init__(self, geometry, materials):
+                self.settings = SimpleNamespace()
+                self.materials = materials
+
+        openmc = SimpleNamespace(
+            __version__="0.16.0",
+            Material=FakeMaterial,
+            Materials=FakeMaterials,
+            DAGMCUniverse=lambda _path: SimpleNamespace(bounding_box=SimpleNamespace(
+                lower_left=(-1.0, -1.0, -2.0), upper_right=(1.0, 1.0, 2.0))),
+            XPlane=lambda *args, **kwargs: FakeSurface(),
+            YPlane=lambda *args, **kwargs: FakeSurface(),
+            ZPlane=lambda *args, **kwargs: FakeSurface(),
+            Geometry=lambda cells: cells,
+            Cell=lambda **kwargs: kwargs,
+            Model=FakeModel,
+            IndependentSource=lambda: object(),
+            CylindricalMesh=FakeMesh,
+        )
+        solids = [
+            {"solid_id": "coil-a", "material_id": "copper"},
+            {"solid_id": "coil-b", "material_id": "copper"},
+            {"solid_id": "case", "material_id": "steel"},
+            {"solid_id": "shield", "material_id": "steel"},
+        ]
+        request = {
+            "heating_mode": True,
+            "h5m": "model.h5m",
+            "cross_sections": "xs.xml",
+            "solids": solids,
+            "response": {"solid_ids": ["coil-a", "coil-b"], "peak_voxel_cm": [1.0, 1.0]},
+            "sampling": {"threads": 1},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            h5m = work / "model.h5m"
+            h5m.write_bytes(b"stable geometry")
+            request["h5m"] = str(h5m)
+            with patch.dict("sys.modules", {"openmc": openmc}), \
+                 patch.object(DT, "checked_heating_h5m_snapshot",
+                              return_value=(h5m, DT.sha256_file(h5m))):
+                record = DT.phase_volumes(request, work)
+            self.assertEqual(call["max_materials"], len(solids) + 1)
+            self.assertEqual([name for _, name in created_materials], [s["solid_id"] for s in solids])
+            self.assertEqual(record["solid_ids"], ["coil-a", "coil-b"])
+            self.assertEqual(record["geometry_standin_material_count"], len(solids))
+            self.assertEqual(record["material_volume_max_materials"], len(solids) + 1)
+            self.assertIn("all per-solid stand-ins", record["material_volume_scope"].lower())
+            self.assertEqual(record["h5m_sha256"], DT.sha256_file(h5m))
+            with np.load(work / "peak" / "volumes.npz") as saved:
+                self.assertEqual(saved["volumes_cm3"].shape[0], 2)
+                self.assertTrue(np.all(saved["volumes_cm3"][0] == 1.0))
+                self.assertTrue(np.all(saved["volumes_cm3"][1] == 2.0))
+
     def test_scalar_online_moments_match_direct_vov_formula_without_retaining_batches(self):
         import math
 
@@ -546,6 +688,49 @@ class PeakTest(unittest.TestCase):
             self.assertEqual(record["status"], "NOT_EVALUATED")
             self.assertIn("above the bounded limit", record["why"])
             self.assertIn("voxel size", record["next_step"])
+
+    def test_heating_preflight_bounds_material_volume_arrays_for_all_standins(self):
+        class Settings:
+            photon_transport = False
+            atomic_relaxation = False
+            electron_treatment = ""
+
+        class OpenMC(ModuleType):
+            __version__ = "0.16.0"
+
+            @staticmethod
+            def DAGMCUniverse(_path):
+                bounds = SimpleNamespace(lower_left=(-750.0, 0.0, -500.0),
+                                         upper_right=(750.0, 0.0, 500.0))
+                return SimpleNamespace(bounding_box=bounds)
+
+        OpenMC.Settings = Settings
+
+        solids = [{"solid_id": f"solid-{index}", "classification": "winding_pack",
+                   "material_id": f"material-{index}"} for index in range(30)]
+        request = {
+            "schema": DT.REQUEST_SCHEMA, "heating_mode": True,
+            "solids": solids, "materials": [], "plasma": {}, "chamber_solid_id": "solid-0",
+            "h5m": "model.h5m", "cross_sections": "cross_sections.xml",
+            "response": {"solid_ids": ["solid-0"], "energy_min_ev": 0.0,
+                         "peak_voxel_cm": [1.0, 1.0]},
+            "sampling": {"target_relative_error": 0.05, "particles_per_batch": 1000,
+                         "min_batches": 30, "max_batches": 30, "max_seconds": 60.0,
+                         "seed": 1, "threads": 1},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            h5m, cross_sections = work / "model.h5m", work / "cross_sections.xml"
+            h5m.write_bytes(b"geometry")
+            cross_sections.write_bytes(b"data")
+            request["h5m"], request["cross_sections"] = str(h5m), str(cross_sections)
+            with patch.dict("sys.modules", {"openmc": OpenMC("openmc"), "h5py": ModuleType("h5py")}), \
+                 patch.object(DT, "heating_runtime_identity", return_value={}), \
+                 patch.object(DT, "heating_data_identity", side_effect=AssertionError("data audit ran too early")):
+                record = DT.phase_heating_preflight(request, work)
+        self.assertEqual(record["status"], "NOT_EVALUATED")
+        self.assertIn("estimated", record["why"])
+        self.assertIn("558,000,000 bytes", record["why"])
 
     def test_heating_history_and_time_bounds_match_native_controls(self):
         request = {"schema": DT.REQUEST_SCHEMA, "sampling": {
@@ -911,7 +1096,11 @@ class PeakTest(unittest.TestCase):
                 "status": "READY", "data_identity": {"source": "fixture"},
                 "runtime_identity": runtime_identity,
                 "cross_sections_sha256": "fixture-hash", "h5m_sha256": DT.sha256_file(request["h5m"]),
-                "mesh_voxel_solid_count": 2}))
+                "mesh_voxel_solid_count": 2,
+                "volume_mesh_element_count": 2,
+                "volume_max_materials": 2,
+                "volume_material_slot_count": 4,
+                "volume_material_estimated_bytes": 96}))
             np.savez(work / "peak" / "volumes.npz", volumes_cm3=np.array([[[10000.0, 20000.0]]]),
                      r_edges_cm=np.array([100.0, 105.0, 110.0]), z_edges_cm=np.array([-5.0, 0.0]))
             (work / "peak" / "record.json").write_text(json.dumps({
