@@ -732,6 +732,9 @@ def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log
         path = cwd / f"openmc.{name}.log"
         stream_state[name]["file"] = path.name
         stream_state[name]["sha256"] = sha256(path)
+        # The line coalescer uses a private byte buffer while the process runs.
+        # It has been drained with final=True above and is not JSON evidence.
+        stream_state[name].pop("pending", None)
     return {
         "return_code": return_code,
         "stop_reason": stop_reason,

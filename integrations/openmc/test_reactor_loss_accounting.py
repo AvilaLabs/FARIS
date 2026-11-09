@@ -3,8 +3,11 @@
 """The standard reactor worker binds loss accounting to exact C API receipts."""
 
 import importlib.util
+import io
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -16,6 +19,34 @@ SPEC.loader.exec_module(WORKER)
 
 
 class ReactorLossAccounting(unittest.TestCase):
+    def test_stream_capture_is_json_serializable_after_final_partial_line_flush(self):
+        class Sink:
+            def __init__(self):
+                self.buffer = io.BytesIO()
+
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch)
+            sink_out = Sink()
+            sink_err = Sink()
+            command = [
+                sys.executable,
+                "-c",
+                "import os; os.write(1, b'Particle 1 was lost'); os.write(2, b'trailing fragment')",
+            ]
+            with patch.object(WORKER.sys, "stdout", sink_out), \
+                    patch.object(WORKER.sys, "stderr", sink_err):
+                capture = WORKER.run_solver_streaming(command, root, os.environ.copy(), 1024)
+
+            encoded = json.dumps(capture)
+            self.assertTrue(encoded)
+            stdout = capture["streams"]["stdout"]
+            stderr = capture["streams"]["stderr"]
+            self.assertNotIn("pending", stdout)
+            self.assertNotIn("pending", stderr)
+            self.assertEqual(stdout["loss_warning_lines"], 1)
+            self.assertEqual((root / stdout["file"]).read_bytes(), b"Particle 1 was lost")
+            self.assertEqual((root / stderr["file"]).read_bytes(), b"trailing fragment")
+
     def test_library_receipt_uses_only_verified_cli_rpath_library(self):
         with tempfile.TemporaryDirectory() as scratch:
             prefix = Path(scratch)
