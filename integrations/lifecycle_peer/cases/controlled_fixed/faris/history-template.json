@@ -7,7 +7,7 @@
     "thermal_to_electric_efficiency": 0.4,
     "transport_heat_recovery_fraction": 0.9
   },
-  "horizon_s": 170087036.5443012,
+  "horizon_s": 164902436.5443012,
   "imports": [],
   "initial_available_tritium_kg": 1000000.0,
   "initial_in_process_release_s": 0,
@@ -15,14 +15,14 @@
   "maximum_step_s": 600,
   "operation": [
     {
-      "end_s": 170087036.5443012,
+      "end_s": 164902436.5443012,
       "power_fraction": 1.0,
       "start_s": 0.0
     }
   ],
   "planned_outages": [],
   "processing_delay_s": 86400,
-  "provenance": "Authored controlled maintenance verification input. Full-power operation and a deliberately non-limiting 1,000,000 kg opening tritium stock are software-test assumptions, not plant operating data. Fixed blanket replacement lasts 60 days. The blanket integrated-flux threshold is filled from a native FARIS TransportDrivingRates record to target exactly the archived fixed-case inter-event operation interval of 79,859,518.2721506 s. No unplanned outage model is present.",
+  "provenance": "Authored controlled maintenance verification input. Full-power operation and a deliberately non-limiting 1,000,000 kg opening tritium stock are software-test assumptions, not plant operating data. Fixed blanket replacement lasts 60 days. The blanket integrated-flux threshold is filled from native FARIS TransportDrivingRates to target the archived 79,859,518.2721506 s inter-event operating interval. The horizon contains one completed inter-campaign replacement and stops 600 s before the next trigger. No unplanned outage model is present.",
   "recovery_fraction": 0.95,
   "restart_inventory_kg": 0.6,
   "schema_version": "faris-operating-history/v0.1",

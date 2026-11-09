@@ -50,7 +50,7 @@ def main() -> int:
     if not isinstance(config["provenance"], dict) or set(config["provenance"]) != required - {"provenance"}:
         raise ValueError("every PROCESS input and the unplanned set need provenance")
 
-    from process.data_structure import DataStructure
+    from process.core.model import DataStructure
     from process.models.availability import Availability, AvailabilityModel
 
     data = DataStructure()

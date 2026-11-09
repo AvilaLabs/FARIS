@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # SPDX-FileCopyrightText: 2026 Avila Labs
-"""Run and compare the authored, two-cycle native lifecycle control case."""
+"""Run the authored, one-boundary-outage native lifecycle control case."""
 from __future__ import annotations
 
 import argparse
@@ -43,6 +43,8 @@ def load_case() -> tuple[dict, dict[str, Path]]:
         "blanket_lifetime_fpy": authored["blanket_lifetime_full_power_years"],
         "blanket_replacement_days": authored["fixed_blanket_replacement_days"],
         "net_electric_power_mw": authored["net_electric_normalization_mw"],
+        "pulse_burn_seconds": authored["pulse_period_seconds"],
+        "pulse_total_seconds": authored["pulse_period_seconds"],
     }
     if any(not near(process_config.get(key), value, tol=1e-12) for key, value in process_expectations.items()):
         raise ValueError("PROCESS input does not match the authored controlled-case manifest")
@@ -51,12 +53,20 @@ def load_case() -> tuple[dict, dict[str, Path]]:
         raise ValueError("PROCESS unplanned fractions do not match the zero-unplanned case")
     blue_config = json.loads(inputs["bluemira"].read_text(encoding="utf-8"))
     blue_life = blue_config["lifecycle_config"]
-    expected_dpa = 10.2 * authored["fusion_power_mw"] / 2037.0 * authored["blanket_lifetime_full_power_years"]
-    if (not near(blue_life.get("bmd"), authored["fixed_blanket_replacement_days"], tol=1e-12)
+    expected_rate = 10.2 * authored["fusion_power_mw"] / 2037.0
+    expected_dpa = expected_rate * authored["blanket_lifetime_full_power_years"]
+    if (not near(blue_life.get("bmd"), authored["fixed_blanket_replacement_days"] * 86400.0, tol=1e-6)
             or not near(blue_life.get("blk_1_dpa"), expected_dpa, tol=1e-12)
             or not near(blue_life.get("blk_2_dpa"), expected_dpa, tol=1e-12)
+            or not near(blue_life.get("blk_dmg"), expected_rate, tol=1e-12)
+            or not near(blue_life.get("t_pulse"), authored["pulse_period_seconds"], tol=1e-12)
+            or not near(blue_life.get("A_global"), 1.0, tol=0.0)
+            or not near(blue_life.get("div_dmg"), authored["bluemira_compat_divertor_damage_rate_dpa_fpy"], tol=1e-12)
+            or not near(blue_life.get("div_dpa"), authored["bluemira_compat_divertor_damage_rate_dpa_fpy"]
+                        * authored["bluemira_compat_divertor_lifetime_fpy"], tol=1e-12)
+            or not near(blue_life.get("dmd"), 0.0, tol=0.0)
             or blue_config.get("availability_strategy") != {"kind": "zero_unplanned", "parameters": {}}):
-        raise ValueError("bluemira config does not match the authored fixed-duration/damage-threshold control")
+        raise ValueError("bluemira config does not match the authored duration, damage-rate, pulse, or zero-work compatibility control")
     faris = (HERE.parents[1] / case["faris_reference"]["path_from_repository_root"]).resolve()
     if not faris.is_file() or file_sha256(faris) != case["faris_reference"]["sha256"]:
         raise ValueError("FARIS reference archive is missing or its SHA-256 differs")
@@ -71,8 +81,12 @@ def near(actual, expected: float, tol: float = 1e-6) -> bool:
 def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_computed: dict) -> dict:
     authored = case["authored_inputs"]
     horizon = authored["calendar_horizon_years"]
-    expected_cycles = authored["blanket_cycle_count"]
-    expected_availability = 1 - expected_cycles * authored["fixed_blanket_replacement_days"] / (365.25 * horizon)
+    expected_replacements = authored["expected_blanket_replacement_count"]
+    campaign_life_years = authored["blanket_lifetime_full_power_years"]
+    replacement_years = authored["fixed_blanket_replacement_days"] / 365.25
+    expected_availability = (authored["blanket_cycle_count"] * campaign_life_years) / (
+        authored["blanket_cycle_count"] * campaign_life_years + replacement_years
+    )
     checks = {
         "process_horizon_is_authored": near(process.get("plant_horizon_years_input"), horizon),
         "process_zero_unplanned": isinstance(process.get("unplanned_unavailability"), dict)
@@ -80,9 +94,13 @@ def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_com
         "process_fixed_duration_is_authored": near(process.get("replacement_duration_years", {}).get("blanket"), authored["fixed_blanket_replacement_days"] / 365.25),
         "process_native_availability_matches_control": near(process.get("plant_availability_fraction"), expected_availability),
         "bluemira_horizon_matches_authored": near(blue.get("calendar_years"), horizon),
-        "bluemira_two_blanket_replacements": near(blue.get("blanket_replacements"), expected_cycles, tol=0.0),
+        "bluemira_one_boundary_blanket_replacement": near(blue.get("blanket_replacements"), expected_replacements, tol=0.0),
         "bluemira_zero_unplanned": near(blue.get("unplanned_downtime"), 0.0),
-        "bluemira_global_target_matches_authored": near(blue.get("target_global_availability"), expected_availability),
+        "bluemira_operational_load_factor_is_unity": near(blue.get("operational_load_factor_input"), 1.0, tol=0.0),
+        "bluemira_zero_work_divertor_compatibility_phases": (
+            near(blue.get("divertor_replacements"), authored["expected_bluebmira_zero_work_divertor_phases"], tol=0.0)
+            and near(blue.get("planned_maintenance"), authored["fixed_blanket_replacement_days"] * 86400.0, tol=1e-6)
+        ),
         "peer_availability_agrees": near(process.get("plant_availability_fraction"), blue.get("overall_availability")),
     }
     mwh = None
@@ -100,7 +118,7 @@ def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_com
     return {
         "status": "matched controlled code-to-code baseline" if passed else "incomplete; native output checks did not all match",
         "checks": checks,
-        "expected_planned_availability_from_authored_two-cycle_schedule": expected_availability,
+        "expected_planned_availability_from_authored_one_outage_schedule": expected_availability,
         "conditional_energy_normalization": mwh,
         "faris_fixed_reference": faris_fixed,
         "faris_computed_reference": faris_computed,
@@ -109,7 +127,7 @@ def evaluate(case: dict, process: dict, blue: dict, faris_fixed: dict, faris_com
             "total_replacement_downtime_s": faris_computed["total_replacement_downtime_s"] - faris_fixed["total_replacement_downtime_s"],
             "availability_fraction": faris_computed["availability_fraction"] - faris_fixed["availability_fraction"],
         },
-        "faris_comparison_note": "The FARIS archived 30-year fixed/computed result is kept as separate reference context; it is not matched to the two-cycle peer horizon and is not physical validation.",
+        "faris_comparison_note": "The FARIS archived 30-year fixed/computed result is separate historical context. It is not the authored one-outage horizon and is not physical validation.",
     }
 
 

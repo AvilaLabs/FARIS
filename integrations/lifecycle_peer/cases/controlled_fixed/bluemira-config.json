@@ -9,19 +9,21 @@
     "parameters": {}
   },
   "lifecycle_config": {
-    "A_global": 0.9390429734643561,
-    "I_p": 19.2,
+    "A_global": 1.0,
+    "I_p": 19200000.0,
     "blk_1_dpa": 6.652596227705765,
     "blk_2_dpa": 6.652596227705765,
-    "bmd": 60.0,
-    "div_dpa": 1000000.0,
+    "blk_dmg": 2.6288659793814433,
+    "bmd": 5184000.0,
+    "div_dmg": 1.0,
+    "div_dpa": 1.0122381711175832,
     "dmd": 0.0,
     "n_DD_reactions": 0.0,
     "n_DT_reactions": 1.8618137864158527e+20,
-    "s_ramp_down": 1000000000000000.0,
-    "s_ramp_up": 1000000000000000.0,
+    "s_ramp_down": 1e+30,
+    "s_ramp_up": 1e+30,
     "t_cs_recharge": 0.0,
-    "t_pulse": 31557600.0,
+    "t_pulse": 5633.0,
     "t_pumpdown": 0.0,
     "tf_fluence": 1e+30,
     "vv_dpa": 1000000.0
@@ -29,38 +31,48 @@
   "provenance": {
     "A_global": {
       "kind": "authored",
-      "reference": "Authored 2*blanket campaign full-power years divided by case calendar horizon; target schedule fraction, not measured availability.",
+      "reference": "Authored unity operational load factor. This is an input applied to operation phases; the actual lifetime availability is reported from Timeline.ft[-1] / Timeline.plant_life.",
       "unit": "dimensionless"
     },
     "I_p": {
       "kind": "authored",
-      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
-      "unit": "MA"
+      "reference": "Authored 19.2 MA converted to the pinned LifeCycle API unit amperes; verification input only.",
+      "unit": "A"
     },
     "blk_1_dpa": {
       "kind": "authored",
-      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the documented EU-DEMO example value 10.2 dpa/FPY at 2037 MW to the shared 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY × 2.53059542779396 FPY; this is an explicitly authored mapped schedule, not measured damage or FARIS fluence equivalence.",
       "unit": "dpa"
     },
     "blk_2_dpa": {
       "kind": "authored",
-      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the documented EU-DEMO example value 10.2 dpa/FPY at 2037 MW to the shared 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY × 2.53059542779396 FPY; this is an explicitly authored mapped schedule, not measured damage or FARIS fluence equivalence.",
       "unit": "dpa"
+    },
+    "blk_dmg": {
+      "kind": "authored",
+      "reference": "Authored verification mapping = 10.2 dpa/FPY × 525 MW / 2037 MW = 2.62886597938144 dpa/FPY. It enables the two limits to encode the same authored campaign interval; not measured or physically validated.",
+      "unit": "dpa/FPY"
     },
     "bmd": {
       "kind": "authored",
-      "reference": "Authored 60 calendar-day blanket maintenance duration from the archived FARIS fixed-history scenario.",
-      "unit": "day"
+      "reference": "Authored 60 calendar days converted to the pinned LifeCycleParams internal seconds field (5,184,000 s).",
+      "unit": "s"
+    },
+    "div_dmg": {
+      "kind": "authored",
+      "reference": "Authored 1 dpa/FPY solely for bluemira 2.14.0 zero-duration compatibility phases; not a physical divertor damage rate.",
+      "unit": "dpa/FPY"
     },
     "div_dpa": {
       "kind": "authored",
-      "reference": "Authored high sentinel to keep divertor, vessel and TF limits outside this blanket-only verification scope; not a material limit.",
+      "reference": "Authored 1.01223817111758 dpa (0.4 blanket interval at the artificial 1 dpa/FPY compatibility rate). This forces defined native LifeCycle phase counters; dmd=0 s, not a physical divertor life.",
       "unit": "dpa"
     },
     "dmd": {
       "kind": "authored",
-      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
-      "unit": "day"
+      "reference": "Authored zero-second divertor maintenance compatibility input; divertor phases are outside the matched downtime scope.",
+      "unit": "s"
     },
     "n_DD_reactions": {
       "kind": "authored",
@@ -74,27 +86,27 @@
     },
     "s_ramp_down": {
       "kind": "authored",
-      "reference": "Authored very-high ramp rate to make ramp downtime negligible in this controlled fixed-pulse boundary; not a design or measured plant limit.",
-      "unit": "MA/s"
+      "reference": "Authored very high ramp rate so the native pulse ramp duration is negligible; not a design or measured limit.",
+      "unit": "A/s"
     },
     "s_ramp_up": {
       "kind": "authored",
-      "reference": "Authored very-high ramp rate to make ramp downtime negligible in this controlled fixed-pulse boundary; not a design or measured plant limit.",
-      "unit": "MA/s"
+      "reference": "Authored very high ramp rate so the native pulse ramp duration is negligible; not a design or measured limit.",
+      "unit": "A/s"
     },
     "t_cs_recharge": {
       "kind": "authored",
-      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "reference": "Authored zero to disable inter-pulse recharge downtime in the deterministic verification control.",
       "unit": "s"
     },
     "t_pulse": {
       "kind": "authored",
-      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "reference": "Authored 5,633 s repeated pulse setting for the controlled LifeCycle timeline; same period as PROCESS, not a plant operating claim.",
       "unit": "s"
     },
     "t_pumpdown": {
       "kind": "authored",
-      "reference": "Authored verification setting for the two-cycle blanket-only lifecycle case; not plant data.",
+      "reference": "Authored zero to disable inter-pulse pumpdown downtime in the deterministic verification control.",
       "unit": "s"
     },
     "tf_fluence": {

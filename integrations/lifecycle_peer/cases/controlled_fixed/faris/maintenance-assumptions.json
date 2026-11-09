@@ -7,7 +7,7 @@
         "blanket"
       ],
       "threshold": {
-        "design": "faris-two-cycle-control",
+        "design": "faris-one-boundary-control",
         "kind": "calibrate",
         "target_cooldown_s": 2592000.0
       },

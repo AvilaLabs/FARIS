@@ -3,9 +3,15 @@
     "archived_faris_blanket_campaign_interval_seconds": 79859518.2721506,
     "blanket_cycle_count": 2,
     "blanket_lifetime_full_power_years": 2.530595427793958,
-    "blue_blanket_damage_mapping": "Authored verification mapping based on the documented EU-DEMO example 10.2 dpa/FPY scaled to the shared 525 MW fusion boundary, then multiplied by the authored blanket lifetime. It does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+    "blue_blanket_damage_mapping": "Authored verification mapping: native bluemira blk_dmg is set to 10.2 dpa/FPY × 525/2037 using the documented EU-DEMO example scaling, and both blanket DPA limits equal that rate × the authored campaign lifetime. This does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+    "blue_divertor_compatibility_case": "bluemira 2.14.0 leaves count2 uninitialized when the second blanket interval has zero divertor replacements. To execute its native LifeCycle API without changing upstream code, the control gives it an explicitly authored zero-work divertor schedule (dmd=0 s; div_dmg=1 dpa/FPY and div_dpa=0.4 blanket interval) that creates four zero-duration divertor maintenance phases. These are compatibility scaffolding only, are outside the matched availability scope, and are not physical divertor inputs.",
     "blue_out_of_scope_sentinels": "Authored high damage/fluence thresholds for divertor, vessel, and TF to keep this restricted case focused on blanket maintenance; these are not material limits.",
-    "calendar_horizon_years": 5.3897329500437685,
+    "blue_timeline_resolution": "Authored 5,633 s pulse input selected from the exact pinned LifeCycle pulse-array convention to place the native timeline endpoint within the case horizon tolerance. Native actual horizon/FPY are read from Timeline.plant_life and Timeline.ft[-1]; they are not inferred from the continuous LifeCycle lifetime budget. Any availability disagreement remains a failed/incomplete check.",
+    "bluemira_compat_divertor_damage_rate_dpa_fpy": 1.0,
+    "bluemira_compat_divertor_lifetime_fpy": 1.0122381711175832,
+    "calendar_horizon_years": 5.225442889963153,
+    "expected_blanket_replacement_count": 1,
+    "expected_bluebmira_zero_work_divertor_phases": 4,
     "fixed_blanket_replacement_days": 60.0,
     "fusion_power_mw": 525.0,
     "net_electric_normalization_mw": 500.0,
@@ -13,16 +19,27 @@
     "provenance": {
       "archived_faris_blanket_campaign_interval_seconds": "FARIS archived fixed blanket event: next start minus previous event end in references/maintenance-0.2-parity.json, design no-port__breeder. Simulation output, not a measurement.",
       "blanket_lifetime_full_power_years": "Authored by dividing the archived campaign interval by a 365.25-day year. This is a verification schedule interval, not inferred material service life.",
-      "calendar_horizon_years": "Authored as two (blanket lifetime + fixed replacement duration) cycles.",
+      "blue_blanket_damage_mapping": "Authored verification rate and DPA thresholds; explicitly not FARIS fluence-to-DPA equivalence or a measurement.",
+      "blue_divertor_compatibility_case": "Artificial zero-duration native LifeCycle phase schedule needed for the pinned 2.14.0 API path; not physical or part of the matched downtime boundary.",
+      "blue_timeline_resolution": "Authored pulse sampling control used only for native timeline construction; worker reports actual timeline arrays, and strict horizon/availability checks are unchanged.",
+      "bluemira_compat_divertor_damage_rate_dpa_fpy": "Authored 1 dpa/FPY solely for zero-duration bluemira 2.14.0 phase-builder compatibility; not physical divertor data.",
+      "bluemira_compat_divertor_lifetime_fpy": "Authored at 0.4 of a blanket campaign so the pinned bluemira phase builder has defined counters on both blanket intervals; its replacement durations are zero and it is outside the availability mapping.",
+      "calendar_horizon_years": "Authored as 2 × 79,859,518.2721506 s + 60 days − 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon.",
+      "expected_blanket_replacement_count": "One boundary replacement between two authored full-power blanket campaigns. The terminal 600 s margin keeps the next trigger outside the horizon.",
+      "expected_bluebmira_zero_work_divertor_phases": "Expected count from the explicit compatibility-only native LifeCycle phase inputs; no downtime is attributed to these phases.",
       "fixed_blanket_replacement_days": "Authored 60-day work duration from the archived FARIS fixed blanket histories; not measured maintenance time.",
       "fusion_power_mw": "525 MW from the authored FARIS cold-reference scenario, used as a shared nominal fusion-power boundary.",
       "net_electric_normalization_mw": "Authored shared reporting normalization only; neither availability submodel calculates net electric power.",
       "parallel_remote_handling_systems": "Authored single-system boundary; bluemira LifeCycle has no corresponding native remote-handling count input, so no throughput inference is made.",
+      "pulse_period_seconds": "Authored repeated no-downtime pulse boundary shared by PROCESS and bluemira; timeline endpoint remains subject to the strict native output checks.",
+      "terminal_trigger_margin_s": "One configured 600 s FARIS maximum history step before the second event threshold; boundary convention only.",
       "unplanned_unavailability": "Authored deterministic zero-unplanned verification assumption, not an empirical reliability estimate. PROCESS uses explicit zero fractions; bluemira uses its documented strategy extension point with a zero distribution and fails if it is asked to represent positive unplanned downtime."
     },
+    "pulse_period_seconds": 5633.0,
+    "terminal_trigger_margin_s": 600.0,
     "unplanned_unavailability": 0.0
   },
-  "case_id": "no-port-breeder-two-blanket-cycles",
+  "case_id": "no-port-breeder-one-boundary-outage-control",
   "faris_reference": {
     "cases": [
       "fixed",
@@ -35,31 +52,31 @@
     "sha256": "02822be5cc83b9c8b57d3b7fa3e198f6a3aecc06e7ef060e091caf7c44d92d71"
   },
   "limits": {
-    "output_bytes": 1000000,
+    "output_bytes": 64000000,
     "timeout_seconds": 180
   },
-  "match_rule": "Report a matched controlled peer baseline only if the native outputs show the authored horizon, two blanket replacements, zero unplanned downtime, and agreement of the two availability fractions within 1e-6. Otherwise report incomplete and preserve the native outputs/reason. Any MWh(e) figure is only the shared authored 500 MW(e) normalization times each peer's native full-power years; it is not peer-native electric generation.",
+  "match_rule": "Report a matched controlled peer baseline only if the native PROCESS and bluemira outputs show the authored horizon, one completed blanket replacement, zero unplanned downtime, and agreement of native availability fractions within 1e-6. The 600 s terminal margin keeps a second replacement trigger outside the horizon. Bluemira compatibility-only zero-duration divertor phases must be disclosed and contribute zero downtime. Any failed check stays incomplete; do not loosen tolerances or postprocess native outputs into a pass. Any MWh(e) is only the shared authored 500 MW(e) normalization times each peer native full-power years; it is not peer-native electric generation.",
   "peers": {
     "bluemira": {
-      "api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline() using native damage-governed maintenance and the documented OperationalAvailabilityStrategy.generate_distribution extension point.",
+      "api": "bluemira 2.14.0 `LifeCycle.make_timeline()` and its native `Timeline` arrays. Reported actual calendar/FPY come from `Timeline.plant_life` and `Timeline.ft[-1]`; zero-unplanned strategy only supplies the unplanned-outage distribution.",
       "config": {
         "path": "bluemira-config.json",
-        "sha256": "234d506adb2ee25f960bad63c3e14ced61400bd014349a0489958dfdcde7851c"
+        "sha256": "ef936e196e12c621c6efa0708db78d0f68e92a5ba8473944f3327e7428bba1b7"
       },
       "python": "Set by the coordinator at run time",
       "rng_seed": 20261109,
       "version": "2.14.0"
     },
     "process": {
-      "api": "process.models.availability.Availability.run(WARD_TAYLOR), with data.ife.ife=1 and the explicit authored lives above. No reactor physics or optimization run.",
+      "api": "PROCESS 3.4.2 `Availability.run(output=False)` with WARD_TAYLOR and data.ife.ife=1, using explicit authored lives and durations. No reactor physics or optimization run.",
       "input": {
         "path": "process-inputs.json",
-        "sha256": "a570d44680858c024470135928ffcde67c07fc788694abbd0c8bc09fec916b91"
+        "sha256": "3dcb9e5f194a8347a1ed4ec3737b5feac1fb86fecf7466b9f3e3d28c5861038b"
       },
       "python": "Set by the coordinator at run time",
       "version": "3.4.2"
     }
   },
   "schema": "faris-controlled-lifecycle-case/0.1.0",
-  "scope": "Authored verification-only blanket availability control. It exercises the native PROCESS Ward-Taylor availability submodel and native bluemira LifeCycle timeline. It is not experimental validation, a whole-plant model, or measured plant data."
+  "scope": "Authored verification-only blanket availability control with two operating campaigns and one inter-campaign replacement. It exercises the native PROCESS Ward-Taylor model and bluemira LifeCycle timeline. bluemira 2.14.0 receives disclosed zero-duration divertor compatibility phases that are outside the shared downtime scope. This is not experimental validation, a whole-plant model, or measured plant data."
 }

@@ -32,7 +32,7 @@
       "material_id": "copper-magnet-response-surrogate"
     }
   ],
-  "id": "arc-cold-reference-two-cycle-reference-physics-v1",
+  "id": "arc-cold-reference-one-boundary-outage-reference-physics-v1",
   "materials": [
     {
       "id": "tungsten-natural",
@@ -252,8 +252,8 @@
       "use": "Potential data source family; local cache provenance and license unresolved."
     }
   ],
-  "scenario_id": "arc-cold-reference-two-cycle-verify-001",
-  "scenario_sha256": "e3ef2707ff9f7cbbf9d5ef38e096d11949fdba57670a84c6cefe3da59eed4857",
+  "scenario_id": "arc-cold-reference-one-boundary-outage-verify-001",
+  "scenario_sha256": "af30bb88a853fc9f23618a922503ad1c3b9dafa54418c91634cf935115e05de7",
   "schema_version": "faris-physics-case/v0.1",
   "scientific_scope": {
     "description": "Cold-data numerical reference for implementation and conditional variant response comparison only. Scientific qualification and experimental validation NOT_EVALUATED.",

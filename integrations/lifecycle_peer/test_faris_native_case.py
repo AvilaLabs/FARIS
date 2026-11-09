@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright 2026 Avila Labs
+# SPDX-FileCopyrightText: 2026 Avila Labs
 from __future__ import annotations
 
 import importlib.util
@@ -51,7 +51,6 @@ class FarisNativeLifecycleCaseTests(unittest.TestCase):
         fixed = {"history_end_s": h, "outcome": "horizon_completed",
                  "replacements": [
                      {"class": "blanket", "start_s": 10.0, "end_s": 10.0 + d},
-                     {"class": "blanket", "start_s": 20.0, "end_s": 20.0 + d},
                  ], "lifetime_net_electricity_mwh": 99.0}
         computed = {"status": "EVALUATED", "summary": {
             "history_end_s": h, "outcome": "horizon_completed",

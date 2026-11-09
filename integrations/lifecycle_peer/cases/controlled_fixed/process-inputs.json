@@ -2,10 +2,10 @@
   "blanket_lifetime_fpy": 2.530595427793958,
   "blanket_replacement_days": 60.0,
   "combined_replacement_days": 0.0,
-  "divertor_lifetime_fpy": 5.3897329500437685,
+  "divertor_lifetime_fpy": 5.225442889963153,
   "divertor_replacement_days": 0.0,
   "net_electric_power_mw": 500.0,
-  "plant_horizon_years": 5.3897329500437685,
+  "plant_horizon_years": 5.225442889963153,
   "provenance": {
     "blanket_lifetime_fpy": {
       "kind": "authored",
@@ -21,7 +21,7 @@
     },
     "divertor_lifetime_fpy": {
       "kind": "authored",
-      "reference": "Authored at the explicit case horizon so the Ward-Taylor count rule yields no divertor replacement within this blanket-only verification horizon; divertor is out of scope."
+      "reference": "Authored at the same finite case horizon so the native PROCESS WARD_TAYLOR rule has one blanket replacement within the controlled horizon; divertor replacement time remains zero."
     },
     "divertor_replacement_days": {
       "kind": "authored",
@@ -33,23 +33,23 @@
     },
     "plant_horizon_years": {
       "kind": "authored",
-      "reference": "Authored as two [2.53059542779396 FPY blanket campaigns + 60 calendar-day replacement] cycles; source cycle is archived FARIS no-port__breeder fixed blanket interval 79859518.3 s."
+      "reference": "Authored as 2 × 79,859,518.2721506 s + 60 days − 600 s; the margin is one configured FARIS history step to avoid counting a replacement exactly at the horizon."
     },
     "pulse_burn_seconds": {
       "kind": "authored",
-      "reference": "Authored long-pulse verification boundary (one Julian year). Equal burn and total period suppress pulse-cycle downtime in PROCESS Availability."
+      "reference": "Authored 5,633 s repeat pulse boundary shared with bluemira; burn time equals pulse total so PROCESS adds no pulsing downtime."
     },
     "pulse_total_seconds": {
       "kind": "authored",
-      "reference": "Authored equal to burn period to encode no recharge interval in this restricted availability submodel case."
+      "reference": "Authored 5,633 s repeat pulse boundary shared with bluemira; burn time equals pulse total so PROCESS adds no pulsing downtime."
     },
     "unplanned_unavailability": {
       "kind": "authored",
       "reference": "Authored deterministic zero-unplanned verification control; values are not empirical failure rates."
     }
   },
-  "pulse_burn_seconds": 31557600.0,
-  "pulse_total_seconds": 31557600.0,
+  "pulse_burn_seconds": 5633.0,
+  "pulse_total_seconds": 5633.0,
   "unplanned_unavailability": {
     "uubop": 0.0,
     "uucd": 0.0,

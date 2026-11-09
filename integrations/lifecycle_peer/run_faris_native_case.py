@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
-# Copyright 2026 Avila Labs
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Execute native FARIS transport, history-rate binding, and ACTINV-coupled maintenance."""
 from __future__ import annotations
 import argparse
@@ -165,7 +165,7 @@ def native_check(result_path: Path) -> dict[str, Any]:
     checks = {
         "fixed_history_horizon_matches_peer_case": math.isclose(float(fixed.get("history_end_s", -1)), horizon, rel_tol=0, abs_tol=1e-6),
         "fixed_history_completed": fixed.get("outcome") == "horizon_completed",
-        "fixed_blanket_event_count_matches_control": len(fixed_events) == fixed_count,
+        "fixed_blanket_event_count_matches_one_boundary_replacement": len(fixed_events) == fixed_count,
         "fixed_event_duration_is_60_days": all(e.get("end_s") is not None and math.isclose(e["end_s"] - e["start_s"], fixed_duration, rel_tol=0, abs_tol=1e-6) for e in fixed_events),
         "computed_history_evaluated": computed.get("status") == "EVALUATED" and summary is not None,
         "computed_history_horizon_matches_peer_case": summary is not None and math.isclose(float(summary.get("history_end_s", -1)), horizon, rel_tol=0, abs_tol=1e-6),

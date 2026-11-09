@@ -9,20 +9,21 @@
     "Cold-data reference uses physical material temperature unspecified (None); nuclear data target 293.6 K and nearest library temperature match must be within 0.1 K.",
     "Elemental and compound densities/compositions are authored or literature-derived surrogates; no material is asserted to represent hot liquid blanket, Inconel vessel, packed TiH2 shield, or superconducting magnet.",
     "Neutron-only transport responses are per source neutron; no local deposited-heat response or plant electricity claim.",
-    "The 5.3897-year horizon is authored for a two-cycle blanket-maintenance verification case; it is not a plant-life estimate.",
-    "Maintenance event timing uses an authored integrated blanket-flux threshold derived from the native transport rate to produce the archived 79,859,518.2721506 s operating interval; this is not a material limit or measured lifetime."
+    "Maintenance event timing uses an authored integrated blanket-flux threshold derived from the native transport rate to produce the archived 79,859,518.2721506 s operating interval; this is not a material limit or measured lifetime.",
+    "The 5.22544288996315-year horizon is authored as two 79,859,518.2721506 s blanket campaigns with one 60-day replacement between them, ending 600 s before the second replacement threshold; it is not a plant-life estimate.",
+    "Maintenance event timing uses an authored integrated blanket-flux threshold derived from the native transport rate. The threshold interval is a software verification trigger, not a material limit or measured lifetime."
   ],
-  "description": "Authored, scope-limited verification scenario retaining the cold-reference geometry and materials while setting a two-cycle calendar horizon. Not experimental validation.",
+  "description": "Authored, scope-limited verification scenario retaining cold-reference geometry and materials for two blanket campaigns with one inter-campaign replacement. Not experimental validation.",
   "geometry": {
     "major_radius_m": 3.3,
     "plasma_minor_radius_m": 1.0,
     "plasma_to_first_wall_gap_m": 0.08,
     "radial_build_m": 1.2
   },
-  "id": "arc-cold-reference-two-cycle-verify-001",
+  "id": "arc-cold-reference-one-boundary-outage-verify-001",
   "operating_plan": {
     "fusion_power_mw": 525.0,
-    "horizon_years": 5.389732950043768
+    "horizon_years": 5.225442889963153
   },
   "references": [
     {
@@ -63,7 +64,7 @@
     }
   ],
   "schema_version": "faris-scenario/v0.1",
-  "title": "Cold reference, two-cycle maintenance verification",
+  "title": "Cold reference, one-boundary-outage maintenance verification",
   "variants": [
     {
       "id": "reference",

@@ -20,7 +20,11 @@ For `no-port__breeder`, the archive records 11 fixed blanket events at 60 days e
 
 ## Authored controlled verification case
 
-`cases/controlled_fixed/manifest.json` now defines a two-cycle blanket-only control case. It uses the FARIS archived fixed blanket inter-event operating interval (79,859,518.2721506 seconds), an authored 60-day fixed blanket maintenance duration, and an explicit two-cycle horizon. PROCESS receives the explicit blanket life, pulse boundary, replacement durations, and zero-unplanned assumption. bluemira receives the fixed duration and an authored DPA threshold that encodes the same interval for its native damage-governed maintenance. That DPA mapping uses the documented EU-DEMO example's 10.2 dpa/FPY, scaled to the shared authored 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or represent a measurement. Divertor/vessel/TF sentinel limits keep this case scoped to blanket replacement. One remote-handling system and 500 MW(e) are authored shared boundaries; bluemira has no matching native remote-handling count or electric-power calculation, so those values do not imply peer throughput or native MWh output.
+`cases/controlled_fixed/manifest.json` defines two authored blanket operating campaigns and one completed replacement between them. The campaign interval is the archived FARIS fixed-history value (79,859,518.2721506 s); maintenance duration is 60 days. The case horizon is two campaign intervals plus the one replacement, minus a 600 s terminal margin (one configured FARIS history step) so a replacement exactly at the horizon is not counted. This yields 5.225442889963153 authored years. PROCESS receives the explicit blanket life, pulse boundary, replacement duration, and zero-unplanned assumption.
+
+bluemira 2.14.0 receives the same 60-day replacement as 5,184,000 seconds: its `LifeCycleParams.bmd` field is seconds internally, though its field documentation describes days. The blanket damage rate and limits are authored from the documented EU-DEMO example's 10.2 dpa/FPY, scaled to the shared 525 MW fusion boundary; this does not establish FARIS fluence-to-DPA equivalence or represent a measurement. The pinned 2.14.0 phase builder leaves `count2` undefined when the second blanket interval has no divertor change. To run its native LifeCycle path without modifying upstream source, this case sets an explicit 1 dpa/FPY divertor compatibility rate, a 0.4-campaign DPA limit, and zero-second divertor maintenance. That creates four native zero-duration divertor phases; they are disclosed compatibility scaffolding, not physical inputs and do not contribute downtime. Vessel and TF limits remain high sentinels. The worker records actual timeline horizon and full-power years from `Timeline.plant_life` and `Timeline.ft[-1]`, rather than the continuous damage-budget value on `LifeCycle.fpy`.
+
+The comparison keeps its strict 1e-6 horizon and native availability checks. A source-inspected difference in bluemira's pulse-array endpoint convention can leave the actual availability outside that tolerance; the runner reports that native result as incomplete and does not adjust outputs or tolerances. One remote-handling system and 500 MW(e) are authored shared boundaries; bluemira has no matching native remote-handling count or electric-power calculation, so those values do not imply peer throughput or native MWh output.
 
 This case invokes the actual PROCESS `Availability.run(WARD_TAYLOR)` API with physics lifetime calculation bypassed and explicit lives. It invokes the actual bluemira `LifeCycle.make_timeline()` loop. For the deterministic control, a small subclass of bluemira's documented `LogNormalAvailabilityStrategy` overrides only its documented `generate_distribution(n, integral)` extension point to return zero unplanned downtime; it raises if the API asks it to represent positive unplanned downtime. Blanket damage limits still govern the native maintenance timeline. This is a scoped verification harness, not a whole PROCESS system-code run or physical validation.
 
@@ -37,7 +41,7 @@ python3 integrations/lifecycle_peer/run_faris_native_case.py \
   --audit /path/to/read-only-audit.json \
   --actinv /path/to/actinv \
   --data-dir /path/to/actinv-data \
-  --out runs/peer-lifecycle/no-port-breeder-two-blanket-cycles/faris
+  --out runs/peer-lifecycle/no-port-breeder-one-boundary-outage-control/faris
 ```
 
 This native case is authored cold-data code verification, not experimental validation. It must complete successfully before the peer control can be described as a FARIS-matched comparison.
@@ -48,10 +52,10 @@ After the coordinator creates the separately pinned PROCESS 3.4.2 and bluemira 2
 python3 integrations/lifecycle_peer/run_controlled_case.py \
   --process-python /path/to/process-env/bin/python \
   --bluemira-python /path/to/bluemira-env/bin/python \
-  --out runs/peer-lifecycle/no-port-breeder-two-blanket-cycles
+  --out runs/peer-lifecycle/no-port-breeder-one-boundary-outage-control
 ```
 
-The runner checks input hashes, launches each native API in a bounded separate process, and keeps the peer timelines/metrics under the selected output directory. It reports a matched controlled baseline only when both native outputs confirm the horizon, two blanket replacements, zero unplanned downtime, and availability agreement within 1e-6. Any failed check leaves the comparison incomplete. FARIS's 30-year fixed/computed outputs are reported separately and are never treated as matched peer outputs. No external framework was installed or executed when this case was authored.
+The runner checks input hashes, launches each native API in a bounded separate process, and keeps the peer timelines/metrics under the selected output directory. It reports a matched controlled baseline only when native outputs confirm the horizon, one completed blanket replacement, zero unplanned downtime, zero planned time from the bluemira compatibility phases, and availability agreement within 1e-6. Any failed check leaves the comparison incomplete. FARIS's 30-year fixed/computed outputs are reported separately and are never treated as matched peer outputs. No external framework was installed or executed when this case was authored.
 
 ## Sources, versions and licenses
 

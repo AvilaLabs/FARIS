@@ -88,6 +88,40 @@ def make_availability(spec: dict[str, Any], seed: int):
     return cls(**args)
 
 
+def native_timeline_metrics(lifecycle: Any, actual: str, seed: int) -> dict[str, Any]:
+    """Read actual metrics from the pinned LifeCycle's returned native Timeline."""
+    timeline = lifecycle.T
+    calendar_years = json_safe(getattr(timeline, "plant_life", None))
+    ft = getattr(timeline, "ft", None)
+    full_power_years = json_safe(ft[-1] if ft is not None and len(ft) else None)
+    effective_availability = None
+    if (isinstance(calendar_years, (int, float)) and math.isfinite(calendar_years) and calendar_years > 0
+            and isinstance(full_power_years, (int, float)) and math.isfinite(full_power_years)):
+        effective_availability = float(full_power_years) / float(calendar_years)
+    return {
+        "version": actual,
+        "calendar_years": calendar_years,
+        "full_power_years": full_power_years,
+        "overall_availability": effective_availability,
+        "operational_load_factor_input": json_safe(getattr(lifecycle.params, "A_global", None)),
+        "planned_maintenance": json_safe(getattr(lifecycle, "total_planned_maintenance", None)),
+        "ramp_time": json_safe(getattr(lifecycle, "total_ramptime", None)),
+        "unplanned_downtime": json_safe(getattr(lifecycle, "t_unplanned_m", None)),
+        "blanket_replacements": json_safe(getattr(lifecycle, "n_blk_replace", None)),
+        "divertor_replacements": json_safe(getattr(lifecycle, "n_div_replace", None)),
+        "continuous_damage_budget_fpy_input": json_safe(getattr(lifecycle, "fpy", None)),
+        "native_timeline_maintenance_phase_names": [
+            name for name in getattr(lifecycle, "phase_names", []) if "Phase M" in name
+        ],
+        "native_timeline_operation_phase_names": [
+            name for name in getattr(lifecycle, "phase_names", []) if "Phase P" in name
+        ],
+        "timeline_metrics_basis": "actual pulse-resolved bluemira Timeline.plant_life and Timeline.ft[-1]; not the continuous LifeCycle.fpy budget",
+        "rng_seed": seed,
+        "source_api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline",
+    }
+
+
 def main() -> int:
     if len(sys.argv) != 5:
         raise SystemExit("usage: bluemira_worker.py CONFIG.json OUTPUT.json RNG_SEED EXPECTED_VERSION")
@@ -116,26 +150,7 @@ def main() -> int:
                           config["inputs"], rng_seed=seed_text_to_int(seed_text))
     timeline = lifecycle.make_timeline()
     lifecycle.write(str(output_path))
-    calendar_years = json_safe(getattr(lifecycle, "T", None))
-    full_power_years = json_safe(getattr(lifecycle, "fpy", None))
-    effective_availability = None
-    if (isinstance(calendar_years, (int, float)) and math.isfinite(calendar_years) and calendar_years > 0
-            and isinstance(full_power_years, (int, float)) and math.isfinite(full_power_years)):
-        effective_availability = float(full_power_years) / float(calendar_years)
-    native_metrics = {
-        "version": actual,
-        "calendar_years": calendar_years,
-        "full_power_years": full_power_years,
-        "overall_availability": effective_availability,
-        "target_global_availability": json_safe(getattr(lifecycle, "A_global", None)),
-        "planned_maintenance": json_safe(getattr(lifecycle, "total_planned_maintenance", None)),
-        "ramp_time": json_safe(getattr(lifecycle, "total_ramptime", None)),
-        "unplanned_downtime": json_safe(getattr(lifecycle, "t_unplanned_m", None)),
-        "blanket_replacements": json_safe(getattr(lifecycle, "n_blk_replace", None)),
-        "divertor_replacements": json_safe(getattr(lifecycle, "n_div_replace", None)),
-        "rng_seed": seed_text_to_int(seed_text),
-        "source_api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline",
-    }
+    native_metrics = native_timeline_metrics(lifecycle, actual, seed_text_to_int(seed_text))
     print(json.dumps(native_metrics, allow_nan=False))
     return 0
 
