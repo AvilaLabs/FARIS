@@ -86,6 +86,46 @@ def make_root(d: Path, now="Met", traced=True, matrix=None):
         write(d / "validation" / "matrix.json", json.dumps(matrix))
 
 
+def make_val023_root(d: Path, now="No", val023_marker=True):
+    plan = PLAN.replace("- **First:** AAA-001, AAA-002.", "- **First:** AAA-001.")
+    plan = plan.replace("- **Second:** BBB-001\n  (or its access outcome recorded).",
+                        "- **Validation:** VAL-023 (or its access outcome recorded).")
+    write(d / "docs" / "NEXT_RELEASE_PLAN.md", plan)
+    write(d / "docs" / "requirements" / "01-a.md", row("AAA-001", "Met") + row("VAL-023", now))
+    markers = "AAA-001, VAL-023" if val023_marker else "AAA-001"
+    write(d / "scripts" / "test_fixture.py", f"{MARK}{markers}\ndef test_x():\n    pass\n")
+    good_suite(d)
+    matrix_path = d / "validation" / "matrix.json"
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    dose_row = dict(matrix["rows"][0])
+    dose_row.update({"quantity": "shutdown_dose_rate", "benchmark_id": "none", "evidence_class": "none",
+                     "status": "not validated", "reason": "no FNG shutdown-dose benchmark is registered",
+                     "next_step": "record the access outcome and obtain the benchmark data"})
+    matrix["rows"].append(dose_row)
+    write(matrix_path, json.dumps(matrix))
+
+
+def val023_access_evidence(d: Path, **changes):
+    evidence_dir = d / "access-evidence"
+    source = evidence_dir / "access-observation.txt"
+    write(source, "Documented observation of benchmark data access status.\n")
+    artifact = {
+        "schema": "faris.validation-access-outcome/1.0.0",
+        "requirement_id": "VAL-023",
+        "outcome": "access_not_obtained",
+        "status": "NOT_EVALUATED",
+        "matrix_status": "not validated",
+        "reason": "The benchmark data has not been obtained under terms allowing this validation.",
+        "next_step": "Seek permitted access or an openly licensed equivalent, then register and score the case.",
+        "observations": [{"date": TODAY.isoformat(), "observation": "Access was not obtained as of this review."}],
+        "supporting_files": [{"path": source.name, "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}],
+    }
+    artifact.update(changes)
+    path = evidence_dir / "val023-access-outcome.json"
+    write(path, json.dumps(artifact))
+    return path
+
+
 def make_report(d: Path, report=None):
     """A V&V report directory and the release record that carries its hash."""
     report = report or good_suite(d / "tree")
@@ -158,6 +198,91 @@ class ReleaseGate(unittest.TestCase):
             rg.gate_ids(self.d)
 
     # Verifies: QA-070
+    def test_val023_access_outcome_is_an_explicit_non_met_alternative(self):
+        make_val023_root(self.d)
+        self.assertEqual(rg.gate_ids(self.d), ["AAA-001", "VAL-023"])
+        path = val023_access_evidence(self.d)
+        gate = rg.Gate(self.d, validation_access_outcome=path, today=TODAY)
+        passed, reason = rg.check_gate_ids_met(gate)
+        self.assertTrue(passed, reason)
+        self.assertIn("1 gate requirements are Met", reason)
+        self.assertIn("access outcome recorded", reason)
+        self.assertIn("VAL-023 remains NOT_EVALUATED", reason)
+        self.assertEqual(rg.read_statuses(self.d)["VAL-023"], "No")
+        write(self.d / "docs" / "requirements" / "01-a.md", row("AAA-001", "Partial") + row("VAL-023", "No"))
+        passed, reason = rg.check_gate_ids_met(gate)
+        self.assertFalse(passed)
+        self.assertIn("AAA-001 (Partial)", reason)
+        self.assertIn("access outcome recorded; VAL-023 remains NOT_EVALUATED", reason)
+
+    # Verifies: QA-070
+    def test_val023_access_alternative_requires_explicit_plan_authorization_and_evidence(self):
+        make_val023_root(self.d)
+        gate = rg.Gate(self.d, today=TODAY)
+        passed, reason = rg.check_gate_ids_met(gate)
+        self.assertFalse(passed)
+        self.assertIn("VAL-023 access outcome not accepted", reason)
+        self.assertIn("no VAL-023 validation access-outcome evidence given", reason)
+
+        plan = self.d / "docs" / "NEXT_RELEASE_PLAN.md"
+        write(plan, plan.read_text(encoding="utf-8").replace(" (or its access outcome recorded)", ""))
+        passed, reason = rg.check_gate_ids_met(gate)
+        self.assertFalse(passed)
+        self.assertIn("VAL-023 (No)", reason)
+
+    # Verifies: QA-070
+    def test_val023_access_alternative_rejects_invalid_artifacts_and_matrix_rows(self):
+        make_val023_root(self.d)
+        name = "gate requirements Met"
+
+        def result(path):
+            return results(rg.Gate(self.d, validation_access_outcome=path, today=TODAY))[name]
+
+        missing = val023_access_evidence(self.d)
+        self.assertTrue(result(missing)[0])
+        artifact = json.loads(missing.read_text(encoding="utf-8"))
+
+        write(missing, "{malformed json")
+        self.assertIn("not valid JSON", result(missing)[1])
+
+        bad_requirement = dict(artifact, requirement_id="VAL-021")
+        write(missing, json.dumps(bad_requirement))
+        self.assertIn("must name VAL-023", result(missing)[1])
+
+        spoof = dict(artifact, status="PASS", matrix_status="validated within range")
+        write(missing, json.dumps(spoof))
+        self.assertIn("leave VAL-023 NOT_EVALUATED", result(missing)[1])
+
+        write(missing, json.dumps(artifact))
+        evidence_file = missing.parent / artifact["supporting_files"][0]["path"]
+        write(evidence_file, "changed after it was hash pinned\n")
+        self.assertIn("hash mismatch", result(missing)[1])
+
+        write(evidence_file, "Documented observation of benchmark data access status.\n")
+        matrix_path = self.d / "validation" / "matrix.json"
+        matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+        matrix["rows"][-1]["status"] = "validated within range"
+        write(matrix_path, json.dumps(matrix))
+        self.assertIn("every such row must remain 'not validated'", result(missing)[1])
+
+        matrix["rows"][-1]["status"] = "not validated"
+        matrix["rows"][-1]["reason"] = " "
+        write(matrix_path, json.dumps(matrix))
+        self.assertIn("V&V matrix is invalid", result(missing)[1])
+
+        matrix["rows"][-1]["reason"] = "no FNG shutdown-dose benchmark is registered"
+        write(matrix_path, json.dumps(matrix))
+        matrix_path.unlink()
+        self.assertIn("V&V matrix", result(missing)[1])
+
+    # Verifies: QA-070
+    def test_val023_met_uses_the_normal_requirement_gate(self):
+        make_val023_root(self.d, now="Met")
+        passed, reason = rg.check_gate_ids_met(rg.Gate(self.d, today=TODAY))
+        self.assertTrue(passed, reason)
+        self.assertIn("all 2 gate requirements are Met", reason)
+
+    # Verifies: QA-070
     def test_trace_gap_and_unknown_marker_fail(self):
         make_root(self.d, traced=False)
         passed, reason = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))["requirement-to-test trace complete"]
@@ -165,6 +290,29 @@ class ReleaseGate(unittest.TestCase):
         self.assertIn("none for AAA-002, BBB-001", reason)
         write(self.d / "scripts" / "test_more.py", f"{MARK}ZZZ-999\n")
         self.assertIn("unknown requirements: ZZZ-999", results(rg.Gate(self.d, commit=COMMIT, terms=TERMS))["requirement-to-test trace complete"][1])
+
+    # Verifies: QA-070
+    def test_val023_access_trace_is_scoped_and_does_not_claim_benchmark_coverage(self):
+        make_val023_root(self.d, val023_marker=False)
+        path = val023_access_evidence(self.d)
+        trace = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS,
+                                validation_access_outcome=path, today=TODAY))["requirement-to-test trace complete"]
+        self.assertTrue(trace[0], trace[1])
+        self.assertIn("1 gate requirements have test markers", trace[1])
+        self.assertIn("VAL-023 access-outcome checker is recorded separately", trace[1])
+        self.assertIn("does not claim physical test coverage or Met status", trace[1])
+        self.assertEqual(rg.read_statuses(self.d)["VAL-023"], "No")
+
+        missing = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS, today=TODAY))["requirement-to-test trace complete"]
+        self.assertFalse(missing[0])
+        self.assertIn("none for VAL-023", missing[1])
+
+        artifact = json.loads(path.read_text(encoding="utf-8"))
+        write(path, json.dumps(dict(artifact, status="PASS")))
+        invalid = results(rg.Gate(self.d, commit=COMMIT, terms=TERMS,
+                                  validation_access_outcome=path, today=TODAY))["requirement-to-test trace complete"]
+        self.assertFalse(invalid[0])
+        self.assertIn("none for VAL-023", invalid[1])
 
     # Verifies: QA-070
     def test_missing_evidence_fails_and_never_passes_by_default(self):

@@ -378,6 +378,9 @@ basis.
 
 ### Fixed
 
+- The release gate now checks the plan's explicit VAL-023 access-outcome alternative without marking the
+  benchmark validated or exempting other requirements. The recorded review distinguishes the public curve from
+  the missing uncertainty, provenance and permitted-use basis needed for the complete benchmark.
 - Validation comparisons now return INCONCLUSIVE when a supplied Monte Carlo uncertainty is non-finite,
   negative or a boolean. Such an input previously bypassed the precision check and could produce PASS.
 - Large machines no longer fail writing their weight windows: `faris design transport` died with "File too large"

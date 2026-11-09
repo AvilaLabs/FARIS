@@ -56,7 +56,8 @@ expert review.
 
 "Best in class" is decided by the existing [requirements](requirements/README.md),
 not by description. The release gate is a fixed list of requirement IDs that must
-be **Met**, decided by checkers (QA-002, QA-070); see [Release gate](#release-gate).
+be **Met**, apart from the explicitly approved VAL-023 access-outcome alternative,
+decided by checkers (QA-002, QA-070); see [Release gate](#release-gate).
 Every other requirement keeps its honest current status, and every displayed
 number carries its validation state (VAL-054). Where this plan needs a
 requirement changed, it says so, and the change goes through the requirements'
@@ -255,6 +256,13 @@ that depends on it starts.
      points to SINBAD; no FNG measured values were found there.
    - IAEA-NDS/open-benchmarks (CC-BY-4.0) holds FNS, OKTAVIAN and TIARA data but
      no FNG.
+   - Review 2026-11-09: the public SINBAD v2 terms distinguish outputs that no
+     longer contain the dataset, so the older v1 output-language concern above
+     is historical. The public Zenodo v2 research archive contains an experimental
+     curve, but its per-point uncertainty, provenance and reuse basis remain
+     incomplete for VAL-023. The [access outcome](validation-access/val023/access-outcome.json)
+     records this distinction and its source observations. VAL-023 remains
+     NOT_EVALUATED and shutdown dose remains not validated.
 6. **OpenMC version.** 0.15.3 and 0.16.0 are both installed with DAGMC. Pick one
    before transport work, since the workarounds above are version-specific.
 7. **Memory for conversion of large models.** Conversion runs under the bounded

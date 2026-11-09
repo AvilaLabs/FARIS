@@ -10,7 +10,7 @@ It prints one line per condition, PASS or FAIL with the reason, and exits 1 unle
 
 Conditions read from the repository (--root, default this checkout):
 - every requirement ID in the "Release gate" list of docs/NEXT_RELEASE_PLAN.md is Met in the requirement
-  tables (the list is parsed, never copied);
+  tables (the list is parsed, never copied), except VAL-023 may use the plan's explicit access-outcome branch;
 - the requirement-to-test trace is complete for those IDs (QA-002): each has a Verifies: marker and no
   marker names an unknown requirement;
 - the V&V matrix (validation/matrix.json) has no blank cell, and a quantity with no benchmark is labelled
@@ -100,6 +100,7 @@ class Gate:
         self.matrix: Path | None = None
         self.vv_report: Path | None = None
         self.release_record: Path | None = None
+        self.validation_access_outcome: Path | None = None
         self.evidence = {name: None for name in ("tests", "perf", "defects", "fuzz", "repro", "doc_tests", "a11y_baseline")}
         self.repo_checks = False  # the command line turns these on; run_gate on a fixture tree leaves them off
         self.faris: Path | None = None
@@ -109,8 +110,8 @@ class Gate:
             for key, value in source.items():
                 if key in self.evidence:
                     self.evidence[key] = Path(value) if value else None
-                elif key in ("today", "commit", "terms", "matrix", "vv_report", "release_record", "faris", "cargo", "repo_checks") and value is not None:
-                    setattr(self, key, Path(value) if key in ("matrix", "vv_report", "release_record", "faris") else value)
+                elif key in ("today", "commit", "terms", "matrix", "vv_report", "release_record", "validation_access_outcome", "faris", "cargo", "repo_checks") and value is not None:
+                    setattr(self, key, Path(value) if key in ("matrix", "vv_report", "release_record", "validation_access_outcome", "faris") else value)
         if self.matrix is None:
             self.matrix = self.root / "validation" / "matrix.json"
         if self.commit is None:
@@ -206,17 +207,132 @@ def read_markers(root: Path) -> tuple[set[str], list[str]]:
 def check_gate_ids_met(g: Gate):
     ids = gate_ids(g.root)
     status = read_statuses(g.root)
+    access_branch = val023_access_branch_authorized(g.root)
     unknown = [i for i in ids if i not in status]
-    not_met = [i for i in ids if i in status and status[i] != "Met"]
-    met = len(ids) - len(unknown) - len(not_met)
+    access_recorded = False
+    not_met = []
+    for rid in ids:
+        if rid not in status or status[rid] == "Met":
+            continue
+        if rid == "VAL-023" and access_branch:
+            passed, _ = check_val023_access_outcome(g)
+            if passed:
+                access_recorded = True
+                continue
+        not_met.append(rid)
+    met = len(ids) - len(unknown) - len(not_met) - int(access_recorded)
     if unknown or not_met:
         parts = [f"{met} of {len(ids)} gate requirements are Met"]
         if not_met:
             parts.append("not Met: " + ", ".join(f"{i} ({status[i]})" for i in not_met))
+            if "VAL-023" in not_met and access_branch:
+                _, access_reason = check_val023_access_outcome(g)
+                parts.append("VAL-023 access outcome not accepted: " + access_reason)
         if unknown:
             parts.append("not in any requirement table: " + ", ".join(unknown))
+        if access_recorded:
+            parts.append("access outcome recorded; VAL-023 remains NOT_EVALUATED")
         return False, "; ".join(parts)
+    if access_recorded:
+        return True, f"{met} gate requirements are Met; access outcome recorded; VAL-023 remains NOT_EVALUATED"
     return True, f"all {len(ids)} gate requirements are Met"
+
+
+def val023_access_branch_authorized(root: Path) -> bool:
+    """Only the exact VAL-023 alternative approved in the current release plan authorizes this branch."""
+    try:
+        lines = (root / PLAN).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+    try:
+        start = next(i for i, line in enumerate(lines) if re.match(r"^##\s+Release gate\s*$", line))
+    except StopIteration:
+        return False
+    section = []
+    for line in lines[start + 1:]:
+        if line.startswith("## "):
+            break
+        section.append(line)
+    body = "\n".join(section)
+    return bool(re.search(r"(?m)^-\s+\*\*Validation:\*\*[^\n]*\bVAL-023 \(or its access outcome recorded\)", body))
+
+
+def check_val023_access_outcome(g: Gate) -> tuple[bool, str]:
+    """Check the narrowly approved access alternative without turning it into a physical verdict."""
+    if not val023_access_branch_authorized(g.root):
+        return False, "the current release plan does not authorize the VAL-023 access-outcome alternative"
+    status = read_statuses(g.root).get("VAL-023")
+    if status is None:
+        return False, "VAL-023 is not present in the requirement tables"
+    if status == "Met":
+        return False, "VAL-023 is Met; the access-outcome alternative is not applicable"
+    try:
+        matrix = read_json(g.matrix, "V&V matrix")
+    except (ValueError, OSError) as e:
+        return False, str(e)
+    rows = [r for r in matrix.get("rows", []) if isinstance(r, dict) and r.get("quantity") == "shutdown_dose_rate"] if isinstance(matrix, dict) else []
+    if not rows or any(r.get("status") != vv_matrix.NOT_VALIDATED for r in rows):
+        return False, "the V&V matrix must contain shutdown_dose_rate rows and every such row must remain 'not validated'"
+    try:
+        matrix_problems = vv_matrix.check_matrix(matrix)
+    except (TypeError, AttributeError) as e:
+        return False, f"the V&V matrix is malformed: {e}"
+    if matrix_problems:
+        return False, "the V&V matrix is invalid: " + "; ".join(matrix_problems[:3])
+
+    try:
+        artifact = read_json(g.validation_access_outcome, "VAL-023 validation access-outcome evidence")
+        required = {"schema", "requirement_id", "outcome", "status", "matrix_status", "reason", "next_step", "observations", "supporting_files"}
+        if not isinstance(artifact, dict) or set(artifact) != required:
+            return False, "access-outcome evidence must contain exactly the documented schema fields"
+        if artifact["schema"] != "faris.validation-access-outcome/1.0.0":
+            return False, "access-outcome evidence has an unsupported schema"
+        if artifact["requirement_id"] != "VAL-023":
+            return False, "access-outcome evidence must name VAL-023"
+        if artifact["outcome"] != "access_not_obtained":
+            return False, "the approved alternative requires outcome 'access_not_obtained'"
+        if artifact["status"] != "NOT_EVALUATED" or artifact["matrix_status"] != vv_matrix.NOT_VALIDATED:
+            return False, "an access outcome must leave VAL-023 NOT_EVALUATED and the matrix not validated"
+        for field in ("reason", "next_step"):
+            if not isinstance(artifact[field], str) or not artifact[field].strip():
+                return False, f"access-outcome evidence needs a non-empty {field}"
+        observations = artifact["observations"]
+        if not isinstance(observations, list) or not observations:
+            return False, "access-outcome evidence needs at least one dated observation"
+        for i, observation in enumerate(observations):
+            if not isinstance(observation, dict) or set(observation) != {"date", "observation"}:
+                return False, f"observation {i + 1} must contain exactly date and observation"
+            try:
+                if not isinstance(observation["date"], str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", observation["date"]):
+                    return False, f"observation {i + 1} needs a YYYY-MM-DD date"
+                observed = date.fromisoformat(observation["date"])
+            except (TypeError, ValueError):
+                return False, f"observation {i + 1} needs a YYYY-MM-DD date"
+            if observed > g.today:
+                return False, f"observation {i + 1} is dated after the gate date"
+            if not isinstance(observation["observation"], str) or not observation["observation"].strip():
+                return False, f"observation {i + 1} needs non-empty text"
+        supporting_files = artifact["supporting_files"]
+        if not isinstance(supporting_files, list) or not supporting_files:
+            return False, "access-outcome evidence needs at least one hash-pinned supporting file"
+        base = g.validation_access_outcome.resolve().parent
+        for i, item in enumerate(supporting_files):
+            if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+                return False, f"supporting file {i + 1} must contain exactly path and sha256"
+            rel = Path(item["path"]) if isinstance(item["path"], str) else Path(".")
+            if rel.is_absolute() or ".." in rel.parts or not isinstance(item["path"], str):
+                return False, f"supporting file {i + 1} path must stay relative to the evidence file"
+            path = (base / rel).resolve()
+            if not path.is_relative_to(base) or not path.is_file():
+                return False, f"supporting file {item['path']!r} is absent or outside the evidence directory"
+            if not isinstance(item["sha256"], str) or not SHA256.fullmatch(item["sha256"]):
+                return False, f"supporting file {item['path']!r} needs a 64-character SHA-256"
+            actual = sha256_file(path)
+            if actual != item["sha256"]:
+                return False, f"supporting file {item['path']!r} hash mismatch"
+    except (ValueError, OSError, TypeError, KeyError) as e:
+        return False, str(e)
+    return True, "access outcome recorded; VAL-023 remains NOT_EVALUATED"
 
 
 def check_trace(g: Gate):
@@ -224,15 +340,29 @@ def check_trace(g: Gate):
     named, empty = read_markers(g.root)
     known = set(read_statuses(g.root))
     untraced = [i for i in ids if i not in named]
+    access_recorded = False
+    if "VAL-023" in untraced and val023_access_branch_authorized(g.root):
+        access_recorded, _ = check_val023_access_outcome(g)
+        if access_recorded:
+            untraced.remove("VAL-023")
     unknown = sorted(named - known)
     problems = []
     if untraced:
-        problems.append(f"{len(ids) - len(untraced)} of {len(ids)} gate requirements have a test marker; none for " + ", ".join(untraced))
+        marker_count = len(ids) - len(untraced) - int(access_recorded)
+        detail = f"{marker_count} of {len(ids)} gate requirements have a test marker; none for " + ", ".join(untraced)
+        if access_recorded:
+            detail += "; VAL-023 access-outcome checker is recorded separately and does not claim physical test coverage"
+        problems.append(detail)
     if unknown:
         problems.append("markers name unknown requirements: " + ", ".join(unknown))
     if empty:
         problems.append("markers naming no requirement: " + ", ".join(empty))
-    return (False, "; ".join(problems)) if problems else (True, f"all {len(ids)} gate requirements have a test marker")
+    if problems:
+        return False, "; ".join(problems)
+    if access_recorded:
+        return True, (f"{len(ids) - 1} gate requirements have test markers; VAL-023 access-outcome checker is recorded separately; "
+                      "this does not claim physical test coverage or Met status")
+    return True, f"all {len(ids)} gate requirements have a test marker"
 
 
 def check_matrix(g: Gate):
@@ -654,6 +784,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--matrix", type=Path, help="V&V matrix (default: validation/matrix.json under --root)")
     ap.add_argument("--vv-report", type=Path, help="directory holding report.json and report.md")
     ap.add_argument("--release-record", type=Path, help="JSON release record holding vv_report_sha256")
+    ap.add_argument("--validation-access-outcome", type=Path,
+                    help="hash-pinned evidence for the release plan's VAL-023 access-outcome alternative")
     ap.add_argument("--tests", type=Path, help="test results evidence")
     ap.add_argument("--perf", type=Path, help="performance gate evidence")
     ap.add_argument("--defects", type=Path, help="defect log")

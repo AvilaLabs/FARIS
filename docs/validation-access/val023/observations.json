@@ -1,0 +1,33 @@
+{
+  "schema": "faris.validation-access-observations/1.0.0",
+  "checked": "2026-11-09",
+  "scope": "FNG-ITER shutdown-dose benchmark evidence required by VAL-023; access review only, no validation result",
+  "sources": [
+    {
+      "url": "https://zenodo.org/records/15684390",
+      "version": "v2, published 2025-06-17",
+      "observation": "The record provides a public research archive; its displayed License field is empty."
+    },
+    {
+      "url": "https://zenodo.org/records/15684390/files/research_data.tar.xz?download=1",
+      "bytes": 31465960,
+      "provider_md5": "2445a37b47376e94bc22dc93817bfb62",
+      "observed_sha256": "74814e27e15cf8eb63ed79c537c48359089f10aedfc48954205123e311b965bc",
+      "observation": "Bounded read-only inspection found 49 members and 34,115,449 expanded bytes. models/fng_dose/experiment.txt has 1,964 two-column numeric records plotted as experiment by figures/plot_fng_results.py. No per-point uncertainty columns, README, license, or data provenance statement were found. No benchmark values are included in this record."
+    },
+    {
+      "url": "https://www.oecd-nea.org/tools/files/sinbadv2v1-2.pdf",
+      "observation": "The public SINBAD v2 Volume 1 terms specify organization/intended-use-bound single-user access and prohibit dataset redistribution. Article 4 distinguishes outputs that no longer contain the dataset. These terms supersede relying on the historical v1 output-language concern in the release plan; this review does not establish a license for the Zenodo deposit."
+    },
+    {
+      "url": "https://nds.iaea.org/conderc/",
+      "observation": "The inspected CoNDERC index identifies FNG streaming data; a complete FNG shutdown-dose measurement series with experimental error bars was not located there."
+    }
+  ],
+  "remaining_evidence": [
+    "Source provenance and permitted use of the public experimental curve",
+    "Experimental uncertainty and confidence convention at every required published cooling time",
+    "Registered benchmark case, matched irradiation/location/source definitions, decay-photon cross-check, and actual scored transport evidence"
+  ],
+  "conclusion": "Numerical experimental data is publicly accessible. The complete provenance/uncertainty/permission basis needed for the required scoped benchmark has not been obtained or verified. This is not a claim that public measurements do not exist."
+}

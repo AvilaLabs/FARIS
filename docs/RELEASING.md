@@ -11,8 +11,8 @@ condition passes. It uses only the Python standard library.
 
 | Condition | Where it comes from |
 | --- | --- |
-| Every ID in the "Release gate" list of `docs/NEXT_RELEASE_PLAN.md` is Met | read from the requirement tables; the list is parsed from the plan |
-| The requirement-to-test trace is complete for those IDs, and no marker names an unknown requirement (QA-002) | `Verifies:` markers in the source tree |
+| Every ID in the "Release gate" list of `docs/NEXT_RELEASE_PLAN.md` is Met, except the specifically approved VAL-023 access-outcome alternative | requirement tables and the exact VAL-023 parenthetical in the plan; VAL-023's alternative requires `--validation-access-outcome` evidence |
+| The requirement-to-test trace is complete for those IDs, and no marker names an unknown requirement (QA-002) | `Verifies:` markers in the source tree; the authorized VAL-023 access branch is accounted for separately |
 | The V&V matrix has no blank cell, and a quantity with no benchmark is labelled "not validated" with a reason (VAL-051) | `validation/matrix.json` |
 | Every model FARIS reports has a row in the model matrix, its verification evidence exists and has one class, and no output catalogue is unclaimed (VAL-001) | `validation/model_matrix.json`, `validation/models.json`, the Rust output catalogues |
 | Neither matrix is stale: both equal a regeneration from the registry, models, case manifests, rules and model sources (VAL-037) | `python3 -m validation matrix`, `python3 -m validation models` |
@@ -36,17 +36,35 @@ At release time:
 python3 -m validation report --out vv --release-record release-record.json
 python3 scripts/release_gate.py --vv-report vv --release-record release-record.json \
     --tests tests.json --perf perf.json --defects docs/defects/faris-defects.json --fuzz fuzz.json \
-    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json --archive gate-output.txt
+    --repro repro.json --doc-tests doc-tests.json --a11y-baseline a11y-previous.json \
+    --validation-access-outcome val023-access-outcome.json --archive gate-output.txt
 ```
+
+`--validation-access-outcome` is only needed when VAL-023 is not Met and the current release plan still contains the exact
+approved text `VAL-023 (or its access outcome recorded)`. It accepts a JSON record with schema
+`faris.validation-access-outcome/1.0.0` and exactly these fields: `requirement_id` (`VAL-023`), `outcome`
+(`access_not_obtained`), `status` (`NOT_EVALUATED`), `matrix_status` (`not validated`), non-empty `reason` and
+`next_step`, at least one `observations` entry (`date` in `YYYY-MM-DD` form and non-empty `observation`), and at least
+one `supporting_files` entry (`path` relative to the JSON file and its lowercase SHA-256). The record also has the
+`schema` field. The gate checks the hashes, observation dates, requirement status and the `shutdown_dose_rate` row in
+the V&V matrix. The access branch records an access outcome only: VAL-023 stays non-Met and the matrix stays
+`not validated`. Without valid evidence, the normal Met requirement applies. Archive the JSON and its supporting
+files with the release record.
+
+When the exact plan parenthetical authorizes the access branch and its evidence passes validation, trace accounting
+records the VAL-023 access-outcome checker separately. It does not require or create a `Verifies: VAL-023` marker, and
+does not claim benchmark test coverage or change VAL-023 from `NOT_EVALUATED`/non-Met. If the branch is unavailable or
+its evidence is missing or invalid, the ordinary VAL-023 `Verifies:` marker remains required; unknown and empty markers
+remain errors.
 
 `a11y-previous.json` is the accessibility snapshot of the previous release (A11Y-055). Write the snapshot of each
 release with `python3 scripts/a11y_regression.py snapshot --tests tests.json --out a11y-snapshot.json` and archive it
 with the release record; the gate fails when a check of A11Y-001 to A11Y-046 that passed there fails or goes unrun now.
 
-Archive `gate-output.txt`, `release-record.json` and the `vv` directory with the release record. The gate is not a
-CI step on ordinary commits: it fails until the gate requirements are Met, which is the intended result. It is
-wired in as a step of the release job, after the test, performance, fuzz and build jobs have written their
-evidence files.
+Archive `gate-output.txt`, `release-record.json`, the `vv` directory and any VAL-023 access-outcome evidence with the
+release record. The gate is not a CI step on ordinary commits: it fails until the gate requirements are Met or the
+plan's VAL-023 access-outcome alternative is fully evidenced. It is wired in as a step of the release job, after the
+test, performance, fuzz and build jobs have written their evidence files.
 
 ### One command (PLAT-073)
 

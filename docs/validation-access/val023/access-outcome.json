@@ -1,0 +1,21 @@
+{
+  "schema": "faris.validation-access-outcome/1.0.0",
+  "requirement_id": "VAL-023",
+  "outcome": "access_not_obtained",
+  "status": "NOT_EVALUATED",
+  "matrix_status": "not validated",
+  "reason": "The complete benchmark evidence required by VAL-023 has not been obtained: the public Zenodo curve is accessible, but its source provenance, experimental uncertainty basis at every required cooling time, and permitted-use terms remain unverified. No qualified comparison or decay-photon cross-check has been run.",
+  "next_step": "Obtain and verify the source uncertainty/provenance information and permitted benchmark use, then register a scoped case, run the matched model and decay-photon cross-check, and score the experimental comparison. Keep raw source data outside the public repository unless redistribution is permitted.",
+  "observations": [
+    {
+      "date": "2026-11-09",
+      "observation": "Public Zenodo v2 archive downloaded, provider MD5 verified, and safely inspected. Experimental curve data is present; the full required uncertainty/provenance/permission basis remains incomplete. See the hash-pinned supporting review."
+    }
+  ],
+  "supporting_files": [
+    {
+      "path": "observations.json",
+      "sha256": "3eb60fd334c3e7c1a27022f2d76d4c8a28c0f2f09d08cb7d72c40659a5df2c42"
+    }
+  ]
+}
