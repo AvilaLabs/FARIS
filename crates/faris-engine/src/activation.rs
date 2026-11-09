@@ -27,7 +27,7 @@
 //! authored (mass, composition, schedule) and which are solver results; the result labels its
 //! numbers `calculated`, or `conditional` when a data gap makes them a lower bound.
 
-use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
+use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits};
 use crate::maintenance::actinv::{hash_file, hex_sha256, resolve_program, tail_of};
 use crate::maintenance::irradiation::{IrradiationSchedule, IrradiationStep};
 use crate::transport::NormalizedEnergySpectrum;
@@ -1411,10 +1411,6 @@ pub fn zone_from_actinv_result(
 
 // ------------------------------------------------------------------ running --
 
-fn environment(config: &ActivationConfig) -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
-    crate::actinv_env::job_environment(std::env::vars_os(), config.data.library.ancestors().nth(3))
-}
-
 fn run_actinv(
     config: &ActivationConfig,
     actinv: &Path,
@@ -1423,17 +1419,21 @@ fn run_actinv(
     scratch: &Path,
     cancel: &Cancellation,
 ) -> Result<(), String> {
+    let (environment, cache_root) =
+        crate::actinv_env::for_actinv(std::env::vars_os(), config.data.library.ancestors().nth(3))?;
+    let cache_policy = crate::jobs::PreparedCachePolicy::actinv(cache_root);
     let spec = JobSpec {
         program: actinv.to_owned(),
         arguments: vec!["run".into(), problem.into(), result.into()],
         working_directory: scratch.to_owned(),
-        environment: environment(config),
+        environment,
         timeout: config.timeout,
         capture_limit_bytes: 1 << 20,
         artifact_roots: Vec::new(),
         resource_limits: config.resource_limits,
     };
-    let outcome = run_job(&spec, cancel).map_err(|e| format!("actinv run: {e}"))?;
+    let outcome = crate::jobs::run_job_with_prepared_cache(&spec, cancel, &cache_policy)
+        .map_err(|e| format!("actinv run: {e}"))?;
     match outcome.execution_status {
         ExecutionStatus::Succeeded => Ok(()),
         ExecutionStatus::Cancelled => Err("cancelled".into()),

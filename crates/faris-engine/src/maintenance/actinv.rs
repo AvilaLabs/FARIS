@@ -15,7 +15,10 @@ use super::{
     CurveRequest, DecaySource, InstallationCurve, NotEvaluated, history_end_s, not_evaluated,
 };
 use crate::history::{EventKind, HistoryResult};
-use crate::jobs::{Cancellation, ExecutionStatus, JobSpec, ResourceLimits, run_job};
+use crate::jobs::{
+    Cancellation, ExecutionStatus, JobSpec, PreparedCachePolicy, ResourceLimits, run_job,
+    run_job_with_prepared_cache,
+};
 use serde::de::{Deserialize, Deserializer, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize as DeriveDeserialize, Serialize};
 use serde_json::Value;
@@ -675,20 +678,32 @@ impl ActinvDecaySource {
         scratch: &Path,
         timeout: Duration,
         what: &str,
+        actinv_cache: bool,
         cancel: &Cancellation,
     ) -> Result<(), String> {
         std::fs::create_dir_all(scratch).map_err(|e| format!("{}: {e}", scratch.display()))?;
+        let (environment, cache_policy) = if actinv_cache {
+            let (environment, root) =
+                crate::actinv_env::for_actinv(std::env::vars_os(), Some(&self.data_dir))?;
+            (environment, Some(PreparedCachePolicy::actinv(root)))
+        } else {
+            (self.environment(), None)
+        };
         let spec = JobSpec {
             program: program.to_owned(),
             arguments,
             working_directory: scratch.to_owned(),
-            environment: self.environment(),
+            environment,
             timeout,
             capture_limit_bytes: 1 << 20,
             artifact_roots: Vec::new(),
             resource_limits: self.config.resource_limits,
         };
-        let result = run_job(&spec, cancel).map_err(|e| format!("{what}: {e}"))?;
+        let result = match cache_policy.as_ref() {
+            Some(policy) => run_job_with_prepared_cache(&spec, cancel, policy),
+            None => run_job(&spec, cancel),
+        }
+        .map_err(|e| format!("{what}: {e}"))?;
         let hint = match result.execution_status {
             ExecutionStatus::Succeeded => return Ok(()),
             ExecutionStatus::Cancelled => return Err("cancelled".into()),
@@ -757,6 +772,7 @@ impl ActinvDecaySource {
             &scratch,
             self.config.builder_timeout,
             &format!("build_activation_inputs ({design})"),
+            false,
             cancel,
         );
         let _ = std::fs::remove_dir_all(&scratch);
@@ -778,6 +794,7 @@ impl ActinvDecaySource {
                 &scratch,
                 self.config.actinv_timeout,
                 &format!("actinv run {name}"),
+                true,
                 cancel,
             )
             .and_then(|()| {

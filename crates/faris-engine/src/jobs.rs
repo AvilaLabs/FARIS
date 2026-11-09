@@ -41,6 +41,9 @@ pub const ARTIFACT_SCAN_INTERVAL: Duration = Duration::from_millis(100);
 /// How often a running job's memory is read. A spike shorter than this between two reads can
 /// be missed; the kernel's own high-water mark for each process narrows that gap.
 pub const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(50);
+const ACTINV_CACHE_SINGLE_FILE_BYTES: u64 = 320 * 1024 * 1024;
+const ACTINV_CACHE_TOTAL_BYTES: u64 = 1024 * 1024 * 1024;
+const ACTINV_CACHE_FILE_COUNT: u64 = 256;
 
 /// Per-job ceilings. Callers may request lower limits than the defaults; only the address
 /// space may be raised, up to [`ResourceLimits::ADDRESS_SPACE_CEILING`], because a CAD
@@ -54,6 +57,47 @@ pub struct ResourceLimits {
     pub artifact_total_bytes: u64,
     /// Files the job may add to its artifact roots.
     pub artifact_file_count: u64,
+}
+
+/// Separate limits for ACTINV's deterministic prepared-data cache. These limits do not alter
+/// the per-file, total-artifact, or file-count ceilings in [`ResourceLimits`].
+#[derive(Clone, Debug)]
+pub struct PreparedCachePolicy {
+    root: PathBuf,
+    single_file_bytes: u64,
+    total_bytes: u64,
+    file_count: u64,
+}
+
+/// The extra file allowance applied to an explicitly registered prepared cache.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct PreparedCacheLimitReceipt {
+    pub single_file_bytes: u64,
+    pub total_bytes: u64,
+    pub file_count: u64,
+}
+
+impl PreparedCachePolicy {
+    /// Construct the ACTINV cache allowance. The 320 MiB per-file cap is narrowly above the
+    /// largest verified ACTINV groupwise cache in the supported TENDL 709-group workflow
+    /// (275,493,400 bytes); larger artifacts fail closed pending a reviewed limit update.
+    pub(crate) fn actinv(root: PathBuf) -> Self {
+        Self {
+            root,
+            single_file_bytes: ACTINV_CACHE_SINGLE_FILE_BYTES,
+            total_bytes: ACTINV_CACHE_TOTAL_BYTES,
+            file_count: ACTINV_CACHE_FILE_COUNT,
+        }
+    }
+
+    fn receipt(&self) -> PreparedCacheLimitReceipt {
+        PreparedCacheLimitReceipt {
+            single_file_bytes: self.single_file_bytes,
+            total_bytes: self.total_bytes,
+            file_count: self.file_count,
+        }
+    }
 }
 
 impl ResourceLimits {
@@ -154,6 +198,19 @@ pub struct JobResult {
     /// Defaults on older serialized records that predate resource reporting.
     #[serde(default)]
     pub resource_limits: ResourceLimits,
+    /// Highest per-file ceiling enforced by the runner (kernel and/or artifact scan).
+    #[serde(default)]
+    pub effective_single_file_limit_bytes: u64,
+    /// Separate cache allowance, absent for ordinary jobs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_cache_limits: Option<PreparedCacheLimitReceipt>,
+    /// Cache usage at completion (or initial usage if cancelled before launch).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_cache_files_observed: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_cache_bytes_observed: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_cache_largest_file_bytes_observed: Option<u64>,
     #[serde(default)]
     pub artifact_files_observed: u64,
     #[serde(default)]
@@ -275,6 +332,67 @@ fn artifact_usage(roots: &[PathBuf], limits: ResourceLimits) -> Result<ArtifactU
     Ok(usage)
 }
 
+#[cfg(windows)]
+fn is_link_or_reparse(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_type().is_symlink() || metadata.file_attributes() & 0x400 != 0
+}
+
+#[cfg(not(windows))]
+fn is_link_or_reparse(metadata: &std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
+fn prepared_cache_usage(
+    root: &std::path::Path,
+    limits: &PreparedCacheLimitReceipt,
+) -> Result<ArtifactUsage, JobError> {
+    use std::fs;
+    let root_metadata = fs::symlink_metadata(root)?;
+    if is_link_or_reparse(&root_metadata) || !root_metadata.is_dir() {
+        return Err(JobError::Invalid(
+            "prepared cache root is not a real directory",
+        ));
+    }
+    let mut usage = ArtifactUsage::default();
+    let mut pending = vec![root.to_owned()];
+    let mut entries_scanned = 0_u64;
+    let maximum_entries = limits.file_count.saturating_mul(8).max(1024);
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(directory)? {
+            entries_scanned = entries_scanned.saturating_add(1);
+            if entries_scanned > maximum_entries {
+                usage.exceeded_scan_bound = true;
+                return Ok(usage);
+            }
+            let entry = entry?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)?;
+            if is_link_or_reparse(&metadata) {
+                return Err(JobError::Invalid(
+                    "prepared cache contains a symlink or reparse point",
+                ));
+            }
+            if metadata.is_dir() {
+                pending.push(path);
+                if pending.len() as u64 > limits.file_count {
+                    usage.exceeded_scan_bound = true;
+                    return Ok(usage);
+                }
+            } else if metadata.is_file() {
+                usage.files = usage.files.saturating_add(1);
+                usage.bytes = usage.bytes.saturating_add(metadata.len());
+                usage.largest_file_bytes = usage.largest_file_bytes.max(metadata.len());
+            } else {
+                return Err(JobError::Invalid(
+                    "prepared cache contains a non-regular filesystem entry",
+                ));
+            }
+        }
+    }
+    Ok(usage)
+}
+
 /// Longest line handed to a line callback; the rest of a longer line is dropped.
 pub const MAX_LINE_BYTES: usize = 64 * 1024;
 
@@ -363,6 +481,18 @@ pub fn run_job(spec: &JobSpec, cancellation: &Cancellation) -> Result<JobResult,
     run_job_with_lines(spec, cancellation, &|_| {})
 }
 
+/// Run a job with a separate, path-scoped allowance for a deterministic prepared-data cache.
+/// Ordinary working-directory and artifact-root files retain the normal `ResourceLimits`
+/// ceilings. This entry point is intended only for the ACTINV adapter.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub(crate) fn run_job_with_prepared_cache(
+    spec: &JobSpec,
+    cancellation: &Cancellation,
+    cache: &PreparedCachePolicy,
+) -> Result<JobResult, JobError> {
+    run_job_internal(spec, cancellation, &|_| {}, Some(cache))
+}
+
 /// [`run_job`] that also reports the child's stdout line by line while it runs.
 ///
 /// `on_stdout_line` is called once per complete line (no trailing newline, lossy UTF-8),
@@ -376,6 +506,16 @@ pub fn run_job_with_lines(
     spec: &JobSpec,
     cancellation: &Cancellation,
     on_stdout_line: &(dyn Fn(&str) + Sync),
+) -> Result<JobResult, JobError> {
+    run_job_internal(spec, cancellation, on_stdout_line, None)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn run_job_internal(
+    spec: &JobSpec,
+    cancellation: &Cancellation,
+    on_stdout_line: &(dyn Fn(&str) + Sync),
+    prepared_cache: Option<&PreparedCachePolicy>,
 ) -> Result<JobResult, JobError> {
     if !spec.program.is_absolute() || !spec.program.is_file() {
         return Err(JobError::Invalid(
@@ -426,6 +566,37 @@ pub fn run_job_with_lines(
         }
         artifact_roots.push(root.clone());
     }
+    let cache_root = if let Some(cache) = prepared_cache {
+        if !cache.root.is_absolute()
+            || cache.single_file_bytes <= spec.resource_limits.single_file_bytes
+            || cache.single_file_bytes > ACTINV_CACHE_SINGLE_FILE_BYTES
+            || cache.total_bytes == 0
+            || cache.total_bytes > ACTINV_CACHE_TOTAL_BYTES
+            || cache.file_count == 0
+            || cache.file_count > ACTINV_CACHE_FILE_COUNT
+        {
+            return Err(JobError::Invalid("prepared cache limits are invalid"));
+        }
+        std::fs::create_dir_all(&cache.root)?;
+        let metadata = std::fs::symlink_metadata(&cache.root)?;
+        if is_link_or_reparse(&metadata) || !metadata.is_dir() {
+            return Err(JobError::Invalid(
+                "prepared cache root is not a real directory",
+            ));
+        }
+        let canonical = cache.root.canonicalize()?;
+        for root in &artifact_roots {
+            let ordinary = root.canonicalize()?;
+            if ordinary.starts_with(&canonical) || canonical.starts_with(&ordinary) {
+                return Err(JobError::Invalid(
+                    "prepared cache root must be separate from ordinary artifact roots",
+                ));
+            }
+        }
+        Some((canonical, cache.receipt()))
+    } else {
+        None
+    };
     let initial_usage = artifact_usage(&artifact_roots, limits)?;
     // The totals cap what the job writes, not what earlier steps left in its roots (a transport
     // run starts beside the geometry and windows its preparation made: over 200 MB on a large
@@ -437,6 +608,26 @@ pub fn run_job_with_lines(
             "existing artifact roots already exceed configured limits",
         ));
     }
+    let initial_cache_usage = if let Some((root, policy)) = &cache_root {
+        let usage = prepared_cache_usage(root, policy)?;
+        if usage.exceeded_scan_bound
+            || usage.largest_file_bytes > policy.single_file_bytes
+            || usage.bytes > policy.total_bytes
+            || usage.files > policy.file_count
+        {
+            return Err(JobError::Invalid(
+                "existing prepared cache exceeds its configured limits",
+            ));
+        }
+        Some(usage)
+    } else {
+        None
+    };
+    let process_file_size_limit_bytes = cache_root
+        .as_ref()
+        .map_or(limits.single_file_bytes, |(_, policy)| {
+            limits.single_file_bytes.max(policy.single_file_bytes)
+        });
     let start = Instant::now();
     if cancellation.is_cancelled() {
         return Ok(JobResult {
@@ -448,6 +639,13 @@ pub fn run_job_with_lines(
             stdout_truncated: false,
             stderr_truncated: false,
             resource_limits: limits,
+            effective_single_file_limit_bytes: process_file_size_limit_bytes,
+            prepared_cache_limits: cache_root.as_ref().map(|(_, receipt)| *receipt),
+            prepared_cache_files_observed: initial_cache_usage.as_ref().map(|usage| usage.files),
+            prepared_cache_bytes_observed: initial_cache_usage.as_ref().map(|usage| usage.bytes),
+            prepared_cache_largest_file_bytes_observed: initial_cache_usage
+                .as_ref()
+                .map(|usage| usage.largest_file_bytes),
             artifact_files_observed: initial_usage.files,
             artifact_bytes_observed: initial_usage.bytes,
             largest_artifact_file_bytes_observed: initial_usage.largest_file_bytes,
@@ -455,7 +653,9 @@ pub fn run_job_with_lines(
             memory_check: memory_check.clone(),
         });
     }
-    let mut running = platform::Running::start(spec, &limits)?;
+    let mut process_limits = limits;
+    process_limits.single_file_bytes = process_file_size_limit_bytes;
+    let mut running = platform::Running::start(spec, &process_limits)?;
     let exceeded = Arc::new(AtomicBool::new(false));
     let stdout = running.child.stdout.take().expect("piped child stdout");
     let stderr = running.child.stderr.take().expect("piped child stderr");
@@ -494,6 +694,20 @@ pub fn run_job_with_lines(
                     || observed_usage.grown_bytes(&initial_usage) > limits.artifact_total_bytes
                 {
                     break Ok((ExecutionStatus::ArtifactLimit, None));
+                }
+                if let Some((root, policy)) = &cache_root {
+                    match prepared_cache_usage(root, policy) {
+                        Ok(usage)
+                            if !usage.exceeded_scan_bound
+                                && usage.largest_file_bytes <= policy.single_file_bytes
+                                && usage.bytes <= policy.total_bytes
+                                && usage.files <= policy.file_count => {}
+                        Ok(usage) if usage.largest_file_bytes > policy.single_file_bytes => {
+                            break Ok((ExecutionStatus::FileSizeLimit, None));
+                        }
+                        Ok(_) => break Ok((ExecutionStatus::ArtifactLimit, None)),
+                        Err(error) => break Err(error),
+                    }
                 }
                 next_artifact_scan = Instant::now() + ARTIFACT_SCAN_INTERVAL;
             }
@@ -540,6 +754,20 @@ pub fn run_job_with_lines(
     {
         execution_status = ExecutionStatus::ArtifactLimit;
     }
+    let final_cache_usage = if let Some((root, policy)) = &cache_root {
+        let cache_usage = prepared_cache_usage(root, policy)?;
+        if cache_usage.largest_file_bytes > policy.single_file_bytes {
+            execution_status = ExecutionStatus::FileSizeLimit;
+        } else if cache_usage.exceeded_scan_bound
+            || cache_usage.bytes > policy.total_bytes
+            || cache_usage.files > policy.file_count
+        {
+            execution_status = ExecutionStatus::ArtifactLimit;
+        }
+        Some(cache_usage)
+    } else {
+        None
+    };
     // A short-lived process may exit before the reader detects oversized output.
     if matches!(
         execution_status,
@@ -557,6 +785,13 @@ pub fn run_job_with_lines(
         stdout_truncated: out.truncated,
         stderr_truncated: err.truncated,
         resource_limits: limits,
+        effective_single_file_limit_bytes: process_file_size_limit_bytes,
+        prepared_cache_limits: cache_root.as_ref().map(|(_, receipt)| *receipt),
+        prepared_cache_files_observed: final_cache_usage.as_ref().map(|usage| usage.files),
+        prepared_cache_bytes_observed: final_cache_usage.as_ref().map(|usage| usage.bytes),
+        prepared_cache_largest_file_bytes_observed: final_cache_usage
+            .as_ref()
+            .map(|usage| usage.largest_file_bytes),
         artifact_files_observed: observed_usage.files,
         artifact_bytes_observed: observed_usage.bytes,
         largest_artifact_file_bytes_observed: observed_usage.largest_file_bytes,
@@ -778,6 +1013,17 @@ pub fn run_job_with_lines(
     ))
 }
 
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub(crate) fn run_job_with_prepared_cache(
+    _spec: &JobSpec,
+    _cancellation: &Cancellation,
+    _cache: &PreparedCachePolicy,
+) -> Result<JobResult, JobError> {
+    Err(JobError::Invalid(
+        "bounded external job execution is not available on this platform",
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -807,6 +1053,146 @@ mod tests {
             resource_limits: ResourceLimits::default(),
         };
         (dir, spec)
+    }
+
+    #[cfg(unix)]
+    fn cache_job(
+        script: &str,
+        file_bytes: u64,
+        total_bytes: u64,
+        file_count: u64,
+    ) -> (tempfile::TempDir, JobSpec, PreparedCachePolicy) {
+        let dir = tempfile::tempdir().unwrap();
+        let work = dir.path().join("work");
+        let cache = dir.path().join("cache");
+        std::fs::create_dir_all(&work).unwrap();
+        std::fs::create_dir_all(&cache).unwrap();
+        let cache = cache.canonicalize().unwrap();
+        let spec = JobSpec {
+            program: "/bin/sh".into(),
+            arguments: vec!["-c".into(), script.into()],
+            working_directory: work,
+            environment: Vec::new(),
+            timeout: Duration::from_secs(2),
+            capture_limit_bytes: 1024,
+            artifact_roots: Vec::new(),
+            resource_limits: ResourceLimits {
+                single_file_bytes: 1024,
+                ..ResourceLimits::default()
+            },
+        };
+        let policy = PreparedCachePolicy {
+            root: cache,
+            single_file_bytes: file_bytes,
+            total_bytes,
+            file_count,
+        };
+        (dir, spec, policy)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prepared_cache_file_gets_only_its_scoped_file_allowance() {
+        let (_dir, spec, policy) = cache_job(
+            "/usr/bin/head -c 2048 /dev/zero > \"$CACHE_ROOT/cache.bin\"",
+            4096,
+            8192,
+            4,
+        );
+        let mut spec = spec;
+        spec.environment
+            .push(("CACHE_ROOT".into(), policy.root.as_os_str().to_owned()));
+        let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(result.resource_limits.single_file_bytes, 1024);
+        assert_eq!(result.effective_single_file_limit_bytes, 4096);
+        assert_eq!(result.prepared_cache_bytes_observed, Some(2048));
+        assert_eq!(
+            result.prepared_cache_largest_file_bytes_observed,
+            Some(2048)
+        );
+        assert_eq!(
+            result.prepared_cache_limits,
+            Some(PreparedCacheLimitReceipt {
+                single_file_bytes: 4096,
+                total_bytes: 8192,
+                file_count: 4,
+            })
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prepared_cache_policy_does_not_raise_ordinary_output_limit() {
+        let (_dir, spec, policy) = cache_job(
+            "/usr/bin/head -c 2048 /dev/zero > ordinary.bin",
+            4096,
+            8192,
+            4,
+        );
+        let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::FileSizeLimit);
+        assert_eq!(result.resource_limits.single_file_bytes, 1024);
+        assert_eq!(result.effective_single_file_limit_bytes, 4096);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prepared_cache_aggregate_and_symlink_limits_fail_closed() {
+        let (_dir, spec, policy) = cache_job(
+            "/usr/bin/head -c 768 /dev/zero > \"$CACHE_ROOT/one\"; /usr/bin/head -c 768 /dev/zero > \"$CACHE_ROOT/two\"",
+            1024,
+            1024,
+            4,
+        );
+        let mut spec = spec;
+        spec.environment
+            .push(("CACHE_ROOT".into(), policy.root.as_os_str().to_owned()));
+        let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::ArtifactLimit);
+
+        let (_dir, spec, policy) = cache_job("true", 4096, 8192, 4);
+        std::os::unix::fs::symlink("/tmp", policy.root.join("link")).unwrap();
+        let error =
+            run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap_err();
+        assert!(error.to_string().contains("symlink or reparse point"));
+
+        let (_dir, spec, policy) = cache_job("true", 4096, 8192, 4);
+        std::fs::write(policy.root.join("oversize"), vec![0; 5000]).unwrap();
+        let error =
+            run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("existing prepared cache exceeds")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn prepared_cache_jobs_remain_cancellable_and_accept_existing_cache_files() {
+        let (_dir, spec, policy) = cache_job("/bin/sleep 30 & wait", 4096, 8192, 4);
+        let cancellation = Cancellation::default();
+        let remote = cancellation.clone();
+        let worker =
+            thread::spawn(move || run_job_with_prepared_cache(&spec, &remote, &policy).unwrap());
+        thread::sleep(Duration::from_millis(80));
+        cancellation.cancel();
+        assert_eq!(
+            worker.join().unwrap().execution_status,
+            ExecutionStatus::Cancelled
+        );
+
+        let (_dir, spec, policy) = cache_job("true", 4096, 8192, 4);
+        std::fs::write(policy.root.join("prepared.actp"), vec![0; 2048]).unwrap();
+        let permissions = std::fs::metadata(&policy.root).unwrap().permissions();
+        let mut readonly = permissions.clone();
+        readonly.set_readonly(true);
+        std::fs::set_permissions(&policy.root, readonly).unwrap();
+        let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
+        std::fs::set_permissions(&policy.root, permissions).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(result.prepared_cache_bytes_observed, Some(2048));
     }
     /// A script that runs for about 30 seconds, with a child of its own holding the pipes.
     #[cfg(unix)]

@@ -47,9 +47,102 @@ pub(crate) fn job_environment(
     environment
 }
 
+/// Resolve ACTINV's documented cache precedence, reject an unsafe cache-root leaf, and pass the
+/// canonical directory as an explicit `ACTINV_CACHE_DIR` so the runner monitors the same root.
+pub(crate) fn for_actinv(
+    inherited: impl IntoIterator<Item = (OsString, OsString)>,
+    data_dir: Option<&Path>,
+) -> Result<(Vec<(OsString, OsString)>, std::path::PathBuf), String> {
+    let mut environment = job_environment(inherited, data_dir);
+    let value = |name: &str| {
+        environment
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.clone())
+    };
+    let root = if let Some(path) = value("ACTINV_CACHE_DIR") {
+        if path.is_empty() {
+            return Err("ACTINV_CACHE_DIR is empty".into());
+        }
+        let path = std::path::PathBuf::from(path.as_os_str());
+        if !path.is_absolute() {
+            return Err("ACTINV_CACHE_DIR must be an absolute path".into());
+        }
+        path
+    } else {
+        #[cfg(windows)]
+        let platform_root = value("LOCALAPPDATA")
+            .map(std::path::PathBuf::from)
+            .filter(|path| path.is_absolute())
+            .map(|path| path.join("ACTINV"));
+        #[cfg(not(windows))]
+        let platform_root: Option<std::path::PathBuf> = None;
+        if let Some(root) = platform_root {
+            root
+        } else if let Some(path) = value("XDG_CACHE_HOME") {
+            let path = std::path::PathBuf::from(path.as_os_str());
+            if !path.is_absolute() {
+                return Err("XDG_CACHE_HOME must be absolute for ACTINV cache placement".into());
+            }
+            path.join("actinv")
+        } else if let Some(path) = value("HOME") {
+            let path = std::path::PathBuf::from(path.as_os_str());
+            if !path.is_absolute() {
+                return Err("HOME must be absolute for ACTINV cache placement".into());
+            }
+            path.join(".cache").join("actinv")
+        } else {
+            return Err("cannot determine ACTINV cache directory; set ACTINV_CACHE_DIR".into());
+        }
+    };
+    match std::fs::symlink_metadata(&root) {
+        Ok(metadata) if is_link_or_reparse(&metadata) || !metadata.is_dir() => {
+            return Err(format!(
+                "ACTINV cache root must be a real directory: {}",
+                root.display()
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "cannot inspect ACTINV cache {}: {error}",
+                root.display()
+            ));
+        }
+    }
+    std::fs::create_dir_all(&root)
+        .map_err(|error| format!("cannot create ACTINV cache {}: {error}", root.display()))?;
+    let metadata = std::fs::symlink_metadata(&root)
+        .map_err(|error| format!("cannot inspect ACTINV cache {}: {error}", root.display()))?;
+    if is_link_or_reparse(&metadata) || !metadata.is_dir() {
+        return Err(format!(
+            "ACTINV cache root must be a real directory: {}",
+            root.display()
+        ));
+    }
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve ACTINV cache directory: {error}"))?;
+    environment.retain(|(name, _)| name != "ACTINV_CACHE_DIR");
+    environment.push(("ACTINV_CACHE_DIR".into(), root.as_os_str().to_owned()));
+    Ok((environment, root))
+}
+
+#[cfg(windows)]
+fn is_link_or_reparse(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.file_type().is_symlink() || metadata.file_attributes() & 0x400 != 0
+}
+
+#[cfg(not(windows))]
+fn is_link_or_reparse(metadata: &std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{allowed_name, job_environment};
+    use super::{allowed_name, for_actinv, job_environment};
     use crate::jobs::{JobSpec, ResourceLimits};
     use std::collections::BTreeMap;
     use std::ffi::{OsStr, OsString};
@@ -121,5 +214,48 @@ mod tests {
         assert_eq!(got["ACTINV_DATA_DIR"], "/checked/data");
         assert!(!got.contains_key("ACTINV_LICENSE_KEY"));
         assert!(!got.contains_key("AWS_ACCESS_KEY_ID"));
+    }
+
+    #[test]
+    fn cache_override_is_canonicalized_and_invalid_overrides_fail_clearly() {
+        let temp = tempfile::tempdir().unwrap();
+        let requested = temp.path().join("explicit-cache");
+        let (environment, cache_root) = for_actinv(
+            [(
+                OsString::from("ACTINV_CACHE_DIR"),
+                requested.clone().into_os_string(),
+            )],
+            None,
+        )
+        .unwrap();
+        assert_eq!(cache_root, requested.canonicalize().unwrap());
+        assert!(
+            environment.iter().any(|(key, value)| {
+                key == "ACTINV_CACHE_DIR" && value == cache_root.as_os_str()
+            })
+        );
+
+        let error = for_actinv(
+            [(OsString::from("ACTINV_CACHE_DIR"), "relative-cache".into())],
+            None,
+        )
+        .unwrap_err();
+        assert!(error.contains("must be an absolute path"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_cache_root_symlink_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let target = temp.path().join("target");
+        let link = temp.path().join("link");
+        std::fs::create_dir(&target).unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let error = for_actinv(
+            [(OsString::from("ACTINV_CACHE_DIR"), link.into_os_string())],
+            None,
+        )
+        .unwrap_err();
+        assert!(error.contains("real directory"));
     }
 }

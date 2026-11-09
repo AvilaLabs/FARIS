@@ -1200,7 +1200,7 @@ mod tests {
     #[test]
     fn an_unusable_report_fails_the_same_way_from_a_directory_and_from_a_store() {
         use crate::core_evidence::CoreEvidenceRun;
-        use crate::jobs::{ExecutionStatus, JobResult};
+        use crate::jobs::{ExecutionStatus, JobResult, ResourceLimits};
         let run = |schema: &str| CoreEvidenceRun {
             schema_version: schema.into(),
             core_sha256: "a".repeat(64),
@@ -1215,6 +1215,11 @@ mod tests {
                 stdout_truncated: false,
                 stderr_truncated: false,
                 resource_limits: Default::default(),
+                effective_single_file_limit_bytes: ResourceLimits::default().single_file_bytes,
+                prepared_cache_limits: None,
+                prepared_cache_files_observed: None,
+                prepared_cache_bytes_observed: None,
+                prepared_cache_largest_file_bytes_observed: None,
                 artifact_files_observed: 0,
                 artifact_bytes_observed: 0,
                 largest_artifact_file_bytes_observed: 0,
