@@ -348,7 +348,13 @@ fn prepared_cache_usage(
     limits: &PreparedCacheLimitReceipt,
 ) -> Result<ArtifactUsage, JobError> {
     use std::fs;
-    let root_metadata = fs::symlink_metadata(root)?;
+    let root_metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ArtifactUsage::default());
+        }
+        Err(error) => return Err(JobError::Io(error)),
+    };
     if is_link_or_reparse(&root_metadata) || !root_metadata.is_dir() {
         return Err(JobError::Invalid(
             "prepared cache root is not a real directory",
@@ -358,16 +364,27 @@ fn prepared_cache_usage(
     let mut pending = vec![root.to_owned()];
     let mut entries_scanned = 0_u64;
     let maximum_entries = limits.file_count.saturating_mul(8).max(1024);
+    let vanished = |error: &std::io::Error| error.kind() == std::io::ErrorKind::NotFound;
     while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(directory)? {
+        let listing = match fs::read_dir(directory) {
+            Err(error) if vanished(&error) => continue,
+            other => other?,
+        };
+        for entry in listing {
             entries_scanned = entries_scanned.saturating_add(1);
             if entries_scanned > maximum_entries {
                 usage.exceeded_scan_bound = true;
                 return Ok(usage);
             }
-            let entry = entry?;
+            let entry = match entry {
+                Err(error) if vanished(&error) => continue,
+                other => other?,
+            };
             let path = entry.path();
-            let metadata = fs::symlink_metadata(&path)?;
+            let metadata = match fs::symlink_metadata(&path) {
+                Err(error) if vanished(&error) => continue,
+                other => other?,
+            };
             if is_link_or_reparse(&metadata) {
                 return Err(JobError::Invalid(
                     "prepared cache contains a symlink or reparse point",
@@ -1019,9 +1036,7 @@ pub(crate) fn run_job_with_prepared_cache(
     _cancellation: &Cancellation,
     _cache: &PreparedCachePolicy,
 ) -> Result<JobResult, JobError> {
-    Err(JobError::Invalid(
-        "bounded external job execution is not available on this platform",
-    ))
+    run_job(_spec, _cancellation)
 }
 
 #[cfg(test)]
@@ -1193,6 +1208,23 @@ mod tests {
         std::fs::set_permissions(&policy.root, permissions).unwrap();
         assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
         assert_eq!(result.prepared_cache_bytes_observed, Some(2048));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn prepared_cache_scanning_tolerates_atomic_publication_renames() {
+        let (_dir, mut spec, policy) = cache_job(
+            "i=0; while [ \"$i\" -lt 500 ]; do printf x > \"$CACHE_ROOT/.library.tmp\"; /bin/mv -f \"$CACHE_ROOT/.library.tmp\" \"$CACHE_ROOT/library.actp\"; i=$((i+1)); done",
+            4096,
+            8192,
+            4,
+        );
+        spec.environment
+            .push(("CACHE_ROOT".into(), policy.root.as_os_str().to_owned()));
+        let result = run_job_with_prepared_cache(&spec, &Cancellation::default(), &policy).unwrap();
+        assert_eq!(result.execution_status, ExecutionStatus::Succeeded);
+        assert_eq!(result.prepared_cache_files_observed, Some(1));
+        assert_eq!(result.prepared_cache_bytes_observed, Some(1));
     }
     /// A script that runs for about 30 seconds, with a child of its own holding the pipes.
     #[cfg(unix)]
