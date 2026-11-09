@@ -13,7 +13,9 @@
     {"id": "dpa", "label": "displacements per atom", "kind": "calculated", "benchmarks": []},
     {"id": "gas_production", "label": "gas production", "kind": "calculated", "benchmarks": []},
     {"id": "activation", "label": "activation", "kind": "calculated", "benchmarks": []},
-    {"id": "decay_heat", "label": "decay heat", "kind": "calculated", "benchmarks": []},
+    {"id": "decay_heat", "label": "decay heat", "kind": "calculated", "benchmarks": [
+      {"case_id": "fns-decayheat-fe-1996-5min", "response_class": "decay_heat", "scope": "iron decay heat per gram after a prescribed 300-second FNS irradiation spectrum; excludes transport, whole-device heating and shutdown dose"}
+    ]},
     {"id": "shutdown_dose_rate", "label": "shutdown dose rate", "kind": "calculated", "benchmarks": []},
     {"id": "shutdown_dose_ratio", "label": "shutdown dose method ratio", "kind": "calculated", "benchmarks": []},
     {"id": "tritium_inventory", "label": "tritium inventory", "kind": "calculated", "benchmarks": []},

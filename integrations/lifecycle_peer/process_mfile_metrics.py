@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Extract selected PROCESS values with PROCESS's own documented MFILE reader."""
 from __future__ import annotations
 

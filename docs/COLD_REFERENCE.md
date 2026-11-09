@@ -106,7 +106,7 @@ be resolved exactly, the run fails with a clear runtime-binding error rather
 than substituting the Python package's copy. Batch restarts produce separate
 loss-count records before aggregation. The strict final check rejects more
 than one lost-particle event per million source histories; equality passes.
-Older artifacts without a count remain readable with the count marked
+Older artefacts without a count remain readable with the count marked
 NOT_EVALUATED, never zero.
 
 Solver stdout and stderr are streamed to the parent Rust worker while separate
@@ -251,7 +251,7 @@ physics and data identities are recorded in
 Those records are replayable numerical results, not qualified physics evidence.
 
 Evidence levels are distinct: source-rate, unit-conversion, shell-volume,
-mesh-volume, ownership and tally-normalization controls are analytical/software
+mesh-volume, ownership and tally-normalisation controls are analytical/software
 checks; independent Rust midpoint and Python/SciPy integration are geometry
 implementation cross-checks, not independent transport solvers. This campaign
 does not reproduce an experimental neutron-transport benchmark or establish
@@ -414,7 +414,7 @@ is not a qualified benchmark and is not used here.
   [torus geometry](https://docs.openmc.org/en/stable/usersguide/geometry.html),
   [tally scores](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html),
   [coupled heating and energy deposition](https://docs.openmc.org/en/v0.15.0/methods/energy_deposition.html),
-  [recommended coupled heating normalisation](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html#normalization-of-tally-results),
+  [recommended coupled heating normalisation](https://docs.openmc.org/en/v0.15.0/usersguide/tallies.html#normalisation-of-tally-results),
   [particle filters](https://docs.openmc.org/en/stable/pythonapi/generated/openmc.ParticleFilter.html),
   [stochastic geometry volumes](https://docs.openmc.org/en/v0.15.1/usersguide/volume.html), and
   [temperature treatment](https://docs.openmc.org/en/stable/methods/cross_sections.html).

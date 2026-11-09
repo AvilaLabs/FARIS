@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-FileCopyrightText: 2026 Avila Labs
 """Run the public bluemira LifeCycle API in its separately pinned environment."""
 from __future__ import annotations
 

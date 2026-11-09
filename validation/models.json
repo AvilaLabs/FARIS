@@ -107,7 +107,7 @@
       "page": "docs/guide/maintenance-spatial-dose.md",
       "catalogues": [],
       "quantities": [],
-      "reports": "authored replacement durations from event-specific ICRP-116 AP photon effective dose curves at a named task location; curves can be imported or produced by the bounded OpenMC R2S worker after checked CAD preparation, while D1S remains import-only",
+      "reports": "authored replacement durations from event-specific ICRP-116 AP photon effective dose curves at a named task location; curves can be imported or produced by the bounded OpenMC R2S worker after checked CAD preparation, with D1S production limited to identical component irradiation schedules and qualified chain data",
       "sources": ["crates/faris-engine/src/maintenance.rs", "crates/faris-engine/src/maintenance/spatial_dose.rs", "crates/faris-engine/src/maintenance/spatial_dose_worker.rs", "crates/faris-engine/src/maintenance/files.rs", "integrations/openmc/maintenance_event_r2s.py"],
       "verification": [
         {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/spatial_dose.rs", "name": "only_exact_history_event_design_and_location_curve_is_selectable", "what": "event curves bind exact histories, design inputs, installations, task locations, input artifact bytes and run-record identities; changing the outer event hash cannot relabel a historical run"},
@@ -115,7 +115,7 @@
         {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/maintenance/spatial_dose_worker.rs", "name": "preparation_and_r2s_receipt_headers_bind_schema_status_and_request", "what": "worker receipts must match the supported schema, successful status where applicable, and exact request digest"},
         {"class": "verification", "kind": "test", "file": "fuzz/entries/tests/seeds.rs", "name": "spatial_dose_parser_fixtures_cover_valid_curve_and_result_and_reject_malformed_versions", "what": "valid synthetic curve/result fixtures reach both parsers and wrong schema/governing-quantity fixtures are rejected"}
       ],
-      "not_covered": ["D1S production is not implemented; D1S estimates must be imported, and are NOT_EVALUATED when common histories are unavailable", "the OpenMC R2S provider is bounded to checked static CAD geometry and its authored per-solid component/material map with event-specific irradiation; it is not a general evolving-geometry model", "no independent transport or facility benchmark validates imported or generated dose estimates", "crossing-time uncertainty is not computed"]
+      "not_covered": ["D1S production cannot represent heterogeneous component irradiation histories with the stock nuclide-global time factors; those comparisons remain NOT_EVALUATED unless qualified estimates are imported", "the OpenMC R2S provider is bounded to checked static CAD geometry and its authored per-solid component/material map with event-specific irradiation; it is not a general evolving-geometry model", "no independent transport or facility benchmark validates imported or generated dose estimates", "crossing-time uncertainty is not computed"]
     },
     {
       "id": "geometry-checks",

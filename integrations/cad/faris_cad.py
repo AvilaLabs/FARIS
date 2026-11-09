@@ -973,7 +973,7 @@ def deviation(args) -> int:
         "method": (
             "closed-form distance to plane, cylinder, cone, sphere and torus faces (accepted when the foot point is in the face, "
             "by OpenCASCADE's face classifier); BRepExtrema_DistShapeShape for other faces and for points whose foot point is outside the face; "
-            "global triangle coverage uses the 1-Lipschitz distance bound with bounded recursive subdivision"
+            "global triangle coverage uses vertex-distance upper bounds to verified convex planar faces and the 1-Lipschitz distance bound with bounded recursive subdivision for other cases"
         ),
         "solids": per_solid,
         "timing_seconds": timing,

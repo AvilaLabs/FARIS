@@ -67,11 +67,11 @@ constructs its numeric material/plasma payload only after the Design SHA-256 mat
 ImportReport and the report's conversion H5M matches its recorded digest. The request carries an
 authored `solid_history_components` mapping covering each nonvoid CAD solid exactly. The worker
 clones the audited composition, density, and temperature once per solid, retags a copied H5M using
-the trusted `design_transport.py` helper, builds the model with the checked tokamak source normalized
+the trusted `design_transport.py` helper, builds the model with the checked tokamak source normalised
 to unit strength, and writes a component-material map. It records hashes of the original/derived
 H5M, exported model, and map. It neither mutates the checked geometry nor loads study-provided Python
 or compiled source plugins. The irradiated geometry/material state is reused across component
-history schedules; that fixed-geometry assumption must hold over the modeled history.
+history schedules; that fixed-geometry assumption must hold over the modelled history.
 
 ## Prepare and run
 
@@ -111,7 +111,7 @@ the dose threshold, `lower_left_cm`, `upper_right_cm`, and `dimension: [1, 1, 1]
 ICRP-116 AP photon effective dose averaged over that authored volume. It uses the complete CAD
 geometry for neutron and photon transport.
 
-For each replacement event, Rust writes the exact history serialization to a separate artifact and
+For each replacement event, Rust writes the exact history serialization to a separate artefact and
 passes its SHA-256 unchanged. Rust builds an irradiation schedule for every currently installed
 component. R2S activates each component's mesh/material regions under its own schedule, creates
 separate decay-source meshes, and combines all active sources in one full-geometry photon run per

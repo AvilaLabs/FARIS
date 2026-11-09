@@ -26,7 +26,7 @@ If a tool you need sits behind an access-controlled library or a licence you hav
 The activation and maintenance adapters preserve ACTINV's documented cache locations, including
 `ACTINV_CACHE_DIR`. The cache must be separate from ordinary job outputs. Its checked allowance is
 320 MiB per file, 1 GiB in total and 256 files; symlinks and special files are refused. Ordinary
-artifacts keep their 256 MiB per-file limit. Cache creation, cancellation and atomic publication use
+artefacts keep their 256 MiB per-file limit. Cache creation, cancellation and atomic publication use
 the same bounded runner as the calculation.
 
 A fresh-cache live reproducibility check created the tested 275,493,400-byte `library.actp` and
