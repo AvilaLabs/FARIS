@@ -29,6 +29,7 @@ from pathlib import Path
 from . import matrix as matrix_mod
 from .manifest import load_manifest, manifest_sha256
 from .scoring import EVIDENCE_CLASSES
+from ._io import write_bytes_if_changed
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -325,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
-    args.out.write_text(json.dumps(mm, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    model_matrix_bytes = (json.dumps(mm, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    write_bytes_if_changed(args.out, model_matrix_bytes)
     print(f"wrote {args.out}: {len(mm['rows'])} models")
     return 0

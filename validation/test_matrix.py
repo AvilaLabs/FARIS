@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # SPDX-FileCopyrightText: 2026 Avila Labs
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -112,6 +113,26 @@ class Matrix(unittest.TestCase):
             out = Path(d) / "matrix.json"
             self.assertEqual(R.main(["matrix", "--out", str(out)]), 0)
             self.assertEqual(json.loads(out.read_text(encoding="utf-8")), json.loads(M.MATRIX.read_text(encoding="utf-8")))
+
+    def test_matrix_regeneration_preserves_mtime_when_bytes_are_identical(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "matrix.json"
+            self.assertEqual(R.main(["matrix", "--out", str(out)]), 0)
+            old_ns = 1_700_000_000_000_000_000
+            os.utime(out, ns=(old_ns, old_ns))
+            before = out.stat().st_mtime_ns
+            self.assertEqual(R.main(["matrix", "--out", str(out)]), 0)
+            self.assertEqual(out.stat().st_mtime_ns, before)
+
+    def test_matrix_regeneration_rewrites_genuinely_changed_bytes(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "matrix.json"
+            out.write_bytes(b'{"stale":true}\n')
+            old_ns = 1_700_000_000_000_000_000
+            os.utime(out, ns=(old_ns, old_ns))
+            self.assertEqual(R.main(["matrix", "--out", str(out)]), 0)
+            self.assertNotEqual(out.read_bytes(), b'{"stale":true}\n')
+            self.assertGreater(out.stat().st_mtime_ns, old_ns)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # SPDX-FileCopyrightText: 2026 Avila Labs
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -184,6 +185,28 @@ class Claims(unittest.TestCase):
         cases = clone(suite["cases"])
         cases[0]["run"] = None
         self.assertTrue(any("without a run record" in p for p in M.check_claims(suite["matrix"], cases, FIXTURE_REGISTRY)))
+
+
+class GeneratedFileWrites(unittest.TestCase):
+    def test_models_regeneration_preserves_mtime_when_bytes_are_identical(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "model_matrix.json"
+            self.assertEqual(MD.main(["--out", str(out)]), 0)
+            old_ns = 1_700_000_000_000_000_000
+            os.utime(out, ns=(old_ns, old_ns))
+            before = out.stat().st_mtime_ns
+            self.assertEqual(MD.main(["--out", str(out)]), 0)
+            self.assertEqual(out.stat().st_mtime_ns, before)
+
+    def test_models_regeneration_rewrites_genuinely_changed_bytes(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "model_matrix.json"
+            out.write_bytes(b'{"stale":true}\n')
+            old_ns = 1_700_000_000_000_000_000
+            os.utime(out, ns=(old_ns, old_ns))
+            self.assertEqual(MD.main(["--out", str(out)]), 0)
+            self.assertNotEqual(out.read_bytes(), b'{"stale":true}\n')
+            self.assertGreater(out.stat().st_mtime_ns, old_ns)
 
 
 if __name__ == "__main__":

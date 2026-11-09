@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .manifest import load_manifest
 from .scoring import DEFAULT_BOOTSTRAP_SEED, EVIDENCE_CLASSES, Identity, ValidationError
+from ._io import write_bytes_if_changed
 
 HERE = Path(__file__).resolve().parent
 QUANTITIES = HERE / "quantities.json"
@@ -225,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
-    args.out.write_text(json.dumps(suite["matrix"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    matrix_bytes = (json.dumps(suite["matrix"], indent=2, sort_keys=True) + "\n").encode("utf-8")
+    write_bytes_if_changed(args.out, matrix_bytes)
     print(f"wrote {args.out}: {len(suite['matrix']['rows'])} rows")
     return 0
