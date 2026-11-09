@@ -14,11 +14,13 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 pub const CURVES_SCHEMA: &str = "faris-maintenance-spatial-dose-curves/v0.1";
 pub const ESTIMATE_SCHEMA: &str = "faris-maintenance-spatial-dose-estimate/v0.1";
 pub const RUN_RECORD_SCHEMA: &str = "faris-maintenance-spatial-dose-run-record/v0.1";
 pub const MAX_CURVE_FILE_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_PHYSICAL_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
 pub const MAX_TOTAL_ARTIFACT_BYTES: u64 = 512 * 1024 * 1024;
 pub const MAX_EVENT_COUNT: usize = 100_000;
 pub const MAX_POINTS_PER_EVENT: usize = 512;
@@ -164,31 +166,92 @@ fn valid_sha(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-fn hash_file(path: &Path) -> Result<(String, u64), String> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileFingerprint {
+    len: u64,
+    modified: Option<SystemTime>,
+    #[cfg(unix)]
+    dev: u64,
+    #[cfg(unix)]
+    ino: u64,
+    #[cfg(unix)]
+    ctime: i64,
+    #[cfg(unix)]
+    ctime_nsec: i64,
+}
+
+impl FileFingerprint {
+    fn from_metadata(metadata: &std::fs::Metadata) -> Result<Self, String> {
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+        Ok(Self {
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+            #[cfg(unix)]
+            dev: metadata.dev(),
+            #[cfg(unix)]
+            ino: metadata.ino(),
+            #[cfg(unix)]
+            ctime: metadata.ctime(),
+            #[cfg(unix)]
+            ctime_nsec: metadata.ctime_nsec(),
+        })
+    }
+
+    #[cfg(unix)]
+    fn reusable_for_cache(&self) -> bool {
+        true
+    }
+
+    #[cfg(not(unix))]
+    fn reusable_for_cache(&self) -> bool {
+        false
+    }
+}
+
+fn hash_file(path: &Path) -> Result<(String, u64, FileFingerprint), String> {
     let file = open_regular_file(path)?;
     let metadata = file.metadata().map_err(|e| e.to_string())?;
-    if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
+    let before = FileFingerprint::from_metadata(&metadata)?;
+    let path_before =
+        FileFingerprint::from_metadata(&std::fs::metadata(path).map_err(|e| e.to_string())?)?;
+    if before != path_before {
         return Err(format!(
-            "artifact {} is not a bounded regular file",
+            "artifact {} changed while it was being opened",
+            path.display()
+        ));
+    }
+    if !metadata.is_file() || before.len > MAX_PHYSICAL_ARTIFACT_BYTES {
+        return Err(format!(
+            "artifact {} is not a regular file no larger than 256 MiB",
             path.display()
         ));
     }
     let mut file = file;
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
-    let mut total = 0usize;
+    let mut total = 0u64;
     loop {
         let n = file.read(&mut buffer).map_err(|e| e.to_string())?;
         if n == 0 {
             break;
         }
-        total = total.saturating_add(n);
-        if total > MAX_CURVE_FILE_BYTES {
-            return Err("artifact exceeds 16 MiB limit".into());
+        total = total.saturating_add(n as u64);
+        if total > MAX_PHYSICAL_ARTIFACT_BYTES {
+            return Err("physical artifact exceeds 256 MiB limit".into());
         }
         digest.update(&buffer[..n]);
     }
-    Ok((format!("{:x}", digest.finalize()), total as u64))
+    let after = FileFingerprint::from_metadata(&file.metadata().map_err(|e| e.to_string())?)?;
+    let path_after =
+        FileFingerprint::from_metadata(&std::fs::metadata(path).map_err(|e| e.to_string())?)?;
+    if before != after || after != path_after || total != before.len {
+        return Err(format!(
+            "artifact {} changed while it was being verified",
+            path.display()
+        ));
+    }
+    Ok((format!("{:x}", digest.finalize()), total, after))
 }
 
 fn open_regular_file(path: &Path) -> Result<std::fs::File, String> {
@@ -223,7 +286,8 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, String> {
 
 #[derive(Default)]
 struct ArtifactVerifier {
-    json_records: BTreeMap<PathBuf, (String, serde_json::Value)>,
+    json_records: BTreeMap<PathBuf, (String, FileFingerprint, serde_json::Value)>,
+    verified_artifacts: BTreeMap<PathBuf, (String, FileFingerprint)>,
     total_bytes_read: u64,
 }
 
@@ -232,22 +296,40 @@ impl ArtifactVerifier {
         if !valid_sha(&reference.sha256) {
             return Err("artifact reference needs a SHA-256".into());
         }
-        let path = base.join(&reference.path);
+        let path = std::fs::canonicalize(base.join(&reference.path))
+            .map_err(|e| format!("{}: {e}", base.join(&reference.path).display()))?;
         let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
+        let fingerprint = FileFingerprint::from_metadata(&metadata)?;
+        if !metadata.is_file() || fingerprint.len > MAX_PHYSICAL_ARTIFACT_BYTES {
             return Err(format!(
-                "artifact {} is not a bounded regular file",
+                "artifact {} is not a regular file no larger than 256 MiB",
                 path.display()
             ));
         }
-        let (got, bytes_read) = hash_file(&path)?;
+        if let Some((cached_sha, cached_fingerprint)) = self.verified_artifacts.get(&path) {
+            let opened = open_regular_file(&path)?;
+            let opened_fingerprint =
+                FileFingerprint::from_metadata(&opened.metadata().map_err(|e| e.to_string())?)?;
+            if fingerprint.reusable_for_cache()
+                && cached_fingerprint == &fingerprint
+                && cached_fingerprint == &opened_fingerprint
+                && cached_sha.eq_ignore_ascii_case(&reference.sha256)
+            {
+                return Ok(path);
+            }
+        }
+        let (got, bytes_read, hashed_fingerprint) = hash_file(&path)?;
         self.total_bytes_read = self.total_bytes_read.saturating_add(bytes_read);
         if self.total_bytes_read > MAX_TOTAL_ARTIFACT_BYTES {
-            return Err("artifact reads exceed the 512 MiB aggregate verification budget".into());
+            return Err(
+                "artifact hashing exceeds the 512 MiB aggregate verification budget".into(),
+            );
         }
         if !got.eq_ignore_ascii_case(&reference.sha256) {
             return Err(format!("artifact {} SHA-256 mismatch", path.display()));
         }
+        self.verified_artifacts
+            .insert(path.clone(), (got, hashed_fingerprint));
         Ok(path)
     }
 
@@ -256,8 +338,37 @@ impl ArtifactVerifier {
         reference: &ArtifactRef,
         base: &Path,
     ) -> Result<(PathBuf, serde_json::Value), String> {
-        let path = base.join(&reference.path);
+        let path = std::fs::canonicalize(base.join(&reference.path))
+            .map_err(|e| format!("{}: {e}", base.join(&reference.path).display()))?;
+        let metadata = std::fs::metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        if !metadata.is_file() || metadata.len() > MAX_CURVE_FILE_BYTES as u64 {
+            return Err(format!(
+                "JSON artifact {} exceeds the 16 MiB regular-file limit",
+                path.display()
+            ));
+        }
+        let before = FileFingerprint::from_metadata(&metadata)?;
+        if let Some((cached_sha, cached_fingerprint, record)) = self.json_records.get(&path) {
+            let opened = open_regular_file(&path)?;
+            let opened_fingerprint =
+                FileFingerprint::from_metadata(&opened.metadata().map_err(|e| e.to_string())?)?;
+            if before.reusable_for_cache()
+                && cached_fingerprint == &before
+                && cached_fingerprint == &opened_fingerprint
+                && cached_sha.eq_ignore_ascii_case(&reference.sha256)
+            {
+                return Ok((path, record.clone()));
+            }
+        }
         let bytes = read_bounded(&path)?;
+        let after =
+            FileFingerprint::from_metadata(&std::fs::metadata(&path).map_err(|e| e.to_string())?)?;
+        if before != after || bytes.len() as u64 != after.len {
+            return Err(format!(
+                "JSON artifact {} changed while it was being verified",
+                path.display()
+            ));
+        }
         self.total_bytes_read = self.total_bytes_read.saturating_add(bytes.len() as u64);
         if self.total_bytes_read > MAX_TOTAL_ARTIFACT_BYTES {
             return Err("artifact reads exceed the 512 MiB aggregate verification budget".into());
@@ -266,15 +377,10 @@ impl ArtifactVerifier {
         if !digest.eq_ignore_ascii_case(&reference.sha256) {
             return Err(format!("artifact {} SHA-256 mismatch", path.display()));
         }
-        if let Some((cached_sha, record)) = self.json_records.get(&path) {
-            if cached_sha.eq_ignore_ascii_case(&digest) {
-                return Ok((path, record.clone()));
-            }
-        }
         let record: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|e| format!("{}: JSON: {e}", path.display()))?;
         self.json_records
-            .insert(path.clone(), (digest, record.clone()));
+            .insert(path.clone(), (digest, after, record.clone()));
         Ok((path, record))
     }
 }
@@ -872,6 +978,44 @@ mod tests {
 
     fn sha(bytes: &[u8]) -> String {
         format!("{:x}", Sha256::digest(bytes))
+    }
+
+    #[test]
+    fn large_shared_physical_artifact_is_supported_and_hashed_once() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("rm-m-geometry.h5");
+        let bytes = vec![0_u8; 64 * 1024 * 1024];
+        std::fs::write(&path, &bytes).unwrap();
+        let reference = ArtifactRef {
+            path: "rm-m-geometry.h5".into(),
+            sha256: sha(&bytes),
+        };
+        let mut verifier = ArtifactVerifier::default();
+        for _ in 0..6 {
+            verifier.verify(&reference, temp.path()).unwrap();
+        }
+        assert_eq!(verifier.total_bytes_read, bytes.len() as u64);
+        assert!(bytes.len() as u64 > MAX_CURVE_FILE_BYTES as u64);
+        assert!(bytes.len() as u64 <= MAX_PHYSICAL_ARTIFACT_BYTES);
+    }
+
+    #[test]
+    fn changed_physical_artifact_cannot_reuse_a_cached_hash() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("geometry.h5");
+        let original = b"original geometry bytes";
+        let changed = b"modified geometry bytes";
+        assert_eq!(original.len(), changed.len());
+        std::fs::write(&path, original).unwrap();
+        let reference = ArtifactRef {
+            path: "geometry.h5".into(),
+            sha256: sha(original),
+        };
+        let mut verifier = ArtifactVerifier::default();
+        verifier.verify(&reference, temp.path()).unwrap();
+        std::fs::write(&path, changed).unwrap();
+        let error = verifier.verify(&reference, temp.path()).unwrap_err();
+        assert!(error.contains("SHA-256 mismatch"), "{error}");
     }
 
     fn estimate(

@@ -42,7 +42,7 @@ The run-record JSON is required to repeat the method, cooling time, estimate and
 
 FARIS selects the authored method (D1S by default, R2S if selected) and records D1S/R2S central-value ratios against the 0.85–1.15 declared comparison band. Comparison covariance defaults to `unknown`; in-band values then remain `INCONCLUSIVE_COVARIANCE`. To calculate a pointwise ratio standard error, supply `covariance: {"kind":"independent_assumed","rationale":"...","evidence":{"path":"...","sha256":"..."}}` and a hash-verified evidence file. This is an authored independence assumption, not an inference from random-stream IDs. An out-of-band central value makes the event NOT_EVALUATED. Pointwise standard errors do not establish cooling-time uncertainty, so that uncertainty remains NOT_EVALUATED.
 
-The manifest and every run-record artifact are read with 16 MiB file limits; a bundle is limited to 100,000 events and 512 cooling points per event. If a history iteration changes and there is no exact matching event curve, that iteration is NOT_EVALUATED. The coupling loop does not reuse a stale curve.
+The manifest and every run-record artifact are limited to 16 MiB. Physical input artifacts are streamed and hash-checked up to 256 MiB each, with a 512 MiB aggregate hash budget per validation operation. Shared artifacts are charged once while their file identity and metadata remain stable; a changed file is rehashed and must still match its declared hash. A bundle is limited to 100,000 events and 512 cooling points per event. If a history iteration changes and there is no exact matching event curve, that iteration is NOT_EVALUATED. The coupling loop does not reuse a stale curve.
 
 Example CLI invocation (no ACTINV executable or data catalogue is used):
 
