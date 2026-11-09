@@ -75,20 +75,22 @@ history schedules; that fixed-geometry assumption must hold over the modelled hi
 
 ## Prepare and run
 
-Create a `faris-maintenance-dose-cad-config/v0.1` file. The CAD-solid mapping is authored once
+Create a `faris-maintenance-dose-cad-config/v0.2` file. The CAD-solid mapping is authored once
 for the design; schedules are reconstructed automatically from the exact history at each event.
+The supported general event backend uses the hash-pinned ACTINV FISPACT-709 neutron library and
+the configured decay data. Paths are explicit user configuration, not study-provided plugins.
 
 ```json
 {
-  "schema_version": "faris-maintenance-dose-cad-config/v0.1",
+  "schema_version": "faris-maintenance-dose-cad-config/v0.2",
   "design_file": "design.json",
   "import_report": "design-check-report.json",
   "cross_sections_xml": {"path": "nuclear-data/cross_sections.xml", "sha256": "..."},
-  "chain_xml": {"path": "nuclear-data/chain.xml", "sha256": "..."},
+  "actinv": {"executable": "/path/to/actinv", "data_dir": "/path/to/actinv-data/v1.1.0", "cache_dir": "actinv-cache", "photon_groups": 32, "timeout_s": 3600},
   "solid_history_components": {"solid-blanket-1": "blanket-1", "solid-shield-1": "shield-1"},
   "activation_mesh": {"lower_left_cm": [-500, -500, -500], "upper_right_cm": [500, 500, 500], "dimension": [20, 20, 20]},
   "response_locations": {"port-a": {"path": "locations/port-a.json", "sha256": "..."}},
-  "sampling": {"neutron_particles": 1000, "neutron_batches": 20, "photon_particles": 1000, "photon_batches": 20, "seed": 271828, "threads": 2, "mat_vol_samples": 50000, "activation_groups": "VITAMIN-J-42", "run_budget_s": 3600},
+  "sampling": {"neutron_particles": 1000, "neutron_batches": 20, "photon_particles": 1000, "photon_batches": 20, "seed": 271828, "threads": 2, "mat_vol_samples": 50000, "activation_groups": "FISPACT-709", "run_budget_s": 3600},
   "work_dir": "dose-cad-preparation-work",
   "output_manifest": "dose-physics.json"
 }
@@ -101,24 +103,27 @@ This separate, cancellable bounded step writes `dose-physics.json`; add that fil
 preparation action. `dose-prepare` reopens its generated manifest through the same immutable-hash
 validator that `dose-run` uses before it reports success.
 
-The activation preflight rejects chain nuclides with listed depletion reactions that are absent
-from the selected neutron cross-section index. OpenMC's MicroXS path otherwise silently leaves
-missing nuclide rows at zero. Presence in the index does not establish that every channel is
-complete or that the chain is adequate; those remain nuclear-data/model limitations.
+The legacy OpenMC CE depletion route still requires a checked chain and rejects listed depletion
+reactions absent from the selected neutron cross-section index. The v0.2 CAD preparation path
+instead uses ACTINV with the hash-bound FISPACT-709/TENDL library and decay data. ACTINV data
+gaps or photon emission outside the configured transport energy groups refuse a whole-plant curve;
+the engine does not replace missing channels with zero.
 
 Each response-location file must contain `schema: faris-task-location/v0.1`, the same `id` used by
 the dose threshold, `lower_left_cm`, `upper_right_cm`, and `dimension: [1, 1, 1]`. The worker reports
 ICRP-116 AP photon effective dose averaged over that authored volume. It uses the complete CAD
 geometry for neutron and photon transport.
 
-For each replacement event, Rust writes the exact history serialization to a separate artefact and
-passes its SHA-256 unchanged. Rust builds an irradiation schedule for every currently installed
-component. R2S activates each component's mesh/material regions under its own schedule, creates
-separate decay-source meshes, and combines all active sources in one full-geometry photon run per
-cooling time. Material-volume and activation-mesh approximation, source conservation, batch loss
-counts, run limits and loaded OpenMC C-library identity are included in the receipt. The reported
-standard error covers aggregate photon batches conditional on the activated source; it does not
-include neutron-response, activation-source, geometry, composition or nuclear-data uncertainty.
+For each replacement event, Rust writes the exact history serialization and the per-component source
+schedules as separate hash-bound artifacts. OpenMC runs full-geometry neutron transport and exports
+track length by activation-mesh element and cloned material ID in all 709 groups. Rust divides each
+response by the matching material-in-voxel volume, uses the exact event schedule in the native
+ACTINV engine for every currently installed component, and writes hashed result and photon-source
+artifacts. All active material-constrained sources are combined in one full-geometry photon run per
+cooling time. The receipt records mesh/material approximations, group and rate conservation, loss
+counts, batch covariance, run limits, actual OpenMC library identity, ACTINV executable hash and
+data hashes. Photon transport standard error is conditional on activation source; it excludes
+neutron-response, activation-source, geometry, composition, and nuclear-data uncertainty.
 
 Stock D1S is run only when the currently installed components share the same irradiation schedule.
 With different installation histories, the R2S dose curve can still be selected, while D1S is

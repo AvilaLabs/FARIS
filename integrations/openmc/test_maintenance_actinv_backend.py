@@ -77,7 +77,8 @@ class ActinvBackendContracts(unittest.TestCase):
             "id": "e0_m101", "completeness": "COMPLETE", "gaps": [], "run": {"problem_sha256": "a" * 64},
             "points": [{"cooling_s": 1.0, "photon_source": {
                 "total_photons_per_s": 10.0, "photons_outside_groups_per_s": 0.0,
-                "groups": [{"centroid_ev": 50.0, "photons_per_s": 10.0}]}}]}]}
+                "groups": [{"centroid_ev": 50.0, "low_ev": 0.0, "high_ev": 100.0,
+                            "photons_per_s": 10.0}]}}]}]}
         meta = {"e0_m101": {"mesh_element": 0, "material_id": 101}}
         self.assertEqual(backend.photon_emitters_from_activation(base, meta, 1.0)[0]["photons_per_s"], 10.0)
         base["zones"][0]["gaps"] = [{"category": "decay", "count": 1}]
@@ -87,6 +88,26 @@ class ActinvBackendContracts(unittest.TestCase):
         base["zones"][0]["points"][0]["photon_source"]["photons_outside_groups_per_s"] = 0.1
         with self.assertRaisesRegex(ValueError, "outside requested group bounds"):
             backend.photon_emitters_from_activation(base, meta, 1.0)
+
+    def test_safe_source_preflight_accepts_normalized_mesh_and_rejects_plugins(self):
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring("""<model><settings>
+          <source type="mesh" mesh="7" strength="1.0">
+            <source type="independent" strength="0.4" particle="neutron">
+              <space type="box"><parameters>0 0 0 1 1 1</parameters></space>
+              <angle type="isotropic"/><energy type="discrete"><parameters>14e6 1</parameters></energy>
+            </source>
+            <source type="independent" strength="0.6" particle="neutron">
+              <space type="box"><parameters>1 0 0 2 1 1</parameters></space>
+              <angle type="isotropic"/><energy type="discrete"><parameters>14e6 1</parameters></energy>
+            </source>
+          </source>
+          <mesh id="7"><dimension>2 1 1</dimension><lower_left>0 0 0</lower_left><upper_right>2 1 1</upper_right></mesh>
+        </settings></model>""")
+        backend.validate_safe_model_sources(root)
+        root.find("settings/source/source").set("library", "attacker.py")
+        with self.assertRaisesRegex(ValueError, "compiled or external"):
+            backend.validate_safe_model_sources(root)
 
 
 if __name__ == "__main__":

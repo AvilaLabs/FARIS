@@ -44,6 +44,110 @@ def checked_ref(ref: dict, label: str) -> Path:
     return path
 
 
+def validate_safe_model_sources(root: ET.Element) -> None:
+    """Accept only standard data-defined IndependentSource and MeshSource XML."""
+    source_types = {
+        "space": {"box", "point", "cartesian", "cylindrical", "spherical", "fission", "mesh"},
+        "angle": {"isotropic", "monodirectional", "mu-phi", "polar_azimuthal", "mueller"},
+        "energy": {"discrete", "uniform", "maxwell", "watt", "tabular", "general_evaporation",
+                   "evaporation", "madland_nix", "muir", "legendre", "spatial"},
+        "time": {"discrete", "uniform", "maxwell", "watt", "tabular", "general_evaporation",
+                 "evaporation", "madland_nix", "muir", "legendre", "spatial"},
+    }
+    for element in root.iter():
+        if {key.lower() for key in element.attrib}.intersection(
+            {"library", "module", "callable", "python_module"}
+        ):
+            raise ValueError("model XML must not load compiled or external plugins")
+    settings = root.find("settings")
+    if settings is None:
+        raise ValueError("checked OpenMC model has no settings element")
+    mesh_ids = {node.attrib.get("id") for node in settings.findall("mesh")}
+    sources = settings.findall("source")
+    if not sources:
+        raise ValueError("checked OpenMC model has no explicit source distribution")
+
+    def check_independent(source: ET.Element) -> float:
+        if source.attrib.get("type", "independent").lower() != "independent":
+            raise ValueError("mesh source bins must be built-in IndependentSources")
+        if set(source.attrib) - {"type", "strength", "particle"}:
+            raise ValueError("source XML has unsupported attributes or executable/file-backed plugin references")
+        if source.attrib.get("particle", "neutron").lower() != "neutron":
+            raise ValueError("the checked activation source must contain neutrons only")
+        if any(child.tag not in {"space", "angle", "energy", "time", "constraints"} for child in source):
+            raise ValueError("independent source contains an unsupported XML element")
+        strength = _finite(float(source.attrib.get("strength", "1")), "source strength", minimum=0)
+        for child in source:
+            if child.tag in source_types:
+                kind = child.attrib.get("type", "").lower()
+                if kind not in source_types[child.tag]:
+                    raise ValueError(f"unsupported data-defined source distribution {child.tag}:{kind}")
+                allowed_attrs = {"type", "mesh"} if kind == "mesh" else {"type"}
+                if child.tag == "angle" and kind == "mu-phi":
+                    allowed_attrs |= {"reference_uvw", "reference_vwu"}
+                    for key in {"reference_uvw", "reference_vwu"}.intersection(child.attrib):
+                        for value in child.attrib[key].split():
+                            _finite(float(value), f"angle {key}")
+                if set(child.attrib) - allowed_attrs:
+                    raise ValueError("source distribution has unsupported or external-plugin attributes")
+                allowed_descendants = {"parameters"}
+                if child.tag == "angle" and kind == "mu-phi":
+                    allowed_descendants |= {"mu", "phi"}
+                if any(node.tag not in allowed_descendants for node in list(child.iter())[1:]):
+                    raise ValueError("source distribution contains unsupported nested XML")
+                for nested in list(child):
+                    if nested.tag in {"mu", "phi"}:
+                        if nested.attrib.get("type", "") not in source_types["energy"]:
+                            raise ValueError("mu-phi angle distributions must use a standard numeric distribution")
+                        if set(nested.attrib) - {"type"} or any(n.tag != "parameters" for n in nested):
+                            raise ValueError("mu-phi angle XML contains unsupported fields")
+                for parameter in child.iter("parameters"):
+                    if list(parameter) or parameter.attrib:
+                        raise ValueError("source distribution parameters must be plain numeric data")
+                    for value in (parameter.text or "").replace(",", " ").split():
+                        _finite(float(value), f"{child.tag} distribution parameter")
+            elif child.tag == "constraints" and any(
+                nested.tag not in {"domain_type", "domain_ids", "rejection_strategy", "energy_bounds", "time_bounds", "fissionable"}
+                for nested in child
+            ):
+                raise ValueError("source constraints contain an unsupported field")
+        return strength
+
+    total_strength = 0.0
+    for source in sources:
+        source_type = source.attrib.get("type", "independent").lower()
+        if source_type == "independent":
+            strength = check_independent(source)
+            if strength <= 0:
+                raise ValueError("source strength must be positive")
+            total_strength += strength
+        elif source_type == "mesh":
+            if set(source.attrib) - {"type", "mesh", "strength"}:
+                raise ValueError("mesh source has unsupported or external-plugin attributes")
+            if source.attrib.get("mesh") not in mesh_ids:
+                raise ValueError("mesh source references an undeclared settings mesh")
+            bins = source.findall("source")
+            if not bins:
+                raise ValueError("mesh source has no data-defined source bins")
+            strengths = [check_independent(item) for item in bins]
+            if any(value <= 0 for value in strengths):
+                raise ValueError("mesh source bin strengths must be positive")
+            outer = _finite(float(source.attrib.get("strength", "nan")), "mesh source strength", minimum=0)
+            if not math.isclose(math.fsum(strengths), outer, rel_tol=1e-12, abs_tol=1e-12):
+                raise ValueError("mesh source outer strength does not equal its source-bin strengths")
+            if any(child.tag not in {"source", "constraints"} for child in source):
+                raise ValueError("mesh source contains unsupported or executable XML")
+            if any(node.tag not in {"source", "constraints", "domain_type", "domain_ids", "rejection_strategy",
+                                    "energy_bounds", "time_bounds", "fissionable"}
+                   for child in source if child.tag == "constraints" for node in child.iter()):
+                raise ValueError("mesh source constraints contain unsupported XML")
+            total_strength += outer
+        else:
+            raise ValueError(f"unsupported OpenMC source type {source_type!r}; only independent and mesh are allowed")
+    if not math.isclose(total_strength, 1.0, rel_tol=1e-10, abs_tol=1e-12):
+        raise ValueError("checked neutron source strengths do not sum to unit source strength")
+
+
 def activation_batches_from_artifacts(request: dict) -> dict:
     """Read hash-bound OpenMC 709 response + checked model/material artifacts into batches."""
     expected = {"schema", "model", "geometry", "component_material_map", "response_npz",
@@ -60,12 +164,7 @@ def activation_batches_from_artifacts(request: dict) -> dict:
     library_path = checked_ref(request["activation_library_npz"], "ACTINV TENDL-709 library")
     library_index_path = checked_ref(request["activation_library_index"], "ACTINV library index")
     root = ET.parse(model_path).getroot()
-    for element in root.iter():
-        attrs = {k.lower() for k in element.attrib}
-        if attrs.intersection({"library", "module", "callable", "python_module"}):
-            raise ValueError("model XML must not load compiled or external Python plugins")
-        if element.tag.lower() == "source" and element.attrib.get("type", "independent").lower() != "independent":
-            raise ValueError("model source must be a data-only independent distribution")
+    validate_safe_model_sources(root)
     dags = root.findall(".//dagmc/filename")
     if len(dags) != 1 or (model_path.parent / (dags[0].text or "")).resolve() != geometry_path:
         raise ValueError("model XML must reference the hash-bound exact DAGMC geometry")
@@ -364,8 +463,15 @@ def build_activation_batches(
         irr_steps = split_irradiation_schedule(group, shutdown_s)
         steps = [{"duration_s": s["duration_s"], "flux_scale": s["flux_scale"] / base_rate}
                  for s in irr_steps]
+        zone_metadata = {
+            zone["id"]: {"mesh_element": zone.pop("mesh_element"),
+                         "material_id": zone.pop("material_id"),
+                         "material_volume_cm3": zone.pop("material_volume_cm3")}
+            for zone in domains[component]
+        }
         batches.append({
             "component": component,
+            "zone_metadata": zone_metadata,
             "activation_request": {
                 "zones": domains[component],
                 "steps": steps,

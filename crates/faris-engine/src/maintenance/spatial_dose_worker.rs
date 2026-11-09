@@ -24,13 +24,18 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-pub const DOSE_PHYSICS_SCHEMA: &str = "faris-maintenance-dose-physics/v0.1";
+pub const DOSE_PHYSICS_SCHEMA: &str = "faris-maintenance-dose-physics/v0.2";
+pub const DOSE_PHYSICS_SCHEMA_V1: &str = "faris-maintenance-dose-physics/v0.1";
 pub const COMPONENT_MAP_SCHEMA: &str = "faris-cad-component-material-map/v0.1";
 pub const REQUEST_SCHEMA: &str = "faris-maintenance-r2s-event-request/v0.1";
 pub const RECEIPT_SCHEMA: &str = "faris-maintenance-r2s-event-receipt/v0.1";
 pub const PREP_RECEIPT_SCHEMA: &str = "faris-maintenance-dose-cad-preparation-receipt/v0.1";
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_WORKER_REQUEST_BYTES: usize = 4 * 1024 * 1024;
+const MAX_ACTINV_BATCH_BYTES: usize = 256 * 1024 * 1024;
+const MAX_ACTINV_ZONE_COUNT: usize = 5_000;
+const MAX_ACTINV_EMITTER_RECORDS: usize = 50_000;
+const MAX_ACTINV_EMITTER_GROUPS: usize = 2_000_000;
 const WORKER_LOG_LIMIT_BYTES: usize = 1 << 20;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -63,11 +68,39 @@ pub struct DosePhysicsManifest {
     pub geometry_h5m: ArtifactRef,
     pub component_material_map: ArtifactRef,
     pub cross_sections_xml: ArtifactRef,
-    pub chain_xml: ArtifactRef,
+    #[serde(default)]
+    pub chain_xml: Option<ArtifactRef>,
+    #[serde(default)]
+    pub activation_backend: Option<DoseActinvBackend>,
     pub activation_mesh: MeshBounds,
     /// Artifact paths are keyed by the location IDs used by the maintenance assumptions.
     pub response_locations: BTreeMap<String, ArtifactRef>,
     pub sampling: DoseSampling,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DoseActinvBackend {
+    pub kind: String,
+    pub executable: ArtifactRef,
+    pub data_dir: PathBuf,
+    pub cache_dir: PathBuf,
+    pub library_npz: ArtifactRef,
+    pub library_index: ArtifactRef,
+    pub decay_primary: ArtifactRef,
+    pub decay_fallback: Option<ArtifactRef>,
+    pub photon_group_boundaries_ev: Vec<f64>,
+    pub timeout_s: f64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DoseActinvPrepareConfig {
+    pub executable: PathBuf,
+    pub data_dir: PathBuf,
+    pub cache_dir: PathBuf,
+    pub photon_groups: usize,
+    pub timeout_s: f64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -77,7 +110,10 @@ pub struct DoseCadPrepareConfig {
     pub design_file: PathBuf,
     pub import_report: PathBuf,
     pub cross_sections_xml: ArtifactRef,
-    pub chain_xml: ArtifactRef,
+    #[serde(default)]
+    pub chain_xml: Option<ArtifactRef>,
+    #[serde(default)]
+    pub actinv: Option<DoseActinvPrepareConfig>,
     pub solid_history_components: BTreeMap<String, String>,
     pub activation_mesh: MeshBounds,
     pub response_locations: BTreeMap<String, ArtifactRef>,
@@ -94,7 +130,7 @@ pub fn prepare_dose_cad(
     worker_script: &Path,
     cancel: &Cancellation,
 ) -> Result<PathBuf, String> {
-    const CONFIG_SCHEMA: &str = "faris-maintenance-dose-cad-config/v0.1";
+    const CONFIG_SCHEMA: &str = "faris-maintenance-dose-cad-config/v0.2";
     let bytes = read_bounded(config_path, MAX_MANIFEST_BYTES)?;
     let mut config: DoseCadPrepareConfig =
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
@@ -103,22 +139,34 @@ pub fn prepare_dose_cad(
             "dose CAD config schema_version must be {CONFIG_SCHEMA}"
         ));
     }
+    let actinv_prepare = config.actinv.as_mut().ok_or(
+        "dose CAD preparation config must include explicit ACTINV executable, data, cache, and photon grouping settings",
+    )?;
     let base = config_path.parent().unwrap_or(Path::new("."));
     for path in [
         &mut config.design_file,
         &mut config.import_report,
         &mut config.work_dir,
         &mut config.output_manifest,
+        &mut actinv_prepare.executable,
+        &mut actinv_prepare.data_dir,
+        &mut actinv_prepare.cache_dir,
     ] {
         if !path.is_absolute() {
             *path = base.join(&*path);
         }
     }
-    for reference in [&mut config.cross_sections_xml, &mut config.chain_xml] {
+    for reference in [&mut config.cross_sections_xml] {
         if !reference.path.is_absolute() {
             reference.path = base.join(&reference.path);
         }
         verify_ref(reference, "dose preparation nuclear data")?;
+    }
+    if let Some(reference) = &mut config.chain_xml {
+        if !reference.path.is_absolute() {
+            reference.path = base.join(&reference.path);
+        }
+        verify_ref(reference, "dose preparation depletion chain")?;
     }
     for reference in config.response_locations.values_mut() {
         if !reference.path.is_absolute() {
@@ -138,6 +186,54 @@ pub fn prepare_dose_cad(
     }
     validate_bounds(&config.activation_mesh, "activation mesh")?;
     validate_sampling(&config.sampling)?;
+    if !actinv_prepare.timeout_s.is_finite()
+        || !(1.0..=86_400.0).contains(&actinv_prepare.timeout_s)
+    {
+        return Err("ACTINV timeout_s must be finite and in 1..=86400".into());
+    }
+    let actinv_executable = actinv_prepare
+        .executable
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let data_dir = actinv_prepare
+        .data_dir
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if !data_dir.is_dir() {
+        return Err("ACTINV data_dir must be an existing directory".into());
+    }
+    let cache_dir = if actinv_prepare.cache_dir.is_absolute() {
+        actinv_prepare.cache_dir.clone()
+    } else {
+        base.join(&actinv_prepare.cache_dir)
+    };
+    let cache_dir = cache_dir.canonicalize().unwrap_or(cache_dir);
+    let activation_data = crate::activation::ActivationData::catalog(&data_dir);
+    let library_npz = make_ref(&activation_data.library)?;
+    let library_index_path = activation_data
+        .library
+        .with_file_name("tendl-2025-neutron-709g_index.json");
+    let library_index = make_ref(&library_index_path)?;
+    let decay_primary = make_ref(&activation_data.decay_primary)?;
+    let decay_fallback = activation_data
+        .decay_fallback
+        .as_ref()
+        .map(|(path, _)| make_ref(path))
+        .transpose()?;
+    let activation_backend = DoseActinvBackend {
+        kind: "actinv_tendl_709".into(),
+        executable: make_ref(&actinv_executable)?,
+        data_dir,
+        cache_dir,
+        library_npz,
+        library_index,
+        decay_primary,
+        decay_fallback,
+        photon_group_boundaries_ev: crate::activation::log_photon_groups(
+            actinv_prepare.photon_groups,
+        )?,
+        timeout_s: actinv_prepare.timeout_s,
+    };
     let worker_script = worker_script.canonicalize().map_err(|e| e.to_string())?;
     let helper = worker_script.with_file_name("design_transport.py");
     if !helper.is_file() {
@@ -228,6 +324,7 @@ pub fn prepare_dose_cad(
         "component_material_map": map_ref,
         "cross_sections_xml": config.cross_sections_xml,
         "chain_xml": config.chain_xml,
+        "activation_backend": activation_backend,
         "activation_mesh": config.activation_mesh,
         "response_locations": config.response_locations,
         "sampling": config.sampling,
@@ -245,6 +342,1105 @@ fn path_from_receipt(receipt: &Value, key: &str) -> Result<PathBuf, String> {
         .and_then(Value::as_str)
         .map(PathBuf::from)
         .ok_or_else(|| format!("dose CAD preparation receipt omits {key}"))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActinvEventBatchFile {
+    schema: String,
+    uncertainty_scope: String,
+    spatial_approximation: String,
+    source_rate_normalization: String,
+    provenance: Value,
+    batches: Vec<ActinvEventBatch>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActinvEventBatch {
+    component: String,
+    zone_metadata: BTreeMap<String, ActinvZoneMetadata>,
+    activation_request: crate::activation::ActivationRequest,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ActinvZoneMetadata {
+    mesh_element: u32,
+    material_id: u32,
+    material_volume_cm3: f64,
+}
+
+struct ActinvEventOutputs {
+    activation_results: Vec<Value>,
+    emitters_by_cooling: Vec<Value>,
+    receipt_ref: ArtifactRef,
+    source_artifact_refs: BTreeMap<String, ArtifactRef>,
+    total_photons_by_cooling: Vec<f64>,
+}
+
+fn run_actinv_event_batches(
+    manifest: &DosePhysicsManifest,
+    batch_ref: &ArtifactRef,
+    out_dir: &Path,
+    cooling_s: &[f64],
+    mesh: &MeshBounds,
+    neutron_request: &Value,
+    cancel: &Cancellation,
+) -> Result<ActinvEventOutputs, String> {
+    let backend = manifest
+        .activation_backend
+        .as_ref()
+        .ok_or("ACTINV backend is not configured")?;
+    if backend.kind != "actinv_tendl_709" {
+        return Err("unsupported event activation backend".into());
+    }
+    verify_ref(batch_ref, "709-group ACTINV batch payload")?;
+    let batch_bytes = read_bounded(&batch_ref.path, MAX_ACTINV_BATCH_BYTES)?;
+    let batches: ActinvEventBatchFile =
+        serde_json::from_slice(&batch_bytes).map_err(|e| e.to_string())?;
+    if batches.schema != "faris-maintenance-actinv-event-batches/v0.1" || batches.batches.is_empty()
+    {
+        return Err("709 response helper returned no supported ACTINV event batches".into());
+    }
+    let zone_total: usize = batches
+        .batches
+        .iter()
+        .map(|b| b.activation_request.zones.len())
+        .sum();
+    if zone_total == 0 || zone_total > MAX_ACTINV_ZONE_COUNT {
+        return Err(format!(
+            "activation request has {zone_total} zones; the event cap is {MAX_ACTINV_ZONE_COUNT}"
+        ));
+    }
+    let expected_schedules = expected_activation_schedules(neutron_request)?;
+    if expected_schedules.len() != batches.batches.len() {
+        return Err(
+            "ACTINV batches do not cover exactly the currently installed component schedules"
+                .into(),
+        );
+    }
+    let map_bytes = read_bounded(&manifest.component_material_map.path, MAX_MANIFEST_BYTES)?;
+    let component_map: ComponentMaterialMap =
+        serde_json::from_slice(&map_bytes).map_err(|e| e.to_string())?;
+    let voxel_volume = (0..3)
+        .map(|i| (mesh.upper_right_cm[i] - mesh.lower_left_cm[i]) / f64::from(mesh.dimension[i]))
+        .product::<f64>();
+    let activation_data = crate::activation::ActivationData::catalog(&backend.data_dir);
+    if activation_data
+        .library
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        != backend.library_npz.path
+        || activation_data
+            .decay_primary
+            .canonicalize()
+            .map_err(|e| e.to_string())?
+            != backend.decay_primary.path
+        || backend.decay_fallback.as_ref().is_some_and(|fallback| {
+            activation_data
+                .decay_fallback
+                .as_ref()
+                .is_none_or(|(path, _)| path.canonicalize().ok().as_ref() != Some(&fallback.path))
+        })
+    {
+        return Err("ACTINV data paths differ from the hash-pinned catalogue files".into());
+    }
+    verify_ref(&backend.executable, "ACTINV executable")?;
+    let actinv_executable_sha256 = crate::maintenance::actinv::hash_file(&backend.executable.path)?;
+    let library_index: Value = serde_json::from_slice(&read_bounded(
+        &backend.library_index.path,
+        MAX_MANIFEST_BYTES,
+    )?)
+    .map_err(|e| format!("ACTINV library index: {e}"))?;
+    let group_boundary_sha256 = library_index
+        .get("group_boundary_sha256")
+        .and_then(Value::as_str)
+        .ok_or("ACTINV library index omits its 709-group boundary hash")?;
+    let mut seen_components = std::collections::BTreeSet::new();
+    let mut seen_zones = std::collections::BTreeSet::new();
+    let mut activation_results = Vec::new();
+    let mut source_artifact_refs = BTreeMap::new();
+    let mut emitters_by_cooling: Vec<Vec<Value>> = cooling_s.iter().map(|_| Vec::new()).collect();
+    let mut total_photons_by_cooling = vec![0.0; cooling_s.len()];
+    let mut emitter_records = 0usize;
+    let mut emitter_groups = 0usize;
+    let mut material_volume_by_element: BTreeMap<u32, f64> = BTreeMap::new();
+    let mut bins_seen: std::collections::BTreeSet<(u32, u32)> = std::collections::BTreeSet::new();
+    for (batch_index, batch) in batches.batches.into_iter().enumerate() {
+        if batch.component.trim().is_empty() || !seen_components.insert(batch.component.clone()) {
+            return Err("ACTINV event batches have an empty or repeated history component".into());
+        }
+        batch.activation_request.validate()?;
+        if batch.activation_request.cooling_s != cooling_s {
+            return Err(format!(
+                "ACTINV component {} cooling grid differs from the authored event",
+                batch.component
+            ));
+        }
+        let expected_steps = expected_schedules.get(&batch.component).ok_or_else(|| {
+            format!(
+                "ACTINV component {} has no exact Rust schedule",
+                batch.component
+            )
+        })?;
+        if batch.activation_request.schedule_input_sha256.is_some()
+            || batch.activation_request.steps.len() != expected_steps.len()
+            || batch
+                .activation_request
+                .steps
+                .iter()
+                .zip(expected_steps)
+                .any(|(actual, expected)| {
+                    !close(actual.duration_s, expected.duration_s, 1e-12, 1e-7)
+                        || !close(actual.flux_scale, expected.flux_scale, 1e-12, 1e-12)
+                })
+            || batch.activation_request.photon.group_boundaries_ev.as_ref()
+                != Some(&backend.photon_group_boundaries_ev)
+            || batch.activation_request.mode != crate::activation::SolverMode::Auto
+        {
+            return Err(format!(
+                "ACTINV component {} schedule or photon grouping differs from the exact Rust event inputs",
+                batch.component
+            ));
+        }
+        let zone_ids: std::collections::BTreeSet<_> = batch
+            .activation_request
+            .zones
+            .iter()
+            .map(|z| z.id.as_str())
+            .collect();
+        if zone_ids.len() != batch.activation_request.zones.len()
+            || zone_ids != batch.zone_metadata.keys().map(String::as_str).collect()
+        {
+            return Err(format!(
+                "ACTINV component {} zone metadata does not exactly bind all activation zones",
+                batch.component
+            ));
+        }
+        if batch
+            .activation_request
+            .zones
+            .iter()
+            .any(|zone| !seen_zones.insert(zone.id.clone()))
+        {
+            return Err("ACTINV zone IDs repeat across component schedules".into());
+        }
+        for zone in &batch.activation_request.zones {
+            let meta = &batch.zone_metadata[&zone.id];
+            if meta.material_id == 0
+                || !meta.material_volume_cm3.is_finite()
+                || meta.material_volume_cm3 <= 0.0
+                || (zone.volume_m3 - meta.material_volume_cm3 * 1.0e-6).abs()
+                    > zone.volume_m3.max(1e-30) * 1e-9
+                || zone.id != format!("e{}_m{}", meta.mesh_element, meta.material_id)
+            {
+                return Err(format!(
+                    "ACTINV zone {} volume or mesh/material identity does not reconcile",
+                    zone.id
+                ));
+            }
+            let ids = component_map
+                .materials
+                .get(&batch.component)
+                .ok_or_else(|| {
+                    format!(
+                        "ACTINV component {} is absent from the checked CAD material map",
+                        batch.component
+                    )
+                })?;
+            if !ids.contains(&meta.material_id)
+                || !bins_seen.insert((meta.mesh_element, meta.material_id))
+            {
+                return Err(format!(
+                    "ACTINV zone {} is unmapped or duplicates a mesh/material bin",
+                    zone.id
+                ));
+            }
+            *material_volume_by_element
+                .entry(meta.mesh_element)
+                .or_default() += meta.material_volume_cm3;
+        }
+        let observed_materials: std::collections::BTreeSet<u32> = batch
+            .activation_request
+            .zones
+            .iter()
+            .map(|zone| batch.zone_metadata[&zone.id].material_id)
+            .collect();
+        let expected_materials: std::collections::BTreeSet<u32> = component_map.materials
+            [&batch.component]
+            .iter()
+            .copied()
+            .collect();
+        if observed_materials != expected_materials {
+            return Err(format!(
+                "ACTINV component {} lacks mesh activation bins for one or more cloned CAD materials",
+                batch.component
+            ));
+        }
+        let work_dir = out_dir
+            .join("activation")
+            .join(format!("batch_{batch_index:05}"));
+        std::fs::create_dir_all(&work_dir).map_err(|e| e.to_string())?;
+        let mut config = crate::activation::ActivationConfig::new(
+            backend.executable.path.clone(),
+            activation_data.clone(),
+            work_dir.clone(),
+        );
+        config.timeout = Duration::from_secs_f64(backend.timeout_s);
+        config.cache_dir = Some(backend.cache_dir.clone());
+        let (result, stats) =
+            crate::activation::run_activation(&batch.activation_request, &config, cancel)?;
+        if result.zones.len() != batch.activation_request.zones.len()
+            || result.cooling_s != cooling_s
+            || result.zones.iter().any(|z| {
+                z.completeness != crate::activation::Completeness::Complete || !z.gaps.is_empty()
+            })
+        {
+            return Err(format!(
+                "ACTINV component {} returned incomplete zones or data gaps; refusing a whole-plant dose source",
+                batch.component
+            ));
+        }
+        let result_path = out_dir
+            .join("activation")
+            .join(format!("component_{batch_index:05}_result.json"));
+        let result_bytes = serde_json::to_vec_pretty(&result).map_err(|e| e.to_string())?;
+        write_exact(&result_path, &result_bytes)?;
+        let result_ref = make_ref(&result_path)?;
+        source_artifact_refs.insert(
+            format!("activation_result/{}", batch.component),
+            result_ref.clone(),
+        );
+        activation_results.push(json!({"component": batch.component, "artifact": result_ref, "actinv_runs": stats.actinv_runs,
+                                       "cache_hits": stats.cache_hits, "schema": result.schema,
+                                       "input_sha256": result.input_sha256, "data": result.data}));
+        for zone in &result.zones {
+            let meta = &batch.zone_metadata[&zone.id];
+            for (point_index, point) in zone.points.iter().enumerate() {
+                if point.cooling_s != cooling_s[point_index] {
+                    return Err(format!(
+                        "ACTINV zone {} result cooling grid is out of order",
+                        zone.id
+                    ));
+                }
+                let photons = point.photon_source.total_photons_per_s;
+                let outside = point.photon_source.photons_outside_groups_per_s;
+                if !photons.is_finite()
+                    || photons < 0.0
+                    || !outside.is_finite()
+                    || outside > (photons * 1e-12).max(1e-12)
+                {
+                    return Err(format!(
+                        "ACTINV zone {} has non-finite photons or an unbounded out-of-group rate",
+                        zone.id
+                    ));
+                }
+                let grouped: f64 = point
+                    .photon_source
+                    .groups
+                    .iter()
+                    .map(|g| g.photons_per_s)
+                    .sum();
+                if !grouped.is_finite() || (grouped - photons).abs() > (photons * 1e-8).max(1e-12) {
+                    return Err(format!(
+                        "ACTINV zone {} photon groups do not conserve its total rate",
+                        zone.id
+                    ));
+                }
+                if photons == 0.0 {
+                    continue;
+                }
+                emitter_records = emitter_records.saturating_add(1);
+                emitter_groups = emitter_groups.saturating_add(
+                    point
+                        .photon_source
+                        .groups
+                        .iter()
+                        .filter(|g| g.photons_per_s > 0.0)
+                        .count(),
+                );
+                if emitter_records > MAX_ACTINV_EMITTER_RECORDS
+                    || emitter_groups > MAX_ACTINV_EMITTER_GROUPS
+                {
+                    return Err(
+                        "ACTINV emitter count exceeds the bounded event artifact budget".into(),
+                    );
+                }
+                let source_file =
+                    crate::activation::photon_source_file(&result, &zone.id, point.cooling_s)?;
+                let source_path = out_dir.join("activation").join(format!(
+                    "{}__{}s.photon-source.json",
+                    zone.id, point.cooling_s
+                ));
+                let source_hash =
+                    crate::activation::write_photon_source_file(&source_path, &source_file)?;
+                let source_ref = ArtifactRef {
+                    path: source_path,
+                    sha256: source_hash,
+                };
+                source_artifact_refs.insert(
+                    format!("photon_source/{}/{}", zone.id, point.cooling_s),
+                    source_ref.clone(),
+                );
+                let (lower, upper) = voxel_bounds(mesh, meta.mesh_element)?;
+                emitters_by_cooling[point_index].push(json!({
+                    "component": batch.component, "zone_id": zone.id,
+                    "mesh_element": meta.mesh_element, "material_id": meta.material_id,
+                    "material_volume_cm3": meta.material_volume_cm3,
+                    "lower_left_cm": lower, "upper_right_cm": upper,
+                    "photons_per_s": photons,
+                    "energy_groups": point.photon_source.groups.iter().filter(|g| g.photons_per_s > 0.0).map(|g| json!({
+                        "energy_ev": g.centroid_ev, "energy_low_ev": g.low_ev,
+                        "energy_high_ev": g.high_ev, "photons_per_s": g.photons_per_s
+                    })).collect::<Vec<_>>(),
+                    "photon_source_artifact": source_ref.clone()
+                }));
+                total_photons_by_cooling[point_index] += photons;
+            }
+        }
+    }
+    if material_volume_by_element
+        .values()
+        .any(|volume| !volume.is_finite() || *volume > voxel_volume * (1.0 + 1e-6))
+    {
+        return Err(
+            "ACTINV mesh/material volumes exceed the authored activation voxel volume".into(),
+        );
+    }
+    if seen_components.is_empty()
+        || total_photons_by_cooling
+            .iter()
+            .any(|x| !x.is_finite() || *x <= 0.0)
+    {
+        return Err(
+            "ACTINV emitted no positive whole-plant photon source at one or more cooling times"
+                .into(),
+        );
+    }
+    let emitters_by_cooling: Vec<Value> = cooling_s
+        .iter()
+        .enumerate()
+        .map(|(i, cooling)| {
+            json!({
+                "cooling_s": cooling, "source_strength_photons_s": total_photons_by_cooling[i],
+                "emitters": emitters_by_cooling[i]
+            })
+        })
+        .collect();
+    let receipt_path = out_dir.join("activation/actinv-event-receipt.json");
+    let receipt = json!({
+        "schema": "faris-maintenance-actinv-event-receipt/v0.1", "status": "PASS",
+        "batch_payload": batch_ref, "activation_results": activation_results.clone(),
+        "points": cooling_s.iter().enumerate().map(|(i,t)| json!({"cooling_s": t, "source_strength_photons_s": total_photons_by_cooling[i]})).collect::<Vec<_>>(),
+        "group_boundaries_ev": &backend.photon_group_boundaries_ev,
+        "group_boundary_sha256": group_boundary_sha256,
+        "actinv_executable_sha256": actinv_executable_sha256,
+        "actinv_library_npz_sha256": backend.library_npz.sha256,
+        "actinv_library_index_sha256": backend.library_index.sha256,
+        "actinv_decay_primary_sha256": backend.decay_primary.sha256,
+        "actinv_decay_fallback_sha256": backend.decay_fallback.as_ref().map(|r| r.sha256.clone()),
+        "source_normalization": "ACTINV photons/s per mesh-material zone are absolute rates. They are combined once as source strengths; no fusion/neutron source rate is applied again.",
+        "spatial_source_approximation": "Each source is uniform within the corresponding mesh voxel and constrained to its exact cloned DAGMC material ID; ACTINV mesh/material volumes and composition are matched by zone ID.",
+        "limits": {"zones": MAX_ACTINV_ZONE_COUNT, "emitter_records": MAX_ACTINV_EMITTER_RECORDS,
+                   "emitter_group_entries": MAX_ACTINV_EMITTER_GROUPS, "artifact_bytes": MAX_ACTINV_BATCH_BYTES},
+        "uncertainty_scope": "ACTINV source/inventory is conditional on neutron 709 response, composition, material-volume sampling, activation library and decay data. It excludes neutron-response, nuclear-data, geometry, composition, and source-model uncertainty. Photon transport batch uncertainty is recorded separately."
+    });
+    write_exact(
+        &receipt_path,
+        &serde_json::to_vec_pretty(&receipt).map_err(|e| e.to_string())?,
+    )?;
+    Ok(ActinvEventOutputs {
+        activation_results,
+        emitters_by_cooling,
+        receipt_ref: make_ref(&receipt_path)?,
+        source_artifact_refs,
+        total_photons_by_cooling,
+    })
+}
+
+fn voxel_bounds(mesh: &MeshBounds, element: u32) -> Result<([f64; 3], [f64; 3]), String> {
+    let count = mesh
+        .dimension
+        .iter()
+        .map(|x| u64::from(*x))
+        .product::<u64>();
+    if u64::from(element) >= count {
+        return Err("activation mesh element index is out of bounds".into());
+    }
+    let nx = u64::from(mesh.dimension[0]);
+    let ny = u64::from(mesh.dimension[1]);
+    let i = u64::from(element) % nx;
+    let j = (u64::from(element) / nx) % ny;
+    let k = u64::from(element) / (nx * ny);
+    let widths = std::array::from_fn::<_, 3, _>(|a| {
+        (mesh.upper_right_cm[a] - mesh.lower_left_cm[a]) / f64::from(mesh.dimension[a])
+    });
+    let index = [i, j, k];
+    let lower = std::array::from_fn(|a| mesh.lower_left_cm[a] + index[a] as f64 * widths[a]);
+    let upper = std::array::from_fn(|a| lower[a] + widths[a]);
+    Ok((lower, upper))
+}
+
+fn worker_artifact(
+    receipt: &Value,
+    key: &str,
+    root: &Path,
+    label: &str,
+) -> Result<ArtifactRef, String> {
+    let mut reference: ArtifactRef = serde_json::from_value(
+        receipt
+            .get(key)
+            .cloned()
+            .ok_or_else(|| format!("worker receipt omits {key}"))?,
+    )
+    .map_err(|e| format!("worker receipt {key}: {e}"))?;
+    if !reference.path.is_absolute() {
+        reference.path = root.join(&reference.path);
+    }
+    let canonical = reference
+        .path
+        .canonicalize()
+        .map_err(|e| format!("{label}: {e}"))?;
+    let canonical_root = root.canonicalize().map_err(|e| e.to_string())?;
+    if !canonical.starts_with(&canonical_root) || !canonical.is_file() {
+        return Err(format!(
+            "{label} must be a regular file under its isolated phase output"
+        ));
+    }
+    reference.path = canonical;
+    verify_ref(&reference, label)?;
+    Ok(reference)
+}
+
+fn parse_stage_receipt(
+    bytes: &[u8],
+    schema: &str,
+    expected_request_sha: &str,
+) -> Result<Value, String> {
+    let receipt: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if receipt.get("schema").and_then(Value::as_str) != Some(schema)
+        || receipt.get("status").and_then(Value::as_str) != Some("PASS")
+        || receipt.get("request_sha256").and_then(Value::as_str) != Some(expected_request_sha)
+    {
+        return Err(format!(
+            "worker receipt must be PASS {schema} bound to the exact request hash"
+        ));
+    }
+    Ok(receipt)
+}
+
+struct StagedActinvDose {
+    receipt: Value,
+    request_ref: ArtifactRef,
+    record_ref: ArtifactRef,
+    artifacts: BTreeMap<String, ArtifactRef>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_staged_actinv_dose(
+    python: &Path,
+    worker: &Path,
+    run_dir: &Path,
+    neutron_request: &Value,
+    manifest: &DosePhysicsManifest,
+    cooling_s: &[f64],
+    response_mesh: &Value,
+    event: &Value,
+    sampling: &Value,
+    cancel: &Cancellation,
+) -> Result<StagedActinvDose, String> {
+    let backend = manifest
+        .activation_backend
+        .as_ref()
+        .ok_or("ACTINV backend is missing")?;
+    let neutron_dir = run_dir.join("neutron");
+    std::fs::create_dir_all(&neutron_dir).map_err(|e| e.to_string())?;
+    let neutron_request_path = run_dir.join("709-neutron-request.json");
+    let neutron_bytes = serde_json::to_vec_pretty(neutron_request).map_err(|e| e.to_string())?;
+    if neutron_bytes.len() > MAX_WORKER_REQUEST_BYTES {
+        return Err("709 neutron request exceeds 4 MiB".into());
+    }
+    write_exact(&neutron_request_path, &neutron_bytes)?;
+    let neutron_request_ref = make_ref(&neutron_request_path)?;
+    let neutron_log = run_dir.join("709-neutron.log");
+    let result = launch_bounded(
+        python,
+        worker,
+        &neutron_request_path,
+        &neutron_dir,
+        run_dir,
+        &neutron_log,
+        manifest.sampling.run_budget_s,
+        cancel,
+    )?;
+    check_job_success(
+        &result,
+        &neutron_log,
+        "OpenMC 709 neutron response",
+        manifest.sampling.run_budget_s,
+    )?;
+    let neutron_receipt_path = neutron_dir.join("709_neutron_receipt.json");
+    let neutron_receipt = parse_stage_receipt(
+        &read_bounded(&neutron_receipt_path, MAX_MANIFEST_BYTES)?,
+        "faris-maintenance-709-neutron-response-receipt/v0.1",
+        &neutron_request_ref.sha256,
+    )?;
+    let index: Value = serde_json::from_slice(&read_bounded(
+        &backend.library_index.path,
+        MAX_MANIFEST_BYTES,
+    )?)
+    .map_err(|e| format!("ACTINV library index: {e}"))?;
+    let expected_group_hash = index
+        .get("group_boundary_sha256")
+        .and_then(Value::as_str)
+        .ok_or("ACTINV library index omits the 709 group-boundary hash")?;
+    if neutron_receipt
+        .get("group_boundary_sha256")
+        .and_then(Value::as_str)
+        != Some(expected_group_hash)
+    {
+        return Err(
+            "709 response receipt group boundaries differ from the exact ACTINV library".into(),
+        );
+    }
+    if neutron_receipt
+        .get("history_sha256")
+        .and_then(Value::as_str)
+        != neutron_request
+            .get("history_sha256")
+            .and_then(Value::as_str)
+        || neutron_receipt.get("event") != neutron_request.get("event")
+    {
+        return Err(
+            "709 response receipt does not echo the exact history and event identity".into(),
+        );
+    }
+    for key in ["history_artifact", "source_schedules"] {
+        let expected = neutron_request
+            .get(key)
+            .and_then(|v| v.get("sha256"))
+            .and_then(Value::as_str);
+        let observed = neutron_receipt
+            .get(key)
+            .and_then(|v| v.get("sha256"))
+            .and_then(Value::as_str);
+        if expected.is_none() || expected != observed {
+            return Err(format!(
+                "709 response receipt {key} hash differs from the event request"
+            ));
+        }
+    }
+    let response_npz = worker_artifact(
+        &neutron_receipt,
+        "response_npz",
+        &neutron_dir,
+        "709 neutron response NPZ",
+    )?;
+    let activation_batches = worker_artifact(
+        &neutron_receipt,
+        "activation_batches",
+        &neutron_dir,
+        "ACTINV event batches",
+    )?;
+    for (key, expected) in [
+        ("model", &manifest.model_xml),
+        ("geometry", &manifest.geometry_h5m),
+        ("cross_sections", &manifest.cross_sections_xml),
+        ("component_material_map", &manifest.component_material_map),
+        ("activation_library_npz", &backend.library_npz),
+        ("activation_library_index", &backend.library_index),
+    ] {
+        let observed: ArtifactRef = serde_json::from_value(
+            neutron_receipt
+                .get(key)
+                .cloned()
+                .ok_or_else(|| format!("709 response receipt omits {key}"))?,
+        )
+        .map_err(|e| e.to_string())?;
+        if observed.sha256 != expected.sha256 {
+            return Err(format!(
+                "709 response receipt {key} identity differs from prepared physics"
+            ));
+        }
+    }
+    let batch_file: Value = serde_json::from_slice(&read_bounded(
+        &activation_batches.path,
+        MAX_ACTINV_BATCH_BYTES,
+    )?)
+    .map_err(|e| format!("ACTINV batch artifact: {e}"))?;
+    if batch_file.get("schema").and_then(Value::as_str)
+        != Some("faris-maintenance-actinv-event-batches/v0.1")
+    {
+        return Err("ACTINV batch artifact has an unsupported schema".into());
+    }
+    let provenance = batch_file
+        .get("provenance")
+        .ok_or("ACTINV batch artifact omits provenance")?;
+    for (key, expected) in [
+        ("model_sha256", &manifest.model_xml.sha256),
+        ("geometry_sha256", &manifest.geometry_h5m.sha256),
+        (
+            "component_material_map_sha256",
+            &manifest.component_material_map.sha256,
+        ),
+        ("neutron_response_sha256", &response_npz.sha256),
+        ("actinv_library_npz_sha256", &backend.library_npz.sha256),
+        ("actinv_library_index_sha256", &backend.library_index.sha256),
+    ] {
+        if provenance.get(key).and_then(Value::as_str) != Some(expected.as_str()) {
+            return Err(format!(
+                "ACTINV batch provenance {key} differs from the checked phase artifacts"
+            ));
+        }
+    }
+    for (key, expected) in [
+        (
+            "history_sha256",
+            neutron_request
+                .get("history_sha256")
+                .and_then(Value::as_str),
+        ),
+        (
+            "source_schedules_sha256",
+            neutron_request
+                .get("source_schedules")
+                .and_then(|v| v.get("sha256"))
+                .and_then(Value::as_str),
+        ),
+        ("group_boundary_sha256", Some(expected_group_hash)),
+    ] {
+        if provenance.get(key).and_then(Value::as_str) != expected {
+            return Err(format!(
+                "ACTINV batch provenance {key} differs from the exact event request"
+            ));
+        }
+    }
+    if neutron_receipt
+        .get("activation_mesh")
+        .and_then(Value::as_object)
+        != serde_json::to_value(&manifest.activation_mesh)
+            .ok()
+            .and_then(|v| v.as_object().cloned())
+            .as_ref()
+    {
+        return Err(
+            "709 response receipt activation mesh differs from the prepared manifest".into(),
+        );
+    }
+    let source = neutron_receipt
+        .get("source")
+        .ok_or("709 response receipt omits source normalization")?;
+    if source.get("unit_strength").and_then(Value::as_f64) != Some(1.0)
+        || source
+            .get("base_source_rate_n_s")
+            .and_then(Value::as_f64)
+            .is_none_or(|x| {
+                (x - source_groups_base_rate(neutron_request)?).abs() > x.abs().max(1.0) * 1e-12
+            })
+    {
+        return Err(
+            "709 response receipt source normalization differs from the event request".into(),
+        );
+    }
+    if !is_sha256(source.get("kernel_sha256").and_then(Value::as_str)) {
+        return Err("709 response receipt has no valid source-kernel SHA-256".into());
+    }
+    let solver = neutron_receipt
+        .get("solver")
+        .ok_or("709 response receipt omits solver evidence")?;
+    let particles = solver
+        .get("particles")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt has no particle count")?;
+    let batches = solver
+        .get("batches")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt has no batch count")?;
+    let lost = solver
+        .get("lost_particles")
+        .and_then(Value::as_u64)
+        .ok_or("709 response receipt has no lost-particle count")?;
+    let requested_particles = neutron_request
+        .pointer("/sampling/neutron_particles")
+        .and_then(Value::as_u64)
+        .ok_or("709 request has no neutron particle count")?;
+    let requested_batches = neutron_request
+        .pointer("/sampling/neutron_batches")
+        .and_then(Value::as_u64)
+        .ok_or("709 request has no neutron batch count")?;
+    if batches != requested_batches
+        || particles != requested_particles
+        || solver.get("solver_status").and_then(Value::as_i64) != Some(1)
+        || solver.get("stop_reason").and_then(Value::as_str) != Some("batch_limit")
+        || batches < 2
+        || particles == 0
+        || lost as f64 > 1e-6 * (particles as f64) * (batches as f64)
+    {
+        return Err(
+            "709 neutron response did not complete the requested batches or exceeds the lost-particle limit".into(),
+        );
+    }
+    let runtime = neutron_receipt
+        .get("runtime")
+        .ok_or("709 response receipt omits runtime identity")?;
+    if runtime
+        .get("openmc_python_version")
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
+        || runtime
+            .get("openmc_c_library")
+            .and_then(Value::as_str)
+            .is_none_or(str::is_empty)
+        || !is_sha256(
+            runtime
+                .get("openmc_c_library_sha256")
+                .and_then(Value::as_str),
+        )
+        || solver
+            .get("stop_reason")
+            .and_then(Value::as_str)
+            .is_none_or(str::is_empty)
+    {
+        return Err("709 response receipt omits actual OpenMC runtime identity".into());
+    }
+
+    let activation = run_actinv_event_batches(
+        manifest,
+        &activation_batches,
+        run_dir,
+        cooling_s,
+        &manifest.activation_mesh,
+        neutron_request,
+        cancel,
+    )?;
+    let activation_results = activation.activation_results.clone();
+    let activation_artifacts: Vec<Value> = activation_results.iter().map(|item| {
+        let reference = item.get("artifact").ok_or("native ACTINV result lacks its artifact ref")?;
+        let mut value = serde_json::from_value::<ArtifactRef>(reference.clone()).map_err(|e| e.to_string())?;
+        if !value.path.is_absolute() { value.path = run_dir.join(&value.path); }
+        verify_ref(&value, "native ACTINV result")?;
+        Ok(json!({"component": item.get("component").and_then(Value::as_str).ok_or("native ACTINV result lacks component")?,
+                  "path": value.path, "sha256": value.sha256}))
+    }).collect::<Result<_, String>>()?;
+    let emitters_path = run_dir.join("activation/emitters-by-cooling.json");
+    let emitters_payload = json!({"schema":"faris-maintenance-actinv-photon-emitters/v0.1",
+                                  "emitters_by_cooling": activation.emitters_by_cooling});
+    let emitters_bytes = serde_json::to_vec(&emitters_payload).map_err(|e| e.to_string())?;
+    if emitters_bytes.len() > MAX_ACTINV_BATCH_BYTES {
+        return Err("ACTINV emitter source artifact exceeds 256 MiB".into());
+    }
+    write_exact(&emitters_path, &emitters_bytes)?;
+    let emitters_ref = make_ref(&emitters_path)?;
+    let neutron_receipt_ref = make_ref(&neutron_receipt_path)?;
+    let photon_request = json!({
+        "schema": "faris-maintenance-709-photon-request/v0.1", "request_id": neutron_request["request_id"], "stage": "photon",
+        "model": manifest.model_xml, "geometry": manifest.geometry_h5m,
+        "cross_sections": manifest.cross_sections_xml, "component_material_map": manifest.component_material_map,
+        "neutron_response_receipt": neutron_receipt_ref,
+        "activation_mesh": manifest.activation_mesh, "response_mesh": response_mesh,
+        "event": event, "emitters_by_cooling": emitters_ref,
+        "activation_results": activation_artifacts,
+        "sampling": sampling,
+    });
+    let photon_dir = run_dir.join("photon");
+    std::fs::create_dir_all(&photon_dir).map_err(|e| e.to_string())?;
+    let photon_request_path = run_dir.join("709-photon-request.json");
+    let photon_bytes = serde_json::to_vec_pretty(&photon_request).map_err(|e| e.to_string())?;
+    if photon_bytes.len() > MAX_WORKER_REQUEST_BYTES {
+        return Err("709 photon request exceeds 4 MiB".into());
+    }
+    write_exact(&photon_request_path, &photon_bytes)?;
+    let photon_request_ref = make_ref(&photon_request_path)?;
+    let photon_log = run_dir.join("709-photon.log");
+    let result = launch_bounded(
+        python,
+        worker,
+        &photon_request_path,
+        &photon_dir,
+        run_dir,
+        &photon_log,
+        manifest.sampling.run_budget_s,
+        cancel,
+    )?;
+    check_job_success(
+        &result,
+        &photon_log,
+        "OpenMC full-geometry photon response",
+        manifest.sampling.run_budget_s,
+    )?;
+    let photon_receipt_path = photon_dir.join("709_photon_receipt.json");
+    let mut photon_receipt = parse_stage_receipt(
+        &read_bounded(&photon_receipt_path, MAX_MANIFEST_BYTES)?,
+        "faris-maintenance-709-photon-receipt/v0.1",
+        &photon_request_ref.sha256,
+    )?;
+    if photon_receipt
+        .get("activation_results")
+        .and_then(Value::as_array)
+        != Some(&activation_artifacts)
+    {
+        return Err(
+            "photon receipt activation result references differ from the native ACTINV outputs"
+                .into(),
+        );
+    }
+    for (key, expected) in [
+        ("neutron_response_receipt", &neutron_receipt_ref),
+        ("emitters_by_cooling", &emitters_ref),
+    ] {
+        let observed: ArtifactRef = serde_json::from_value(
+            photon_receipt
+                .get(key)
+                .cloned()
+                .ok_or_else(|| format!("photon receipt omits {key}"))?,
+        )
+        .map_err(|e| format!("photon receipt {key}: {e}"))?;
+        if observed.sha256 != expected.sha256 || observed.path != expected.path {
+            return Err(format!(
+                "photon receipt {key} differs from the exact stage input"
+            ));
+        }
+    }
+    let photon_points = photon_receipt
+        .get("points")
+        .and_then(Value::as_array)
+        .ok_or("photon receipt omits points")?;
+    if photon_points.len() != cooling_s.len() {
+        return Err("photon response point count differs from the cooling grid".into());
+    }
+    for (index, point) in photon_points.iter().enumerate() {
+        let batches = point
+            .get("batches")
+            .and_then(Value::as_u64)
+            .ok_or("photon point omits completed batch count")?;
+        let particles = point
+            .get("particles_per_batch")
+            .and_then(Value::as_u64)
+            .ok_or("photon point omits particles per batch")?;
+        let histories = point
+            .get("histories")
+            .and_then(Value::as_u64)
+            .ok_or("photon point omits completed history count")?;
+        let lost = point
+            .get("lost_particles")
+            .and_then(Value::as_u64)
+            .ok_or("photon point omits lost-particle count")?;
+        let requested_batches = sampling
+            .get("photon_batches")
+            .and_then(Value::as_u64)
+            .ok_or("photon request has no photon batch count")?;
+        let requested_particles = sampling
+            .get("photon_particles")
+            .and_then(Value::as_u64)
+            .ok_or("photon request has no photon particle count")?;
+        if batches != requested_batches
+            || particles != requested_particles
+            || histories != batches.saturating_mul(particles)
+            || batches < 2
+            || point.get("solver_status").and_then(Value::as_i64) != Some(1)
+            || point.get("stop_reason").and_then(Value::as_str) != Some("batch_limit")
+            || point
+                .get("seed")
+                .and_then(Value::as_u64)
+                .is_none_or(|seed| seed == 0)
+            || lost as f64 > 1e-6 * histories as f64
+        {
+            return Err(
+                "photon point failed requested-batch, solver-status, seed, or particle-loss checks"
+                    .into(),
+            );
+        }
+        if value_f64(point, "standard_error_sv_h")? < 0.0 {
+            return Err("photon point standard error is negative".into());
+        }
+        if value_f64(point, "cooling_s")? != cooling_s[index]
+            || (value_f64(point, "source_strength_photons_s")?
+                - activation.total_photons_by_cooling[index])
+                .abs()
+                > activation.total_photons_by_cooling[index].abs().max(1.0) * 1e-8
+        {
+            return Err(
+                "photon response cooling/source strength does not reconcile with ACTINV results"
+                    .into(),
+            );
+        }
+    }
+    if let Some(d1s) = neutron_receipt.get("d1s") {
+        photon_receipt["d1s"] = d1s.clone();
+    } else {
+        photon_receipt["d1s"] = json!({"status":"NOT_EVALUATED", "reason":"ACTINV 709 backend does not perform compatible CE D1S", "points": []});
+    }
+    photon_receipt["activation_receipt"] = json!(activation.receipt_ref);
+    let final_receipt_path = run_dir.join("709-dose-receipt.json");
+    write_exact(
+        &final_receipt_path,
+        &serde_json::to_vec_pretty(&photon_receipt).map_err(|e| e.to_string())?,
+    )?;
+    let mut artifacts = activation.source_artifact_refs;
+    artifacts.insert("cross_sections".into(), manifest.cross_sections_xml.clone());
+    artifacts.insert("actinv_executable".into(), backend.executable.clone());
+    artifacts.insert("actinv_library_npz".into(), backend.library_npz.clone());
+    artifacts.insert("actinv_library_index".into(), backend.library_index.clone());
+    artifacts.insert("actinv_decay_primary".into(), backend.decay_primary.clone());
+    if let Some(fallback) = &backend.decay_fallback {
+        artifacts.insert("actinv_decay_fallback".into(), fallback.clone());
+    }
+    artifacts.insert("709_neutron_request".into(), neutron_request_ref);
+    artifacts.insert("709_neutron_response".into(), response_npz);
+    artifacts.insert("709_neutron_receipt".into(), neutron_receipt_ref);
+    artifacts.insert("actinv_batches".into(), activation_batches);
+    artifacts.insert("actinv_receipt".into(), activation.receipt_ref);
+    artifacts.insert("actinv_emitters".into(), emitters_ref);
+    artifacts.insert("709_photon_request".into(), photon_request_ref.clone());
+    artifacts.insert("709_photon_receipt".into(), make_ref(&photon_receipt_path)?);
+    Ok(StagedActinvDose {
+        receipt: photon_receipt,
+        request_ref: photon_request_ref,
+        record_ref: make_ref(&final_receipt_path)?,
+        artifacts,
+    })
+}
+
+fn source_groups_base_rate(request: &Value) -> Result<f64, String> {
+    let value = request
+        .get("base_source_rate_n_s")
+        .and_then(Value::as_f64)
+        .ok_or("709 neutron request lacks base_source_rate_n_s")?;
+    if !value.is_finite() || value <= 0.0 {
+        return Err("base neutron rate is invalid".into());
+    }
+    Ok(value)
+}
+
+fn expected_activation_schedules(
+    request: &Value,
+) -> Result<BTreeMap<String, Vec<irradiation::IrradiationStep>>, String> {
+    let base_rate = source_groups_base_rate(request)?;
+    let history_sha = request
+        .get("history_sha256")
+        .and_then(Value::as_str)
+        .ok_or("709 neutron request lacks the exact history SHA-256")?;
+    let shutdown = request
+        .pointer("/event/shutdown_s")
+        .and_then(Value::as_f64)
+        .ok_or("709 neutron request lacks shutdown time")?;
+    if !shutdown.is_finite() || shutdown <= 0.0 {
+        return Err("709 neutron request shutdown time must be finite and positive".into());
+    }
+    let source_groups = request
+        .get("source_groups")
+        .and_then(Value::as_array)
+        .ok_or("709 neutron request lacks component source schedules")?;
+    let mut schedules = BTreeMap::new();
+    for group in source_groups {
+        let component = group
+            .get("component")
+            .and_then(Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .ok_or("source schedule has no component")?;
+        if group.get("history_sha256").and_then(Value::as_str) != Some(history_sha) {
+            return Err(format!(
+                "{component}: source schedule is not bound to the exact Rust history"
+            ));
+        }
+        let installation = group
+            .get("installation_s")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| format!("{component}: source schedule has no installation time"))?;
+        let target = shutdown - installation;
+        if !installation.is_finite() || installation < 0.0 || !target.is_finite() || target <= 0.0 {
+            return Err(format!(
+                "{component}: installation time is invalid for this shutdown"
+            ));
+        }
+        let raw_steps = group
+            .get("schedule")
+            .and_then(Value::as_array)
+            .filter(|steps| !steps.is_empty())
+            .ok_or_else(|| format!("{component}: source schedule is empty"))?;
+        let mut elapsed = 0.0;
+        let mut steps = Vec::new();
+        for raw in raw_steps {
+            let duration = raw
+                .get("duration_s")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| format!("{component}: source interval lacks duration"))?;
+            let rate = raw
+                .get("source_rate_n_s")
+                .and_then(Value::as_f64)
+                .ok_or_else(|| format!("{component}: source interval lacks neutron rate"))?;
+            if !duration.is_finite() || duration <= 0.0 || !rate.is_finite() || rate < 0.0 {
+                return Err(format!(
+                    "{component}: source interval duration/rate is invalid"
+                ));
+            }
+            if elapsed < target - 1e-6 {
+                let portion = duration.min(target - elapsed);
+                steps.push(irradiation::IrradiationStep {
+                    duration_s: portion,
+                    flux_scale: rate / base_rate,
+                });
+                elapsed += portion;
+                if portion < duration && rate != 0.0 {
+                    return Err(format!(
+                        "{component}: a nonzero source interval crosses shutdown"
+                    ));
+                }
+            } else if rate != 0.0 {
+                return Err(format!(
+                    "{component}: post-shutdown source interval is nonzero"
+                ));
+            }
+        }
+        if (elapsed - target).abs() > target.abs().max(1.0) * 1e-10 {
+            return Err(format!(
+                "{component}: exact source schedule does not end at shutdown"
+            ));
+        }
+        if schedules.insert(component.to_string(), steps).is_some() {
+            return Err(format!("{component}: duplicate component source schedule"));
+        }
+    }
+    if schedules.is_empty() {
+        return Err("709 request has no active installed component source schedules".into());
+    }
+    Ok(schedules)
+}
+
+fn close(left: f64, right: f64, relative: f64, absolute: f64) -> bool {
+    (left - right).abs() <= absolute.max(relative * left.abs().max(right.abs()))
+}
+
+fn is_sha256(value: Option<&str>) -> bool {
+    value.is_some_and(|text| text.len() == 64 && text.bytes().all(|c| c.is_ascii_hexdigit()))
+}
+
+fn check_job_success(
+    result: &JobResult,
+    log: &Path,
+    what: &str,
+    budget_s: f64,
+) -> Result<(), String> {
+    if result.execution_status == ExecutionStatus::Succeeded {
+        return Ok(());
+    }
+    if result.execution_status == ExecutionStatus::Cancelled {
+        return Err("cancelled".into());
+    }
+    if result.execution_status == ExecutionStatus::TimedOut {
+        return Err(format!(
+            "{what} exceeded its {:.0} second run budget",
+            budget_s
+        ));
+    }
+    Err(format!(
+        "{what} failed ({:?}, exit {:?}); see {}: {}",
+        result.execution_status,
+        result.exit_code,
+        log.display(),
+        tail_job_output(result)
+    ))
 }
 
 fn parse_preparation_receipt(bytes: &[u8], expected_request_sha: &str) -> Result<Value, String> {
@@ -323,12 +1519,20 @@ impl DosePhysicsManifest {
         let bytes = read_bounded(path, MAX_MANIFEST_BYTES)?;
         let hash = sha256(&bytes);
         let mut manifest: Self = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        if manifest.schema_version != DOSE_PHYSICS_SCHEMA {
+        let base = path.parent().unwrap_or(Path::new("."));
+        if manifest.schema_version != DOSE_PHYSICS_SCHEMA
+            && manifest.schema_version != DOSE_PHYSICS_SCHEMA_V1
+        {
             return Err(format!(
-                "dose physics manifest schema_version must be {DOSE_PHYSICS_SCHEMA}"
+                "dose physics manifest schema_version must be {DOSE_PHYSICS_SCHEMA} or {DOSE_PHYSICS_SCHEMA_V1}"
             ));
         }
-        let base = path.parent().unwrap_or(Path::new("."));
+        if manifest.schema_version == DOSE_PHYSICS_SCHEMA && manifest.activation_backend.is_none() {
+            return Err("v0.2 dose physics manifest needs an explicit activation backend".into());
+        }
+        if manifest.schema_version == DOSE_PHYSICS_SCHEMA_V1 && manifest.chain_xml.is_none() {
+            return Err("v0.1 OpenMC dose physics manifest needs its depletion chain".into());
+        }
         let refs = [
             ("model_xml", &mut manifest.model_xml),
             ("geometry_h5m", &mut manifest.geometry_h5m),
@@ -337,7 +1541,6 @@ impl DosePhysicsManifest {
                 &mut manifest.component_material_map,
             ),
             ("cross_sections_xml", &mut manifest.cross_sections_xml),
-            ("chain_xml", &mut manifest.chain_xml),
         ];
         let mut verified = BTreeMap::new();
         for (name, reference) in refs {
@@ -346,6 +1549,78 @@ impl DosePhysicsManifest {
             }
             verify_ref(reference, name)?;
             verified.insert(name.to_string(), reference.clone());
+        }
+        if let Some(reference) = &mut manifest.chain_xml {
+            if !reference.path.is_absolute() {
+                reference.path = base.join(&reference.path);
+            }
+            verify_ref(reference, "chain XML")?;
+            verified.insert("chain_xml".into(), reference.clone());
+        }
+        if let Some(backend) = &mut manifest.activation_backend {
+            if backend.kind != "actinv_tendl_709" {
+                return Err("unsupported activation backend in dose physics manifest".into());
+            }
+            for path in [&mut backend.data_dir, &mut backend.cache_dir] {
+                if !path.is_absolute() {
+                    *path = base.join(&*path);
+                }
+            }
+            backend.data_dir = backend
+                .data_dir
+                .canonicalize()
+                .map_err(|e| format!("ACTINV data directory: {e}"))?;
+            if !backend.data_dir.is_dir() {
+                return Err("ACTINV data_dir must be an existing directory".into());
+            }
+            if !backend.timeout_s.is_finite() || !(1.0..=86_400.0).contains(&backend.timeout_s) {
+                return Err("ACTINV timeout_s must lie in 1..=86400".into());
+            }
+            for (name, reference) in [
+                ("ACTINV executable", &mut backend.executable),
+                ("ACTINV TENDL library", &mut backend.library_npz),
+                ("ACTINV library index", &mut backend.library_index),
+                ("ACTINV primary decay data", &mut backend.decay_primary),
+            ] {
+                if !reference.path.is_absolute() {
+                    reference.path = base.join(&reference.path);
+                }
+                verify_ref(reference, name)?;
+                verified.insert(name.to_string(), reference.clone());
+            }
+            let library_index: Value = serde_json::from_slice(&read_bounded(
+                &backend.library_index.path,
+                MAX_MANIFEST_BYTES,
+            )?)
+            .map_err(|e| format!("ACTINV library index: {e}"))?;
+            if library_index.get("schema").and_then(Value::as_str) != Some("actinv-library-index-1")
+                || library_index.get("groups").and_then(Value::as_str) != Some("fispact-709")
+                || library_index.get("sha256_npz").and_then(Value::as_str)
+                    != Some(backend.library_npz.sha256.as_str())
+            {
+                return Err("ACTINV library index must bind the selected FISPACT-709 NPZ".into());
+            }
+            if let Some(reference) = &mut backend.decay_fallback {
+                if !reference.path.is_absolute() {
+                    reference.path = base.join(&reference.path);
+                }
+                verify_ref(reference, "ACTINV fallback decay data")?;
+                verified.insert("ACTINV fallback decay data".into(), reference.clone());
+            }
+            if backend.photon_group_boundaries_ev.len() < 3
+                || backend
+                    .photon_group_boundaries_ev
+                    .windows(2)
+                    .any(|w| w[1] <= w[0])
+                || backend
+                    .photon_group_boundaries_ev
+                    .iter()
+                    .any(|x| !x.is_finite())
+            {
+                return Err(
+                    "ACTINV photon group boundaries must be finite and strictly ascending".into(),
+                );
+            }
         }
         for (location_id, reference) in &mut manifest.response_locations {
             if location_id.trim().is_empty() {
@@ -475,6 +1750,14 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
     ) -> Result<Option<EventDoseCurve>, String> {
         let Some(context) = self.contexts.get(design) else {
             return Ok(None);
+        };
+        let actinv_backend = context.manifest.activation_backend.as_ref();
+        let chain_ref = if actinv_backend.is_none() {
+            Some(context.manifest.chain_xml.as_ref().ok_or_else(|| {
+                format!("design {design}: the legacy OpenMC depletion route requires chain_xml")
+            })?)
+        } else {
+            None
         };
         if cancel.is_cancelled() {
             return Err("cancelled".into());
@@ -625,6 +1908,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         );
         let run_dir = self.work_dir.join(&run_id);
         std::fs::create_dir_all(&run_dir).map_err(|e| e.to_string())?;
+        let run_dir = run_dir.canonicalize().map_err(|e| e.to_string())?;
         let history_path = run_dir.join("history-rust-bytes.json");
         write_exact(&history_path, exact_history_bytes)?;
         let schedule_path = run_dir.join("installation-schedules.json");
@@ -640,65 +1924,112 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         let response_mesh = json!({"artifact": location_ref, "lower_left_cm": lower, "upper_right_cm": upper, "dimension": dimension});
         let sampling =
             serde_json::to_value(&context.manifest.sampling).map_err(|e| e.to_string())?;
-        let request = json!({
-            "schema": REQUEST_SCHEMA,
-            "request_id": run_id,
-            "history_sha256": history_sha256,
-            "history_artifact": history_ref,
-            "event": {
-                "design": design, "class": event.class, "component": event.component, "replacement_k": event.k,
-                "shutdown_s": event.start_s, "location_id": location.id, "location_sha256": location.sha256,
-                "cooling_s": cooling_grid_s, "source_groups": source_groups,
-            },
-            "model": {"model_xml": context.manifest.model_xml.path, "sha256": context.manifest.model_xml.sha256},
-            "geometry": context.manifest.geometry_h5m,
-            "cross_sections": context.manifest.cross_sections_xml,
-            "chain": context.manifest.chain_xml,
-            "component_material_map": context.manifest.component_material_map,
-            "activation_mesh": context.manifest.activation_mesh,
-            "response_mesh": response_mesh,
-            "sampling": sampling,
-        });
+        let request = if let Some(backend) = actinv_backend {
+            json!({
+                "schema": "faris-maintenance-709-neutron-request/v0.1",
+                "request_id": run_id, "stage": "neutron",
+                "history_sha256": history_sha256,
+                "history_artifact": history_ref,
+                "source_schedules": group_schedules_ref,
+                "model": context.manifest.model_xml,
+                "geometry": context.manifest.geometry_h5m,
+                "cross_sections": context.manifest.cross_sections_xml,
+                "component_material_map": context.manifest.component_material_map,
+                "activation_library_npz": backend.library_npz,
+                "activation_library_index": backend.library_index,
+                "activation_mesh": context.manifest.activation_mesh,
+                "source_groups": source_groups,
+                "event": {"design": design, "class": event.class, "component": event.component,
+                          "replacement_k": event.k, "shutdown_s": event.start_s,
+                          "cooling_s": cooling_grid_s, "location_id": location.id,
+                          "location_sha256": location.sha256},
+                "base_source_rate_n_s": context.neutron_rate_n_s,
+                "photon_energy_edges_ev": backend.photon_group_boundaries_ev,
+                "response_location_artifacts": {location.id: location_ref},
+                "sampling": sampling,
+            })
+        } else {
+            json!({
+                "schema": REQUEST_SCHEMA,
+                "request_id": run_id,
+                "history_sha256": history_sha256,
+                "history_artifact": history_ref,
+                "event": {
+                    "design": design, "class": event.class, "component": event.component, "replacement_k": event.k,
+                    "shutdown_s": event.start_s, "location_id": location.id, "location_sha256": location.sha256,
+                    "cooling_s": cooling_grid_s, "source_groups": source_groups,
+                },
+                "model": {"model_xml": context.manifest.model_xml.path, "sha256": context.manifest.model_xml.sha256},
+                "geometry": context.manifest.geometry_h5m,
+                "cross_sections": context.manifest.cross_sections_xml,
+                "chain": chain_ref,
+                "component_material_map": context.manifest.component_material_map,
+                "activation_mesh": context.manifest.activation_mesh,
+                "response_mesh": response_mesh,
+                "sampling": sampling,
+            })
+        };
         let request_bytes = serde_json::to_vec_pretty(&request).map_err(|e| e.to_string())?;
         if request_bytes.len() > MAX_WORKER_REQUEST_BYTES {
-            return Err("R2S worker request exceeds 4 MiB".into());
+            return Err("event-dose worker request exceeds 4 MiB".into());
         }
-        let request_path = run_dir.join("r2s-event-request.json");
-        write_exact(&request_path, &request_bytes)?;
-        let request_ref = make_ref(&request_path)?;
-        let log_path = run_dir.join("worker.log");
-        let result = launch_bounded(
-            &self.python,
-            &self.worker_script,
-            &request_path,
-            &run_dir,
-            &run_dir,
-            &log_path,
-            context.manifest.sampling.run_budget_s,
-            cancel,
-        )?;
-        if result.execution_status != ExecutionStatus::Succeeded {
-            if result.execution_status == ExecutionStatus::Cancelled {
-                return Err("cancelled".into());
-            }
-            if result.execution_status == ExecutionStatus::TimedOut {
-                return Err(format!(
-                    "OpenMC worker exceeded its {:.0} second run budget",
-                    context.manifest.sampling.run_budget_s
-                ));
-            }
-            return Err(format!(
-                "OpenMC event R2S worker failed ({:?}, exit {:?}); see {}: {}",
-                result.execution_status,
-                result.exit_code,
-                log_path.display(),
-                tail_job_output(&result)
-            ));
-        }
-        let receipt_path = run_dir.join("r2s_event_receipt.json");
-        let receipt_bytes = read_bounded(&receipt_path, MAX_MANIFEST_BYTES)?;
-        let receipt = parse_r2s_receipt(&receipt_bytes, &request_ref.sha256)?;
-        let run_record_ref = make_ref(&receipt_path)?;
+        let (receipt, request_ref, run_record_ref, additional_artifacts) = if actinv_backend
+            .is_some()
+        {
+            let event_for_photon = json!({"design": design, "class": event.class, "component": event.component,
+                "replacement_k": event.k, "shutdown_s": event.start_s, "location_id": location.id,
+                "location_sha256": location.sha256, "cooling_s": cooling_grid_s});
+            let staged = run_staged_actinv_dose(
+                &self.python,
+                &self.worker_script,
+                &run_dir,
+                &request,
+                &context.manifest,
+                cooling_grid_s,
+                &response_mesh,
+                &event_for_photon,
+                &sampling,
+                cancel,
+            )?;
+            (
+                staged.receipt,
+                staged.request_ref,
+                staged.record_ref,
+                staged.artifacts,
+            )
+        } else {
+            let request_path = run_dir.join("r2s-event-request.json");
+            write_exact(&request_path, &request_bytes)?;
+            let request_ref = make_ref(&request_path)?;
+            let log_path = run_dir.join("worker.log");
+            let result = launch_bounded(
+                &self.python,
+                &self.worker_script,
+                &request_path,
+                &run_dir,
+                &run_dir,
+                &log_path,
+                context.manifest.sampling.run_budget_s,
+                cancel,
+            )?;
+            check_job_success(
+                &result,
+                &log_path,
+                "OpenMC event R2S worker",
+                context.manifest.sampling.run_budget_s,
+            )?;
+            let receipt_path = run_dir.join("r2s_event_receipt.json");
+            let receipt = parse_r2s_receipt(
+                &read_bounded(&receipt_path, MAX_MANIFEST_BYTES)?,
+                &request_ref.sha256,
+            )?;
+            (
+                receipt,
+                request_ref,
+                make_ref(&receipt_path)?,
+                BTreeMap::new(),
+            )
+        };
         let input_refs = BTreeMap::from([
             (
                 "geometry".to_string(),
@@ -712,20 +2043,36 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
             ("irradiation".to_string(), schedule_ref.clone()),
             ("response".to_string(), location_ref.clone()),
             ("location".to_string(), location_ref.clone()),
+            ("history".to_string(), history_ref.clone()),
+            ("source_schedules".to_string(), group_schedules_ref.clone()),
+            (
+                "dose_physics_manifest".to_string(),
+                context.manifest_artifact.clone(),
+            ),
+            (
+                "cross_sections".to_string(),
+                context.manifest.cross_sections_xml.clone(),
+            ),
         ]);
+        let mut input_refs = input_refs;
+        input_refs.extend(additional_artifacts.clone());
         let mut input_sha: BTreeMap<String, String> = input_refs
             .iter()
             .map(|(k, v)| (k.clone(), v.sha256.clone()))
             .collect();
         input_sha.insert("event".into(), event_sha256.clone());
-        let normalization = "Physical source rate in neutrons/s is applied to each exact Rust irradiation interval; OpenMC R2S MeshSource photon strengths are applied by the fixed-source transport; response is volume-averaged over the authored one-voxel task location.".to_string();
+        let normalization = if actinv_backend.is_some() {
+            "OpenMC mesh/material track-length response per source is divided by its sampled material-in-voxel volume and scaled by the authored base neutron source rate. Exact Rust interval source-rate ratios drive native ACTINV. ACTINV photons/s are absolute; OpenMC samples the combined emitter mixture and applies the summed ACTINV photon rate once to the per-source response. The task-location response is volume-averaged.".to_string()
+        } else {
+            "Physical source rate in neutrons/s is applied to each exact Rust irradiation interval; OpenMC R2S MeshSource photon strengths are applied by the fixed-source transport; response is volume-averaged over the authored one-voxel task location.".to_string()
+        };
         let receipt_points = receipt
             .get("points")
             .and_then(Value::as_array)
             .ok_or("R2S receipt has no points")?;
         let d1s = receipt
             .get("d1s")
-            .ok_or("R2S receipt omits common-history D1S status")?;
+            .ok_or("dose receipt omits D1S comparison state")?;
         let d1s_status = d1s
             .get("status")
             .and_then(Value::as_str)
@@ -748,12 +2095,19 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         {
             let r2s_value = value_f64(r2s_point, "mean_sv_h")?;
             let r2s_se = value_f64(r2s_point, "standard_error_sv_h")?;
+            if r2s_value < 0.0 || r2s_se < 0.0 {
+                return Err(
+                    "dose estimate and Monte Carlo standard error must be nonnegative".into(),
+                );
+            }
             let mut r2s_hashes = input_sha.clone();
             r2s_hashes.insert(
                 "cross_sections".into(),
                 context.manifest.cross_sections_xml.sha256.clone(),
             );
-            r2s_hashes.insert("chain".into(), context.manifest.chain_xml.sha256.clone());
+            if let Some(chain_ref) = chain_ref {
+                r2s_hashes.insert("chain".into(), chain_ref.sha256.clone());
+            }
             r2s_hashes.insert("history".into(), history_sha256.into());
             r2s_hashes.insert("request".into(), request_ref.sha256.clone());
             r2s_hashes.insert(
@@ -777,7 +2131,6 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                     "cross_sections".into(),
                     context.manifest.cross_sections_xml.clone(),
                 ),
-                ("chain".into(), context.manifest.chain_xml.clone()),
                 ("request".into(), request_ref.clone()),
                 ("source_schedules".into(), group_schedules_ref.clone()),
                 ("history".into(), history_ref.clone()),
@@ -786,6 +2139,9 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                     context.manifest_artifact.clone(),
                 ),
             ]);
+            if let Some(chain_ref) = chain_ref {
+                r2s_artifact_hashes.insert("chain".into(), chain_ref.clone());
+            }
             let r2s_run_record = write_run_record(
                 &run_dir,
                 &curve,
@@ -824,7 +2180,9 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                     "cross_sections".into(),
                     context.manifest.cross_sections_xml.sha256.clone(),
                 );
-                hashes.insert("chain".into(), context.manifest.chain_xml.sha256.clone());
+                if let Some(chain_ref) = chain_ref {
+                    hashes.insert("chain".into(), chain_ref.sha256.clone());
+                }
                 hashes.insert("history".into(), history_sha256.into());
                 hashes.insert("request".into(), request_ref.sha256.clone());
                 hashes.insert(
@@ -849,7 +2207,6 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                         "cross_sections".into(),
                         context.manifest.cross_sections_xml.clone(),
                     ),
-                    ("chain".into(), context.manifest.chain_xml.clone()),
                     ("request".into(), request_ref.clone()),
                     ("source_schedules".into(), group_schedules_ref.clone()),
                     ("history".into(), history_ref.clone()),
@@ -858,6 +2215,9 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
                         context.manifest_artifact.clone(),
                     ),
                 ]);
+                if let Some(chain_ref) = chain_ref {
+                    artifact_refs.insert("chain".into(), chain_ref.clone());
+                }
                 let run_ref = write_run_record(
                     &run_dir,
                     &curve,
@@ -1077,7 +2437,10 @@ fn validate_sampling(s: &DoseSampling) -> Result<(), String> {
         }
     }
     if s.seed == 0
-        || !matches!(s.activation_groups.as_str(), "VITAMIN-J-42" | "CCFE-709")
+        || !matches!(
+            s.activation_groups.as_str(),
+            "VITAMIN-J-42" | "CCFE-709" | "FISPACT-709"
+        )
         || !s.run_budget_s.is_finite()
         || !(1.0..=86_400.0).contains(&s.run_budget_s)
     {
