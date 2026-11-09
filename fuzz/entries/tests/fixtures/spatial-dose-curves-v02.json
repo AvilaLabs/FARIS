@@ -1,0 +1,46 @@
+{
+  "schema": "faris-maintenance-spatial-dose-curves/v0.2",
+  "curves": [
+    {
+      "design": "synthetic-format-seed",
+      "design_input_sha256": {
+        "scenario": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "physics": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "history_run": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "spectrum_run": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "history_assumptions": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "history_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "class": "magnet",
+      "component": "tf-magnet",
+      "replacement_k": 1,
+      "shutdown_s": 31536000.0,
+      "install_s": 0.0,
+      "irradiation_rule": {"tolerance": 0.0, "shortest_half_life_s": 1.0},
+      "irradiation_schedule_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "location": {"id": "synthetic-task-location", "sha256": "2222222222222222222222222222222222222222222222222222222222222222"},
+      "points": [
+        {
+          "d1s": null,
+          "d1s_not_evaluated": "Synthetic format seed: common irradiation history is not supplied.",
+          "covariance": {"kind": "unknown"},
+          "r2s": {
+            "schema": "faris-maintenance-spatial-dose-estimate/v0.1",
+            "method": "r2s",
+            "quantity": "icrp116_ap_effective_dose_rate",
+            "unit": "Sv/h",
+            "normalization": "synthetic format seed only; not a physical dose estimate",
+            "location": {"id": "synthetic-task-location", "sha256": "2222222222222222222222222222222222222222222222222222222222222222"},
+            "cooling_s": 86400.0,
+            "value_sv_h": 0.001,
+            "standard_error_sv_h": 0.0001,
+            "random_streams": ["synthetic-seed"],
+            "physical_input_sha256": {},
+            "physical_input_artifacts": {},
+            "run_record": {"path": "synthetic-run-record.json", "sha256": "3333333333333333333333333333333333333333333333333333333333333333"}
+          }
+        }
+      ]
+    }
+  ]
+}

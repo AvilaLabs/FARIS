@@ -1,0 +1,51 @@
+{
+  "schema_version": "faris-maintenance-result/v0.2",
+  "inputs": {},
+  "assumptions": {
+    "schema_version": "faris-maintenance-assumptions/v0.2",
+    "governing_quantity": "dose",
+    "classes": {
+      "magnet": {
+        "component_id": "tf-magnet",
+        "governing": [],
+        "work_s": 86400.0,
+        "threshold": {
+          "kind": "dose_rate_limit",
+          "value_sv_h": 0.0001,
+          "quantity": "icrp116_ap_effective_dose_rate",
+          "method": "r2s",
+          "source": "Synthetic parser seed only; not a dose limit source.",
+          "location_id": "synthetic-task-location",
+          "location_sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+        }
+      }
+    },
+    "cooling": {"min_s": 1.0, "max_s": 31536000.0, "points": 2},
+    "max_iterations": 2,
+    "convergence_s": 3600.0
+  },
+  "designs": {
+    "synthetic-format-seed": {
+      "fixed": {
+        "outcome": "horizon_completed",
+        "history_end_s": 31536000.0,
+        "lifetime_net_electricity_mwh": null,
+        "total_replacement_downtime_s": 0.0,
+        "availability": 1.0,
+        "replacements": []
+      },
+      "computed": {
+        "status": "NOT_EVALUATED",
+        "validation": "NOT_EVALUATED",
+        "not_evaluated": {
+          "reason": "Synthetic format seed: exact event curve is absent.",
+          "next_step": "Provide a matching hash-bound event curve."
+        },
+        "summary": null,
+        "converged_at_iteration": null,
+        "iterations": []
+      }
+    }
+  },
+  "produced_by": null
+}

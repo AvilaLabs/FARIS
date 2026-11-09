@@ -183,6 +183,7 @@ pub fn json_records(data: &[u8]) {
 pub fn maintenance_spatial_dose(data: &[u8]) {
     let _ = maintenance::spatial_dose::CurveBundle::parse(data);
     let _ = maintenance::parse_dose_result(data);
+    maintenance::spatial_dose_worker::fuzz_receipt_parsers(data);
 }
 
 /// What the design import reads back from the helpers and its own cache.

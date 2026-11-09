@@ -1,0 +1,7 @@
+{
+  "schema": "faris-maintenance-r2s-event-receipt/v0.1",
+  "status": "PASS",
+  "request_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "points": [{"mean_sv_h": 0.001, "standard_error_sv_h": 0.0001}],
+  "d1s": {"status": "NOT_EVALUATED", "reason": "Synthetic receipt fixture; no D1S estimate.", "points": []}
+}

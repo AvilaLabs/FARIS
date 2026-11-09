@@ -53,6 +53,30 @@ class FuzzSeed(unittest.TestCase):
         self.assertEqual(preflight["status"], "READY")
         self.assertEqual(preflight["runtime_identity"], worker["runtime_identity"])
 
+    def test_spatial_dose_corpus_has_valid_and_reject_seed_formats(self):
+        with tempfile.TemporaryDirectory() as out:
+            fuzz_seed.build(Path(out))
+            seeds = [
+                json.loads(path.read_text())
+                for path in (Path(out) / "maintenance_spatial_dose").iterdir()
+            ]
+        curve_schemas = {
+            seed.get("schema")
+            for seed in seeds
+            if isinstance(seed, dict)
+        }
+        result_schemas = {
+            seed.get("schema_version")
+            for seed in seeds
+            if isinstance(seed, dict)
+        }
+        self.assertIn("faris-maintenance-spatial-dose-curves/v0.2", curve_schemas)
+        self.assertIn("faris-maintenance-spatial-dose-curves/v9", curve_schemas)
+        self.assertIn("faris-maintenance-result/v0.2", result_schemas)
+        self.assertIn("faris-maintenance-result/v9", result_schemas)
+        self.assertIn("faris-maintenance-dose-cad-preparation-receipt/v0.1", curve_schemas)
+        self.assertIn("faris-maintenance-r2s-event-receipt/v0.1", curve_schemas)
+
 
 if __name__ == "__main__":
     unittest.main()

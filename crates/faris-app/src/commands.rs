@@ -481,6 +481,19 @@ pub static REGISTRY: &[Command] = &[
         },
     ),
     command(
+        "tools.maintenance_dose",
+        "Dose-governed maintenance window (toggle)",
+        &["spatial dose", "remote handling", "icrp 116", "cooldown"],
+        None,
+        |app, _| {
+            app.maintenance_dose.open = !app.maintenance_dose.open;
+            app.message = window_message("Dose-governed maintenance", app.maintenance_dose.open);
+        },
+    )
+    .blocked_by(|_| {
+        browser::IS_BROWSER.then(|| browser::desktop_only("The dose-governed maintenance window"))
+    }),
+    command(
         "tools.compare_versions",
         "Compare versions window (toggle)",
         &["diff", "difference", "changes", "semantic"],
@@ -604,6 +617,11 @@ pub const PANEL_ACTIONS: &[(&str, &str, &str)] = &[
     ("Top bar", "Interface size menu", "interface.smaller"),
     ("Top bar", "Interface size menu", "interface.reset"),
     ("Top bar", "Tools > Maintenance", "tools.maintenance"),
+    (
+        "Top bar",
+        "Tools > Dose-governed maintenance",
+        "tools.maintenance_dose",
+    ),
     (
         "Top bar",
         "Tools > Compare versions",

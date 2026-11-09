@@ -1,0 +1,7 @@
+{
+  "schema": "faris-maintenance-dose-cad-preparation-receipt/v0.1",
+  "request_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "model_xml": "synthetic/model.xml",
+  "geometry_h5m": "synthetic/geometry.h5m",
+  "component_material_map": "synthetic/component-material-map.json"
+}

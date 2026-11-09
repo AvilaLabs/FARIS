@@ -28,6 +28,7 @@ pub const DOSE_PHYSICS_SCHEMA: &str = "faris-maintenance-dose-physics/v0.1";
 pub const COMPONENT_MAP_SCHEMA: &str = "faris-cad-component-material-map/v0.1";
 pub const REQUEST_SCHEMA: &str = "faris-maintenance-r2s-event-request/v0.1";
 pub const RECEIPT_SCHEMA: &str = "faris-maintenance-r2s-event-receipt/v0.1";
+pub const PREP_RECEIPT_SCHEMA: &str = "faris-maintenance-dose-cad-preparation-receipt/v0.1";
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_WORKER_REQUEST_BYTES: usize = 4 * 1024 * 1024;
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -94,7 +95,6 @@ pub fn prepare_dose_cad(
     cancel: &Cancellation,
 ) -> Result<PathBuf, String> {
     const CONFIG_SCHEMA: &str = "faris-maintenance-dose-cad-config/v0.1";
-    const PREP_RECEIPT_SCHEMA: &str = "faris-maintenance-dose-cad-preparation-receipt/v0.1";
     let bytes = read_bounded(config_path, MAX_MANIFEST_BYTES)?;
     let mut config: DoseCadPrepareConfig =
         serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
@@ -178,18 +178,11 @@ pub fn prepare_dose_cad(
         ));
     }
     let receipt_path = out.join("dose-cad-preparation-receipt.json");
-    let receipt: Value = serde_json::from_slice(&read_bounded(&receipt_path, MAX_MANIFEST_BYTES)?)
-        .map_err(|e| e.to_string())?;
-    if receipt.get("schema").and_then(Value::as_str) != Some(PREP_RECEIPT_SCHEMA) {
-        return Err("dose CAD preparation receipt has an unsupported schema".into());
-    }
     let expected_request_sha = sha256(&read_bounded(&request_path, MAX_WORKER_REQUEST_BYTES)?);
-    if receipt.get("request_sha256").and_then(Value::as_str) != Some(expected_request_sha.as_str())
-    {
-        return Err(
-            "dose CAD preparation receipt does not bind the exact Rust request bytes".into(),
-        );
-    }
+    let receipt = parse_preparation_receipt(
+        &read_bounded(&receipt_path, MAX_MANIFEST_BYTES)?,
+        &expected_request_sha,
+    )?;
     let model_xml = path_from_receipt(&receipt, "model_xml")?;
     let geometry_h5m = path_from_receipt(&receipt, "geometry_h5m")?;
     let component_map = path_from_receipt(&receipt, "component_material_map")?;
@@ -241,6 +234,77 @@ fn path_from_receipt(receipt: &Value, key: &str) -> Result<PathBuf, String> {
         .and_then(Value::as_str)
         .map(PathBuf::from)
         .ok_or_else(|| format!("dose CAD preparation receipt omits {key}"))
+}
+
+fn parse_preparation_receipt(bytes: &[u8], expected_request_sha: &str) -> Result<Value, String> {
+    if bytes.len() > MAX_MANIFEST_BYTES {
+        return Err("dose CAD preparation receipt exceeds the bounded JSON limit".into());
+    }
+    let receipt: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if receipt.get("schema").and_then(Value::as_str) != Some(PREP_RECEIPT_SCHEMA) {
+        return Err("dose CAD preparation receipt has an unsupported schema".into());
+    }
+    if receipt.get("request_sha256").and_then(Value::as_str) != Some(expected_request_sha) {
+        return Err(
+            "dose CAD preparation receipt does not bind the exact Rust request bytes".into(),
+        );
+    }
+    Ok(receipt)
+}
+
+fn parse_r2s_receipt(bytes: &[u8], expected_request_sha: &str) -> Result<Value, String> {
+    if bytes.len() > MAX_MANIFEST_BYTES {
+        return Err("OpenMC R2S receipt exceeds the bounded JSON limit".into());
+    }
+    let receipt: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    if receipt.get("schema").and_then(Value::as_str) != Some(RECEIPT_SCHEMA)
+        || receipt.get("status").and_then(Value::as_str) != Some("PASS")
+        || receipt.get("request_sha256").and_then(Value::as_str) != Some(expected_request_sha)
+    {
+        return Err(
+            "OpenMC R2S receipt schema, status, or exact request hash does not match".into(),
+        );
+    }
+    Ok(receipt)
+}
+
+/// Exercise the external worker receipt parsers from the fuzz target without running OpenMC.
+/// The fixtures are synthetic and this function never treats their hashes or values as evidence.
+#[doc(hidden)]
+pub fn fuzz_receipt_parsers(bytes: &[u8]) {
+    if bytes.len() > MAX_MANIFEST_BYTES {
+        return;
+    }
+    let Ok(value) = serde_json::from_slice::<Value>(bytes) else {
+        return;
+    };
+    let expected = value
+        .get("request_sha256")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if let Ok(receipt) = parse_preparation_receipt(bytes, expected) {
+        for key in ["model_xml", "geometry_h5m", "component_material_map"] {
+            let _ = path_from_receipt(&receipt, key);
+        }
+    }
+    if let Ok(receipt) = parse_r2s_receipt(bytes, expected) {
+        if let Some(points) = receipt.get("points").and_then(Value::as_array) {
+            for point in points {
+                let _ = value_f64(point, "mean_sv_h");
+                let _ = value_f64(point, "standard_error_sv_h");
+            }
+        }
+        if let Some(points) = receipt
+            .get("d1s")
+            .and_then(|d1s| d1s.get("points"))
+            .and_then(Value::as_array)
+        {
+            for point in points {
+                let _ = value_f64(point, "mean_sv_h");
+                let _ = value_f64(point, "standard_error_sv_h");
+            }
+        }
+    }
 }
 
 impl DosePhysicsManifest {
@@ -611,16 +675,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         }
         let receipt_path = run_dir.join("r2s_event_receipt.json");
         let receipt_bytes = read_bounded(&receipt_path, MAX_MANIFEST_BYTES)?;
-        let receipt: Value = serde_json::from_slice(&receipt_bytes).map_err(|e| e.to_string())?;
-        if receipt.get("schema").and_then(Value::as_str) != Some(RECEIPT_SCHEMA)
-            || receipt.get("status").and_then(Value::as_str) != Some("PASS")
-            || receipt.get("request_sha256").and_then(Value::as_str)
-                != Some(request_ref.sha256.as_str())
-        {
-            return Err(
-                "OpenMC R2S receipt schema, status, or exact request hash does not match".into(),
-            );
-        }
+        let receipt = parse_r2s_receipt(&receipt_bytes, &request_ref.sha256)?;
         let run_record_ref = make_ref(&receipt_path)?;
         let input_refs = BTreeMap::from([
             (
@@ -937,6 +992,25 @@ fn value_vec3(value: &Value, key: &str) -> Result<[f64; 3], String> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod receipt_tests {
+    use super::*;
+
+    #[test]
+    fn preparation_and_r2s_receipt_headers_bind_schema_status_and_request() {
+        let preparation = br#"{"schema":"faris-maintenance-dose-cad-preparation-receipt/v0.1","request_sha256":"request-hash","model_xml":"model.xml","geometry_h5m":"geometry.h5m","component_material_map":"map.json"}"#;
+        assert!(parse_preparation_receipt(preparation, "request-hash").is_ok());
+        assert!(parse_preparation_receipt(preparation, "different-request").is_err());
+
+        let r2s = br#"{"schema":"faris-maintenance-r2s-event-receipt/v0.1","status":"PASS","request_sha256":"request-hash","points":[{"mean_sv_h":0.01,"standard_error_sv_h":0.001}],"d1s":{"status":"NOT_EVALUATED","points":[]}}"#;
+        assert!(parse_r2s_receipt(r2s, "request-hash").is_ok());
+        assert!(parse_r2s_receipt(r2s, "different-request").is_err());
+        let mut status = serde_json::from_slice::<Value>(r2s).unwrap();
+        status["status"] = "PASS_WITH_WARNINGS".into();
+        assert!(parse_r2s_receipt(&serde_json::to_vec(&status).unwrap(), "request-hash").is_err());
+    }
 }
 
 fn validate_bounds(bounds: &MeshBounds, label: &str) -> Result<(), String> {

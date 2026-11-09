@@ -7,7 +7,8 @@
 
 One folder per target under --out, one file per seed. Seeds are real design, scenario,
 operating-history, physics-case, history-result, maintenance, ACTINV, facets, inspection and
-PNG files from the repository, plus a few small hand-built study, archive, store and case files.
+PNG files from the repository, plus small hand-built study, archive, store, case, spatial-dose
+curve/result and synthetic worker-receipt fixtures.
 The corpus is generated, not committed (fuzz/corpus is ignored); libFuzzer adds what it finds.
 """
 from __future__ import annotations
@@ -33,7 +34,8 @@ SCHEMAS = {
     "faris-maintenance-assumptions/": ["history_assumptions"],
     "faris-physics-case/": ["json_records:4", "file_readers:2"],
     "faris-history-result/": ["json_records:0"],
-    "faris-maintenance-result/": ["json_records:2", "history_assumptions"],
+    "faris-maintenance-result/": ["maintenance_spatial_dose", "json_records:2", "history_assumptions"],
+    "faris-maintenance-spatial-dose-curves/": ["maintenance_spatial_dose"],
     "faris-reactor-run/": ["json_records:3", "file_readers:3"],
     "faris-recorded-transport-bundle/": ["json_records:7", "file_readers:4", "file_readers:5"],
     "faris-design-import-report/": ["json_records:10"],
@@ -240,6 +242,17 @@ def build(out: Path) -> dict[str, int]:
         corpus.add("evidence_store", data)
     for data in markdown_json_blocks("docs/guide/shutdown-dose.md"):
         corpus.add("shutdown_dose_records", data)
+    dose_fixtures = ROOT / "fuzz" / "entries" / "tests" / "fixtures"
+    for name in (
+        "spatial-dose-curves-v02.json",
+        "spatial-dose-curves-invalid-schema.json",
+        "dose-maintenance-result-v02.json",
+        "dose-maintenance-result-invalid-schema.json",
+        "dose-cad-preparation-receipt.json",
+        "r2s-event-receipt.json",
+        "r2s-event-receipt-invalid-status.json",
+    ):
+        corpus.add("maintenance_spatial_dose", (dose_fixtures / name).read_bytes())
     case = [
         ("execution-report.json", b"{}"),
         ("package.json", b'{"schema_version": "avila.core/package/v0.2-draft"}'),
