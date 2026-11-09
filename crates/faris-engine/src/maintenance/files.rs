@@ -5,7 +5,10 @@
 //! [`run_from_files`]; the module does its own bounded reads and no printing.
 
 use super::actinv::{ActinvDecaySource, ActinvSourceConfig, DesignFiles, SourceCounters};
-use super::{DecaySourceRecord, DesignInput, MaintenanceResult, ProducedBy, run_maintenance};
+use super::{
+    DecaySourceRecord, DesignInput, DoseMaintenanceResult, MaintenanceResult, ProducedBy,
+    run_dose_maintenance, run_maintenance,
+};
 use crate::history::{HistoryResult, TransportDrivingRates, run_operating_history_cancellable};
 use crate::jobs::Cancellation;
 use crate::reactor::load_reactor_run;
@@ -229,6 +232,14 @@ pub struct RunConfig {
     pub builder: PathBuf,
 }
 
+/// Dose-only run inputs. This path does not construct or validate an ACTINV source.
+#[derive(Clone, Debug)]
+pub struct DoseRunConfig {
+    pub designs: PathBuf,
+    pub assumptions: PathBuf,
+    pub spatial_dose_curves: PathBuf,
+}
+
 /// One progress report. [`RunProgress::line`] is the text `faris maintenance run` prints.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RunProgress {
@@ -407,6 +418,108 @@ pub fn run_from_files_with(
         kind: "actinv-continuations".into(),
         actinv_runs,
         cache_hits,
+    });
+    Ok(result)
+}
+
+/// Runs dose-governed maintenance from bounded, hash-bound D1S/R2S event curves. It shares the
+/// same design and verified transport history inputs as the heat path, while never opening the
+/// ACTINV executable, catalogue, or contact-dose proxy.
+pub fn run_dose_from_files(
+    config: &DoseRunConfig,
+    cancel: &Cancellation,
+    progress: ProgressFn,
+) -> Result<DoseMaintenanceResult, String> {
+    let assumptions: MaintenanceAssumptions =
+        serde_json::from_slice(&read_bounded(&config.assumptions)?).map_err(|e| e.to_string())?;
+    assumptions.validate()?;
+    if assumptions.governing_quantity != faris_model::maintenance::GoverningQuantity::Dose {
+        return Err("dose run requires governing_quantity=dose".into());
+    }
+    let base = config
+        .designs
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let designs = parse_designs(&read_bounded(&config.designs)?, base)?;
+    let bundle = super::spatial_dose::CurveBundle::read(&config.spatial_dose_curves)?;
+    let mut rates = BTreeMap::new();
+    let mut input_hashes = BTreeMap::new();
+    let mut design_inputs = Vec::new();
+    for (name, design) in &designs {
+        if cancel.is_cancelled() {
+            return Err("cancelled".into());
+        }
+        progress(RunProgress {
+            design: Some(name.clone()),
+            iteration: 0,
+            message: "binding transport rates from the history run".into(),
+            actinv_runs: 0,
+            cache_hits: 0,
+        });
+        let scenario = LoadedScenario::from_bytes(&read_bounded(&design.scenario)?)
+            .map_err(|e| e.to_string())?;
+        rates.insert(
+            name.clone(),
+            rates_from_run(&scenario, &design.history_run)?,
+        );
+        let history_assumptions: OperatingHistoryAssumptions =
+            serde_json::from_slice(&read_bounded(&design.history_assumptions)?)
+                .map_err(|e| e.to_string())?;
+        history_assumptions
+            .validate()
+            .map_err(|e| format!("design {name}: {e}"))?;
+        design_inputs.push(DesignInput {
+            name: name.clone(),
+            history_assumptions,
+        });
+        let mut hashes = BTreeMap::new();
+        for (what, path) in design.files() {
+            hashes.insert(what.to_string(), sha256_file(path)?);
+        }
+        input_hashes.insert(name.clone(), hashes);
+    }
+    let mut input_files = BTreeMap::new();
+    input_files.insert("assumptions".into(), sha256_file(&config.assumptions)?);
+    input_files.insert("designs".into(), sha256_file(&config.designs)?);
+    input_files.insert(
+        "spatial_dose_curves".into(),
+        sha256_file(&config.spatial_dose_curves)?,
+    );
+    for (name, hashes) in &input_hashes {
+        for (what, sha) in hashes {
+            input_files.insert(format!("design/{name}/{what}"), sha.clone());
+        }
+    }
+    let mut runner = |design: &str,
+                      assumptions: &OperatingHistoryAssumptions,
+                      cancel: &Cancellation|
+     -> Result<HistoryResult, String> {
+        let rates = rates
+            .get(design)
+            .ok_or_else(|| format!("no transport rates for design {design}"))?;
+        run_operating_history_cancellable(assumptions, rates, cancel)
+    };
+    let mut result = run_dose_maintenance(
+        &assumptions,
+        &design_inputs,
+        &input_hashes,
+        &bundle,
+        &mut runner,
+        cancel,
+        &mut |design, iteration, message| {
+            progress(RunProgress {
+                design: Some(design.to_owned()),
+                iteration,
+                message: message.to_owned(),
+                actinv_runs: 0,
+                cache_hits: 0,
+            })
+        },
+    )?;
+    result.inputs = input_files;
+    result.produced_by = Some(ProducedBy {
+        faris_version: env!("CARGO_PKG_VERSION").into(),
     });
     Ok(result)
 }

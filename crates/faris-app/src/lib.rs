@@ -32,6 +32,7 @@ mod interface_check;
 #[cfg(not(target_arch = "wasm32"))]
 mod interface_prefs;
 mod interval_kind;
+mod maintenance_dose_panel;
 mod maintenance_panel;
 mod maintenance_run;
 mod not_evaluated;
@@ -433,6 +434,7 @@ struct FarisApp {
     history: history_panel::HistoryPanel,
     sweep: Option<sweep_panel::SweepPanel>,
     maintenance: maintenance_panel::MaintenancePanel,
+    maintenance_dose: maintenance_dose_panel::MaintenanceDosePanel,
     diff: diff_panel::DiffPanel,
     design_flux: design_transport_panel::DesignTransportPanel,
     design_heating: design_heating_panel::DesignHeatingPanel,
@@ -504,6 +506,7 @@ impl FarisApp {
             history,
             sweep: None,
             maintenance: maintenance_panel::MaintenancePanel::default(),
+            maintenance_dose: maintenance_dose_panel::MaintenanceDosePanel::default(),
             diff: diff_panel::DiffPanel::default(),
             design_flux: design_transport_panel::DesignTransportPanel::default(),
             design_heating: design_heating_panel::DesignHeatingPanel::default(),
@@ -986,6 +989,7 @@ impl FarisApp {
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.maintenance.is_pending()
+            && !self.maintenance_dose.is_pending()
             && !self.study.archive.is_loading()
             && self.export.development_settled()
     }
@@ -1014,6 +1018,7 @@ impl FarisApp {
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
             && !self.maintenance.is_pending()
+            && !self.maintenance_dose.is_pending()
             && !self.study.archive.is_loading()
             && !self.design_check.tools_busy()
             && self.tour.settled()
@@ -1819,6 +1824,7 @@ impl eframe::App for FarisApp {
                 || self.sweep.as_ref().is_some_and(|s| s.is_pending())
                 || self.file.is_busy()
                 || self.maintenance.is_pending()
+                || self.maintenance_dose.is_pending()
             {
                 ctx.request_repaint();
             } else if self.started.elapsed() < crate::time::Duration::from_secs(20) {
@@ -1998,11 +2004,16 @@ impl eframe::App for FarisApp {
                 // The tool windows share one menu so the top bar fits a 1440-point window.
                 let running = self.design_check.is_running()
                     || self.design_flux.is_running()
-                    || self.design_heating.is_running();
+                    || self.design_heating.is_running()
+                    || self.maintenance_dose.is_running();
                 let tools_label = if running { "Tools (running)" } else { "Tools" };
                 ui.menu_button(tools_label, |ui| {
                     ui.checkbox(&mut self.maintenance.open, "Maintenance")
                         .on_hover_text("Open a maintenance result: fixed and computed replacement outages per design");
+                    if !browser::IS_BROWSER {
+                        ui.checkbox(&mut self.maintenance_dose.open, "Dose-governed maintenance")
+                            .on_hover_text("Run the bounded history coupling from event-specific spatial D1S/R2S dose curves, or inspect a recorded dose result");
+                    }
                     ui.checkbox(&mut self.diff.open, "Compare versions")
                         .on_hover_text("Show what differs between two studies or two model files: changed parameters, components added, removed or moved, material and volume changes");
                     if !browser::IS_BROWSER {
@@ -2094,6 +2105,7 @@ impl eframe::App for FarisApp {
                 }
             }
         }
+        self.maintenance_dose.window(&ctx);
         self.diff.window(&ctx, self.file.path.as_deref());
         self.design_check.window(&ctx);
         if let Some((design, report)) = self.design_check.take_flux_request() {

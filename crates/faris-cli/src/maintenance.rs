@@ -6,9 +6,13 @@ use crate::transport::{read_bounded, write_new_json};
 use clap::{Subcommand, ValueEnum};
 // What the tests below reach through `super::*`.
 use faris_engine::maintenance::{
-    ComputedResult, Contrast, DesignResult, EventRecord, HistorySummary,
-    MAINTENANCE_RESULT_VERSION, MaintenanceResult, Status,
-    files::{BUILDER_NOT_FOUND, RunConfig, default_builder, run_from_files},
+    ComputedResult, Contrast, DesignResult, DoseMaintenanceResult, EventRecord, HistorySummary,
+    MAINTENANCE_DOSE_RESULT_VERSION, MAINTENANCE_RESULT_VERSION, MAX_DOSE_RESULT_BYTES,
+    MaintenanceResult, Status,
+    files::{
+        BUILDER_NOT_FOUND, DoseRunConfig, RunConfig, default_builder, run_dose_from_files,
+        run_from_files,
+    },
 };
 #[cfg(test)]
 use faris_engine::{
@@ -83,6 +87,22 @@ pub enum MaintenanceCommand {
         #[arg(long)]
         builder: Option<PathBuf>,
     },
+    /// Compute replacement outages from event-specific spatial photon dose-rate curves.
+    /// Curves must contain matched D1S and R2S estimates for every history iteration.
+    DoseRun {
+        /// faris-maintenance-designs/v0.1 design inputs.
+        #[arg(long)]
+        designs: PathBuf,
+        /// faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes.
+        #[arg(long)]
+        assumptions: PathBuf,
+        /// Hash-verified faris-maintenance-spatial-dose-curves/v0.1 estimates.
+        #[arg(long)]
+        spatial_dose_curves: PathBuf,
+        /// New result file (faris-maintenance-result/v0.2); existing paths are refused.
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Print a maintenance result: downtime, availability and electricity under both models,
     /// every replacement with its governing component, and the differences between designs.
     Report {
@@ -125,8 +145,65 @@ pub fn run(command: MaintenanceCommand) -> Result<(), Box<dyn std::error::Error>
             python,
             builder,
         }),
+        MaintenanceCommand::DoseRun {
+            designs,
+            assumptions,
+            spatial_dose_curves,
+            output,
+        } => run_dose_designs(designs, assumptions, spatial_dose_curves, output),
         MaintenanceCommand::Report { result, format } => report(&result, format),
     }
+}
+
+fn run_dose_designs(
+    designs: PathBuf,
+    assumptions: PathBuf,
+    spatial_dose_curves: PathBuf,
+    output: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if output.exists() {
+        return Err(format!("refusing to overwrite {}", output.display()).into());
+    }
+    let config = DoseRunConfig {
+        designs,
+        assumptions,
+        spatial_dose_curves,
+    };
+    let interrupts = crate::control::interrupt_cancellation()?;
+    #[cfg(unix)]
+    let cancellation = &interrupts.cancellation;
+    #[cfg(not(unix))]
+    let cancellation = &interrupts;
+    let result: DoseMaintenanceResult = run_dose_from_files(
+        &config,
+        cancellation,
+        Arc::new(|progress| eprintln!("maintenance: {}", progress.line())),
+    )?;
+    let bytes = serde_json::to_vec_pretty(&result)?;
+    if bytes.len() >= MAX_DOSE_RESULT_BYTES {
+        return Err("dose maintenance result exceeds the 16 MiB output limit".into());
+    }
+    write_new_json(&output, &result)?;
+    for (name, design) in &result.designs {
+        let fixed = design.fixed.total_replacement_downtime_s / faris_model::units::DAY_S;
+        let computed = design
+            .computed
+            .summary
+            .as_ref()
+            .map(|s| s.total_replacement_downtime_s / faris_model::units::DAY_S);
+        println!(
+            "{name}: {:.3} days fixed, {} computed; validation {:?}",
+            fixed,
+            computed.map_or_else(|| "NOT_EVALUATED".into(), |v| format!("{v:.3} days")),
+            design.computed.validation
+        );
+    }
+    println!(
+        "Dose-governed result ({MAINTENANCE_DOSE_RESULT_VERSION}) recorded at {}",
+        output.display()
+    );
+    eprintln!("{}", faris_model::RESEARCH_SCREENING_STATEMENT);
+    Ok(())
 }
 
 // ---------------------------------------------------------------------- run --
@@ -268,7 +345,21 @@ impl Show {
 // ------------------------------------------------------------------- report --
 
 fn report(path: &Path, format: ReportFormat) -> Result<(), Box<dyn std::error::Error>> {
-    let result: MaintenanceResult = serde_json::from_slice(&read_bounded(path)?)?;
+    let bytes = read_bounded(path)?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+    if value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_str)
+        == Some(MAINTENANCE_DOSE_RESULT_VERSION)
+    {
+        let result: DoseMaintenanceResult = serde_json::from_value(value.clone())?;
+        match format {
+            ReportFormat::Json => println!("{}", serde_json::to_string_pretty(&value)?),
+            ReportFormat::Markdown => print!("{}", dose_markdown(&result)),
+        }
+        return Ok(());
+    }
+    let result: MaintenanceResult = serde_json::from_value(value)?;
     if result.schema_version != MAINTENANCE_RESULT_VERSION {
         return Err(format!("result schema_version must be {MAINTENANCE_RESULT_VERSION}").into());
     }
@@ -280,6 +371,68 @@ fn report(path: &Path, format: ReportFormat) -> Result<(), Box<dyn std::error::E
         ReportFormat::Json => println!("{}", serde_json::to_string_pretty(&result)?),
     }
     Ok(())
+}
+
+fn dose_markdown(result: &DoseMaintenanceResult) -> String {
+    let mut out = String::from(
+        "# Dose-governed replacement durations\n\nCriterion: ICRP-116 AP photon effective dose rate at the authored task location (Sv/h). External D1S/R2S estimates; not a product-generated solver result.\n\n",
+    );
+    for (name, design) in &result.designs {
+        let _ = writeln!(
+            out,
+            "## {}\n\nFixed downtime: {:.3} days.\n",
+            cell(name),
+            design.fixed.total_replacement_downtime_s / faris_model::units::DAY_S
+        );
+        if let Some(summary) = &design.computed.summary {
+            let _ = writeln!(
+                out,
+                "Computed downtime: {:.3} days.\n",
+                summary.total_replacement_downtime_s / faris_model::units::DAY_S
+            );
+        }
+        let _ = writeln!(
+            out,
+            "Computed status: **{:?}**. Curve comparison state: **{:?}**.\n",
+            design.computed.status, design.computed.validation
+        );
+        if let Some(ne) = &design.computed.not_evaluated {
+            let _ = writeln!(
+                out,
+                "NOT_EVALUATED: {} Next step: {}\n",
+                cell(&ne.reason),
+                cell(&ne.next_step)
+            );
+        }
+        out.push_str("| Event | Task location | Limit source | Limit (Sv/h) | Method | Duration used (days) | D1S/R2S | Crossing uncertainty |\n|---|---|---|---:|---|---:|---:|---|\n");
+        for iteration in &design.computed.iterations {
+            for event in &iteration.events {
+                let point = event.curve.as_ref().and_then(|c| c.points.first());
+                let method = point.map_or("—".into(), |p| format!("{:?}", p.selected_method));
+                let ratio = point
+                    .and_then(|p| p.d1s_over_r2s)
+                    .map_or("—".into(), |v| format!("{v:.4}"));
+                let uncertainty =
+                    point.map_or_else(|| "NOT_EVALUATED".into(), |p| cell(&p.crossing_uncertainty));
+                let _ = writeln!(
+                    out,
+                    "| {} / {} #{} | {} | {} | {:.4e} | {} | {:.3} | {} | {} |",
+                    cell(&event.class),
+                    cell(&event.component),
+                    event.replacement_k,
+                    cell(&event.location_id),
+                    cell(&event.dose_limit_source),
+                    event.dose_limit_sv_h,
+                    method,
+                    event.duration_used_s / faris_model::units::DAY_S,
+                    ratio,
+                    uncertainty
+                );
+            }
+        }
+        out.push('\n');
+    }
+    out
 }
 
 fn cell(text: &str) -> String {

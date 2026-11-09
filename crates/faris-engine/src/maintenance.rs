@@ -14,6 +14,7 @@ use faris_model::maintenance::{CoolingGrid, MaintenanceAssumptions, MaintenanceC
 use faris_model::math;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 pub const MAINTENANCE_RESULT_VERSION: &str = "faris-maintenance-result/v0.1";
 
@@ -553,6 +554,68 @@ pub struct MaintenanceResult {
     pub produced_by: Option<ProducedBy>,
 }
 
+/// Dose-governed output is versioned separately so existing heat result JSON stays byte-for-byte
+/// compatible. All dose quantities are point-location ICRP-116 AP photon effective dose rates.
+pub const MAINTENANCE_DOSE_RESULT_VERSION: &str = "faris-maintenance-result/v0.2";
+pub const MAX_DOSE_RESULT_BYTES: usize = 16 * 1024 * 1024;
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DoseEventRecord {
+    pub class: String,
+    pub component: String,
+    pub replacement_k: u32,
+    pub start_s: f64,
+    pub end_s: Option<f64>,
+    pub duration_used_s: f64,
+    pub cooldown_s: Option<f64>,
+    pub work_s: f64,
+    pub duration_computed_s: Option<f64>,
+    pub window_limited: bool,
+    pub dose_limit_sv_h: f64,
+    pub dose_limit_source: String,
+    pub quantity: String,
+    pub location_id: String,
+    pub location_sha256: String,
+    pub curve: Option<spatial_dose::ValidatedDoseCurve>,
+    pub not_evaluated: Option<NotEvaluated>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DoseIterationRecord {
+    pub iteration: u32,
+    pub durations_in_s: BTreeMap<String, Vec<f64>>,
+    pub durations_out_s: BTreeMap<String, Vec<f64>>,
+    pub max_change_s: f64,
+    pub window_limited: bool,
+    pub events: Vec<DoseEventRecord>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DoseComputedResult {
+    pub status: Status,
+    /// D1S/R2S agreement state. `INCONCLUSIVE_COVARIANCE` is never presented as validation PASS.
+    pub validation: spatial_dose::ComparisonStatus,
+    pub not_evaluated: Option<NotEvaluated>,
+    pub summary: Option<HistorySummary>,
+    pub converged_at_iteration: Option<u32>,
+    pub iterations: Vec<DoseIterationRecord>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DoseDesignResult {
+    pub fixed: HistorySummary,
+    pub computed: DoseComputedResult,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct DoseMaintenanceResult {
+    pub schema_version: String,
+    pub inputs: BTreeMap<String, String>,
+    pub assumptions: MaintenanceAssumptions,
+    pub designs: BTreeMap<String, DoseDesignResult>,
+    pub produced_by: Option<ProducedBy>,
+}
+
 // --------------------------------------------------------------------- loop --
 
 fn cancelled() -> String {
@@ -719,7 +782,7 @@ fn why(spec: &MaintenanceClass, ec: &EventCurve, cooldown_s: f64) -> Why {
 fn explicit_or_pending(threshold: &Threshold) -> Option<f64> {
     match threshold {
         Threshold::QStar { q_star_w_per_m3 } => Some(*q_star_w_per_m3),
-        Threshold::Calibrate { .. } => None,
+        Threshold::Calibrate { .. } | Threshold::DoseRateLimit { .. } => None,
     }
 }
 
@@ -1036,6 +1099,9 @@ pub fn run_maintenance(
     progress: &mut dyn FnMut(&str, u32, &str),
 ) -> Result<MaintenanceResult, String> {
     assumptions.validate()?;
+    if assumptions.governing_quantity == faris_model::maintenance::GoverningQuantity::Dose {
+        return Err("dose assumptions require run_dose_maintenance and hash-bound spatial dose curves; ACTINV heat curves are not a dose source".into());
+    }
     if designs.is_empty() {
         return Err("at least one design is required".into());
     }
@@ -1116,9 +1182,323 @@ pub fn run_maintenance(
     })
 }
 
+/// Runs the coupled maintenance loop with event-specific spatial dose curves. The caller must
+/// provide the exact input hashes for each design; the provider refuses stale hashes and the
+/// history hash is rechecked on every iteration. Missing newly generated event/history curves
+/// become NOT_EVALUATED rather than reusing a preceding installation's curve.
+pub fn run_dose_maintenance(
+    assumptions: &MaintenanceAssumptions,
+    designs: &[DesignInput],
+    design_input_hashes: &BTreeMap<String, BTreeMap<String, String>>,
+    bundle: &spatial_dose::CurveBundle,
+    runner: &mut dyn HistoryRunner,
+    cancel: &Cancellation,
+    progress: &mut dyn FnMut(&str, u32, &str),
+) -> Result<DoseMaintenanceResult, String> {
+    use faris_model::maintenance::{GoverningQuantity, Threshold};
+    use spatial_dose::{ComparisonStatus, TaskLocation};
+
+    assumptions.validate()?;
+    if assumptions.governing_quantity != GoverningQuantity::Dose {
+        return Err("dose maintenance requires governing_quantity=dose".into());
+    }
+    bundle.validate(Path::new("."))?;
+    if designs.is_empty() {
+        return Err("at least one design is required".into());
+    }
+    let mut names = BTreeSet::new();
+    let mut fixed = Vec::new();
+    for input in designs {
+        if input.name.trim().is_empty() || !names.insert(input.name.as_str()) {
+            return Err("design names must be nonempty and unique".into());
+        }
+        input
+            .history_assumptions
+            .validate()
+            .map_err(|e| format!("design {}: {e}", input.name))?;
+        if !design_input_hashes.contains_key(&input.name) {
+            return Err(format!("design {} has no bound input hashes", input.name));
+        }
+        let mut durations_s = BTreeMap::new();
+        for (class, spec) in &assumptions.classes {
+            durations_s.insert(
+                class.clone(),
+                fixed_duration_s(&input.history_assumptions, &spec.component_id)
+                    .map_err(|e| format!("design {}: {e}", input.name))?,
+            );
+        }
+        progress(&input.name, 0, "fixed-duration history");
+        let history = runner.run(&input.name, &input.history_assumptions, cancel)?;
+        fixed.push(Fixed {
+            input,
+            history,
+            durations_s,
+        });
+    }
+
+    let mut outputs = BTreeMap::new();
+    let required_cooling_grid = cooling_grid_s(&assumptions.cooling);
+    for fixed_design in &fixed {
+        let name = fixed_design.input.name.as_str();
+        let input_hashes = &design_input_hashes[name];
+        let mut used: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+        let mut iterations = Vec::new();
+        let mut validation = ComparisonStatus::InBand;
+        let mut final_summary = None;
+        let mut overall_ne = None;
+        let mut converged = None;
+        for number in 1..=assumptions.max_iterations {
+            if cancel.is_cancelled() {
+                return Err(cancelled());
+            }
+            let history = if used.is_empty() {
+                fixed_design.history.clone()
+            } else {
+                let mut derived = fixed_design.input.history_assumptions.clone();
+                for limit in &mut derived.service_limits {
+                    if let Some(durations) = used.get(&limit.component_id) {
+                        limit.replacement_durations_s = Some(durations.clone());
+                    }
+                }
+                progress(name, number, "operating history");
+                runner.run(name, &derived, cancel)?
+            };
+            let history_hash = irradiation::history_sha256(&history)?;
+            let events = replacement_events(&history, &assumptions.classes);
+            if events.is_empty() {
+                validation = ComparisonStatus::NotEvaluated;
+                overall_ne = Some(not_evaluated(
+                    "no replacement events in this history",
+                    "lengthen the history horizon or check replacement assumptions",
+                ));
+                break;
+            }
+            let horizon = history_end_s(&history);
+            let mut records = Vec::new();
+            let mut out: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+            let (mut change, mut window_limited) = (0.0_f64, false);
+            for event in events {
+                if cancel.is_cancelled() {
+                    return Err(cancelled());
+                }
+                let spec = &assumptions.classes[&event.class];
+                let Threshold::DoseRateLimit {
+                    value_sv_h,
+                    method,
+                    source,
+                    location_id,
+                    location_sha256,
+                    ..
+                } = &spec.threshold
+                else {
+                    return Err(format!(
+                        "class {} needs a spatial dose-rate limit",
+                        event.class
+                    ));
+                };
+                let location = TaskLocation {
+                    id: location_id.clone(),
+                    sha256: location_sha256.clone(),
+                };
+                let curve = bundle.event_curve(
+                    name,
+                    input_hashes,
+                    &history_hash,
+                    &event.class,
+                    &event.component,
+                    event.k,
+                    event.start_s,
+                    &location,
+                    *method,
+                )?;
+                if let Some(curve) = &curve {
+                    let installation = actinv::installations(&history, &event.component)?;
+                    let installation_index =
+                        actinv::installation_at(&history, &event.component, event.start_s)?;
+                    let expected_install_s = installation_index
+                        .and_then(|index| installation.get(index as usize - 1))
+                        .map(|(start_s, _)| *start_s)
+                        .ok_or_else(|| format!("{} installation at replacement shutdown {:.0} s is not present in history", event.component, event.start_s))?;
+                    if (curve.install_s - expected_install_s).abs() > 1.0 {
+                        return Err(format!(
+                            "dose curve for {} replacement #{} is bound to installation at {:.0} s, but this exact history has installation at {:.0} s",
+                            event.component, event.k, curve.install_s, expected_install_s
+                        ));
+                    }
+                    let record = bundle
+                        .curves
+                        .iter()
+                        .find(|record| {
+                            record.design == name
+                                && record.history_sha256 == history_hash
+                                && record.class == event.class
+                                && record.component == event.component
+                                && record.replacement_k == event.k
+                                && record.shutdown_s.to_bits() == event.start_s.to_bits()
+                        })
+                        .ok_or_else(|| "dose event curve disappeared during lookup".to_string())?;
+                    bundle.verify_irradiation_schedule(record, &history)?;
+                }
+                let fixed_s = fixed_design.durations_s[&event.class];
+                let old = used
+                    .get(&event.component)
+                    .and_then(|d| d.get(event.k as usize - 1))
+                    .copied()
+                    .unwrap_or(fixed_s);
+                let mut record = DoseEventRecord {
+                    class: event.class.clone(),
+                    component: event.component.clone(),
+                    replacement_k: event.k,
+                    start_s: event.start_s,
+                    end_s: event.end_s,
+                    duration_used_s: old,
+                    cooldown_s: None,
+                    work_s: spec.work_s,
+                    duration_computed_s: None,
+                    window_limited: false,
+                    dose_limit_sv_h: *value_sv_h,
+                    dose_limit_source: source.clone(),
+                    quantity: faris_model::maintenance::PHOTON_EFFECTIVE_DOSE_RATE_QUANTITY.into(),
+                    location_id: location_id.clone(),
+                    location_sha256: location_sha256.clone(),
+                    curve: curve.clone(),
+                    not_evaluated: None,
+                };
+                let Some(curve) = curve else {
+                    validation = ComparisonStatus::NotEvaluated;
+                    let ne = not_evaluated(
+                        format!(
+                            "iteration {number}: no spatial dose curve exactly matches history {history_hash} and event {} #{} at {:.0} s",
+                            event.component, event.k, event.start_s
+                        ),
+                        "produce D1S/R2S estimates for this exact irradiation, installation and task location; no curve reuse is performed",
+                    );
+                    record.not_evaluated = Some(ne.clone());
+                    records.push(record);
+                    overall_ne = Some(ne);
+                    break;
+                };
+                if curve.points.len() != required_cooling_grid.len()
+                    || curve
+                        .points
+                        .iter()
+                        .zip(&required_cooling_grid)
+                        .any(|(point, expected)| {
+                            (point.cooling_s - expected).abs() > expected.abs().max(1.0) * 1e-10
+                        })
+                {
+                    validation = ComparisonStatus::NotEvaluated;
+                    let ne = not_evaluated(
+                        format!(
+                            "iteration {number}: spatial dose points for {} do not match the authored cooling grid",
+                            event.component
+                        ),
+                        "regenerate both methods at the configured cooling times; no interpolation beyond the submitted grid is used",
+                    );
+                    record.not_evaluated = Some(ne.clone());
+                    records.push(record);
+                    overall_ne = Some(ne);
+                    break;
+                }
+                if curve.comparison == ComparisonStatus::OutsideBand {
+                    validation = ComparisonStatus::OutsideBand;
+                    let ne = not_evaluated(
+                        "D1S central estimate is outside the declared 0.85–1.15 R2S ratio band",
+                        "review the matched D1S/R2S physical basis and correct the source before using this curve",
+                    );
+                    record.not_evaluated = Some(ne.clone());
+                    records.push(record);
+                    overall_ne = Some(ne);
+                    break;
+                }
+                if curve.comparison == ComparisonStatus::InconclusiveCovariance {
+                    validation = ComparisonStatus::InconclusiveCovariance;
+                }
+                let points: Vec<_> = curve
+                    .points
+                    .iter()
+                    .map(|p| (p.cooling_s, p.selected_sv_h))
+                    .collect();
+                let cd = match cooldown(&points, *value_sv_h, assumptions.cooling.max_s) {
+                    Ok(v) => v,
+                    Err(ne) => {
+                        validation = ComparisonStatus::NotEvaluated;
+                        record.not_evaluated = Some(ne.clone());
+                        records.push(record);
+                        overall_ne = Some(ne);
+                        break;
+                    }
+                };
+                let new = spec.work_s + cd.cooldown_s;
+                let remaining = horizon - event.start_s;
+                change = change.max((new.min(remaining) - old.min(remaining)).abs());
+                window_limited |= cd.window_limited;
+                out.entry(event.component.clone()).or_default().push(new);
+                record.cooldown_s = Some(cd.cooldown_s);
+                record.duration_computed_s = Some(new);
+                record.window_limited = cd.window_limited;
+                records.push(record);
+            }
+            iterations.push(DoseIterationRecord {
+                iteration: number,
+                durations_in_s: used.clone(),
+                durations_out_s: out.clone(),
+                max_change_s: change,
+                window_limited,
+                events: records,
+            });
+            if overall_ne.is_some() {
+                break;
+            }
+            if change <= assumptions.convergence_s && !window_limited {
+                final_summary = Some(summarize(&history, &assumptions.classes));
+                converged = Some(number);
+                break;
+            }
+            used = out;
+        }
+        if converged.is_none() && overall_ne.is_none() {
+            overall_ne = Some(not_evaluated(
+                format!(
+                    "no convergence in {} iterations",
+                    assumptions.max_iterations
+                ),
+                "raise max_iterations or inspect event duration updates",
+            ));
+        }
+        let status = if converged.is_some() {
+            Status::Evaluated
+        } else {
+            Status::NotEvaluated
+        };
+        outputs.insert(
+            fixed_design.input.name.clone(),
+            DoseDesignResult {
+                fixed: summarize(&fixed_design.history, &assumptions.classes),
+                computed: DoseComputedResult {
+                    status,
+                    validation,
+                    not_evaluated: overall_ne,
+                    summary: final_summary,
+                    converged_at_iteration: converged,
+                    iterations,
+                },
+            },
+        );
+    }
+    Ok(DoseMaintenanceResult {
+        schema_version: MAINTENANCE_DOSE_RESULT_VERSION.into(),
+        inputs: BTreeMap::new(),
+        assumptions: assumptions.clone(),
+        designs: outputs,
+        produced_by: None,
+    })
+}
+
 pub mod actinv;
 pub mod files;
 pub mod irradiation;
+pub mod spatial_dose;
 
 #[cfg(test)]
 mod tests;
