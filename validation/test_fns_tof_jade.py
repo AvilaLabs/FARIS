@@ -127,6 +127,20 @@ class FnsTofHelpers(unittest.TestCase):
         parsed = B.input_deck(DECK.replace("1 so 1000", "1 7 so 1000"))
         self.assertIn("1 7 so 1000", parsed["surface_cards"])
 
+    def test_cell_id_allocator_sees_source_cells_removed_from_converted_universe(self):
+        parsed = B.input_deck(DECK.replace("2 0 1\n", "2 0 1\n5 0 -1 imp:n=0\n"))
+        self.assertEqual(R.mcnp_cell_ids(parsed), [1, 2, 5])
+
+    def test_record_mapping_binds_source_f5_to_actual_openmc_tally_and_filter_ids(self):
+        filters = [type("CellFilter", (), {"id": 81})(), type("EnergyFilter", (), {"id": 82})()]
+        tallies = [type("Tally", (), {"name": "f25_coarse", "id": 29, "filters": filters})()]
+        model = type("Model", (), {"tallies": tallies})()
+        self.assertEqual(R.tally_identity_mapping(model), [{
+            "mcnp_tally_number": 25, "energy_resolution": "coarse", "openmc_tally_id": 29,
+            "filters": [{"openmc_filter_id": 81, "type": "CellFilter"},
+                        {"openmc_filter_id": 82, "type": "EnergyFilter"}],
+        }])
+
     def test_coarse_response_uses_direct_coarse_tally_std_dev(self):
         class Array:
             def __init__(self, value):

@@ -22,6 +22,7 @@ import json
 import math
 import os
 import platform
+import re
 import subprocess
 import sys
 import shutil
@@ -147,6 +148,17 @@ def require_vacuum_outer_sphere(model, parsed: dict) -> int:
     return expected[0]
 
 
+def mcnp_cell_ids(parsed: dict) -> list[int]:
+    """Return source cell IDs, including cells omitted from the converted root universe."""
+    ids = []
+    for line in parsed["cell_cards"]:
+        match = re.match(r"^\s*(\d+)\b", line)
+        require(match is not None, "source cell card lacks an integer ID")
+        ids.append(int(match.group(1)))
+    require(ids and len(ids) == len(set(ids)), "source cell cards have no IDs or duplicate IDs")
+    return ids
+
+
 def energy_edges_for_table(upstream: Path, table: dict, parsed: dict) -> tuple[list[float], list[dict]]:
     rows = response_table(upstream, {}, table)
     fine = not table["coarse"]
@@ -154,10 +166,11 @@ def energy_edges_for_table(upstream: Path, table: dict, parsed: dict) -> tuple[l
     return tally_energy_edges(bins), bins
 
 
-def detector_cell_geometry(openmc, model, points: list[dict], radius: float) -> dict[int, object]:
+def detector_cell_geometry(openmc, model, points: list[dict], radius: float,
+                           first_cell_id: int | None = None) -> dict[int, object]:
     """Subtract exact centered detector spheres from their containing void cells."""
     cells = model.geometry.get_all_cells()
-    next_cell = max(cells, default=0) + 1
+    next_cell = max(max(cells, default=0) + 1, first_cell_id or 1)
     next_surface = max(model.geometry.get_all_surfaces(), default=0) + 1
     result = {}
     spheres_by_host: dict[int, list[object]] = {}
@@ -249,9 +262,15 @@ def model_for_radius(openmc, deck_path: Path, upstream: Path, manifest: dict, pa
         from openmc_mcnp_adapter import mcnp_to_model
     except ImportError as exc:
         raise ValueError("install openmc-dev/openmc_mcnp_adapter at a pinned commit before running") from exc
+    # Each radius is rebuilt as a separate OpenMC model. Reset global object-ID
+    # registries before importing the next one; old, already-exported models are
+    # not reused. This prevents cross-model ID warnings without hiding warnings.
+    openmc.reset_auto_ids()
     model = mcnp_to_model(str(deck_path))
     require_vacuum_outer_sphere(model, parsed)
-    detector_cells = detector_cell_geometry(openmc, model, parsed["detectors"], radius)
+    detector_cells = detector_cell_geometry(
+        openmc, model, parsed["detectors"], radius,
+        first_cell_id=max(mcnp_cell_ids(parsed)) + 1)
     src = openmc.IndependentSource(space=openmc.stats.Point(parsed["source_position_cm"]),
                                    angle=openmc.stats.Isotropic(), energy=histogram_source(openmc, parsed))
     model.settings = openmc.Settings()
@@ -263,11 +282,22 @@ def model_for_radius(openmc, deck_path: Path, upstream: Path, manifest: dict, pa
     model.settings.max_lost_particles = 100
     tallies = openmc.Tallies()
     by_angle = {round(d["angle_deg"], 1): d for d in parsed["detectors"]}
+    filter_cache = {}
     for table in manifest["adapter"]["tables"]:
         point = by_angle[round(table["angle_deg"], 1)]
         edges, _ = energy_edges_for_table(upstream, table, parsed)
         tally = openmc.Tally(name=f"f{point['tally']}_{'coarse' if table['coarse'] else 'fine'}")
-        tally.filters = [openmc.CellFilter(detector_cells[point["tally"]]["cell"]), openmc.EnergyFilter([e * 1e6 for e in edges])]
+        cell = detector_cells[point["tally"]]["cell"]
+        cell_key = ("cell", cell.id)
+        if cell_key not in filter_cache:
+            filter_cache[cell_key] = openmc.CellFilter(cell)
+        energy_edges_ev = tuple(float(e * 1e6) for e in edges)
+        energy_key = ("energy", energy_edges_ev)
+        if energy_key not in filter_cache:
+            filter_cache[energy_key] = openmc.EnergyFilter(energy_edges_ev)
+        # Reuse equal filters across tallies. OpenMC's XML writer then emits a
+        # single filter ID without renumbering equal-but-distinct objects.
+        tally.filters = [filter_cache[cell_key], filter_cache[energy_key]]
         tally.scores = ["flux"]
         tallies.append(tally)
     model.tallies = tallies
@@ -293,6 +323,26 @@ def result_levels(openmc, manifest: dict, tables: list[dict], statepoint: Path, 
                 key = ref["detector_id"]
                 results[key] = tally_value(mean, sd, point["mcnp_fm"], ref["lo_mev"], ref["hi_mev"])
     return results
+
+
+def tally_identity_mapping(model) -> list[dict]:
+    """Bind source MCNP F5 tally numbers to the actual OpenMC tally/filter IDs."""
+    rows = []
+    seen = set()
+    for tally in model.tallies:
+        match = re.fullmatch(r"f(\d+)_(fine|coarse)", tally.name or "")
+        require(match is not None, f"unexpected generated OpenMC tally name {tally.name!r}")
+        source_id, resolution = int(match.group(1)), match.group(2)
+        key = (source_id, resolution)
+        require(key not in seen, f"duplicate generated tally mapping for F{source_id} {resolution}")
+        seen.add(key)
+        rows.append({"mcnp_tally_number": source_id, "energy_resolution": resolution,
+                     "openmc_tally_id": tally.id,
+                     "filters": [{"openmc_filter_id": filt.id,
+                                  "type": type(filt).__name__}
+                                 for filt in tally.filters]})
+    require(rows, "generated OpenMC model has no tallies")
+    return sorted(rows, key=lambda row: (row["mcnp_tally_number"], row["energy_resolution"]))
 
 
 def converter_identity() -> dict:
@@ -407,9 +457,12 @@ def command_run(args) -> int:
         artifacts.append({"radius_cm": radius,
                           "model_xml": {"path": str(folder / "model.xml"), "sha256": hash_file(folder / "model.xml")},
                           "statepoint": {"path": str(statepoints[0]), "sha256": hash_file(statepoints[0])},
-                          "openmc_log": {"path": str(folder / "openmc.log"), "sha256": hash_file(folder / "openmc.log")}})
+                          "openmc_log": {"path": str(folder / "openmc.log"), "sha256": hash_file(folder / "openmc.log")},
+                          "openmc_tally_mapping": tally_identity_mapping(model)})
         artifacts[-1]["finite_detector_cells"] = {
-            str(tally): {k: v for k, v in info.items() if k != "cell"}
+            str(tally): {"openmc_detector_cell_id": info["cell"].id,
+                         "openmc_host_cell_id": info["host_cell_id"],
+                         **{k: v for k, v in info.items() if k not in {"cell", "host_cell_id"}}}
             for tally, info in finite_cells.items()
         }
         (folder / "radius-results.json").write_text(json.dumps(levels[-1], indent=2, sort_keys=True, allow_nan=False) + "\n")
