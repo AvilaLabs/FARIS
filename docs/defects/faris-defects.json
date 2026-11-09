@@ -160,6 +160,33 @@
       "fixed_in": "1a6d6d2",
       "disposition": "The gate extracted VAL-023 from the approved release list but ignored its explicit access-outcome alternative, requiring Met even when the authorized outcome was recorded. The gate now checks the narrowly authorized, hash-pinned access evidence and accounts for its trace separately while retaining NOT_EVALUATED and not-validated matrix rows. Other requirements still require Met. The original checker rejected the controlled complete access fixture; the corrected checker accepts that condition without changing its No requirement status or physical validation state.",
       "regression_test": "scripts/test_release_gate.py::test_val023_access_outcome_is_an_explicit_non_met_alternative"
+    },
+    {
+      "id": "FARIS-013",
+      "title": "Overlapping component replacements counted plant downtime more than once",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "disclosed": "2026-11-09",
+      "affected_versions": [
+        "0.2.0"
+      ],
+      "fixed_in": "2faa1df",
+      "disposition": "Maintenance summaries and duration sensitivities summed concurrent component outages, understating plant replacement availability without a warning. They now use the clipped union of replacement intervals. The controlled actual HistoryResult regression failed before the fix (21 s instead of 18 s downtime) and passed after it; availability changes from 79 to 82 percent over its 100 s horizon. Per-component event records and archived result files are unchanged.",
+      "regression_test": "crates/faris-engine/src/maintenance/tests.rs::overlapping_replacements_share_plant_downtime_in_summary_and_tornado"
+    },
+    {
+      "id": "FARIS-014",
+      "title": "Cold ACTINV prepared-cache creation exceeds the external-job file limit",
+      "severity": "S3",
+      "status": "open",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": null,
+      "disposition": "Cold-cache ACTINV execution prepares a 275493400-byte library.actp, larger than the ordinary 256 MiB per-file job cap, and fails. Live activation reproducibility and impurity tests pass with a hash-verified already prepared cache; those results do not qualify cold startup. A bounded cache-specific allowance that preserves ordinary output limits is under implementation. The current workaround is to prepare the ACTINV cache separately using ACTINV and point ACTINV_CACHE_DIR at that verified cache.",
+      "regression_test": null
     }
   ]
 }

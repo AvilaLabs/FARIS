@@ -9,11 +9,13 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 1 fixed that affected a released version, 11 fixed before they reached a release.
+1 open, 0 will not be fixed, 2 fixed that affected a released version, 11 fixed before they reached a release.
 
 ## Open
 
-None.
+| Id | Severity | Title | Found | Affected | What happened |
+| --- | --- | --- | --- | --- | --- |
+| FARIS-014 | S3 | Cold ACTINV prepared-cache creation exceeds the external-job file limit | 2026-11-09 | unreleased | Cold-cache ACTINV execution prepares a 275493400-byte library.actp, larger than the ordinary 256 MiB per-file job cap, and fails. Live activation reproducibility and impurity tests pass with a hash-verified already prepared cache; those results do not qualify cold startup. A bounded cache-specific allowance that preserves ordinary output limits is under implementation. The current workaround is to prepare the ACTINV cache separately using ACTINV and point ACTINV_CACHE_DIR at that verified cache. |
 
 ## Will not be fixed
 
@@ -23,6 +25,7 @@ None.
 
 | Id | Severity | Title | Affected | Fixed in | What happened |
 | --- | --- | --- | --- | --- | --- |
+| FARIS-013 | S1 | Overlapping component replacements counted plant downtime more than once | 0.2.0 | 2faa1df | Maintenance summaries and duration sensitivities summed concurrent component outages, understating plant replacement availability without a warning. They now use the clipped union of replacement intervals. The controlled actual HistoryResult regression failed before the fix (21 s instead of 18 s downtime) and passed after it; availability changes from 79 to 82 percent over its 100 s horizon. Per-component event records and archived result files are unchanged. |
 | FARIS-008 | S4 | faris doctor said transport and Core execution were not implemented | 0.1.0, 0.1.1, 0.2.0 | 33de1a3 | The doctor note was left from before those commands existed and told users the tools could not run. It now names the commands that run tools and says the desktop app's Find tools searches environments as well as PATH. |
 
 ## Fixed before a release
