@@ -16,9 +16,9 @@ use super::overlap::BooleanResult;
 use super::reader::{ActiveReader, NativeReader, ReaderStamp};
 use super::{
     BOOLEAN_TIMEOUT, CAD_ADDRESS_SPACE, CAD_DEVIATION_HELPER, CAD_FACETS_HELPER, CAD_HELPER,
-    CONVERT_TIMEOUT, DESIGN_VOLUME_HELPER, DEVIATION_TIMEOUT, DesignError, ExternalBackends,
-    Launched, SOURCE_SITES_HELPER, SOURCE_TIMEOUT, STOCHASTIC_VOLUME_TIMEOUT, TESSELLATE_TIMEOUT,
-    io_error, launch_python, read_json_bounded, sha256_file, sha256_hex, tail,
+    CONVERT_TIMEOUT, DAGMC_METADATA_HELPER, DESIGN_VOLUME_HELPER, DEVIATION_TIMEOUT, DesignError,
+    ExternalBackends, Launched, SOURCE_SITES_HELPER, SOURCE_TIMEOUT, STOCHASTIC_VOLUME_TIMEOUT,
+    TESSELLATE_TIMEOUT, io_error, launch_python, read_json_bounded, sha256_file, sha256_hex, tail,
 };
 use crate::jobs::ResourceLimits;
 use faris_model::design::{LengthUnit, load_facets};
@@ -129,6 +129,10 @@ fn write_cad_helpers(dir: &Path) -> Result<PathBuf, DesignError> {
     std::fs::create_dir_all(&helpers).map_err(|e| io_error(&helpers, e))?;
     write_text(&helpers.join("faris_facets.py"), CAD_FACETS_HELPER)?;
     write_text(&helpers.join("faris_deviation.py"), CAD_DEVIATION_HELPER)?;
+    write_text(
+        &helpers.join("dagmc_faceting_tolerance.py"),
+        DAGMC_METADATA_HELPER,
+    )?;
     let script = helpers.join("faris_cad.py");
     write_text(&script, CAD_HELPER)?;
     Ok(script)

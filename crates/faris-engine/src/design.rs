@@ -86,6 +86,8 @@ pub const IMPORT_REPORT_VERSION: &str = "faris-design-import-report/v0.2";
 const CAD_HELPER: &str = include_str!("../../../integrations/cad/faris_cad.py");
 const CAD_FACETS_HELPER: &str = include_str!("../../../integrations/cad/faris_facets.py");
 const CAD_DEVIATION_HELPER: &str = include_str!("../../../integrations/cad/faris_deviation.py");
+const DAGMC_METADATA_HELPER: &str =
+    include_str!("../../../integrations/cad/dagmc_faceting_tolerance.py");
 const SOURCE_SITES_HELPER: &str = include_str!("../../../integrations/openmc/source_sites.py");
 const DESIGN_VOLUME_HELPER: &str = include_str!("../../../integrations/openmc/design_volume.py");
 const DESIGN_TRANSPORT_WORKER: &str =
