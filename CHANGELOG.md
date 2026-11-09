@@ -25,6 +25,8 @@ basis.
 
 ### Added
 
+- Design transport summaries now show the nominal D-T neutron share alongside fusion power, including
+  the declared neutron-to-reaction-energy fraction; it is labelled separately from tallied heating.
 - A high-contrast theme (white on black, every text style at least 7 to 1), chosen with the `ui.theme`
   setting on the desktop. A palette test in CI checks every text style and control colour of both themes, and
   `scripts/screenshot_contrast.py` checks the contrast of what was actually drawn, from screenshots.
@@ -386,6 +388,10 @@ basis.
 
 ### Fixed
 
+- CAD transport now checks the final lost-particle fraction even when a target-error or budget stop occurs
+  before one million histories. A short run above the one-in-a-million limit is no longer accepted.
+- Lost-neutron diagnostics now identify OpenMC's recorded positions as birth points. They do not identify the
+  boundary where a neutron escaped; guidance now directs users to the geometry checks without claiming one.
 - ACTINV jobs now preserve the documented cache-root settings without inheriting unrelated environment
   variables. Windows variable names retain their case-insensitive lookup and canonical output spelling.
 - The release gate now checks the plan's explicit VAL-023 access-outcome alternative without marking the

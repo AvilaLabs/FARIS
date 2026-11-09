@@ -269,8 +269,32 @@ def peak_of(sums, squares, volumes, ranked, batches: int) -> dict | None:
 
 def lost_too_many(lost: int | None, histories: int) -> bool:
     """True when the lost share of the histories is above the limit. One loss in under a million histories is
-    above the share but is not judged until the run is long enough to tell."""
-    return bool(lost) and histories >= 1.0 / LOST_FRACTION_LIMIT and lost > LOST_FRACTION_LIMIT * histories
+    above the share but does not interrupt an in-progress run until it is long enough to tell."""
+    return histories >= 1.0 / LOST_FRACTION_LIMIT and lost_fraction_exceeded(lost, histories)
+
+
+def lost_fraction_exceeded(lost: int | None, histories: int) -> bool:
+    """Whether a completed run's recorded lost share strictly exceeds the limit."""
+    return bool(lost) and histories > 0 and lost > LOST_FRACTION_LIMIT * histories
+
+
+def final_run_status(
+    reason: str, lost: int | None, histories: int
+) -> tuple[str, str | None, str | None]:
+    """Apply the final loss guard and return status plus its fail-closed guidance, if needed."""
+    if reason == "lost_particles" or lost_fraction_exceeded(lost, histories):
+        why, next_step = lost_particle_guidance(lost or 0, histories)
+        return "lost_particles", why, next_step
+    return reason, None, None
+
+
+def lost_particle_guidance(lost: int, histories: int) -> tuple[str, str]:
+    """Explain a failed run without treating OpenMC's recorded birth points as loss locations."""
+    why = (f"{lost} of {histories} neutrons could not be placed in the geometry, above the "
+           "limit of one in a million; the answer is not trusted.")
+    next_step = ("Review the design for gaps or overlaps and run `faris design check` again. "
+                 "The reported particle positions are birth points, not where particles left the geometry.")
+    return why, next_step
 
 
 def lost_count(dll) -> int | None:
@@ -284,7 +308,7 @@ def lost_count(dll) -> int | None:
 
 
 def lost_positions(directory: Path) -> list[list[float]]:
-    """Where the first lost neutrons were, from the particle files OpenMC wrote in `directory` (cm)."""
+    """Recorded birth positions of the first lost neutrons, from OpenMC particle files (cm)."""
     import h5py
 
     out = []
@@ -728,6 +752,12 @@ def phase_run(request: dict, work: Path) -> dict:
                             "peak_relative_error": leading[0] if leading else None,
                             "elapsed_seconds": elapsed,
                         }}), flush=True)
+            # The in-progress stop rule waits for enough histories to judge the fraction. A run that
+            # stops early for convergence or a budget still gets the strict final-fraction check.
+            lost = lost_count(openmc.lib._dll)
+            reason, lost_why, lost_next_step = final_run_status(
+                reason, lost, stats.n * int(sampling["particles_per_batch"])
+            )
             batch_log.close()
             if pieces is not None:
                 # Every piece's sums, kept beside the result: the evidence behind the peak.
@@ -782,15 +812,10 @@ def phase_run(request: dict, work: Path) -> dict:
             "aim_seconds": aim_seconds,
             "aim_reused": bool(mode.get("reused", False)),
         },
-        "why": None,
-        "next_step": None,
+        "why": lost_why,
+        "next_step": lost_next_step,
     }
-    if reason == "lost_particles":
-        result["why"] = (f"{lost} of {result['histories']} neutrons could not be placed in the geometry, above the "
-                         f"limit of one in a million; the answer is not trusted.")
-        result["next_step"] = ("Look at the model where the neutrons were lost (positions are in the report) and "
-                               "run `faris design check` again: a gap or overlap there is the usual cause.")
-    elif reason != "target_reached":
+    if reason not in ("lost_particles", "target_reached"):
         result["why"], result["next_step"] = explain(reason, stats, sampling, mode["mode"] != "analog", leading)
     target = out_dir / "result.json"
     with target.open("x", encoding="utf-8") as stream:

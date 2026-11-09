@@ -27,7 +27,9 @@ use super::{
 };
 use crate::jobs::{Cancellation, ResourceLimits};
 use crate::result_cache::{self, CacheKey, CacheProvenance, Lookup, ResultCache};
-use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
+use crate::transport::{
+    D_T_ENERGY_PER_REACTION_EV, D_T_NEUTRON_ENERGY_EV, dt_source_power_summary, reaction_rate_per_s,
+};
 use faris_model::design::{self, Design, Metric, Role};
 use faris_model::history::OperatingHistoryAssumptions;
 use faris_model::transport::FAST_NEUTRON_ENERGY_MIN_EV;
@@ -300,7 +302,8 @@ pub struct DesignTransportReport {
     /// Neutrons the geometry could not place; `None`: not counted by this OpenMC build.
     #[serde(default)]
     pub lost_particles: Option<u64>,
-    /// Where the first of them were lost (m).
+    /// OpenMC-recorded birth positions of the first lost neutrons (m); these are not the locations
+    /// where the neutrons left the geometry.
     #[serde(default)]
     pub lost_positions_m: Vec<[f64; 3]>,
     pub notices: Vec<String>,
@@ -381,12 +384,22 @@ pub const DESIGN_TRANSPORT_OUTPUTS: &[Output] = &[
     ),
     not_calculated(
         "lost_positions_m",
-        "positions of the first lost neutrons, a run-integrity check",
+        "OpenMC-recorded birth positions of the first lost neutrons, not their loss locations",
     ),
 ];
 
 fn default_energy_per_reaction_ev() -> f64 {
     D_T_ENERGY_PER_REACTION_EV
+}
+
+fn lost_position_provenance_notice(
+    lost: Option<u64>,
+    positions: &[[f64; 3]],
+) -> Option<&'static str> {
+    (lost.is_some_and(|count| count > 0) && !positions.is_empty()).then_some(
+        "The listed lost-neutron positions are their recorded birth points; OpenMC does not \
+         report where they left the geometry in this run format.",
+    )
 }
 
 /// Flux in n/m²/s from a track length per source neutron (cm), a source rate and a volume.
@@ -1233,6 +1246,11 @@ fn assemble(worker: WorkerResult, inputs: Inputs) -> Result<DesignTransportRepor
         )),
         None => {}
     }
+    if let Some(notice) =
+        lost_position_provenance_notice(worker.lost_particles, &worker.lost_positions_cm)
+    {
+        notices.push(notice.into());
+    }
     let mut fluence_limits = Vec::new();
     let mut not_evaluated = Vec::new();
     if worker.lost_particles.is_none() {
@@ -1429,6 +1447,8 @@ fn years_band(earliest: Option<f64>, latest: Option<f64>) -> String {
 /// The report as text for the terminal.
 pub fn render_transport_text(report: &DesignTransportReport) -> String {
     let mut out = String::new();
+    let source_power =
+        dt_source_power_summary(report.fusion_power_mw, report.energy_per_reaction_ev);
     let what = if report.energy_min_ev > 0.0 {
         format!("Neutron flux above {} MeV", report.energy_min_ev / 1.0e6)
     } else {
@@ -1505,13 +1525,17 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
     }
     let _ = writeln!(
         out,
-        "  {} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power at {} MeV per reaction.",
+        "  {} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {:.1} MW fusion at {:.1} MeV per reaction. Nominal D-T neutron power: {:.1} MW ({:.1}/{:.1} MeV = {:.1}% of fusion power); source convention, not a transport heating tally or energy-closure result.",
         report.histories,
         report.elapsed_seconds,
         report.threads,
         report.source_rate_per_s,
         report.fusion_power_mw,
-        report.energy_per_reaction_ev / 1.0e6
+        report.energy_per_reaction_ev / 1.0e6,
+        source_power.nominal_neutron_power_mw,
+        D_T_NEUTRON_ENERGY_EV / 1.0e6,
+        report.energy_per_reaction_ev / 1.0e6,
+        source_power.neutron_power_fraction * 100.0
     );
     if let Some(lost) = report.lost_particles {
         let _ = writeln!(
@@ -1596,6 +1620,7 @@ pub fn render_transport_text(report: &DesignTransportReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::design::life::SECONDS_PER_YEAR;
 
     // Verifies: SEC-001
@@ -1935,6 +1960,94 @@ mod tests {
         }
     }
 
+    // Verifies: GEO-025
+    #[test]
+    fn worker_lost_positions_keep_birth_point_provenance_through_assembly_and_cli_rendering() {
+        let design = design_with_groups(&[("coils", "fast_neutron_fluence", Some(1.0e5))]);
+        let chosen = choose_response(&design, None).unwrap();
+        let response = [("tf-1", 1.0)];
+        let worker = WorkerResult {
+            schema: RESULT_SCHEMA.into(),
+            openmc: "0.15.3".into(),
+            h5m_sha256: "2".repeat(64),
+            run_h5m_sha256: "2".repeat(64),
+            model_xml_sha256: "3".repeat(64),
+            seed: 7,
+            threads: 1,
+            particles_per_batch: 100,
+            batches: 10,
+            histories: 1_000,
+            elapsed_seconds: 1.0,
+            stop_reason: "lost_particles".into(),
+            target_relative_error: 0.05,
+            target_reached: false,
+            variance_of_variance: None,
+            estimator: "tracklength".into(),
+            unit: "cm_per_source".into(),
+            energy_min_ev: chosen.energy_min_ev,
+            total: WorkerValue {
+                mean: 1.0,
+                standard_error: Some(0.1),
+            },
+            solids: vec![WorkerSolid {
+                solid_id: "tf-1".into(),
+                mean: 1.0,
+                standard_error: Some(0.1),
+                peak: None,
+            }],
+            variance_reduction: VarianceReduction {
+                mode: "analog".into(),
+                reason: "test run".into(),
+                next_step: "none".into(),
+                targets: Vec::new(),
+                windows_sha256: None,
+                aim_seconds: 0.0,
+                aim_reused: false,
+            },
+            why: Some("lost-particle limit exceeded".into()),
+            next_step: Some("repair the geometry".into()),
+            lost_particles: Some(1),
+            lost_positions_cm: vec![[12.5, -25.0, 50.0]],
+        };
+        let report = assemble(
+            worker,
+            Inputs {
+                design_identity: DesignIdentity {
+                    path: "test.faris-design.json".into(),
+                    sha256: "0".repeat(64),
+                    id: Some("test".into()),
+                },
+                check_report_sha256: "1".repeat(64),
+                h5m_sha256: "2".repeat(64),
+                cross_sections_sha256: "4".repeat(64),
+                audit_cross_sections_sha256: None,
+                run_directory: "test-run".into(),
+                fusion_power_mw: 500.0,
+                response: &response,
+                design: &design,
+                history: Err("test history unavailable".into()),
+                setup_seconds: 0.0,
+                windows_reused: false,
+                cache_note: None,
+                reused_from: None,
+                chosen: &chosen,
+            },
+        )
+        .unwrap();
+        assert_eq!(report.lost_positions_m, vec![[0.125, -0.25, 0.5]]);
+        assert!(report.notices.iter().any(|notice| {
+            notice.contains("birth points") && notice.contains("does not report where they left")
+        }));
+        assert!(
+            report.fluence_limits.is_empty(),
+            "lost particles invalidate scores"
+        );
+        let text = render_transport_text(&report);
+        assert!(text.contains("Lost neutrons: 1 of 1000"), "{text}");
+        assert!(text.contains("birth points"), "{text}");
+        assert!(!text.contains("lost at ("), "{text}");
+    }
+
     // Verifies: VAL-054
     #[test]
     fn every_number_of_the_transport_report_is_classed_and_every_calculated_one_has_a_state() {
@@ -1972,6 +2085,18 @@ mod tests {
         assert!(old.validation.is_empty());
         let text = render_transport_text(&old);
         assert!(text.contains("[not validated: flux]"), "{text}");
+    }
+
+    // Verifies: SRC-002
+    #[test]
+    fn cli_source_summary_uses_neutron_energy_and_labels_the_source_convention() {
+        let text = render_transport_text(&sample_report());
+        assert!(text.contains("525.0 MW fusion"), "{text}");
+        assert!(
+            text.contains("Nominal D-T neutron power: 420.6 MW (14.1/17.6 MeV = 80.1%"),
+            "{text}"
+        );
+        assert!(text.contains("not a transport heating tally or energy-closure result"));
     }
 
     // Verifies: VAL-054

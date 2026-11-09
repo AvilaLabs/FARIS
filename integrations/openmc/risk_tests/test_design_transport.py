@@ -3,9 +3,14 @@
 """Tests for ../design_transport.py: the pure helpers. Nothing here runs OpenMC."""
 
 import copy
+import json
+import os
 from pathlib import Path
 import sys
+import tempfile
+from types import ModuleType, SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -64,6 +69,14 @@ class StopRuleTest(unittest.TestCase):
         self.assertEqual(DT.stop_reason(stats_of(noisy), SAMPLING, 1.0), "history_limit")
         self.assertEqual(DT.stop_reason(stats_of(noisy[:20]), SAMPLING, 61.0), "time_limit")
         self.assertIsNone(DT.stop_reason(stats_of(noisy[:20]), SAMPLING, 1.0))
+
+    # Verifies: GEO-025
+    def test_lost_particle_guidance_does_not_mislabel_birth_positions_as_loss_locations(self):
+        why, next_step = DT.lost_particle_guidance(12, 1_000_000)
+        self.assertIn("12 of 1000000", why)
+        self.assertIn("gaps or overlaps", next_step)
+        self.assertIn("birth points", next_step)
+        self.assertIn("not where particles left the geometry", next_step)
 
     # Verifies: NUC-043
     # Verifies: NUC-041, UNC-005, UNC-007
@@ -234,15 +247,181 @@ class WindowHelpersTest(unittest.TestCase):
 
 
 class LostParticleTest(unittest.TestCase):
+    def run_mocked_phase_run(self, root, final_status=DT.final_run_status):
+        """Exercise phase_run's real post-batch result assembly against a tiny fake OpenMC API."""
+        root = Path(root)
+        work = root / "work"
+        work.mkdir()
+        h5m = root / "model.h5m"
+        h5m.write_bytes(b"test geometry identity")
+
+        class Vector(list):
+            def __sub__(self, other):
+                return Vector(a - b for a, b in zip(self, other))
+
+            def sum(self):
+                return sum(self)
+
+        class NumpyFake(ModuleType):
+            @staticmethod
+            def zeros(length):
+                return Vector([0.0] * length)
+
+            @staticmethod
+            def array(values, dtype=None):
+                return Vector(values)
+
+        class TallyResults:
+            def __getitem__(self, key):
+                if key != (slice(None), 0, 1):
+                    raise AssertionError(f"unexpected fake tally selection: {key!r}")
+                return Vector([1.0])
+
+        class SourceList(list):
+            def ravel(self):
+                return self
+
+        class FakeModel:
+            def __init__(self):
+                self.settings = SimpleNamespace()
+
+            def export_to_model_xml(self, path):
+                Path(path).write_text("<model/>\n")
+
+        model = FakeModel()
+        tally = SimpleNamespace(results=TallyResults())
+        lib = ModuleType("openmc.lib")
+        lib._dll = object()
+        lib.tallies = {DT.TALLY_ID: tally}
+        lib.init = lambda *args: None
+        lib.simulation_init = lambda: None
+        lib.next_batch = lambda: None
+        lib.simulation_finalize = lambda: None
+        lib.finalize = lambda: None
+        openmc = ModuleType("openmc")
+        openmc.__path__ = []
+        openmc.__version__ = "mock-openmc"
+        openmc.lib = lib
+        openmc.Tally = lambda tally_id, name: SimpleNamespace(
+            tally_id=tally_id, name=name, filters=[], scores=[], estimator=None
+        )
+        openmc.CellFilter = lambda cells: ("cell", cells)
+        openmc.EnergyFilter = lambda energies: ("energy", energies)
+        openmc.Tallies = lambda values: values
+        plasma = ModuleType("openmc_plasma_source")
+        plasma.tokamak_source = lambda **kwargs: SimpleNamespace(
+            strength=1.0, sources=SourceList([SimpleNamespace(strength=1.0)])
+        )
+
+        def geometry_copy(_request, target, random_ray=False):
+            target = Path(target)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"copied geometry")
+            return target
+
+        request = {
+            "h5m": str(h5m),
+            "plasma": {},
+            "response": {"solid_ids": ["coil"], "energy_min_ev": 1.0e5},
+            "sampling": {
+                "target_relative_error": 0.05,
+                "particles_per_batch": 600_000,
+                "min_batches": 1,
+                "max_batches": 1,
+                "max_seconds": 10.0,
+                "seed": 7,
+                "threads": 1,
+            },
+            "variance_reduction": "none",
+        }
+        with (
+            patch.dict(sys.modules, {
+                "numpy": NumpyFake("numpy"),
+                "openmc": openmc,
+                "openmc.lib": lib,
+                "openmc_plasma_source": plasma,
+            }),
+            patch.object(DT, "geometry_copy", side_effect=geometry_copy),
+            patch.object(DT, "build_model", return_value=(model, None, {})),
+            patch.object(DT, "tokamak_arguments", return_value={}),
+            patch.object(DT, "volume_ids", return_value={"coil": 1}),
+            patch.object(DT, "stop_reason", return_value="target_reached"),
+            patch.object(DT, "lost_count", return_value=1),
+            patch.object(DT, "lost_positions", return_value=[[1.0, 2.0, 3.0]]),
+            patch.object(DT, "final_run_status", side_effect=final_status),
+        ):
+            return DT.phase_run(request, work)
+
     # Verifies: GEO-025
     def test_more_than_one_lost_in_a_million_fails_once_the_run_can_tell(self):
         self.assertFalse(DT.lost_too_many(0, 5_000_000))
         self.assertFalse(DT.lost_too_many(None, 5_000_000))
         self.assertFalse(DT.lost_too_many(5, 5_000_000))
         self.assertTrue(DT.lost_too_many(6, 5_000_000))
-        # One loss in a short run is reported but not judged.
+        # During warmup, one loss in a short run does not interrupt sampling.
         self.assertFalse(DT.lost_too_many(1, 600_000))
         self.assertTrue(DT.lost_too_many(2, 1_000_000))
+
+    # Verifies: GEO-025
+    def test_final_guard_rejects_a_short_target_or_budget_stop_above_the_final_fraction(self):
+        # A short run may continue through warmup, but it may not be accepted after it stops.
+        self.assertFalse(DT.lost_too_many(1, 600_000))
+        reason, why, next_step = DT.final_run_status("target_reached", 1, 600_000)
+        self.assertEqual(reason, "lost_particles")
+        self.assertIn("1 of 600000", why)
+        self.assertIn("birth points", next_step)
+        self.assertIn("not where particles left the geometry", next_step)
+        self.assertEqual(DT.final_run_status("history_limit", 2, 600_000)[0], "lost_particles")
+        self.assertEqual(DT.final_run_status("time_limit", None, 600_000)[0], "time_limit")
+
+    # Verifies: GEO-025
+    def test_final_guard_uses_strictly_greater_than_the_one_in_a_million_limit(self):
+        self.assertEqual(DT.final_run_status("target_reached", 1, 1_000_000)[0], "target_reached")
+        self.assertEqual(DT.final_run_status("target_reached", 2, 1_000_000)[0], "lost_particles")
+        self.assertEqual(DT.final_run_status("target_reached", 1, 1_000_001)[0], "target_reached")
+
+    # Verifies: GEO-025
+    def test_phase_run_finalization_overrides_a_short_target_stop_and_preserves_diagnostics(self):
+        with tempfile.TemporaryDirectory() as before_root, tempfile.TemporaryDirectory() as after_root:
+            # This bypass models the original finalization path, which trusted the sampling stop reason.
+            before = self.run_mocked_phase_run(
+                before_root, final_status=lambda reason, lost, histories: (reason, None, None)
+            )
+            after = self.run_mocked_phase_run(after_root)
+
+        self.assertEqual(before["stop_reason"], "target_reached")
+        self.assertTrue(before["target_reached"])
+        self.assertEqual(after["stop_reason"], "lost_particles")
+        self.assertFalse(after["target_reached"])
+        self.assertEqual(after["lost_particles"], 1)
+        self.assertEqual(after["lost_positions_cm"], [[1.0, 2.0, 3.0]])
+        self.assertIn("1 of 600000", after["why"])
+        self.assertIn("birth points", after["next_step"])
+        self.assertIn("not where particles left the geometry", after["next_step"])
+
+        evidence_dir = os.environ.get("FARIS_GEO025_EVIDENCE_DIR")
+        if evidence_dir:
+            target = Path(evidence_dir) / "geo025-short-run-loss-guard.json"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps({
+                "setup": "mocked OpenMC C API; one batch of 600000 histories; one lost neutron",
+                "before_original_finalization": {
+                    "stop_reason": before["stop_reason"],
+                    "target_reached": before["target_reached"],
+                    "lost_particles": before["lost_particles"],
+                    "lost_positions_cm": before["lost_positions_cm"],
+                    "why": before["why"],
+                    "next_step": before["next_step"],
+                },
+                "after_final_fraction_guard": {
+                    "stop_reason": after["stop_reason"],
+                    "target_reached": after["target_reached"],
+                    "lost_particles": after["lost_particles"],
+                    "lost_positions_cm": after["lost_positions_cm"],
+                    "why": after["why"],
+                    "next_step": after["next_step"],
+                },
+            }, indent=2) + "\n")
 
 
 class PeakTest(unittest.TestCase):

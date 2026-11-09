@@ -39,6 +39,31 @@ pub fn neutron_power_mw(
 ) -> f64 {
     fusion_power_mw * neutron_power_fraction(neutron_energy_ev, energy_per_reaction_ev)
 }
+
+/// Nominal neutron share of authored fusion power under FARIS's D-T source convention.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DtSourcePowerSummary {
+    pub nominal_neutron_power_mw: f64,
+    pub neutron_power_fraction: f64,
+}
+
+/// Derive the nominal D-T neutron power from fusion power and the reaction energy recorded by the run.
+/// This is source bookkeeping, not a transport heating tally or an energy-closure result.
+pub fn dt_source_power_summary(
+    fusion_power_mw: f64,
+    energy_per_reaction_ev: f64,
+) -> DtSourcePowerSummary {
+    let neutron_power_fraction =
+        neutron_power_fraction(D_T_NEUTRON_ENERGY_EV, energy_per_reaction_ev);
+    DtSourcePowerSummary {
+        nominal_neutron_power_mw: neutron_power_mw(
+            fusion_power_mw,
+            D_T_NEUTRON_ENERGY_EV,
+            energy_per_reaction_ev,
+        ),
+        neutron_power_fraction,
+    }
+}
 pub const MAX_TRANSPORT_ARTIFACT_BYTES: usize = faris_model::transport::MAX_ARTIFACT_BYTES;
 pub const RESPONSE_COVARIANCE_METHOD: &str = "batch-means-sample-covariance/v1";
 const COVARIANCE_SYMMETRY_TOLERANCE: f64 = 1.0e-12;
@@ -1971,5 +1996,10 @@ mod tests {
         let carried = rate * D_T_NEUTRON_ENERGY_EV * ELEMENTARY_CHARGE_C / 1.0e6;
         assert!((carried / neutron - 1.0).abs() < 1e-12);
         assert!((carried / 525.0 - 1.0).abs() > 0.15);
+
+        let summary = dt_source_power_summary(525.0, D_T_ENERGY_PER_REACTION_EV);
+        assert!((summary.nominal_neutron_power_mw - neutron).abs() < 1e-12);
+        assert_eq!(summary.neutron_power_fraction, fraction);
+        assert!(summary.nominal_neutron_power_mw < 525.0);
     }
 }

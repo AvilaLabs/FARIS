@@ -9,6 +9,7 @@
 use faris_engine::design::{
     DesignTransportReport, FluenceLimit, LimitStatus, NotEvaluated, SolidFlux, span_text,
 };
+use faris_engine::transport::{D_T_NEUTRON_ENERGY_EV, dt_source_power_summary};
 
 /// A quantity with its caption: the value, and its error or why there is none.
 #[derive(Clone, Debug, PartialEq)]
@@ -172,6 +173,8 @@ fn limit_view(limit: &FluenceLimit) -> LimitView {
 
 /// The view of a finished run.
 pub fn result_view(report: &DesignTransportReport) -> ResultView {
+    let source_power =
+        dt_source_power_summary(report.fusion_power_mw, report.energy_per_reaction_ev);
     let what = if report.energy_min_ev > 0.0 {
         format!("Neutron flux above {} MeV", report.energy_min_ev / 1.0e6)
     } else {
@@ -233,13 +236,17 @@ pub fn result_view(report: &DesignTransportReport) -> ResultView {
             next_step: report.next_step.clone().filter(|_| !report.target_reached),
         },
         run_line: format!(
-            "{} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {} MW of fusion power at {} MeV per reaction. {}",
+            "{} histories in {:.0} s on {} thread(s); source {:.3e} n/s from {:.1} MW fusion at {:.1} MeV per reaction. Nominal D-T neutron power: {:.1} MW ({:.1}/{:.1} MeV = {:.1}% of fusion power); source convention, not a transport heating tally or energy-closure result. {}",
             report.histories,
             report.elapsed_seconds,
             report.threads,
             report.source_rate_per_s,
             report.fusion_power_mw,
             report.energy_per_reaction_ev / 1.0e6,
+            source_power.nominal_neutron_power_mw,
+            D_T_NEUTRON_ENERGY_EV / 1.0e6,
+            report.energy_per_reaction_ev / 1.0e6,
+            source_power.neutron_power_fraction * 100.0,
             match report.lost_particles {
                 Some(lost) =>
                     format!("Lost neutrons: {lost} (a run fails above one in a million)."),
@@ -405,6 +412,43 @@ pub(crate) mod tests {
             view.highest_piece_place.unwrap(),
             "r 4.00–4.20 m, z 0.50–0.70 m, 12.0 litres, the highest of 40 pieces"
         );
+    }
+
+    // Verifies: GEO-025
+    #[test]
+    fn lost_particle_provenance_notice_reaches_the_app_result_without_claiming_an_escape_point() {
+        let mut report = sample_report();
+        report.lost_particles = Some(1);
+        report.lost_positions_m = vec![[0.125, -0.25, 0.5]];
+        report.notices.push(
+            "The listed lost-neutron positions are their recorded birth points; OpenMC does not \
+             report where they left the geometry in this run format."
+                .into(),
+        );
+        let view = result_view(&report);
+        assert!(view.run_line.contains("Lost neutrons: 1"));
+        assert!(
+            view.notices
+                .iter()
+                .any(|notice| notice.contains("birth points"))
+        );
+        assert!(
+            view.notices
+                .iter()
+                .all(|notice| !notice.contains("escape point"))
+        );
+    }
+
+    // Verifies: SRC-002
+    #[test]
+    fn source_summary_separates_fusion_and_nominal_neutron_power() {
+        let view = result_view(&sample_report());
+        assert!(view.run_line.contains("500.0 MW fusion"));
+        assert!(
+            view.run_line
+                .contains("Nominal D-T neutron power: 400.6 MW (14.1/17.6 MeV = 80.1%")
+        );
+        assert!(view.run_line.contains("not a transport heating tally"));
     }
 
     #[test]

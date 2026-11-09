@@ -48,6 +48,9 @@ if mode == "named":
 if mode == "two-boxes":
     other = cq.Workplane().center(100, 0).box(4, 6, 8).val()
     shape = cq.Compound.makeCompound([box, other]).wrapped
+elif mode == "overlapping-boxes":
+    other = cq.Workplane().center(4, 0).box(10, 20, 30).val()
+    shape = cq.Compound.makeCompound([box, other]).wrapped
 else:
     shape = cq.Compound.makeCompound([box, cyl]).wrapped
 writer = STEPControl_Writer()
@@ -58,7 +61,12 @@ writer.Write(out)
 
 
 def make_step(path, unit="MM", mode="plain"):
-    subprocess.run([str(CAD_PYTHON), "-c", WRITE, unit, str(path), mode], check=True, capture_output=True)
+    subprocess.run(
+        [str(CAD_PYTHON), "-c", WRITE, unit, str(path), mode],
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
 
 
 def inspect(step, *extra):
@@ -183,6 +191,88 @@ class StepInspect(unittest.TestCase):
         result, report = inspect(self.path / "missing.step")
         self.assertEqual(result.returncode, 2)
         self.assertIsNone(report)
+
+
+@unittest.skipUnless(CAD_PYTHON.is_file(), "no CAD interpreter (set FARIS_CAD_PYTHON)")
+class OverlapPipeline(unittest.TestCase):
+    """Exercise the real OCCT per-solid tessellator and boolean used before DAGMC imprinting."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.path = Path(self.dir.name)
+
+    # Verifies: GEO-021
+    def test_overlapping_step_solids_are_faceted_individually_and_boolean_reports_the_common_volume(self):
+        step = self.path / "overlap.step"
+        make_step(step, "MM", "overlapping-boxes")
+        tags = self.path / "tags.json"
+        tags.write_text(json.dumps([
+            {"step_index": 0, "tag": "core"},
+            {"step_index": 1, "tag": "shell"},
+        ]))
+
+        facets_dir = self.path / "tessellated"
+        tess_report = facets_dir / "tessellation.json"
+        tess = subprocess.run(
+            [str(CAD_PYTHON), str(HERE / "faris_cad.py"), "tessellate", str(step),
+             "--shape-unit-m", "0.001", "--tags", str(tags), "--out-dir", str(facets_dir),
+             "--report", str(tess_report), "--workers", "1"],
+            capture_output=True, text=True,
+            timeout=90,
+        )
+        self.assertEqual(tess.returncode, 0, tess.stderr)
+        self.assertEqual(json.loads(tess_report.read_text())["problems"], [])
+        self.assertTrue((facets_dir / "solids.facets.bin").is_file())
+
+        pairs = self.path / "pairs.json"
+        pairs.write_text("[[0, 1]]\n")
+        boolean_report = self.path / "booleans.json"
+        boolean = subprocess.run(
+            [str(CAD_PYTHON), str(HERE / "faris_cad.py"), "overlap-booleans", str(step),
+             "--shape-unit-m", "0.001", "--pairs", str(pairs), "--report", str(boolean_report),
+             "--workers", "1", "--pair-timeout", "30"],
+            capture_output=True, text=True,
+            timeout=45,
+        )
+        self.assertEqual(boolean.returncode, 0, boolean.stderr)
+        result = json.loads(boolean_report.read_text())["pairs"][0]
+        self.assertEqual(result["status"], "decided", result)
+        # The boxes are displaced 4 mm along x, so their 6 x 20 x 30 mm intersection is 3,600 mm3.
+        self.assertAlmostEqual(result["common_volume_m3"], 3_600e-9, delta=3_600e-9 * 1e-8)
+
+    # Verifies: GEO-012
+    def test_clean_step_runs_through_cad_to_dagmc_and_exports_facets(self):
+        available = subprocess.run(
+            [str(CAD_PYTHON), "-c", "import cad_to_dagmc, h5py"],
+            capture_output=True, text=True, timeout=90,
+        )
+        if available.returncode:
+            self.skipTest("CAD interpreter lacks cad_to_dagmc or h5py")
+
+        step = self.path / "clean.step"
+        make_step(step, "MM", "two-boxes")
+        tags = self.path / "tags.json"
+        tags.write_text(json.dumps([
+            {"step_index": 0, "tag": "core"},
+            {"step_index": 1, "tag": "shell"},
+        ]))
+        out_dir = self.path / "conversion"
+        report = out_dir / "conversion.json"
+        converted = subprocess.run(
+            [str(CAD_PYTHON), str(HERE / "faris_cad.py"), "convert", str(step),
+             "--shape-unit-m", "0.001", "--tags", str(tags), "--out-dir", str(out_dir),
+             "--report", str(report), "--chord-cm", "0.1", "--angular", "0.1",
+             "--imprint-threads", "1"],
+            capture_output=True, text=True, timeout=180,
+        )
+        self.assertEqual(converted.returncode, 0, converted.stderr)
+        result = json.loads(report.read_text())
+        self.assertEqual(result["schema"], "faris-conversion/v1")
+        self.assertEqual(result["tags"], json.loads(tags.read_text()))
+        self.assertEqual(result["counts"]["volumes"], 2)
+        self.assertEqual(result["h5m"]["sha256"], faris_cad.sha256_file(out_dir / "model.h5m"))
+        self.assertTrue((out_dir / result["facets"]["bin"]).is_file())
 
 
 class UnitText(unittest.TestCase):
