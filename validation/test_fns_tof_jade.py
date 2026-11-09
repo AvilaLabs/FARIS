@@ -7,6 +7,8 @@ import sys
 import unittest
 from pathlib import Path
 from validation.manifest import load_manifest
+from validation import report as report_mod
+from validation.matrix import load_registry
 
 ROOT = Path(__file__).resolve().parent.parent
 CASE = ROOT / "validation" / "cases" / "fns-tof-jade-v1"
@@ -81,7 +83,7 @@ class FnsTofHelpers(unittest.TestCase):
         rows = B.read_rows(b"Energy,Value,Error,abs err,Angle\n1.0,2.0,0.1,0.2,0 deg\n", "fine.csv")
         self.assertEqual(rows[0]["error_absolute"], 0.2)
         self.assertEqual(rows[0]["absolute_error_source"], "abs err")
-        with self.assertRaisesRegex(ValueError, "does not match Value\*Error"):
+        with self.assertRaisesRegex(ValueError, r"does not match Value\*Error"):
             B.read_rows(b"Energy,Value,Error,abs err,Angle\n1.0,2.0,0.1,0.3,0 deg\n", "bad.csv")
         coarse = B.read_rows(b"Value,Error,Energy,Angle\n2.0,0.1,0.1 - 1.0,0 deg\n", "coarse.csv")
         self.assertEqual(coarse[0]["error_absolute"], 0.2)
@@ -153,13 +155,15 @@ class FnsTofHelpers(unittest.TestCase):
             R.command_run(args)
 
     def test_generated_public_manifests_keep_every_table_row_and_exact_tally_join(self):
-        manifests = sorted((CASE / "manifests").glob("*.manifest.json"))
+        cases_root = ROOT / "validation" / "cases"
+        manifests = sorted(cases_root.glob("fns-tof-*/manifest.json"))
         self.assertEqual(len(manifests), 14)
         for path in manifests:
             with self.subTest(manifest=path.name):
                 self.assertLess(path.stat().st_size, 1_000_000)
                 manifest = load_manifest(path)
                 self.assertEqual(path.read_text(encoding="utf-8"), BM.render_manifest(manifest))
+                self.assertEqual(path.parent.name, manifest["case_id"])
                 points = manifest["adapter"]["detectors"]
                 mapping = R.validate_response_mapping(manifest, {"detectors": points})
                 self.assertEqual(set(mapping), {d["id"] for d in manifest["detectors"]})
@@ -173,6 +177,21 @@ class FnsTofHelpers(unittest.TestCase):
                     self.assertEqual(manifest["adapter"]["missing_table_angles_deg"], [66.8])
                 if manifest["case_id"] == "fns-tof-c-5":
                     self.assertEqual(len({t["angle_deg"] for t in manifest["adapter"]["tables"]}), 4)
+
+    def test_standard_discovery_registers_all_flux_rows_without_validating_them(self):
+        discovered = [load_manifest(path) for path in report_mod.discover()]
+        fns_ids = {m["case_id"] for m in discovered if m["case_id"].startswith("fns-tof-")}
+        self.assertEqual(fns_ids, {path.parent.name for path in (ROOT / "validation" / "cases").glob("fns-tof-*/manifest.json")})
+        suite = report_mod.build_suite(discovered, {}, None, registry=load_registry())
+        rows = [row for row in suite["matrix"]["rows"] if row["benchmark_id"].startswith("fns-tof-")]
+        self.assertEqual(len(rows), 14)
+        self.assertTrue(all(row["status"] == "not validated" for row in rows))
+        self.assertEqual({row["benchmark_id"].split("/")[0] for row in rows}, fns_ids)
+        flux = next(q for q in load_registry()["quantities"] if q["id"] == "flux")
+        registered = {b["case_id"] for b in flux["benchmarks"] if b["case_id"].startswith("fns-tof-")}
+        self.assertEqual(registered, fns_ids)
+        self.assertTrue(all("not validation" in b["scope"] and "two-halving" in b["scope"]
+                            for b in flux["benchmarks"] if b["case_id"].startswith("fns-tof-")))
 
     def test_cli_help_is_callable_by_script_path(self):
         result = subprocess.run([sys.executable, str(CASE / "run_case.py"), "--help"],

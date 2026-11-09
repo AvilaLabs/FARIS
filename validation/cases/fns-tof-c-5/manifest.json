@@ -753,6 +753,7 @@
   ],
   "not_covered":   [
     "physical validation of FARIS OpenMC results; the finite-volume estimate is a point-detector approximation and remains unqualified until the predeclared convergence rule passes",
+    "independent MCNP-to-OpenMC geometry/material equivalence review of openmc_mcnp_adapter; surface-boundary and sampled detector-containment checks are necessary guards, not converter verification",
     "measurement covariance or confidence interpretation not given in the public CSV",
     "bins below or straddling the documented 100 keV lower measurement bound (retained and blocked)",
     "angles for which a corresponding point tally/table pair is absent from the pinned source package",
@@ -4978,6 +4979,11 @@
         "pass_does_not_claim_physical_validation": true
       }
     },
-    "scoring_gate": "compatibility covariance is unknown; row-level C/E stays INCONCLUSIVE even after the numerical point approximation passes its convergence check, until uncertainties are clarified and the gate is reviewed"
+    "scoring_gate": "compatibility covariance is unknown; row-level C/E stays INCONCLUSIVE even after the numerical point approximation passes its convergence check. Independent converter geometry/material equivalence review is also outstanding; convergence and descriptive C/E do not establish physical validation",
+    "converter_verification": {
+      "status": "NOT_EVALUATED",
+      "why": "the public converter declares that it has not had methodical verification; this package has no independent MCNP/OpenMC geometry-material equivalence dataset",
+      "next_step": "compare converted cells/material compositions/surfaces against the pinned input with a qualified independent checker before any physical-validation claim"
+    }
   }
 }

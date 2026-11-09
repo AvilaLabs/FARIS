@@ -4,7 +4,7 @@
 """Build one hash-bound FARIS manifest per public FNS-TOF assembly.
 
     python3 validation/cases/fns-tof-jade-v1/build_manifest.py \
-      --upstream /path/to/open-benchmarks --out validation/cases/fns-tof-jade-v1
+      --upstream /path/to/open-benchmarks --out validation/cases
 
 No files are copied from the upstream checkout. The compact reference tables
 are included in each generated manifest under the upstream CC-BY-4.0 terms.
@@ -178,6 +178,7 @@ def build_one(upstream: Path, assembly: str) -> dict:
         "detectors": detectors,
         "not_covered": [
             "physical validation of FARIS OpenMC results; the finite-volume estimate is a point-detector approximation and remains unqualified until the predeclared convergence rule passes",
+            "independent MCNP-to-OpenMC geometry/material equivalence review of openmc_mcnp_adapter; surface-boundary and sampled detector-containment checks are necessary guards, not converter verification",
             "measurement covariance or confidence interpretation not given in the public CSV",
             "bins below or straddling the documented 100 keV lower measurement bound (retained and blocked)",
             "angles for which a corresponding point tally/table pair is absent from the pinned source package",
@@ -203,7 +204,10 @@ def build_one(upstream: Path, assembly: str) -> dict:
                                                                  "max_relative_mcse_each_endpoint": 0.02,
                                                                  "zero_or_rare_bins": "must be retained and their relative MCSE resolved; otherwise whole qualification is INCONCLUSIVE",
                                                                  "pass_does_not_claim_physical_validation": True}},
-            "scoring_gate": "compatibility covariance is unknown; row-level C/E stays INCONCLUSIVE even after the numerical point approximation passes its convergence check, until uncertainties are clarified and the gate is reviewed",
+            "scoring_gate": "compatibility covariance is unknown; row-level C/E stays INCONCLUSIVE even after the numerical point approximation passes its convergence check. Independent converter geometry/material equivalence review is also outstanding; convergence and descriptive C/E do not establish physical validation",
+            "converter_verification": {"status": "NOT_EVALUATED",
+                                       "why": "the public converter declares that it has not had methodical verification; this package has no independent MCNP/OpenMC geometry-material equivalence dataset",
+                                       "next_step": "compare converted cells/material compositions/surfaces against the pinned input with a qualified independent checker before any physical-validation claim"},
         },
     }
     # Detect duplicate or missing table mappings without relying on file order.
@@ -240,7 +244,7 @@ def render_manifest(manifest: dict) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upstream", type=Path, required=True, help="clean IAEA-NDS/open-benchmarks checkout at the pinned commit")
-    parser.add_argument("--out", type=Path, default=HERE / "manifests", help="output directory (generated manifests, not upstream data)")
+    parser.add_argument("--out", type=Path, default=HERE.parent, help="cases root; writes <case_id>/manifest.json (generated manifests, not upstream data)")
     parser.add_argument("--assembly", choices=ASSEMBLIES, help="generate one assembly; default generates every input/table pair")
     args = parser.parse_args()
     upstream = args.upstream.expanduser().resolve()
@@ -253,7 +257,8 @@ def main() -> int:
     for assembly in ([args.assembly] if args.assembly else ASSEMBLIES):
         manifest = build_one(upstream, assembly)
         check_manifest(manifest)
-        output = args.out / f"{assembly.lower()}.manifest.json"
+        output = args.out / manifest["case_id"] / "manifest.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(render_manifest(manifest), encoding="utf-8")
         print(f"wrote {output} ({len(manifest['detectors'])} responses, {len(manifest['files'])} pinned files)")
     return 0

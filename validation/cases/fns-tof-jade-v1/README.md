@@ -47,8 +47,14 @@ replaces its source/tallies with the pinned source distribution and a spherical
 vacuum-cell flux tally at each exact point, then estimates point response by
 successive sphere-radius halving. The converter itself states it has not had
 methodical verification; its exact installed code identity is sealed in the
-run record. Input translation and finite-volume qualification do not establish
-physical validation.
+run record. The upstream converter is MIT-licensed and remains an external
+dependency; no converter source is vendored. An
+independent MCNP/OpenMC geometry/material equivalence review has not been
+completed. Surface-boundary and sampled detector-containment checks are
+necessary guards, not converter verification. Input translation and
+finite-volume qualification do not establish physical validation; the case
+manifest marks converter verification `NOT_EVALUATED` and the shared scoring
+gate keeps verdicts `INCONCLUSIVE` while measurement covariance is unknown.
 
 Before any production run, the predeclared qualification requires two
 successive halvings from 2.5 to 1.25 to 0.625 cm. Every response bin must change
@@ -61,14 +67,15 @@ sanity check, not proof of complete MCNP/OpenMC geometric equivalence.
 
 ## Build manifests
 
-The 14 generated, sub-megabyte manifests are checked in under `manifests/`.
+The 14 generated, sub-megabyte manifests are checked in one level above this
+helper package, in their standard discovery folders `validation/cases/fns-tof-*/manifest.json`.
 Their reference rows are attributed CC BY 4.0; original source decks and CSVs
 remain external and hash-bound. To regenerate them, use a clean checkout of the
 exact external source commit:
 
 ```sh
 python3 validation/cases/fns-tof-jade-v1/build_manifest.py \
-  --upstream /path/to/open-benchmarks
+  --upstream /path/to/open-benchmarks --out validation/cases
 ```
 
 The source repository is available at
@@ -87,7 +94,7 @@ settings without importing OpenMC or starting a solver:
 ```sh
 python3 validation/cases/fns-tof-jade-v1/run_case.py plan \
   --upstream /path/to/open-benchmarks \
-  --manifest validation/cases/fns-tof-jade-v1/manifests/fe-20.manifest.json \
+  --manifest validation/cases/fns-tof-fe-20/manifest.json \
   --cross-sections /path/to/cross_sections.xml \
   --particles 100000 --batches 100 --threads 1
 ```
@@ -98,7 +105,7 @@ cross-section library, and a pinned `openmc_mcnp_adapter` installation, run:
 ```sh
 python3 validation/cases/fns-tof-jade-v1/run_case.py run \
   --upstream /path/to/open-benchmarks \
-  --manifest validation/cases/fns-tof-jade-v1/manifests/fe-20.manifest.json \
+  --manifest validation/cases/fns-tof-fe-20/manifest.json \
   --cross-sections /path/to/cross_sections.xml \
   --work-dir /path/to/new-run-directory \
   --particles 100000 --batches 100 --threads 1 --timeout 3600 \

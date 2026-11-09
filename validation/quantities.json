@@ -2,26 +2,185 @@
   "schema": "faris.validation-quantities/1.0.0",
   "note": "The calculated quantities of requirement VAL-050 and the registered benchmark responses that cover each. A quantity with an empty list has no benchmark and is shown as not validated. Add a benchmark here only when a case in validation/cases has a response class that really measures the quantity.",
   "quantities": [
-    {"id": "tbr", "label": "tritium breeding ratio", "kind": "calculated", "benchmarks": []},
-    {"id": "heating", "label": "nuclear heating", "kind": "calculated", "benchmarks": []},
-    {"id": "flux", "label": "neutron flux", "kind": "calculated", "benchmarks": [
-      {"case_id": "oktavian-al", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere, not an interior flux"},
-      {"case_id": "oktavian-al-cad", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux"},
-      {"case_id": "iter-1d", "response_class": "neutron_flux", "scope": "track-length flux per material cell in a one-dimensional ITER model"},
-      {"case_id": "tiara-bc-fe-68-40", "response_class": "neutron_spectrum_in_detector", "scope": "on-axis BC501A volume flux spectrum after the 40 cm iron TIARA shield for the 68 MeV p-Li source"},
-      {"case_id": "tiara-bc-cc-68-100", "response_class": "neutron_spectrum_in_detector", "scope": "on-axis BC501A volume flux spectrum after the 100 cm concrete TIARA shield for the 68 MeV p-Li source"}
-    ]},
-    {"id": "fluence", "label": "fluence", "kind": "calculated", "benchmarks": []},
-    {"id": "dpa", "label": "displacements per atom", "kind": "calculated", "benchmarks": []},
-    {"id": "gas_production", "label": "gas production", "kind": "calculated", "benchmarks": []},
-    {"id": "activation", "label": "activation", "kind": "calculated", "benchmarks": []},
-    {"id": "decay_heat", "label": "decay heat", "kind": "calculated", "benchmarks": [
-      {"case_id": "fns-decayheat-fe-1996-5min", "response_class": "decay_heat", "scope": "iron decay heat per gram after a prescribed 300-second FNS irradiation spectrum; excludes transport, whole-device heating and shutdown dose"}
-    ]},
-    {"id": "shutdown_dose_rate", "label": "shutdown dose rate", "kind": "calculated", "benchmarks": []},
-    {"id": "shutdown_dose_ratio", "label": "shutdown dose method ratio", "kind": "calculated", "benchmarks": []},
-    {"id": "tritium_inventory", "label": "tritium inventory", "kind": "calculated", "benchmarks": []},
-    {"id": "availability", "label": "availability", "kind": "calculated", "benchmarks": []},
-    {"id": "net_electric_power", "label": "net electric power", "kind": "calculated", "benchmarks": []}
+    {
+      "id": "tbr",
+      "label": "tritium breeding ratio",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "heating",
+      "label": "nuclear heating",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "flux",
+      "label": "neutron flux",
+      "kind": "calculated",
+      "benchmarks": [
+        {
+          "case_id": "oktavian-al",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "neutron leakage current spectrum of a sphere, not an interior flux"
+        },
+        {
+          "case_id": "oktavian-al-cad",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux"
+        },
+        {
+          "case_id": "iter-1d",
+          "response_class": "neutron_flux",
+          "scope": "track-length flux per material cell in a one-dimensional ITER model"
+        },
+        {
+          "case_id": "tiara-bc-fe-68-40",
+          "response_class": "neutron_spectrum_in_detector",
+          "scope": "on-axis BC501A volume flux spectrum after the 40 cm iron TIARA shield for the 68 MeV p-Li source"
+        },
+        {
+          "case_id": "tiara-bc-cc-68-100",
+          "response_class": "neutron_spectrum_in_detector",
+          "scope": "on-axis BC501A volume flux spectrum after the 100 cm concrete TIARA shield for the 68 MeV p-Li source"
+        },
+        {
+          "case_id": "fns-tof-be-5",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Be 5.08 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-be-15",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Be 15.24 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-c-5",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS C 5.08 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-c-20",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS C 20.32 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-c-40",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS C 40.64 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-fe-5",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Fe 5.08 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-fe-20",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Fe 20.32 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-fe-40",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Fe 40.64 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-fe-60",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Fe 60.96 cm assembly; measured angular leakage spectrum at source-supported table angles using a finite-volume approximation to MCNP point tallies; no 66.8-degree table is supplied; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-n-20",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS N 20.32 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-o-20",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS O 20.32 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-pb-5",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Pb 5.08 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-pb-20",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Pb 20.32 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        },
+        {
+          "case_id": "fns-tof-pb-40",
+          "response_class": "neutron_leakage_spectrum",
+          "scope": "JAEA FNS Pb 40.64 cm assembly; measured angular leakage spectrum using a finite-volume approximation to MCNP point tallies; not validation until geometry translation and the predeclared two-halving check qualify; experimental covariance remains unresolved"
+        }
+      ]
+    },
+    {
+      "id": "fluence",
+      "label": "fluence",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "dpa",
+      "label": "displacements per atom",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "gas_production",
+      "label": "gas production",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "activation",
+      "label": "activation",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "decay_heat",
+      "label": "decay heat",
+      "kind": "calculated",
+      "benchmarks": [
+        {
+          "case_id": "fns-decayheat-fe-1996-5min",
+          "response_class": "decay_heat",
+          "scope": "iron decay heat per gram after a prescribed 300-second FNS irradiation spectrum; excludes transport, whole-device heating and shutdown dose"
+        }
+      ]
+    },
+    {
+      "id": "shutdown_dose_rate",
+      "label": "shutdown dose rate",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "shutdown_dose_ratio",
+      "label": "shutdown dose method ratio",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "tritium_inventory",
+      "label": "tritium inventory",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "availability",
+      "label": "availability",
+      "kind": "calculated",
+      "benchmarks": []
+    },
+    {
+      "id": "net_electric_power",
+      "label": "net electric power",
+      "kind": "calculated",
+      "benchmarks": []
+    }
   ]
 }
