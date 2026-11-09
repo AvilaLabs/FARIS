@@ -28,7 +28,7 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 /// Faceting tolerances when the design file gives none: 0.1 cm and 0.1 rad.
@@ -467,7 +467,8 @@ pub fn adaptive_chord_for_attempt(
     if !was_default {
         return (attempt == 0).then_some(initial_chord_m);
     }
-    (attempt < DEFAULT_CHORD_ATTEMPTS).then(|| initial_chord_m * 0.5_f64.powi(attempt as i32))
+    (attempt < DEFAULT_CHORD_ATTEMPTS)
+        .then(|| initial_chord_m * faris_model::math::powi(0.5, attempt as i32))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

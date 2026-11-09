@@ -116,11 +116,11 @@ ICRP-116 AP photon effective dose averaged over that authored volume. It uses th
 geometry for neutron and photon transport.
 
 For each replacement event, Rust writes the exact history serialization and the per-component source
-schedules as separate hash-bound artifacts. OpenMC runs full-geometry neutron transport and exports
+schedules as separate hash-bound artefacts. OpenMC runs full-geometry neutron transport and exports
 track length by activation-mesh element and cloned material ID in all 709 groups. Rust divides each
 response by the matching material-in-voxel volume, uses the exact event schedule in the native
 ACTINV engine for every currently installed component, and writes hashed result and photon-source
-artifacts. All active material-constrained sources are combined in one full-geometry photon run per
+artefacts. All active material-constrained sources are combined in one full-geometry photon run per
 cooling time. The receipt records mesh/material approximations, group and rate conservation, loss
 counts, batch covariance, run limits, actual OpenMC library identity, ACTINV executable hash and
 data hashes. Photon transport standard error is conditional on activation source; it excludes

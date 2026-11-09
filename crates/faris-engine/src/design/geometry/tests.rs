@@ -498,7 +498,7 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
         DEFAULT_CHORD_ATTEMPTS
     );
     let expected_chords: Vec<f64> = (0..DEFAULT_CHORD_ATTEMPTS)
-        .map(|attempt| DEFAULT_CHORD_M / 2.0_f64.powi(attempt as i32))
+        .map(|attempt| DEFAULT_CHORD_M / (1_u64 << attempt) as f64)
         .collect();
     let observed_chords = backend.conversion_chords.borrow();
     assert_eq!(observed_chords.len(), expected_chords.len());
@@ -541,7 +541,7 @@ fn the_default_refinement_schedule_is_bounded_and_explicit_tolerance_is_single_s
     for attempt in 0..DEFAULT_CHORD_ATTEMPTS {
         assert_eq!(
             adaptive_chord_for_attempt(DEFAULT_CHORD_M, true, attempt),
-            Some(DEFAULT_CHORD_M / 2.0_f64.powi(attempt as i32))
+            Some(DEFAULT_CHORD_M / (1_u64 << attempt) as f64)
         );
     }
     assert_eq!(
