@@ -34,6 +34,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r3_scenario as sc  # noqa: E402
+import r3_activation_coverage as AC  # noqa: E402
 import r3_dose_statistics as DS  # noqa: E402
 import r3_shutdown_dose_export as DX  # noqa: E402
 import rm_m_checks as checks  # noqa: E402
@@ -243,11 +244,15 @@ def main() -> int:
     mesh = scoring_mesh(openmc)
     neutron, photon, ids, dag = build_models(openmc, args.model_dir, mesh, args.neutron_particles, args.neutron_batches,
                                              args.photon_particles, args.photon_max_batches, (args.seed, args.seed + 1))
-    activation_mesh, activation_domain_data = activation_domain(openmc, args.model_dir, dag, args.activation_cell_cm)
     nuclides = model_nuclides(openmc, neutron)
+    chain = openmc.deplete.Chain.from_xml(str(CHAIN))
+    coverage = AC.assess_coverage(CHAIN, RM.FARIS_XS, nuclides, openmc.data.REACTION_MT)
     record = {"kind": "r3-r2s", "openmc_version": openmc.__version__, "threads": args.threads, "steps": {},
               "source_problem_protocol": sc.FULL_EMISSION_PROTOCOL,
               "chain": str(CHAIN), "chain_sha256": RM.sha256(CHAIN), "library": RM.library_identity(),
+              "activation_chain_coverage": coverage,
+              "activation_data_status": coverage["status"],
+              "activation_microxs_requested_nuclides": coverage["required_microxs_nuclides"],
               "mesh": {"lower_left_cm": sc.MESH_LOWER_CM, "upper_right_cm": sc.MESH_UPPER_CM, "dimension": sc.MESH_DIMENSION},
               "settings": sampling_settings(args),
               "workarounds": ["output_dir passed as pathlib.Path", "micro_kwargs nuclides = model nuclides", "photon source_rejection_fraction = 1e-4",
@@ -260,6 +265,20 @@ def main() -> int:
         "model_xml_sha256": None,
         "lost_particle_assessment": {"status": "NOT_EVALUATED", "lost_particles": None, "histories": None},
     }
+    jpath = out / "r2s_record.json"
+
+    def save():
+        jpath.write_text(json.dumps(record, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
+
+    if coverage["status"] != "READY_FOR_R2S_TRANSPORT":
+        record["steps"]["activation_data_preflight"] = {
+            "ok": False, "seconds": 0.0, "peak_rss_mb": None,
+            "error": "reachable activation nuclides or chain-listed reaction channels lack indexed OpenMC data; no R2S neutron transport was started",
+        }
+        save()
+        return 2
+
+    activation_mesh, activation_domain_data = activation_domain(openmc, args.model_dir, dag, args.activation_cell_cm)
     domain_bytes = DX._json_bytes(activation_domain_data)
     record["activation_domain"] = {**DX._write_bytes(out / "activation_domain.json", domain_bytes),
                                     "path": "activation_domain.json"}
@@ -268,20 +287,16 @@ def main() -> int:
         out, neutron, neutron.settings.source[0], mesh,
         {"timesteps": sc.TIMESTEPS, "source_rates_neutrons_s": sc.SOURCE_RATES,
          "chain_path": str(CHAIN), "chain_sha256": RM.sha256(CHAIN)}, energies, coefficients,
-        sc.rm_m_geometry_dependencies(args.model_dir),
-        RM.library_identity())
-    chain = openmc.deplete.Chain.from_xml(str(CHAIN))
+        sc.rm_m_geometry_dependencies(args.model_dir), RM.library_identity())
+    save()
     mgr = openmc.deplete.R2SManager(neutron, activation_mesh, photon_model=photon)
-    jpath = out / "r2s_record.json"
-
-    def save():
-        jpath.write_text(json.dumps(record, indent=1, sort_keys=True, default=str) + "\n", encoding="utf-8")
 
     def step1():
         neutron_dir = out / "neutron_transport"
         with DS.NeutronManagerRunEvidence(openmc, neutron_dir / "model.xml") as evidence:
             mgr.step1_neutron_transport(neutron_dir, mat_vol_kwargs={"n_samples": args.mat_vol_samples},
-                                        micro_kwargs={"nuclides": nuclides, "energies": sc.ACTIVATION_GROUPS,
+                                        micro_kwargs={"nuclides": coverage["required_microxs_nuclides"],
+                                                      "energies": sc.ACTIVATION_GROUPS,
                                                       "chain_file": str(CHAIN), "run_kwargs": {"output": False}})
         record["neutron_transport_integrity"] = evidence.result()
         if record["neutron_transport_integrity"].get("status") != "PASS":
@@ -289,6 +304,16 @@ def main() -> int:
                                str(record["neutron_transport_integrity"].get("status")) + ": " +
                                str(record["neutron_transport_integrity"].get("reason", "loss gate failed")))
         record["activation_regions"] = len(mgr.results["fluxes"])
+        microxs_path = neutron_dir / "micros.h5"
+        microxs_inspection = AC.inspect_microxs(microxs_path, coverage["required_microxs_nuclides"])
+        actual_domain_nuclides = [sorted(set(micro.nuclides)) for micro in mgr.results["micros"]]
+        if not actual_domain_nuclides or any(names != coverage["required_microxs_nuclides"]
+                                             for names in actual_domain_nuclides):
+            raise RuntimeError("actual in-memory MicroXS nuclides differ from the complete reachable-chain request")
+        record["activation_microxs"] = {
+            "path": microxs_path.relative_to(out).as_posix(), "sha256": RM.sha256(microxs_path),
+            **microxs_inspection,
+        }
 
     if not timed(record, "neutron_transport", step1):
         save()

@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 import r3_scenario as sc
+import r3_activation_coverage as AC
 import r3_dose_statistics as DS
 
 REQUEST_SCHEMA = "faris-shutdown-dose-compare-request/v0.1"
@@ -35,6 +36,7 @@ MAX_RUN_RECORD_BYTES = 16 * 1024 * 1024
 MAX_BATCH_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_BATCHES = 250_000
 MAX_BASIS_ARTIFACT_BYTES = 256 * 1024 * 1024
+MAX_MICROXS_ARTIFACT_BYTES = 4 * 1024 * 1024 * 1024
 MAX_H5M_VERTEX_NODES = 20_000_000
 MAX_H5M_VERTEX_DATA_BYTES = 256 * 1024 * 1024
 MAX_H5M_VERTEX_CHUNK_BYTES = 64 * 1024 * 1024
@@ -284,6 +286,67 @@ def _verify_basis_files(root: Path, basis: dict) -> None:
             raise ValueError(f"{name} basis artifact hash mismatch: {path}")
 
 
+def _verify_r2s_activation_coverage(root: Path, record: dict, basis: dict, chain_path: Path) -> None:
+    """Recompute R2S reachable-data coverage from actual hashed material/chain/library inputs."""
+    claim = record.get("activation_chain_coverage")
+    if not isinstance(claim, dict) or claim.get("schema") != AC.SCHEMA:
+        raise ValueError("R2S activation-chain coverage is missing; trusted comparison export refused")
+    if record.get("activation_data_status") != "READY_FOR_R2S_TRANSPORT" or \
+            claim.get("status") != "READY_FOR_R2S_TRANSPORT":
+        raise ValueError("R2S activation-data coverage is NOT_EVALUATED; trusted comparison export refused")
+    library = record.get("library")
+    if not isinstance(library, dict) or not isinstance(library.get("cross_sections_xml"), str):
+        raise ValueError("R2S run lacks the exact cross_sections.xml identity for coverage revalidation")
+    xs_path = Path(library["cross_sections_xml"])
+    if not xs_path.is_absolute() or not isinstance(library.get("sha256"), str):
+        raise ValueError("R2S cross_sections.xml identity is invalid")
+    _verify_file_identity("R2S cross_sections.xml", {"path": str(xs_path), "sha256": library["sha256"]})
+    materials_path = root / basis["materials"]["path"]
+    if _sha256_file(materials_path).lower() != basis["materials"]["sha256"].lower():
+        raise ValueError("R2S material basis changed before activation coverage revalidation")
+    roots = AC.actual_material_nuclides(materials_path)
+    try:
+        actual = AC.assess_coverage(chain_path, xs_path, roots)
+    except Exception as exc:
+        raise ValueError(f"R2S reachable activation-data coverage could not be independently verified: {exc}") from exc
+    if actual["status"] != "READY_FOR_R2S_TRANSPORT":
+        raise ValueError("R2S reachable activation nuclide/reaction data coverage is incomplete; trusted comparison export refused")
+    if claim != actual:
+        raise ValueError("R2S recorded activation coverage differs from independently recomputed chain/XML/material coverage")
+    if record.get("activation_microxs_requested_nuclides") != actual["required_microxs_nuclides"]:
+        raise ValueError("R2S MicroXS requested nuclides do not cover the independently computed reachable chain")
+
+    micro = record.get("activation_microxs")
+    if not isinstance(micro, dict):
+        raise ValueError("R2S actual MicroXS artifact identity is missing")
+    _validate_ref("R2S MicroXS", micro)
+    micro_path = root / micro["path"]
+    if micro_path.stat().st_size > MAX_MICROXS_ARTIFACT_BYTES:
+        raise ValueError("R2S MicroXS artifact exceeds the bounded inspection size")
+    if _sha256_file(micro_path).lower() != micro["sha256"].lower():
+        raise ValueError("R2S MicroXS artifact hash does not match the run record")
+    observed = AC.inspect_microxs(micro_path, actual["required_microxs_nuclides"])
+    for key, value in observed.items():
+        if micro.get(key) != value:
+            raise ValueError(f"R2S recorded MicroXS {key} differs from the actual HDF5 artifact")
+
+
+def _verify_shared_activation_library(d1s: dict, r2s: dict) -> None:
+    """Require both methods to use the same hash-bound neutron/photon library index."""
+    identities = []
+    for method, record in (("D1S", d1s), ("R2S", r2s)):
+        library = record.get("library")
+        if not isinstance(library, dict) or not isinstance(library.get("cross_sections_xml"), str):
+            raise ValueError(f"{method} run lacks its cross_sections.xml identity")
+        path = Path(library["cross_sections_xml"])
+        if not path.is_absolute() or not isinstance(library.get("sha256"), str):
+            raise ValueError(f"{method} cross_sections.xml identity is invalid")
+        _verify_file_identity(f"{method} cross_sections.xml", {"path": str(path), "sha256": library["sha256"]})
+        identities.append((path.resolve(), library["sha256"].lower()))
+    if identities[0] != identities[1]:
+        raise ValueError("D1S and R2S cross_sections.xml paths or hashes differ; matched-data comparison refused")
+
+
 def _activation_domain(root: Path, record: dict) -> dict:
     ref = record.get("activation_domain")
     _validate_ref("R2S full-geometry activation domain", ref)
@@ -497,6 +560,8 @@ def _load_run(method: str, root: Path) -> tuple[dict, dict]:
         raise ValueError(f"{method} activation/decay chain exceeds the size limit")
     if _sha256_file(chain_path).lower() != chain_hash.lower():
         raise ValueError(f"{method} activation/decay chain hash does not match its file")
+    if method == "r2s":
+        _verify_r2s_activation_coverage(root, record, basis, chain_path)
     irradiation = _read_json_record(root / basis["irradiation"]["path"])
     if irradiation.get("chain_sha256", "").lower() != chain_hash.lower() or \
             Path(irradiation.get("chain_path", "")).resolve() != chain_path.resolve() or \
@@ -549,6 +614,7 @@ def _batch_summary(method: str, root: Path, idx: int, summary: dict) -> tuple[di
 def _export_records_into(d1s_dir: Path, r2s_dir: Path, out_dir: Path) -> dict:
     d1s, d1s_basis = _load_run("d1s", d1s_dir)
     r2s, r2s_basis = _load_run("r2s", r2s_dir)
+    _verify_shared_activation_library(d1s, r2s)
     _verify_basis_files(d1s_dir, d1s_basis)
     _verify_basis_files(r2s_dir, r2s_basis)
     for key in d1s_basis:

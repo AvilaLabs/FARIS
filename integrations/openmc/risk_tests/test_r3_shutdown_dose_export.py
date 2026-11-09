@@ -21,6 +21,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r3_scenario as sc  # noqa: E402
+import r3_activation_coverage as AC  # noqa: E402
 import r3_shutdown_dose_export as EX  # noqa: E402
 from r3_r2s import sampling_settings  # noqa: E402
 
@@ -28,13 +29,29 @@ from r3_r2s import sampling_settings  # noqa: E402
 def _fixture(root: Path, method: str, basis_hashes=None):
     chain_path = root.parent / "synthetic-chain.xml"
     chain_path.parent.mkdir(parents=True, exist_ok=True)
-    chain_path.write_text("<synthetic-chain/>\n", encoding="utf-8")
+    chain_path.write_text(
+        '<depletion_chain><nuclide name="U235"><reaction type="(n,gamma)" target="U236"/></nuclide>'
+        '<nuclide name="U236"><reaction type="(n,gamma)" target="U237"/></nuclide>'
+        '<nuclide name="U237"><decay type="beta-" target="Np237"/></nuclide>'
+        '<nuclide name="Np237"/></depletion_chain>\n', encoding="utf-8")
+    xs_path = root.parent / "synthetic-cross-sections.xml"
+    xs_data_path = root.parent / "synthetic-neutron.h5"
+    xs_path.write_text('<cross_sections><library type="neutron" materials="U235 U236" path="synthetic-neutron.h5"/></cross_sections>\n',
+                       encoding="utf-8")
+    with h5py.File(xs_data_path, "w") as library_file:
+        for nuclide in ("U235", "U236"):
+            reactions_group = library_file.create_group(f"{nuclide}/reactions")
+            reactions_group.create_group("reaction_102").attrs["mt"] = 102
+    synthetic_library_identity = {"cross_sections_xml": str(xs_path.resolve()),
+                                  "sha256": hashlib.sha256(xs_path.read_bytes()).hexdigest()}
     chain_hash = hashlib.sha256(chain_path.read_bytes()).hexdigest()
     basis = {}
     for key in ("geometry", "materials", "source", "irradiation", "response", "location"):
         if key == "irradiation":
             data = EX._json_bytes({"timesteps": sc.TIMESTEPS, "source_rates_neutrons_s": sc.SOURCE_RATES,
                                    "chain_path": str(chain_path), "chain_sha256": chain_hash})
+        elif key == "materials":
+            data = b'<materials><material id="1"><nuclide name="U235" ao="1.0"/></material></materials>\n'
         else:
             data = (f"synthetic {key} fixture\n").encode()
         path = root / "shutdown_dose_basis" / f"{key}.bin"
@@ -81,6 +98,22 @@ def _fixture(root: Path, method: str, basis_hashes=None):
                                           "fraction_limit": 1e-6},
         }}
     else:
+        coverage = AC.assess_coverage(chain_path, xs_path, ["U235"], {"(n,gamma)": 102})
+        microxs_path = root / "neutron_transport" / "micros.h5"
+        microxs_path.parent.mkdir(parents=True, exist_ok=True)
+        with h5py.File(microxs_path, "w") as micro_file:
+            domain = micro_file.create_group("domain_0")
+            domain.create_dataset("nuclides", data=np.asarray([b"U235", b"U236"], dtype="S"))
+            domain.create_dataset("reactions", data=np.asarray([b"(n,gamma)"], dtype="S"))
+            domain.create_dataset("data", data=np.zeros((2, 1, 1), dtype=np.float64))
+        microxs_info = AC.inspect_microxs(microxs_path, coverage["required_microxs_nuclides"])
+        run["library"] = synthetic_library_identity
+        run["activation_chain_coverage"] = coverage
+        run["activation_data_status"] = coverage["status"]
+        run["activation_microxs_requested_nuclides"] = coverage["required_microxs_nuclides"]
+        run["activation_microxs"] = {"path": "neutron_transport/micros.h5",
+                                     "sha256": hashlib.sha256(microxs_path.read_bytes()).hexdigest(),
+                                     **microxs_info}
         run["runtime_identity"] = {"openmc_version": "0.15.3", "c_api_library": library_identity,
                                    "cli_executable": cli_identity}
         neutron_model = root / "neutron_transport" / "model.xml"
@@ -168,6 +201,7 @@ def _fixture(root: Path, method: str, basis_hashes=None):
         run["shutdown_dose"][label]["method_specific_source"] = {
             "path": str(source_path.relative_to(root)), "sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
         }
+    run["library"] = synthetic_library_identity
     record_path = root / ("d1s_record.json" if method == "d1s" else "r2s_record.json")
     record_path.write_text(json.dumps(run), encoding="utf-8")
 
@@ -203,6 +237,64 @@ class R3ShutdownDoseExportTest(unittest.TestCase):
             self.assertIn("no adequacy claim", activation["discretization_limit"])
             with self.assertRaisesRegex(ValueError, "already exists"):
                 EX.export_records(d1s, r2s, out)
+
+    def test_old_in_band_r2s_record_without_activation_coverage_is_refused(self):
+        """Legacy synthetic means agree, but missing chain-data evidence blocks the comparison."""
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            d1s, r2s = base / "d1s", base / "r2s"
+            _fixture(d1s, "d1s")
+            _fixture(r2s, "r2s")
+            d1s_values = np.asarray([1.0, 3.0])
+            r2s_values = np.asarray([2.0, 2.0])
+            self.assertEqual(float(d1s_values.mean() / r2s_values.mean()), 1.0)
+            run_path = r2s / "r2s_record.json"
+            record = json.loads(run_path.read_text())
+            for field in ("activation_chain_coverage", "activation_data_status",
+                          "activation_microxs_requested_nuclides", "activation_microxs"):
+                record.pop(field)
+            run_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "coverage is missing"):
+                EX.export_records(d1s, r2s, base / "export")
+
+    def test_method_library_index_mismatch_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            d1s, r2s = base / "d1s", base / "r2s"
+            _fixture(d1s, "d1s")
+            _fixture(r2s, "r2s")
+            record_path = d1s / "d1s_record.json"
+            record = json.loads(record_path.read_text())
+            record["library"]["sha256"] = "0" * 64
+            record_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "file hash does not match"):
+                EX.export_records(d1s, r2s, base / "export")
+
+    def test_exporter_recomputes_coverage_and_actual_microxs_membership(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            d1s, r2s = base / "d1s", base / "r2s"
+            _fixture(d1s, "d1s")
+            _fixture(r2s, "r2s")
+            run_path = r2s / "r2s_record.json"
+            record = json.loads(run_path.read_text())
+            record["activation_chain_coverage"]["reachable_chain_nuclide_count"] = 1
+            run_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "differs from independently recomputed"):
+                EX.export_records(d1s, r2s, base / "bad-coverage")
+
+            _fixture(r2s, "r2s")
+            microxs_path = r2s / "neutron_transport/micros.h5"
+            with h5py.File(microxs_path, "r+") as handle:
+                del handle["domain_0/nuclides"]
+                handle["domain_0"].create_dataset("nuclides", data=np.asarray([b"U235"], dtype="S"))
+                del handle["domain_0/data"]
+                handle["domain_0"].create_dataset("data", data=np.zeros((1, 1, 1), dtype=np.float64))
+            record = json.loads(run_path.read_text())
+            record["activation_microxs"]["sha256"] = hashlib.sha256(microxs_path.read_bytes()).hexdigest()
+            run_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "lacks required nuclides"):
+                EX.export_records(d1s, r2s, base / "bad-microxs")
 
     def test_legacy_missing_basis_and_mismatched_basis_are_refused(self):
         with tempfile.TemporaryDirectory() as temp:
