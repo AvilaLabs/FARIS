@@ -31,11 +31,62 @@ CAD_PYTHON = Path(
 
 try:
     import numpy as np
+    import faris_deviation as fd
     import OCP  # noqa: F401
 
     HAVE_CAD = True
 except ImportError:
     HAVE_CAD = False
+
+
+if 'np' in globals():
+    class ConvexPlanarBounds(unittest.TestCase):
+        def test_coplanar_triangle_uses_zero_subdivision_queries(self):
+            face = (np.zeros(3), np.array([0., 0., 1.]),
+                    np.array([[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]]))
+
+            class FaceOracle:
+                def convex_planar_faces(self):
+                    return [face]
+
+                def point_distance(self, _point, floor=0.0):
+                    raise AssertionError("the verified planar-face bound should settle this triangle")
+
+            tri = np.array([[-.5, -.5, 0.], [.5, -.5, 0.], [0., .5, 0.]])
+            result = fd.certify_triangles(FaceOracle(), np.array([tri]), .05)
+            self.assertEqual(result["status"], "certified")
+            self.assertLessEqual(result["upper_bound"], .05)
+            self.assertEqual(result["queries"], 0)
+
+        def test_triangle_bound_covers_tilted_triangle_and_projection_outside_face(self):
+            face = (np.array([0., 0., 0.]), np.array([0., 0., 1.]),
+                    np.array([[-1., -1., 0.], [1., -1., 0.], [1., 1., 0.], [-1., 1., 0.]]))
+            tri = np.array([[2., 0., 0.], [2.2, 0.2, .1], [2., .4, 0.]])
+            bound = fd.convex_planar_triangle_bound(tri, face)
+            self.assertGreater(bound, math.sqrt(1.2**2 + .1**2))
+            for i in range(21):
+                for j in range(21-i):
+                    a, b = i/20, j/20
+                    p = (1-a-b)*tri[0] + a*tri[1] + b*tri[2]
+                    point_bound = fd.convex_planar_triangle_bound(np.repeat(p[None], 3, axis=0), face)
+                    self.assertLessEqual(point_bound, bound + 1e-12)
+
+        def test_convexity_check_rejects_concavity_self_intersection_and_degeneracy(self):
+            self.assertTrue(fd.is_convex_polygon_2d([[0, 0], [2, 0], [2, 2], [0, 2]], 1e-9))
+            self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [2, 0], [1, 1], [2, 2], [0, 2]], 1e-9))
+            self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [2, 2], [0, 2], [2, 0]], 1e-9))
+            self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [1, 0], [2, 0]], 1e-9))
+
+        @unittest.skipUnless(HAVE_CAD, "OpenCASCADE is unavailable")
+        def test_only_single_wire_convex_planar_faces_are_extracted(self):
+            box = fd.SolidFaces(cq.Workplane().box(4, 3, 2).val().wrapped)
+            self.assertEqual(len(box.convex_planar_faces()), 6)
+            holed = fd.SolidFaces(cq.Workplane("XY").circle(2).circle(1).extrude(1).val().wrapped)
+            self.assertFalse(any(abs(abs(normal[2])-1) < 1e-9 for _origin, normal, _poly in holed.convex_planar_faces()))
+            concave_shape = cq.Workplane("XY").polyline([(0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2)]).close().extrude(1).val()
+            concave = fd.SolidFaces(concave_shape.wrapped)
+            self.assertFalse(any(abs(origin[2]-1) < 1e-9 and abs(normal[2]) > .9
+                                 for origin, normal, _poly in concave.convex_planar_faces()))
 
 
 if not HAVE_CAD:

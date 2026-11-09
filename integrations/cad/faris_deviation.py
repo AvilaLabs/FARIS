@@ -28,7 +28,10 @@ solid, it cannot raise the maximum and is settled. The rest go to OpenCASCADE.
 
 Coverage is reported per solid. A solid whose every point was settled or measured has a
 "maximum over all points": exact over the sample points, not a bound over the points between
-them. Otherwise the result is a "sampled maximum".
+them. Otherwise the result is a "sampled maximum". Triangle coverage uses a vertex-distance
+bound for verified convex planar faces and the 1-Lipschitz subdivision bound otherwise. The
+convex-face check assumes OpenCASCADE's stored line and vertex geometry is accurate within the
+declared shape-unit slack; uncertain trims are excluded from that shortcut.
 """
 from __future__ import annotations
 
@@ -121,6 +124,26 @@ def surface_parameters(face):
 def stack_parameters(params) -> dict:
     """Parameters of several faces of one kind, as one array per key."""
     return {key: np.array([p[key] for p in params], dtype=np.float64) for key in params[0]}
+
+
+def is_convex_polygon_2d(polygon, tolerance):
+    """Conservative convexity check for an ordered polygon; rejects degeneracy and crossings."""
+    p = np.asarray(polygon, dtype=np.float64)
+    if p.ndim != 2 or p.shape[1] != 2 or len(p) < 3 or not np.isfinite(p).all():
+        return False
+    cross2 = lambda a, b: float(a[0] * b[1] - a[1] * b[0])
+    area2 = sum(cross2(p[i], p[(i+1) % len(p)]) for i in range(len(p)))
+    if abs(area2) <= tolerance:
+        return False
+    orientation = 1.0 if area2 > 0 else -1.0
+    for i in range(len(p)):
+        edge = p[(i+1) % len(p)] - p[i]
+        if np.linalg.norm(edge) <= tolerance:
+            return False
+        if any(orientation * cross2(edge, point-p[i]) < -tolerance * max(1.0, np.linalg.norm(edge))
+               for point in p):
+            return False
+    return True
 
 
 def _radial(rel: np.ndarray, axis: np.ndarray):
@@ -488,6 +511,97 @@ class SolidFaces:
         for kind, ids in self.ids.items():
             self.slot[ids] = np.arange(len(ids))
         self._classifiers = {}
+        self._convex_planar_faces = None
+
+    def convex_planar_faces(self):
+        """Return verified single-wire convex planar faces as (origin, normal, polygon).
+
+        Unsupported topology is omitted. In particular, holes, curved edges, nonplanarity,
+        degenerate turns, and ambiguous vertex order never enter the fast bound.
+        """
+        if self._convex_planar_faces is not None:
+            return self._convex_planar_faces
+        from OCP.BRepAdaptor import BRepAdaptor_Curve
+        from OCP.GeomAbs import GeomAbs_Line
+        from OCP.TopAbs import TopAbs_EDGE, TopAbs_VERTEX, TopAbs_WIRE
+        from OCP.TopExp import TopExp_Explorer
+        from OCP.BRep import BRep_Tool
+        from OCP.TopoDS import TopoDS
+
+        result = []
+        # Treat line and vertex geometry as accurate within this shape-unit kernel slack.
+        # Uncertain trims are omitted from the fast path.
+        eps = max(CLASSIFY_TOLERANCE, FAST_MARGIN)
+        for i, face in enumerate(self.faces):
+            if self.kind[i] != "plane":
+                continue
+            wires = TopExp_Explorer(face, TopAbs_WIRE)
+            if not wires.More():
+                continue
+            wire = wires.Current()
+            wires.Next()
+            if wires.More():  # reject inner wires/holes
+                continue
+            edges = TopExp_Explorer(wire, TopAbs_EDGE)
+            segments = []
+            valid = True
+            while edges.More():
+                edge = TopoDS.Edge_s(edges.Current())
+                curve = BRepAdaptor_Curve(edge)
+                if curve.GetType() != GeomAbs_Line:
+                    valid = False
+                    break
+                vertices = TopExp_Explorer(edge, TopAbs_VERTEX)
+                pts = []
+                while vertices.More():
+                    p = BRep_Tool.Pnt_s(TopoDS.Vertex_s(vertices.Current()))
+                    pts.append(_pnt(p))
+                    vertices.Next()
+                if len(pts) != 2 or np.linalg.norm(pts[0] - pts[1]) <= eps:
+                    valid = False
+                    break
+                segments.append((pts[0], pts[1]))
+                edges.Next()
+            if not valid or len(segments) < 3:
+                continue
+            # Assemble the wire by endpoint connectivity; orientation from the explorer is
+            # deliberately not trusted because reversed edges are common in B-rep wires.
+            polygon = [segments[0][0], segments[0][1]]
+            remaining = list(segments[1:])
+            current = polygon[-1]
+            while remaining:
+                matches = [(j, b if np.linalg.norm(a-current) <= eps else a)
+                           for j, (a, b) in enumerate(remaining)
+                           if min(np.linalg.norm(a-current), np.linalg.norm(b-current)) <= eps]
+                if len(matches) != 1:
+                    valid = False
+                    break
+                j, nxt = matches[0]
+                remaining.pop(j)
+                if np.linalg.norm(nxt - polygon[0]) <= eps:
+                    if remaining:
+                        valid = False
+                    break
+                polygon.append(nxt)
+                current = nxt
+            if not valid or len(polygon) < 3:
+                continue
+            p = np.asarray(polygon)
+            params = self.params[i]
+            origin, normal = params["o"], params["z"]
+            if np.max(np.abs((p - origin) @ normal)) > eps:
+                continue
+            # Establish a local orthonormal frame, then require strictly consistent turns.
+            u = p[1] - p[0]
+            u /= np.linalg.norm(u)
+            v = np.cross(normal, u)
+            xy = np.stack(((p-origin) @ u, (p-origin) @ v), axis=1)
+            # Every polygon vertex must lie in the same closed half-plane of every edge.
+            if not is_convex_polygon_2d(xy, eps):
+                continue
+            result.append((origin, normal, p))
+        self._convex_planar_faces = result
+        return result
 
     def __len__(self):
         return len(self.faces)
@@ -837,14 +951,59 @@ def measure(solids, point_sets, workers=3, occt_points=2000, block=512):
     return rows, timing
 
 
+def _point_segment_distance_2d(p, a, b):
+    ab = b - a
+    den = float(np.dot(ab, ab))
+    t = 0.0 if den == 0.0 else min(1.0, max(0.0, float(np.dot(p-a, ab) / den)))
+    return float(np.linalg.norm(p - (a + t * ab)))
+
+
+def convex_planar_triangle_bound(triangle, face):
+    """Upper bound distance from a triangle to one verified convex planar polygon.
+
+    `face` is (origin, unit normal, ordered 3D polygon vertices). The projection of each
+    triangle vertex is measured to the polygon (including its edges). Convexity makes the
+    maximum of these three attained vertex distances an upper bound throughout the triangle:
+    convex combinations of the three closest polygon points remain on the face.
+    """
+    origin, normal, polygon = face
+    triangle = np.asarray(triangle, dtype=np.float64)
+    polygon = np.asarray(polygon, dtype=np.float64)
+    # Build a 2D frame from the polygon itself; all calculations retain the normal offset.
+    u = polygon[1] - polygon[0]
+    u /= np.linalg.norm(u)
+    v = np.cross(normal, u)
+    poly2 = np.stack(((polygon-origin) @ u, (polygon-origin) @ v), axis=1)
+    cross2 = lambda a, b: float(a[0] * b[1] - a[1] * b[0])
+    area2 = sum(cross2(poly2[i], poly2[(i+1) % len(poly2)]) for i in range(len(poly2)))
+    orientation = 1.0 if area2 > 0 else -1.0
+    bounds = []
+    for point in triangle:
+        rel = point - origin
+        h = float(np.dot(rel, normal))
+        q = rel - h * normal
+        q2 = np.array([np.dot(q, u), np.dot(q, v)])
+        inside = all(orientation * cross2(poly2[(i+1) % len(poly2)]-poly2[i], q2-poly2[i]) >= -CLASSIFY_TOLERANCE
+                     for i in range(len(poly2)))
+        d2 = 0.0 if inside else min(_point_segment_distance_2d(q2, poly2[i], poly2[(i+1) % len(poly2)])
+                                    for i in range(len(poly2)))
+        bounds.append(math.hypot(h, d2))
+    scale = max(1.0, float(np.abs(triangle).max()), float(np.abs(polygon).max()))
+    kernel_slack = max(CLASSIFY_TOLERANCE, FAST_MARGIN)
+    return max(bounds) + kernel_slack + 64.0 * np.finfo(np.float64).eps * scale
+
+
 def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_depth=18):
     """Bound distance to the CAD boundary over every point of every facet triangle.
 
-    Distance to a closed set is 1-Lipschitz. For a triangle with centroid ``c``, every point is
+    Verified single-wire convex planar faces first provide a vertex-distance bound over the
+    whole triangle. Remaining triangles use the generic 1-Lipschitz bound: for centroid ``c``, every point is
     within ``max(|vertex-c|)`` of c, so ``distance(c) + radius`` is an upper bound everywhere
     on that triangle. Subdivide only triangles whose bound exceeds the requested tolerance.
     ``point_distance`` returns the attained nearest-boundary distance; query limits or a depth
-    limit leave the result unresolved, never certified by sampling alone.
+    limit leave the result unresolved, never certified by sampling alone. The planar shortcut
+    assumes OpenCASCADE's line and vertex geometry within ``max(CLASSIFY_TOLERANCE,
+    FAST_MARGIN)`` in shape units, which is included as outward slack.
     """
     import heapq
     import time
@@ -859,12 +1018,18 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
         return {"status": "unresolved", "upper_bound": None, "queries": 0,
                 "max_queries": max_queries, "max_depth": max_depth,
                 "seconds": time.monotonic() - started}
+    planar_faces = solid.convex_planar_faces() if hasattr(solid, "convex_planar_faces") else ()
+    planar_upper = np.full(len(triangles), np.inf)
+    if planar_faces:
+        for i, tri in enumerate(triangles):
+            planar_upper[i] = min(convex_planar_triangle_bound(tri, face) for face in planar_faces)
+    planar_done = planar_upper <= tolerance
+    certified_upper = float(np.max(planar_upper[planar_done])) if planar_done.any() else 0.0
     # Largest unresolved upper bound first, so each query reduces the current global bound.
     pending = []
     serial = 0
     queries = 0
     sampled_distance_upper = 0.0
-    certified_upper = 0.0
     unresolved_upper = 0.0
     unresolved = False
 
@@ -883,13 +1048,14 @@ def certify_triangles(solid, triangles, tolerance, max_queries=100_000, max_dept
         sampled_distance_upper = max(sampled_distance_upper, value)
         return upper, center, depth
 
-    if len(triangles) > max_queries:
+    remaining_triangles = triangles[~planar_done]
+    if len(remaining_triangles) > max_queries:
         return {
             "status": "unresolved", "upper_bound": None, "queries": 0,
             "max_queries": max_queries, "max_depth": max_depth,
             "seconds": time.monotonic() - started,
         }
-    for tri in triangles:
+    for tri in remaining_triangles:
         upper, center, depth = evaluate(tri, 0)
         if upper <= tolerance:
             certified_upper = max(certified_upper, upper)
