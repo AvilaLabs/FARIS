@@ -64,6 +64,22 @@
       "rule_sha256": "bd14dd75ba4a54228f9667ec69a5c0514610053c3bb7773d2542701686ccf80e",
       "manifest_last_commit": "dc7a296a8856f3a51ff97207346356e1d989e843",
       "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "tiara-bc-fe-68-40",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "55bfeae4d26998400694e6418299c8fa4893dcb9607dcc262c0f6e2be942591f",
+      "manifest_last_commit": "4a2f3feb5c387644535085d4b500a5312417ba15",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "tiara-bc-cc-68-100",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "55bfeae4d26998400694e6418299c8fa4893dcb9607dcc262c0f6e2be942591f",
+      "manifest_last_commit": "4a2f3feb5c387644535085d4b500a5312417ba15",
+      "recorded": "2026-11-09"
     }
   ]
 }
