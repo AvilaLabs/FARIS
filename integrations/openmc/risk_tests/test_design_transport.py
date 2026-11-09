@@ -576,7 +576,7 @@ class PeakTest(unittest.TestCase):
             def __init__(self):
                 super().__init__("openmc.lib")
                 self.tallies, self.batch = {}, 0
-                self._dll = object()
+                self._dll = types.SimpleNamespace(_name=None)
             def init(self, args):
                 self.args = args
             def simulation_init(self):
@@ -641,10 +641,15 @@ class PeakTest(unittest.TestCase):
                 (work / name).write_text("identity")
             request["h5m"] = str(work / "model.h5m")
             request["cross_sections"] = str(work / "cross_sections.xml")
+            lib_path = work / "libopenmc-fixture.so"
+            lib_path.write_bytes(b"fake OpenMC C API library")
+            lib._dll._name = str(lib_path)
             (work / "solver").mkdir()
             (work / "peak").mkdir()
+            runtime_identity = DT.heating_runtime_identity(openmc)
             (work / "solver" / "heating-preflight.json").write_text(json.dumps({
                 "status": "READY", "data_identity": {"source": "fixture"},
+                "runtime_identity": runtime_identity,
                 "cross_sections_sha256": "fixture-hash", "h5m_sha256": "fixture-hash"}))
             np.savez(work / "peak" / "volumes.npz", volumes_cm3=np.array([[[10000.0, 20000.0]]]),
                      r_edges_cm=np.array([100.0, 105.0, 110.0]), z_edges_cm=np.array([-5.0, 0.0]))
@@ -652,18 +657,46 @@ class PeakTest(unittest.TestCase):
                 "volumes_sha256": "fixture-hash", "solid_ids": ["coil"], "voxel_cm": [5.0, 5.0], "rays": 1000}))
             fake_modules = {"openmc": openmc, "openmc.lib": lib, "openmc_plasma_source": plasma_source,
                             "h5py": types.ModuleType("h5py")}
+            real_sha256_file = DT.sha256_file
+            runtime_paths = {Path(runtime_identity[key]["path"]).resolve()
+                             for key in ("python", "openmc_c_api_library", "worker_helper")}
+            def fixture_sha256_file(path):
+                canonical = Path(path).resolve()
+                return real_sha256_file(canonical) if canonical in runtime_paths else "fixture-hash"
+            def fake_geometry_copy(request, target, random_ray):
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"retagged fixture H5M")
+                return target
             with patch.dict("sys.modules", fake_modules), \
                  patch.object(DT, "heating_data_identity", return_value={"source": "fixture"}), \
-                 patch.object(DT, "sha256_file", return_value="fixture-hash"), \
-                 patch.object(DT, "geometry_copy", side_effect=lambda request, target, random_ray: target), \
+                 patch.object(DT, "sha256_file", side_effect=fixture_sha256_file), \
+                 patch.object(DT, "geometry_copy", side_effect=fake_geometry_copy), \
                  patch.object(DT, "build_model", return_value=(model, None, None)), \
                  patch.object(DT, "tokamak_arguments", return_value={}), \
                  patch.object(DT, "lost_count", return_value=0):
+                preflight_path = work / "solver" / "heating-preflight.json"
+                ready_preflight = json.loads(preflight_path.read_text())
+                drifted_preflight = copy.deepcopy(ready_preflight)
+                drifted_preflight["runtime_identity"]["openmc_version"] = "0.16.1"
+                preflight_path.write_text(json.dumps(drifted_preflight))
+                refused = DT.phase_heating(request, work)
+                self.assertEqual(refused["status"], "NOT_EVALUATED")
+                self.assertEqual(lib.batch, 0)
+                preflight_path.write_text(json.dumps(ready_preflight))
                 raw = DT.phase_heating(request, work)
                 stored = json.loads((work / "solver" / "heating-result.json").read_text())
                 self.assertEqual(raw, stored)
                 self.assertEqual(raw["status"], "CALCULATED")
                 self.assertEqual(raw["normalization"], "per_source_neutron")
+                self.assertEqual(raw["runtime_identity"], runtime_identity)
+                self.assertEqual(
+                    raw["execution_identity"]["run_h5m"]["sha256"],
+                    real_sha256_file(work / "geometry" / "model-heating.h5m"),
+                )
+                self.assertEqual(
+                    raw["execution_identity"]["model_xml"]["sha256"],
+                    real_sha256_file(work / "solver" / "heating-model.xml"),
+                )
                 self.assertEqual(raw["solids"][0]["total"]["mean_ev_per_source"], 10.0)
                 self.assertEqual(raw["solids"][0]["peak"]["volume_cm3"], 10000.0)
                 self.assertEqual(raw["solids"][0]["peak"]["closure_residual"]["within_3se"], True)

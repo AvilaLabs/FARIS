@@ -169,17 +169,34 @@ def heating_worker_seed() -> bytes:
     report = {"schema": "faris-design-heating/v1", "status": "CALCULATED", "openmc": "0.16.0",
               "h5m_sha256": "a" * 64, "cross_sections_sha256": "b" * 64, "histories": 30000,
               "c_api_terminal_status": 1, "lost_particles": 0, "stop_reason": "history_limit",
+              "runtime_identity": {
+                  "python": {"path": "/runtime/bin/python", "sha256": "c" * 64},
+                  "openmc_version": "0.16.0",
+                  "openmc_c_api_library": {"path": "/runtime/lib/libopenmc.so", "sha256": "d" * 64},
+                  "worker_helper": {"path": "/run/design_transport.py", "sha256": "e" * 64}},
+              "execution_identity": {
+                  "run_h5m": {"path": "/run/geometry/model-heating.h5m", "sha256": "f" * 64},
+                  "model_xml": {"path": "/run/solver/heating-model.xml", "sha256": "1" * 64}},
               "normalization": "per_source_neutron", "unit": "eV/source_neutron",
-              "data_identity": {"neutron_mt301": {"H1": {"mt301": True}}}, "solids": [solid]}
+              "data_identity": {"neutron_mt301": {"H1": {"mt301": True}},
+                                "electron_treatment": "led",
+                                "electron_treatment_scope": "LED local energy deposition approximation; secondary-electron transport is not explicit."},
+              "solids": [solid]}
     return (json.dumps(report, separators=(",", ":")) + "\n").encode()
 
 
 def heating_preflight_seed() -> bytes:
     report = {"schema": "faris-design-heating-preflight/v1", "status": "READY",
               "h5m_sha256": "a" * 64, "cross_sections_sha256": "b" * 64,
+              "runtime_identity": {
+                  "python": {"path": "/runtime/bin/python", "sha256": "c" * 64},
+                  "openmc_version": "0.16.0",
+                  "openmc_c_api_library": {"path": "/runtime/lib/libopenmc.so", "sha256": "d" * 64},
+                  "worker_helper": {"path": "/run/design_transport.py", "sha256": "e" * 64}},
               "data_identity": {"neutron_mt301": {"H1": {"mt301": True}},
                                 "photon": {"H": {"shell_count": 1}},
-                                "atomic_relaxation": "enabled", "electron_treatment": "led"}}
+                                "atomic_relaxation": "enabled", "electron_treatment": "led",
+                                "electron_treatment_scope": "LED local energy deposition approximation; secondary-electron transport is not explicit."}}
     return (json.dumps(report, separators=(",", ":")) + "\n").encode()
 
 

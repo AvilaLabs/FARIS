@@ -45,9 +45,13 @@ class FuzzSeed(unittest.TestCase):
         self.assertIn("faris-design-heating-preflight/v1", by_schema)
         worker = by_schema["faris-design-heating/v1"]
         self.assertEqual(worker["status"], "CALCULATED")
+        self.assertEqual(worker["runtime_identity"]["openmc_version"], "0.16.0")
+        self.assertEqual(worker["execution_identity"]["run_h5m"]["path"], "/run/geometry/model-heating.h5m")
         self.assertEqual(worker["solids"][0]["peak"]["volume_estimator"]["rays"], 1000)
         self.assertTrue(worker["solids"][0]["voxel_scores"][0]["closure_residual"]["within_3se"])
-        self.assertEqual(by_schema["faris-design-heating-preflight/v1"]["status"], "READY")
+        preflight = by_schema["faris-design-heating-preflight/v1"]
+        self.assertEqual(preflight["status"], "READY")
+        self.assertEqual(preflight["runtime_identity"], worker["runtime_identity"])
 
 
 if __name__ == "__main__":

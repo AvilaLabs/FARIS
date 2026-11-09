@@ -10,6 +10,10 @@ neutrons without the fast-flux cutoff and transports photons and charged seconda
 and the LED electron treatment. The unfiltered total heating tally is reported beside neutron, photon, electron and
 positron components. A residual and its sampling error are computed from aligned batch values, so shared batch
 fluctuations are retained in the closure check.
+The report records the selected Python executable, OpenMC package version and loaded C API library, staged worker
+helper, retagged H5M and exported model XML paths and hashes. It verifies these identities across preflight and run.
+These hashes establish file identity; physical correctness remains unvalidated. Electron treatment uses OpenMC's LED local
+energy-deposition approximation, so secondary-electron transport is not explicit.
 
 Only solids authored with `classification: "winding_pack"` and the broad `tf_magnet` role are included. A role by
 itself does not establish winding-pack identity. If no such solid is identified, or if the used nuclear data lacks

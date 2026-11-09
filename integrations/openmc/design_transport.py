@@ -71,6 +71,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import sys
 import time
 from pathlib import Path
@@ -98,6 +99,7 @@ PROGRESS_SECONDS = 5.0
 # A neutron the geometry cannot place is lost. Above this share of the histories the answer is not trusted.
 LOST_FRACTION_LIMIT = 1.0e-6
 LOST_LOCATIONS = 10          # how many lost neutrons have their position recorded
+MAX_RECEIPT_FILE_BYTES = 12 * 1024**3
 # The peak inside a solid: rings of dr by dz about the machine axis, each cut by the solid.
 PEAK_TALLY_ID = 2
 PEAK_MESH_ID = 9001
@@ -986,7 +988,9 @@ def heating_data_identity(request: dict, openmc, h5py) -> dict:
             photon.update({name: library.get("path") for name in library.get("materials", "").split()})
     nuclides = sorted({n for material in request["materials"] for n in material["nuclide_atom_fractions"]})
     elements = sorted({re.match(r"[A-Z][a-z]?", n).group(0) for n in nuclides})
-    identity = {"neutron_mt301": {}, "photon": {}, "atomic_relaxation": "enabled", "electron_treatment": "led"}
+    identity = {"neutron_mt301": {}, "photon": {}, "atomic_relaxation": "enabled",
+                "electron_treatment": "led",
+                "electron_treatment_scope": "LED local energy deposition approximation; secondary-electron transport is not explicit."}
     for nuclide in nuclides:
         if nuclide not in neutron:
             raise ValueError(f"coupled heating needs neutron data for {nuclide}")
@@ -1008,6 +1012,45 @@ def heating_data_identity(request: dict, openmc, h5py) -> dict:
             raise ValueError(f"coupled heating needs complete atomic-relaxation shell data for {element}")
         identity["photon"][element] = {"sha256": sha256_file(path), "shell_count": len(shells)}
     return identity
+
+
+def receipt_file_identity(path, label: str) -> dict:
+    """Canonical identity for a bounded regular file, hashed incrementally."""
+    canonical = Path(path).resolve(strict=True)
+    digest = hashlib.sha256()
+    bytes_read = 0
+    with canonical.open("rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_RECEIPT_FILE_BYTES:
+            raise ValueError(f"{label} is not a regular file within the {MAX_RECEIPT_FILE_BYTES}-byte identity bound")
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            bytes_read += len(block)
+            if bytes_read > MAX_RECEIPT_FILE_BYTES:
+                raise ValueError(f"{label} exceeded the {MAX_RECEIPT_FILE_BYTES}-byte identity bound while hashing")
+            digest.update(block)
+    return {"path": str(canonical), "sha256": digest.hexdigest()}
+
+
+def heating_runtime_identity(openmc) -> dict:
+    """Record the selected Python, loaded OpenMC C API library, module version and worker bytes."""
+    dll = getattr(openmc.lib, "_dll", None)
+    library_path = getattr(dll, "_name", None)
+    if not library_path:
+        raise ValueError("the selected OpenMC Python package does not expose its loaded C API library path")
+    return {
+        "python": receipt_file_identity(sys.executable, "selected Python executable"),
+        "openmc_version": str(openmc.__version__),
+        "openmc_c_api_library": receipt_file_identity(library_path, "loaded OpenMC C API library"),
+        "worker_helper": receipt_file_identity(__file__, "design transport worker helper"),
+    }
+
+
+def heating_execution_identity(run_h5m: Path, model_xml: Path) -> dict:
+    """Identify the retagged geometry and exported model passed to the C API."""
+    return {
+        "run_h5m": receipt_file_identity(run_h5m, "retagged heating H5M"),
+        "model_xml": receipt_file_identity(model_xml, "exported heating model XML"),
+    }
 
 
 def validate_coupled_openmc_support(openmc) -> None:
@@ -1035,15 +1078,17 @@ def phase_heating_preflight(request: dict, work: Path) -> dict:
         "cross_sections_sha256": sha256_file(request["cross_sections"]),
         "h5m_sha256": sha256_file(request["h5m"]),
     }
+    runtime = None
     try:
         validate_heating_request(request)
         validate_coupled_openmc_support(openmc)
+        runtime = heating_runtime_identity(openmc)
         identity = heating_data_identity(request, openmc, h5py)
         record = {"schema": "faris-design-heating-preflight/v1", "status": "READY",
-                  **identity_hashes, "data_identity": identity}
+                  **identity_hashes, "runtime_identity": runtime, "data_identity": identity}
     except (OSError, ValueError, KeyError, AttributeError) as exc:
         record = {"schema": "faris-design-heating-preflight/v1", "status": "NOT_EVALUATED",
-                  **identity_hashes,
+                  **identity_hashes, "runtime_identity": runtime,
                   "why": str(exc),
                   "next_step": "Select a library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element."}
     target.write_text(json.dumps(record, indent=1) + "\n")
@@ -1063,10 +1108,17 @@ def phase_heating(request: dict, work: Path) -> dict:
     solid_ids = request["response"]["solid_ids"]
     solids = {solid["solid_id"]: solid for solid in request["solids"]}
 
-    def unavailable(reason: str, next_step: str) -> dict:
+    def unavailable(reason: str, next_step: str, data_identity=None, runtime_identity=None,
+                    execution_identity=None) -> dict:
         report = {"schema": "faris-design-heating/v1", "status": "NOT_EVALUATED", "why": reason,
                   "next_step": next_step, "normalization": "per_source_neutron",
                   "unit": "eV/source_neutron", "solids": []}
+        if data_identity is not None:
+            report["data_identity"] = data_identity
+        if runtime_identity is not None:
+            report["runtime_identity"] = runtime_identity
+        if execution_identity is not None:
+            report["execution_identity"] = execution_identity
         target = work / "solver" / "heating-result.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(report, indent=1) + "\n")
@@ -1076,17 +1128,22 @@ def phase_heating(request: dict, work: Path) -> dict:
         return unavailable("No authored winding-pack solid identity is present in the request.",
                            "Assign classification: winding_pack to the CAD solids that represent the winding pack, then rerun design check.")
     xml = Path(request["cross_sections"])
+    runtime_identity = None
     try:
+        runtime_identity = heating_runtime_identity(openmc)
         data_identity = heating_data_identity(request, openmc, h5py)
     except (OSError, ValueError, KeyError, AttributeError) as exc:
-        return unavailable(str(exc), "Select a library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element.")
+        return unavailable(str(exc), "Select a supported Python/OpenMC runtime and library with MT=301 heating, photon data, and complete atomic-relaxation shell maps for every used element.",
+                           runtime_identity=runtime_identity)
     preflight = json.loads((work / "solver" / "heating-preflight.json").read_text())
     if (preflight.get("status") != "READY"
             or preflight.get("data_identity") != data_identity
+            or preflight.get("runtime_identity") != runtime_identity
             or preflight.get("cross_sections_sha256") != sha256_file(xml)
             or preflight.get("h5m_sha256") != sha256_file(request["h5m"])):
         return unavailable("Coupled-heating nuclear data or geometry identity changed after preflight.",
-                           "Keep the checked geometry and selected data unchanged, then rerun heating.")
+                           "Keep the checked geometry, selected Python/OpenMC runtime and nuclear data unchanged, then rerun heating.",
+                           data_identity, runtime_identity)
 
     geometry = geometry_copy(request, work / "geometry" / "model-heating.h5m", random_ray=False)
     model, _, _ = build_model(openmc, request, geometry)
@@ -1118,7 +1175,8 @@ def phase_heating(request: dict, work: Path) -> dict:
     bins, solid_count = volume_by_solid.shape[1], len(solid_ids)
     if bins * solid_count > 32_768:
         return unavailable("The requested peak mesh exceeds the bounded heating tally size.",
-                           "Use larger peak voxels or split the winding pack into fewer authored solids.")
+                           "Use larger peak voxels or split the winding pack into fewer authored solids.",
+                           data_identity, runtime_identity)
     mesh = openmc.CylindricalMesh(mesh_id=PEAK_MESH_ID, r_grid=pieces["r_edges_cm"],
                                   z_grid=pieces["z_edges_cm"], phi_grid=[0.0, 2.0 * math.pi])
     components = ("neutron", "photon", "electron", "positron")
@@ -1141,6 +1199,11 @@ def phase_heating(request: dict, work: Path) -> dict:
     model_xml = work / "solver" / "heating-model.xml"
     model_xml.parent.mkdir(parents=True, exist_ok=True)
     model.export_to_model_xml(model_xml)
+    try:
+        execution_identity = heating_execution_identity(geometry, model_xml)
+    except (OSError, ValueError) as exc:
+        return unavailable(str(exc), "Keep the retagged H5M and exported model XML as bounded regular files, then rerun heating.",
+                           data_identity, runtime_identity)
     here = os.getcwd()
     os.chdir(model_xml.parent)
     batches = voxel_batches = None
@@ -1164,20 +1227,31 @@ def phase_heating(request: dict, work: Path) -> dict:
             openmc.lib.finalize()
     finally:
         os.chdir(here)
+    try:
+        after_run_identity = heating_execution_identity(geometry, model_xml)
+    except (OSError, ValueError) as exc:
+        return unavailable(str(exc), "Keep the retagged H5M and exported model XML unchanged while OpenMC runs, then rerun heating.",
+                           data_identity, runtime_identity, execution_identity)
+    if after_run_identity != execution_identity:
+        return unavailable("The retagged H5M or exported model XML changed while the OpenMC C API run was active.",
+                           "Keep both C API inputs unchanged for the full run and rerun coupled heating.",
+                           data_identity, runtime_identity, execution_identity)
     histories = batches_done * int(sampling["particles_per_batch"])
     lost = lost_count(getattr(openmc.lib, "_dll", None))
     terminal_quality, terminal_why = heating_terminal_quality(
         terminal_status, batches_done, int(sampling["max_batches"]), stop_reason, lost, histories)
     if terminal_quality == "NOT_EVALUATED":
         result = unavailable(terminal_why or "The OpenMC heating run did not complete with a recognized status.",
-                             "Use an OpenMC build with the supported C API terminal status and lost-particle counter, then rerun heating.")
+                             "Use an OpenMC build with the supported C API terminal status and lost-particle counter, then rerun heating.",
+                             data_identity, runtime_identity, execution_identity)
         result.update({"c_api_terminal_status": terminal_status, "lost_particles": lost,
                        "histories": histories, "stop_reason": stop_reason})
         (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
         return result
     if batches_done < int(sampling["min_batches"]):
         return unavailable(f"The heating run stopped after {batches_done} batches, below the minimum {sampling['min_batches']} batches.",
-                           "Increase the time limit and rerun coupled heating.")
+                           "Increase the time limit and rerun coupled heating.", data_identity, runtime_identity,
+                           execution_identity)
     result_solids = []
     for row, solid_id in enumerate(solid_ids):
         values = {}
@@ -1288,6 +1362,7 @@ def phase_heating(request: dict, work: Path) -> dict:
               "c_api_terminal_status": terminal_status, "lost_particles": lost,
               "openmc": openmc.__version__,
               "h5m_sha256": sha256_file(request["h5m"]), "cross_sections_sha256": sha256_file(xml),
+              "runtime_identity": runtime_identity, "execution_identity": execution_identity,
               "histories": histories,
               "stop_reason": stop_reason,
               "normalization": "per_source_neutron", "unit": "eV/source_neutron",

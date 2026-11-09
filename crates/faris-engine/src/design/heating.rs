@@ -13,9 +13,11 @@ use crate::transport::{D_T_ENERGY_PER_REACTION_EV, reaction_rate_per_s};
 use faris_model::design::{self, Role};
 use faris_model::validation::{Output, Quantity, ValidationMarks, calculated, not_calculated};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     ffi::OsString,
+    io::Read,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -28,6 +30,7 @@ const MIN_BATCHES: u64 = 30;
 const PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const VOLUME_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
+const MAX_RECEIPT_FILE_BYTES: u64 = 12 * 1024 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct DesignHeatingOptions {
@@ -71,6 +74,26 @@ pub struct VolumeEstimator {
     /// `None` means the OpenMC volume adapter did not provide an estimator SE.
     pub sampling_relative_error: Option<f64>,
     pub sampling_uncertainty_reported: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct HeatingFileIdentity {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct HeatingRuntimeIdentity {
+    pub python: HeatingFileIdentity,
+    pub openmc_version: String,
+    pub openmc_c_api_library: HeatingFileIdentity,
+    pub worker_helper: HeatingFileIdentity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct HeatingExecutionIdentity {
+    pub run_h5m: HeatingFileIdentity,
+    pub model_xml: HeatingFileIdentity,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -119,6 +142,10 @@ pub struct DesignHeatingReport {
     pub seed: u64,
     pub threads: u32,
     pub data_identity: Option<serde_json::Value>,
+    #[serde(default)]
+    pub runtime_identity: Option<HeatingRuntimeIdentity>,
+    #[serde(default)]
+    pub execution_identity: Option<HeatingExecutionIdentity>,
     pub validation_scope: String,
     pub solids: Vec<SolidHeating>,
     pub why: Option<String>,
@@ -291,6 +318,10 @@ struct WorkerResult {
     solids: Vec<WorkerSolid>,
     #[serde(default)]
     data_identity: Option<serde_json::Value>,
+    #[serde(default)]
+    runtime_identity: Option<HeatingRuntimeIdentity>,
+    #[serde(default)]
+    execution_identity: Option<HeatingExecutionIdentity>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -305,6 +336,8 @@ struct WorkerPreflight {
     cross_sections_sha256: String,
     #[serde(default)]
     data_identity: Option<serde_json::Value>,
+    #[serde(default)]
+    runtime_identity: Option<HeatingRuntimeIdentity>,
 }
 
 /// Fuzz the private heating worker and preflight JSON readers from the shared design helper entry.
@@ -471,6 +504,8 @@ pub fn design_heating(
         seed: options.seed,
         threads: options.threads,
         data_identity: None,
+        runtime_identity: None,
+        execution_identity: None,
         validation_scope: "No physical validation claim. Calculated values are Monte Carlo estimates scoped to the authored winding-pack solids and the checked CAD conversion.".into(),
         solids: Vec::new(),
         why: None,
@@ -668,7 +703,15 @@ pub fn design_heating(
             "the coupled-heating preflight does not match the checked geometry or nuclear-data identity".into(),
         ));
     }
-    report.data_identity = preflight.data_identity;
+    report.data_identity = preflight.data_identity.clone();
+    report.runtime_identity = preflight.runtime_identity.clone();
+    if let Some(runtime) = &preflight.runtime_identity {
+        if !verify_runtime_identity(runtime, &run_dir) {
+            return Err(DesignError::Tool(
+                "the heating preflight runtime receipt does not match the selected Python, loaded OpenMC C API library, or staged worker helper".into(),
+            ));
+        }
+    }
     if preflight.status == "NOT_EVALUATED" {
         report.elapsed_seconds = elapsed;
         report.why = preflight.why;
@@ -680,6 +723,11 @@ pub fn design_heating(
             "the coupled-heating preflight returned unknown status {:?}",
             preflight.status
         )));
+    }
+    if preflight.data_identity.is_none() || preflight.runtime_identity.is_none() {
+        return Err(DesignError::Tool(
+            "a READY heating preflight must include nuclear-data and runtime identities".into(),
+        ));
     }
     elapsed += phase("volumes", VOLUME_TIMEOUT)?;
     elapsed += phase(
@@ -699,6 +747,34 @@ pub fn design_heating(
             "the heating worker report has schema {:?}, expected {RESULT_SCHEMA}",
             worker.schema
         )));
+    }
+    if worker
+        .data_identity
+        .as_ref()
+        .is_some_and(|identity| Some(identity) != preflight.data_identity.as_ref())
+        || worker
+            .runtime_identity
+            .as_ref()
+            .is_some_and(|identity| Some(identity) != preflight.runtime_identity.as_ref())
+    {
+        return Err(DesignError::Tool(
+            "the heating run runtime or nuclear-data identity differs from READY preflight".into(),
+        ));
+    }
+    if let Some(runtime) = &worker.runtime_identity {
+        if !verify_runtime_identity(runtime, &run_dir) {
+            return Err(DesignError::Tool(
+                "the heating run runtime receipt does not match the selected Python, loaded OpenMC C API library, or staged worker helper".into(),
+            ));
+        }
+    }
+    if let Some(execution) = &worker.execution_identity {
+        if !verify_execution_identity(execution, &run_dir) {
+            return Err(DesignError::Tool(
+                "the heating C API input receipt does not match the retagged H5M or exported model XML".into(),
+            ));
+        }
+        report.execution_identity = Some(execution.clone());
     }
     if worker.status.as_deref() == Some("NOT_EVALUATED") {
         report.elapsed_seconds = elapsed;
@@ -736,6 +812,9 @@ pub fn design_heating(
                 .lost_particles
                 .is_some_and(|lost| lost as f64 / worker.histories as f64 > 1.0e-6))
         || (worker.status.as_deref() == Some("INCONCLUSIVE") && worker.why.is_none())
+        || worker.data_identity != preflight.data_identity
+        || worker.runtime_identity != preflight.runtime_identity
+        || worker.execution_identity.is_none()
         || worker.solids.len() != response.len()
         || worker
             .solids
@@ -1142,6 +1221,76 @@ fn heating_peak_is_converged(mean: f64, standard_error: Option<f64>) -> bool {
         && standard_error.is_some_and(|se| se.is_finite() && se >= 0.0 && se / mean <= 0.10)
 }
 
+fn valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn verify_file_identity(receipt: &HeatingFileIdentity, expected: Option<&Path>) -> bool {
+    if !valid_sha256(&receipt.sha256) {
+        return false;
+    }
+    let path = Path::new(&receipt.path);
+    if !path.is_absolute() {
+        return false;
+    }
+    let Ok(canonical) = path.canonicalize() else {
+        return false;
+    };
+    if canonical != path || expected.is_some_and(|expected| expected != canonical.as_path()) {
+        return false;
+    }
+    bounded_file_sha256(&canonical, MAX_RECEIPT_FILE_BYTES)
+        .is_ok_and(|digest| digest.eq_ignore_ascii_case(&receipt.sha256))
+}
+
+fn bounded_file_sha256(path: &Path, byte_limit: u64) -> Result<String, DesignError> {
+    let mut file = std::fs::File::open(path).map_err(|e| io_error(path, e))?;
+    if !file.metadata().map_err(|e| io_error(path, e))?.is_file() {
+        return Err(DesignError::Tool(format!(
+            "{} is not a regular receipt file",
+            path.display()
+        )));
+    }
+    let mut digest = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = vec![0_u8; 1 << 20];
+    loop {
+        let count = file.read(&mut buffer).map_err(|e| io_error(path, e))?;
+        if count == 0 {
+            break;
+        }
+        total = total.saturating_add(count as u64);
+        if total > byte_limit {
+            return Err(DesignError::Tool(format!(
+                "{} exceeds the bounded receipt hash limit",
+                path.display()
+            )));
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn verify_runtime_identity(identity: &HeatingRuntimeIdentity, run_dir: &Path) -> bool {
+    !identity.openmc_version.trim().is_empty()
+        && verify_file_identity(&identity.python, None)
+        && verify_file_identity(&identity.openmc_c_api_library, None)
+        && verify_file_identity(
+            &identity.worker_helper,
+            Some(&run_dir.join("design_transport.py")),
+        )
+}
+
+fn verify_execution_identity(identity: &HeatingExecutionIdentity, run_dir: &Path) -> bool {
+    verify_file_identity(
+        &identity.run_h5m,
+        Some(&run_dir.join("geometry/model-heating.h5m")),
+    ) && verify_file_identity(
+        &identity.model_xml,
+        Some(&run_dir.join("solver/heating-model.xml")),
+    )
+}
+
 pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
     use std::fmt::Write as _;
     let mut text = format!("Winding-pack heating: {}\n", report.status);
@@ -1172,6 +1321,44 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
     }
     if let Some(status) = report.c_api_terminal_status {
         let _ = writeln!(text, "  OpenMC C API terminal status: {status}");
+    }
+    if let Some(runtime) = &report.runtime_identity {
+        let _ = writeln!(text, "  OpenMC Python package: {}", runtime.openmc_version);
+        let _ = writeln!(
+            text,
+            "  Python runtime: {} (SHA-256 {})",
+            runtime.python.path, runtime.python.sha256
+        );
+        let _ = writeln!(
+            text,
+            "  OpenMC C API library: {} (SHA-256 {})",
+            runtime.openmc_c_api_library.path, runtime.openmc_c_api_library.sha256
+        );
+        let _ = writeln!(
+            text,
+            "  Worker helper: {} (SHA-256 {})",
+            runtime.worker_helper.path, runtime.worker_helper.sha256
+        );
+    }
+    if let Some(execution) = &report.execution_identity {
+        let _ = writeln!(
+            text,
+            "  C API retagged H5M: {} (SHA-256 {})",
+            execution.run_h5m.path, execution.run_h5m.sha256
+        );
+        let _ = writeln!(
+            text,
+            "  C API exported model XML: {} (SHA-256 {})",
+            execution.model_xml.path, execution.model_xml.sha256
+        );
+    }
+    if let Some(scope) = report
+        .data_identity
+        .as_ref()
+        .and_then(|identity| identity.get("electron_treatment_scope"))
+        .and_then(serde_json::Value::as_str)
+    {
+        let _ = writeln!(text, "  Electron treatment scope: {scope}");
     }
     if let Some(lost) = report.lost_particles {
         let fraction = if report.histories > 0 {
@@ -1288,6 +1475,17 @@ mod tests {
             "schema": RESULT_SCHEMA,
             "status": "INCONCLUSIVE",
             "why": "closure outside three SE",
+            "data_identity": {"electron_treatment_scope": "LED local energy deposition approximation"},
+            "runtime_identity": {
+                "python": {"path": "/runtime/bin/python", "sha256": "p".repeat(64)},
+                "openmc_version": "0.16.0",
+                "openmc_c_api_library": {"path": "/runtime/lib/libopenmc.so", "sha256": "l".repeat(64)},
+                "worker_helper": {"path": "/run/design_transport.py", "sha256": "w".repeat(64)}
+            },
+            "execution_identity": {
+                "run_h5m": {"path": "/run/geometry/model-heating.h5m", "sha256": "g".repeat(64)},
+                "model_xml": {"path": "/run/solver/heating-model.xml", "sha256": "m".repeat(64)}
+            },
             "c_api_terminal_status": 1,
             "lost_particles": 0,
             "histories": 100_000,
@@ -1326,6 +1524,14 @@ mod tests {
         assert_eq!(worker.status.as_deref(), Some("INCONCLUSIVE"));
         assert_eq!(worker.c_api_terminal_status, Some(1));
         assert_eq!(worker.lost_particles, Some(0));
+        assert_eq!(
+            worker.runtime_identity.as_ref().unwrap().openmc_version,
+            "0.16.0"
+        );
+        assert_eq!(
+            worker.execution_identity.as_ref().unwrap().model_xml.sha256,
+            "m".repeat(64)
+        );
         let residual = &worker.solids[0].closure_residual;
         assert_eq!(residual.mean_ev_per_source, 1.0);
         assert!(!closure_within_3se(residual, 15.0));
@@ -1343,6 +1549,77 @@ mod tests {
         assert!(!heating_peak_is_converged(1.0, None));
         assert!(heating_peak_is_converged(1.0, Some(0.10)));
         assert!(!heating_peak_is_converged(1.0, Some(0.100_001)));
+    }
+
+    #[test]
+    fn preflight_parser_retains_selected_runtime_and_led_scope() {
+        let preflight: WorkerPreflight = serde_json::from_value(serde_json::json!({
+            "schema": "faris-design-heating-preflight/v1",
+            "status": "READY",
+            "h5m_sha256": "a".repeat(64),
+            "cross_sections_sha256": "b".repeat(64),
+            "data_identity": {"electron_treatment": "led",
+                               "electron_treatment_scope": "LED local energy deposition approximation"},
+            "runtime_identity": {
+                "python": {"path": "/runtime/bin/python", "sha256": "p".repeat(64)},
+                "openmc_version": "0.15.3",
+                "openmc_c_api_library": {"path": "/runtime/lib/libopenmc.so", "sha256": "l".repeat(64)},
+                "worker_helper": {"path": "/run/design_transport.py", "sha256": "w".repeat(64)}
+            }
+        })).unwrap();
+        assert_eq!(
+            preflight.runtime_identity.as_ref().unwrap().openmc_version,
+            "0.15.3"
+        );
+        assert_eq!(
+            preflight.data_identity.as_ref().unwrap()["electron_treatment"],
+            "led"
+        );
+    }
+
+    #[test]
+    fn runtime_and_execution_receipts_rehash_the_files_actually_named() {
+        let root =
+            std::env::temp_dir().join(format!("faris-heating-receipt-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let run_dir = root.join("run");
+        let python = root.join("env/bin/python");
+        let library = root.join("env/lib/libopenmc.so");
+        let helper = run_dir.join("design_transport.py");
+        let h5m = run_dir.join("geometry/model-heating.h5m");
+        let xml = run_dir.join("solver/heating-model.xml");
+        for (path, body) in [
+            (&python, b"selected python".as_slice()),
+            (&library, b"loaded C API".as_slice()),
+            (&helper, b"staged worker".as_slice()),
+            (&h5m, b"retagged geometry".as_slice()),
+            (&xml, b"exported model".as_slice()),
+        ] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, body).unwrap();
+        }
+        let receipt = |path: &Path| {
+            let canonical = path.canonicalize().unwrap();
+            HeatingFileIdentity {
+                path: canonical.display().to_string(),
+                sha256: sha256_file(&canonical).unwrap(),
+            }
+        };
+        let runtime = HeatingRuntimeIdentity {
+            python: receipt(&python),
+            openmc_version: "0.16.0".into(),
+            openmc_c_api_library: receipt(&library),
+            worker_helper: receipt(&helper),
+        };
+        let execution = HeatingExecutionIdentity {
+            run_h5m: receipt(&h5m),
+            model_xml: receipt(&xml),
+        };
+        assert!(verify_runtime_identity(&runtime, &run_dir));
+        assert!(verify_execution_identity(&execution, &run_dir));
+        std::fs::write(&xml, b"changed model").unwrap();
+        assert!(!verify_execution_identity(&execution, &run_dir));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -1476,6 +1753,31 @@ mod tests {
             seed: 7,
             threads: 2,
             data_identity: Some(serde_json::json!({"photon": {"Fe": {"shell_count": 7}}})),
+            runtime_identity: Some(HeatingRuntimeIdentity {
+                python: HeatingFileIdentity {
+                    path: "/runtime/bin/python".into(),
+                    sha256: "p".repeat(64),
+                },
+                openmc_version: "0.16.0".into(),
+                openmc_c_api_library: HeatingFileIdentity {
+                    path: "/runtime/lib/libopenmc.so".into(),
+                    sha256: "l".repeat(64),
+                },
+                worker_helper: HeatingFileIdentity {
+                    path: "/run/design_transport.py".into(),
+                    sha256: "w".repeat(64),
+                },
+            }),
+            execution_identity: Some(HeatingExecutionIdentity {
+                run_h5m: HeatingFileIdentity {
+                    path: "/run/geometry/model-heating.h5m".into(),
+                    sha256: "g".repeat(64),
+                },
+                model_xml: HeatingFileIdentity {
+                    path: "/run/solver/heating-model.xml".into(),
+                    sha256: "m".repeat(64),
+                },
+            }),
             validation_scope: "No physical validation claim.".into(),
             solids: vec![SolidHeating {
                 solid_id: "tf-winding-01".into(),
@@ -1520,6 +1822,9 @@ mod tests {
         assert!(rendered.contains("Design: case"));
         assert!(rendered.contains("Input path: design.json"));
         assert!(rendered.contains(&format!("Input SHA-256: {}", "d".repeat(64))));
+        assert!(rendered.contains("OpenMC Python package: 0.16.0"));
+        assert!(rendered.contains("C API retagged H5M: /run/geometry/model-heating.h5m"));
+        assert!(rendered.contains("C API exported model XML: /run/solver/heating-model.xml"));
         let mut missing_peak = report.clone();
         missing_peak.solids[0].peak = None;
         missing_peak.status = "NOT_EVALUATED".into();
