@@ -221,6 +221,7 @@ class FnsTofHelpers(unittest.TestCase):
             def __getitem__(self, _key):
                 return self.value
         class H5File(dict):
+            attrs = {"openmc_version": [0, 15, 3]}
             def __enter__(self): return self
             def __exit__(self, *_args): return False
         fields = {
@@ -229,6 +230,10 @@ class FnsTofHelpers(unittest.TestCase):
             R.FARIS_IMP0_PATCH_BIRTH_KILL_DATASET: Dataset(2),
             R.FARIS_IMP0_PATCH_ENTRY_KILL_DATASET: Dataset(5),
             R.FARIS_OPENMC_LOST_DATASET: Dataset(0),
+            R.STATEPOINT_CURRENT_BATCH_DATASET: Dataset(1),
+            R.STATEPOINT_N_BATCHES_DATASET: Dataset(1),
+            R.STATEPOINT_N_PARTICLES_DATASET: Dataset(1000),
+            R.STATEPOINT_N_REALIZATIONS_DATASET: Dataset(1),
         }
         fake_h5py = type("H5py", (), {"File": staticmethod(lambda *_args, **_kwargs: H5File(fields))})
         with patch.dict(sys.modules, {"h5py": fake_h5py}):
@@ -237,6 +242,17 @@ class FnsTofHelpers(unittest.TestCase):
         self.assertEqual(result["source_birth_kill_events"], 2)
         self.assertEqual(result["cell_entry_kill_events"], 5)
         self.assertEqual(result["lost_particles"], 0)
+        self.assertEqual(result["n_particles"], 1000)
+        self.assertEqual(result["n_realizations"], 1)
+        self.assertEqual(result["solver_version"], "0.15.3")
+
+    def test_imp0_control_rejects_particles_misreported_as_realizations(self):
+        expected = {"current_batch": 1, "n_batches": 1, "n_particles": 1000,
+                    "n_realizations": 1, "solver_version": "0.15.3"}
+        R.require_imp0_control_statepoint_metadata(expected, "entry_neutron")
+        mistaken = {**expected, "n_realizations": 1000}
+        with self.assertRaisesRegex(ValueError, "n_realizations=1000, expected 1"):
+            R.require_imp0_control_statepoint_metadata(mistaken, "entry_neutron")
 
     def test_importance_marker_injection_is_sidecar_and_xml_hash_bound(self):
         import tempfile
@@ -274,6 +290,8 @@ class FnsTofHelpers(unittest.TestCase):
                 sp.write_bytes(name.encode())
                 case_rows.append({"case": {"name": name}, "statepoint": str(sp),
                                   "statepoint_sha256": R.hash_file(sp), "geometry_xml_sha256": "c" * 64,
+                                  "statepoint_current_batch": 1, "statepoint_n_batches": 1,
+                                  "statepoint_n_particles": 1000, "statepoint_n_realizations": 1,
                                   "solver_version": "0.15.3", "cell_flux_means_per_source": flux,
                                   "middle_surface_current_mean_per_source": current,
                                   "expected": {"kill": total, "birth": birth, "entry": entry,
@@ -285,9 +303,14 @@ class FnsTofHelpers(unittest.TestCase):
                                                   "faris_openmc_n_lost_particles": 0}})
             cli, lib = root / "openmc", root / "libopenmc.so"
             cli.write_bytes(b"cli"); lib.write_bytes(b"lib")
+            py_module, control_xs = root / "openmc.py", root / "cross_sections.xml"
+            py_module.write_bytes(b"module"); control_xs.write_bytes(b"xs")
             runtime = {"executable_path": str(cli.resolve()), "executable_sha256": R.hash_file(cli),
                        "linked_library_path": str(lib.resolve()), "linked_library_sha256": R.hash_file(lib),
-                       "patch_version": 1}
+                       "patch_version": 1, "openmc_python_module_path": str(py_module.resolve()),
+                       "openmc_python_module_sha256": R.hash_file(py_module),
+                       "cross_sections_path": str(control_xs.resolve()),
+                       "cross_sections_xml_sha256": R.hash_file(control_xs)}
             control = {"schema": "faris.openmc-mcnp-imp0-control/1.0.0", "status": "PASS",
                        "runtime": {"selected_cli_path": str(cli), "selected_cli_sha256": runtime["executable_sha256"],
                                    "selected_linked_library_path": str(lib),
@@ -295,16 +318,35 @@ class FnsTofHelpers(unittest.TestCase):
                                    "faris_patch_version_symbol": 1,
                                    "openmc_python_version": "0.15.3",
                                    "python_path": str(Path(sys.executable).resolve()),
-                                   "python_sha256": R.hash_file(Path(sys.executable).resolve())}, "cases": case_rows}
+                                   "python_sha256": R.hash_file(Path(sys.executable).resolve()),
+                                   "openmc_python_module_path": str(py_module.resolve()),
+                                   "openmc_python_module_sha256": R.hash_file(py_module),
+                                   "cross_sections_path": str(control_xs.resolve()),
+                                   "cross_sections_sha256": R.hash_file(control_xs)}, "cases": case_rows}
             control["receipt_sha256"] = R.imp0_control_receipt_sha256(control)
             path = root / "control.json"; path.write_text(json.dumps(control))
             def statepoint_reader(statepoint):
                 total, birth, entry, _flux, _current = expected[statepoint.stem]
                 return {"patch_version": 1, "intentional_kill_events": total,
                         "source_birth_kill_events": birth, "cell_entry_kill_events": entry,
-                        "lost_particles": 0}
+                        "lost_particles": 0, "current_batch": 1, "n_batches": 1,
+                        "n_particles": 1000, "n_realizations": 1, "solver_version": "0.15.3"}
             with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
                 self.assertEqual(R.verify_imp0_control_receipt(path, runtime)["status"], "PASS")
+            alternate_xs = root / "other_cross_sections.xml"
+            alternate_xs.write_bytes(b"other-xs")
+            mismatched_runtime = {**runtime, "cross_sections_path": str(alternate_xs.resolve()),
+                                  "cross_sections_xml_sha256": R.hash_file(alternate_xs)}
+            with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
+                with self.assertRaisesRegex(ValueError, "different cross_sections.xml index"):
+                    R.verify_imp0_control_receipt(path, mismatched_runtime)
+            control["cases"][0]["statepoint_n_realizations"] = 1000
+            control["receipt_sha256"] = R.imp0_control_receipt_sha256(control)
+            path.write_text(json.dumps(control))
+            with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
+                with self.assertRaisesRegex(ValueError, "statepoint_n_realizations differs"):
+                    R.verify_imp0_control_receipt(path, runtime)
+            control["cases"][0]["statepoint_n_realizations"] = 1
             control["cases"][0]["diagnostics"]["faris_mcnp_imp0_kill_events"] = 0
             control["receipt_sha256"] = R.imp0_control_receipt_sha256(control)
             path.write_text(json.dumps(control))

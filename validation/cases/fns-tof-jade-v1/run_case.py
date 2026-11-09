@@ -62,6 +62,10 @@ FARIS_IMP0_PATCH_VERSION_DATASET = "faris_mcnp_imp0_patch_version"
 FARIS_IMP0_PATCH_BIRTH_KILL_DATASET = "faris_mcnp_imp0_birth_kill_events"
 FARIS_IMP0_PATCH_ENTRY_KILL_DATASET = "faris_mcnp_imp0_entry_kill_events"
 FARIS_OPENMC_LOST_DATASET = "faris_openmc_n_lost_particles"
+STATEPOINT_CURRENT_BATCH_DATASET = "current_batch"
+STATEPOINT_N_BATCHES_DATASET = "n_batches"
+STATEPOINT_N_PARTICLES_DATASET = "n_particles"
+STATEPOINT_N_REALIZATIONS_DATASET = "n_realizations"
 
 
 def require(ok: bool, why: str) -> None:
@@ -384,11 +388,32 @@ def read_imp0_statepoint(path: Path) -> dict:
                 "statepoint omits child MCNP imp0 entry kill dataset")
         require(FARIS_OPENMC_LOST_DATASET in statepoint,
                 "statepoint omits the child OpenMC lost-particle counter")
+        for name in (STATEPOINT_CURRENT_BATCH_DATASET, STATEPOINT_N_BATCHES_DATASET,
+                     STATEPOINT_N_PARTICLES_DATASET, STATEPOINT_N_REALIZATIONS_DATASET):
+            require(name in statepoint, f"statepoint omits standard run metadata dataset {name}")
         version = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_VERSION_DATASET], FARIS_IMP0_PATCH_VERSION_DATASET)
         kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_KILL_EVENTS_DATASET], FARIS_IMP0_PATCH_KILL_EVENTS_DATASET)
         birth_kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_BIRTH_KILL_DATASET], FARIS_IMP0_PATCH_BIRTH_KILL_DATASET)
         entry_kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_ENTRY_KILL_DATASET], FARIS_IMP0_PATCH_ENTRY_KILL_DATASET)
         lost_particles = scalar_int_dataset(statepoint[FARIS_OPENMC_LOST_DATASET], FARIS_OPENMC_LOST_DATASET)
+        current_batch = scalar_int_dataset(statepoint[STATEPOINT_CURRENT_BATCH_DATASET], STATEPOINT_CURRENT_BATCH_DATASET)
+        n_batches = scalar_int_dataset(statepoint[STATEPOINT_N_BATCHES_DATASET], STATEPOINT_N_BATCHES_DATASET)
+        n_particles = scalar_int_dataset(statepoint[STATEPOINT_N_PARTICLES_DATASET], STATEPOINT_N_PARTICLES_DATASET)
+        n_realizations = scalar_int_dataset(statepoint[STATEPOINT_N_REALIZATIONS_DATASET], STATEPOINT_N_REALIZATIONS_DATASET)
+        raw_version = statepoint.attrs.get("openmc_version")
+        require(raw_version is not None, "statepoint omits its OpenMC solver-version attribute")
+        if hasattr(raw_version, "tolist"):
+            raw_version = raw_version.tolist()
+        require(isinstance(raw_version, (list, tuple)) and len(raw_version) == 3,
+                "statepoint OpenMC version attribute must be a three-part tuple")
+        version_parts = []
+        for part in raw_version:
+            if hasattr(part, "item"):
+                part = part.item()
+            require(isinstance(part, int) and not isinstance(part, bool),
+                    "statepoint OpenMC version components must be integers")
+            version_parts.append(part)
+        solver_version = ".".join(str(part) for part in version_parts)
     require_imp0_patch_version(version)
     require(kills >= 0 and birth_kills >= 0 and entry_kills >= 0 and lost_particles >= 0,
             "statepoint imp0 or lost-particle counters cannot be negative")
@@ -396,8 +421,19 @@ def read_imp0_statepoint(path: Path) -> dict:
             "statepoint total MCNP imp0 kills differ from birth+entry counters")
     return {"patch_version": version, "intentional_kill_events": kills,
             "source_birth_kill_events": birth_kills, "cell_entry_kill_events": entry_kills,
-            "lost_particles": lost_particles,
+            "lost_particles": lost_particles, "current_batch": current_batch,
+            "n_batches": n_batches, "n_particles": n_particles,
+            "n_realizations": n_realizations, "solver_version": solver_version,
             "source": "child statepoint datasets; imp0 kills and normal lost count are distinct"}
+
+
+def require_imp0_control_statepoint_metadata(statepoint: dict, case_name: str) -> None:
+    """Require exact one-batch control metadata; particles are not realizations."""
+    expected = {"current_batch": 1, "n_batches": 1, "n_particles": 1000,
+                "n_realizations": 1, "solver_version": OPENMC_REQUIRED}
+    for key, value in expected.items():
+        require(statepoint.get(key) == value,
+                f"MCNP imp0 control {case_name} statepoint {key}={statepoint.get(key)!r}, expected {value!r}")
 
 
 def imp0_control_receipt_sha256(document: dict) -> str:
@@ -438,6 +474,19 @@ def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
     require(Path(recorded.get("python_path", "")).resolve() == Path(sys.executable).resolve()
             and recorded.get("python_sha256") == hash_file(Path(sys.executable).resolve(strict=True)),
             "MCNP imp0 control used a different Python interpreter")
+    require(Path(recorded.get("openmc_python_module_path", "")).resolve()
+            == Path(runtime["openmc_python_module_path"])
+            and recorded.get("openmc_python_module_sha256") == runtime["openmc_python_module_sha256"],
+            "MCNP imp0 control used a different OpenMC Python module")
+    control_xs_path = recorded.get("cross_sections_path")
+    require(isinstance(control_xs_path, str), "MCNP imp0 control omits its cross_sections.xml path")
+    control_xs = Path(control_xs_path).resolve(strict=True)
+    require(control_xs.is_file() and control_xs.stat().st_size <= MAX_CROSS_SECTIONS_XML_BYTES
+            and hash_file(control_xs, MAX_CROSS_SECTIONS_XML_BYTES) == recorded.get("cross_sections_sha256"),
+            "MCNP imp0 control cross_sections.xml is missing or differs from its recorded hash")
+    require(control_xs == Path(runtime["cross_sections_path"])
+            and recorded["cross_sections_sha256"] == runtime["cross_sections_xml_sha256"],
+            "MCNP imp0 control used a different cross_sections.xml index")
     cases = {}
     control_cases = receipt.get("cases", [])
     require(isinstance(control_cases, list), "MCNP imp0 control cases must be a JSON array")
@@ -467,6 +516,7 @@ def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
         diagnostics = row.get("diagnostics", {})
         require(isinstance(diagnostics, dict), f"MCNP imp0 control diagnostics must be a JSON object for {name}")
         child = read_imp0_statepoint(statepoint)
+        require_imp0_control_statepoint_metadata(child, name)
         require(diagnostics.get("faris_mcnp_imp0_patch_version") == runtime["patch_version"],
                 f"MCNP imp0 statepoint version differs for {name}")
         require(diagnostics.get("faris_mcnp_imp0_kill_events") == total
@@ -481,8 +531,14 @@ def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
                 and child["cell_entry_kill_events"] == diagnostics["faris_mcnp_imp0_entry_kill_events"]
                 and child["lost_particles"] == diagnostics["faris_openmc_n_lost_particles"],
                 f"MCNP imp0 control diagnostics do not match child statepoint datasets for {name}")
-        require(row.get("solver_version") == OPENMC_REQUIRED,
-                f"MCNP imp0 control statepoint used an unexpected OpenMC version for {name}")
+        report_metadata = {"statepoint_current_batch": child["current_batch"],
+                            "statepoint_n_batches": child["n_batches"],
+                            "statepoint_n_particles": child["n_particles"],
+                            "statepoint_n_realizations": child["n_realizations"],
+                            "solver_version": child["solver_version"]}
+        for field, value in report_metadata.items():
+            require(row.get(field) == value,
+                    f"MCNP imp0 control report {field} differs from child statepoint for {name}")
         geometry_hash = row.get("geometry_xml_sha256", "")
         require(isinstance(geometry_hash, str) and re.fullmatch(r"[0-9a-f]{64}", geometry_hash) is not None,
                 f"MCNP imp0 control lacks final geometry XML hash for {name}")
@@ -512,7 +568,10 @@ def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
             "schema": receipt["schema"], "status": receipt["status"],
             "matched_runtime": {"executable_sha256": runtime["executable_sha256"],
                                 "linked_library_sha256": runtime["linked_library_sha256"],
-                                "patch_version": runtime["patch_version"]},
+                                "patch_version": runtime["patch_version"],
+                                "openmc_python_module_sha256": runtime["openmc_python_module_sha256"]},
+            "cross_sections_path": str(control_xs),
+            "cross_sections_sha256": recorded["cross_sections_sha256"],
             "case_names": sorted(cases)}
 
 
@@ -862,6 +921,11 @@ def command_run(args) -> int:
     runtime = selected_openmc_runtime_identity(executable_path, solver_env)
     require(runtime["executable_sha256"] == openmc_exe_sha256,
             "OpenMC CLI changed between discovery and linked-library capability check")
+    openmc_module_path = Path(openmc.__file__).resolve(strict=True)
+    runtime["openmc_python_module_path"] = str(openmc_module_path)
+    runtime["openmc_python_module_sha256"] = hash_file(openmc_module_path)
+    runtime["cross_sections_path"] = str(cross_sections)
+    runtime["cross_sections_xml_sha256"] = hash_file(cross_sections, MAX_CROSS_SECTIONS_XML_BYTES)
     control_receipt = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
 
     work = args.work_dir.expanduser().resolve()
