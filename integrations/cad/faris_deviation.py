@@ -127,21 +127,22 @@ def stack_parameters(params) -> dict:
 
 
 def is_convex_polygon_2d(polygon, tolerance):
-    """Conservative convexity check for an ordered polygon; rejects degeneracy and crossings."""
+    """Conservative convexity check using an absolute signed-distance tolerance."""
     p = np.asarray(polygon, dtype=np.float64)
     if p.ndim != 2 or p.shape[1] != 2 or len(p) < 3 or not np.isfinite(p).all():
         return False
     cross2 = lambda a, b: float(a[0] * b[1] - a[1] * b[0])
     area2 = sum(cross2(p[i], p[(i+1) % len(p)]) for i in range(len(p)))
-    if abs(area2) <= tolerance:
+    perimeter = sum(float(np.linalg.norm(p[(i+1) % len(p)] - p[i])) for i in range(len(p)))
+    if abs(area2) <= tolerance * perimeter:
         return False
     orientation = 1.0 if area2 > 0 else -1.0
     for i in range(len(p)):
         edge = p[(i+1) % len(p)] - p[i]
         if np.linalg.norm(edge) <= tolerance:
             return False
-        if any(orientation * cross2(edge, point-p[i]) < -tolerance * max(1.0, np.linalg.norm(edge))
-               for point in p):
+        edge_length = float(np.linalg.norm(edge))
+        if any(orientation * cross2(edge, point-p[i]) / edge_length < -tolerance for point in p):
             return False
     return True
 
@@ -591,13 +592,14 @@ class SolidFaces:
             origin, normal = params["o"], params["z"]
             if np.max(np.abs((p - origin) @ normal)) > eps:
                 continue
-            # Establish a local orthonormal frame, then require strictly consistent turns.
+            # Establish a local orthonormal frame and check every vertex against every edge.
             u = p[1] - p[0]
             u /= np.linalg.norm(u)
             v = np.cross(normal, u)
             xy = np.stack(((p-origin) @ u, (p-origin) @ v), axis=1)
             # Every polygon vertex must lie in the same closed half-plane of every edge.
-            if not is_convex_polygon_2d(xy, eps):
+            roundoff = 64.0 * np.finfo(np.float64).eps * max(1.0, float(np.abs(p).max()), float(np.abs(origin).max()))
+            if not is_convex_polygon_2d(xy, roundoff):
                 continue
             result.append((origin, normal, p))
         self._convex_planar_faces = result
@@ -977,14 +979,19 @@ def convex_planar_triangle_bound(triangle, face):
     cross2 = lambda a, b: float(a[0] * b[1] - a[1] * b[0])
     area2 = sum(cross2(poly2[i], poly2[(i+1) % len(poly2)]) for i in range(len(poly2)))
     orientation = 1.0 if area2 > 0 else -1.0
+    roundoff = 64.0 * np.finfo(np.float64).eps * max(
+        1.0, float(np.abs(origin).max()), float(np.abs(polygon).max()), float(np.abs(triangle).max()))
     bounds = []
     for point in triangle:
         rel = point - origin
         h = float(np.dot(rel, normal))
         q = rel - h * normal
         q2 = np.array([np.dot(q, u), np.dot(q, v)])
-        inside = all(orientation * cross2(poly2[(i+1) % len(poly2)]-poly2[i], q2-poly2[i]) >= -CLASSIFY_TOLERANCE
-                     for i in range(len(poly2)))
+        inside = all(
+            orientation * cross2(poly2[(i+1) % len(poly2)]-poly2[i], q2-poly2[i])
+            / np.linalg.norm(poly2[(i+1) % len(poly2)]-poly2[i]) >= -roundoff
+            for i in range(len(poly2))
+        )
         d2 = 0.0 if inside else min(_point_segment_distance_2d(q2, poly2[i], poly2[(i+1) % len(poly2)])
                                     for i in range(len(poly2)))
         bounds.append(math.hypot(h, d2))

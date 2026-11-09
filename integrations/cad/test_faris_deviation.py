@@ -71,10 +71,19 @@ if 'np' in globals():
                     point_bound = fd.convex_planar_triangle_bound(np.repeat(p[None], 3, axis=0), face)
                     self.assertLessEqual(point_bound, bound + 1e-12)
 
+        def test_short_polygon_edge_does_not_hide_outside_point(self):
+            face = (np.zeros(3), np.array([0., 0., 1.]),
+                    np.array([[0., 0., 0.], [1e-5, 0., 0.], [1e-5, 2e-5, 0.], [0., 2e-5, 0.]]))
+            point = np.array([1e-5 + 1e-3, 1e-5, 0.])
+            bound = fd.convex_planar_triangle_bound(np.repeat(point[None], 3, axis=0), face)
+            self.assertGreaterEqual(bound, 1e-3)
+            self.assertLess(bound, 1e-3 + 2e-6)
+
         def test_convexity_check_rejects_concavity_self_intersection_and_degeneracy(self):
             self.assertTrue(fd.is_convex_polygon_2d([[0, 0], [2, 0], [2, 2], [0, 2]], 1e-9))
             self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [2, 0], [1, 1], [2, 2], [0, 2]], 1e-9))
             self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [2, 2], [0, 2], [2, 0]], 1e-9))
+            self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [2, 0], [2, 2], [1, 2-1e-8], [0, 2]], 1e-12))
             self.assertFalse(fd.is_convex_polygon_2d([[0, 0], [1, 0], [2, 0]], 1e-9))
 
         @unittest.skipUnless(HAVE_CAD, "OpenCASCADE is unavailable")
