@@ -274,9 +274,17 @@ class OverlapPipeline(unittest.TestCase):
         self.assertEqual(result["h5m"]["sha256"], faris_cad.sha256_file(out_dir / "model.h5m"))
         self.assertTrue((out_dir / "model.producer.h5m").is_file())
         correction = result["h5m"]["faceting_tolerance_metadata"]
+        with h5py.File(out_dir / "model.h5m", "r") as converted_h5m:
+            dagmc_root_set_handle = int(converted_h5m["tstt/sets/list"].attrs["start_id"])
         self.assertEqual(correction["tag_name"], "FACETING_TOL")
         self.assertEqual(correction["tag_class"], "MB_TAG_SPARSE (1)")
-        self.assertEqual(correction["entity_handle"], 0)
+        self.assertGreater(dagmc_root_set_handle, 0)
+        self.assertEqual(correction["entity_handle"], dagmc_root_set_handle)
+        with h5py.File(out_dir / "model.h5m", "r") as converted_h5m:
+            self.assertEqual(
+                converted_h5m["tstt/tags/FACETING_TOL/id_list"][()].tolist(),
+                [dagmc_root_set_handle],
+            )
         self.assertEqual(correction["declared_mesher_tolerance_cm"], 0.1)
         self.assertTrue(correction["source_unchanged"])
         self.assertIn("not a certified maximum", correction["interpretation"])

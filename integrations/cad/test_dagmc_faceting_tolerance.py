@@ -19,6 +19,9 @@ def make_h5m(path: Path) -> None:
         tags = handle.create_group("tstt/tags")
         nodes = handle.create_group("tstt/nodes")
         nodes.create_dataset("coordinates", data=np.asarray([[0.0, 1.0, 2.0]], dtype=np.float64))
+        sets = handle.create_group("tstt/sets")
+        set_list = sets.create_dataset("list", data=np.asarray([[0, 0, 0, 0]], dtype=np.int64))
+        set_list.attrs["start_id"] = np.int64(41)
         old = tags.create_group("FACETING_TOLERANCE")
         old.attrs.create("class", 2, dtype=np.int32)
         old["type"] = np.dtype("f8")
@@ -50,7 +53,7 @@ class FacetingToleranceMetadata(unittest.TestCase):
                 self.assertEqual(int(tag.attrs["class"]), 1)
                 self.assertEqual(tag["type"].dtype, np.dtype("f8"))
                 self.assertEqual(tag["id_list"].dtype, np.dtype("u8"))
-                self.assertEqual(tag["id_list"][()].tolist(), [0])
+                self.assertEqual(tag["id_list"][()].tolist(), [41])
                 self.assertEqual(tag["values"].dtype, np.dtype("f8"))
                 self.assertEqual(tag["values"][()].tolist(), [0.05])
                 np.testing.assert_array_equal(handle["tstt/nodes/coordinates"][()], [[0.0, 1.0, 2.0]])
@@ -69,6 +72,17 @@ class FacetingToleranceMetadata(unittest.TestCase):
             with h5py.File(source, "r+") as handle:
                 handle["tstt/tags"].create_group("FACETING_TOL")
             with self.assertRaisesRegex(ValueError, "already has FACETING_TOL"):
+                correct_faceting_tolerance(source, destination, 0.05)
+            self.assertFalse(destination.exists())
+
+    def test_missing_serialized_geometry_root_handle_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source.h5m"
+            destination = Path(directory) / "corrected.h5m"
+            make_h5m(source)
+            with h5py.File(source, "r+") as handle:
+                del handle["tstt/sets/list"]
+            with self.assertRaisesRegex(ValueError, "sets/list start_id"):
                 correct_faceting_tolerance(source, destination, 0.05)
             self.assertFalse(destination.exists())
 

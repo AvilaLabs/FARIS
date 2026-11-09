@@ -3,7 +3,9 @@
 """Repair the DagMC faceting-tolerance metadata without changing the mesh.
 
 The installed DagMC reader asks MOAB for sparse double tag ``FACETING_TOL``
-on root entity 0.  Some cad_to_dagmc versions instead write a dense
+on the serialized DAGMC geometry root set. Its entity handle is the
+``start_id`` attribute of ``tstt/sets/list``; it is not MOAB's null/root
+handle 0. Some cad_to_dagmc versions instead write a dense
 ``FACETING_TOLERANCE`` tag containing a bounding-box heuristic.  This helper
 copies the source and writes the declared mesher tolerance into the exact
 MOAB sparse-root-tag representation.  It does not claim that the mesher
@@ -20,7 +22,17 @@ import shutil
 TAG_NAME = "FACETING_TOL"
 LEGACY_TAG_NAME = "FACETING_TOLERANCE"
 SPARSE_CLASS = 1  # moab::MB_TAG_SPARSE, from MOAB Types.hpp
-ROOT_HANDLE = 0
+
+
+def _geometry_root_handle(handle) -> int:
+    """Return the first serialized meshset handle used as DagMC's root set."""
+    sets = handle.get("tstt/sets/list")
+    if sets is None or "start_id" not in sets.attrs:
+        raise ValueError("not a DAGMC H5M: missing tstt/sets/list start_id")
+    root_handle = int(sets.attrs["start_id"])
+    if root_handle <= 0 or sets.shape[0] == 0:
+        raise ValueError("DAGMC H5M has no valid serialized geometry root set")
+    return root_handle
 
 
 def file_sha256(path: Path) -> str:
@@ -96,13 +108,14 @@ def _snapshot(handle, *, include_target: bool = False) -> dict[str, str]:
     return result
 
 
-def _validate_source(path: Path) -> tuple[dict[str, str], dict]:
+def _validate_source(path: Path) -> tuple[dict[str, str], dict, int]:
     import h5py
 
     with h5py.File(path, "r") as handle:
         if "tstt/tags" not in handle:
             raise ValueError("not a DAGMC H5M: missing tstt/tags")
         tags = handle["tstt/tags"]
+        root_handle = _geometry_root_handle(handle)
         if TAG_NAME in tags:
             raise ValueError(f"source already has {TAG_NAME}; refusing to overwrite existing metadata")
         if LEGACY_TAG_NAME not in tags:
@@ -112,15 +125,13 @@ def _validate_source(path: Path) -> tuple[dict[str, str], dict]:
             raise ValueError("legacy FACETING_TOLERANCE tag class differs from expected producer output")
         if "id_list" not in legacy or "values" not in legacy:
             raise ValueError("legacy FACETING_TOLERANCE root metadata is incomplete")
-        if list(map(int, legacy["id_list"][()])) != [ROOT_HANDLE]:
-            raise ValueError("legacy FACETING_TOLERANCE is not attached only to MOAB root entity 0")
         return _snapshot(handle), {
             "tag_name": LEGACY_TAG_NAME,
             "tag_class": int(legacy.attrs["class"]),
             "entity_handles": list(map(int, legacy["id_list"][()])),
             "values": list(map(float, legacy["values"][()])),
             "value_dtype": str(legacy["values"].dtype),
-        }
+        }, root_handle
 
 
 def correct_faceting_tolerance(source: Path, destination: Path, declared_tolerance_cm: float) -> dict:
@@ -143,7 +154,7 @@ def correct_faceting_tolerance(source: Path, destination: Path, declared_toleran
         raise ValueError("metadata correction requires a distinct destination")
     if os.path.lexists(destination):
         raise FileExistsError(f"destination already exists: {destination}")
-    before_datasets, legacy_metadata = _validate_source(source)
+    before_datasets, legacy_metadata, root_handle = _validate_source(source)
     source_hash = file_sha256(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with source.open("rb") as src, destination.open("xb") as dst:
@@ -156,15 +167,15 @@ def correct_faceting_tolerance(source: Path, destination: Path, declared_toleran
             tag = tags.create_group(TAG_NAME)
             tag["type"] = np.dtype("f8")
             tag.attrs.create("class", SPARSE_CLASS, dtype=np.int32)
-            tag.create_dataset("id_list", data=np.asarray([ROOT_HANDLE], dtype=np.uint64))
+            tag.create_dataset("id_list", data=np.asarray([root_handle], dtype=np.uint64))
             tag.create_dataset("values", data=np.asarray([tolerance], dtype=np.float64))
         with h5py.File(destination, "r") as handle:
             after_datasets = _snapshot(handle)
             tag = handle[f"tstt/tags/{TAG_NAME}"]
             if int(tag.attrs["class"]) != SPARSE_CLASS or tag["type"].dtype != np.dtype("f8"):
                 raise RuntimeError("corrected tag does not have MOAB sparse-double schema")
-            if list(map(int, tag["id_list"][()])) != [ROOT_HANDLE]:
-                raise RuntimeError("corrected tag is not attached to MOAB root entity 0")
+            if list(map(int, tag["id_list"][()])) != [root_handle]:
+                raise RuntimeError("corrected tag is not attached to the serialized DAGMC geometry root set")
             if tag["values"].dtype != np.dtype("f8") or tag["values"].shape != (1,):
                 raise RuntimeError("corrected root value is not one float64")
             if float(tag["values"][0]) != tolerance:
@@ -182,7 +193,7 @@ def correct_faceting_tolerance(source: Path, destination: Path, declared_toleran
         "corrected_sha256": file_sha256(destination),
         "tag_name": TAG_NAME,
         "tag_class": "MB_TAG_SPARSE (1)",
-        "entity_handle": ROOT_HANDLE,
+        "entity_handle": root_handle,
         "declared_mesher_tolerance_cm": tolerance,
         "legacy_tag_removed": LEGACY_TAG_NAME,
         "legacy_metadata_before": legacy_metadata,
