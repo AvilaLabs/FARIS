@@ -1390,11 +1390,12 @@ fn render_geometry(g: &GeometryRecords) -> String {
             "design-file"
         };
         out.push_str(&format!(
-            "\nFaceting chord selection: {source}; initial {:.6e} m; selected {}; {}/{} attempt(s){}\n",
+            "\nFaceting chord candidate: {source}; initial {:.6e} m; selected {}; status {}; {}/{} attempt(s){}\n",
             selection.initial_chord_m,
             selection
                 .selected_chord_m
                 .map_or("none".into(), |chord| format!("{chord:.6e} m")),
+            selection.candidate_status,
             selection.attempt_records.len(),
             selection.maximum_attempts,
             if selection.exhausted { "; refinement exhausted" } else { "" },

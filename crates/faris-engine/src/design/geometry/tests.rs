@@ -20,6 +20,8 @@ struct Geo {
     tess: Facets,
     booleans: RefCell<Vec<BooleanResult>>,
     convert_failure: Option<String>,
+    convert_failure_after: Option<usize>,
+    convert_unavailable_after: Option<usize>,
     deviation: Option<Vec<DeviationRow>>,
     stochastic_volume_exceeded: bool,
     stochastic_volume_unavailable: bool,
@@ -104,7 +106,19 @@ impl Backends for Geo {
     fn convert(&self, r: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
         self.bump(2);
         self.conversion_chords.borrow_mut().push(r.chord_cm / 100.0);
-        if let Some(why) = &self.convert_failure {
+        if self
+            .convert_unavailable_after
+            .is_some_and(|after| self.count(2) > after as u32)
+        {
+            return Ok(ToolResult::Unavailable {
+                why: "the CAD converter became unavailable during refinement".into(),
+                next_step: "Configure the CAD converter and check again.".into(),
+            });
+        }
+        if let Some(why) = self.convert_failure.as_ref().filter(|_| {
+            self.convert_failure_after
+                .map_or(true, |after| self.count(2) > after as u32)
+        }) {
             return Ok(ToolResult::Failed {
                 why: why.clone(),
                 next_step: "Fix it.".into(),
@@ -278,6 +292,8 @@ fn geo() -> Geo {
         tess: separate_boxes(&[([-10.0; 3], [10.0; 3]), ([30.0; 3], [32.0; 3])]),
         booleans: RefCell::new(Vec::new()),
         convert_failure: None,
+        convert_failure_after: None,
+        convert_unavailable_after: None,
         deviation: Some(vec![
             DeviationRow {
                 volume: 1,
@@ -415,7 +431,10 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     let adaptive = g.adaptive_chord.as_ref().unwrap();
     assert!(adaptive.was_default && !adaptive.exhausted);
     assert_eq!(adaptive.attempt_records.len(), 1);
-    assert_eq!(adaptive.attempt_records[0].status, "VOLUME_GATE_PASSED");
+    assert_eq!(
+        adaptive.attempt_records[0].status,
+        "VOLUME_AND_BINDING_GATES_PASSED"
+    );
     let gate = g.volume_gate.as_ref().unwrap();
     assert_eq!(gate.tolerance_source, "default");
     assert!(gate.solids.iter().all(|s| s.verdict == "WITHIN"));
@@ -478,6 +497,27 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
             .len(),
         DEFAULT_CHORD_ATTEMPTS
     );
+    let expected_chords: Vec<f64> = (0..DEFAULT_CHORD_ATTEMPTS)
+        .map(|attempt| DEFAULT_CHORD_M / 2.0_f64.powi(attempt as i32))
+        .collect();
+    let observed_chords = backend.conversion_chords.borrow();
+    assert_eq!(observed_chords.len(), expected_chords.len());
+    for (index, (observed, expected)) in observed_chords.iter().zip(&expected_chords).enumerate() {
+        assert!(
+            (observed - expected).abs() <= expected.abs() * 1.0e-12,
+            "attempt {} used chord {observed:.6e}, expected {expected:.6e}",
+            index + 1
+        );
+    }
+    assert_eq!(
+        report
+            .geometry
+            .adaptive_chord
+            .as_ref()
+            .unwrap()
+            .candidate_status,
+        "RETAINED_VOLUME_GATE_FAILURE"
+    );
     // the same model at a tolerance the user set is judged at 0.5 %, and the report says so
     d.cad.faceting_tolerance_m = Some(1.0e-3);
     let report = run_with(&d, &backend);
@@ -532,12 +572,16 @@ fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_ch
     assert!(adaptive.was_default && !adaptive.exhausted);
     assert_eq!(adaptive.attempt_records.len(), 2);
     assert_eq!(adaptive.attempt_records[0].status, "REFINEMENT_REQUIRED");
-    assert_eq!(adaptive.attempt_records[1].status, "VOLUME_GATE_PASSED");
+    assert_eq!(
+        adaptive.attempt_records[1].status,
+        "VOLUME_AND_BINDING_GATES_PASSED"
+    );
     assert_ne!(
         adaptive.attempt_records[0].facets_sha256,
         adaptive.attempt_records[1].facets_sha256
     );
     assert_eq!(adaptive.selected_chord_m, Some(selected));
+    assert_eq!(adaptive.candidate_status, "VOLUME_AND_BINDING_GATES_PASSED");
     assert_eq!(
         backend.conversion_chords.borrow().as_slice(),
         &[DEFAULT_CHORD_M, selected]
@@ -558,6 +602,56 @@ fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_ch
         report.geometry.conversion.as_ref().unwrap().chord_cm,
         selected * 100.0
     );
+}
+
+#[test]
+fn later_conversion_failure_marks_the_previous_candidate_as_retained_not_accepted() {
+    let mut backend = geo();
+    backend
+        .conversion_candidates
+        .borrow_mut()
+        .push(shell_and_core(10.01, 2.0));
+    backend.convert_failure = Some("the refined conversion failed".into());
+    backend.convert_failure_after = Some(1);
+
+    let report = run_with(&design(Vec::new()), &backend);
+
+    assert_eq!(statuses(&report), [(6, Fail)]);
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert_eq!(adaptive.selected_chord_m, Some(DEFAULT_CHORD_M));
+    assert_eq!(
+        adaptive.candidate_status,
+        "RETAINED_AFTER_CONVERSION_FAILURE"
+    );
+    assert_eq!(adaptive.attempt_records.len(), 2);
+    assert_eq!(adaptive.attempt_records[0].status, "REFINEMENT_REQUIRED");
+    assert_eq!(adaptive.attempt_records[1].status, "CONVERSION_FAILED");
+    assert_eq!(report.geometry.conversion.as_ref().unwrap().chord_cm, 0.1);
+}
+
+#[test]
+fn later_conversion_unavailability_marks_the_previous_candidate_as_unusable_for_readiness() {
+    let mut backend = geo();
+    backend
+        .conversion_candidates
+        .borrow_mut()
+        .push(shell_and_core(10.01, 2.0));
+    backend.convert_unavailable_after = Some(1);
+
+    let report = run_with(&design(Vec::new()), &backend);
+
+    assert_eq!(statuses(&report), [(6, NotEvaluated)]);
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert_eq!(adaptive.selected_chord_m, Some(DEFAULT_CHORD_M));
+    assert_eq!(
+        adaptive.candidate_status,
+        "RETAINED_AFTER_CONVERSION_UNAVAILABLE"
+    );
+    assert_eq!(adaptive.attempt_records.len(), 2);
+    assert_eq!(adaptive.attempt_records[0].status, "REFINEMENT_REQUIRED");
+    assert_eq!(adaptive.attempt_records[1].status, "CONVERSION_UNAVAILABLE");
+    assert_eq!(report.geometry.conversion.as_ref().unwrap().chord_cm, 0.1);
+    assert!(report.geometry.volume_gate.is_none());
 }
 
 #[test]

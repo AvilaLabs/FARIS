@@ -423,8 +423,9 @@ pub struct ConversionAttemptRecord {
     pub chord_m: f64,
     pub directory: String,
     pub reused: bool,
-    /// `VOLUME_GATE_PASSED`, `REFINEMENT_REQUIRED`, `BINDING_FAILED`, `MODEL_INVALID`,
-    /// `CONVERSION_FAILED`, `CONVERSION_UNAVAILABLE`, or `TIME_BUDGET_EXHAUSTED`.
+    /// `VOLUME_AND_BINDING_GATES_PASSED`, `REFINEMENT_REQUIRED`, `VOLUME_GATE_FAILED`,
+    /// `VOLUME_GATE_EXHAUSTED`, `BINDING_FAILED`, `MODEL_INVALID`, `CONVERSION_FAILED`,
+    /// `CONVERSION_UNAVAILABLE`, or `TIME_BUDGET_EXHAUSTED`.
     pub status: String,
     pub h5m_sha256: Option<String>,
     pub facets_sha256: Option<String>,
@@ -443,8 +444,14 @@ pub struct AdaptiveChordRecord {
     pub was_default: bool,
     pub initial_chord_m: f64,
     pub maximum_attempts: usize,
+    /// Shared converter subprocess budget. The following per-solid tessellation and overlap
+    /// stages retain their own existing timeouts.
     pub conversion_budget_seconds: u64,
     pub selected_chord_m: Option<f64>,
+    /// Conversion-candidate outcome from volume and binding checks only. It does not represent
+    /// the overall import verdict; overlap, integrity, deviation, source and transport checks
+    /// may still block readiness.
+    pub candidate_status: String,
     pub exhausted: bool,
     pub attempt_records: Vec<ConversionAttemptRecord>,
 }
@@ -813,6 +820,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     }
     let mut waivers = Waivers::new(&design.waivers);
     let mut chord_m = design.cad.faceting_tolerance_m.unwrap_or(DEFAULT_CHORD_M);
+    let initial_chord_m = chord_m;
     let shape_unit_m = if inspection.unit.declared.is_some() {
         1.0e-3
     } else {
@@ -977,10 +985,11 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     };
     let mut adaptive_chord = AdaptiveChordRecord {
         was_default,
-        initial_chord_m: chord_m,
+        initial_chord_m,
         maximum_attempts,
         conversion_budget_seconds: super::CONVERT_TIMEOUT.as_secs(),
         selected_chord_m: None,
+        candidate_status: "NOT_ATTEMPTED".into(),
         exhausted: false,
         attempt_records: Vec::new(),
     };
@@ -996,8 +1005,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
             if options.cancellation.is_cancelled() {
                 return Err(DesignError::Tool("the check was cancelled".into()));
             }
-            let attempt_chord_m = adaptive_chord_for_attempt(chord_m, was_default, attempt_index)
-                .expect("bounded chord schedule includes the requested attempt");
+            let attempt_chord_m =
+                adaptive_chord_for_attempt(initial_chord_m, was_default, attempt_index)
+                    .expect("bounded chord schedule includes the requested attempt");
             let attempt_dir = work
                 .join("convert")
                 .join(format!("attempt-{:02}", attempt_index + 1));
@@ -1120,7 +1130,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                         && ((!gate_findings.is_empty() && bound.findings.is_empty())
                             || volume_only_binding);
                     let status = if strict_pass {
-                        "VOLUME_GATE_PASSED"
+                        "VOLUME_AND_BINDING_GATES_PASSED"
                     } else if can_refine && attempt_index + 1 < maximum_attempts {
                         "REFINEMENT_REQUIRED"
                     } else if can_refine {
@@ -1342,6 +1352,29 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         }
     }
     adaptive_chord.selected_chord_m = converted.as_ref().map(|_| chord_m);
+    adaptive_chord.candidate_status = match (
+        converted.is_some(),
+        adaptive_chord
+            .attempt_records
+            .last()
+            .map(|attempt| attempt.status.as_str()),
+    ) {
+        (true, Some("VOLUME_AND_BINDING_GATES_PASSED")) => "VOLUME_AND_BINDING_GATES_PASSED",
+        (true, Some("VOLUME_GATE_FAILED" | "VOLUME_GATE_EXHAUSTED")) => {
+            "RETAINED_VOLUME_GATE_FAILURE"
+        }
+        (true, Some("BINDING_FAILED")) => "RETAINED_BINDING_FAILURE",
+        (true, Some("MODEL_INVALID")) => "RETAINED_INVALID_MODEL",
+        (true, Some("CONVERSION_FAILED")) => "RETAINED_AFTER_CONVERSION_FAILURE",
+        (true, Some("CONVERSION_UNAVAILABLE")) => "RETAINED_AFTER_CONVERSION_UNAVAILABLE",
+        (true, Some("TIME_BUDGET_EXHAUSTED")) => "RETAINED_AFTER_TIME_BUDGET_EXHAUSTION",
+        (true, _) => "RETAINED_CANDIDATE_NOT_ACCEPTED",
+        (false, Some("TIME_BUDGET_EXHAUSTED")) => "NOT_EVALUATED_TIME_BUDGET_EXHAUSTED",
+        (false, Some("CONVERSION_UNAVAILABLE")) => "NOT_EVALUATED_CONVERSION_UNAVAILABLE",
+        (false, Some("CONVERSION_FAILED")) => "NO_SUCCESSFUL_CONVERSION",
+        (false, _) => "NOT_ATTEMPTED",
+    }
+    .into();
     if adaptive_chord
         .attempt_records
         .last()
