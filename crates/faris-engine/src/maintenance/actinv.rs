@@ -664,15 +664,7 @@ impl ActinvDecaySource {
     }
 
     fn environment(&self) -> Vec<(OsString, OsString)> {
-        let mut env: Vec<(OsString, OsString)> = ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"]
-            .into_iter()
-            .filter_map(|k| std::env::var_os(k).map(|v| (k.into(), v)))
-            .collect();
-        env.push((
-            "ACTINV_DATA_DIR".into(),
-            self.data_dir.clone().into_os_string(),
-        ));
-        env
+        crate::actinv_env::job_environment(std::env::vars_os(), Some(&self.data_dir))
     }
 
     /// Runs one tool through the job boundary; `Err("cancelled")` on cancellation.

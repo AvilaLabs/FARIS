@@ -1412,14 +1412,7 @@ pub fn zone_from_actinv_result(
 // ------------------------------------------------------------------ running --
 
 fn environment(config: &ActivationConfig) -> Vec<(std::ffi::OsString, std::ffi::OsString)> {
-    let mut env: Vec<_> = ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"]
-        .into_iter()
-        .filter_map(|k| std::env::var_os(k).map(|v| (k.into(), v)))
-        .collect();
-    if let Some(root) = config.data.library.ancestors().nth(3) {
-        env.push(("ACTINV_DATA_DIR".into(), root.as_os_str().to_owned()));
-    }
-    env
+    crate::actinv_env::job_environment(std::env::vars_os(), config.data.library.ancestors().nth(3))
 }
 
 fn run_actinv(

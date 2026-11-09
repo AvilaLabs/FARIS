@@ -6,6 +6,7 @@
 // those paths use is compiled but unused there.
 #![cfg_attr(target_arch = "wasm32", allow(dead_code, unused_imports))]
 
+mod actinv_env;
 pub mod activation;
 pub mod atomic_file;
 pub mod brief;

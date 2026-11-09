@@ -20,3 +20,12 @@ No restricted tool is bundled. Every program in a FARIS download is open source,
 Redistribution of nuclear data is not settled, which is why FARIS never ships it ([Nuclear data](nuclear-data.md)). If you keep a data library on a shared drive, check its terms first.
 
 If a tool you need sits behind an access-controlled library or a licence you have to sign, FARIS does not bundle it and a study never depends on it for a recorded result. FARIS records the identity of every tool and library a run used, so a reader can tell which ones to obtain.
+
+## ACTINV prepared-cache limitation
+
+The activation and maintenance adapters preserve ACTINV's cache location settings, including
+`ACTINV_CACHE_DIR`. The tested groupwise library creates a 275,493,400-byte prepared cache file on
+its first use, exceeding FARIS's 256 MiB per-file child-process limit. Cold preparation of that
+library therefore fails; FARIS does not raise the global limit automatically. A verified cache
+prepared with standalone ACTINV can be reused. The live adapter regressions exercise that warm
+cache path; a bounded cold-preparation path remains open work.

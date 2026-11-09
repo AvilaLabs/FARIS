@@ -386,6 +386,8 @@ basis.
 
 ### Fixed
 
+- ACTINV jobs now preserve the documented cache-root settings without inheriting unrelated environment
+  variables. Windows variable names retain their case-insensitive lookup and canonical output spelling.
 - The release gate now checks the plan's explicit VAL-023 access-outcome alternative without marking the
   benchmark validated or exempting other requirements. The recorded review distinguishes the public curve from
   the missing uncertainty, provenance and permitted-use basis needed for the complete benchmark.
