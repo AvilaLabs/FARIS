@@ -50,16 +50,19 @@ def input_deck(text: str) -> dict:
     """
     physical = [line.split("$", 1)[0].rstrip() for line in text.splitlines()]
     lines = []
+    source_lines = []
     for line in physical:
         # MCNP continuation lines start in columns 1-5 with blanks. Preserve all
         # numeric data lines for source and energy cards; drop blank/comment lines.
         if not line.strip() or line.lstrip().startswith("c ") or line.lstrip() == "c":
             continue
         lines.append(line.strip())
+        source_lines.append(line)
 
     cells = []
     surfaces = []
     data_start = None
+    surface_block = False
     for i, line in enumerate(lines):
         if re.match(r"^mode\s+n\b", line, re.I):
             data_start = i
@@ -72,7 +75,14 @@ def input_deck(text: str) -> dict:
             # in the first three post-id columns instead of guessing by position.
             if any(token.lower() in {"pz", "cz", "so", "px", "py", "s", "cx", "cy", "sz"}
                    for token in tokens[1:4]):
+                surface_block = True
                 surfaces.append(line)
+            elif not surface_block and cells and not source_lines[i][:5].strip():
+                # In MCNP fixed-format cell blocks, a blank first five columns
+                # denotes continuation. Preserve it on the preceding card so
+                # importance/material identity cannot be lost or misread as a
+                # second cell whose ID happens to be the first surface number.
+                cells[-1] += " " + line
             else:
                 cells.append(line)
     if data_start is None or not cells or not surfaces:

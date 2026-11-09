@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Avila Labs
 import importlib.util
 import math
+import json
 import subprocess
 import sys
 import unittest
@@ -30,8 +31,8 @@ BM = load("fns_tof_build_manifest", CASE / "build_manifest.py")
 
 DECK = """FNS synthetic mapping fixture
 c
-1 1 -1.0 -1
-2 0 1
+1 1 -1.0 -1 imp:n=1
+2 0 1 imp:n=1
 1 so 1000
 mode n
 sdef erg=d1 pos=0 0 -5
@@ -120,16 +121,194 @@ class FnsTofHelpers(unittest.TestCase):
         parsed = B.input_deck(DECK)
         self.assertEqual(R.require_vacuum_outer_sphere(Model(), parsed), 1)
         Model.geometry.get_all_surfaces = lambda: {1: type("Reflective", (), {"boundary_type": "reflective"})()}
-        with self.assertRaisesRegex(ValueError, "expected vacuum"):
+        with self.assertRaisesRegex(ValueError, "no verified imp0 cell marker"):
             R.require_vacuum_outer_sphere(Model(), parsed)
+        Model.geometry.get_all_surfaces = lambda: {1: type("Transmission", (), {"boundary_type": "transmission"})()}
+        mapping = {"cells": [{"action": "kill_on_entry_marker_required", "source_region_surface_ids": [1]}]}
+        self.assertEqual(R.require_vacuum_outer_sphere(Model(), parsed, mapping), 1)
 
     def test_transformed_surface_cards_are_not_misclassified_as_cells(self):
         parsed = B.input_deck(DECK.replace("1 so 1000", "1 7 so 1000"))
         self.assertIn("1 7 so 1000", parsed["surface_cards"])
 
     def test_cell_id_allocator_sees_source_cells_removed_from_converted_universe(self):
-        parsed = B.input_deck(DECK.replace("2 0 1\n", "2 0 1\n5 0 -1 imp:n=0\n"))
+        parsed = B.input_deck(DECK.replace("2 0 1 imp:n=1\n", "2 0 1 imp:n=1\n5 0 -1 imp:n=0\n"))
         self.assertEqual(R.mcnp_cell_ids(parsed), [1, 2, 5])
+
+    def test_cell_continuations_are_joined_before_identity_and_importance_parsing(self):
+        deck = DECK.replace("2 0 1 imp:n=1\n", "2 0 1 imp:n=1\n3 0 -1 :\n     2 -3 imp:n=1\n")
+        parsed = B.input_deck(deck)
+        self.assertEqual(R.mcnp_cell_ids(parsed), [1, 2, 3])
+        self.assertIn("2 -3 imp:n=1", parsed["cell_cards"][2])
+        self.assertEqual(R.mcnp_cell_semantics(parsed)[2]["neutron_importance"], 1.0)
+
+    def test_cell_actions_mark_retained_imp0_and_accept_only_verified_vacuum_removals(self):
+        class Cell:
+            def __init__(self, fill=None):
+                self.fill = fill
+        class Surface:
+            boundary_type = "vacuum"
+        source = [
+            {"mcnp_cell_id": 4, "material_id": 0, "neutron_importance": 0.0,
+             "source_region_signature": ["(", "2", ":", "-3", ")", "-10"]},
+            {"mcnp_cell_id": 5, "material_id": 0, "neutron_importance": 0.0,
+             "source_region_signature": ["10"]},
+        ]
+        actions = R.verified_cell_actions(source, {4: "(2 : -3) -10", 5: "10"},
+                                          {4: Cell()}, {10: Surface()})
+        self.assertEqual([row["action"] for row in actions],
+                         ["kill_on_entry_marker_required", "single_halfspace_vacuum_boundary"])
+        with self.assertRaisesRegex(ValueError, "single-halfspace vacuum mapping"):
+            R.verified_cell_actions([source[0]], {4: "(2 : -3) -10"}, {}, {10: Surface()})
+
+    def test_patch_runtime_ldd_parser_requires_one_resolved_library(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            library = Path(temp) / "libopenmc.so"
+            library.write_bytes(b"metadata-only fixture")
+            got = R.parse_ldd_openmc_library(f"libopenmc.so => {library} (0xabc)\n")
+            self.assertEqual(got, library.resolve())
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                R.parse_ldd_openmc_library("libopenmc.so => not found\n")
+
+    def test_selected_cli_runtime_probe_binds_exact_linked_library_capability(self):
+        import tempfile
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cli, lib = root / "openmc", root / "libopenmc.so"
+            cli.write_bytes(b"cli"); lib.write_bytes(b"library")
+            def runner(command, **_kwargs):
+                if command[0] == "ldd":
+                    return SimpleNamespace(returncode=0, stdout=f"libopenmc.so => {lib} (0xabc)\n", stderr="")
+                return SimpleNamespace(returncode=0, stdout="1\n", stderr="")
+            identity = R.selected_openmc_runtime_identity(cli, {}, runner=runner, python="python-test")
+            self.assertEqual(identity["linked_library_sha256"], R.hash_file(lib))
+            self.assertEqual(identity["patch_version"], 1)
+            with self.assertRaisesRegex(ValueError, "LD_PRELOAD/LD_AUDIT"):
+                R.selected_openmc_runtime_identity(cli, {"LD_PRELOAD": "/tmp/override.so"},
+                                                   runner=runner, python="python-test")
+            with self.assertRaisesRegex(ValueError, "LD_LIBRARY_PATH entries"):
+                R.selected_openmc_runtime_identity(cli, {"LD_LIBRARY_PATH": "."},
+                                                   runner=runner, python="python-test")
+            def missing_patch(command, **_kwargs):
+                if command[0] == "ldd":
+                    return SimpleNamespace(returncode=0, stdout=f"libopenmc.so => {lib} (0xabc)\n", stderr="")
+                return SimpleNamespace(returncode=1, stdout="", stderr="missing symbol")
+            with self.assertRaisesRegex(ValueError, "lacks the FARIS"):
+                R.selected_openmc_runtime_identity(cli, {}, runner=missing_patch, python="python-test")
+
+    def test_patch_version_and_statepoint_integer_fields_fail_closed(self):
+        class Dataset:
+            def __init__(self, shape, data):
+                self.shape = shape
+                self.data = data
+            def __getitem__(self, key):
+                return self.data
+        self.assertEqual(R.scalar_int_dataset(Dataset((), 7), "count"), 7)
+        with self.assertRaisesRegex(ValueError, "integer"):
+            R.scalar_int_dataset(Dataset((), 1.5), "count")
+        R.require_imp0_patch_version(1)
+        with self.assertRaisesRegex(ValueError, "expected 1"):
+            R.require_imp0_patch_version(0)
+
+    def test_imp0_statepoint_reader_uses_child_datasets_and_separates_lost_count(self):
+        from unittest.mock import patch
+        class Dataset:
+            def __init__(self, value):
+                self.shape = ()
+                self.value = value
+            def __getitem__(self, _key):
+                return self.value
+        class H5File(dict):
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+        fields = {
+            R.FARIS_IMP0_PATCH_VERSION_DATASET: Dataset(1),
+            R.FARIS_IMP0_PATCH_KILL_EVENTS_DATASET: Dataset(7),
+            R.FARIS_IMP0_PATCH_BIRTH_KILL_DATASET: Dataset(2),
+            R.FARIS_IMP0_PATCH_ENTRY_KILL_DATASET: Dataset(5),
+            R.FARIS_OPENMC_LOST_DATASET: Dataset(0),
+        }
+        fake_h5py = type("H5py", (), {"File": staticmethod(lambda *_args, **_kwargs: H5File(fields))})
+        with patch.dict(sys.modules, {"h5py": fake_h5py}):
+            result = R.read_imp0_statepoint(Path("statepoint.fake"))
+        self.assertEqual(result["intentional_kill_events"], 7)
+        self.assertEqual(result["source_birth_kill_events"], 2)
+        self.assertEqual(result["cell_entry_kill_events"], 5)
+        self.assertEqual(result["lost_particles"], 0)
+
+    def test_importance_marker_injection_is_sidecar_and_xml_hash_bound(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            geometry = root / "geometry.xml"
+            geometry.write_text("<?xml version='1.0'?>\n<geometry><cell id='4' region='-1'/></geometry>\n")
+            source_sha = "a" * 64
+            mapping = {"source_cell_id": 2, "source_birth_importance": 1.0,
+                       "required_patch_marker_cell_ids": [4], "cells": [
+                           {"mcnp_cell_id": 4, "openmc_cell_id": 4, "action": "kill_on_entry_marker_required"},
+                           {"mcnp_cell_id": 5, "openmc_cell_id": None, "action": "single_halfspace_vacuum_boundary"}]}
+            converter = {"source_commit": "deadbeef", "python_source_sha256": "b" * 64}
+            receipt = R.inject_importance_xml_markers(geometry, root / "importance.json", "case",
+                                                       source_sha, converter, mapping)
+            self.assertEqual(receipt["marker_cell_ids"], [4])
+            self.assertEqual(R.hash_file(geometry), receipt["final_geometry_sha256"])
+            self.assertEqual(R.load_verified_importance_sidecar(root / "importance.json",
+                                                                 receipt["sidecar_sha256"], source_sha)["case_id"], "case")
+            with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
+                R.load_verified_importance_sidecar(root / "importance.json", "0" * 64, source_sha)
+
+    def test_imp0_control_receipt_must_match_selected_runtime_and_all_child_controls(self):
+        import tempfile
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            case_rows = []
+            expected = {"entry_neutron": (1000, 0, 1000, [1.0, 0.5, 0.0], 1.0),
+                        "source_birth_neutron": (1000, 1000, 0, [0.0, 0.0, 0.0], 0.0),
+                        "marked_photon": (0, 0, 0, [1.0, 0.5, 0.5], 1.0),
+                        "unmarked_neutron": (0, 0, 0, [1.0, 0.5, 0.5], 1.0)}
+            for name, (total, birth, entry, flux, current) in expected.items():
+                sp = root / f"{name}.h5"
+                sp.write_bytes(name.encode())
+                case_rows.append({"case": {"name": name}, "statepoint": str(sp),
+                                  "statepoint_sha256": R.hash_file(sp), "geometry_xml_sha256": "c" * 64,
+                                  "solver_version": "0.15.3", "cell_flux_means_per_source": flux,
+                                  "middle_surface_current_mean_per_source": current,
+                                  "expected": {"kill": total, "birth": birth, "entry": entry,
+                                               "flux": flux, "current": current},
+                                  "diagnostics": {"faris_mcnp_imp0_patch_version": 1,
+                                                  "faris_mcnp_imp0_kill_events": total,
+                                                  "faris_mcnp_imp0_birth_kill_events": birth,
+                                                  "faris_mcnp_imp0_entry_kill_events": entry,
+                                                  "faris_openmc_n_lost_particles": 0}})
+            cli, lib = root / "openmc", root / "libopenmc.so"
+            cli.write_bytes(b"cli"); lib.write_bytes(b"lib")
+            runtime = {"executable_path": str(cli.resolve()), "executable_sha256": R.hash_file(cli),
+                       "linked_library_path": str(lib.resolve()), "linked_library_sha256": R.hash_file(lib),
+                       "patch_version": 1}
+            control = {"schema": "faris.openmc-mcnp-imp0-control/1.0.0", "status": "PASS",
+                       "runtime": {"selected_cli_path": str(cli), "selected_cli_sha256": runtime["executable_sha256"],
+                                   "selected_linked_library_path": str(lib),
+                                   "selected_linked_library_sha256": runtime["linked_library_sha256"],
+                                   "faris_patch_version_symbol": 1,
+                                   "openmc_python_version": "0.15.3",
+                                   "python_path": str(Path(sys.executable).resolve()),
+                                   "python_sha256": R.hash_file(Path(sys.executable).resolve())}, "cases": case_rows}
+            path = root / "control.json"; path.write_text(json.dumps(control))
+            def statepoint_reader(statepoint):
+                total, birth, entry, _flux, _current = expected[statepoint.stem]
+                return {"patch_version": 1, "intentional_kill_events": total,
+                        "source_birth_kill_events": birth, "cell_entry_kill_events": entry,
+                        "lost_particles": 0}
+            with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
+                self.assertEqual(R.verify_imp0_control_receipt(path, runtime)["status"], "PASS")
+            control["cases"][0]["diagnostics"]["faris_mcnp_imp0_kill_events"] = 0
+            path.write_text(json.dumps(control))
+            with patch.object(R, "read_imp0_statepoint", side_effect=statepoint_reader):
+                with self.assertRaisesRegex(ValueError, "kill-counter control failed"):
+                    R.verify_imp0_control_receipt(path, runtime)
 
     def test_record_mapping_binds_source_f5_to_actual_openmc_tally_and_filter_ids(self):
         filters = [type("CellFilter", (), {"id": 81})(), type("EnergyFilter", (), {"id": 82})()]

@@ -52,6 +52,16 @@ MAX_THREADS = 8
 MAX_WALL_SECONDS = 10_800
 MAX_SOURCE_BYTES = 2_000_000
 MAX_CROSS_SECTIONS_XML_BYTES = 32_000_000
+MAX_MODEL_XML_BYTES = 64_000_000
+MAX_IMP0_CONTROL_BYTES = 2_000_000
+MAX_IMP0_CONTROL_STATEPOINT_BYTES = 256_000_000
+FARIS_IMP0_PATCH_VERSION_REQUIRED = 1
+FARIS_IMP0_PATCH_VERSION_SYMBOL = "faris_openmc_mcnp_imp0_patch_version"
+FARIS_IMP0_PATCH_KILL_EVENTS_DATASET = "faris_mcnp_imp0_kill_events"
+FARIS_IMP0_PATCH_VERSION_DATASET = "faris_mcnp_imp0_patch_version"
+FARIS_IMP0_PATCH_BIRTH_KILL_DATASET = "faris_mcnp_imp0_birth_kill_events"
+FARIS_IMP0_PATCH_ENTRY_KILL_DATASET = "faris_mcnp_imp0_entry_kill_events"
+FARIS_OPENMC_LOST_DATASET = "faris_openmc_n_lost_particles"
 
 
 def require(ok: bool, why: str) -> None:
@@ -96,6 +106,7 @@ def plan_document(manifest: dict, upstream: Path, cross_sections: Path, historie
     require(0 < threads <= MAX_THREADS, f"thread count must be in [1, {MAX_THREADS}]")
     _, deck_path, parsed = source_inputs(upstream, manifest)
     detector_count = len(manifest["detectors"])
+    source_cells = mcnp_cell_semantics(parsed["deck"])
     xml_bytes = cross_sections.read_bytes() if cross_sections.is_file() else b""
     require(len(xml_bytes) <= MAX_CROSS_SECTIONS_XML_BYTES, "cross_sections.xml exceeds bounded metadata limit")
     return {
@@ -104,6 +115,17 @@ def plan_document(manifest: dict, upstream: Path, cross_sections: Path, historie
         "input_sha256": hash_file(deck_path, MAX_SOURCE_BYTES),
         "detectors": len(parsed["deck"]["detectors"]), "responses": detector_count,
         "tables": len(manifest["adapter"]["tables"]), "missing_angles_deg": manifest["adapter"]["missing_table_angles_deg"],
+        "mcnp_neutron_importance": {
+            "source_cells": [{"mcnp_cell_id": row["mcnp_cell_id"],
+                               "material_id": row["material_id"],
+                               "neutron_importance": row["neutron_importance"],
+                               "source_card_sha256": row["source_card_sha256"],
+                               "source_region_sha256": row["source_region_sha256"]}
+                              for row in source_cells],
+            "runtime_patch_version_required": FARIS_IMP0_PATCH_VERSION_REQUIRED,
+            "runtime_control_receipt_required": True,
+            "translation": "retained zero-importance cells receive a checked typed XML marker; removed cells are accepted only for a single-halfspace vacuum boundary",
+        },
         "converter_dependency": {"distribution": "openmc_mcnp_adapter",
                                   "source_url": CONVERTER_SOURCE_URL,
                                   "source_commit": CONVERTER_COMMIT,
@@ -132,7 +154,7 @@ def histogram_source(openmc, parsed: dict):
     return openmc.stats.Tabular(spec["edges_ev"], spec["pdf_per_ev"], interpolation="histogram")
 
 
-def require_vacuum_outer_sphere(model, parsed: dict) -> int:
+def require_vacuum_outer_sphere(model, parsed: dict, importance_mapping: dict | None = None) -> int:
     """Check the converted 1000 cm MCNP SO boundary is a vacuum surface."""
     import re
     expected = []
@@ -143,8 +165,13 @@ def require_vacuum_outer_sphere(model, parsed: dict) -> int:
     require(len(expected) == 1, "source deck must have exactly one 1000 cm outer SO surface")
     surface = model.geometry.get_all_surfaces().get(expected[0])
     require(surface is not None, f"converted geometry lacks outer MCNP surface {expected[0]}")
-    require(surface.boundary_type == "vacuum",
-            f"converted outer MCNP surface {expected[0]} boundary is {surface.boundary_type!r}, expected vacuum")
+    if surface.boundary_type != "vacuum":
+        covered_by_marker = importance_mapping and any(
+            row["action"] == "kill_on_entry_marker_required"
+            and expected[0] in row["source_region_surface_ids"]
+            for row in importance_mapping["cells"])
+        require(bool(covered_by_marker),
+                f"converted outer MCNP surface {expected[0]} boundary is {surface.boundary_type!r}, and no verified imp0 cell marker covers it")
     return expected[0]
 
 
@@ -157,6 +184,395 @@ def mcnp_cell_ids(parsed: dict) -> list[int]:
         ids.append(int(match.group(1)))
     require(ids and len(ids) == len(set(ids)), "source cell cards have no IDs or duplicate IDs")
     return ids
+
+
+def mcnp_cell_semantics(parsed: dict) -> list[dict]:
+    """Read cell ID/material/neutron importance from joined source card text."""
+    rows = []
+    for line in parsed["cell_cards"]:
+        match = re.match(r"^\s*(\d+)\s+(\d+)\b", line)
+        require(match is not None, "unsupported source cell-card identity syntax")
+        importance = re.findall(r"\bimp\s*:\s*n\s*=\s*([-+0-9.eE]+)", line, flags=re.I)
+        require(len(importance) == 1, f"source cell {match.group(1)} must declare exactly one imp:n")
+        value = float(importance[0])
+        require(math.isfinite(value) and value >= 0, f"source cell {match.group(1)} has invalid imp:n")
+        tokens = line.split()
+        material_id = int(match.group(2))
+        importance_index = next(i for i, token in enumerate(tokens) if re.fullmatch(r"imp:n=.*", token, re.I))
+        region_start = 2 if material_id == 0 else 3
+        region_tokens = tokens[region_start:importance_index]
+        require(region_tokens, f"source cell {match.group(1)} has no parseable CSG region")
+        source_region_text = " ".join(region_tokens)
+        signature = re.findall(r"[+-]?\s*\d+|[:()]|#", source_region_text)
+        require("#" not in signature, f"source cell {match.group(1)} uses unsupported complemented-cell geometry")
+        signature = [re.sub(r"\s+", "", token) for token in signature]
+        require("".join(signature) == re.sub(r"\s+", "", source_region_text),
+                f"source cell {match.group(1)} uses unsupported CSG syntax")
+        rows.append({"mcnp_cell_id": int(match.group(1)), "material_id": int(match.group(2)),
+                     "neutron_importance": value, "source_card_sha256": sha256_bytes(line.encode("utf-8")),
+                     "source_region_signature": signature,
+                     "source_region_sha256": sha256_bytes(" ".join(signature).encode("utf-8"))})
+    ids = [row["mcnp_cell_id"] for row in rows]
+    require(ids and len(ids) == len(set(ids)), "source cell cards have no IDs or duplicate IDs")
+    return rows
+
+
+def verified_cell_actions(source_rows: list[dict], source_regions: dict[int, str],
+                          converted_cells: dict[int, object], surfaces: dict[int, object]) -> list[dict]:
+    """Join MCNP cells to converted cells by ID and prove the zero-importance action."""
+    mappings = []
+    for source in source_rows:
+        cell_id = source["mcnp_cell_id"]
+        importance = source["neutron_importance"]
+        region = source_regions.get(cell_id)
+        require(region is not None, f"converter source parse lacks MCNP cell {cell_id}")
+        require("#" not in region, f"MCNP cell {cell_id} uses an unsupported complement region in the zero-importance mapping")
+        converter_signature = [re.sub(r"\s+", "", token)
+                               for token in re.findall(r"[+-]?\s*\d+|[:()]|#", region)]
+        require("".join(converter_signature) == re.sub(r"\s+", "", region),
+                f"pinned converter source parse uses unsupported CSG syntax at cell {cell_id}")
+        require(converter_signature == source["source_region_signature"],
+                f"MCNP cell {cell_id} source CSG tokens differ from the pinned converter parse")
+        region_surface_ids = sorted({int(token) for token in re.findall(r"(?<![A-Za-z])[-+]?\s*(\d+)", region)})
+        converted = converted_cells.get(cell_id)
+        row = {**source, "openmc_cell_id": cell_id if converted is not None else None,
+               "converter_region_sha256": sha256_bytes(region.encode("utf-8")),
+               "source_region_surface_ids": region_surface_ids}
+        if converted is not None:
+            fill = converted.fill
+            if source["material_id"] == 0:
+                require(fill is None, f"MCNP void cell {cell_id} converted with a non-void fill")
+                row["openmc_material_id"] = 0
+            else:
+                require(fill is not None and getattr(fill, "id", None) == source["material_id"],
+                        f"MCNP cell {cell_id} material ID differs from converted OpenMC fill")
+                row["openmc_material_id"] = int(fill.id)
+            row["action"] = "kill_on_entry_marker_required" if importance == 0 else "retained_live_cell"
+        else:
+            require(importance == 0 and source["material_id"] == 0,
+                    f"MCNP nonzero-importance or material cell {cell_id} is missing from converted geometry")
+            simple_surface = re.fullmatch(r"\s*([+-]?\s*\d+)\s*", region)
+            require(simple_surface is not None,
+                    f"removed MCNP zero-importance cell {cell_id} is not a single-halfspace vacuum mapping")
+            surface_id = abs(int(simple_surface.group(1).replace(" ", "")))
+            surface = surfaces.get(surface_id)
+            require(surface is not None and surface.boundary_type == "vacuum",
+                    f"removed MCNP zero-importance cell {cell_id} surface {surface_id} is not a converted vacuum boundary")
+            row["openmc_cell_id"] = None
+            row["openmc_material_id"] = None
+            row["vacuum_boundary_surface_id"] = surface_id
+            row["action"] = "single_halfspace_vacuum_boundary"
+        mappings.append(row)
+    return mappings
+
+
+def verified_importance_mapping(model, deck_path: Path, parsed: dict) -> dict:
+    """Require an ID/material/region-backed action for every source cell."""
+    try:
+        from openmc_mcnp_adapter.parse import parse as parse_mcnp
+    except ImportError as exc:
+        raise ValueError("pinned openmc_mcnp_adapter parser is required for source-cell mapping") from exc
+    adapter_cells, _adapter_surfaces, _adapter_data = parse_mcnp(str(deck_path))
+    source_rows = mcnp_cell_semantics(parsed)
+    require(len(source_rows) == len(adapter_cells),
+            "independent source-card parser and pinned converter parser disagree on cell count")
+    source_regions = {}
+    by_id = {}
+    for cell in adapter_cells:
+        cell_id = int(cell["id"])
+        by_id[cell_id] = cell
+        source_regions[cell_id] = str(cell["region"])
+    for row in source_rows:
+        cell = by_id.get(row["mcnp_cell_id"])
+        require(cell is not None and int(cell["material"]) == row["material_id"],
+                f"source-cell ID/material differs between independent and converter parsers at cell {row['mcnp_cell_id']}")
+        parsed_imp = float(cell.get("parameters", {}).get("imp:n", "nan"))
+        require(math.isfinite(parsed_imp) and math.isclose(parsed_imp, row["neutron_importance"], rel_tol=0, abs_tol=0),
+                f"source-cell importance differs between independent and converter parsers at cell {row['mcnp_cell_id']}")
+    actions = verified_cell_actions(source_rows, source_regions,
+                                    model.geometry.get_all_cells(), model.geometry.get_all_surfaces())
+    source_point = tuple(float(x) for x in parsed["source_position_cm"])
+    located = model.geometry.find(source_point)
+    require(located, "converted geometry cannot locate the declared source point")
+    source_cell_id = int(located[-1].id)
+    source_row = next((row for row in actions if row["mcnp_cell_id"] == source_cell_id), None)
+    require(source_row is not None and source_row["neutron_importance"] > 0,
+            f"declared source is located in MCNP zero-importance cell {source_cell_id}; patched source-birth semantics are required")
+    return {"cells": actions, "source_cell_id": source_cell_id,
+            "source_birth_importance": source_row["neutron_importance"],
+            "required_patch_marker_cell_ids": [row["mcnp_cell_id"] for row in actions
+                                               if row["action"] == "kill_on_entry_marker_required"]}
+
+
+def parse_ldd_openmc_library(output: str) -> Path:
+    """Find the one libopenmc selected by the dynamic loader for the CLI."""
+    found = []
+    for line in output.splitlines():
+        tokens = line.strip().split()
+        if not tokens:
+            continue
+        if tokens[0].startswith("libopenmc.so") and len(tokens) >= 3 and tokens[1] == "=>" and tokens[2] != "not":
+            found.append(Path(tokens[2]))
+        elif tokens[0].startswith("/") and "libopenmc.so" in tokens[0]:
+            found.append(Path(tokens[0]))
+    unique = list(dict.fromkeys(found))
+    require(len(unique) == 1, f"selected OpenMC CLI must resolve exactly one libopenmc.so, found {len(unique)}")
+    return unique[0].resolve(strict=True)
+
+
+def require_imp0_patch_version(version: int) -> None:
+    require(version == FARIS_IMP0_PATCH_VERSION_REQUIRED,
+            f"selected OpenMC runtime reports MCNP imp0 patch version {version}, expected {FARIS_IMP0_PATCH_VERSION_REQUIRED}")
+
+
+def selected_openmc_runtime_identity(executable: Path, env: dict[str, str],
+                                     runner=subprocess.run, python: str = sys.executable) -> dict:
+    """Prove the selected CLI resolves a linked library with the required patch symbol."""
+    require(not env.get("LD_PRELOAD") and not env.get("LD_AUDIT"),
+            "LD_PRELOAD/LD_AUDIT can override the linked-library proof; clear them before the FNS run")
+    library_path = env.get("LD_LIBRARY_PATH", "")
+    if library_path:
+        entries = library_path.split(":")
+        require(all(entry and Path(entry).is_absolute() for entry in entries),
+                "LD_LIBRARY_PATH entries must be absolute and nonempty for the child-library proof")
+    linked = runner(["ldd", str(executable)], capture_output=True, text=True, env=env)
+    require(linked.returncode == 0, f"could not resolve selected OpenMC CLI shared libraries: {linked.stderr[-1000:]}")
+    library = parse_ldd_openmc_library(linked.stdout)
+    probe = ("import ctypes,sys; lib=ctypes.CDLL(sys.argv[1]); "
+             f"print(ctypes.c_int.in_dll(lib, {FARIS_IMP0_PATCH_VERSION_SYMBOL!r}).value)")
+    result = runner([python, "-c", probe, str(library)], capture_output=True, text=True, env=env)
+    require(result.returncode == 0,
+            "selected OpenMC CLI's linked libopenmc lacks the FARIS MCNP imp0 capability symbol")
+    try:
+        version = int(result.stdout.strip())
+    except ValueError as exc:
+        raise ValueError("selected OpenMC library returned a malformed MCNP imp0 capability version") from exc
+    require_imp0_patch_version(version)
+    return {"executable_path": str(executable.resolve(strict=True)),
+            "executable_sha256": hash_file(executable.resolve(strict=True)),
+            "linked_library_path": str(library), "linked_library_sha256": hash_file(library),
+            "patch_version_symbol": FARIS_IMP0_PATCH_VERSION_SYMBOL,
+            "patch_version": version, "capability_source": "ctypes probe of ldd-resolved libopenmc.so"}
+
+
+def scalar_int_dataset(value, name: str) -> int:
+    """Decode one scalar or one-element integer HDF5 dataset without coercion."""
+    shape = tuple(value.shape)
+    require(shape in {(), (1,)}, f"statepoint dataset {name} must contain exactly one scalar")
+    raw = value[()] if shape == () else value[0]
+    if hasattr(raw, "item"):
+        raw = raw.item()
+    require(isinstance(raw, int) and not isinstance(raw, bool),
+            f"statepoint dataset {name} must be an integer")
+    return raw
+
+
+def read_imp0_statepoint(path: Path) -> dict:
+    """Read the child solver's dedicated imp0 patch datasets from its statepoint."""
+    try:
+        import h5py
+    except ImportError as exc:
+        raise ValueError("h5py is required to verify MCNP imp:n=0 statepoint evidence") from exc
+    with h5py.File(path, "r") as statepoint:
+        require(FARIS_IMP0_PATCH_VERSION_DATASET in statepoint,
+                "statepoint omits child MCNP imp0 patch-version dataset")
+        require(FARIS_IMP0_PATCH_KILL_EVENTS_DATASET in statepoint,
+                "statepoint omits child MCNP imp0 intentional-kill dataset")
+        require(FARIS_IMP0_PATCH_BIRTH_KILL_DATASET in statepoint,
+                "statepoint omits child MCNP imp0 source-birth kill dataset")
+        require(FARIS_IMP0_PATCH_ENTRY_KILL_DATASET in statepoint,
+                "statepoint omits child MCNP imp0 entry kill dataset")
+        require(FARIS_OPENMC_LOST_DATASET in statepoint,
+                "statepoint omits the child OpenMC lost-particle counter")
+        version = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_VERSION_DATASET], FARIS_IMP0_PATCH_VERSION_DATASET)
+        kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_KILL_EVENTS_DATASET], FARIS_IMP0_PATCH_KILL_EVENTS_DATASET)
+        birth_kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_BIRTH_KILL_DATASET], FARIS_IMP0_PATCH_BIRTH_KILL_DATASET)
+        entry_kills = scalar_int_dataset(statepoint[FARIS_IMP0_PATCH_ENTRY_KILL_DATASET], FARIS_IMP0_PATCH_ENTRY_KILL_DATASET)
+        lost_particles = scalar_int_dataset(statepoint[FARIS_OPENMC_LOST_DATASET], FARIS_OPENMC_LOST_DATASET)
+    require_imp0_patch_version(version)
+    require(kills >= 0 and birth_kills >= 0 and entry_kills >= 0 and lost_particles >= 0,
+            "statepoint imp0 or lost-particle counters cannot be negative")
+    require(kills == birth_kills + entry_kills,
+            "statepoint total MCNP imp0 kills differ from birth+entry counters")
+    return {"patch_version": version, "intentional_kill_events": kills,
+            "source_birth_kill_events": birth_kills, "cell_entry_kill_events": entry_kills,
+            "lost_particles": lost_particles,
+            "source": "child statepoint datasets; imp0 kills and normal lost count are distinct"}
+
+
+def verify_imp0_control_receipt(path: Path, runtime: dict) -> dict:
+    """Require the small source-birth/entry/photon/unmarked control on this exact runtime."""
+    require(path.is_file(), "the patched OpenMC MCNP imp0 runtime-control receipt is required before any FNS transport")
+    require(path.stat().st_size <= MAX_IMP0_CONTROL_BYTES,
+            "MCNP imp0 control receipt exceeds the bounded JSON input size")
+    receipt = json.loads(path.read_text(encoding="utf-8"))
+    require(isinstance(receipt, dict), "MCNP imp0 control receipt must be a JSON object")
+    require(receipt.get("schema") == "faris.openmc-mcnp-imp0-control/1.0.0" and receipt.get("status") == "PASS",
+            "MCNP imp0 runtime-control receipt has wrong schema or did not pass")
+    recorded = receipt.get("runtime", {})
+    require(isinstance(recorded, dict), "MCNP imp0 control runtime identity must be a JSON object")
+    require(Path(recorded.get("selected_cli_path", "")).resolve() == Path(runtime["executable_path"]),
+            "MCNP imp0 control used a different OpenMC CLI path")
+    require(recorded.get("selected_cli_sha256") == runtime["executable_sha256"],
+            "MCNP imp0 control used a different OpenMC CLI binary")
+    require(Path(recorded.get("selected_linked_library_path", "")).resolve() == Path(runtime["linked_library_path"]),
+            "MCNP imp0 control used a different linked libopenmc path")
+    require(recorded.get("selected_linked_library_sha256") == runtime["linked_library_sha256"],
+            "MCNP imp0 control used a different linked libopenmc binary")
+    require(recorded.get("faris_patch_version_symbol") == runtime["patch_version"],
+            "MCNP imp0 control patch capability version differs from the selected runtime")
+    require(recorded.get("openmc_python_version") == OPENMC_REQUIRED,
+            "MCNP imp0 control used a different OpenMC Python API version")
+    require(Path(recorded.get("python_path", "")).resolve() == Path(sys.executable).resolve()
+            and recorded.get("python_sha256") == hash_file(Path(sys.executable).resolve(strict=True)),
+            "MCNP imp0 control used a different Python interpreter")
+    cases = {}
+    control_cases = receipt.get("cases", [])
+    require(isinstance(control_cases, list), "MCNP imp0 control cases must be a JSON array")
+    for row in control_cases:
+        require(isinstance(row, dict), "MCNP imp0 control case must be a JSON object")
+        case = row.get("case", {})
+        require(isinstance(case, dict), "MCNP imp0 control case identity must be a JSON object")
+        name = case.get("name")
+        require(name not in cases, f"MCNP imp0 control repeats case {name!r}")
+        cases[name] = row
+    expected = {
+        "entry_neutron": (1000, 0, 1000),
+        "source_birth_neutron": (1000, 1000, 0),
+        "marked_photon": (0, 0, 0),
+        "unmarked_neutron": (0, 0, 0),
+    }
+    require(set(cases) == set(expected), "MCNP imp0 control must contain all four required cases")
+    for name, (total, birth, entry) in expected.items():
+        row = cases[name]
+        require(isinstance(row.get("statepoint"), str), f"MCNP imp0 control statepoint path is invalid for {name}")
+        statepoint = Path(row["statepoint"])
+        if not statepoint.is_absolute():
+            statepoint = path.parent / statepoint
+        require(statepoint.is_file() and statepoint.stat().st_size <= MAX_IMP0_CONTROL_STATEPOINT_BYTES
+                and hash_file(statepoint) == row.get("statepoint_sha256"),
+                f"MCNP imp0 control statepoint missing or hash mismatch for {name}")
+        diagnostics = row.get("diagnostics", {})
+        require(isinstance(diagnostics, dict), f"MCNP imp0 control diagnostics must be a JSON object for {name}")
+        child = read_imp0_statepoint(statepoint)
+        require(diagnostics.get("faris_mcnp_imp0_patch_version") == runtime["patch_version"],
+                f"MCNP imp0 statepoint version differs for {name}")
+        require(diagnostics.get("faris_mcnp_imp0_kill_events") == total
+                and diagnostics.get("faris_mcnp_imp0_birth_kill_events") == birth
+                and diagnostics.get("faris_mcnp_imp0_entry_kill_events") == entry,
+                f"MCNP imp0 child kill-counter control failed for {name}")
+        require(diagnostics.get("faris_openmc_n_lost_particles") == 0,
+                f"MCNP imp0 control reports lost particles for {name}")
+        require(child["patch_version"] == diagnostics["faris_mcnp_imp0_patch_version"]
+                and child["intentional_kill_events"] == diagnostics["faris_mcnp_imp0_kill_events"]
+                and child["source_birth_kill_events"] == diagnostics["faris_mcnp_imp0_birth_kill_events"]
+                and child["cell_entry_kill_events"] == diagnostics["faris_mcnp_imp0_entry_kill_events"]
+                and child["lost_particles"] == diagnostics["faris_openmc_n_lost_particles"],
+                f"MCNP imp0 control diagnostics do not match child statepoint datasets for {name}")
+        require(row.get("solver_version") == OPENMC_REQUIRED,
+                f"MCNP imp0 control statepoint used an unexpected OpenMC version for {name}")
+        geometry_hash = row.get("geometry_xml_sha256", "")
+        require(isinstance(geometry_hash, str) and re.fullmatch(r"[0-9a-f]{64}", geometry_hash) is not None,
+                f"MCNP imp0 control lacks final geometry XML hash for {name}")
+        control_expected = row.get("expected", {})
+        require(isinstance(control_expected, dict), f"MCNP imp0 control expected values must be a JSON object for {name}")
+        require(control_expected.get("kill") == total and control_expected.get("birth") == birth
+                and control_expected.get("entry") == entry,
+                f"MCNP imp0 control expected counters differ for {name}")
+        flux = row.get("cell_flux_means_per_source", [])
+        expected_flux = control_expected.get("flux", [])
+        current = row.get("middle_surface_current_mean_per_source")
+        expected_current = control_expected.get("current")
+        require(isinstance(flux, list) and isinstance(expected_flux, list) and len(flux) == len(expected_flux) == 3,
+                f"MCNP imp0 control lacks all three cell-flux values for {name}")
+        try:
+            flux_ok = all(math.isfinite(float(value)) and math.isfinite(float(target))
+                          and abs(float(value) - float(target)) <= 1.0e-10
+                          for value, target in zip(flux, expected_flux, strict=True))
+            current_ok = (current is not None and expected_current is not None
+                          and math.isfinite(float(current)) and math.isfinite(float(expected_current))
+                          and abs(float(current) - float(expected_current)) <= 1.0e-10)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"MCNP imp0 control contains nonnumeric measurements for {name}") from exc
+        require(flux_ok, f"MCNP imp0 control live-cell flux checks failed for {name}")
+        require(current_ok, f"MCNP imp0 control surface-current check failed for {name}")
+    return {"path": str(path.resolve()), "sha256": hash_file(path),
+            "schema": receipt["schema"], "status": receipt["status"],
+            "matched_runtime": {"executable_sha256": runtime["executable_sha256"],
+                                "linked_library_sha256": runtime["linked_library_sha256"],
+                                "patch_version": runtime["patch_version"]},
+            "case_names": sorted(cases)}
+
+
+def load_verified_importance_sidecar(path: Path, expected_sha256: str, source_deck_sha256: str) -> dict:
+    raw = path.read_bytes()
+    require(sha256_bytes(raw) == expected_sha256, "MCNP importance sidecar SHA256 mismatch")
+    document = json.loads(raw)
+    require(document.get("schema") == "faris.fns-importance-map/1.0.0",
+            "unsupported MCNP importance sidecar schema")
+    require(document.get("source_deck_sha256") == source_deck_sha256,
+            "MCNP importance sidecar is bound to a different source deck")
+    ids = [row["mcnp_cell_id"] for row in document.get("cells", [])
+           if row.get("action") == "kill_on_entry_marker_required"]
+    require(ids and len(ids) == len(set(ids)), "MCNP importance sidecar has no unique marker targets")
+    return document
+
+
+def inject_importance_xml_markers(geometry_xml: Path, sidecar_path: Path, case_id: str,
+                                  source_deck_sha256: str, converter: dict,
+                                  importance_mapping: dict) -> dict:
+    """Write/read-back-check the cell mapping, then inject typed XML markers."""
+    marker_ids = importance_mapping["required_patch_marker_cell_ids"]
+    require(marker_ids, "no retained imp:n=0 cells require the patched OpenMC marker")
+    cells = importance_mapping["cells"]
+    payload = {"schema": "faris.fns-importance-map/1.0.0", "case_id": case_id,
+               "source_deck_sha256": source_deck_sha256,
+               "converter": {"source_commit": converter["source_commit"],
+                             "python_source_sha256": converter["python_source_sha256"]},
+               "source_cell_id": importance_mapping["source_cell_id"],
+               "source_birth_importance": importance_mapping["source_birth_importance"],
+               "cells": cells}
+    raw = (json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    require(not sidecar_path.exists(), f"refusing to overwrite MCNP importance sidecar: {sidecar_path}")
+    sidecar_path.write_bytes(raw)
+    sidecar_sha256 = sha256_bytes(raw)
+    checked = load_verified_importance_sidecar(sidecar_path, sidecar_sha256, source_deck_sha256)
+    checked_markers = {row["mcnp_cell_id"] for row in checked["cells"]
+                       if row["action"] == "kill_on_entry_marker_required"}
+    require(checked_markers == set(marker_ids), "checked sidecar marker set differs from the verified converter mapping")
+    require(geometry_xml.is_file() and geometry_xml.stat().st_size <= MAX_MODEL_XML_BYTES,
+            "exported geometry.xml is missing or exceeds its bounded size")
+    unmarked_sha256 = hash_file(geometry_xml, MAX_MODEL_XML_BYTES)
+    tree = ET.parse(geometry_xml)
+    require(tree.getroot().tag == "geometry", "OpenMC export did not produce standard geometry.xml")
+    nodes = {}
+    for node in tree.getroot().iter("cell"):
+        raw_id = node.get("id")
+        require(raw_id is not None, "geometry.xml cell has no ID")
+        cell_id = int(raw_id)
+        require(cell_id not in nodes, f"geometry.xml repeats cell ID {cell_id}")
+        nodes[cell_id] = node
+    for cell_id in marker_ids:
+        node = nodes.get(cell_id)
+        require(node is not None, f"geometry.xml lacks verified MCNP zero-importance cell {cell_id}")
+        require(node.get("region") is not None, f"marked OpenMC cell {cell_id} lacks a CSG region")
+        require(node.get("faris_neutron_importance") is None,
+                f"OpenMC cell {cell_id} already contains an unreviewed FARIS marker")
+        node.set("faris_neutron_importance", "0")
+    ET.indent(tree, space="  ")
+    tree.write(geometry_xml, encoding="utf-8", xml_declaration=True)
+    final_sha256 = hash_file(geometry_xml, MAX_MODEL_XML_BYTES)
+    verify_tree = ET.parse(geometry_xml)
+    final_markers = {int(node.get("id")) for node in verify_tree.getroot().iter("cell")
+                     if node.get("faris_neutron_importance") is not None}
+    require(final_markers == set(marker_ids), "final geometry.xml marker set differs from the checked sidecar")
+    for node in verify_tree.getroot().iter("cell"):
+        if node.get("faris_neutron_importance") is not None:
+            require(node.get("faris_neutron_importance") == "0", "unexpected FARIS neutron-importance marker value")
+    return {"sidecar_path": str(sidecar_path), "sidecar_sha256": sidecar_sha256,
+            "pre_injection_geometry_sha256": unmarked_sha256,
+            "final_geometry_path": str(geometry_xml), "final_geometry_sha256": final_sha256,
+            "marker_cell_ids": sorted(marker_ids)}
 
 
 def energy_edges_for_table(upstream: Path, table: dict, parsed: dict) -> tuple[list[float], list[dict]]:
@@ -267,7 +683,8 @@ def model_for_radius(openmc, deck_path: Path, upstream: Path, manifest: dict, pa
     # not reused. This prevents cross-model ID warnings without hiding warnings.
     openmc.reset_auto_ids()
     model = mcnp_to_model(str(deck_path))
-    require_vacuum_outer_sphere(model, parsed)
+    importance_mapping = verified_importance_mapping(model, deck_path, parsed)
+    require_vacuum_outer_sphere(model, parsed, importance_mapping)
     detector_cells = detector_cell_geometry(
         openmc, model, parsed["detectors"], radius,
         first_cell_id=max(mcnp_cell_ids(parsed)) + 1)
@@ -429,6 +846,12 @@ def command_run(args) -> int:
     except (ImportError, importlib.metadata.PackageNotFoundError) as exc:
         raise ValueError("openmc_mcnp_adapter must be installed from a pinned source checkout") from exc
 
+    solver_env = {**os.environ, "OMP_NUM_THREADS": str(args.threads), "OPENBLAS_NUM_THREADS": "1"}
+    runtime = selected_openmc_runtime_identity(executable_path, solver_env)
+    require(runtime["executable_sha256"] == openmc_exe_sha256,
+            "OpenMC CLI changed between discovery and linked-library capability check")
+    control_receipt = verify_imp0_control_receipt(args.imp0_control.expanduser().resolve(strict=True), runtime)
+
     work = args.work_dir.expanduser().resolve()
     fresh_dir(work)
     levels = []
@@ -436,13 +859,20 @@ def command_run(args) -> int:
     for index, radius in enumerate((2.5, 1.25, 0.625)):
         folder = work / f"radius-{radius:g}cm"
         folder.mkdir()
+        require(hash_file(executable_path) == runtime["executable_sha256"],
+                "selected OpenMC CLI changed after the imp0 control preflight")
+        require(hash_file(Path(runtime["linked_library_path"])) == runtime["linked_library_sha256"],
+                "selected linked libopenmc changed after the imp0 control preflight")
         model, finite_cells = model_for_radius(openmc, deck, upstream, manifest, parsed, radius,
                                                args.batches, args.particles, args.seed + index)
-        model.export_to_model_xml(str(folder / "model.xml"))
+        importance_mapping = verified_importance_mapping(model, deck, parsed)
+        model.export_to_xml(directory=str(folder))
+        importance_xml = inject_importance_xml_markers(
+            folder / "geometry.xml", folder / "mcnp-importance-map.json", manifest["case_id"],
+            hash_file(deck, MAX_SOURCE_BYTES), conv, importance_mapping)
         cmd = [str(executable_path)]
-        env = {**os.environ, "OMP_NUM_THREADS": str(args.threads), "OPENBLAS_NUM_THREADS": "1"}
         try:
-            completed = subprocess.run(cmd, cwd=folder, env=env, capture_output=True, text=True, timeout=args.timeout)
+            completed = subprocess.run(cmd, cwd=folder, env=solver_env, capture_output=True, text=True, timeout=args.timeout)
         except subprocess.TimeoutExpired as exc:
             def as_text(value):
                 return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else (value or "")
@@ -452,12 +882,23 @@ def command_run(args) -> int:
         require(completed.returncode == 0, f"OpenMC failed for radius {radius:g} cm; see {folder / 'openmc.log'}")
         statepoints = sorted(folder.glob("statepoint.*.h5"))
         require(len(statepoints) == 1, f"expected one statepoint for radius {radius:g} cm")
+        patch_statepoint = read_imp0_statepoint(statepoints[0])
+        require(patch_statepoint["patch_version"] == runtime["patch_version"],
+                "child statepoint MCNP imp0 version differs from the selected CLI library")
         bins = result_levels(openmc, manifest, parsed["detectors"], statepoints[0], radius)
         levels.append({"radius_cm": radius, "bins": bins})
         artifacts.append({"radius_cm": radius,
-                          "model_xml": {"path": str(folder / "model.xml"), "sha256": hash_file(folder / "model.xml")},
+                          "geometry_xml": {"path": str(folder / "geometry.xml"),
+                                           "sha256": importance_xml["final_geometry_sha256"],
+                                           "pre_injection_sha256": importance_xml["pre_injection_geometry_sha256"]},
+                          "importance_map": importance_xml,
+                          "materials_xml": {"path": str(folder / "materials.xml"), "sha256": hash_file(folder / "materials.xml")},
+                          "settings_xml": {"path": str(folder / "settings.xml"), "sha256": hash_file(folder / "settings.xml")},
+                          "tallies_xml": {"path": str(folder / "tallies.xml"), "sha256": hash_file(folder / "tallies.xml")},
                           "statepoint": {"path": str(statepoints[0]), "sha256": hash_file(statepoints[0])},
                           "openmc_log": {"path": str(folder / "openmc.log"), "sha256": hash_file(folder / "openmc.log")},
+                          "imp0_child_statepoint_diagnostics": patch_statepoint,
+                          "imp0_mapping": importance_mapping,
                           "openmc_tally_mapping": tally_identity_mapping(model)})
         artifacts[-1]["finite_detector_cells"] = {
             str(tally): {"openmc_detector_cell_id": info["cell"].id,
@@ -474,11 +915,12 @@ def command_run(args) -> int:
     require(set(results) == {d["id"] for d in manifest["detectors"]}, "run output does not include every declared response row")
     adapter_identity = adapter_code_identity()
     record = make_record(manifest, args.run_id or f"openmc-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}",
-                         {"library_sha256": library["sha256"], "code_version": f"OpenMC-{openmc.__version__}/Python-{platform.python_version()}",
+                         {"library_sha256": library["sha256"], "code_version": f"OpenMC-{openmc.__version__}/FARIS-imp0-{runtime['patch_version']}/Python-{platform.python_version()}",
                           "adapter_sha256": adapter_identity["sha256"]}, results,
                          {"adapter": "FNS-TOF spherical finite-volume approximation",
                           "adapter_code": adapter_identity, "converter": conv, "cross_sections": library,
                           "openmc_executable": {"path": str(executable_path), "sha256": openmc_exe_sha256},
+                          "patched_openmc_runtime": runtime, "imp0_control_receipt": control_receipt,
                           "python_version": platform.python_version(),
                           "source_deck_sha256": hash_file(deck), "source_histogram": parsed["source_histogram"],
                           "detector_mapping": parsed["detectors"], "particles_per_radius": args.particles,
@@ -519,6 +961,8 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--work-dir", type=Path, required=True)
     run.add_argument("--record", type=Path)
     run.add_argument("--openmc", default="openmc", help="OpenMC executable on PATH")
+    run.add_argument("--imp0-control", type=Path, required=True,
+                     help="passed four-case entry/source-birth/photon/unmarked patch control receipt for this exact CLI and linked library")
     run.add_argument("--particles", type=int, default=100_000)
     run.add_argument("--batches", type=int, default=100)
     run.add_argument("--threads", type=int, default=1)

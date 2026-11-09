@@ -66,6 +66,16 @@ Python source tree SHA256
 `a48ac7dede3729d6695f0848d15b2ddb43a9c0f1487be617cd70d0961ce633c1`). The run
 plan reports this pin; run records verify and retain the installed source hash.
 
+FNS cells with retained MCNP `imp:n=0` are marked through the optional FARIS
+OpenMC 0.15.3 benchmark patch using `faris_neutron_importance="0"`. The runner
+binds those markers to a checked sidecar of source cell IDs, materials and CSG
+region hashes, and records the post-injection `geometry.xml` hash. It checks the
+selected CLI's linked `libopenmc.so` capability and requires a passing four-case
+entry/source-birth/photon/unmarked control receipt bound to the same CLI and
+library before any FNS solver launch. It then reads the child solver's separate
+statepoint entry/birth-kill counters and normal lost-particle count. Stock
+OpenMC cannot use this path; no global reactor workflow is changed.
+
 Before any production run, the predeclared qualification requires two
 successive halvings from 2.5 to 1.25 to 0.625 cm. Every response bin must change
 by no more than 1%, both endpoint relative Monte Carlo standard errors must be
@@ -110,13 +120,24 @@ python3 validation/cases/fns-tof-jade-v1/run_case.py plan \
 ```
 
 After reviewing the plan and providing OpenMC 0.15.3, a compatible audited
-cross-section library, and a pinned `openmc_mcnp_adapter` installation, run:
+cross-section library, a pinned `openmc_mcnp_adapter` installation, and a
+passing patch control receipt for the exact CLI and linked library, run:
+
+```sh
+python3 integrations/openmc/risk_tests/imp0_entry_control.py \
+  --openmc-executable /path/to/patched/openmc \
+  --output-dir /path/to/new-imp0-control-directory
+```
+
+The receipt at `control.json` must match the executable and linked library used
+for the benchmark.
 
 ```sh
 python3 validation/cases/fns-tof-jade-v1/run_case.py run \
   --upstream /path/to/open-benchmarks \
   --manifest validation/cases/fns-tof-fe-20/manifest.json \
   --cross-sections /path/to/cross_sections.xml \
+  --imp0-control /path/to/new-imp0-control-directory/control.json \
   --work-dir /path/to/new-run-directory \
   --particles 100000 --batches 100 --threads 1 --timeout 3600 \
   --i-have-the-cpu
