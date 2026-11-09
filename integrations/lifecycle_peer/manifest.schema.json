@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avilalabs.invalid/schemas/faris-peer-lifecycle-comparison-0.1.0.json",
+  "title": "FARIS peer lifecycle comparison manifest",
+  "description": "Input contract for separate PROCESS and bluemira LifeCycle code-to-code runs. Every numeric assumption is provenance-tagged; unsupported mappings must be explicit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "comparison_id", "matched_inputs", "mapping", "faris", "peers", "limits"],
+  "properties": {
+    "schema": {"const": "faris-peer-lifecycle-comparison/0.1.0"},
+    "comparison_id": {"type": "string", "minLength": 1},
+    "matched_inputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plant_horizon_years", "net_electric_power_mw", "component_lifetimes_years", "parallel_remote_handling_systems", "assumptions"],
+      "properties": {
+        "plant_horizon_years": {"$ref": "#/$defs/year"},
+        "net_electric_power_mw": {"$ref": "#/$defs/netPower"},
+        "component_lifetimes_years": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["component", "lifetime", "replacement_duration_days", "source"],
+            "properties": {
+              "component": {"type": "string", "minLength": 1},
+              "lifetime": {"$ref": "#/$defs/year"},
+              "replacement_duration_days": {"$ref": "#/$defs/day"},
+              "source": {"$ref": "#/$defs/source"}
+            }
+          }
+        },
+        "parallel_remote_handling_systems": {"$ref": "#/$defs/count"},
+        "assumptions": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "value", "unit", "source"],
+            "properties": {"name": {"type": "string", "minLength": 1}, "value": {}, "unit": {"type": "string", "minLength": 1}, "source": {"$ref": "#/$defs/source"}}
+          }
+        }
+      }
+    },
+    "mapping": {
+      "type": "object", "additionalProperties": false, "required": ["process", "bluemira"],
+      "properties": {"process": {"$ref": "#/$defs/mappings"}, "bluemira": {"$ref": "#/$defs/mappings"}}
+    },
+    "faris": {
+      "type": "object", "additionalProperties": false, "required": ["fixed", "computed"],
+      "properties": {"fixed": {"$ref": "#/$defs/artifact"}, "computed": {"$ref": "#/$defs/artifact"}}
+    },
+    "peers": {
+      "type": "object", "additionalProperties": false, "required": ["process", "bluemira"],
+      "properties": {
+        "process": {
+          "type": "object", "additionalProperties": false,
+          "required": ["version", "executable", "input", "python"],
+          "properties": {"version": {"type": "string", "minLength": 1}, "executable": {"type": "string", "minLength": 1}, "python": {"type": "string", "minLength": 1}, "input": {"$ref": "#/$defs/file"}}
+        },
+        "bluemira": {
+          "type": "object", "additionalProperties": false,
+          "required": ["version", "python", "config", "rng_seed"],
+          "properties": {"version": {"type": "string", "minLength": 1}, "python": {"type": "string", "minLength": 1}, "config": {"$ref": "#/$defs/file"}, "rng_seed": {"type": "integer", "minimum": 0}}
+        }
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false, "required": ["timeout_seconds", "output_bytes"],
+      "properties": {"timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 86400}, "output_bytes": {"type": "integer", "minimum": 1024, "maximum": 2000000000}}
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "reference"],
+      "properties": {"kind": {"enum": ["authored", "literature", "measurement", "FARIS-output", "peer-output"]}, "reference": {"type": "string", "minLength": 1}}
+    },
+    "quantity": {
+      "type": "object", "additionalProperties": false, "required": ["value", "unit", "source"],
+      "properties": {"value": {"type": "number"}, "unit": {"type": "string"}, "source": {"$ref": "#/$defs/source"}}
+    },
+    "year": {"allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"unit": {"const": "year"}, "value": {"exclusiveMinimum": 0}}}]},
+    "day": {"allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"unit": {"const": "day"}, "value": {"exclusiveMinimum": 0}}}]},
+    "netPower": {"allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"unit": {"const": "MW(e)"}, "value": {"exclusiveMinimum": 0}}}]},
+    "count": {"allOf": [{"$ref": "#/$defs/quantity"}, {"properties": {"unit": {"const": "count"}, "value": {"type": "integer", "minimum": 1}}}]},
+    "file": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["path", "sha256", "scope"],
+      "properties": {"path": {"type": "string", "minLength": 1}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "scope": {"type": "string", "minLength": 1}}
+    },
+    "nativeMapping": {
+      "type": "object", "additionalProperties": false,
+      "required": ["disposition", "native_field", "value", "unit", "note"],
+      "properties": {
+        "disposition": {"enum": ["matched", "unmapped"]},
+        "native_field": {"type": ["string", "null"]}, "value": {}, "unit": {"type": ["string", "null"]},
+        "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "nativeInputs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plant_horizon_years", "net_electric_power_mw", "parallel_remote_handling_systems", "component_lifetimes_years"],
+      "properties": {
+        "plant_horizon_years": {"$ref": "#/$defs/nativeMapping"},
+        "net_electric_power_mw": {"$ref": "#/$defs/nativeMapping"},
+        "parallel_remote_handling_systems": {"$ref": "#/$defs/nativeMapping"},
+        "component_lifetimes_years": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "object", "additionalProperties": false,
+            "required": ["component", "lifetime", "replacement_duration"],
+            "properties": {"component": {"type": "string", "minLength": 1},
+              "lifetime": {"$ref": "#/$defs/nativeMapping"},
+              "replacement_duration": {"$ref": "#/$defs/nativeMapping"}}}
+        }
+      }
+    },
+    "downtimeMapping": {
+      "type": "object", "additionalProperties": false,
+      "required": ["disposition", "native_setting", "note"],
+      "properties": {
+        "disposition": {"enum": ["matched", "excluded_by_native_setting", "unmapped"]},
+        "native_setting": {}, "note": {"type": "string", "minLength": 1}
+      }
+    },
+    "mappings": {
+      "type": "object", "additionalProperties": false, "required": ["native_inputs", "downtime"],
+      "properties": {
+        "native_inputs": {"$ref": "#/$defs/nativeInputs"},
+        "downtime": {
+          "type": "object", "additionalProperties": false,
+          "required": ["planned_replacement", "pulse_ramp_and_recharge", "unplanned", "other"],
+          "properties": {
+            "planned_replacement": {"$ref": "#/$defs/downtimeMapping"},
+            "pulse_ramp_and_recharge": {"$ref": "#/$defs/downtimeMapping"},
+            "unplanned": {"$ref": "#/$defs/downtimeMapping"}, "other": {"$ref": "#/$defs/downtimeMapping"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avilalabs.invalid/schemas/faris-bluemira-lifecycle-config-0.1.0.json",
+  "title": "bluemira LifeCycle adapter config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lifecycle_config", "learning_strategy", "availability_strategy", "inputs", "provenance"],
+  "properties": {
+    "lifecycle_config": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number"}},
+    "learning_strategy": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "parameters"],
+      "properties": {
+        "kind": {"enum": ["uniform", "user_specified", "gompertz"]},
+        "parameters": {"type": "object"}
+      }
+    },
+    "availability_strategy": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "parameters"],
+      "properties": {
+        "kind": {"enum": ["exponential", "lognormal", "truncated_normal"]},
+        "parameters": {"type": "object"}
+      }
+    },
+    "inputs": {"type": "object"},
+    "provenance": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["unit", "kind", "reference"],
+        "properties": {
+          "unit": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["authored", "literature", "measurement", "FARIS-output", "peer-output"]},
+          "reference": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
