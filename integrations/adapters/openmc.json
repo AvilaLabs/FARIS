@@ -12,15 +12,18 @@
     {"name": "cross-section library and its audit", "carried_by": "--cross-sections and --audit", "format": "OpenMC cross_sections.xml; faris-nuclear-data audit JSON", "unit": "none"}
   ],
   "outputs": [
-    {"name": "raw tallies and statepoint-derived artifact", "format": "faris-transport-artifact/v0.2", "unit": "per source neutron, as the artifact states per tally", "label": "calculated"},
+    {"name": "raw tallies, statepoint and exact loss-count artifact", "format": "faris-transport-artifact/v0.3", "unit": "per source neutron, as the artifact states per tally", "label": "calculated"},
     {"name": "group spectra", "format": "faris-transport-spectra/v0.1", "unit": "per source neutron per energy group", "label": "calculated"},
     {"name": "batch values", "format": "JSON of per-batch tally values", "unit": "per source neutron", "label": "calculated"}
   ],
   "units": "The worker returns raw OpenMC tallies per source neutron (RAW_PER_SOURCE_NEUTRON). The absolute source normalisation is applied once, in the Rust normaliser, never in the Python worker; geometry is in cm and densities in g/cm3 as OpenMC defines them.",
-  "receipt": ["tool_path", "tool_sha256", "tool_version", "input_sha256", "arguments", "limits", "exit_status", "execution_status", "elapsed_seconds", "output_sha256"],
-  "cancellation": "The job runner owns a process group and ends it, OpenMC child processes included. The run is then Cancelled and nothing is stored as a result.",
+  "receipt": ["selected_cli_path", "selected_cli_sha256", "linked_c_api_library_path", "linked_c_api_library_sha256", "python_path", "python_sha256", "input_sha256", "arguments", "limits", "per_pass_lost_particle_events", "exit_status", "execution_status", "elapsed_seconds", "output_sha256"],
+  "execution_mode": "The selected OpenMC executable and its exact verified linked C library are recorded separately. The physics run calls openmc_run through that C API library so FARIS can read n_lost_particles; it does not silently substitute the Python package's shared-library copy.",
+  "cancellation": "The job runner owns a process group and ends it, including the C API runner child. The run is then Cancelled and nothing is stored as a result.",
   "failures": [
     {"mode": "OpenMC version other than 0.15.3", "reported_as": "worker error naming the expected and found version; no run starts", "next_step": "use an OpenMC 0.15.3 environment"},
+    {"mode": "selected executable's linked OpenMC library cannot be resolved exactly", "reported_as": "worker error; no alternative Python package library is substituted", "next_step": "use the selected OpenMC executable with a verified $ORIGIN/../lib/libopenmc.so in the same Python environment"},
+    {"mode": "lost-particle count absent or above the strict 1e-6-per-history limit", "reported_as": "count is NOT_EVALUATED or exceeds the limit; normalized transport result stays unavailable", "next_step": "repair geometry or use an OpenMC build/runtime whose exact C API count is available"},
     {"mode": "wall time, memory, output or file limit passed", "reported_as": "TimedOut, MemoryLimit, OutputLimit, ArtifactLimit or FileSizeLimit", "next_step": "raise the limit knowingly or reduce the model; no result is kept"},
     {"mode": "OpenMC exits with an error or the statepoint is missing", "reported_as": "Failed, with the tail of the solver output", "next_step": "read the solver output kept in the run folder"},
     {"mode": "output fails its own checks (schema, tally identity, statepoint version)", "reported_as": "import error in the run record; the transport result stays NOT_EVALUATED", "next_step": "rerun the transport; the record names the file and field"}

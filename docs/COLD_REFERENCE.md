@@ -84,7 +84,7 @@ meshes are separate diagnostics. Bounds come from the Rust engine. Analytic toru
 shell and Cartesian bin volumes accompany raw scores for normalisation.
 
 The adapter writes `solver/transport-artifact.json` in
-`faris-transport-artifact/v0.2`, echoing the complete request and one raw tally
+`faris-transport-artifact/v0.3`, echoing the complete request and one raw tally
 per response. Neutron and photon spectra are recorded in
 `solver/transport-spectra.json` as an identity-bound sidecar with 0 to 1 GeV
 group edges, per-component raw group means and standard errors, and the
@@ -95,12 +95,28 @@ neutron group sum against the matching integrated component flux to
 floating-point summation tolerance. Per-bin standard errors describe transport
 sampling; volume uncertainty is kept separately and is not silently folded
 into them.
-Solver stdout and stderr are streamed byte-for-byte to the parent Rust worker
-while separate local logs retain at most 4 MiB per stream. A stream above that
-retention limit fails the worker and terminates the OpenMC child; Rust also
-applies its independent 4 MiB-per-stream cap and process-group timeout/cancel
-handling. No unbounded Python output capture is used. The worker records each
-log's retained byte count, observed byte count, truncation state and hash.
+The selected OpenMC executable's SHA-256 remains recorded as the solver
+selection. FARIS also verifies its ELF dependency and RPATH, then runs
+`openmc_run` through that exact linked `libopenmc.so` C API so it can read
+`n_lost_particles` before finalization. The receipt records the executable,
+interpreter and C library identities separately. The selected executable's
+`main` is not run; the C API invocation uses its verified linked library and
+is recorded as a distinct run mode. If the linked library cannot
+be resolved exactly, the run fails with a clear runtime-binding error rather
+than substituting the Python package's copy. Batch restarts produce separate
+loss-count records before aggregation. The strict final check rejects more
+than one lost-particle event per million source histories; equality passes.
+Older artifacts without a count remain readable with the count marked
+NOT_EVALUATED, never zero.
+
+Solver stdout and stderr are streamed to the parent Rust worker while separate
+local logs retain at most 4 MiB per stream. The first ten per-particle loss
+warnings per stream are retained; later repeated warning lines are suppressed
+to keep a loss-heavy diagnostic from exhausting the log cap. The count comes
+only from the C API global, not from logs. Rust retains its independent
+4 MiB-per-stream cap and process-group timeout/cancel handling. No unbounded
+Python output capture is used. The worker records each log's retained byte
+count, observed byte count, truncation state and hash.
 
 The final statepoint is required to report OpenMC version `(0, 15, 3)`, fixed
 source mode, the requested seed, batch count, completed current batch,
@@ -110,8 +126,8 @@ input and verifies those XML files did not change during execution. Mesh bin
 ordering is checked through OpenMC's own `RegularMesh.indices` iterator before
 tally export: zero-based bin 0 maps to `(1,1,1)`, x increments fastest, then y,
 then z. A nonzero exit, incomplete/mismatched statepoint, non-finite score, log
-limit exceedance, or logged lost particle fails execution. The worker output
-records execution status separately from scientific assessment.
+limit exceedance or incomplete lost-particle receipt fails execution. The
+worker output records execution status separately from scientific assessment.
 
 The requested H3-production score is the modelled gross tritium birth rate per
 source neutron. Its whole-model tally is a reconciliation diagnostic and can

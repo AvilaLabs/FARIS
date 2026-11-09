@@ -7,10 +7,10 @@ use crate::{
     DemoManifest, build_manifest,
     jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, ResourceLimits, run_job},
     transport::{
-        DomainVolume, MAX_TRANSPORT_ARTIFACT_BYTES, NormalizedEnergySpectrum, NormalizedTally,
-        NormalizedTransportResult, PhysicalUnit, RawTally, RawTallyUnit, RawTransportSpectra,
-        TallyEstimator, ToolIdentity, TransportArtifact, VolumeUnit, normalize_spectra,
-        normalize_transport_artifact,
+        DomainVolume, LostParticleAccounting, MAX_TRANSPORT_ARTIFACT_BYTES,
+        NormalizedEnergySpectrum, NormalizedTally, NormalizedTransportResult, PhysicalUnit,
+        RawTally, RawTallyUnit, RawTransportSpectra, TallyEstimator, ToolIdentity,
+        TransportArtifact, VolumeUnit, normalize_spectra, normalize_transport_artifact,
     },
 };
 use faris_model::math;
@@ -287,6 +287,7 @@ fn mesh_payload_preflight_with_encoding(
         // Not counted in the pinned preflight sizes: the matrix adds only
         // n * n numbers for the n scalar responses.
         response_covariance: None,
+        lost_particle_accounting: None,
     };
     let raw_bound = if pretty_json {
         serde_json::to_vec_pretty(&artifact)?.len()
@@ -805,6 +806,9 @@ pub struct ReactorRun {
     pub import_error: Option<String>,
     pub raw_artifact_sha256: Option<String>,
     pub normalized: Option<NormalizedTransportResult>,
+    /// Exact per-pass lost-particle count; absent on historical records where it was not measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lost_particle_accounting: Option<LostParticleAccounting>,
     #[serde(default)]
     pub transport_spectra_sha256: Option<String>,
     /// Exact worker receipt bytes; absent only on historical runs before the
@@ -970,6 +974,37 @@ pub fn hash_file(path: &Path) -> Result<String, ReactorError> {
         return Err("identity input must be a regular file below 512 MiB".into());
     }
     Ok(digest(&bytes))
+}
+
+fn verify_lost_particle_library(
+    accounting: &LostParticleAccounting,
+    selected_executable: &Path,
+    verify_contents: bool,
+) -> Result<(), ReactorError> {
+    let executable = if verify_contents {
+        selected_executable.canonicalize()?
+    } else {
+        selected_executable.to_path_buf()
+    };
+    let prefix = executable
+        .parent()
+        .and_then(|path| path.parent())
+        .ok_or("selected OpenMC executable has no environment prefix")?;
+    let library_path = prefix.join("lib/libopenmc.so");
+    let library = if verify_contents {
+        library_path.canonicalize()?
+    } else {
+        library_path
+    };
+    if Path::new(&accounting.library_path) != library
+        || (verify_contents && hash_file(&library)? != accounting.library_sha256)
+    {
+        return Err(
+            "lost-particle receipt is not bound to the selected executable's linked OpenMC library"
+                .into(),
+        );
+    }
+    Ok(())
 }
 #[cfg(not(target_arch = "wasm32"))]
 pub fn hash_file(path: &Path) -> Result<String, ReactorError> {
@@ -1983,7 +2018,7 @@ fn execute_pass(
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
     };
-    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,windowed_pass:None,windowed_run:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
+    let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,lost_particle_accounting:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,windowed_pass:None,windowed_run:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
         Ok(execution) => record.execution = Some(execution),
         Err(error) => {
@@ -1995,8 +2030,12 @@ fn execute_pass(
         .as_ref()
         .is_some_and(|e| e.execution_status == ExecutionStatus::Succeeded)
     {
+        let mut observed_lost_particles = None;
+        let mut observed_raw_digest = None;
+        let mut observed_worker_digest = None;
         let import = (|| -> Result<_, ReactorError> {
             let worker_bytes = read_json_bytes(&output.join("solver/worker-result.json"))?;
+            observed_worker_digest = Some(digest(&worker_bytes));
             let worker: Value = serde_json::from_slice(&worker_bytes)?;
             validate_geometry_ownership_receipt(
                 &worker,
@@ -2007,7 +2046,24 @@ fn execute_pass(
             let precision_summary = sampling_precision_summary(&worker)?;
             let outcome = sampling_outcome(&worker, sampling)?;
             let raw_bytes = read_json_bytes(&output.join("solver/transport-artifact.json"))?;
+            observed_raw_digest = Some(digest(&raw_bytes));
             let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
+            observed_lost_particles = artifact.lost_particle_accounting.clone();
+            if observed_lost_particles.is_none() {
+                return Err("lost-particle count is NOT_EVALUATED; this run's numerical result is not trusted without an OpenMC C API receipt".into());
+            }
+            if worker.get("lost_particle_accounting")
+                != Some(&serde_json::to_value(&observed_lost_particles)?)
+            {
+                return Err("worker and transport artifact lost-particle receipts differ".into());
+            }
+            verify_lost_particle_library(
+                observed_lost_particles
+                    .as_ref()
+                    .ok_or("lost-particle count was not evaluated")?,
+                &openmc,
+                true,
+            )?;
             if artifact.histories != expected_histories(sampling, outcome.as_ref())?
                 || artifact.solver.digest != format!("sha256:{}", record.openmc_sha256)
                 || artifact.nuclear_data.digest != input.nuclear_data_digest
@@ -2042,6 +2098,9 @@ fn execute_pass(
                 normalized_spectra,
             ))
         })();
+        record.lost_particle_accounting = observed_lost_particles;
+        record.raw_artifact_sha256 = observed_raw_digest;
+        record.worker_result_sha256 = observed_worker_digest;
         match import {
             Ok((
                 digest,
@@ -2393,6 +2452,15 @@ pub fn load_reactor_run(
         return Err("recorded raw artifact digest differs".into());
     }
     let artifact = TransportArtifact::from_bytes(&raw_bytes)?;
+    if record.lost_particle_accounting != artifact.lost_particle_accounting {
+        return Err("recorded lost-particle receipt differs from the raw artifact".into());
+    }
+    if let Some(accounting) = &artifact.lost_particle_accounting {
+        let selected = input["openmc_executable"]
+            .as_str()
+            .ok_or("missing recorded OpenMC executable path")?;
+        verify_lost_particle_library(accounting, Path::new(selected), false)?;
+    }
     // A target-error run's history count is only known from its bound receipt.
     let recorded_outcome = match record.worker_result_sha256.as_deref() {
         Some(_) => sampling_outcome(
@@ -2416,6 +2484,14 @@ pub fn load_reactor_run(
             return Err("recorded worker-result digest differs".into());
         }
         let worker: Value = serde_json::from_slice(&worker_bytes)?;
+        if worker
+            .get("lost_particle_accounting")
+            .cloned()
+            .unwrap_or(Value::Null)
+            != serde_json::to_value(&artifact.lost_particle_accounting)?
+        {
+            return Err("recorded worker and artifact lost-particle receipts differ".into());
+        }
         validate_geometry_ownership_receipt(&worker, &record.input_sha256, scenario, &physics)?;
         record.sampling_precision_summary = Some(sampling_precision_summary(&worker)?);
         record.sampling_outcome = recorded_outcome;
@@ -2445,6 +2521,31 @@ pub fn load_reactor_run(
             record.variance_reduction.as_ref(),
             record.windowed_pass.is_some(),
         )?;
+    }
+    if record.normalized.is_none()
+        && let Some(reason) = record.import_error.as_deref()
+        && (reason.contains("lost-particle count is NOT_EVALUATED")
+            || reason.contains("strict 1e-6-per-source-history limit"))
+    {
+        if reason.contains("strict 1e-6-per-source-history limit") {
+            let error = normalize_transport_artifact(&request, &artifact, scenario)
+                .err()
+                .ok_or("record says loss limit failed but the checked artifact passes")?;
+            if !error
+                .to_string()
+                .contains("strict 1e-6-per-source-history limit")
+            {
+                return Err(
+                    "recorded loss-limit failure does not match checked normalization".into(),
+                );
+            }
+        } else if artifact.lost_particle_accounting.is_some() {
+            return Err(
+                "record says lost-particle count is NOT_EVALUATED but the artifact has a count"
+                    .into(),
+            );
+        }
+        return Ok(record);
     }
     let normalized = normalize_transport_artifact(&request, &artifact, scenario)?;
     let normalized_spectra = if request.schema_version == TRANSPORT_REQUEST_VERSION {

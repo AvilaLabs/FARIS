@@ -78,8 +78,9 @@ class GuardRestartsARun(unittest.TestCase):
             hashes = {path.name: WORKER.sha256(path) for path in out.glob("*.xml")}
             env = dict(os.environ, OMP_NUM_THREADS="2", OPENMC_CROSS_SECTIONS=str(library))
             command = [str(Path(sys.executable).parent / "openmc")]
-            _, sums, n_batches, restarts = WORKER.sample_until_settled(
+            _, sums, n_batches, restarts, loss_passes = WORKER.sample_until_settled(
                 openmc, out, command, env, rule, BUDGET, ["response-x"], hashes, vov_limit=-1.0)
+            self.assertEqual(loss_passes, [])  # direct CLI calls cannot claim an exact C API count
             self.assertEqual(n_batches, BUDGET)
             self.assertGreaterEqual(len(restarts), 1)
             # each restart begins where the run before it ended and adds batches, up to the budget
@@ -122,8 +123,9 @@ class GuardRestartsARun(unittest.TestCase):
             hashes = {path.name: WORKER.sha256(path) for path in out.glob("*.xml")}
             env = dict(os.environ, OMP_NUM_THREADS="2", OPENMC_CROSS_SECTIONS=str(library))
             command = [str(Path(sys.executable).parent / "openmc")]
-            _, _, n_batches, restarts = WORKER.sample_until_settled(
+            _, _, n_batches, restarts, loss_passes = WORKER.sample_until_settled(
                 openmc, out, command, env, rule, BUDGET, ["response-x"], hashes, vov_limit=1.0e9)
+            self.assertEqual(loss_passes, [])
             self.assertEqual(restarts, [])
             self.assertEqual(n_batches, rule["min_batches"])
 

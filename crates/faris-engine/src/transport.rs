@@ -5,14 +5,14 @@
 use faris_model::math;
 use faris_model::transport::{
     ACTIVATION_SPECTRA_FISPACT_709, ResponseDomain, ScoreDefinition,
-    TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_VERSION,
-    TRANSPORT_REQUEST_LEGACY_VERSION, TransportRequest,
+    TRANSPORT_ARTIFACT_LEGACY_VERSION, TRANSPORT_ARTIFACT_OLDEST_VERSION,
+    TRANSPORT_ARTIFACT_VERSION, TRANSPORT_REQUEST_LEGACY_VERSION, TransportRequest,
 };
 use faris_model::validation::{
     Output, ValidationMark, by_score, not_calculated, quantity_of_score,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, path::Path};
 
 pub const ELEMENTARY_CHARGE_C: f64 = 1.602_176_634e-19;
 /// Energy released per D-T reaction, the convention every source rate is stored with.
@@ -87,6 +87,32 @@ pub struct TransportArtifact {
     /// artifacts written before the worker recorded batch values.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_covariance: Option<RawResponseCovariance>,
+    /// Exact OpenMC `n_lost_particles` receipts, kept per process/pass before aggregation.
+    /// Absent on legacy records; absence means NOT_EVALUATED, never zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lost_particle_accounting: Option<LostParticleAccounting>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LostParticlePass {
+    pub pass: u32,
+    pub start_batch: u32,
+    pub end_batch: u32,
+    pub histories: u64,
+    pub lost_particle_events: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LostParticleAccounting {
+    pub method: String,
+    pub histories: u64,
+    pub particles_per_batch: u32,
+    pub lost_particle_events: u64,
+    pub passes: Vec<LostParticlePass>,
+    pub library_path: String,
+    pub library_sha256: String,
 }
 
 /// Raw (per source neutron) covariance of scalar response means, as written by an adapter.
@@ -557,6 +583,8 @@ pub fn normalize_transport_artifact(
     let version_pair_matches = (artifact.schema_version == TRANSPORT_ARTIFACT_VERSION
         && expected.schema_version == faris_model::transport::TRANSPORT_REQUEST_VERSION)
         || (artifact.schema_version == TRANSPORT_ARTIFACT_LEGACY_VERSION
+            && expected.schema_version == faris_model::transport::TRANSPORT_REQUEST_VERSION)
+        || (artifact.schema_version == TRANSPORT_ARTIFACT_OLDEST_VERSION
             && expected.schema_version == TRANSPORT_REQUEST_LEGACY_VERSION);
     if !version_pair_matches || &artifact.request != expected {
         return Err(fail(
@@ -567,6 +595,9 @@ pub fn normalize_transport_artifact(
     valid_identity(&artifact.nuclear_data)?;
     if artifact.histories == 0 {
         return Err(fail("histories must be positive"));
+    }
+    if let Some(accounting) = &artifact.lost_particle_accounting {
+        validate_lost_particle_accounting(accounting, artifact.histories)?;
     }
     let power_w = expected.fusion_power_mw * 1.0e6;
     let reaction_energy_j = expected.source.energy_per_reaction_ev * ELEMENTARY_CHARGE_C;
@@ -737,6 +768,70 @@ pub fn normalize_transport_artifact(
         source_neutron_rate_per_s: neutron_rate,
         results,
     })
+}
+
+/// Check count provenance and apply the strict lost-particle limit (greater than 1 per million
+/// source histories fails; equality passes). Missing legacy receipts remain explicitly unknown.
+pub fn validate_lost_particle_accounting(
+    accounting: &LostParticleAccounting,
+    histories: u64,
+) -> Result<(), TransportError> {
+    let fail = |s: &str| TransportError::Invalid(format!("lost-particle accounting: {s}"));
+    if accounting.method != "openmc-c-api-n_lost_particles/v1"
+        || accounting.histories != histories
+        || histories == 0
+        || accounting.particles_per_batch == 0
+        || accounting.passes.is_empty()
+        || !Path::new(&accounting.library_path).is_absolute()
+        || accounting.library_sha256.len() != 64
+        || !accounting
+            .library_sha256
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    {
+        return Err(fail(
+            "method, history count, library path, or digest is invalid",
+        ));
+    }
+    let mut pass_histories = 0_u64;
+    let mut events = 0_u64;
+    let mut expected_pass = 1_u32;
+    let mut previous_end = 0_u32;
+    for pass in &accounting.passes {
+        let batch_span = pass.end_batch.checked_sub(pass.start_batch);
+        let expected_histories = batch_span
+            .map(u64::from)
+            .and_then(|span| span.checked_mul(u64::from(accounting.particles_per_batch)));
+        if pass.pass != expected_pass
+            || pass.start_batch != previous_end
+            || batch_span.is_none_or(|span| span == 0)
+            || pass.histories == 0
+            || expected_histories != Some(pass.histories)
+        {
+            return Err(fail(
+                "pass sequence, batch range, or history count is invalid",
+            ));
+        }
+        pass_histories = pass_histories
+            .checked_add(pass.histories)
+            .ok_or_else(|| fail("history total overflowed"))?;
+        events = events
+            .checked_add(pass.lost_particle_events)
+            .ok_or_else(|| fail("event total overflowed"))?;
+        previous_end = pass.end_batch;
+        expected_pass = expected_pass
+            .checked_add(1)
+            .ok_or_else(|| fail("pass index overflowed"))?;
+    }
+    if pass_histories != histories || events != accounting.lost_particle_events {
+        return Err(fail("per-pass receipts do not add up to the run totals"));
+    }
+    if u128::from(events) * 1_000_000 > u128::from(histories) {
+        return Err(fail(
+            "lost-particle events exceed the strict 1e-6-per-source-history limit",
+        ));
+    }
+    Ok(())
 }
 
 /// Convert and validate the raw batch-means covariance of scalar responses.
@@ -974,6 +1069,7 @@ mod tests {
             },
             histories: 100,
             response_covariance: None,
+            lost_particle_accounting: None,
             volumes: vec![DomainVolume {
                 domain: req.responses[0].domain.clone(),
                 value: if volume == VolumeUnit::CubicMetre {
@@ -2001,5 +2097,71 @@ mod tests {
         assert!((summary.nominal_neutron_power_mw - neutron).abs() < 1e-12);
         assert_eq!(summary.neutron_power_fraction, fraction);
         assert!(summary.nominal_neutron_power_mw < 525.0);
+    }
+
+    // Verifies: GEO-025
+    #[test]
+    fn loss_accounting_keeps_pass_counts_and_applies_strict_one_per_million_limit() {
+        let accounting = |events| LostParticleAccounting {
+            method: "openmc-c-api-n_lost_particles/v1".into(),
+            histories: 1_000_000,
+            particles_per_batch: 10_000,
+            lost_particle_events: events,
+            passes: vec![LostParticlePass {
+                pass: 1,
+                start_batch: 0,
+                end_batch: 100,
+                histories: 1_000_000,
+                lost_particle_events: events,
+            }],
+            library_path: "/openmc/lib/libopenmc.so".into(),
+            library_sha256: "a".repeat(64),
+        };
+        assert!(validate_lost_particle_accounting(&accounting(1), 1_000_000).is_ok());
+        assert!(
+            validate_lost_particle_accounting(&accounting(2), 1_000_000)
+                .unwrap_err()
+                .to_string()
+                .contains("strict 1e-6")
+        );
+        let mut split = accounting(2);
+        split.passes = vec![
+            LostParticlePass {
+                pass: 1,
+                start_batch: 0,
+                end_batch: 50,
+                histories: 500_000,
+                lost_particle_events: 1,
+            },
+            LostParticlePass {
+                pass: 2,
+                start_batch: 50,
+                end_batch: 100,
+                histories: 500_000,
+                lost_particle_events: 1,
+            },
+        ];
+        assert!(validate_lost_particle_accounting(&split, 1_000_000).is_err());
+        split.passes[0].histories -= 1;
+        assert!(
+            validate_lost_particle_accounting(&split, 1_000_000)
+                .unwrap_err()
+                .to_string()
+                .contains("pass sequence")
+        );
+        split.passes[0].histories += 1;
+        split.passes[1].pass = 1;
+        assert!(
+            validate_lost_particle_accounting(&split, 1_000_000)
+                .unwrap_err()
+                .to_string()
+                .contains("pass sequence")
+        );
+
+        let (request, mut legacy, scenario) = fixture(VolumeUnit::CubicMetre);
+        legacy.schema_version = TRANSPORT_ARTIFACT_LEGACY_VERSION.into();
+        let parsed = TransportArtifact::from_bytes(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+        assert!(parsed.lost_particle_accounting.is_none());
+        assert!(normalize_transport_artifact(&request, &parsed, &scenario).is_ok());
     }
 }

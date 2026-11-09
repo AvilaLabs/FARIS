@@ -328,6 +328,7 @@ mod tests {
             import_error: None,
             raw_artifact_sha256: None,
             normalized: None,
+            lost_particle_accounting: None,
             transport_spectra_sha256: None,
             worker_result_sha256: None,
             normalized_spectra: None,

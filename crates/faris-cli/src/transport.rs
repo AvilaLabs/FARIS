@@ -226,6 +226,12 @@ pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> 
         let artifact_bytes = read_bounded(&artifact_path)?;
         let artifact = TransportArtifact::from_bytes(&artifact_bytes)?;
         let result = normalize_transport_artifact(&request, &artifact, &scenario)?;
+        let lost_particle_check = if artifact.lost_particle_accounting.is_some() {
+            "WITHIN_LIMIT"
+        } else {
+            "NOT_EVALUATED"
+        };
+        let values_trusted_under_loss_gate = artifact.lost_particle_accounting.is_some();
         // Provenance and scientific qualification are deliberately separate.
         let record = serde_json::json!({
             "schema_version": "faris-transport-import/v0.1",
@@ -234,13 +240,17 @@ pub fn run(command: TransportCommand) -> Result<(), Box<dyn std::error::Error>> 
             "request_sha256": sha256(&request_bytes),
             "raw_artifact_sha256": sha256(&artifact_bytes),
             "normalized": result,
-            "scope": "Checked identities, response definitions, dimensions, and arithmetic. Solver/data identities and raw values are adapter assertions; this import does not authenticate their origin or establish physical validity."
+            "lost_particle_check": lost_particle_check,
+            "lost_particle_accounting": artifact.lost_particle_accounting,
+            "values_trusted_under_loss_gate": values_trusted_under_loss_gate,
+            "scope": "Checked identities, response definitions, dimensions, arithmetic, and the strict lost-particle limit when an exact count is present. Legacy records without that count remain readable but their numerical result is not trusted; scientific qualification is not established. Solver/data identities and raw values are adapter assertions."
         });
         write_new_json(&output, &record)?;
         println!(
-            "Normalized {} responses to {}. Scientific qualification: NOT_EVALUATED.",
+            "Normalized {} responses to {}. Lost-particle check: {}. Scientific qualification: NOT_EVALUATED.",
             result.results.len(),
-            output.display()
+            output.display(),
+            lost_particle_check
         );
     } else {
         println!(

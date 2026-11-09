@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 
 pub const TRANSPORT_REQUEST_VERSION: &str = "faris-transport-request/v0.2";
 pub const TRANSPORT_REQUEST_LEGACY_VERSION: &str = "faris-transport-request/v0.1";
-pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.2";
-pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.1";
+pub const TRANSPORT_ARTIFACT_VERSION: &str = "faris-transport-artifact/v0.3";
+pub const TRANSPORT_ARTIFACT_LEGACY_VERSION: &str = "faris-transport-artifact/v0.2";
+pub const TRANSPORT_ARTIFACT_OLDEST_VERSION: &str = "faris-transport-artifact/v0.1";
 /// Group structure of the optional per-component activation spectra: the 709-group
 /// `fispact-709` boundaries of the TENDL-2025 activation library.
 pub const ACTIVATION_SPECTRA_FISPACT_709: &str = "fispact-709";

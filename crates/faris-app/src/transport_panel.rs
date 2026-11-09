@@ -63,6 +63,31 @@ const PRODUCTION_PARTICLES: u32 = 250_000;
 const WINDOWED_PRODUCTION_BATCHES: u32 = 1_000;
 const WINDOWED_PRODUCTION_PARTICLES: u32 = 20_000;
 
+/// User-facing exact loss-count state. Missing receipts on old runs stay NOT_EVALUATED.
+pub fn lost_particle_summary(
+    accounting: &Option<faris_engine::transport::LostParticleAccounting>,
+) -> String {
+    let Some(accounting) = accounting else {
+        return "Lost-particle count: NOT_EVALUATED for this recorded run; its numerical result is not trusted. Re-run with an OpenMC 0.15.3 runtime whose selected executable's linked C API library can be verified.".into();
+    };
+    let exceeds =
+        u128::from(accounting.lost_particle_events) * 1_000_000 > u128::from(accounting.histories);
+    let verdict = if exceeds {
+        "EXCEEDS LIMIT"
+    } else {
+        "WITHIN LIMIT"
+    };
+    let fraction = accounting.lost_particle_events as f64 / accounting.histories as f64;
+    format!(
+        "Lost-particle events: {} / {} histories ({fraction:.3e}; {verdict}, strict limit 1e-6). Counted by OpenMC C API across {} pass(es). Library: {} (SHA-256 {}).",
+        grouped(accounting.lost_particle_events as usize),
+        grouped(accounting.histories as usize),
+        accounting.passes.len(),
+        accounting.library_path,
+        accounting.library_sha256
+    )
+}
+
 /// Threads for a run: all but one of the machine's, at most four, at least one.
 fn run_threads() -> u32 {
     let available = crate::thread::available_parallelism().map_or(1, |n| n.get());
@@ -586,6 +611,17 @@ impl TransportPanel {
                     "{} histories",
                     grouped(record.histories_total() as usize)
                 ));
+                ui.small(lost_particle_summary(&record.lost_particle_accounting));
+                ui.small(format!(
+                    "OpenMC solver mode: C API call through the selected executable's linked library; the CLI main is not run. Selected executable SHA-256: {}",
+                    record.openmc_sha256
+                ));
+                if let Some(windowed) = record.windowed_run.as_deref() {
+                    ui.small(format!(
+                        "Windowed pass: {}",
+                        lost_particle_summary(&windowed.lost_particle_accounting)
+                    ));
+                }
             });
             ui.horizontal_wrapped(|ui| {
                 ui.strong(tier_label(&record.sampling));
@@ -1675,6 +1711,32 @@ mod colormap_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Verifies: GEO-025
+    #[test]
+    fn old_runs_show_loss_count_not_evaluated_and_new_runs_show_the_actual_count() {
+        let unknown = lost_particle_summary(&None);
+        assert!(unknown.contains("NOT_EVALUATED"), "{unknown}");
+        assert!(unknown.contains("not trusted"), "{unknown}");
+        let measured = faris_engine::transport::LostParticleAccounting {
+            method: "openmc-c-api-n_lost_particles/v1".into(),
+            histories: 1_000_000,
+            particles_per_batch: 10_000,
+            lost_particle_events: 1,
+            passes: vec![faris_engine::transport::LostParticlePass {
+                pass: 1,
+                start_batch: 0,
+                end_batch: 100,
+                histories: 1_000_000,
+                lost_particle_events: 1,
+            }],
+            library_path: "/openmc/lib/libopenmc.so".into(),
+            library_sha256: "a".repeat(64),
+        };
+        let line = lost_particle_summary(&Some(measured));
+        assert!(line.contains("1 / 1,000,000 histories"), "{line}");
+        assert!(line.contains("WITHIN LIMIT"), "{line}");
+    }
 
     // Verifies: PERF-025
     #[test]

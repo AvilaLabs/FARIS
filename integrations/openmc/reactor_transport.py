@@ -11,6 +11,7 @@ the Monte Carlo covariance between scalar responses from per-batch statepoints.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import math
@@ -18,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import random
+import shutil
 import subprocess
 import sys
 import threading
@@ -30,7 +32,7 @@ import batch_statistics  # noqa: E402
 from batch_statistics import VOV_LIMIT, RunningSum  # noqa: E402
 
 SCHEMA = "faris-openmc-input/v0.1"
-ARTIFACT_SCHEMA = "faris-transport-artifact/v0.2"
+ARTIFACT_SCHEMA = "faris-transport-artifact/v0.3"
 TEMP_TOLERANCE_K = 0.1
 OPENMC_LABEL_TOLERANCE_K = 1.0
 # Full transport energy coverage for the authored source and its secondary
@@ -125,6 +127,7 @@ ACTIVATION_709_EDGES_EV = [
 ]
 ACTIVATION_SPECTRA_STRUCTURE = "fispact-709"
 MAX_SOLVER_LOG_BYTES = 4 * 1024 * 1024
+LOST_WARNING_LINES_TO_RETAIN = 10
 INTEGRATED_RSE_REVIEW_GOAL = 0.05
 LOCAL_RSE_REVIEW_GOAL = 0.10
 COVARIANCE_METHOD = "batch-means-sample-covariance/v1"
@@ -606,21 +609,45 @@ def _terminate_solver(process: subprocess.Popen[bytes], grace_seconds: float = 5
         process.wait()
 
 
+def _filtered_solver_lines(state: dict, chunk: bytes, final: bool = False) -> bytes:
+    """Keep bounded diagnostics while coalescing OpenMC's one-line-per-loss flood.
+
+    The count used for acceptance is read from the selected OpenMC library's
+    `n_lost_particles` global, never inferred from these log lines.
+    """
+    pending = state.pop("pending", b"") + chunk
+    lines = pending.splitlines(keepends=True)
+    if lines and not final and not lines[-1].endswith((b"\n", b"\r")):
+        state["pending"] = lines.pop()
+    else:
+        state["pending"] = b""
+    kept = []
+    for line in lines:
+        if re.search(rb"(?i)particle\s+\d+\s+was lost", line):
+            state["loss_warning_lines"] += 1
+            if state["loss_warning_lines"] > LOST_WARNING_LINES_TO_RETAIN:
+                state["loss_warning_bytes_suppressed"] += len(line)
+                continue
+        kept.append(line)
+    return b"".join(kept)
+
+
 def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log_limit: int, append: bool = False) -> dict:
     """Tee raw solver bytes to the Rust worker pipes and bounded log files.
 
     Rust owns cancellation, timeout, process-group cleanup, and its independent
-    output cap. This layer retains at most ``log_limit`` bytes per stream and
-    terminates OpenMC if that local retained-log cap is exceeded. A restarted
-    solver (`append`) adds to the logs of the part before it, and the cap covers both.
+    output cap. This layer retains at most ``log_limit`` diagnostic bytes per
+    stream. Repeated one-line-per-lost-particle warnings are coalesced after the
+    first few; their count is not used as evidence. A restarted solver (`append`)
+    adds to the logs of the part before it, and the cap covers both.
     """
     process = subprocess.Popen(command, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     exceeded = threading.Event()
     tee_failed = threading.Event()
     earlier = {name: (cwd / f"openmc.{name}.log").stat().st_size if append else 0 for name in ("stdout", "stderr")}
     stream_state: dict[str, dict] = {
-        "stdout": {"bytes_seen": earlier["stdout"], "bytes_saved": earlier["stdout"], "truncated": False, "error": None},
-        "stderr": {"bytes_seen": earlier["stderr"], "bytes_saved": earlier["stderr"], "truncated": False, "error": None},
+        "stdout": {"bytes_seen": earlier["stdout"], "bytes_saved": earlier["stdout"], "truncated": False, "error": None, "loss_warning_lines": 0, "loss_warning_bytes_suppressed": 0},
+        "stderr": {"bytes_seen": earlier["stderr"], "bytes_saved": earlier["stderr"], "truncated": False, "error": None, "loss_warning_lines": 0, "loss_warning_bytes_suppressed": 0},
     }
 
     def pump(name: str, source, parent_stream, log_path: Path) -> None:
@@ -635,6 +662,9 @@ def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log
                     if not chunk:
                         break
                     state["bytes_seen"] += len(chunk)
+                    chunk = _filtered_solver_lines(state, chunk)
+                    if not chunk:
+                        continue
                     remaining = max(0, log_limit - state["bytes_saved"])
                     saved = chunk[:remaining]
                     if saved:
@@ -645,6 +675,23 @@ def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log
                         exceeded.set()
                     try:
                         parent_stream.write(chunk)
+                        parent_stream.flush()
+                    except (BrokenPipeError, OSError) as error:
+                        state["error"] = f"parent log pipe: {error}"
+                        tee_failed.set()
+                tail = _filtered_solver_lines(state, b"", final=True)
+                if tail:
+                    state["bytes_seen"] += 0
+                    remaining = max(0, log_limit - state["bytes_saved"])
+                    saved = tail[:remaining]
+                    if saved:
+                        log.write(saved)
+                        state["bytes_saved"] += len(saved)
+                    if len(saved) != len(tail):
+                        state["truncated"] = True
+                        exceeded.set()
+                    try:
+                        parent_stream.write(tail)
                         parent_stream.flush()
                     except (BrokenPipeError, OSError) as error:
                         state["error"] = f"parent log pipe: {error}"
@@ -690,8 +737,119 @@ def run_solver_streaming(command: list[str], cwd: Path, env: dict[str, str], log
         "stop_reason": stop_reason,
         "log_limit_bytes_per_stream": log_limit,
         "streams": stream_state,
-        "capture_policy": "bounded local prefix; complete raw bytes tee to parent Rust job output pipes",
+        "capture_policy": "bounded diagnostic prefix; first ten lost-particle warning lines retained per stream; later repetitive warning lines suppressed; authoritative count comes from selected OpenMC C API",
     }
+
+
+def selected_openmc_library(executable: Path, python: Path, env: dict[str, str]) -> tuple[Path, str]:
+    """Resolve the exact OpenMC shared library the selected ELF executable loads.
+
+    The C API receipt is only valid for this selected library. We support the
+    standard conda ELF layout with a DT_RPATH of `$ORIGIN/../lib`; other loader
+    configurations fail closed instead of substituting Python's packaged DLL.
+    """
+    executable = executable.resolve(strict=True)
+    python = python.resolve(strict=True)
+    prefix = executable.parent.parent.resolve(strict=True)
+    if python.parent.parent.resolve(strict=True) != prefix:
+        raise ValueError("lost-particle counting needs the selected OpenMC executable and Python in the same environment")
+    readelf = shutil.which("readelf")
+    if readelf is None:
+        raise ValueError("cannot verify the OpenMC C library linked to the selected executable (readelf is unavailable)")
+    try:
+        dynamic = subprocess.run([readelf, "-d", str(executable)], check=True, capture_output=True, text=True, timeout=10).stdout
+    except (subprocess.SubprocessError, OSError) as error:
+        raise ValueError(f"cannot inspect the selected OpenMC executable's linked library: {error}") from error
+    if "Shared library: [libopenmc.so]" not in dynamic:
+        raise ValueError("selected OpenMC executable does not declare the supported libopenmc.so dependency")
+    if "Library runpath:" in dynamic:
+        raise ValueError("selected OpenMC executable uses RUNPATH; exact library resolution cannot be guaranteed")
+    if "Library rpath: [$ORIGIN/../lib]" not in dynamic:
+        raise ValueError("selected OpenMC executable does not resolve libopenmc.so through the verified $ORIGIN/../lib RPATH")
+    if env.get("LD_PRELOAD") or env.get("LD_AUDIT"):
+        raise ValueError("LD_PRELOAD or LD_AUDIT can replace/intercept the selected OpenMC library; clear them to count lost particles")
+    library = (executable.parent / "../lib/libopenmc.so").resolve(strict=True)
+    expected = (prefix / "lib/libopenmc.so").resolve(strict=True)
+    if library != expected or not library.is_file():
+        raise ValueError("selected OpenMC executable's linked libopenmc.so could not be verified")
+    return library, sha256(library)
+
+
+def _capi_int(dll, symbol: str) -> int:
+    return ctypes.c_int.in_dll(dll, symbol).value
+
+
+def openmc_capi_runner(argv: list[str]) -> int:
+    """Run exactly one CLI-equivalent OpenMC pass through its linked C API."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--capi-runner", action="store_true")
+    parser.add_argument("--library", required=True, type=Path)
+    parser.add_argument("--library-sha256", required=True)
+    parser.add_argument("--executable", required=True, type=Path)
+    parser.add_argument("--receipt", required=True, type=Path)
+    parser.add_argument("-r", "--restart", type=str)
+    args, extra = parser.parse_known_args(argv)
+    require(not extra, f"unsupported C API runner arguments: {extra}")
+    library = args.library.resolve(strict=True)
+    if sha256(library) != args.library_sha256:
+        raise RuntimeError("selected OpenMC library changed before the C API runner loaded it")
+    dll = ctypes.CDLL(str(library))
+    for symbol in ("openmc_init", "openmc_run", "openmc_finalize", "n_lost_particles", "current_batch", "openmc_err_msg"):
+        try:
+            getattr(dll, symbol)
+        except AttributeError as error:
+            raise RuntimeError(f"selected OpenMC library lacks required C API symbol {symbol}") from error
+    dll.openmc_init.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p), ctypes.c_void_p]
+    dll.openmc_init.restype = ctypes.c_int
+    dll.openmc_run.argtypes = []
+    dll.openmc_run.restype = ctypes.c_int
+    dll.openmc_finalize.argtypes = []
+    dll.openmc_finalize.restype = ctypes.c_int
+
+    cli_args = [str(args.executable.resolve(strict=True))]
+    if args.restart:
+        cli_args.extend(["-r", args.restart])
+    encoded = [value.encode() for value in cli_args]
+    c_argv = (ctypes.c_char_p * (len(encoded) + 1))(*encoded, None)
+
+    def check(code: int, operation: str) -> None:
+        if code == 0:
+            return
+        msg = (ctypes.c_char * 256).in_dll(dll, "openmc_err_msg").value.decode(errors="replace")
+        warning = _capi_int(dll, "OPENMC_E_WARNING")
+        if code == warning:
+            print(f"OpenMC warning during {operation}: {msg}", file=sys.stderr, flush=True)
+            return
+        raise RuntimeError(f"OpenMC C API {operation} failed ({code}): {msg or 'no error detail'}")
+
+    initialized = False
+    try:
+        check(dll.openmc_init(len(encoded), c_argv, None), "initialization")
+        initialized = True
+        start_batch = _capi_int(dll, "current_batch")
+        check(dll.openmc_run(), "run")
+        end_batch = _capi_int(dll, "current_batch")
+        lost = _capi_int(dll, "n_lost_particles")
+        if start_batch < 0 or end_batch <= start_batch or lost < 0:
+            raise RuntimeError("OpenMC C API returned invalid batch or lost-particle counters")
+        if sha256(library) != args.library_sha256:
+            raise RuntimeError("selected OpenMC library changed during the C API run")
+        receipt = {
+            "schema_version": "faris-openmc-loss-pass/v0.1",
+            "method": "openmc-c-api-n_lost_particles/v1",
+            "library_path": str(library),
+            "library_sha256": sha256(library),
+            "start_batch": start_batch,
+            "end_batch": end_batch,
+            "lost_particle_events": lost,
+        }
+        temporary = args.receipt.with_name(f".{args.receipt.name}.tmp")
+        temporary.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, args.receipt)
+    finally:
+        if initialized:
+            check(dll.openmc_finalize(), "finalization")
+    return 0
 
 
 def check_data_identity(physics: dict, xml_path: Path, openmc, coupled_heating_required: bool) -> tuple[str, list[str], dict[str, float], float, dict[str, str], dict[str, object]]:
@@ -1187,6 +1345,12 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
     settings.statepoint = {"batches": list(range(1, int(sampling["batches"]) + 1))}
     settings.particles = int(sampling["particles_per_batch"])
     settings.seed = int(sampling["seed"])
+    # FARIS applies the final strict 1e-6 limit from the exact C API count.
+    # Raise OpenMC's earlier abort threshold so a measurable run can finish and
+    # be rejected by that final guard; retain a near-unity emergency abort cap.
+    settings.max_lost_particles = 2_000_000_000
+    settings.rel_max_lost_particles = 0.999999
+    settings.max_write_lost_particles = 10
     coupled_heating_required = any(r["score"]["kind"] == "heating" for r in request["responses"])
     settings.photon_transport = coupled_heating_required
     # If photoatomic data lacks relaxation transitions, explicitly omit the
@@ -1358,21 +1522,61 @@ def compose(inp: dict, out: Path, openmc, data_runtime_temperature: float, photo
 
 
 def sample_until_settled(openmc, out: Path, command: list[str], env: dict[str, str], rule: dict | None, budget: int,
-                         tally_names: list[str], xml_hashes: dict[str, str], vov_limit: float = VOV_LIMIT):
+                         tally_names: list[str], xml_hashes: dict[str, str], vov_limit: float = VOV_LIMIT,
+                         selected_executable: Path | None = None, capi_library: Path | None = None,
+                         particles_per_batch: int | None = None,
+                         capi_library_sha256: str | None = None):
     """Run OpenMC in OUT and read its per-batch sums. When the run stops on its target with the variance of the
     variance of a watched response above `vov_limit`, the target is not believed: the run goes on from its last
     statepoint with RESTART_GROWTH more batches (at least one), repeatedly, until the batches settle or the budget
     is used. `xml_hashes` (the hashes of the exported XML) is updated for every settings file written.
 
-    Returns (solver output capture of the last part, cumulative batch sums, batches run, restarts)."""
+    Returns (solver output capture of the last part, cumulative batch sums, batches run, restarts,
+    per-pass lost-particle receipts). With no C API library, receipts are empty and no count is inferred."""
     min_batches = rule["min_batches"] if rule else budget
+    if capi_library is not None:
+        if capi_library_sha256 is None:
+            capi_library_sha256 = sha256(capi_library)
+        require(sha256(capi_library) == capi_library_sha256,
+                "selected OpenMC C API library changed before sampling")
+    lost_particle_passes = []
 
     def solve(arguments: list[str], append: bool) -> dict:
-        result = run_solver_streaming(command + arguments, out, env, MAX_SOLVER_LOG_BYTES, append)
+        pass_index = len(lost_particle_passes)
+        receipt_path = out / f"lost-particle-pass-{pass_index:03d}.json"
+        if capi_library is not None:
+            require(selected_executable is not None and particles_per_batch is not None,
+                    "C API loss receipt needs selected executable and batch size")
+            runner = [sys.executable, str(Path(__file__).resolve()), "--capi-runner",
+                      "--library", str(capi_library), "--executable", str(selected_executable),
+                      "--library-sha256", capi_library_sha256,
+                      "--receipt", str(receipt_path)]
+        else:
+            runner = command
+        result = run_solver_streaming(runner + arguments, out, env, MAX_SOLVER_LOG_BYTES, append)
         require(result["stop_reason"] is None, result["stop_reason"] or "solver output forwarding failed")
         require(result["return_code"] == 0, f"OpenMC exited {result['return_code']}; inspect bounded output logs")
-        log = (out / "openmc.stdout.log").read_bytes() + b"\n" + (out / "openmc.stderr.log").read_bytes()
-        require(not re.search(rb"(?i)particle\s+\d+\s+was lost|lost particles?", log), "OpenMC reported lost particles")
+        if capi_library is not None:
+            try:
+                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError(f"OpenMC lost-particle receipt is missing or unreadable: {error}") from error
+            require(receipt.get("schema_version") == "faris-openmc-loss-pass/v0.1"
+                    and receipt.get("method") == "openmc-c-api-n_lost_particles/v1",
+                    "OpenMC lost-particle receipt is missing or uses an unsupported method")
+            require(Path(receipt["library_path"]).resolve() == capi_library.resolve()
+                    and receipt["library_sha256"] == capi_library_sha256
+                    and sha256(capi_library) == capi_library_sha256,
+                    "OpenMC lost-particle receipt came from a different C API library")
+            start = int(receipt["start_batch"])
+            end = int(receipt["end_batch"])
+            count = int(receipt["lost_particle_events"])
+            require(start == (lost_particle_passes[-1]["end_batch"] if lost_particle_passes else 0)
+                    and end > start and count >= 0,
+                    "OpenMC lost-particle pass counters are incomplete or discontinuous")
+            lost_particle_passes.append({"pass": pass_index + 1, "start_batch": start, "end_batch": end,
+                                         "histories": (end - start) * particles_per_batch,
+                                         "lost_particle_events": count})
         return result
 
     solver_output = solve([], False)
@@ -1393,10 +1597,12 @@ def sample_until_settled(openmc, out: Path, command: list[str], env: dict[str, s
         restart_file = next(path.name for path in out.glob("statepoint.*.h5") if int(path.name.split(".")[1]) == n_batches)
         solver_output = solve(["-r", restart_file], True)
         batch_sums, n_batches = read_batch_sums(openmc, out, min_batches, budget, tally_names, (batch_sums, n_batches))
-    return solver_output, batch_sums, n_batches, restarts
+    return solver_output, batch_sums, n_batches, restarts, lost_particle_passes
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--capi-runner":
+        return openmc_capi_runner(sys.argv[1:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
@@ -1434,10 +1640,14 @@ def main() -> int:
         run_env = os.environ.copy()
         run_env["OMP_NUM_THREADS"] = str(int(inp["sampling"]["threads"]))
         run_env.setdefault("OPENBLAS_NUM_THREADS", "1")
+        capi_library, capi_library_sha256 = selected_openmc_library(exe, Path(sys.executable), run_env)
         rule = stop_rule(inp["sampling"])
         budget = int(inp["sampling"]["batches"])
-        solver_output, batch_sums, n_batches, restarts = sample_until_settled(
-            openmc, out, command, run_env, rule, budget, list(response_by_tally), exported_xml_hashes)
+        solver_output, batch_sums, n_batches, restarts, lost_particle_passes = sample_until_settled(
+            openmc, out, command, run_env, rule, budget, list(response_by_tally), exported_xml_hashes,
+            selected_executable=exe, capi_library=capi_library,
+            particles_per_batch=int(inp["sampling"]["particles_per_batch"]),
+            capi_library_sha256=capi_library_sha256)
         statepoints = sorted(out.glob("statepoint.*.h5"))
         require(statepoints, "OpenMC produced no statepoint")
         require(len(statepoints) == 1, "expected exactly one final statepoint")
@@ -1553,7 +1763,21 @@ def main() -> int:
                     raise ValueError(f"unsupported volume domain: {d['kind']}")
                 if not any(item["domain"] == d for item in volumes):
                     volumes.append({"domain": d, "value": v, "standard_error": se, "unit": "cubic_centimetre"})
-            artifact = {"schema_version": ARTIFACT_SCHEMA, "request": inp["request"], "solver": {"name": "OpenMC", "version": openmc.__version__, "digest": f"sha256:{sha256(exe)}"}, "nuclear_data": {"name": inp["physics"].get("nuclear_data", {}).get("name", "external cross_sections.xml"), "version": inp["physics"].get("nuclear_data", {}).get("version", "unselected-local-library"), "digest": data_digest}, "histories": int(sp.n_realizations)*int(inp["sampling"]["particles_per_batch"]), "volumes": volumes, "tallies": raw_tallies, "response_covariance": response_covariance}
+            histories_realized = int(sp.n_realizations) * int(inp["sampling"]["particles_per_batch"])
+            pass_histories = sum(item["histories"] for item in lost_particle_passes)
+            lost_particle_events = sum(item["lost_particle_events"] for item in lost_particle_passes)
+            require(lost_particle_passes and pass_histories == histories_realized,
+                    "OpenMC lost-particle receipts do not cover the full realized run")
+            lost_particle_accounting = {
+                "method": "openmc-c-api-n_lost_particles/v1",
+                "histories": histories_realized,
+                "particles_per_batch": int(inp["sampling"]["particles_per_batch"]),
+                "lost_particle_events": lost_particle_events,
+                "passes": lost_particle_passes,
+                "library_path": str(capi_library),
+                "library_sha256": capi_library_sha256,
+            }
+            artifact = {"schema_version": ARTIFACT_SCHEMA, "request": inp["request"], "solver": {"name": "OpenMC", "version": openmc.__version__, "digest": f"sha256:{sha256(exe)}"}, "nuclear_data": {"name": inp["physics"].get("nuclear_data", {}).get("name", "external cross_sections.xml"), "version": inp["physics"].get("nuclear_data", {}).get("version", "unselected-local-library"), "digest": data_digest}, "histories": histories_realized, "volumes": volumes, "tallies": raw_tallies, "response_covariance": response_covariance, "lost_particle_accounting": lost_particle_accounting}
             (out / "transport-artifact.json").write_text(json.dumps(artifact, indent=2, sort_keys=True)+"\n", encoding="utf-8")
             (out / "transport-spectra.json").write_text(json.dumps({"schema_version":"faris-transport-spectra/v0.1","request":request,"scenario_sha256":request["scenario_sha256"],"variant_id":request["variant_id"],"input_sha256":sha256(args.input),"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"histories":artifact["histories"],"spectra":spectra}, indent=2, sort_keys=True)+"\n", encoding="utf-8")
         after_export_xml_hashes = {path.name: sha256(path) for path in sorted(out.glob("*.xml"))}
@@ -1571,7 +1795,7 @@ def main() -> int:
         stop_code, stop_words = judge_stop(rule, n_batches, achieved, vov)
         sampling_outcome = {"mode": "fixed" if rule is None else "target_error", "batches_realized": n_batches, "histories_realized": artifact["histories"], "batch_budget": budget, "target_response_id": limiting, "watched_responses": rule["response_ids"] if rule else None, "target_relative_error": rule["target_relative_error"] if rule else None, "achieved_relative_error": achieved, "variance_of_variance": vov, "variance_of_variance_limit": VOV_LIMIT if rule else None, "restarts": restarts, "stop_reason": stop_code, "stop_reason_text": stop_words}
         precision_report = sampling_precision_report(inp["request"], raw_tallies, volumes)
-        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"batch_statistics_sha256":sha256(Path(batch_statistics.__file__)),"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","lost_particle_check":"no lost-particle log indication; statepoint present"})
+        record.update({"execution_status":"COMPLETED","scientific_status":"NOT_EVALUATED","histories":artifact["histories"],"solver":artifact["solver"],"nuclear_data":artifact["nuclear_data"],"photon_data_sha256":photon_data_hashes,"photon_physics":photon_physics,"penetration_volume_audit":penetration_volume_audit,"geometry_ownership_audit":geometry_ownership_audit,"sampling_precision":precision_report,"sampling_outcome":sampling_outcome,"batch_statistics_sha256":sha256(Path(batch_statistics.__file__)),"variance_reduction":variance_reduction_receipt(inp),"requested_nuclear_data_temperature_K":sorted({m["recipe"]["nuclear_data_temperature_k"] for m in inp["physics"]["materials"] if m["recipe"]["kind"] == "nuclide_mixture"}),"stored_nuclear_data_temperatures_K":sorted(set(actual_data_temps.values())),"openmc_data_group_temperature_label_K":runtime_data_temperature,"openmc_nearest_label_tolerance_K":OPENMC_LABEL_TOLERANCE_K,"openmc_statepoint_version":list(observed_version),"statepoint":statepoint_identity,"export_xml_sha256":exported_xml_hashes,"solver_output_capture":solver_output,"mesh_index_audit":mesh_index_audit,"transport_artifact":"transport-artifact.json","transport_artifact_sha256":sha256(out / "transport-artifact.json"),"transport_batch_values":BATCH_VALUES_FILE,"transport_batch_values_sha256":sha256(out / BATCH_VALUES_FILE),"response_covariance_method":COVARIANCE_METHOD,"transport_spectra":"transport-spectra.json","transport_spectra_sha256":sha256(out / "transport-spectra.json"),"responses":len(raw_tallies),"normalization":"RAW_PER_SOURCE_NEUTRON; no absolute source normalization in Python","solver_execution_mode":"openmc-c-api-through-selected-executable-linked-library","openmc_c_api_library":{"path":str(capi_library),"sha256":capi_library_sha256},"lost_particle_accounting":lost_particle_accounting,"lost_particle_check":"counted from selected OpenMC C API per pass; threshold is checked by FARIS engine"})
     except Exception as error:
         record.update({"execution_status":"FAILED","scientific_status":"NOT_EVALUATED","error":f"{type(error).__name__}: {error}"})
         if solver_output is not None:
