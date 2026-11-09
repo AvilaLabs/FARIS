@@ -38,6 +38,11 @@ it follows JADE's pinned transform: prepend `1e-10 MeV` as numerical zero
 before taking the logarithmic ratio. The transform source hash is recorded in
 each manifest. It does not apply another $L^2/A_s$ factor.
 
+For each published coarse energy range, the OpenMC adapter requests a separate
+coarse energy-filter tally and takes that tally's own statepoint standard
+deviation. It does not combine fine-bin marginal standard deviations, which
+would require unavailable cross-bin covariance information.
+
 ## Finite detector estimator
 
 OpenMC does not provide the MCNP `F5` point-detector estimator. The runnable
@@ -55,6 +60,11 @@ necessary guards, not converter verification. Input translation and
 finite-volume qualification do not establish physical validation; the case
 manifest marks converter verification `NOT_EVALUATED` and the shared scoring
 gate keeps verdicts `INCONCLUSIVE` while measurement covariance is unknown.
+The required converter source is pinned to commit
+`80fda5abeed22502e2f6e19e57a9b2a8762844a8` (MIT, distribution version `0.1.0`,
+Python source tree SHA256
+`a48ac7dede3729d6695f0848d15b2ddb43a9c0f1487be617cd70d0961ce633c1`). The run
+plan reports this pin; run records verify and retain the installed source hash.
 
 Before any production run, the predeclared qualification requires two
 successive halvings from 2.5 to 1.25 to 0.625 cm. Every response bin must change

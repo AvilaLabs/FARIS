@@ -123,6 +123,40 @@ class FnsTofHelpers(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected vacuum"):
             R.require_vacuum_outer_sphere(Model(), parsed)
 
+    def test_transformed_surface_cards_are_not_misclassified_as_cells(self):
+        parsed = B.input_deck(DECK.replace("1 so 1000", "1 7 so 1000"))
+        self.assertIn("1 7 so 1000", parsed["surface_cards"])
+
+    def test_coarse_response_uses_direct_coarse_tally_std_dev(self):
+        class Array:
+            def __init__(self, value):
+                self.value = value
+            def reshape(self, *_shape):
+                return self
+            def tolist(self):
+                return [self.value]
+
+        class Tally:
+            def __init__(self, name, mean, std_dev):
+                self.name = name
+                self.mean = Array(mean)
+                self.std_dev = Array(std_dev)
+
+        class StatePoint:
+            def __init__(self, _path):
+                self.tallies = type("Tallies", (), {"values": lambda _self: [
+                    Tally("f5_fine", 1.0, 0.11), Tally("f25_coarse", 100.0, 0.07)]})()
+            def __enter__(self):
+                return self
+            def __exit__(self, *_exc):
+                return False
+
+        fake_openmc = type("OpenMC", (), {"StatePoint": StatePoint})
+        got = R.result_levels(fake_openmc, test_manifest(), B.input_deck(DECK)["detectors"],
+                              Path("unused-statepoint"), 0.625)
+        self.assertAlmostEqual(got["angle-24"]["u_mc"], 0.07 * 2.1 / math.log(10.0))
+        self.assertNotAlmostEqual(got["angle-24"]["u_mc"], math.sqrt(0.11**2 + 0.07**2) * 2.1 / math.log(10.0))
+
     def test_nonfinite_or_nonphysical_tallies_are_rejected(self):
         for values in ((math.nan, 0.1, 2.0, 1.0, 2.0), (1.0, math.inf, 2.0, 1.0, 2.0),
                        (1.0, -0.1, 2.0, 1.0, 2.0), (1.0, 0.1, -2.0, 1.0, 2.0)):

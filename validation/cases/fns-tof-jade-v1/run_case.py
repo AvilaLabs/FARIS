@@ -41,6 +41,10 @@ from benchmark import (  # noqa: E402
 )
 
 OPENMC_REQUIRED = "0.15.3"
+CONVERTER_SOURCE_URL = "https://github.com/openmc-dev/openmc_mcnp_adapter"
+CONVERTER_COMMIT = "80fda5abeed22502e2f6e19e57a9b2a8762844a8"
+CONVERTER_DISTRIBUTION_VERSION = "0.1.0"
+CONVERTER_PYTHON_SOURCE_SHA256 = "a48ac7dede3729d6695f0848d15b2ddb43a9c0f1487be617cd70d0961ce633c1"
 MAX_PARTICLES = 50_000_000
 MAX_BATCHES = 500
 MAX_THREADS = 8
@@ -99,7 +103,11 @@ def plan_document(manifest: dict, upstream: Path, cross_sections: Path, historie
         "input_sha256": hash_file(deck_path, MAX_SOURCE_BYTES),
         "detectors": len(parsed["deck"]["detectors"]), "responses": detector_count,
         "tables": len(manifest["adapter"]["tables"]), "missing_angles_deg": manifest["adapter"]["missing_table_angles_deg"],
-        "converter_dependency": {"distribution": "openmc_mcnp_adapter", "source_url": "https://github.com/openmc-dev/openmc_mcnp_adapter",
+        "converter_dependency": {"distribution": "openmc_mcnp_adapter",
+                                  "source_url": CONVERTER_SOURCE_URL,
+                                  "source_commit": CONVERTER_COMMIT,
+                                  "python_source_sha256": CONVERTER_PYTHON_SOURCE_SHA256,
+                                  "distribution_version": CONVERTER_DISTRIBUTION_VERSION,
                                   "license": "MIT", "required_for_run": True,
                                   "verification_status": "NOT_EVALUATED; converter itself reports no methodical V&V"},
         "execution": {"openmc_version_required": OPENMC_REQUIRED, "particles_per_radius": histories,
@@ -293,9 +301,16 @@ def converter_identity() -> dict:
     modules = {str(path.relative_to(package_dir)): hash_file(path)
                for path in sorted(package_dir.rglob("*.py")) if path.is_file()}
     canonical = json.dumps(modules, sort_keys=True, separators=(",", ":")).encode()
-    return {"package_dir": str(package_dir), "python_source_sha256": sha256_bytes(canonical),
-            "python_module_hashes": modules,
-            "distribution_version": importlib.metadata.version("openmc_mcnp_adapter")}
+    source_sha256 = sha256_bytes(canonical)
+    require(source_sha256 == CONVERTER_PYTHON_SOURCE_SHA256,
+            "installed openmc_mcnp_adapter Python sources do not match the pinned commit")
+    distribution_version = importlib.metadata.version("openmc_mcnp_adapter")
+    require(distribution_version == CONVERTER_DISTRIBUTION_VERSION,
+            "installed openmc_mcnp_adapter version differs from the pinned source")
+    return {"source_url": CONVERTER_SOURCE_URL, "source_commit": CONVERTER_COMMIT,
+            "package_dir": str(package_dir), "python_source_sha256": source_sha256,
+            "python_module_hashes": modules, "distribution_version": distribution_version,
+            "verification_status": "NOT_EVALUATED"}
 
 
 def adapter_code_identity() -> dict:

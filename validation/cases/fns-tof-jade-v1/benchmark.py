@@ -66,9 +66,12 @@ def input_deck(text: str) -> dict:
             break
         tokens = line.split()
         if tokens and tokens[0].isdigit():
-            # Surface cards are recognized by their mnemonic in token two;
-            # cells start with an integer material number (or zero).
-            if len(tokens) > 1 and tokens[1].lower() in {"pz", "cz", "so", "px", "py", "s", "cx", "cy"}:
+            # MCNP permits a surface transformation number between the surface
+            # id and mnemonic (e.g. `6 1 cz 5.235`). Cell material IDs and
+            # densities are numeric, so recognize supported surface mnemonics
+            # in the first three post-id columns instead of guessing by position.
+            if any(token.lower() in {"pz", "cz", "so", "px", "py", "s", "cx", "cy", "sz"}
+                   for token in tokens[1:4]):
                 surfaces.append(line)
             else:
                 cells.append(line)
