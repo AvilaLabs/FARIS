@@ -28,11 +28,14 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 /// Faceting tolerances when the design file gives none: 0.1 cm and 0.1 rad.
 pub const DEFAULT_CHORD_M: f64 = 1.0e-3;
+/// Maximum number of conversion attempts for the unconfigured default (initial attempt plus
+/// twelve halvings). All attempts share the existing conversion wall-time budget.
+pub const DEFAULT_CHORD_ATTEMPTS: usize = 13;
 pub const DEFAULT_ANGULAR_RAD: f64 = 0.1;
 /// OpenCASCADE projections per solid in the faceting deviation (GEO-032).
 pub const DEFAULT_DEVIATION_POINTS: usize = 2000;
@@ -412,8 +415,59 @@ pub struct ConversionRecord {
     pub volumes: Vec<ConvertedVolume>,
 }
 
+/// What one bounded converter attempt measured. The binding rows keep every returned volume's
+/// geometry result; hashes identify that attempt's immutable H5M and facet products.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ConversionAttemptRecord {
+    pub attempt: usize,
+    pub chord_m: f64,
+    pub directory: String,
+    pub reused: bool,
+    /// `VOLUME_GATE_PASSED`, `REFINEMENT_REQUIRED`, `BINDING_FAILED`, `MODEL_INVALID`,
+    /// `CONVERSION_FAILED`, `CONVERSION_UNAVAILABLE`, or `TIME_BUDGET_EXHAUSTED`.
+    pub status: String,
+    pub h5m_sha256: Option<String>,
+    pub facets_sha256: Option<String>,
+    pub volume_count: usize,
+    pub solid_count: usize,
+    pub binding_rows: Vec<BindingRow>,
+    pub binding_findings: Vec<String>,
+    pub largest_relative_difference: Option<f64>,
+    pub reason: Option<String>,
+}
+
+/// Adaptive selection receipt for GEO-012. Explicit tolerances get one attempt; only the
+/// implicit default is halved, and all attempts share the existing conversion budget.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct AdaptiveChordRecord {
+    pub was_default: bool,
+    pub initial_chord_m: f64,
+    pub maximum_attempts: usize,
+    pub conversion_budget_seconds: u64,
+    pub selected_chord_m: Option<f64>,
+    pub exhausted: bool,
+    pub attempt_records: Vec<ConversionAttemptRecord>,
+}
+
+pub fn adaptive_chord_for_attempt(
+    initial_chord_m: f64,
+    was_default: bool,
+    attempt: usize,
+) -> Option<f64> {
+    if !initial_chord_m.is_finite() || initial_chord_m <= 0.0 {
+        return None;
+    }
+    if !was_default {
+        return (attempt == 0).then_some(initial_chord_m);
+    }
+    (attempt < DEFAULT_CHORD_ATTEMPTS).then(|| initial_chord_m * 0.5_f64.powi(attempt as i32))
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct PreImprintRecord {
+    /// Chord actually used for the final per-solid mesh and pre-imprint overlap sweep.
+    #[serde(default)]
+    pub chord_m: f64,
     pub tessellation_seconds: f64,
     /// True when a recorded tessellation or boolean result was reused; its time is the recorded one.
     #[serde(default)]
@@ -511,6 +565,8 @@ pub struct WaiverUse {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct GeometryRecords {
     pub conversion: Option<ConversionRecord>,
+    #[serde(default)]
+    pub adaptive_chord: Option<AdaptiveChordRecord>,
     pub pre_imprint: Option<PreImprintRecord>,
     pub binding: Vec<BindingRow>,
     /// Per-solid faceted volume against the CAD volume, and the tolerance it was converted at.
@@ -756,7 +812,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         )),
     }
     let mut waivers = Waivers::new(&design.waivers);
-    let chord_m = design.cad.faceting_tolerance_m.unwrap_or(DEFAULT_CHORD_M);
+    let mut chord_m = design.cad.faceting_tolerance_m.unwrap_or(DEFAULT_CHORD_M);
     let shape_unit_m = if inspection.unit.declared.is_some() {
         1.0e-3
     } else {
@@ -880,6 +936,7 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 }
             }
             records.pre_imprint = Some(PreImprintRecord {
+                chord_m,
                 tessellation_seconds: tess.seconds,
                 tessellation_reused: tess.reused,
                 tessellation_reader: tess.reader.clone(),
@@ -912,40 +969,402 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
     }
 
     let mut converted: Option<ConvertOutcome> = None;
+    let was_default = design.cad.faceting_tolerance_m.is_none();
+    let maximum_attempts = if was_default {
+        DEFAULT_CHORD_ATTEMPTS
+    } else {
+        1
+    };
+    let mut adaptive_chord = AdaptiveChordRecord {
+        was_default,
+        initial_chord_m: chord_m,
+        maximum_attempts,
+        conversion_budget_seconds: super::CONVERT_TIMEOUT.as_secs(),
+        selected_chord_m: None,
+        exhausted: false,
+        attempt_records: Vec::new(),
+    };
+    let mut selected_directory = None;
+    let conversion_budget_started = Instant::now();
     if convert_blocked {
         subs6[1].not_evaluated = not_run(
             "the findings above stop the checks before the conversion",
             "Fix them, then check again.",
         );
     } else {
-        let convert_dir = work.join("convert");
-        let request = ConvertRequest {
+        for attempt_index in 0..maximum_attempts {
+            if options.cancellation.is_cancelled() {
+                return Err(DesignError::Tool("the check was cancelled".into()));
+            }
+            let attempt_chord_m = adaptive_chord_for_attempt(chord_m, was_default, attempt_index)
+                .expect("bounded chord schedule includes the requested attempt");
+            let attempt_dir = work
+                .join("convert")
+                .join(format!("attempt-{:02}", attempt_index + 1));
+            let remaining =
+                super::CONVERT_TIMEOUT.saturating_sub(conversion_budget_started.elapsed());
+            if remaining.is_zero() {
+                adaptive_chord
+                    .attempt_records
+                    .push(ConversionAttemptRecord {
+                        attempt: attempt_index + 1,
+                        chord_m: attempt_chord_m,
+                        directory: attempt_dir.display().to_string(),
+                        reused: false,
+                        status: "TIME_BUDGET_EXHAUSTED".into(),
+                        h5m_sha256: None,
+                        facets_sha256: None,
+                        volume_count: 0,
+                        solid_count: design.solids.len(),
+                        binding_rows: Vec::new(),
+                        binding_findings: Vec::new(),
+                        largest_relative_difference: None,
+                        reason: Some(
+                            "the shared three-hour conversion budget was exhausted".into(),
+                        ),
+                    });
+                subs6[1].not_evaluated = not_run(
+                    "the bounded adaptive conversion exhausted its shared three-hour budget",
+                    "Rerun with a simpler CAD model or a smaller explicit faceting tolerance.",
+                );
+                break;
+            }
+            let request = ConvertRequest {
+                step,
+                step_sha256: &design.cad.step_sha256,
+                shape_unit_m,
+                tags: &tags,
+                chord_cm: attempt_chord_m * 100.0,
+                angular_rad: DEFAULT_ANGULAR_RAD,
+                imprint_threads: options.imprint_threads,
+                directory: &attempt_dir,
+                reuse,
+                shape_cache,
+            };
+            match backends.convert_with_timeout(&request, remaining)? {
+                ToolResult::Done(out) => {
+                    let actual_chord_m = out.report.tolerances.chord_cm / 100.0;
+                    if (actual_chord_m - attempt_chord_m).abs()
+                        > 1.0e-12 * attempt_chord_m.max(1.0e-12)
+                    {
+                        let reason = format!(
+                            "converter receipt reports chord {:.6e} m for requested {:.6e} m",
+                            actual_chord_m, attempt_chord_m
+                        );
+                        adaptive_chord
+                            .attempt_records
+                            .push(ConversionAttemptRecord {
+                                attempt: attempt_index + 1,
+                                chord_m: attempt_chord_m,
+                                directory: attempt_dir.display().to_string(),
+                                reused: out.reused,
+                                status: "CONVERSION_FAILED".into(),
+                                h5m_sha256: Some(out.report.h5m.sha256.clone()),
+                                facets_sha256: Some(out.report.facets.bin_sha256.clone()),
+                                volume_count: out.manifest.volumes.len(),
+                                solid_count: design.solids.len(),
+                                binding_rows: Vec::new(),
+                                binding_findings: Vec::new(),
+                                largest_relative_difference: None,
+                                reason: Some(reason.clone()),
+                            });
+                        findings6.push(tool_finding(
+                            6,
+                            "conversion",
+                            reason,
+                            "Keep the converter and FARIS helpers on the same requested tolerance, then check again.".into(),
+                            "GEO-012",
+                        ));
+                        break;
+                    }
+                    let model = match Model::new(&out.facets) {
+                        Ok(model) => model,
+                        Err(reason) => {
+                            adaptive_chord
+                                .attempt_records
+                                .push(ConversionAttemptRecord {
+                                    attempt: attempt_index + 1,
+                                    chord_m: attempt_chord_m,
+                                    directory: attempt_dir.display().to_string(),
+                                    reused: out.reused,
+                                    status: "MODEL_INVALID".into(),
+                                    h5m_sha256: Some(out.report.h5m.sha256.clone()),
+                                    facets_sha256: Some(out.report.facets.bin_sha256.clone()),
+                                    volume_count: out.manifest.volumes.len(),
+                                    solid_count: design.solids.len(),
+                                    binding_rows: Vec::new(),
+                                    binding_findings: Vec::new(),
+                                    largest_relative_difference: None,
+                                    reason: Some(reason),
+                                });
+                            selected_directory = Some(attempt_dir);
+                            converted = Some(out);
+                            chord_m = attempt_chord_m;
+                            break;
+                        }
+                    };
+                    let stats = binding::volume_stats(&model.mesh, &out.facets, &out.manifest);
+                    let diagonal = inspection
+                        .model_bbox_diagonal_m
+                        .unwrap_or(model.mesh.diagonal() * 1.0e-9);
+                    let bound = binding::bind(design, &stats, diagonal);
+                    let (_, gate_findings) =
+                        binding::volume_gate(&bound.rows, attempt_chord_m, !was_default);
+                    let strict_pass = bound.findings.is_empty() && gate_findings.is_empty();
+                    let volume_only_binding = !bound.findings.is_empty()
+                        && bound.findings.iter().all(|finding| {
+                            finding.why.contains("centroid matches solid")
+                                && finding.why.contains("faceted volume")
+                        });
+                    let can_refine = was_default
+                        && ((!gate_findings.is_empty() && bound.findings.is_empty())
+                            || volume_only_binding);
+                    let status = if strict_pass {
+                        "VOLUME_GATE_PASSED"
+                    } else if can_refine && attempt_index + 1 < maximum_attempts {
+                        "REFINEMENT_REQUIRED"
+                    } else if can_refine {
+                        "VOLUME_GATE_EXHAUSTED"
+                    } else if !bound.findings.is_empty() {
+                        "BINDING_FAILED"
+                    } else {
+                        "VOLUME_GATE_FAILED"
+                    };
+                    let largest = bound
+                        .rows
+                        .iter()
+                        .filter_map(|row| row.volume_relative_difference)
+                        .map(f64::abs)
+                        .fold(0.0, f64::max);
+                    let reasons: Vec<String> = bound
+                        .findings
+                        .iter()
+                        .chain(gate_findings.iter())
+                        .map(|finding| finding.why.clone())
+                        .collect();
+                    adaptive_chord
+                        .attempt_records
+                        .push(ConversionAttemptRecord {
+                            attempt: attempt_index + 1,
+                            chord_m: attempt_chord_m,
+                            directory: attempt_dir.display().to_string(),
+                            reused: out.reused,
+                            status: status.into(),
+                            h5m_sha256: Some(out.report.h5m.sha256.clone()),
+                            facets_sha256: Some(out.report.facets.bin_sha256.clone()),
+                            volume_count: stats.len(),
+                            solid_count: design.solids.len(),
+                            binding_rows: bound.rows,
+                            binding_findings: reasons.clone(),
+                            largest_relative_difference: Some(largest),
+                            reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
+                        });
+                    selected_directory = Some(attempt_dir);
+                    converted = Some(out);
+                    chord_m = attempt_chord_m;
+                    if strict_pass || !can_refine || attempt_index + 1 == maximum_attempts {
+                        adaptive_chord.exhausted = !strict_pass && can_refine;
+                        break;
+                    }
+                }
+                ToolResult::Unavailable { why, next_step } => {
+                    adaptive_chord
+                        .attempt_records
+                        .push(ConversionAttemptRecord {
+                            attempt: attempt_index + 1,
+                            chord_m: attempt_chord_m,
+                            directory: attempt_dir.display().to_string(),
+                            reused: false,
+                            status: "CONVERSION_UNAVAILABLE".into(),
+                            h5m_sha256: None,
+                            facets_sha256: None,
+                            volume_count: 0,
+                            solid_count: design.solids.len(),
+                            binding_rows: Vec::new(),
+                            binding_findings: Vec::new(),
+                            largest_relative_difference: None,
+                            reason: Some(why.clone()),
+                        });
+                    subs6[1].not_evaluated = Some((why, next_step));
+                    break;
+                }
+                ToolResult::Failed { why, next_step } => {
+                    adaptive_chord
+                        .attempt_records
+                        .push(ConversionAttemptRecord {
+                            attempt: attempt_index + 1,
+                            chord_m: attempt_chord_m,
+                            directory: attempt_dir.display().to_string(),
+                            reused: false,
+                            status: "CONVERSION_FAILED".into(),
+                            h5m_sha256: None,
+                            facets_sha256: None,
+                            volume_count: 0,
+                            solid_count: design.solids.len(),
+                            binding_rows: Vec::new(),
+                            binding_findings: Vec::new(),
+                            largest_relative_difference: None,
+                            reason: Some(why.clone()),
+                        });
+                    findings6.push(tool_finding(6, "conversion", why, next_step, "GEO-012"));
+                    break;
+                }
+            }
+        }
+    }
+    // If refinement selected a smaller chord, re-run the per-solid mesh and pre-imprint overlap
+    // sweep at that exact input. The initial sweep authorized the first conversion attempt; it
+    // is not evidence for a finer final mesh.
+    if converted.is_some() && chord_m < adaptive_chord.initial_chord_m {
+        let chord_key = format!("{:016x}", chord_m.to_bits());
+        let refined_tess_dir = work
+            .join("tessellate")
+            .join(format!("selected-{chord_key}"));
+        match backends.tessellate(&TessellateRequest {
             step,
             step_sha256: &design.cad.step_sha256,
             shape_unit_m,
             tags: &tags,
             chord_cm: chord_m * 100.0,
             angular_rad: DEFAULT_ANGULAR_RAD,
-            imprint_threads: options.imprint_threads,
-            directory: &convert_dir,
+            directory: &refined_tess_dir,
+            workers: options.threads.clamp(1, 4),
             reuse,
             shape_cache,
-        };
-        match backends.convert(&request)? {
-            ToolResult::Done(out) => converted = Some(out),
+        })? {
+            ToolResult::Done(tess) => {
+                for problem in &tess.problems {
+                    findings6.push(tool_finding(
+                        6,
+                        "per-solid tessellation at selected chord",
+                        problem.clone(),
+                        "Repair the solid in the CAD tool and export again.".into(),
+                        "GEO-012",
+                    ));
+                }
+                match Model::new(&tess.facets) {
+                    Err(reason) => findings6.push(tool_finding(
+                        6,
+                        "per-solid tessellation at selected chord",
+                        format!("the refined per-solid meshes were refused: {reason}"),
+                        "Repair the solid in the CAD tool and export again.".into(),
+                        "GEO-020",
+                    )),
+                    Ok(model) => {
+                        let candidates =
+                            overlap::candidate_pairs(&model, chord_m, options.seed, &ctl)
+                                .map_err(cancelled)?;
+                        let mut pairs = Vec::new();
+                        let mut boolean_seconds = None;
+                        let mut booleans_reused = false;
+                        if !candidates.is_empty() {
+                            let pair_ids: Vec<(usize, usize)> = candidates
+                                .iter()
+                                .map(|candidate| (candidate.a, candidate.b))
+                                .collect();
+                            let refined_boolean_dir =
+                                work.join("booleans").join(format!("selected-{chord_key}"));
+                            match backends.overlap_booleans(&BooleanRequest {
+                                step,
+                                step_sha256: &design.cad.step_sha256,
+                                shape_unit_m,
+                                pairs: &pair_ids,
+                                chord_cm: chord_m * 100.0,
+                                angular_rad: DEFAULT_ANGULAR_RAD,
+                                directory: &refined_boolean_dir,
+                                workers: options.threads.clamp(1, 4),
+                                reuse,
+                                shape_cache,
+                            })? {
+                                ToolResult::Done(result) => {
+                                    boolean_seconds = Some(result.seconds);
+                                    booleans_reused = result.reused;
+                                    let n = design
+                                        .solids
+                                        .iter()
+                                        .map(|solid| solid.step_index + 1)
+                                        .max()
+                                        .unwrap_or(0);
+                                    let mut volumes = vec![0.0; n];
+                                    let mut labels = vec![String::new(); n];
+                                    for solid in &design.solids {
+                                        volumes[solid.step_index] = solid.fingerprint.cad_volume_m3;
+                                        labels[solid.step_index] = solid.id.clone();
+                                    }
+                                    let (records, findings) = overlap::boolean_findings(
+                                        &candidates,
+                                        &result.results,
+                                        &volumes,
+                                        &labels,
+                                    );
+                                    pairs = records;
+                                    findings6.extend(findings);
+                                }
+                                ToolResult::Unavailable { why, next_step } => {
+                                    subs6[0].not_evaluated = Some((why, next_step));
+                                }
+                                ToolResult::Failed { why, next_step } => {
+                                    findings6.push(tool_finding(
+                                        6,
+                                        "overlap booleans at selected chord",
+                                        why,
+                                        next_step,
+                                        "GEO-021",
+                                    ));
+                                }
+                            }
+                        }
+                        records.pre_imprint = Some(PreImprintRecord {
+                            chord_m,
+                            tessellation_seconds: tess.seconds,
+                            tessellation_reused: tess.reused,
+                            tessellation_reader: tess.reader.clone(),
+                            candidate_pairs: candidates.len(),
+                            boolean_seconds,
+                            booleans_reused,
+                            pairs,
+                        });
+                    }
+                }
+            }
             ToolResult::Unavailable { why, next_step } => {
-                subs6[1].not_evaluated = Some((why, next_step));
+                subs6[0].not_evaluated = Some((why, next_step));
             }
             ToolResult::Failed { why, next_step } => {
-                findings6.push(tool_finding(6, "conversion", why, next_step, "GEO-012"));
+                findings6.push(tool_finding(
+                    6,
+                    "per-solid tessellation at selected chord",
+                    why,
+                    next_step,
+                    "GEO-012",
+                ));
             }
         }
     }
+    adaptive_chord.selected_chord_m = converted.as_ref().map(|_| chord_m);
+    if adaptive_chord
+        .attempt_records
+        .last()
+        .is_some_and(|attempt| attempt.status == "TIME_BUDGET_EXHAUSTED")
+    {
+        adaptive_chord.exhausted = true;
+    }
+    if adaptive_chord.selected_chord_m.is_none() {
+        adaptive_chord.exhausted = adaptive_chord
+            .attempt_records
+            .last()
+            .is_some_and(|attempt| attempt.status == "TIME_BUDGET_EXHAUSTED");
+    }
+    records.adaptive_chord = Some(adaptive_chord);
     if let Some(out) = &converted {
         let t = &out.report.tolerances;
         records.conversion = Some(ConversionRecord {
             reused: out.reused,
-            directory: work.join("convert").display().to_string(),
+            directory: selected_directory
+                .as_ref()
+                .expect("every selected conversion has an attempt directory")
+                .display()
+                .to_string(),
             step_sha256: out.report.step.sha256.clone(),
             shape_unit_m,
             chord_cm: t.chord_cm,

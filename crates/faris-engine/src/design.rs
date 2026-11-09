@@ -52,14 +52,14 @@ pub(crate) mod transport;
 mod transport_progress;
 
 pub use geometry::{
-    BooleanOutcome, BooleanRequest, ConversionRecord, ConversionReport, ConvertOutcome,
-    ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M, DEFAULT_DEVIATION_BOUND_DEPTH,
-    DEFAULT_DEVIATION_BOUND_QUERIES, DEFAULT_DEVIATION_POINTS, DEFAULT_IMPRINT_THREADS,
-    DEFAULT_STOCHASTIC_VOLUME_SAMPLES, DeviationOutcome, DeviationRecord, DeviationRequest,
-    DeviationRow, GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn, SourceOutcome,
-    SourceRecord, SourceRequest, StageClock, StochasticVolumeBoundsCm, StochasticVolumeOutcome,
-    StochasticVolumeRequest, StochasticVolumeRow, StochasticVolumeTarget, TagEntry,
-    TessellateOutcome, TessellateRequest, ToolResult, WaiverUse,
+    AdaptiveChordRecord, BooleanOutcome, BooleanRequest, ConversionAttemptRecord, ConversionRecord,
+    ConversionReport, ConvertOutcome, ConvertRequest, DEFAULT_ANGULAR_RAD, DEFAULT_CHORD_M,
+    DEFAULT_DEVIATION_BOUND_DEPTH, DEFAULT_DEVIATION_BOUND_QUERIES, DEFAULT_DEVIATION_POINTS,
+    DEFAULT_IMPRINT_THREADS, DEFAULT_STOCHASTIC_VOLUME_SAMPLES, DeviationOutcome, DeviationRecord,
+    DeviationRequest, DeviationRow, GeometryOptions, GeometryRecords, PreImprintRecord, ProgressFn,
+    SourceOutcome, SourceRecord, SourceRequest, StageClock, StochasticVolumeBoundsCm,
+    StochasticVolumeOutcome, StochasticVolumeRequest, StochasticVolumeRow, StochasticVolumeTarget,
+    TagEntry, TessellateOutcome, TessellateRequest, ToolResult, WaiverUse,
 };
 pub use heating::{
     DESIGN_HEATING_OUTPUTS, DesignHeatingOptions, DesignHeatingReport, ELEMENTARY_CHARGE_C,
@@ -298,6 +298,15 @@ pub trait Backends {
     fn convert(&self, _: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
         Ok(not_configured("the conversion"))
     }
+    /// Check 6 conversion with a caller-owned remaining wall-time budget. Test backends can
+    /// inherit the ordinary conversion behavior; process-backed adapters must enforce it.
+    fn convert_with_timeout(
+        &self,
+        request: &ConvertRequest,
+        _timeout: Duration,
+    ) -> Result<ToolResult<ConvertOutcome>, DesignError> {
+        self.convert(request)
+    }
     /// Check 6: mesh every solid on its own, not imprinted.
     fn tessellate(
         &self,
@@ -513,6 +522,13 @@ fn run_python(
 impl Backends for ExternalBackends<'_> {
     fn convert(&self, request: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
         external::convert(self, request)
+    }
+    fn convert_with_timeout(
+        &self,
+        request: &ConvertRequest,
+        timeout: Duration,
+    ) -> Result<ToolResult<ConvertOutcome>, DesignError> {
+        external::convert_with_timeout(self, request, timeout)
     }
     fn tessellate(
         &self,
@@ -1367,6 +1383,50 @@ pub fn render_text(report: &ImportReport) -> String {
 
 fn render_geometry(g: &GeometryRecords) -> String {
     let mut out = String::new();
+    if let Some(selection) = &g.adaptive_chord {
+        let source = if selection.was_default {
+            "default"
+        } else {
+            "design-file"
+        };
+        out.push_str(&format!(
+            "\nFaceting chord selection: {source}; initial {:.6e} m; selected {}; {}/{} attempt(s){}\n",
+            selection.initial_chord_m,
+            selection
+                .selected_chord_m
+                .map_or("none".into(), |chord| format!("{chord:.6e} m")),
+            selection.attempt_records.len(),
+            selection.maximum_attempts,
+            if selection.exhausted { "; refinement exhausted" } else { "" },
+        ));
+        for attempt in &selection.attempt_records {
+            let h5m = attempt
+                .h5m_sha256
+                .as_deref()
+                .map_or("none".into(), |hash| hash[..16.min(hash.len())].to_string());
+            let facets = attempt
+                .facets_sha256
+                .as_deref()
+                .map_or("none".into(), |hash| hash[..16.min(hash.len())].to_string());
+            let largest = attempt
+                .largest_relative_difference
+                .map_or("not measured".into(), |difference| {
+                    format!("{:+.4}%", difference * 100.0)
+                });
+            out.push_str(&format!(
+                "  attempt {}: {:.6e} m, {}; {} volume(s) / {} solid(s), largest difference {}; H5M sha256 {}; facets sha256 {}{}\n",
+                attempt.attempt,
+                attempt.chord_m,
+                attempt.status,
+                attempt.volume_count,
+                attempt.solid_count,
+                largest,
+                h5m,
+                facets,
+                if attempt.reused { "; reused" } else { "" },
+            ));
+        }
+    }
     if let Some(c) = &g.conversion {
         let total = c
             .timing_seconds

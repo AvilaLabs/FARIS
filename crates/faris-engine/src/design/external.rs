@@ -312,6 +312,14 @@ pub(super) fn convert(
     ext: &ExternalBackends,
     request: &ConvertRequest,
 ) -> Result<ToolResult<ConvertOutcome>, DesignError> {
+    convert_with_timeout(ext, request, super::CONVERT_TIMEOUT)
+}
+
+pub(super) fn convert_with_timeout(
+    ext: &ExternalBackends,
+    request: &ConvertRequest,
+    timeout: Duration,
+) -> Result<ToolResult<ConvertOutcome>, DesignError> {
     let Some(python) = ext.tools.cad_python.as_deref() else {
         return Ok(missing_python("the conversion", "CAD"));
     };
@@ -351,7 +359,7 @@ pub(super) fn convert(
         python,
         arguments,
         dir,
-        CONVERT_TIMEOUT,
+        timeout,
         "the conversion",
         ext.cancellation,
         job_environment(dir)?,

@@ -12,6 +12,10 @@ const INSPECT: &str =
 
 struct Geo {
     imprinted: Facets,
+    conversion_candidates: RefCell<Vec<Facets>>,
+    conversion_chords: RefCell<Vec<f64>>,
+    tessellation_chords: RefCell<Vec<f64>>,
+    deviation_chords: RefCell<Vec<f64>>,
     tags: Vec<String>,
     tess: Facets,
     booleans: RefCell<Vec<BooleanResult>>,
@@ -48,9 +52,12 @@ impl Backends for Geo {
     }
     fn tessellate(
         &self,
-        _: &TessellateRequest,
+        request: &TessellateRequest,
     ) -> Result<ToolResult<TessellateOutcome>, DesignError> {
         self.bump(0);
+        self.tessellation_chords
+            .borrow_mut()
+            .push(request.chord_cm / 100.0);
         let tags: Vec<String> = (0..self.tess.n_volumes)
             .map(|i| format!("mat:s{i}"))
             .collect();
@@ -96,13 +103,19 @@ impl Backends for Geo {
     }
     fn convert(&self, r: &ConvertRequest) -> Result<ToolResult<ConvertOutcome>, DesignError> {
         self.bump(2);
+        self.conversion_chords.borrow_mut().push(r.chord_cm / 100.0);
         if let Some(why) = &self.convert_failure {
             return Ok(ToolResult::Failed {
                 why: why.clone(),
                 next_step: "Fix it.".into(),
             });
         }
-        let (facets, manifest) = pair_of(&self.imprinted, &self.tags);
+        let facets = if self.conversion_candidates.borrow().is_empty() {
+            self.imprinted.clone()
+        } else {
+            self.conversion_candidates.borrow_mut().remove(0)
+        };
+        let (facets, manifest) = pair_of(&facets, &self.tags);
         let report = ConversionReport {
             schema: "faris-conversion/v1".into(),
             step: geometry::ConversionStep {
@@ -122,7 +135,7 @@ impl Backends for Geo {
             peak_rss_mb: 100.0,
             h5m: geometry::ConversionFile {
                 file: "model.h5m".into(),
-                sha256: "a".repeat(64),
+                sha256: manifest.binary_sha256.clone(),
                 bytes: 10,
             },
             facets: geometry::ConversionFacets {
@@ -142,8 +155,12 @@ impl Backends for Geo {
             helper_sha256: "h".repeat(64),
         }))
     }
-    fn deviation(&self, _: &DeviationRequest) -> Result<ToolResult<DeviationOutcome>, DesignError> {
+    fn deviation(
+        &self,
+        request: &DeviationRequest,
+    ) -> Result<ToolResult<DeviationOutcome>, DesignError> {
         self.bump(3);
+        self.deviation_chords.borrow_mut().push(request.tolerance_m);
         Ok(match &self.deviation {
             Some(rows) => ToolResult::Done(DeviationOutcome {
                 rows: rows.clone(),
@@ -253,6 +270,10 @@ fn geo() -> Geo {
         .collect();
     Geo {
         imprinted: imprinted(),
+        conversion_candidates: RefCell::new(Vec::new()),
+        conversion_chords: RefCell::new(Vec::new()),
+        tessellation_chords: RefCell::new(Vec::new()),
+        deviation_chords: RefCell::new(Vec::new()),
         tags: vec!["mat:shell".into(), "mat:core".into()],
         tess: separate_boxes(&[([-10.0; 3], [10.0; 3]), ([30.0; 3], [32.0; 3])]),
         booleans: RefCell::new(Vec::new()),
@@ -391,6 +412,10 @@ fn a_clean_model_passes_checks_6_to_9_and_records_what_was_measured() {
     let g = &report.geometry;
     let conv = g.conversion.as_ref().unwrap();
     assert!(!conv.reused && conv.chord_cm == 0.1 && conv.angular_rad == 0.1);
+    let adaptive = g.adaptive_chord.as_ref().unwrap();
+    assert!(adaptive.was_default && !adaptive.exhausted);
+    assert_eq!(adaptive.attempt_records.len(), 1);
+    assert_eq!(adaptive.attempt_records[0].status, "VOLUME_GATE_PASSED");
     let gate = g.volume_gate.as_ref().unwrap();
     assert_eq!(gate.tolerance_source, "default");
     assert!(gate.solids.iter().all(|s| s.verdict == "WITHIN"));
@@ -439,9 +464,20 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
     assert!(finding.why.contains("0.1 %"), "{finding:?}");
     let gate = report.geometry.volume_gate.as_ref().unwrap();
     assert_eq!(gate.tolerance_source, "default");
-    assert!((gate.chord_m - DEFAULT_CHORD_M).abs() < 1e-12 && gate.limit == 0.001);
+    assert!((gate.chord_m - DEFAULT_CHORD_M / 4096.0).abs() < 1e-15 && gate.limit == 0.001);
     assert_eq!(gate.solids[0].verdict, "EXCEEDED");
     assert_eq!(gate.solids[1].verdict, "WITHIN");
+    assert!(report.geometry.adaptive_chord.as_ref().unwrap().exhausted);
+    assert_eq!(
+        report
+            .geometry
+            .adaptive_chord
+            .as_ref()
+            .unwrap()
+            .attempt_records
+            .len(),
+        DEFAULT_CHORD_ATTEMPTS
+    );
     // the same model at a tolerance the user set is judged at 0.5 %, and the report says so
     d.cad.faceting_tolerance_m = Some(1.0e-3);
     let report = run_with(&d, &backend);
@@ -455,6 +491,97 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
         ("design file", 0.005)
     );
     assert_eq!(gate.solids[0].verdict, "WITHIN");
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert!(!adaptive.was_default && !adaptive.exhausted);
+    assert_eq!(adaptive.attempt_records.len(), 1);
+}
+
+#[test]
+fn the_default_refinement_schedule_is_bounded_and_explicit_tolerance_is_single_shot() {
+    for attempt in 0..DEFAULT_CHORD_ATTEMPTS {
+        assert_eq!(
+            adaptive_chord_for_attempt(DEFAULT_CHORD_M, true, attempt),
+            Some(DEFAULT_CHORD_M / 2.0_f64.powi(attempt as i32))
+        );
+    }
+    assert_eq!(
+        adaptive_chord_for_attempt(DEFAULT_CHORD_M, true, DEFAULT_CHORD_ATTEMPTS),
+        None
+    );
+    assert_eq!(adaptive_chord_for_attempt(0.0025, false, 0), Some(0.0025));
+    assert_eq!(adaptive_chord_for_attempt(0.0025, false, 1), None);
+    assert_eq!(adaptive_chord_for_attempt(0.0, true, 0), None);
+}
+
+#[test]
+fn default_chord_refines_and_rechecks_the_selected_mesh_and_deviation_at_that_chord() {
+    let mut backend = geo();
+    backend
+        .conversion_candidates
+        .borrow_mut()
+        .extend([shell_and_core(10.01, 2.0), imprinted()]);
+
+    let report = run_with(&design(Vec::new()), &backend);
+
+    assert_eq!(
+        statuses(&report),
+        [(6, Pass), (7, Pass), (8, Pass), (9, Pass)]
+    );
+    let selected = DEFAULT_CHORD_M * 0.5;
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert!(adaptive.was_default && !adaptive.exhausted);
+    assert_eq!(adaptive.attempt_records.len(), 2);
+    assert_eq!(adaptive.attempt_records[0].status, "REFINEMENT_REQUIRED");
+    assert_eq!(adaptive.attempt_records[1].status, "VOLUME_GATE_PASSED");
+    assert_ne!(
+        adaptive.attempt_records[0].facets_sha256,
+        adaptive.attempt_records[1].facets_sha256
+    );
+    assert_eq!(adaptive.selected_chord_m, Some(selected));
+    assert_eq!(
+        backend.conversion_chords.borrow().as_slice(),
+        &[DEFAULT_CHORD_M, selected]
+    );
+    assert_eq!(
+        backend.tessellation_chords.borrow().as_slice(),
+        &[DEFAULT_CHORD_M, selected]
+    );
+    assert_eq!(
+        backend.deviation_chords.borrow().last().copied(),
+        Some(selected)
+    );
+    assert_eq!(
+        report.geometry.pre_imprint.as_ref().unwrap().chord_m,
+        selected
+    );
+    assert_eq!(
+        report.geometry.conversion.as_ref().unwrap().chord_cm,
+        selected * 100.0
+    );
+}
+
+#[test]
+fn adaptive_chord_stops_immediately_when_conversion_drops_a_solid() {
+    let mut backend = geo();
+    backend
+        .conversion_candidates
+        .borrow_mut()
+        .push(separate_boxes(&[([0.0; 3], [2.0; 3])]));
+
+    let report = run_with(&design(Vec::new()), &backend);
+
+    let adaptive = report.geometry.adaptive_chord.as_ref().unwrap();
+    assert!(adaptive.was_default && !adaptive.exhausted);
+    assert_eq!(adaptive.attempt_records.len(), 1);
+    assert_eq!(adaptive.attempt_records[0].status, "BINDING_FAILED");
+    assert_eq!(adaptive.attempt_records[0].volume_count, 1);
+    assert_eq!(adaptive.attempt_records[0].solid_count, 2);
+    assert!(
+        adaptive.attempt_records[0]
+            .binding_findings
+            .iter()
+            .any(|finding| finding.contains("every solid must be one volume"))
+    );
 }
 
 // Verifies: GEO-030
