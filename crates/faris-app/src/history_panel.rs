@@ -459,6 +459,55 @@ impl HistoryPanel {
         self.assumptions.as_ref()
     }
 
+    /// Compact transport rates for the named arrangement, if that history has been prepared.
+    pub fn current_rates(&self, scenario: &str, variant: &str) -> Option<&TransportDrivingRates> {
+        if self.pending.is_some()
+            || self.requested
+            || self.edited
+            || self.debounce.is_some()
+            || self.error.is_some()
+        {
+            return None;
+        }
+        let id = key(scenario, variant);
+        let rates = self.rates.get(&id)?;
+        let history = self.results.get(&id)?;
+        (self.assumptions.as_ref() == Some(&history.assumptions) && rates == &history.driving_rates)
+            .then_some(rates)
+    }
+
+    fn invalidate_rates_for_identity_change(&mut self, identity: &BTreeMap<String, String>) {
+        if identity != &self.bound_transport {
+            // Do this before the debounce and pending-job early returns below. A caller may
+            // request a duration sensitivity while a new transport record is waiting to be
+            // prepared; its rates must never come from the previously bound artifact.
+            self.rates.clear();
+            self.requested = true;
+        }
+    }
+
+    /// Apply an authored what-if edit through the same validation, cancellation and debounce
+    /// path as the sliders. Returning to earlier values reuses the existing result cache.
+    pub fn apply_assumptions_edit(
+        &mut self,
+        next: OperatingHistoryAssumptions,
+    ) -> Result<(), String> {
+        next.validate()?;
+        if self.assumptions.as_ref() == Some(&next) {
+            return Ok(());
+        }
+        self.assumptions = Some(next);
+        self.edited = true;
+        self.requested = true;
+        self.validation = None;
+        self.debounce = Some(Instant::now());
+        if let Some(pending) = &self.pending {
+            pending.cancellation.cancel();
+        }
+        self.uncertainty.invalidate();
+        Ok(())
+    }
+
     pub fn plot_name(&self) -> &'static str {
         self.plot.name()
     }
@@ -647,6 +696,7 @@ impl HistoryPanel {
                     .map(|hash| (key(&run.scenario_sha256, &run.variant_id), hash.clone()))
             })
             .collect();
+        self.invalidate_rates_for_identity_change(&identity);
         if let Some(edit) = self.debounce {
             let remaining = DEBOUNCE.saturating_sub(edit.elapsed());
             if !remaining.is_zero() {
@@ -654,9 +704,6 @@ impl HistoryPanel {
                 return;
             }
             self.debounce = None;
-            self.requested = true;
-        }
-        if identity != self.bound_transport && self.pending.is_none() {
             self.requested = true;
         }
         if !self.requested || self.pending.is_some() || inputs.is_empty() {
@@ -1894,6 +1941,16 @@ impl HistoryPanel {
                 ui.weak("No service trigger declared for this component.");
             }
             ui.collapsing("Operating events", |ui| {
+                let event_validation = history
+                    .validation()
+                    .mark("events", faris_model::validation::Quantity::Fluence);
+                let validation_note =
+                    faris_model::validation::note(faris_model::validation::Quantity::Fluence);
+                ui.small(format!("Event-time validation: {}", event_validation.tag()))
+                    .on_hover_text(format!(
+                        "Scope: {}\nWhy: {}\nNext step: {}",
+                        validation_note.scope, validation_note.why, validation_note.next_step
+                    ));
                 for event in history
                     .events
                     .iter()
@@ -1906,6 +1963,16 @@ impl HistoryPanel {
                         event.kind
                     ));
                     ui.small(&event.note);
+                    if let Some(trip) = &event.trip {
+                        ui.small(format!(
+                            "{} uncertainty: {} y",
+                            trip.criterion,
+                            crate::quantity_text::output_uncertainty(
+                                &trip.time_uncertainty_s.scaled(1.0 / JULIAN_YEAR_SECONDS),
+                                2,
+                            )
+                        ));
+                    }
                 }
             });
             ui.small("Conditional scenario history. Transport sampling uncertainty is shown separately; model uncertainty is not propagated. Not a qualified lifetime bound.");
@@ -2235,6 +2302,66 @@ mod tests {
         let rates = faris_engine::fixtures::rates_without_covariance(0.05, artifact);
         let result = faris_engine::history::run_operating_history(assumptions, &rates).unwrap();
         BTreeMap::from([("scenario::variant".to_string(), result)])
+    }
+
+    fn ready_panel() -> (HistoryPanel, TransportDrivingRates) {
+        let assumptions = faris_engine::fixtures::assumptions();
+        let rates = faris_engine::fixtures::rates_without_covariance(0.05, 'a');
+        let result = faris_engine::history::run_operating_history(&assumptions, &rates).unwrap();
+        let id = key("scenario", "variant");
+        let mut panel = HistoryPanel::new(None).unwrap();
+        panel.assumptions = Some(assumptions);
+        panel.rates.insert(id.clone(), rates.clone());
+        panel.results.insert(id.clone(), result);
+        panel
+            .bound_transport
+            .insert(id, rates.transport_artifact_sha256.clone());
+        (panel, rates)
+    }
+
+    #[test]
+    fn current_rates_refuses_old_inputs_during_change_debounce_and_pending_history() {
+        let (mut panel, rates) = ready_panel();
+        assert_eq!(panel.current_rates("scenario", "variant"), Some(&rates));
+
+        // A new transport artifact for the same arrangement arrives during an active what-if.
+        let changed_identity = BTreeMap::from([(
+            key("scenario", "variant"),
+            "new-transport-artifact".to_owned(),
+        )]);
+        panel.invalidate_rates_for_identity_change(&changed_identity);
+        assert!(panel.current_rates("scenario", "variant").is_none());
+
+        // The real update path also invalidates rates before its debounce early return.
+        panel.debounce = Some(Instant::now());
+        let ctx = egui::Context::default();
+        panel.update_inputs(&ctx, &[]);
+        assert!(panel.current_rates("scenario", "variant").is_none());
+        assert!(panel.rates.is_empty());
+
+        // Applying an assumptions edit also hides otherwise matching rates until its history is
+        // recalculated or found in the exact-input result cache.
+        let (mut edited, _) = ready_panel();
+        let mut next = edited.assumptions.clone().unwrap();
+        next.startup_reserve_kg += 0.01;
+        edited.apply_assumptions_edit(next).unwrap();
+        assert!(edited.current_rates("scenario", "variant").is_none());
+
+        // Pending history blocks the snapshot even if the previous complete rates/result pair
+        // remains available for inspection.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (mut pending, _) = ready_panel();
+            let (sender, receiver) = mpsc::channel();
+            pending.pending = Some(Pending {
+                handle: None,
+                cancellation: Cancellation::default(),
+                receiver,
+                assumptions: pending.assumptions.clone().unwrap(),
+            });
+            drop(sender);
+            assert!(pending.current_rates("scenario", "variant").is_none());
+        }
     }
 
     // Verifies: UX-023

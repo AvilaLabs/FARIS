@@ -30,6 +30,7 @@ use faris_engine::{
         CONTRASTS, SCOPE_DETAIL, SCOPE_LINE, comparison_lines, not_evaluated_text, progress_text,
     },
 };
+use faris_model::validation::Quantity;
 
 pub use faris_engine::brief::VARIANTS;
 
@@ -98,6 +99,11 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                     .on_hover_text(format!("Tritium atoms produced per source neutron, ± one Monte Carlo standard error. Cold-data surrogate. {}", crate::not_evaluated::NOT_QUALIFIED.line()));
                     ui.monospace(pair(cell.breeding));
                     ui.end_row();
+                    if cell.breeding.is_some() {
+                        ui.label("Breeding uncertainty / validation");
+                        uncertainty_line(ui, cell, "breeding", Quantity::Tbr, "H3/source");
+                        ui.end_row();
+                    }
                     ui.label("Magnet mean flux")
                         .on_hover_text("Component-average neutron flux in the magnet envelope at reference power, ± one sampling standard error. Volume and model/data uncertainty are separate.");
                     ui.horizontal(|ui| {
@@ -110,6 +116,11 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                         }
                     });
                     ui.end_row();
+                    if cell.magnet_flux.is_some() {
+                        ui.label("Flux uncertainty / validation");
+                        uncertainty_line(ui, cell, "magnet_flux", Quantity::Flux, "n/m²/s");
+                        ui.end_row();
+                    }
                     let horizon = if cell.horizon_years > 0.0 { cell.horizon_years } else { 30.0 };
                     ui.label(format!("Magnet swaps in {horizon:.0} y"));
                     ui.horizontal(|ui| match cell.swaps {
@@ -122,22 +133,18 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                         }
                     });
                     ui.end_row();
+                    if cell.swaps.is_some() {
+                        ui.label("Swap-count uncertainty");
+                        uncertainty_line(ui, cell, "swaps", Quantity::Fluence, "swaps");
+                        ui.end_row();
+                    }
                     ui.label("First swap");
-                    ui.horizontal(|ui| match (cell.first_swap_y, cell.first_swap_relative_sampling) {
-                        (Some(y), Some(rel)) => {
-                            let year = faris_model::units::JULIAN_YEAR_S;
-                            ui.monospace(crate::quantity_text::measurement_in(
-                                "service_time",
-                                "yr",
-                                y * year,
-                                y * rel * year,
-                            ));
-                            badge::badge(ui, Kind::Partial, "sampling, first order", "Relative sampling error of the fast flux in the magnet region that reaches its limit first, carried onto the crossing time (fluence = flux × time). Ignores outage-timing nonlinearity, the local peak within the region, and all model and data uncertainty, so it is a lower bound on the true uncertainty.");
+                    ui.horizontal(|ui| match cell.first_swap_y {
+                        Some(y) => {
+                            ui.monospace(format!("{y:.1} y ·"));
+                            uncertainty_line(ui, cell, "first_swap_y", Quantity::Fluence, "y");
                         }
-                        (Some(y), None) => {
-                            ui.monospace(format!("{y:.1} y"));
-                        }
-                        (None, _) => {
+                        None => {
                             ui.weak(if cell.swaps == Some(0) { "none in horizon" } else { NOT_RECORDED });
                         }
                     });
@@ -153,6 +160,11 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                         }
                     });
                     ui.end_row();
+                    if cell.net_twh.is_some() {
+                        ui.label("Net-electricity uncertainty / validation");
+                        uncertainty_line(ui, cell, "net_twh", Quantity::NetElectricPower, "TWh");
+                        ui.end_row();
+                    }
                     ui.label("Final usable tritium");
                     ui.monospace(
                         cell.final_tritium_kg
@@ -161,6 +173,11 @@ fn cell_ui(ui: &mut egui::Ui, id: &str, cell: &Cell, port: bool, breeder: bool, 
                             }),
                     );
                     ui.end_row();
+                    if cell.final_tritium_kg.is_some() {
+                        ui.label("Tritium uncertainty / validation");
+                        uncertainty_line(ui, cell, "final_tritium_kg", Quantity::TritiumInventory, "kg");
+                        ui.end_row();
+                    }
                 });
         });
 }
@@ -182,6 +199,28 @@ fn delta_cell(
             ui.weak(NOT_RECORDED).on_hover_text(none_hint);
         }
     });
+}
+
+fn uncertainty_line(ui: &mut egui::Ui, cell: &Cell, field: &str, quantity: Quantity, unit: &str) {
+    if let Some(state) = cell.uncertainty.get(field) {
+        ui.weak(uncertainty_display(state, unit));
+        let mark = faris_engine::brief::validation().mark(field, quantity);
+        let note = faris_model::validation::note(quantity);
+        ui.weak(mark.tag()).on_hover_text(format!(
+            "Scope: {}\nWhy: {}\nNext step: {}",
+            note.scope, note.why, note.next_step
+        ));
+    }
+}
+
+fn uncertainty_display(
+    state: &faris_engine::output_uncertainty::OutputUncertainty,
+    unit: &str,
+) -> String {
+    format!(
+        "{} {unit}",
+        crate::quantity_text::output_uncertainty(state, 1)
+    )
 }
 
 const NOISE_NOTE: &str = "Compared with twice the combined Monte Carlo standard error, 2·√(SE₁²+SE₂²). Covariance between runs is not modelled and the runs use distinct seeds, so this is a screening flag, not a significance test.";
@@ -637,6 +676,38 @@ pub fn compare_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn uncertainty_display_keeps_closed_open_and_missing_states_with_units() {
+        use faris_engine::output_uncertainty::OutputUncertainty;
+
+        let closed = uncertainty_display(
+            &OutputUncertainty::interval(4.0, Some(8.0), "2 sigma of driving flux"),
+            "y",
+        );
+        assert_eq!(closed, "4.0 to 8.0 (2 sigma of driving flux) y");
+        let open = uncertainty_display(
+            &OutputUncertainty::interval(4.0, None, "2 sigma of driving flux"),
+            "y",
+        );
+        assert!(
+            open.contains("no upper edge") && open.ends_with(" y"),
+            "{open}"
+        );
+        let missing = uncertainty_display(
+            &OutputUncertainty::none("the flux SE is missing", "record batch statistics"),
+            "y",
+        );
+        assert!(
+            missing.contains("because the flux SE is missing"),
+            "{missing}"
+        );
+        assert!(
+            missing.contains("next step: record batch statistics"),
+            "{missing}"
+        );
+        assert!(!closed.contains("1 σ"));
+    }
 
     // Verifies: UNC-009
     // Verifies: VIS-035

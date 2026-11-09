@@ -1010,6 +1010,7 @@ impl FarisApp {
             && !self.history.is_pending()
             && !self.history.uncertainty_pending()
             && !self.sweep.as_ref().is_some_and(|s| s.is_pending())
+            && !self.maintenance.is_pending()
             && !self.study.archive.is_loading()
             && !self.design_check.tools_busy()
             && self.tour.settled()
@@ -2056,7 +2057,31 @@ impl eframe::App for FarisApp {
             }
         });
         let bar_bottom = bar.response.rect.bottom();
+        let duration_snapshot = self.history.assumptions.as_ref().and_then(|assumptions| {
+            self.history
+                .current_rates(
+                    &self.manifest.source_sha256,
+                    &self.manifest.variants[self.variant].id,
+                )
+                .map(|rates| maintenance_panel::DurationSnapshot {
+                    assumptions: assumptions.clone(),
+                    rates: rates.clone(),
+                })
+        });
+        self.maintenance.set_duration_snapshot(duration_snapshot);
         self.maintenance.window(&ctx);
+        if let Some(assumptions) = self.maintenance.take_history_edit() {
+            match self.history.apply_assumptions_edit(assumptions) {
+                Ok(()) => {
+                    self.message =
+                        "Replacement duration changed; the operating history will recalculate. Use Undo to restore the earlier assumptions."
+                            .into();
+                }
+                Err(error) => {
+                    self.message = format!("Replacement duration was not changed: {error}")
+                }
+            }
+        }
         self.diff.window(&ctx, self.file.path.as_deref());
         self.design_check.window(&ctx);
         if let Some((design, report)) = self.design_check.take_flux_request() {

@@ -25,6 +25,9 @@ basis.
 
 ### Added
 
+- Maintenance now offers the literature campaign presets as explicitly authored per-component what-ifs and
+  compares duration endpoints on a worker thread. Compare, sweep and operating-event details show the engine's
+  uncertainty bands or the reason no interval exists, alongside validation states.
 - Design transport summaries now show the nominal D-T neutron share alongside fusion power, including
   the declared neutron-to-reaction-energy fraction; it is labelled separately from tallied heating.
 - A high-contrast theme (white on black, every text style at least 7 to 1), chosen with the `ui.theme`

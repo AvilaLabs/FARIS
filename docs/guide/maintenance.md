@@ -24,6 +24,10 @@ For each design and each replacement over the plant's life:
 
 It then reports, under both the fixed and the computed model, every design's total replacement downtime,
 availability and lifetime net electricity, plus the downtime difference between each pair of designs.
+Plant replacement downtime counts overlapping component outages once and clips an
+unfinished outage at the end of the history. Availability here means one minus
+that replacement downtime divided by the history duration; it excludes other
+causes of lost production.
 
 The comparison makes no ranking claim. In the validation runs, computed durations changed the downtime differences
 between designs by factors of 2 to 14. Whether they change which design produces more electricity depended on how long
@@ -113,6 +117,17 @@ close the window and reopen it to check progress. When the run finishes, the res
 
 ACTINV results are cached in `maintenance-work` next to the designs file, keyed by the exact ACTINV input, so a
 rerun with unchanged inputs takes seconds.
+
+### Compare a literature duration
+
+With an active operating history calculated, open **Replacement-duration what-if** in the maintenance
+window. Choose a replaceable component and an EU-DEMO literature campaign. **Calculate duration tornado**
+reruns the history at the current duration and the campaign duration, showing their effects on availability
+and lifetime electricity. These endpoints are deterministic scenario cases, not uncertainty bounds.
+
+The cited campaign covers blanket and divertor maintenance for the whole plant; it is not a measured
+duration for the selected component. **Apply campaign duration to this component** therefore creates an
+authored assumption. The history editor validates the change, and **Undo** restores the previous inputs.
 
 ## Run it from the command line
 

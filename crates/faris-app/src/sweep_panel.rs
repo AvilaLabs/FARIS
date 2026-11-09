@@ -24,7 +24,11 @@ use faris_engine::{
         transport_findings,
     },
 };
-use faris_model::{LoadedScenario, history::OperatingHistoryAssumptions};
+use faris_model::{
+    LoadedScenario,
+    history::OperatingHistoryAssumptions,
+    validation::{Quantity, note},
+};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 const DEBOUNCE: Duration = Duration::from_millis(400);
@@ -1113,6 +1117,14 @@ fn estimate_text(e: &Estimate, scientific: bool) -> String {
     }
 }
 
+fn validation_label(ui: &mut egui::Ui, quantity: Quantity) {
+    let validation = note(quantity);
+    ui.weak(validation.state.label()).on_hover_text(format!(
+        "Scope: {}\nWhy: {}\nNext step: {}",
+        validation.scope, validation.why, validation.next_step
+    ));
+}
+
 fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummary>, preset: &str) {
     ui.set_max_width(380.0);
     ui.strong(format!(
@@ -1127,8 +1139,14 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
         ui.weak("Breeding (H3/source)");
         ui.monospace(estimate_text(&p.breeding, false));
         ui.end_row();
+        ui.weak("Breeding validation");
+        validation_label(ui, Quantity::Tbr);
+        ui.end_row();
         ui.weak("Magnet flux (n/m\u{b2}/s)");
         ui.monospace(estimate_text(&p.magnet_flux, true));
+        ui.end_row();
+        ui.weak("Flux validation");
+        validation_label(ui, Quantity::Flux);
         ui.end_row();
         ui.weak("Run");
         ui.monospace(format!(
@@ -1147,15 +1165,67 @@ fn tooltip(ui: &mut egui::Ui, p: &TransportPoint, summary: Option<&HistorySummar
                     .unwrap_or_default()
             ));
             ui.end_row();
+            for (label, field) in [
+                ("Swap-count uncertainty", "magnet_replacements"),
+                ("First-swap uncertainty", "first_magnet_replacement_years"),
+            ] {
+                if let Some(state) = s.uncertainty.get(field) {
+                    let validation = note(Quantity::Fluence);
+                    ui.weak(label);
+                    ui.weak(format!(
+                        "{} {} · {}",
+                        crate::quantity_text::output_uncertainty(state, 1),
+                        if field == "magnet_replacements" {
+                            "swaps"
+                        } else {
+                            "y"
+                        },
+                        validation.state.label()
+                    ))
+                    .on_hover_text(format!(
+                        "Scope: {}\nWhy: {}\nNext step: {}",
+                        validation.scope, validation.why, validation.next_step
+                    ));
+                    ui.end_row();
+                }
+            }
             ui.weak("Net electricity");
             ui.monospace(
                 s.net_electricity_twh
                     .map_or("unavailable".into(), |e| format!("{e:.2} TWh")),
             );
             ui.end_row();
+            if let Some(state) = s.uncertainty.get("net_electricity_twh") {
+                ui.weak("Net-electricity uncertainty");
+                let validation = note(Quantity::NetElectricPower);
+                ui.weak(format!(
+                    "{} TWh · {}",
+                    crate::quantity_text::output_uncertainty(state, 1),
+                    validation.state.label()
+                ))
+                .on_hover_text(format!(
+                    "Scope: {}\nWhy: {}\nNext step: {}",
+                    validation.scope, validation.why, validation.next_step
+                ));
+                ui.end_row();
+            }
             ui.weak("Usable tritium at end");
             ui.monospace(format!("{:.2} kg", s.final_available_tritium_kg));
             ui.end_row();
+            if let Some(state) = s.uncertainty.get("final_available_tritium_kg") {
+                ui.weak("Tritium uncertainty");
+                let validation = note(Quantity::TritiumInventory);
+                ui.weak(format!(
+                    "{} kg · {}",
+                    crate::quantity_text::output_uncertainty(state, 1),
+                    validation.state.label()
+                ))
+                .on_hover_text(format!(
+                    "Scope: {}\nWhy: {}\nNext step: {}",
+                    validation.scope, validation.why, validation.next_step
+                ));
+                ui.end_row();
+            }
         }
     });
     if summary.is_some() {

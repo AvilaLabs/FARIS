@@ -1865,12 +1865,21 @@ mod tests {
     #[test]
     fn undoing_a_what_if_edit_hands_the_history_panel_the_earlier_assumptions() {
         // The panel's result cache is keyed by assumptions and tested in history_panel; this
-        // checks that undo and redo put exactly those assumptions back.
+        // checks the supported edit API rejects invalid input and records valid edits for undo.
         let frames = Frames::new();
         let mut app = app();
         frames.start(&mut app);
         let original = app.history.assumptions.clone().unwrap();
-        app.history.assumptions.as_mut().unwrap().recovery_fraction -= 0.05;
+        let mut invalid = original.clone();
+        invalid.recovery_fraction = 1.5;
+        assert!(app.history.apply_assumptions_edit(invalid).is_err());
+        assert_eq!(app.history.assumptions.as_ref(), Some(&original));
+
+        let mut changed = original.clone();
+        changed.recovery_fraction -= 0.05;
+        app.history
+            .apply_assumptions_edit(changed.clone())
+            .expect("valid what-if edit");
         frames.run(&mut app, vec![]);
         assert_eq!(app.edits.history.len(), 1);
         assert!(
@@ -1885,9 +1894,6 @@ mod tests {
         app.undo(&frames.ctx);
         assert_eq!(app.history.assumptions.as_ref(), Some(&original));
         app.redo(&frames.ctx);
-        assert_eq!(
-            app.history.assumptions.as_ref().unwrap().recovery_fraction,
-            original.recovery_fraction - 0.05
-        );
+        assert_eq!(app.history.assumptions.as_ref(), Some(&changed));
     }
 }

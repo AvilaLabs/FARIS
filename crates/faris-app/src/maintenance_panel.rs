@@ -7,10 +7,11 @@
 //!
 //! Call from the application as `maintenance_panel.window(ctx)`; the panel is a
 //! floating window opened from the top bar. The file is read and parsed on a
-//! worker thread. Every number is read from the result file; the only arithmetic
-//! here is unit conversion (seconds to days and years) and sorting. The view
-//! makes no ranking claim: it reports downtime, availability and electricity
-//! under both duration models.
+//! worker thread. The loaded result view reads its numbers from that file; its
+//! arithmetic is unit conversion (seconds to days and years) and sorting. A
+//! separate what-if section calls the shared history engine on a worker thread
+//! using the active history snapshot. The view makes no ranking claim: it
+//! reports downtime, availability and electricity under the duration cases.
 
 use crate::{
     badge::{self, Kind},
@@ -20,13 +21,21 @@ use crate::{
 };
 use eframe::egui;
 use faris_engine::{
+    duration_sensitivity::{
+        DurationRange, DurationTornado, base_replacement_duration_s, duration_tornado,
+        with_replacement_duration_s,
+    },
     history::{HistoryOutcome, JULIAN_YEAR_SECONDS},
     maintenance::{
         ComputedResult, Contrast, DesignResult, EventRecord, HistorySummary,
         MAINTENANCE_RESULT_VERSION, MaintenanceResult, NotEvaluated, Status, ThresholdRecord, Why,
     },
 };
-use faris_model::maintenance::GoverningQuantity;
+use faris_model::{
+    history::{ComponentClass, OperatingHistoryAssumptions},
+    maintenance::GoverningQuantity,
+    remote_handling::{InputLabel, MaintenancePreset, maintenance_presets},
+};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -34,6 +43,15 @@ use std::{
 };
 
 const DAY_S: f64 = faris_model::units::DAY_S;
+
+/// Current, identified what-if inputs supplied by the history panel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DurationSnapshot {
+    pub assumptions: OperatingHistoryAssumptions,
+    pub rates: faris_engine::history::TransportDrivingRates,
+}
+
+type TornadoReceiver = Receiver<(u64, Result<DurationTornado, String>)>;
 
 /// What "computed" means, shown under the summary.
 pub const COMPUTED_MEANING: &str = "Computed: each replacement's outage is the cooldown until the decay heat per volume of the governing components falls below the class threshold q*, plus the class's work time; the operating history is rerun with those outages until they stop changing. Fixed is the authored duration. The two models are compared on downtime, availability and lifetime electricity; the comparison makes no ranking claim.";
@@ -67,6 +85,14 @@ pub struct MaintenancePanel {
     recorded: Option<RecordedMaintenance>,
     /// The first opening of the window in this session has been handled.
     recorded_offered: bool,
+    duration_snapshot: Option<DurationSnapshot>,
+    duration_preset_index: usize,
+    duration_component: String,
+    pending_history_edit: Option<OperatingHistoryAssumptions>,
+    tornado: Option<DurationTornado>,
+    tornado_receiver: Option<TornadoReceiver>,
+    tornado_error: Option<String>,
+    duration_revision: u64,
 }
 
 impl Default for MaintenancePanel {
@@ -80,6 +106,14 @@ impl Default for MaintenancePanel {
             run: RunPanel::default(),
             recorded: None,
             recorded_offered: false,
+            duration_snapshot: None,
+            duration_preset_index: 0,
+            duration_component: String::new(),
+            pending_history_edit: None,
+            tornado: None,
+            tornado_receiver: None,
+            tornado_error: None,
+            duration_revision: 0,
         }
     }
 }
@@ -121,6 +155,302 @@ fn read_recorded(recorded: &RecordedMaintenance) -> LoadResult {
 }
 
 impl MaintenancePanel {
+    /// Supply the active history values for the maintenance what-if section. This is a
+    /// snapshot only; edits are returned to the coordinator for its undo-safe history path.
+    pub fn set_duration_snapshot(&mut self, snapshot: Option<DurationSnapshot>) {
+        if self.duration_snapshot != snapshot {
+            self.duration_revision = self.duration_revision.wrapping_add(1);
+            self.duration_snapshot = snapshot;
+            self.tornado = None;
+            self.tornado_error = None;
+            self.duration_component.clear();
+        }
+    }
+
+    /// Retrieve a literature-duration edit requested by the UI. The caller applies it through
+    /// HistoryPanel's normal validated, undo-aware edit path.
+    pub fn take_history_edit(&mut self) -> Option<OperatingHistoryAssumptions> {
+        self.pending_history_edit.take()
+    }
+
+    fn duration_what_if(&mut self, ui: &mut egui::Ui) {
+        egui::CollapsingHeader::new("Replacement-duration what-if")
+            .id_salt("maintenance-duration-what-if")
+            .default_open(false)
+            .show(ui, |ui| {
+                let Some(snapshot) = self.duration_snapshot.clone() else {
+                    ui.weak("Load and calculate an identified operating history to compare a replacement duration.");
+                    return;
+                };
+                let components: Vec<String> = snapshot
+                    .assumptions
+                    .service_limits
+                    .iter()
+                    .filter(|limit| limit.class == ComponentClass::Replaceable)
+                    .map(|limit| limit.component_id.clone())
+                    .fold(Vec::new(), |mut ids, id| {
+                        if !ids.contains(&id) {
+                            ids.push(id);
+                        }
+                        ids
+                    });
+                if components.is_empty() {
+                    ui.weak("This history has no replaceable components with duration inputs.");
+                    return;
+                }
+                if self.duration_component.is_empty()
+                    || !components.iter().any(|id| id == &self.duration_component)
+                {
+                    self.duration_component = components[0].clone();
+                }
+                let presets = maintenance_presets();
+                self.duration_preset_index = self.duration_preset_index.min(presets.len() - 1);
+                let previous_choice =
+                    (self.duration_component.clone(), self.duration_preset_index);
+                ui.horizontal(|ui| {
+                    ui.label("Replaceable component");
+                    egui::ComboBox::from_id_salt("maintenance-duration-component")
+                        .selected_text(&self.duration_component)
+                        .show_ui(ui, |ui| {
+                            for component in &components {
+                                ui.selectable_value(
+                                    &mut self.duration_component,
+                                    component.clone(),
+                                    component,
+                                );
+                            }
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Literature campaign");
+                    egui::ComboBox::from_id_salt("maintenance-duration-preset")
+                        .selected_text(presets[self.duration_preset_index].title)
+                        .show_ui(ui, |ui| {
+                            for (index, preset) in presets.iter().enumerate() {
+                                ui.selectable_value(
+                                    &mut self.duration_preset_index,
+                                    index,
+                                    preset.title,
+                                );
+                            }
+                        });
+                });
+                if previous_choice
+                    != (self.duration_component.clone(), self.duration_preset_index)
+                {
+                    self.duration_revision = self.duration_revision.wrapping_add(1);
+                    self.tornado = None;
+                    self.tornado_error = None;
+                }
+                let preset = presets[self.duration_preset_index].clone();
+                ui.small(format!(
+                    "{}: {:.1} months whole-campaign outage ({:.1} days). Source: {}",
+                    preset.label,
+                    preset.duration_months,
+                    days(preset.duration_s()),
+                    preset.citation
+                ));
+                ui.small(preset.conditions);
+                ui.hyperlink_to(
+                    "Open source",
+                    preset.source_link.value.unwrap_or("https://arxiv.org/pdf/1412.4008"),
+                );
+                ui.colored_label(
+                    Kind::Conditional.color(),
+                    "The source duration is for an EU-DEMO blanket and divertor campaign. Applying it to one selected component creates an authored scenario what-if; the paper does not report a per-component duration.",
+                );
+                let current = base_replacement_duration_s(
+                    &snapshot.assumptions,
+                    &self.duration_component,
+                );
+                match current {
+                    Err(error) => {
+                        ui.colored_label(Kind::Failed.color(), error);
+                    }
+                    Ok(base_s) => {
+                        ui.small(format!(
+                            "Current duration: {}. Campaign value: {}.",
+                            days_text(base_s, 1),
+                            days_text(preset.duration_s(), 1)
+                        ));
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_enabled(
+                                    self.tornado_receiver.is_none(),
+                                    egui::Button::new("Calculate duration tornado"),
+                                )
+                                .on_hover_text("Runs the current history and the low/high duration cases on a worker thread. The history's recorded assumptions and rates are the inputs.")
+                                .clicked()
+                            {
+                                self.start_tornado(snapshot.clone(), &preset, base_s, ui.ctx());
+                            }
+                            if ui
+                                .add_enabled(
+                                    self.pending_history_edit.is_none(),
+                                    egui::Button::new("Apply campaign duration to this component"),
+                                )
+                                .clicked()
+                            {
+                                match assumptions_with_campaign_duration(
+                                    &snapshot.assumptions,
+                                    &self.duration_component,
+                                    &preset,
+                                ) {
+                                    Ok(edited) => self.pending_history_edit = Some(edited),
+                                    Err(error) => self.tornado_error = Some(error),
+                                }
+                            }
+                        });
+                    }
+                }
+                if self.tornado_receiver.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.weak("Calculating three bounded histories…");
+                    });
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                }
+                if let Some(error) = &self.tornado_error {
+                    ui.colored_label(Kind::Failed.color(), error);
+                }
+                if let Some(tornado) = &self.tornado {
+                    ui.separator();
+                    let availability_validation =
+                        faris_model::validation::ValidationMark::current(
+                            faris_model::validation::Quantity::Availability,
+                        )
+                        .tag();
+                    let electricity_validation =
+                        faris_model::validation::ValidationMark::current(
+                            faris_model::validation::Quantity::NetElectricPower,
+                        )
+                        .tag();
+                    let lit_endpoint = tornado.bars.first().map_or("no endpoint", |bar| {
+                        let is_low = preset.duration_s() == bar.low_s;
+                        let is_high = preset.duration_s() == bar.high_s;
+                        match (is_low, is_high) {
+                            (true, true) => "both endpoints (the durations are equal)",
+                            (true, false) => "low-duration endpoint",
+                            (false, true) => "high-duration endpoint",
+                            (false, false) => "no endpoint",
+                        }
+                    });
+                    ui.label(format!(
+                        "These are deterministic scenario sensitivities, not uncertainty bands. No model uncertainty is propagated. Current matrix validation: availability {availability_validation}; net electricity {electricity_validation}. The literature campaign value applies only at the {lit_endpoint}; the other endpoint is the current authored duration."
+                    ));
+                    ui.small(format!(
+                        "Campaign endpoint source: {} · {} · {}",
+                        preset.id,
+                        preset.citation,
+                        preset.source_link.value.unwrap_or("source link not stated")
+                    ));
+                    ui.label(format!(
+                        "Base (conditional deterministic case): availability {:.2} %{}",
+                        tornado.base.availability * 100.0,
+                        tornado.base.net_electricity_mwh.map_or_else(
+                            || "; lifetime net electricity not available".to_owned(),
+                            |mwh| format!("; lifetime net electricity {} MWh", group_thousands(mwh))
+                        )
+                    ));
+                    for bar in &tornado.bars {
+                        ui.label(format!(
+                            "{} · authored low-duration endpoint {}: availability {:.2} %{}; authored high-duration endpoint {}: {:.2} %{}",
+                            bar.component_id,
+                            days_text(bar.low_s, 1),
+                            bar.at_low.availability * 100.0,
+                            bar.at_low.net_electricity_mwh.map_or_else(
+                                || "".to_owned(),
+                                |mwh| format!("; {} MWh", group_thousands(mwh))
+                            ),
+                            days_text(bar.high_s, 1),
+                            bar.at_high.availability * 100.0,
+                            bar.at_high.net_electricity_mwh.map_or_else(
+                                || "".to_owned(),
+                                |mwh| format!("; {} MWh", group_thousands(mwh))
+                            )
+                        ));
+                        ui.small(format!(
+                            "Duration bounds: {}. The literature source applies only to the endpoint identified above.",
+                            input_label_text(&bar.label)
+                        ));
+                    }
+                }
+                if self.pending_history_edit.is_some() {
+                    ui.colored_label(
+                        Kind::Authored.color(),
+                        "Literature duration prepared as an authored scenario assumption. The application will validate and apply it through the history editor; use Undo to restore the prior assumptions.",
+                    );
+                }
+            });
+    }
+
+    fn start_tornado(
+        &mut self,
+        snapshot: DurationSnapshot,
+        preset: &MaintenancePreset,
+        base_s: f64,
+        ctx: &egui::Context,
+    ) {
+        let (low_s, high_s) = if base_s <= preset.duration_s() {
+            (base_s, preset.duration_s())
+        } else {
+            (preset.duration_s(), base_s)
+        };
+        let range = DurationRange {
+            component_id: self.duration_component.clone(),
+            low_s,
+            high_s,
+            label: InputLabel::Authored,
+        };
+        let (sender, receiver) = mpsc::channel();
+        let context = ctx.clone();
+        let revision = self.duration_revision;
+        let spawned = crate::thread::Builder::new()
+            .name("faris-duration-tornado".into())
+            .spawn(move || {
+                let result = duration_tornado(&snapshot.assumptions, &snapshot.rates, &[range]);
+                let _ = sender.send((revision, result));
+                context.request_repaint();
+            });
+        match spawned {
+            Ok(_) => {
+                self.tornado = None;
+                self.tornado_error = None;
+                self.tornado_receiver = Some(receiver);
+            }
+            Err(error) => {
+                self.tornado_error = Some(format!("Cannot start tornado worker: {error}"))
+            }
+        }
+    }
+
+    fn poll_tornado(&mut self, ctx: &egui::Context) {
+        let Some(receiver) = &self.tornado_receiver else {
+            return;
+        };
+        match receiver.try_recv() {
+            Ok((revision, Ok(result))) => {
+                self.tornado_receiver = None;
+                if revision == self.duration_revision {
+                    self.tornado = Some(result);
+                }
+            }
+            Ok((revision, Err(error))) => {
+                self.tornado_receiver = None;
+                if revision == self.duration_revision {
+                    self.tornado_error = Some(error);
+                }
+            }
+            Err(TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(200))
+            }
+            Err(TryRecvError::Disconnected) => {
+                self.tornado_receiver = None;
+                self.tornado_error = Some("The tornado worker ended unexpectedly.".into());
+            }
+        }
+    }
+
     /// A panel already showing `result`, for tests and captures.
     #[cfg(test)]
     pub fn with_result(file_name: &str, result: MaintenanceResult) -> Self {
@@ -134,7 +464,10 @@ impl MaintenancePanel {
     }
 
     pub fn is_pending(&self) -> bool {
-        self.loading.is_some() || self.dialog.is_some() || self.run.is_running()
+        self.loading.is_some()
+            || self.dialog.is_some()
+            || self.run.is_running()
+            || self.tornado_receiver.is_some()
     }
 
     #[cfg(test)]
@@ -295,6 +628,7 @@ impl MaintenancePanel {
     pub fn window(&mut self, ctx: &egui::Context) {
         self.poll(ctx);
         self.poll_run();
+        self.poll_tornado(ctx);
         if !self.open {
             return;
         }
@@ -368,6 +702,8 @@ impl MaintenancePanel {
             .default_open(matches!(self.state, State::Empty) || running)
             .show(ui, |ui| self.run.ui(ui));
         }
+        self.duration_what_if(ui);
+        ui.separator();
         self.poll_run();
         ui.separator();
         let selected = &mut self.selected;
@@ -402,6 +738,41 @@ fn days(seconds: f64) -> f64 {
 
 fn years(seconds: f64) -> f64 {
     seconds / JULIAN_YEAR_SECONDS
+}
+
+fn assumptions_with_campaign_duration(
+    assumptions: &OperatingHistoryAssumptions,
+    component_id: &str,
+    preset: &MaintenancePreset,
+) -> Result<OperatingHistoryAssumptions, String> {
+    let mut edited = with_replacement_duration_s(assumptions, component_id, preset.duration_s())?;
+    for limit in edited.service_limits.iter_mut().filter(|limit| {
+        limit.component_id == component_id && limit.class == ComponentClass::Replaceable
+    }) {
+        limit.provenance = format!(
+            "authored per-component scenario what-if using literature campaign {} ({}, {}); source duration is for a whole EU-DEMO blanket/divertor campaign, not a per-component measurement",
+            preset.id,
+            preset.citation,
+            preset.source_link.value.unwrap_or("no source link stated")
+        );
+    }
+    edited.provenance = format!(
+        "{}; authored per-component what-if: {} replacement duration set to literature campaign {} ({})",
+        assumptions.provenance, component_id, preset.id, preset.citation
+    );
+    edited.validate()?;
+    Ok(edited)
+}
+
+fn input_label_text(label: &InputLabel) -> String {
+    match label {
+        InputLabel::Authored => "authored range".into(),
+        InputLabel::Literature { preset_id, link } => format!(
+            "literature endpoint from preset {preset_id}{}",
+            link.as_deref()
+                .map_or_else(String::new, |url| format!(" ({url})"))
+        ),
+    }
 }
 
 /// A duration in the unit the user chose for durations (days until they choose), unit attached.
@@ -1204,12 +1575,83 @@ mod tests {
         history::HistoryOutcome,
         maintenance::{GoverningShare, IterationRecord, ReplacementSummary},
     };
+    use faris_model::history::{
+        ComponentClass, EnergyAssumptions, OPERATING_HISTORY_VERSION, OperatingHistoryAssumptions,
+        ServiceLimit,
+    };
     use faris_model::maintenance::{
         CoolingGrid, MAINTENANCE_ASSUMPTIONS_VERSION, MaintenanceAssumptions, MaintenanceClass,
         Threshold,
     };
 
     const Y: f64 = JULIAN_YEAR_SECONDS;
+
+    fn duration_assumptions() -> OperatingHistoryAssumptions {
+        let limit = |component: &str, response: &str, duration_s: f64, events: Option<Vec<f64>>| {
+            ServiceLimit {
+                component_id: component.into(),
+                class: ComponentClass::Replaceable,
+                response_id: response.into(),
+                metric: "fluence".into(),
+                unit: "n/m2".into(),
+                limit: 1.0e20,
+                replacement_duration_s: Some(duration_s),
+                replacement_durations_s: events,
+                provenance: format!("authored source for {component}"),
+            }
+        };
+        OperatingHistoryAssumptions {
+            schema_version: OPERATING_HISTORY_VERSION.into(),
+            horizon_s: Y,
+            maximum_step_s: DAY_S,
+            snapshot_interval_s: 30.0 * DAY_S,
+            initial_available_tritium_kg: 0.0,
+            initial_in_process_tritium_kg: 0.0,
+            initial_in_process_release_s: 0.0,
+            startup_reserve_kg: 0.0,
+            restart_inventory_kg: 0.0,
+            recovery_fraction: 0.95,
+            processing_delay_s: 0.0,
+            operation: Vec::new(),
+            planned_outages: Vec::new(),
+            imports: Vec::new(),
+            service_limits: vec![
+                limit(
+                    "magnets",
+                    "magnet-inner",
+                    20.0 * DAY_S,
+                    Some(vec![10.0, 15.0]),
+                ),
+                limit(
+                    "magnets",
+                    "magnet-outer",
+                    20.0 * DAY_S,
+                    Some(vec![10.0, 15.0]),
+                ),
+                limit("blankets", "blanket", 40.0 * DAY_S, None),
+                ServiceLimit {
+                    component_id: "vacuum-vessel".into(),
+                    class: ComponentClass::Permanent,
+                    response_id: "vessel-fluence".into(),
+                    metric: "fluence".into(),
+                    unit: "n/m2".into(),
+                    limit: 1.0e20,
+                    replacement_duration_s: None,
+                    replacement_durations_s: None,
+                    provenance: "authored permanent component limit".into(),
+                },
+            ],
+            energy: EnergyAssumptions {
+                alpha_deposition_fraction: None,
+                thermal_to_electric_efficiency: None,
+                transport_heat_recovery_fraction: None,
+                auxiliary_power_mw_while_operating: None,
+                auxiliary_power_mw_while_off: None,
+                provenance: "no energy assumptions".into(),
+            },
+            provenance: "authored history".into(),
+        }
+    }
 
     fn summary(downtime_d: f64, end_y: f64, net: Option<f64>) -> HistorySummary {
         HistorySummary {
@@ -1655,5 +2097,80 @@ mod tests {
         for word in ["winner", "best", "rank higher"] {
             assert!(!lowered.contains(word), "{word}");
         }
+    }
+
+    #[test]
+    fn literature_campaign_application_updates_only_the_selected_component_with_authored_provenance()
+     {
+        let original = duration_assumptions();
+        original.validate().unwrap();
+        let preset =
+            faris_model::remote_handling::maintenance_preset("demo-blanket-divertor-4").unwrap();
+        let edited = assumptions_with_campaign_duration(&original, "magnets", &preset).unwrap();
+
+        for limit in edited
+            .service_limits
+            .iter()
+            .filter(|limit| limit.component_id == "magnets")
+        {
+            assert_eq!(limit.replacement_duration_s, Some(preset.duration_s()));
+            assert_eq!(limit.replacement_durations_s, None);
+            assert!(
+                limit
+                    .provenance
+                    .contains("authored per-component scenario what-if")
+            );
+            assert!(limit.provenance.contains(preset.id));
+            assert!(limit.provenance.contains("not a per-component measurement"));
+        }
+        assert_eq!(edited.service_limits[2], original.service_limits[2]);
+        assert_eq!(edited.operation, original.operation);
+        assert_eq!(edited.planned_outages, original.planned_outages);
+        assert_eq!(edited.imports, original.imports);
+        assert_eq!(edited.energy, original.energy);
+        assert_eq!(edited.horizon_s, original.horizon_s);
+        assert!(edited.provenance.contains("authored per-component what-if"));
+        assert!(edited.provenance.contains(preset.citation));
+        edited.validate().unwrap();
+    }
+
+    #[test]
+    fn literature_campaign_application_rejects_an_unknown_or_nonreplaceable_component() {
+        let original = duration_assumptions();
+        let preset = faris_model::remote_handling::maintenance_presets()
+            .into_iter()
+            .next()
+            .unwrap();
+        let error = assumptions_with_campaign_duration(&original, "missing", &preset).unwrap_err();
+        assert!(error.contains("not a replaceable component"));
+        let error =
+            assumptions_with_campaign_duration(&original, "vacuum-vessel", &preset).unwrap_err();
+        assert!(error.contains("not a replaceable component"));
+    }
+
+    #[test]
+    fn stale_tornado_result_is_discarded_by_the_real_poll_path() {
+        let (sender, receiver) = mpsc::channel();
+        let mut panel = MaintenancePanel {
+            duration_revision: 2,
+            tornado_receiver: Some(receiver),
+            ..Default::default()
+        };
+        sender
+            .send((
+                1,
+                Ok(DurationTornado {
+                    base: faris_engine::duration_sensitivity::TornadoOutputs {
+                        net_electricity_mwh: None,
+                        availability: 0.75,
+                    },
+                    bars: Vec::new(),
+                }),
+            ))
+            .unwrap();
+        panel.poll_tornado(&egui::Context::default());
+        assert!(panel.tornado.is_none());
+        assert!(panel.tornado_receiver.is_none());
+        assert!(panel.tornado_error.is_none());
     }
 }
