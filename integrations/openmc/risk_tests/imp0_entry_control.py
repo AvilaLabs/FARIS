@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -25,7 +26,9 @@ sys.path.insert(0, str(ROOT / "integrations/openmc"))
 import reactor_transport as WORKER  # noqa: E402
 
 HISTORIES = 1000
+BATCHES = 1
 SEED = 271828
+OPENMC_VERSION = (0, 15, 3)
 KILL_VERSION_SYMBOL = "faris_openmc_mcnp_imp0_patch_version"
 STATEPOINT_FIELDS = (
     "faris_mcnp_imp0_patch_version",
@@ -34,6 +37,47 @@ STATEPOINT_FIELDS = (
     "faris_mcnp_imp0_entry_kill_events",
     "faris_openmc_n_lost_particles",
 )
+
+
+def validate_statepoint_metadata(*, current_batch: int, n_batches: int,
+                                 n_particles: int, n_realizations: int,
+                                 version: tuple[int, ...]) -> None:
+    """Require the pinned solver's complete one-batch control statepoint."""
+    if tuple(version) != OPENMC_VERSION:
+        raise RuntimeError(
+            f"statepoint OpenMC version {tuple(version)} != required {OPENMC_VERSION}"
+        )
+    if current_batch != BATCHES or n_batches != BATCHES:
+        raise RuntimeError(
+            f"statepoint is incomplete: current_batch={current_batch}, "
+            f"n_batches={n_batches}, expected {BATCHES}"
+        )
+    if n_particles != HISTORIES:
+        raise RuntimeError(
+            f"statepoint n_particles={n_particles}, expected {HISTORIES} histories per batch"
+        )
+    # In fixed-source mode OpenMC's global n_realizations counts completed
+    # batches (see tally.cpp), not individual source particles.
+    if n_realizations != BATCHES:
+        raise RuntimeError(
+            f"statepoint n_realizations={n_realizations}, expected {BATCHES} completed batch"
+        )
+
+
+def canonical_receipt_digest(document: dict) -> str:
+    """Hash the canonical control record with its own digest field excluded."""
+    body = {key: value for key, value in document.items() if key != "receipt_sha256"}
+    encoded = json.dumps(
+        body, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def verify_receipt_digest(document: dict) -> bool:
+    supplied = document.get("receipt_sha256")
+    return isinstance(supplied, str) and hmac.compare_digest(
+        supplied, canonical_receipt_digest(document)
+    )
 
 
 def sha256(path: Path) -> str:
@@ -101,13 +145,7 @@ def make_model(openmc, directory: Path, *, particle: str, source_in_zero_cell: b
 def run_case(openmc, executable: Path, root: Path, case: dict, env: dict[str, str]) -> dict:
     directory = root / case["name"]
     directory.mkdir()
-    xs = directory / "cross_sections.xml"
-    xs.write_text(
-        '<?xml version="1.0"?>\n'
-        '<cross_sections><library materials="H1" path="unused-stub.h5" type="neutron"/></cross_sections>\n',
-        encoding="utf-8",
-    )
-    case_env = dict(env, OPENMC_CROSS_SECTIONS=str(xs))
+    case_env = dict(env)
     geometry_xml = make_model(
         openmc,
         directory,
@@ -130,16 +168,26 @@ def run_case(openmc, executable: Path, root: Path, case: dict, env: dict[str, st
         raise RuntimeError(f"{case['name']} produced {len(statepoints)} statepoints, expected one")
     statepoint_path = statepoints[0]
     with openmc.StatePoint(statepoint_path, autolink=False) as statepoint:
-        if int(statepoint.current_batch) != 1 or int(statepoint.n_realizations) != HISTORIES:
-            raise RuntimeError(f"{case['name']} statepoint is incomplete")
+        validate_statepoint_metadata(
+            current_batch=int(statepoint.current_batch),
+            n_batches=int(statepoint.n_batches),
+            n_particles=int(statepoint.n_particles),
+            n_realizations=int(statepoint.n_realizations),
+            version=tuple(statepoint.version),
+        )
+        statepoint_metadata = {
+            "statepoint_current_batch": int(statepoint.current_batch),
+            "statepoint_n_batches": int(statepoint.n_batches),
+            "statepoint_n_particles": int(statepoint.n_particles),
+            "statepoint_n_realizations": int(statepoint.n_realizations),
+            "solver_version": ".".join(str(part) for part in statepoint.version),
+        }
         flux_means = [float(value) for value in statepoint.get_tally(name="cell-flux").mean.ravel()]
         current_mean = float(statepoint.get_tally(name="middle-surface-current").mean.ravel()[0])
         diagnostics = {
             name: int(statepoint._f[name][()])
             for name in STATEPOINT_FIELDS
         }
-        # Retain OpenMC's actual version in addition to CLI/library hashes.
-        solver_version = str(statepoint._f.attrs["openmc_version"])
 
     if diagnostics["faris_mcnp_imp0_patch_version"] != 1:
         raise RuntimeError("statepoint was not written by the required FARIS imp:n=0 patch")
@@ -175,7 +223,7 @@ def run_case(openmc, executable: Path, root: Path, case: dict, env: dict[str, st
 
     return {
         "case": case,
-        "solver_version": solver_version,
+        **statepoint_metadata,
         "geometry_xml_sha256": geometry_sha256,
         "statepoint": str(statepoint_path),
         "statepoint_sha256": sha256(statepoint_path),
@@ -190,10 +238,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--openmc-executable", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--cross-sections", type=Path, required=True,
+                        help="existing OpenMC 0.15.3 cross_sections.xml used by the control")
     args = parser.parse_args()
     executable = args.openmc_executable.resolve(strict=True)
     python = Path(sys.executable).resolve(strict=True)
     output_dir = args.output_dir.expanduser().resolve(strict=False)
+    cross_sections = args.cross_sections.expanduser().resolve(strict=True)
+    if not cross_sections.is_file():
+        raise ValueError("--cross-sections must name a regular file")
     if output_dir.exists():
         raise ValueError("output directory must be new; refusing to overwrite prior controls")
 
@@ -201,6 +254,9 @@ def main() -> int:
     env["OMP_NUM_THREADS"] = "1"
     env.setdefault("OPENBLAS_NUM_THREADS", "1")
     library, library_sha256 = WORKER.selected_openmc_library(executable, python, env)
+    cli_sha256 = sha256(executable)
+    python_sha256 = sha256(python)
+    cross_sections_sha256 = sha256(cross_sections)
     dll = ctypes.CDLL(str(library))
     try:
         patch_version = ctypes.c_int.in_dll(dll, KILL_VERSION_SYMBOL).value
@@ -220,29 +276,52 @@ def main() -> int:
         {"name": "marked_photon", "particle": "photon", "source_in_zero_cell": False, "marked": True},
         {"name": "unmarked_neutron", "particle": "neutron", "source_in_zero_cell": False, "marked": False},
     ]
+    env["OPENMC_CROSS_SECTIONS"] = str(cross_sections)
     results = [run_case(openmc, executable, output_dir, case, env) for case in cases]
+    if (sha256(executable) != cli_sha256 or sha256(python) != python_sha256 or
+            sha256(cross_sections) != cross_sections_sha256):
+        raise RuntimeError("selected CLI, Python, or cross-section index changed during the control")
+    library_after, library_sha256_after = WORKER.selected_openmc_library(executable, python, env)
+    if library_after.resolve() != library.resolve() or library_sha256_after != library_sha256:
+        raise RuntimeError("selected CLI-linked OpenMC library changed during the control")
     report = {
         "schema": "faris.openmc-mcnp-imp0-control/1.0.0",
         "status": "PASS",
         "scope": "explicit neutron imp:n=0 source-birth and cell-entry semantics, statepoint-bound counters, incoming surface current, live-cell path, photon and unmarked controls only",
         "histories_per_case": HISTORIES,
-        "batches": 1,
+        "batches": BATCHES,
         "seed": SEED,
         "runtime": {
             "selected_cli_path": str(executable),
-            "selected_cli_sha256": sha256(executable),
+            "selected_cli_sha256": cli_sha256,
             "selected_linked_library_path": str(library),
             "selected_linked_library_sha256": library_sha256,
             "faris_patch_version_symbol": patch_version,
             "python_path": str(python),
-            "python_sha256": sha256(python),
+            "python_sha256": python_sha256,
             "openmc_python_version": openmc.__version__,
+            "openmc_python_module_path": str(Path(openmc.__file__).resolve(strict=True)),
+            "openmc_python_module_sha256": sha256(Path(openmc.__file__).resolve(strict=True)),
+            "cross_sections_path": str(cross_sections),
+            "cross_sections_sha256": cross_sections_sha256,
         },
         "cases": results,
     }
+    report["receipt_sha256"] = canonical_receipt_digest(report)
+    if not verify_receipt_digest(report):
+        raise RuntimeError("internal error: control receipt digest did not self-verify")
     report_path = output_dir / "control.json"
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"status": "PASS", "report": str(report_path)}, sort_keys=True))
+    temporary_path = output_dir / ".control.json.tmp"
+    temporary_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(report_path)
+    print(json.dumps({
+        "status": "PASS",
+        "report": str(report_path),
+        "receipt_sha256": report["receipt_sha256"],
+    }, sort_keys=True))
     return 0
 
 

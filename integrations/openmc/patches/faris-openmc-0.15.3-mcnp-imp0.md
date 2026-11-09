@@ -87,12 +87,16 @@ stock binary):
 ```bash
 python integrations/openmc/risk_tests/imp0_entry_control.py \
   --openmc-executable /path/to/patched/openmc \
+  --cross-sections /path/to/openmc-0.15.3/cross_sections.xml \
   --output-dir runs/continuation/mcnp-imp0-control-20261109-v1
 ```
 
 The script refuses a reused output directory, checks the exact CLI-linked
-library capability, and records CLI, linked library, Python, final geometry,
-and statepoint identities. It runs four fixed-source cases with one batch of
+library capability, and records CLI, linked library, Python, cross-section index, final geometry,
+and statepoint identities. The report includes a canonical `receipt_sha256`
+covering the JSON record without that field; the validating runner recomputes
+it. Each statepoint must report one completed batch, 1,000 particles per batch,
+and one tally realization (OpenMC's `n_realizations` counts batches here). It runs four fixed-source cases with one batch of
 1,000 histories, seed 271828, unit source strength, no weight windows, and one
 MPI process. Each case uses three concentric void cells in the root universe:
 
