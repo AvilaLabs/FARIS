@@ -112,9 +112,13 @@ def compatibility(c: float, e: float, u_c: float | None, u_e: float | None, k: f
                       "supply the missing value from a run record or the case manifest")
     if not (_finite(u_c) and _finite(u_e)) or u_c < 0 or u_e < 0:
         return settle(INCONCLUSIVE, "a combined-uncertainty input is missing", "record both the calculated and the reference uncertainty")
-    if u_c_mc is not None and _finite(u_c_mc) and u_c_mc > MC_DOMINANCE_RATIO * u_e:
-        return settle(INCONCLUSIVE, f"Monte Carlo error {u_c_mc:.4g} exceeds {MC_DOMINANCE_RATIO} x reference uncertainty {u_e:.4g}",
-                      f"rerun with more histories so the Monte Carlo error is at most {MC_DOMINANCE_RATIO * u_e:.4g}")
+    if u_c_mc is not None:
+        if not _finite(u_c_mc) or u_c_mc < 0:
+            return settle(INCONCLUSIVE, "the supplied Monte Carlo uncertainty is not a finite non-negative number",
+                          "record a finite non-negative Monte Carlo uncertainty from the run")
+        if u_c_mc > MC_DOMINANCE_RATIO * u_e:
+            return settle(INCONCLUSIVE, f"Monte Carlo error {u_c_mc:.4g} exceeds {MC_DOMINANCE_RATIO} x reference uncertainty {u_e:.4g}",
+                          f"rerun with more histories so the Monte Carlo error is at most {MC_DOMINANCE_RATIO * u_e:.4g}")
     cov = covariance_term(covariance, c, e, u_c, u_e)
     if cov is None:
         return settle(INCONCLUSIVE, "covariance between the calculated and reference value is unknown",

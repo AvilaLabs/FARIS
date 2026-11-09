@@ -77,6 +77,15 @@ class CompatibilityRule(unittest.TestCase):
         self.assertEqual(noisy["verdict"], S.INCONCLUSIVE)
         self.assertIn("0.5", noisy["next_step"])
 
+    # A malformed supplied MC uncertainty must not silently bypass the VAL-028 precision gate.
+    def test_invalid_supplied_monte_carlo_uncertainty_is_inconclusive(self):
+        for u_mc in (float("nan"), float("inf"), -0.1, True):
+            with self.subTest(u_mc=u_mc):
+                out = S.compatibility(10.0, 10.0, 1.0, 1.0, 2.0, IND, u_c_mc=u_mc)
+                self.assertEqual(out["verdict"], S.INCONCLUSIVE)
+                self.assertIn("Monte Carlo uncertainty", out["why"])
+                self.assertTrue(out["next_step"])
+
     def test_any_monte_carlo_error_dominates_a_zero_reference_uncertainty(self):
         exact = S.compatibility(10.0, 10.0, 0.1, 0.0, 2.0, IND, u_c_mc=0.1)
         self.assertEqual(exact["verdict"], S.INCONCLUSIVE)

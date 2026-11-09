@@ -378,6 +378,8 @@ basis.
 
 ### Fixed
 
+- Validation comparisons now return INCONCLUSIVE when a supplied Monte Carlo uncertainty is non-finite,
+  negative or a boolean. Such an input previously bypassed the precision check and could produce PASS.
 - Large machines no longer fail writing their weight windows: `faris design transport` died with "File too large"
   on a machine 1.8 times the reference size, because the windows' bounds (475,695 voxels, 17 groups) were written
   into the model file as text and passed the job runner's 256 MiB file limit. The run now hands OpenMC the windows as
