@@ -306,6 +306,13 @@ struct WorkerPreflight {
     data_identity: Option<serde_json::Value>,
 }
 
+/// Fuzz the private heating worker and preflight JSON readers from the shared design helper entry.
+#[doc(hidden)]
+pub(super) fn fuzz_worker_outputs(bytes: &[u8]) {
+    let _ = serde_json::from_slice::<WorkerResult>(bytes);
+    let _ = serde_json::from_slice::<WorkerPreflight>(bytes);
+}
+
 /// Convert eV/source to kW/m³. The source rate and volume are SI; callers must not normalize again.
 pub fn power_density_kw_m3(
     energy_ev_per_source: f64,

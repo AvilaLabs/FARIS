@@ -689,6 +689,7 @@ struct WindowsRecord {
 #[doc(hidden)]
 pub fn fuzz_helper_outputs(bytes: &[u8]) {
     let _ = serde_json::from_slice::<WorkerResult>(bytes);
+    super::heating::fuzz_worker_outputs(bytes);
     let _ = serde_json::from_slice::<WindowsRecord>(bytes);
     let _ = serde_json::from_slice::<PiecesRecord>(bytes);
     if let Ok(text) = std::str::from_utf8(bytes) {

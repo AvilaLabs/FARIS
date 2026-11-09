@@ -128,6 +128,21 @@
         {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/shutdown_dose.rs", "name": "estimate_value_tampering_is_rejected_even_when_outer_hash_is_updated", "what": "the imported estimate must match the hash-verified source record"}
       ],
       "not_covered": ["no solver is executed", "record hashes establish identity, not scientific correctness", "no experimental validation or handling-dose qualification", "a central ratio-band flag is not a physical engineering verdict"]
+    },
+    {
+      "id": "design-winding-pack-heating",
+      "label": "Separate coupled, all-energy heating tallies for explicitly authored winding-pack solids, with sampled peak power density",
+      "page": "docs/guide/transport.md",
+      "catalogues": ["DESIGN_HEATING_OUTPUTS"],
+      "quantities": [],
+      "sources": ["crates/faris-engine/src/design/heating.rs", "integrations/openmc/design_transport.py"],
+      "verification": [
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/heating.rs", "name": "two_volumes_scale_density_and_sampling_error_independently", "what": "independent dimensional control: equal raw energy and source rate produce peak density and sampling error inversely proportional to the sampled averaging volume"},
+        {"class": "verification", "kind": "test", "file": "crates/faris-engine/src/design/heating.rs", "name": "worker_parser_preserves_failed_correlated_closure_and_terminal_controls", "what": "worker JSON retains a failed correlated-closure diagnostic and checks terminal status against planned histories"},
+        {"class": "verification", "kind": "test", "file": "integrations/openmc/risk_tests/test_design_transport.py", "name": "test_fake_openmc_phase_writes_raw_report_for_engine_parser", "what": "fake C API drives the worker batch loop and raw report, including total/component filters, source normalization, volume selection and inconclusive closure preservation"},
+        {"class": "verification", "kind": "test", "file": "integrations/openmc/risk_tests/test_design_transport.py", "name": "test_terminal_quality_checks_status_and_lost_count_even_for_short_runs", "what": "terminal C API codes and strict final lost-particle fraction gate short and full runs"}
+      ],
+      "not_covered": ["OpenMC transport physics and nuclear-data correctness are external; this path has no experimental or code-to-code physical validation and does not establish a requirement as met", "the peak is the leading sampled cylindrical voxel; unresolved sub-voxel hotspots may be higher", "the sampled geometry volume estimator reports its ray count but not a volume standard error; geometric volume uncertainty remains separate and is not folded into Monte Carlo heating error", "an explicit authored winding-pack classification is required; magnet roles, cases and homogenized assemblies are not inferred to be winding pack", "missing MT=301, photon or atomic-relaxation data and missing winding-pack identity produce NOT_EVALUATED rather than an inferred result"]
     }
   ]
 }

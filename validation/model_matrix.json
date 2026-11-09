@@ -9,7 +9,7 @@
       "oktavian-al": "7de31d0283027eaca125a85f769999de140b8ebd17de9ede9c5814161ba347d5",
       "oktavian-al-cad": "20b4c5b800b6213b6fda74a84efc08c4e77cb28f386956bea7eea37c61d076c7"
     },
-    "models.json": "f0c31021fd02b4e0a494f566ce1d6c25ebfddb15cb861ba9840e470a68a9388f",
+    "models.json": "29d624ba36360570a04bf0c629a62ab960a721ab55f5e24c543d70fe7677d320",
     "quantities.json": "c3f6d9098dfd5f731d837ae3d0852c31df4f1980d2d5a1aba1789b52b7d8ee15",
     "rule_hashes.json": "8e7232c5d4e88b239d177c10321eb328935b7f74e0826d671e1de5588321c19f"
   },
@@ -438,7 +438,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/transport.rs": "20281fd8aa188127eafaff505f5c8ce9b7e6cbc021960dba17f553c54c46a6b5"
+        "crates/faris-engine/src/design/transport.rs": "188ffc61527250f0094310897a826c9f7133b1320c151f33a9a80de956444bc7"
       },
       "status": "not validated",
       "validation": [
@@ -1353,6 +1353,269 @@
         }
       ],
       "verification_status": "3 test or control items, each with one evidence class (verification)"
+    },
+    {
+      "evidence_classes": [
+        "verification"
+      ],
+      "label": "Separate coupled, all-energy heating tallies for explicitly authored winding-pack solids, with sampled peak power density",
+      "model": "design-winding-pack-heating",
+      "next_step": "score the registered benchmarks of these quantities (see the matrix rows) or register one",
+      "not_covered": "OpenMC transport physics and nuclear-data correctness are external; this path has no experimental or code-to-code physical validation and does not establish a requirement as met; the peak is the leading sampled cylindrical voxel; unresolved sub-voxel hotspots may be higher; the sampled geometry volume estimator reports its ray count but not a volume standard error; geometric volume uncertainty remains separate and is not folded into Monte Carlo heating error; an explicit authored winding-pack classification is required; magnet roles, cases and homogenized assemblies are not inferred to be winding pack; missing MT=301, photon or atomic-relaxation data and missing winding-pack identity produce NOT_EVALUATED rather than an inferred result",
+      "page": "docs/guide/transport.md",
+      "quantities": [
+        "heating"
+      ],
+      "reason": "the model reports quantities with no scored benchmark: heating",
+      "reported_outputs": [
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "energy_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "sampling_se_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "mean_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "standard_error_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "power_density_kw_m3",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "sampling_se_kw_m3",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "peak_neutron_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "peak_photon_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "peak_electron_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "peak_positron_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "peak_total_ev_per_source",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "neutron",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "photon",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "electron",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "positron",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "total",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "calculated",
+          "name": "closure_residual",
+          "quantity": "heating"
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "volume_m3",
+          "why": "A sampled geometric averaging volume, not nuclear heating."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "volume_sampling_relative_error",
+          "why": "A geometric volume-estimator uncertainty, separate from heating Monte Carlo error."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "r_m",
+          "why": "A sampled geometric voxel coordinate, not nuclear heating."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "z_m",
+          "why": "A sampled geometric voxel coordinate, not nuclear heating."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "pieces_ranked",
+          "why": "A geometric estimator count, not nuclear heating."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "rays",
+          "why": "A geometric volume-estimator sample count, not nuclear heating."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "shell_count",
+          "why": "A nuclear-data identity count, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "source_rate_per_s",
+          "why": "A source-rate conversion from authored fusion power, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "fusion_power_mw",
+          "why": "An authored design input, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "energy_per_reaction_ev",
+          "why": "The D-T source normalization convention, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "histories",
+          "why": "A run count, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "c_api_terminal_status",
+          "why": "An OpenMC execution terminal code, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "lost_particles",
+          "why": "A transport quality count, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "stop_reason",
+          "why": "A sampling budget endpoint, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "seed",
+          "why": "A sampling input, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "threads",
+          "why": "A run configuration, not a heating response."
+        },
+        {
+          "catalogue": "DESIGN_HEATING_OUTPUTS",
+          "kind": "not_calculated",
+          "name": "elapsed_seconds",
+          "why": "A run duration, not a heating response."
+        }
+      ],
+      "source_sha256": {
+        "crates/faris-engine/src/design/heating.rs": "b54734e30a324ba177cc77e3048089689f60c46f53989e4ce0fd4e4487abaae2",
+        "integrations/openmc/design_transport.py": "2bb403d013d5acd9b3fcd3d69c3cefc9be1427b98be7773c753804aff30d61bf"
+      },
+      "status": "not validated",
+      "validation": [
+        {
+          "benchmarks": [],
+          "quantity": "heating",
+          "status": "not validated"
+        }
+      ],
+      "verification": [
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "kind": "test",
+          "name": "two_volumes_scale_density_and_sampling_error_independently",
+          "what": "independent dimensional control: equal raw energy and source rate produce peak density and sampling error inversely proportional to the sampled averaging volume"
+        },
+        {
+          "class": "verification",
+          "file": "crates/faris-engine/src/design/heating.rs",
+          "kind": "test",
+          "name": "worker_parser_preserves_failed_correlated_closure_and_terminal_controls",
+          "what": "worker JSON retains a failed correlated-closure diagnostic and checks terminal status against planned histories"
+        },
+        {
+          "class": "verification",
+          "file": "integrations/openmc/risk_tests/test_design_transport.py",
+          "kind": "test",
+          "name": "test_fake_openmc_phase_writes_raw_report_for_engine_parser",
+          "what": "fake C API drives the worker batch loop and raw report, including total/component filters, source normalization, volume selection and inconclusive closure preservation"
+        },
+        {
+          "class": "verification",
+          "file": "integrations/openmc/risk_tests/test_design_transport.py",
+          "kind": "test",
+          "name": "test_terminal_quality_checks_status_and_lost_count_even_for_short_runs",
+          "what": "terminal C API codes and strict final lost-particle fraction gate short and full runs"
+        }
+      ],
+      "verification_status": "4 test or control items, each with one evidence class (verification)"
     }
   ],
   "schema": "faris.validation-model-matrix/1.0.0"

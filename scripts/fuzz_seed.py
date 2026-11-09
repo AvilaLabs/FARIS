@@ -145,6 +145,44 @@ def store_indexes() -> list[bytes]:
     return [json.dumps(i, indent=2).encode() + b"\n" for i in (index, empty)]
 
 
+def heating_worker_seed() -> bytes:
+    """A structurally valid coupled-heating report reaches nested private Rust score parsers."""
+    def score(mean: float, se: float, closure: bool = False) -> dict:
+        value = {"mean_ev_per_source": mean, "standard_error_ev_per_source": se}
+        if closure:
+            value.update(within_3se=True, roundoff_tolerance_ev_per_source=1.0e-12)
+        return value
+
+    components = {"neutron": score(2.0, 0.1), "photon": score(1.0, 0.1),
+                  "electron": score(0.5, 0.1), "positron": score(0.5, 0.1), "total": score(4.0, 0.2)}
+    closure = score(0.0, 0.01, closure=True)
+    voxel = {"r_cm": [100.0, 105.0], "z_cm": [-5.0, 0.0], "volume_cm3": 1000.0,
+             "components": components, "closure_residual": closure, "is_peak": True}
+    peak = {"mean": 4.0, "standard_error": 0.2, "volume_cm3": 1000.0,
+            "r_cm": [100.0, 105.0], "z_cm": [-5.0, 0.0], "pieces_ranked": 2,
+            "volume_estimator": {"method": "OpenMC ray sampled mesh volume", "rays": 1000,
+                                 "sampling_relative_error": None, "sampling_uncertainty_reported": False},
+            "closure_residual": closure, "components": components}
+    solid = {"solid_id": "tf-winding-01", "neutron": score(3.0, 0.2), "photon": score(1.0, 0.1),
+             "electron": score(0.5, 0.1), "positron": score(0.5, 0.1), "total": score(5.0, 0.3),
+             "closure_residual": closure, "peak": peak, "voxel_scores": [voxel]}
+    report = {"schema": "faris-design-heating/v1", "status": "CALCULATED", "openmc": "0.16.0",
+              "h5m_sha256": "a" * 64, "cross_sections_sha256": "b" * 64, "histories": 30000,
+              "c_api_terminal_status": 1, "lost_particles": 0, "stop_reason": "history_limit",
+              "normalization": "per_source_neutron", "unit": "eV/source_neutron",
+              "data_identity": {"neutron_mt301": {"H1": {"mt301": True}}}, "solids": [solid]}
+    return (json.dumps(report, separators=(",", ":")) + "\n").encode()
+
+
+def heating_preflight_seed() -> bytes:
+    report = {"schema": "faris-design-heating-preflight/v1", "status": "READY",
+              "h5m_sha256": "a" * 64, "cross_sections_sha256": "b" * 64,
+              "data_identity": {"neutron_mt301": {"H1": {"mt301": True}},
+                                "photon": {"H": {"shell_count": 1}},
+                                "atomic_relaxation": "enabled", "electron_treatment": "led"}}
+    return (json.dumps(report, separators=(",", ":")) + "\n").encode()
+
+
 def blocks(files: list[tuple[str, bytes]]) -> bytes:
     return b"\n=====\n".join(name.encode() + b"\n" + body for name, body in files)
 
@@ -200,6 +238,8 @@ def build(out: Path) -> dict[str, int]:
         corpus.add("proc_and_config_text", text)
     corpus.add("helper_outputs", b'{"progress": {"histories": 1, "relative_error": 0.1, "elapsed_seconds": 1.0}}')
     corpus.add("helper_outputs", b'{"filled_sha256": "00"}')
+    corpus.add("helper_outputs", heating_worker_seed())
+    corpus.add("helper_outputs", heating_preflight_seed())
     return corpus.counts
 
 
