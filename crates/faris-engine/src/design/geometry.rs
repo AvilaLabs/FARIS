@@ -11,7 +11,7 @@ use super::binding::{self, BindingRow, VolumeGate};
 use super::bvh::Bvh;
 use super::exact::P3;
 use super::integrity::{self, IntegrityRecord};
-use super::mesh::Mesh;
+use super::mesh::{self, Mesh};
 use super::model::Model;
 use super::overlap::{self, BooleanResult, PairRecord};
 use super::par::{Cancelled, Ctl};

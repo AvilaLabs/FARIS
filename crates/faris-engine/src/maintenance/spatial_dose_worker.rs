@@ -8,8 +8,8 @@
 
 use super::irradiation::{CondensationRule, IrradiationSchedule, irradiation_schedule};
 use super::spatial_dose::{
-    ArtifactRef, CURVES_SCHEMA, DoseCovarianceAssessment, DoseEstimate, DosePointPair,
-    ESTIMATE_SCHEMA, EventDoseCurve, RUN_RECORD_SCHEMA, TaskLocation,
+    ArtifactRef, DoseCovarianceAssessment, DoseEstimate, DosePointPair, ESTIMATE_SCHEMA,
+    EventDoseCurve, RUN_RECORD_SCHEMA, TaskLocation,
 };
 use super::{DoseEventCurveProvider, ReplacementEvent, irradiation};
 use crate::history::HistoryResult;
@@ -892,7 +892,7 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
             };
             curve.points.push(DosePointPair {
                 d1s: d1s_estimate,
-                r2s: r2s_estimate?,
+                r2s: r2s_estimate,
                 d1s_not_evaluated: (d1s_status != "PASS").then(|| d1s_reason.clone()),
                 covariance: DoseCovarianceAssessment::Unknown,
             });
@@ -994,6 +994,14 @@ fn make_estimate(
 
 fn artifact_hashes(refs: &BTreeMap<String, ArtifactRef>) -> BTreeMap<String, ArtifactRef> {
     refs.clone()
+}
+
+fn value_f64(value: &Value, key: &str) -> Result<f64, String> {
+    value
+        .get(key)
+        .and_then(Value::as_f64)
+        .filter(|number| number.is_finite() && *number >= 0.0)
+        .ok_or_else(|| format!("worker field {key:?} must be a finite non-negative number"))
 }
 
 fn value_vec3(value: &Value, key: &str) -> Result<[f64; 3], String> {
@@ -1236,7 +1244,7 @@ fn launch_bounded(
         log_bytes.extend_from_slice(b"\n--- stderr ---\n");
     }
     log_bytes.extend_from_slice(result.stderr.as_bytes());
-    write_exact(log, &log_bytes)?;
+    write_exact(&log, &log_bytes)?;
     let metadata = serde_json::to_vec_pretty(&json!({
         "schema": "faris-maintenance-dose-worker-job/v1",
         "python": &python,

@@ -862,11 +862,11 @@ pub(super) fn stochastic_volumes(
     let arguments: Vec<OsString> = vec![
         helper.into_os_string(),
         "--request".into(),
-        request_path.into_os_string(),
+        request_path.as_os_str().to_owned(),
         "--h5m".into(),
         h5m.as_os_str().to_owned(),
         "--cross-sections".into(),
-        cross_sections.into_os_string(),
+        cross_sections.as_os_str().to_owned(),
         "--openmc-exec".into(),
         openmc_exec.as_os_str().to_owned(),
         "--out-dir".into(),
