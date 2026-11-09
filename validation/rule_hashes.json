@@ -80,6 +80,118 @@
       "rule_sha256": "55bfeae4d26998400694e6418299c8fa4893dcb9607dcc262c0f6e2be942591f",
       "manifest_last_commit": "4a2f3feb5c387644535085d4b500a5312417ba15",
       "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-be-15",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-be-5",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-c-20",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-c-40",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-c-5",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-fe-20",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-fe-40",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-fe-5",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-fe-60",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-n-20",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-o-20",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-pb-20",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-pb-40",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
+    },
+    {
+      "case_id": "fns-tof-pb-5",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "9e14b2fcecb932cc65518b117d52b0689a7ec65464771e26f349e7748736e5ef",
+      "manifest_last_commit": "273f7f0665cd96866bb61ce1cc59cc36017bc9ae",
+      "recorded": "2026-11-09"
     }
   ]
 }

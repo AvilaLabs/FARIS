@@ -20,6 +20,7 @@ The recorded campaign does not reproduce an experimental benchmark; [Known limit
 | Material baselines | [Material baseline](MATERIAL_BASELINE.md) | Composition, density, source of each value | Validity range; values at other temperatures |
 | Operating history (fuel, decay, processing, exposure, replacement, energy) | [Operating history](OPERATING_HISTORY.md), [Operate](guide/operate.md) | State, update order, inputs, conservation checks | Equations as numbered formulae |
 | Computed maintenance durations | [Maintenance](guide/maintenance.md), [design notes](notes/MAINTENANCE_0.2_DESIGN.md), [coupling validation](notes/MAINTENANCE_COUPLING_VALIDATION.md) | Method, thresholds, iteration, validation runs | Equations; independent benchmark |
+| Coupled magnet nuclear heating | [CAD transport](guide/transport.md), [heating adapter](../integrations/openmc/risk_tests/design_transport.py), [native heating model](../crates/faris-engine/src/design/heating.rs) | Photon-coupled deposition, component and voxel responses, same-batch closure and sampling error, bounded volume sampling | Live qualification, benchmark comparison and quench margins |
 | Event-specific spatial shutdown dose and dose-governed maintenance | [Dose-governed maintenance](guide/maintenance-spatial-dose.md), [worker contract](MAINTENANCE_SPATIAL_DOSE_WORKER.md), [dose model](../crates/faris-engine/src/maintenance/spatial_dose.rs), [event worker](../crates/faris-engine/src/maintenance/spatial_dose_worker.rs) | ICRP-116 AP photon effective dose at an authored task location; exact event/history coupling; ACTINV FISPACT-709 activation and full-geometry photon response; bounded external OpenMC execution; R2S selection for heterogeneous histories | Source-resolution convergence and matched D1S/R2S qualification; covariance; FNG benchmark; scientific validation |
 | Uncertainty ensembles | [Uncertainty](guide/uncertainty.md), [Method](guide/method.md) | Sampling from the batch covariance, outputs | Nuclear-data and model uncertainty (not modelled) |
 | Variance reduction (weight windows) | [Run your own transport](guide/transport.md), [CAD transport notes](notes/CAD_TRANSPORT_S0F.md) | Method, cache, measured gains | Validity range |
@@ -27,8 +28,8 @@ The recorded campaign does not reproduce an experimental benchmark; [Known limit
 
 ## Models with no page
 
-The requirement tables also name models FARIS does not implement: thermal-hydraulic loops (THM), magnet nuclear
-heating and quench margins (MAG), the itemised plant power balance (PWR), tritium permeation (FUEL), worker dose
+The requirement tables also name models FARIS does not implement: thermal-hydraulic loops (THM), magnet
+quench margins (MAG), the itemised plant power balance (PWR), tritium permeation (FUEL), worker dose
 (OPS-081), reliability and availability by event simulation (OPS-040), and nuclear-data uncertainty (UNC-020).
 The spatial shutdown-dose path exists, but does not establish qualified shutdown-dose predictions: its source
 resolution, D1S/R2S agreement and experimental validation remain open. Each other model gets a page when it exists;

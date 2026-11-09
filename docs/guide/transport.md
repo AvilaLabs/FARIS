@@ -30,8 +30,10 @@ do not establish physical validation or a met design requirement.
 The history, time, seed and thread limits use `--max-histories`, `--max-seconds`, `--seed` and `--threads`. The job
 can be cancelled, has bounded memory and output, and needs an OpenMC Python environment, the audited
 `cross_sections.xml` and `openmc_plasma_source` configured as for design transport.
-Heating currently stops at its configured history or time budget; target-relative-error stopping is not implemented
-yet (NUC-043 remains open).
+Heating checks its target after at least 30 completed batches: aggregate relative standard error must meet
+`--target-error` (default 5%), the highest resolved peak must meet twice that target, and batch variance-of-variance
+must be at most 0.1. History and time budgets still stop the job if the target is not reached; the report states
+the actual reason and achieved errors. These execution checks do not by themselves qualify NUC-043.
 
 ## What you need
 
