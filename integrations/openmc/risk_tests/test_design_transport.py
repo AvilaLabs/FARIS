@@ -438,6 +438,22 @@ class LostParticleTest(unittest.TestCase):
 
 
 class PeakTest(unittest.TestCase):
+    def test_scalar_online_moments_match_direct_vov_formula_without_retaining_batches(self):
+        import math
+
+        samples = [1.0, 2.0, 4.0, 5.0, 10.0]
+        moments = DT.ScalarMoments()
+        for value in samples:
+            moments.add(value)
+        mean = sum(samples) / len(samples)
+        centered = [value - mean for value in samples]
+        second = sum(value * value for value in centered)
+        fourth = sum(value ** 4 for value in centered)
+        self.assertAlmostEqual(moments.mean, mean)
+        self.assertAlmostEqual(moments.standard_error, math.sqrt(second / (len(samples) * (len(samples) - 1))))
+        self.assertAlmostEqual(moments.variance_of_variance, fourth / (second * second) - 1.0 / len(samples))
+        self.assertFalse(hasattr(moments, "values"))
+
     def test_ring_edges_cover_the_range_in_whole_steps(self):
         self.assertEqual(DT.ring_edges(0.0, 12.0, 5.0), [0.0, 5.0, 10.0, 15.0])
         self.assertEqual(DT.ring_edges(-10.0, 10.0, 10.0), [-10.0, 0.0, 10.0])
@@ -522,7 +538,7 @@ class PeakTest(unittest.TestCase):
                 "response": {"solid_ids": ["coil-a", "coil-b"], "energy_min_ev": 0.0,
                              "peak_voxel_cm": [1.0, 1.0]},
                 "sampling": {"particles_per_batch": 1000, "min_batches": 30, "max_batches": 30,
-                             "max_seconds": 60.0, "seed": 1, "threads": 1},
+                             "max_seconds": 60.0, "seed": 1, "threads": 1, "target_relative_error": 0.05},
             }
             fake_modules = {"openmc": OpenMC("openmc"), "h5py": types.ModuleType("h5py")}
             with patch.dict("sys.modules", fake_modules):
@@ -533,7 +549,7 @@ class PeakTest(unittest.TestCase):
 
     def test_heating_history_and_time_bounds_match_native_controls(self):
         request = {"schema": DT.REQUEST_SCHEMA, "sampling": {
-            "particles_per_batch": 50_000, "min_batches": 30, "max_batches": 50_000,
+            "target_relative_error": 0.05, "particles_per_batch": 50_000, "min_batches": 30, "max_batches": 50_000,
             "max_seconds": 100.0, "threads": 1, "seed": 1},
             "response": {"energy_min_ev": 0.0, "peak_voxel_cm": [5.0, 5.0], "solid_ids": ["coil"]},
             "solids": [{"solid_id": "coil", "classification": "winding_pack", "material_id": "steel"}]}
@@ -546,6 +562,17 @@ class PeakTest(unittest.TestCase):
         request["sampling"].update(max_batches=30, max_seconds=DT.MAX_HEATING_SECONDS + 1)
         with self.assertRaisesRegex(ValueError, "time limits"):
             DT.validate_heating_request(request)
+
+    def test_heating_target_error_must_be_finite_and_positive(self):
+        request = {"schema": DT.REQUEST_SCHEMA, "sampling": {
+            "target_relative_error": 0.05, "particles_per_batch": 1000, "min_batches": 30,
+            "max_batches": 30, "max_seconds": 100.0, "threads": 1, "seed": 1},
+            "response": {"energy_min_ev": 0.0, "peak_voxel_cm": [5.0, 5.0], "solid_ids": ["coil"]},
+            "solids": [{"solid_id": "coil", "classification": "winding_pack", "material_id": "steel"}]}
+        for target in (0.0, -0.01, 1.0, float("nan"), float("inf")):
+            request["sampling"]["target_relative_error"] = target
+            with self.assertRaisesRegex(ValueError, "target_relative_error"):
+                DT.validate_heating_request(request)
 
     def test_checked_h5m_snapshot_rejects_transient_mutation_even_when_source_is_restored(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -615,7 +642,7 @@ class PeakTest(unittest.TestCase):
         total.increments = np.array([10.0])
         for lib_tally in (lib.tallies[voxel_refs["neutron"].id], lib.tallies[voxel_refs["total"].id]):
             lib_tally.increments = np.array([7.5, 2.5]) if lib_tally is lib.tallies[voxel_refs["total"].id] else np.array([6.0, 2.0])
-        batch, voxel_batch, closure, voxel_closure, count, stop, status = DT.collect_heating_batches(
+        batch, voxel_batch, closure, voxel_closure, _, _, count, stop, status = DT.collect_heating_batches(
             lib, tally_refs, voxel_refs, 1, 2, 30, 1e9, 0.0)
         self.assertEqual((count, stop, status), (30, "history_limit", 1))
         self.assertEqual(batch["total"].count, 30)
@@ -630,6 +657,60 @@ class PeakTest(unittest.TestCase):
         self.assertEqual(source_scores[-1], 10.0)
         self.assertEqual(DT.heating_closure_quality(0.0, 0.0, sum(source_scores)), {"within_3se": True,
                          "roundoff_tolerance_ev_per_source": DT.heating_closure_quality(0.0, 0.0, sum(source_scores))["roundoff_tolerance_ev_per_source"]})
+
+    def test_heating_target_stops_early_only_with_reliable_mean_peak_and_vov(self):
+        import numpy as np
+
+        names = ("neutron", "photon", "electron", "positron", "total")
+
+        class BatchLib:
+            def __init__(self, values, planned_batches):
+                self.batch = 0
+                self.values = values
+                self.planned_batches = planned_batches
+                self.tallies = {i: SimpleNamespace(results=np.zeros((1, 1, 2))) for i in range(1, 6)}
+                self.tallies.update({i + 10: SimpleNamespace(results=np.zeros((2, 1, 2))) for i in range(1, 6)})
+
+            def next_batch(self):
+                value = self.values[self.batch % len(self.values)]
+                for index, name in enumerate(names, 1):
+                    component_value = value if name == "total" else (value - 2.0 if name == "neutron" else (1.0 if name in ("photon", "electron") else 0.0))
+                    self.tallies[index].results[0, 0, 1] += component_value
+                    self.tallies[index + 10].results[:, 0, 1] += [component_value * 0.75, component_value * 0.25]
+                self.batch += 1
+                return 1 if self.batch == self.planned_batches else 0
+
+        refs = {name: SimpleNamespace(id=i) for i, name in enumerate(names, 1)}
+        voxel_refs = {name: SimpleNamespace(id=i + 10) for i, name in enumerate(names, 1)}
+        volumes, ranked = np.ones((1, 2)), np.ones((1, 2), dtype=bool)
+        result = DT.collect_heating_batches(BatchLib([9.0, 11.0], 100), refs, voxel_refs, 1, 2,
+                                            100, 1e9, 0.0, 0.05, volumes, ranked)
+        _, _, _, _, aggregate, peak_error, batches, reason, _ = result
+        self.assertEqual((batches, reason), (30, "target_reached"))
+        self.assertLessEqual(aggregate.relative_error, 0.05)
+        self.assertLessEqual(peak_error, 0.10)
+        self.assertLessEqual(aggregate.variance_of_variance, DT.HEATING_VOV_LIMIT)
+
+        means = np.array([[10.0], [2.0]])
+        errors = np.array([[0.5], [0.1]])
+        selected_peak = DT.peak_of_moments(means[:, 0], errors[:, 0], volumes[0], ranked[0])
+        expected = selected_peak["standard_error"] / selected_peak["mean"]
+        self.assertAlmostEqual(DT.heating_peak_relative_error(means, errors, volumes, ranked), expected)
+
+        rare = DT.collect_heating_batches(BatchLib([1.0] * 29 + [100.0], 30), refs, voxel_refs, 1, 2,
+                                          30, 1e9, 0.0, 0.05, volumes, ranked)
+        _, _, _, _, aggregate, peak_error, batches, reason, _ = rare
+        self.assertEqual((batches, reason), (30, "history_limit"))
+        self.assertGreater(aggregate.variance_of_variance, DT.HEATING_VOV_LIMIT)
+        self.assertTrue(peak_error is None or peak_error > 0.10)
+
+        zero = DT.collect_heating_batches(BatchLib([0.0], 30), refs, voxel_refs, 1, 2,
+                                          30, 1e9, 0.0, 0.05, volumes, ranked)
+        _, _, _, _, aggregate, peak_error, batches, reason, _ = zero
+        self.assertEqual((batches, reason), (30, "history_limit"))
+        self.assertIsNone(aggregate.relative_error)
+        self.assertIsNone(aggregate.variance_of_variance)
+        self.assertIsNone(peak_error)
 
     def test_streaming_batch_moments_match_independent_sequence_and_covariant_residual(self):
         import math
@@ -675,7 +756,7 @@ class PeakTest(unittest.TestCase):
 
         summary = DT.collect_heating_batches(
             CombinedLib(), tally_refs, voxel_refs, 1, 2, 4, 1e9, 0.0)
-        batch_moments, voxel_moments, closure, voxel_closure, count, _, _ = summary
+        batch_moments, voxel_moments, closure, voxel_closure, _, _, count, _, _ = summary
         self.assertEqual(count, 4)
         # Direct textbook calculations over the named batch sequences are independent of Welford.
         self.assertEqual(batch_moments["neutron"].mean[0], 7.0)
@@ -710,7 +791,7 @@ class PeakTest(unittest.TestCase):
         refs = {name: SimpleNamespace(id=index + 1) for index, name in enumerate(names)}
         voxel_refs = {name: SimpleNamespace(id=index + 11) for index, name in enumerate(names)}
         summary = DT.collect_heating_batches(LongLib(refs), refs, voxel_refs, 1, 1, 20_000, 1e9, 0.0)
-        tally_moments, voxel_moments, _, _, count, _, _ = summary
+        tally_moments, voxel_moments, _, _, _, _, count, _, _ = summary
         self.assertEqual(count, 20_000)
         self.assertEqual(tally_moments["total"].mean.shape, (1,))
         self.assertEqual(voxel_moments["total"].mean.shape, (1, 1))
@@ -812,7 +893,7 @@ class PeakTest(unittest.TestCase):
             "materials": [], "plasma": {}, "response": {"solid_ids": ["coil"], "energy_min_ev": 0.0,
                                                                "peak_voxel_cm": [5.0, 5.0]},
             "sampling": {"particles_per_batch": 1000, "min_batches": 30, "max_batches": 30,
-                         "max_seconds": 1000.0, "seed": 5, "threads": 1}}
+                         "max_seconds": 1000.0, "seed": 5, "threads": 1, "target_relative_error": 0.05}}
 
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
@@ -878,7 +959,10 @@ class PeakTest(unittest.TestCase):
                 raw = DT.phase_heating(request, work)
                 stored = json.loads((work / "solver" / "heating-result.json").read_text())
                 self.assertEqual(raw, stored)
-                self.assertEqual(raw["status"], "CALCULATED")
+                self.assertEqual(raw["status"], "INCONCLUSIVE")
+                self.assertFalse(raw["target_reached"])
+                self.assertIsNone(raw["variance_of_variance"])
+                self.assertIn("variance-of-variance is unavailable", raw["why"])
                 self.assertEqual(raw["normalization"], "per_source_neutron")
                 self.assertEqual(raw["runtime_identity"], runtime_identity)
                 self.assertEqual(

@@ -27,6 +27,9 @@ pub const ELEMENTARY_CHARGE_C: f64 = crate::transport::ELEMENTARY_CHARGE_C;
 const REQUEST_SCHEMA: &str = "faris-design-transport-request/v3";
 const RESULT_SCHEMA: &str = "faris-design-heating/v1";
 const MIN_BATCHES: u64 = 30;
+const MAX_HEATING_BATCHES: u64 = 100_000;
+const MAX_HEATING_HISTORIES: u64 = 2_000_000_000;
+const MAX_HEATING_SECONDS: u64 = 86_400;
 const PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const VOLUME_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const STARTUP_ALLOWANCE: Duration = Duration::from_secs(30 * 60);
@@ -40,10 +43,24 @@ pub struct DesignHeatingOptions {
     pub particles_per_batch: u64,
     pub max_histories: u64,
     pub max_seconds: u64,
+    pub target_relative_error: f64,
+    pub progress: Option<HeatingProgressFn>,
     pub seed: u64,
     pub threads: u32,
     pub cancellation: Cancellation,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeatingProgress {
+    pub batches: u64,
+    pub histories: u64,
+    pub mean_relative_error: Option<f64>,
+    pub peak_relative_error: Option<f64>,
+    pub variance_of_variance: Option<f64>,
+    pub elapsed_seconds: f64,
+}
+
+pub type HeatingProgressFn = std::sync::Arc<dyn Fn(HeatingProgress) + Send + Sync>;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct HeatingScore {
@@ -135,6 +152,20 @@ pub struct DesignHeatingReport {
     pub energy_per_reaction_ev: f64,
     pub fusion_power_mw: f64,
     pub histories: u64,
+    #[serde(default)]
+    pub batches: u64,
+    #[serde(default)]
+    pub target_relative_error: Option<f64>,
+    #[serde(default)]
+    pub peak_target_relative_error: Option<f64>,
+    #[serde(default)]
+    pub target_reached: bool,
+    #[serde(default)]
+    pub mean_relative_error: Option<f64>,
+    #[serde(default)]
+    pub peak_relative_error: Option<f64>,
+    #[serde(default)]
+    pub variance_of_variance: Option<f64>,
     pub c_api_terminal_status: Option<i32>,
     pub lost_particles: Option<u64>,
     pub stop_reason: String,
@@ -214,6 +245,34 @@ pub const DESIGN_HEATING_OUTPUTS: &[Output] = &[
         "The D-T source normalization convention, not a heating response.",
     ),
     not_calculated("histories", "A run count, not a heating response."),
+    not_calculated(
+        "batches",
+        "An independent batch count, not a heating response.",
+    ),
+    not_calculated(
+        "target_relative_error",
+        "An authored mean sampling target, not a heating response.",
+    ),
+    not_calculated(
+        "peak_target_relative_error",
+        "The authored resolved-peak sampling target, not a heating response.",
+    ),
+    not_calculated(
+        "target_reached",
+        "A sampling-stop condition, not a heating response.",
+    ),
+    not_calculated(
+        "mean_relative_error",
+        "A batch sampling diagnostic, not a heating response.",
+    ),
+    not_calculated(
+        "peak_relative_error",
+        "A resolved-peak batch sampling diagnostic, not a heating response.",
+    ),
+    not_calculated(
+        "variance_of_variance",
+        "A batch reliability diagnostic, not a heating response.",
+    ),
     not_calculated(
         "c_api_terminal_status",
         "An OpenMC execution terminal code, not a heating response.",
@@ -309,6 +368,20 @@ struct WorkerResult {
     #[serde(default)]
     histories: u64,
     #[serde(default)]
+    batches: u64,
+    #[serde(default)]
+    target_relative_error: Option<f64>,
+    #[serde(default)]
+    peak_target_relative_error: Option<f64>,
+    #[serde(default)]
+    target_reached: bool,
+    #[serde(default)]
+    mean_relative_error: Option<f64>,
+    #[serde(default)]
+    peak_relative_error: Option<f64>,
+    #[serde(default)]
+    variance_of_variance: Option<f64>,
+    #[serde(default)]
     c_api_terminal_status: Option<i32>,
     #[serde(default)]
     lost_particles: Option<u64>,
@@ -322,6 +395,34 @@ struct WorkerResult {
     runtime_identity: Option<HeatingRuntimeIdentity>,
     #[serde(default)]
     execution_identity: Option<HeatingExecutionIdentity>,
+}
+
+fn parse_heating_progress(line: &str) -> Option<HeatingProgress> {
+    #[derive(Deserialize)]
+    struct Line {
+        progress: Progress,
+    }
+    #[derive(Deserialize)]
+    struct Progress {
+        batches: u64,
+        histories: u64,
+        relative_error: Option<f64>,
+        peak_relative_error: Option<f64>,
+        variance_of_variance: Option<f64>,
+        elapsed_seconds: f64,
+    }
+    if !line.starts_with("{\"progress\"") {
+        return None;
+    }
+    let progress: Line = serde_json::from_str(line).ok()?;
+    Some(HeatingProgress {
+        batches: progress.progress.batches,
+        histories: progress.progress.histories,
+        mean_relative_error: progress.progress.relative_error,
+        peak_relative_error: progress.progress.peak_relative_error,
+        variance_of_variance: progress.progress.variance_of_variance,
+        elapsed_seconds: progress.progress.elapsed_seconds,
+    })
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -420,7 +521,12 @@ pub fn design_heating(
 ) -> Result<DesignHeatingReport, DesignError> {
     if options.particles_per_batch == 0
         || options.max_histories / options.particles_per_batch.max(1) < MIN_BATCHES
+        || options.max_histories > MAX_HEATING_HISTORIES
+        || options.max_histories / options.particles_per_batch.max(1) > MAX_HEATING_BATCHES
         || options.max_seconds == 0
+        || options.max_seconds > MAX_HEATING_SECONDS
+        || !options.target_relative_error.is_finite()
+        || !(0.0..1.0).contains(&options.target_relative_error)
         || options.threads == 0
         || options.threads > 32
         || options
@@ -429,7 +535,7 @@ pub fn design_heating(
             .any(|d| !d.is_finite() || *d < 0.01)
     {
         return Err(DesignError::Tool(
-            "heating needs at least 30 batches, a positive time limit, 1 to 32 threads, and peak voxels at least 0.01 m".into(),
+            "heating needs at least 30 batches, a target error between 0 and 1, a positive time limit, 1 to 32 threads, and peak voxels at least 0.01 m".into(),
         ));
     }
     let design_bytes = read_bounded(design_path)?;
@@ -497,6 +603,13 @@ pub fn design_heating(
         energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
         fusion_power_mw,
         histories: 0,
+        batches: 0,
+        target_relative_error: Some(options.target_relative_error),
+        peak_target_relative_error: Some(2.0 * options.target_relative_error),
+        target_reached: false,
+        mean_relative_error: None,
+        peak_relative_error: None,
+        variance_of_variance: None,
         c_api_terminal_status: None,
         lost_particles: None,
         stop_reason: "not_started".into(),
@@ -510,7 +623,7 @@ pub fn design_heating(
         solids: Vec::new(),
         why: None,
         next_step: None,
-        notices: vec!["Heating currently stops at its configured history or time budget; target-relative-error stopping is not implemented yet (NUC-043 remains open).".into()],
+        notices: vec!["Target stopping uses aggregate per-batch heating error, the resolved peak in each authored solid, and batch variance-of-variance. Geometry volume uncertainty is separate.".into()],
         validation: ValidationMarks::default(),
     };
     let record_not_evaluated = |mut report: DesignHeatingReport,
@@ -620,6 +733,7 @@ pub fn design_heating(
             "min_batches": MIN_BATCHES,
             "max_batches": options.max_histories / options.particles_per_batch,
             "max_seconds": options.max_seconds,
+            "target_relative_error": options.target_relative_error,
             "seed": options.seed,
             "threads": options.threads,
         },
@@ -676,7 +790,13 @@ pub fn design_heating(
             &options.cancellation,
             environment,
             ResourceLimits::with_address_space(CAD_ADDRESS_SPACE),
-            &|_| {},
+            &|line| {
+                if let (Some(progress), Some(update)) =
+                    (&options.progress, parse_heating_progress(line))
+                {
+                    progress(update);
+                }
+            },
         )? {
             Launched::Succeeded(seconds) => Ok(seconds),
             Launched::Failed(text) => Err(DesignError::Tool(text)),
@@ -777,8 +897,32 @@ pub fn design_heating(
         report.execution_identity = Some(execution.clone());
     }
     if worker.status.as_deref() == Some("NOT_EVALUATED") {
+        if worker.histories > 0
+            && (worker.histories % options.particles_per_batch != 0
+                || worker.batches != worker.histories / options.particles_per_batch
+                || worker.histories > options.max_histories
+                || worker.target_relative_error != Some(options.target_relative_error)
+                || worker.peak_target_relative_error != Some(2.0 * options.target_relative_error)
+                || worker.target_reached != (worker.stop_reason == "target_reached"))
+        {
+            return Err(DesignError::Tool(
+                "the unevaluated heating worker count or target metadata does not match the checked request".into(),
+            ));
+        }
         report.elapsed_seconds = elapsed;
         report.histories = worker.histories;
+        report.batches = worker.batches;
+        report.target_reached = worker.target_reached;
+        report.mean_relative_error = worker.mean_relative_error;
+        report.peak_relative_error = worker.peak_relative_error;
+        report.variance_of_variance = worker.variance_of_variance;
+        report.stop_reason = worker.stop_reason;
+        report.target_relative_error = worker
+            .target_relative_error
+            .or(report.target_relative_error);
+        report.peak_target_relative_error = worker
+            .peak_target_relative_error
+            .or(report.peak_target_relative_error);
         report.c_api_terminal_status = worker.c_api_terminal_status;
         report.lost_particles = worker.lost_particles;
         report.why = worker.why;
@@ -788,11 +932,13 @@ pub fn design_heating(
     if !matches!(
         worker.status.as_deref(),
         Some("CALCULATED" | "INCONCLUSIVE")
-    ) || !matches!(worker.stop_reason.as_str(), "history_limit" | "time_limit")
-        || worker
-            .h5m_sha256
-            .as_deref()
-            .is_none_or(|hash| !hash.eq_ignore_ascii_case(&report.h5m_sha256))
+    ) || !matches!(
+        worker.stop_reason.as_str(),
+        "history_limit" | "time_limit" | "target_reached"
+    ) || worker
+        .h5m_sha256
+        .as_deref()
+        .is_none_or(|hash| !hash.eq_ignore_ascii_case(&report.h5m_sha256))
         || worker
             .cross_sections_sha256
             .as_deref()
@@ -800,6 +946,28 @@ pub fn design_heating(
         || worker.histories < MIN_BATCHES * options.particles_per_batch
         || worker.histories > options.max_histories
         || !worker.histories.is_multiple_of(options.particles_per_batch)
+        || worker.batches != worker.histories / options.particles_per_batch
+        || worker.target_relative_error != Some(options.target_relative_error)
+        || worker.peak_target_relative_error != Some(2.0 * options.target_relative_error)
+        || worker.target_reached != (worker.stop_reason == "target_reached")
+        || worker
+            .mean_relative_error
+            .is_some_and(|v| !v.is_finite() || v < 0.0)
+        || worker
+            .peak_relative_error
+            .is_some_and(|v| !v.is_finite() || v < 0.0)
+        || worker
+            .variance_of_variance
+            .is_some_and(|v| !v.is_finite() || v < 0.0)
+        || (worker.target_reached
+            && (worker
+                .mean_relative_error
+                .is_none_or(|v| v > options.target_relative_error)
+                || worker
+                    .peak_relative_error
+                    .is_none_or(|v| v > 2.0 * options.target_relative_error)
+                || worker.variance_of_variance.is_none_or(|v| v > 0.1)))
+        || (worker.status.as_deref() == Some("CALCULATED") && !worker.target_reached)
         || worker.c_api_terminal_status.is_none()
         || worker.lost_particles.is_none()
         || !valid_terminal_status(
@@ -1068,6 +1236,13 @@ pub fn design_heating(
     }
     report.openmc = worker.openmc;
     report.histories = worker.histories;
+    report.batches = worker.batches;
+    report.target_relative_error = worker.target_relative_error;
+    report.peak_target_relative_error = worker.peak_target_relative_error;
+    report.target_reached = worker.target_reached;
+    report.mean_relative_error = worker.mean_relative_error;
+    report.peak_relative_error = worker.peak_relative_error;
+    report.variance_of_variance = worker.variance_of_variance;
     report.c_api_terminal_status = worker.c_api_terminal_status;
     report.lost_particles = worker.lost_particles;
     report.stop_reason = worker.stop_reason;
@@ -1205,9 +1380,15 @@ fn valid_terminal_status(
 ) -> bool {
     let batches = worker.histories / particles_per_batch;
     match worker.c_api_terminal_status {
-        Some(1) => batches == planned_batches && worker.stop_reason == "history_limit",
+        Some(1) => {
+            batches == planned_batches
+                && matches!(
+                    worker.stop_reason.as_str(),
+                    "history_limit" | "target_reached"
+                )
+        }
         Some(0) => {
-            worker.stop_reason == "time_limit"
+            (worker.stop_reason == "time_limit" || worker.stop_reason == "target_reached")
                 && batches >= MIN_BATCHES
                 && batches < planned_batches
         }
@@ -1318,6 +1499,31 @@ pub fn render_design_heating_text(report: &DesignHeatingReport) -> String {
             "  Histories: {}; stopped at {}",
             report.histories, report.stop_reason
         );
+        let _ = writeln!(text, "  Batches: {}", report.batches);
+        if let (Some(mean_target), Some(peak_target)) = (
+            report.target_relative_error,
+            report.peak_target_relative_error,
+        ) {
+            let _ = writeln!(
+                text,
+                "  Error targets: mean {:.2}%; resolved per-solid peak {:.2}%",
+                100.0 * mean_target,
+                100.0 * peak_target
+            );
+        }
+        if let (Some(mean), Some(peak), Some(vov)) = (
+            report.mean_relative_error,
+            report.peak_relative_error,
+            report.variance_of_variance,
+        ) {
+            let _ = writeln!(
+                text,
+                "  Relative error: mean {:.2}%; resolved per-solid peak {:.2}%",
+                100.0 * mean,
+                100.0 * peak
+            );
+            let _ = writeln!(text, "  Batch variance-of-variance: {vov:.4} (limit 0.1)");
+        }
     }
     if let Some(status) = report.c_api_terminal_status {
         let _ = writeln!(text, "  OpenMC C API terminal status: {status}");
@@ -1489,6 +1695,13 @@ mod tests {
             "c_api_terminal_status": 1,
             "lost_particles": 0,
             "histories": 100_000,
+            "batches": 100,
+            "target_relative_error": 0.05,
+            "peak_target_relative_error": 0.1,
+            "target_reached": false,
+            "mean_relative_error": 0.2,
+            "peak_relative_error": null,
+            "variance_of_variance": 0.03,
             "stop_reason": "history_limit",
             "h5m_sha256": "h",
             "cross_sections_sha256": "x",
@@ -1524,6 +1737,9 @@ mod tests {
         assert_eq!(worker.status.as_deref(), Some("INCONCLUSIVE"));
         assert_eq!(worker.c_api_terminal_status, Some(1));
         assert_eq!(worker.lost_particles, Some(0));
+        assert_eq!(worker.batches, 100);
+        assert_eq!(worker.target_relative_error, Some(0.05));
+        assert!(!worker.target_reached);
         assert_eq!(
             worker.runtime_identity.as_ref().unwrap().openmc_version,
             "0.16.0"
@@ -1541,6 +1757,20 @@ mod tests {
         assert_eq!(peak.standard_error, None);
         assert!(valid_terminal_status(&worker, 100, 1_000));
         assert!(!valid_terminal_status(&worker, 101, 1_000));
+    }
+
+    #[test]
+    fn heating_progress_parser_requires_and_preserves_batch_metrics() {
+        let progress = parse_heating_progress(
+            r#"{"progress":{"batches":30,"histories":600000,"relative_error":0.04,"peak_relative_error":0.08,"variance_of_variance":0.02,"elapsed_seconds":12.5}}"#,
+        )
+        .unwrap();
+        assert_eq!(progress.batches, 30);
+        assert_eq!(progress.histories, 600_000);
+        assert_eq!(progress.mean_relative_error, Some(0.04));
+        assert_eq!(progress.peak_relative_error, Some(0.08));
+        assert_eq!(progress.variance_of_variance, Some(0.02));
+        assert!(parse_heating_progress(r#"{"progress":{"batches":30}}"#).is_none());
     }
 
     #[test]
@@ -1746,6 +1976,13 @@ mod tests {
             energy_per_reaction_ev: D_T_ENERGY_PER_REACTION_EV,
             fusion_power_mw: 283.0,
             histories: 600_000,
+            batches: 30,
+            target_relative_error: Some(0.05),
+            peak_target_relative_error: Some(0.10),
+            target_reached: false,
+            mean_relative_error: None,
+            peak_relative_error: None,
+            variance_of_variance: None,
             c_api_terminal_status: Some(1),
             lost_particles: Some(0),
             stop_reason: "history_limit".into(),

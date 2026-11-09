@@ -5,14 +5,17 @@
 use eframe::egui;
 use faris_engine::{
     design::{
-        DesignHeatingOptions, DesignHeatingReport, ToolPaths, design_heating,
+        DesignHeatingOptions, DesignHeatingReport, HeatingProgress, ToolPaths, design_heating,
         render_design_heating_text,
     },
     jobs::Cancellation,
 };
 use std::{
     path::PathBuf,
-    sync::mpsc::{self, Receiver, TryRecvError},
+    sync::{
+        Arc, Mutex,
+        mpsc::{self, Receiver, TryRecvError},
+    },
     time::Duration,
 };
 
@@ -21,6 +24,7 @@ use crate::{design_tools::SharedTools, settings::Tool};
 struct Running {
     cancellation: Cancellation,
     receiver: Receiver<Result<DesignHeatingReport, String>>,
+    progress: Arc<Mutex<Option<HeatingProgress>>>,
 }
 
 pub struct DesignHeatingPanel {
@@ -32,6 +36,7 @@ pub struct DesignHeatingPanel {
     voxel_z_m: f64,
     max_histories: u64,
     max_seconds: u64,
+    target_error: f64,
     tools: Option<SharedTools>,
     running: Option<Running>,
     result: Option<Result<DesignHeatingReport, String>>,
@@ -48,6 +53,7 @@ impl Default for DesignHeatingPanel {
             voxel_z_m: 0.05,
             max_histories: 50_000_000,
             max_seconds: 3600,
+            target_error: 0.05,
             tools: None,
             running: None,
             result: None,
@@ -93,7 +99,7 @@ impl DesignHeatingPanel {
         .with_plasma_source_path(value(Tool::PlasmaSource))
     }
 
-    fn start(&mut self) -> Result<(), String> {
+    fn start(&mut self, ctx: &egui::Context) -> Result<(), String> {
         let design = PathBuf::from(self.design.trim());
         let check_report = PathBuf::from(self.check_report.trim());
         let output = PathBuf::from(self.output.trim());
@@ -106,6 +112,9 @@ impl DesignHeatingPanel {
         let tools = self.paths();
         let cancellation = Cancellation::default();
         let worker_cancellation = cancellation.clone();
+        let progress = Arc::new(Mutex::new(None));
+        let worker_progress = progress.clone();
+        let repaint = ctx.clone();
         let (sender, receiver) = mpsc::channel();
         let options = DesignHeatingOptions {
             check_report,
@@ -114,6 +123,13 @@ impl DesignHeatingPanel {
             particles_per_batch: 20_000,
             max_histories: self.max_histories,
             max_seconds: self.max_seconds,
+            target_relative_error: self.target_error,
+            progress: Some(Arc::new(move |update| {
+                if let Ok(mut current) = worker_progress.lock() {
+                    *current = Some(update);
+                }
+                repaint.request_repaint();
+            })),
             seed: 1,
             threads: 4,
             cancellation: worker_cancellation,
@@ -128,6 +144,7 @@ impl DesignHeatingPanel {
         self.running = Some(Running {
             cancellation,
             receiver,
+            progress,
         });
         self.result = None;
         Ok(())
@@ -205,7 +222,11 @@ impl DesignHeatingPanel {
                     ui.label("Time limit (s)");
                     ui.add(egui::DragValue::new(&mut self.max_seconds).range(1..=86_400));
                     ui.end_row();
+                    ui.label("Mean relative error target");
+                    ui.add(egui::DragValue::new(&mut self.target_error).range(0.001..=0.5).speed(0.005));
+                    ui.end_row();
                 });
+            ui.label(format!("Resolved per-solid peak target: {:.1}% (2× mean target); minimum 30 independent batches and VOV ≤ 0.1.", 200.0 * self.target_error));
             if let Some(tools) = &self.tools {
                 ui.collapsing("OpenMC tools", |ui| {
                     tools.borrow_mut().ui(ui, false);
@@ -215,13 +236,20 @@ impl DesignHeatingPanel {
         ui.horizontal(|ui| {
             if !self.is_running() {
                 if ui.button("Run coupled heating").clicked()
-                    && let Err(message) = self.start()
+                    && let Err(message) = self.start(ui.ctx())
                 {
                     self.result = Some(Err(message));
                 }
             } else {
                 ui.spinner();
                 ui.label("OpenMC coupled heating is running");
+                if let Some(update) = self.running.as_ref().and_then(|run| run.progress.lock().ok()?.clone()) {
+                    let mean = update.mean_relative_error.map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
+                    let peak = update.peak_relative_error.map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
+                    ui.label(format!("{} batches / {} histories · mean error {mean} · peak error {peak} · VOV {}",
+                        update.batches, update.histories,
+                        update.variance_of_variance.map_or_else(|| "n/a".into(), |v| format!("{v:.3}"))));
+                }
                 if ui.button("Cancel").clicked()
                     && let Some(job) = &self.running
                 {

@@ -191,6 +191,9 @@ pub enum DesignCommand {
         max_histories: u64,
         #[arg(long, default_value_t = 3600)]
         max_seconds: u64,
+        /// Relative standard error target for aggregate coupled heating (resolved peak target is twice this).
+        #[arg(long, default_value_t = 0.05)]
+        target_error: f64,
         #[arg(long, default_value_t = 20_000)]
         particles: u64,
         #[arg(long, default_value_t = 1)]
@@ -367,6 +370,7 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
             peak_voxel_m,
             max_histories,
             max_seconds,
+            target_error,
             particles,
             seed,
             threads,
@@ -384,6 +388,22 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
                 particles_per_batch: particles,
                 max_histories,
                 max_seconds,
+                target_relative_error: target_error,
+                progress: Some(std::sync::Arc::new(|update| {
+                    let mean = update
+                        .mean_relative_error
+                        .map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
+                    let peak = update
+                        .peak_relative_error
+                        .map_or_else(|| "n/a".into(), |v| format!("{:.1}%", 100.0 * v));
+                    eprintln!(
+                        "Heating: {} histories, mean error {mean}, peak error {peak}, VOV {}",
+                        update.histories,
+                        update
+                            .variance_of_variance
+                            .map_or_else(|| "n/a".into(), |v| format!("{v:.3}"))
+                    );
+                })),
                 seed,
                 threads,
                 cancellation,

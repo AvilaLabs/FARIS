@@ -57,6 +57,10 @@ The run then stops only when the piece that leads at that batch is within twice 
 it enables photon transport, atomic relaxation and the LED electron treatment and does not set a neutron energy
 cutoff. Its total heating tally has no particle filter; neutron, photon, electron and positron tallies run alongside
 it. Per-batch residuals retain their correlations for the integrated response and each sampled voxel.
+It stops early only after 30 independent batches when the aggregate all-solid mean is within its authored relative
+standard-error target (5 % by default), each authored solid's resolved peak is within twice that target (10 %),
+and the aggregate batch variance-of-variance is at most 0.1. An unknown or unstable variance-of-variance never counts
+as convergence; at a history or time bound the result remains inconclusive. Geometry volume error stays separate.
 
 Progress goes to standard output as one JSON object per line. The result file is
 WORK/solver/result.json (`faris-design-transport/v3`). openmc is imported lazily so the pure
@@ -104,6 +108,8 @@ MAX_HEATING_VOXEL_CELLS = 32_768
 MAX_HEATING_VOLUME_CELLS = 1_000_000
 MAX_HEATING_HISTORIES = 2_000_000_000
 MAX_HEATING_BATCHES = 100_000
+HEATING_VOV_LIMIT = 0.1
+HEATING_PEAK_TARGET_FACTOR = 2.0
 MAX_HEATING_SECONDS = 86_400
 # The peak inside a solid: rings of dr by dz about the machine axis, each cut by the solid.
 PEAK_TALLY_ID = 2
@@ -332,6 +338,32 @@ def peak_of_moments(means, standard_errors, volumes, ranked) -> dict | None:
             best, best_key = {"index": index, "mean": mean, "standard_error": error,
                               "volume_cm3": volume}, key
     return best
+
+
+def heating_peak_relative_error(means_by_bin_solid, errors_by_bin_solid, volumes_by_solid, ranked_by_solid):
+    """Maximum relative error of the resolved leading voxel in every authored solid (vectorized)."""
+    import numpy as np
+
+    means = np.asarray(means_by_bin_solid, dtype=float).T
+    errors = np.asarray(errors_by_bin_solid, dtype=float).T
+    volumes = np.asarray(volumes_by_solid, dtype=float)
+    ranked = np.asarray(ranked_by_solid, dtype=bool)
+    if means.shape != errors.shape or means.shape != volumes.shape or means.shape != ranked.shape:
+        return None
+    bound = (means - PEAK_SIGMAS * errors) / np.where(ranked, volumes, 1.0)
+    resolved = ranked & (bound > 0.0)
+    has_resolved = resolved.any(axis=1)
+    mean_density = means / np.where(ranked, volumes, 1.0)
+    keys = np.where(has_resolved[:, None], np.where(resolved, bound, -np.inf), mean_density)
+    keys = np.where(ranked, keys, -np.inf)
+    leaders = keys.argmax(axis=1)
+    rows = np.arange(means.shape[0])
+    peak_mean = means[rows, leaders]
+    peak_error = errors[rows, leaders]
+    if (not ranked.any(axis=1).all() or not np.isfinite(peak_mean).all()
+            or (peak_mean <= 0.0).any() or not np.isfinite(peak_error).all() or (peak_error < 0.0).any()):
+        return None
+    return float(np.max(peak_error / peak_mean))
 
 
 def lost_too_many(lost: int | None, histories: int) -> bool:
@@ -968,8 +1000,8 @@ def heating_terminal_quality(status: int | None, batches: int, planned: int, sto
         return "NOT_EVALUATED", "OpenMC terminated with C API status 2; the heating tally is incomplete."
     if status == 1 and batches != planned:
         return "NOT_EVALUATED", f"OpenMC reported planned-batch completion after only {batches} of {planned} batches."
-    if status == 0 and (stop_reason != "time_limit" or batches < 30):
-        return "NOT_EVALUATED", "OpenMC stopped before a valid time-budget endpoint or before 30 batches."
+    if status == 0 and (stop_reason not in ("time_limit", "target_reached") or batches < 30):
+        return "NOT_EVALUATED", "OpenMC stopped before a valid target or time-budget endpoint or before 30 batches."
     if lost is None:
         return "NOT_EVALUATED", "OpenMC did not expose the final lost-particle count."
     if lost < 0:
@@ -1007,8 +1039,53 @@ class VectorMoments:
         return np.sqrt(np.maximum(self.m2, 0.0) / (self.count * (self.count - 1)))
 
 
+class ScalarMoments:
+    """Fixed-state scalar batch moments, including MCNP batch VOV."""
+
+    def __init__(self):
+        self.count = 0
+        self.mean = self.m2 = self.m3 = self.m4 = 0.0
+
+    def add(self, value: float) -> None:
+        n = self.count + 1
+        delta = value - self.mean
+        delta_n = delta / n
+        delta_n2 = delta_n * delta_n
+        term = delta * delta_n * self.count
+        old_m2, old_m3 = self.m2, self.m3
+        self.m4 += (term * delta_n2 * (n * n - 3 * n + 3)
+                    + 6 * delta_n2 * old_m2 - 4 * delta_n * old_m3)
+        self.m3 += term * delta_n * (n - 2) - 3 * delta_n * old_m2
+        self.m2 += term
+        self.mean += delta_n
+        self.count = n
+
+    @property
+    def standard_error(self) -> float | None:
+        if self.count < 2 or not math.isfinite(self.m2) or self.m2 < 0.0:
+            return None
+        return math.sqrt(self.m2 / (self.count * (self.count - 1)))
+
+    @property
+    def relative_error(self) -> float | None:
+        se = self.standard_error
+        if se is None or not math.isfinite(self.mean) or self.mean <= 0.0:
+            return None
+        return se / self.mean
+
+    @property
+    def variance_of_variance(self) -> float | None:
+        if self.count < 2 or not math.isfinite(self.m2) or self.m2 <= 0.0 or not math.isfinite(self.m4):
+            return None
+        value = self.m4 / (self.m2 * self.m2) - 1.0 / self.count
+        if not math.isfinite(value) or value < -128.0 * sys.float_info.epsilon:
+            return None
+        return max(0.0, value)
+
 def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count: int, bins: int,
-                            max_batches: int, max_seconds: float, started: float):
+                            max_batches: int, max_seconds: float, started: float,
+                            target_relative_error: float | None = None, volumes_by_solid=None, ranked=None,
+                            particles_per_batch: int | None = None):
     """Run C API batches using fixed-size online moments and exact same-batch closure residuals."""
     import numpy as np
 
@@ -1020,6 +1097,8 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
     closure_moments = VectorMoments((solid_count,))
     voxel_closure_moments = VectorMoments((bins, solid_count))
     stop_reason, terminal_status, batches_done = "history_limit", None, 0
+    aggregate = ScalarMoments()
+    peak_relative_error = None
     for _ in range(max_batches):
         terminal_status = lib.next_batch()
         batches_done += 1
@@ -1044,13 +1123,45 @@ def collect_heating_batches(lib, tallies: dict, voxel_tallies: dict, solid_count
             voxel_component_sum += voxel_batch_values[name]
         closure_moments.add(batch_values["total"] - component_sum)
         voxel_closure_moments.add(voxel_batch_values["total"] - voxel_component_sum)
-        if time.monotonic() - started >= max_seconds and batches_done < max_batches:
+        aggregate.add(math.fsum(float(value) for value in batch_values["total"]))
+        peak_relative_error = None
+        if volumes_by_solid is not None and ranked is not None:
+            peak_relative_error = heating_peak_relative_error(
+                voxel_moments["total"].mean,
+                voxel_moments["total"].standard_error,
+                volumes_by_solid,
+                ranked,
+            )
+        vov = aggregate.variance_of_variance
+        target_met = (target_relative_error is not None and batches_done >= 30
+                      and aggregate.relative_error is not None
+                and aggregate.relative_error <= target_relative_error
+                and peak_relative_error is not None
+                and peak_relative_error <= HEATING_PEAK_TARGET_FACTOR * target_relative_error
+                and vov is not None and vov <= HEATING_VOV_LIMIT)
+        timed_out = time.monotonic() - started >= max_seconds and batches_done < max_batches
+        if target_met:
+            stop_reason = "target_reached"
+        elif timed_out:
             stop_reason = "time_limit"
+        if particles_per_batch is not None and (
+                batches_done % 10 == 0 or target_met or timed_out or terminal_status not in (0, None)):
+            print(json.dumps({"progress": {
+                "batches": batches_done,
+                "histories": batches_done * particles_per_batch,
+                "relative_error": aggregate.relative_error,
+                "peak_relative_error": peak_relative_error,
+                "variance_of_variance": vov,
+                "elapsed_seconds": time.monotonic() - started,
+            }}), flush=True)
+        if target_met:
+            break
+        if timed_out:
             break
         if terminal_status not in (0, None):
             break
     return (moments, voxel_moments, closure_moments, voxel_closure_moments,
-            batches_done, stop_reason, terminal_status)
+            aggregate, peak_relative_error, batches_done, stop_reason, terminal_status)
 
 
 def normalize_heating_source(source) -> None:
@@ -1076,6 +1187,9 @@ def validate_heating_request(request: dict) -> None:
     if request.get("schema") != REQUEST_SCHEMA:
         raise ValueError(f"the request is not {REQUEST_SCHEMA}")
     sampling = request["sampling"]
+    if (not math.isfinite(sampling.get("target_relative_error", float("nan")))
+            or not 0.0 < sampling["target_relative_error"] < 1.0):
+        raise ValueError("heating target_relative_error must be finite and between 0 and 1")
     if not (2 <= sampling["min_batches"] <= sampling["max_batches"]):
         raise ValueError("heating needs 2 <= min_batches <= max_batches")
     if sampling["max_batches"] > MAX_HEATING_BATCHES:
@@ -1370,6 +1484,8 @@ def phase_heating(request: dict, work: Path) -> dict:
     batches_done = 0
     stop_reason = "history_limit"
     terminal_status = None
+    aggregate = ScalarMoments()
+    peak_relative_error = None
     try:
         openmc.lib.init(["--threads", str(int(sampling["threads"])), str(model_xml)])
         try:
@@ -1379,9 +1495,12 @@ def phase_heating(request: dict, work: Path) -> dict:
             started = time.monotonic()
             if terminal_status is None:
                 (batch_moments, voxel_moments, closure_moments, voxel_closure_moments,
-                 batches_done, stop_reason, terminal_status) = collect_heating_batches(
+                 aggregate, peak_relative_error, batches_done, stop_reason, terminal_status) = collect_heating_batches(
                     openmc.lib, tallies, voxel_tallies, len(solid_ids), bins,
-                    int(sampling["max_batches"]), float(sampling["max_seconds"]), started)
+                    int(sampling["max_batches"]), float(sampling["max_seconds"]), started,
+                    float(sampling["target_relative_error"]), volume_by_solid,
+                    ranked_pieces(pieces["volumes_cm3"], pieces["r_edges_cm"]).reshape(solid_count, -1),
+                    int(sampling["particles_per_batch"]))
             openmc.lib.simulation_finalize()
         finally:
             openmc.lib.finalize()
@@ -1405,7 +1524,13 @@ def phase_heating(request: dict, work: Path) -> dict:
                              "Use an OpenMC build with the supported C API terminal status and lost-particle counter, then rerun heating.",
                              data_identity, runtime_identity, execution_identity)
         result.update({"c_api_terminal_status": terminal_status, "lost_particles": lost,
-                       "histories": histories, "stop_reason": stop_reason})
+                       "histories": histories, "batches": batches_done, "stop_reason": stop_reason,
+                       "target_relative_error": float(sampling["target_relative_error"]),
+                       "peak_target_relative_error": HEATING_PEAK_TARGET_FACTOR * float(sampling["target_relative_error"]),
+                       "target_reached": stop_reason == "target_reached",
+                       "mean_relative_error": aggregate.relative_error,
+                       "peak_relative_error": peak_relative_error,
+                       "variance_of_variance": aggregate.variance_of_variance})
         (work / "solver" / "heating-result.json").write_text(json.dumps(result, indent=1) + "\n")
         return result
     if batches_done < int(sampling["min_batches"]):
@@ -1502,6 +1627,22 @@ def phase_heating(request: dict, work: Path) -> dict:
             if quality_reason:
                 peak_reasons.append(quality_reason)
     reasons = []
+    vov = aggregate.variance_of_variance
+    mean_relative_error = aggregate.relative_error
+    if stop_reason != "target_reached":
+        reasons.append(
+            f"The heating run stopped at its {stop_reason.replace('_', ' ')} before the authored target "
+            f"of {100 * sampling['target_relative_error']:g}% mean and "
+            f"{100 * HEATING_PEAK_TARGET_FACTOR * sampling['target_relative_error']:g}% peak error was reached."
+        )
+    if vov is None:
+        reasons.append("Heating batch variance-of-variance is unavailable; the target error cannot be accepted.")
+    elif vov > HEATING_VOV_LIMIT:
+        reasons.append(f"Heating batch variance-of-variance {vov:.3g} exceeds {HEATING_VOV_LIMIT:g}; the error is not reliable.")
+    if mean_relative_error is None or mean_relative_error > sampling["target_relative_error"]:
+        reasons.append("The aggregate heating mean has no usable error estimate at or below its authored target.")
+    if peak_relative_error is None or peak_relative_error > HEATING_PEAK_TARGET_FACTOR * sampling["target_relative_error"]:
+        reasons.append("At least one resolved per-solid heating peak has no usable error estimate at or below its authored target.")
     if closure_failed:
         reasons.append("At least one per-coil or per-voxel correlated batch closure residual exceeded three standard errors plus the explicit floating-point tolerance.")
     reasons.extend(peak_reasons)
@@ -1517,6 +1658,13 @@ def phase_heating(request: dict, work: Path) -> dict:
               "runtime_identity": runtime_identity, "execution_identity": execution_identity,
               "histories": histories,
               "stop_reason": stop_reason,
+              "batches": batches_done,
+              "target_relative_error": float(sampling["target_relative_error"]),
+              "peak_target_relative_error": HEATING_PEAK_TARGET_FACTOR * float(sampling["target_relative_error"]),
+              "target_reached": stop_reason == "target_reached",
+              "mean_relative_error": mean_relative_error,
+              "peak_relative_error": peak_relative_error,
+              "variance_of_variance": vov,
               "normalization": "per_source_neutron", "unit": "eV/source_neutron",
               "particle_components": list(components), "data_identity": data_identity,
               "solids": result_solids,
