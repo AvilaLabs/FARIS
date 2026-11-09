@@ -1,0 +1,92 @@
+diff --git a/include/openmc/capi.h b/include/openmc/capi.h
+index d8041ef..73cfee4 100644
+--- a/include/openmc/capi.h
++++ b/include/openmc/capi.h
+@@ -11,0 +12,4 @@ extern "C" {
++// FARIS optional MCNP imp:n=0 compatibility capability and event counter.
++extern int faris_openmc_mcnp_imp0_patch_version;
++extern int faris_openmc_mcnp_imp0_kill_events;
++
+diff --git a/include/openmc/cell.h b/include/openmc/cell.h
+index 9dfe233..5332f04 100644
+--- a/include/openmc/cell.h
++++ b/include/openmc/cell.h
+@@ -340,0 +341,2 @@ public:
++  //! FARIS-only MCNP imp:n=0 neutron kill-on-entry setting from XML
++  bool faris_neutron_importance_zero_on_entry_ {false};
+diff --git a/src/cell.cpp b/src/cell.cpp
+index e247999..cfb997a 100644
+--- a/src/cell.cpp
++++ b/src/cell.cpp
+@@ -358,0 +359,12 @@ CSGCell::CSGCell(pugi::xml_node cell_node)
++  // This opt-in attribute is injected by the benchmark adapter only after it
++  // verifies its MCNP-to-OpenMC cell map. It is not part of stock OpenMC XML.
++  const auto faris_neutron_importance =
++    cell_node.attribute("faris_neutron_importance");
++  if (faris_neutron_importance) {
++    if (std::string{faris_neutron_importance.value()} != "0") {
++      fatal_error(fmt::format(
++        "Only FARIS neutron importance 0 is supported on cell {}", id_));
++    }
++    faris_neutron_importance_zero_on_entry_ = true;
++  }
++
+diff --git a/src/finalize.cpp b/src/finalize.cpp
+index 9ee9434..12eaf81 100644
+--- a/src/finalize.cpp
++++ b/src/finalize.cpp
+@@ -213,0 +214 @@ int openmc_reset()
++  faris_openmc_mcnp_imp0_kill_events = 0;
+diff --git a/src/particle.cpp b/src/particle.cpp
+index 2d70d71..c18e20a 100644
+--- a/src/particle.cpp
++++ b/src/particle.cpp
+@@ -299,0 +300,22 @@ void Particle::event_cross_surface()
++  // Check after geometry has located the destination cell, but delay killing
++  // until after surface-current scoring below. This keeps the incoming weight
++  // on the face tally while preventing a zero-importance cell from receiving
++  // track length or a weight-window operation.
++  auto enters_faris_imp0_cell = [this]() {
++    if (!alive() || type() != ParticleType::neutron)
++      return false;
++    for (int level = 0; level < n_coord(); ++level) {
++      const int32_t cell_index = coord(level).cell();
++      const bool changed = level >= n_coord_last() ||
++                           cell_index != cell_last(level);
++      if (!changed || cell_index < 0 ||
++          cell_index >= static_cast<int32_t>(model::cells.size())) {
++        continue;
++      }
++      if (model::cells[cell_index]->faris_neutron_importance_zero_on_entry_)
++        return true;
++    }
++    return false;
++  };
++  bool faris_imp0_entry = false;
++
+@@ -306,0 +329 @@ void Particle::event_cross_surface()
++    faris_imp0_entry = enters_faris_imp0_cell();
+@@ -315,0 +339 @@ void Particle::event_cross_surface()
++    faris_imp0_entry = enters_faris_imp0_cell();
+@@ -320 +344 @@ void Particle::event_cross_surface()
+-    if (settings::weight_window_checkpoint_surface) {
++    if (settings::weight_window_checkpoint_surface && !faris_imp0_entry) {
+@@ -328,0 +353,8 @@ void Particle::event_cross_surface()
++
++  if (faris_imp0_entry) {
++    // This intentional variance-reduction termination is not a geometry loss
++    // and must not increment simulation::n_lost_particles.
++    wgt() = 0.0;
++#pragma omp atomic
++    faris_openmc_mcnp_imp0_kill_events += 1;
++  }
+diff --git a/src/simulation.cpp b/src/simulation.cpp
+index 60c600f..d9f9ec3 100644
+--- a/src/simulation.cpp
++++ b/src/simulation.cpp
+@@ -46,0 +47,5 @@
++extern "C" {
++int faris_openmc_mcnp_imp0_patch_version {1};
++int faris_openmc_mcnp_imp0_kill_events {0};
++}
++
