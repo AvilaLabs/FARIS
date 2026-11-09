@@ -1,0 +1,1053 @@
+{
+  "schema": "faris.validation-case/1.0.0",
+  "case_id": "tiara-bc-fe-68-40",
+  "title": "TIARA iron shield, 68 MeV p-Li source, BC501A on-axis spectrum",
+  "evidence_class": "experiment",
+  "source": {
+    "url": "https://github.com/IAEA-NDS/open-benchmarks",
+    "commit": "1d9855b00e05c5d5e25a11026ac56940dc75b516",
+    "retrieved": "2026-11-09",
+    "reference": "IAEA-NDS INDC(NDS)-0785, Kos and Kodeli, May 2019, DOI 10.61092/iaea.ny5x-0pq9; OECD-NEA SINBAD TIARA 43/68 MeV benchmark, Tables 1 and 4, https://www.oecd-nea.org/science/wprs/shielding/sinbad/tiara/tia-abs.htm",
+    "fetch": "git clone https://github.com/IAEA-NDS/open-benchmarks open-benchmarks && git -C open-benchmarks checkout 1d9855b00e05c5d5e25a11026ac56940dc75b516"
+  },
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "attribution": "Experimental spectrum and MCNP input from IAEA-NDS/open-benchmarks, commit 1d9855b00e05c5d5e25a11026ac56940dc75b516; upstream states CC-BY-4.0. The uncertainty column `abs err` is retained without alteration; the Error column is retained as reported relative error. JADE and IAEA report attribution applies."
+  },
+  "files": [
+    {
+      "role": "pinned MCNP model input",
+      "path_in_source": "jade_open_benchmarks/inputs/Tiara-BC/Tiara-BC_fe-68-40-00/mcnp/Tiara-BC_fe-68-40-00.i",
+      "sha256": "da1cea815af68a1a6bb61feaf34862d41c87468f4c1333dcb78f16e8ad81c406",
+      "bytes": 8428
+    },
+    {
+      "role": "measured TIARA BC501A on-axis neutron yield table",
+      "path_in_source": "jade_open_benchmarks/exp_results/Tiara-BC/Tiara-BC_fe-68-40-00 Neutron yield.csv",
+      "sha256": "788d800f5c53615409d27647d79f13819f3523b19bd851be6327f65cd937c498",
+      "bytes": 1999
+    },
+    {
+      "role": "upstream CC-BY-4.0 licence",
+      "path_in_source": "LICENSE",
+      "sha256": "9e5f1b3c610b9c2da5c313bf81d577a7d1acec686bdb0384edefa6df0f90cd94",
+      "bytes": 18656
+    }
+  ],
+  "files_are_external_not_vendored": true,
+  "normalisation": {
+    "status": "confirmed",
+    "blocks_scoring": false,
+    "quantity": "BC501A detector-volume neutron flux per proton beam charge, per unit lethargy",
+    "units": "neutrons cm-2 microC-1 per unit lethargy",
+    "source_normalisation": "source spectrum shape from the 68 MeV TIARA/SINBAD source spectrum (JADE SI1 H/SP1 cards); the MCNP tally multiplier FM14=1.31126E+11 is preserved exactly and corresponds to PtC 2.61 x peak flux 4.00E+9 n sr-1 microC-1 x 4*pi using the printed rounded factor 3.14",
+    "location": "F4 volume flux tally in the 12.7 cm diameter by 12.7 cm long BC501A scintillator, MCNP cell 109, on axis just behind the shield",
+    "reaction_or_particle": "neutron fluence spectrum (not detector pulse-height response); BC501A modeled as liquid scintillator in the input",
+    "energy_integration": "MCNP E14 upper boundaries; each tally integral is divided by ln(E_hi/E_lo) to obtain per-unit-lethargy response; the 0-to-6 MeV first interval is blocked because its lower edge is zero",
+    "basis": "The pinned MCNP input defines F14:n 109, FM14 and E14. Kos and Kodeli (IAEA INDC(NDS)-0785, section 2.2.2-2.2.3) state that the source energy spectrum is taken from SINBAD Table 4 with source bin boundaries interpreted as upper boundaries, the source is at the origin, the BC501A volume is 12.7 cm x 12.7 cm and tally F4 is normalized with PtC*PF*4*pi. The OECD-NEA SINBAD TIARA 43/68 MeV page says transmitted spectra are normalized per proton beam charge using the source peak flux and source spectrum. The exact FM card is used; the source card's SB sampling bias is not folded into the physical source distribution.",
+    "normalisation_inputs": {
+      "ptc": 2.61,
+      "peak_flux_n_sr-1_microC-1": 4000000000.0,
+      "solid_angle_factor_sr": 12.56,
+      "mcnp_fm14": 131126000000.0,
+      "derived_rounded": 131126400000.0,
+      "relative_difference": 3.050501044796608e-06
+    }
+  },
+  "uncertainty": {
+    "components": [
+      {
+        "name": "JADE experimental Error and abs err columns",
+        "kind": "reported",
+        "meaning": "The CSV's Error column is the reported relative error and abs err is the absolute uncertainty column. The source materials do not identify the confidence level or covariance structure; no confidence interpretation is added."
+      }
+    ],
+    "note": "Retains each published abs err as u. The measurement confidence meaning and inter-bin covariance are unknown; compatibility therefore uses covariance unknown and remains INCONCLUSIVE until that uncertainty structure is resolved."
+  },
+  "compatibility": {
+    "declared": "2026-11-09",
+    "k": 2.0,
+    "k_basis": "Authored coverage factor 2 for comparison only; the experimental uncertainty confidence meaning is unspecified, so this rule cannot establish PASS/FAIL.",
+    "covariance": {
+      "kind": "unknown",
+      "basis": "The source reports bin uncertainties but no covariance; source normalization and unfolding can correlate energy bins."
+    }
+  },
+  "response_classes": {
+    "neutron_spectrum_in_detector": {
+      "unit": "neutrons cm-2 microC-1 per unit lethargy",
+      "description": "measured on-axis BC501A volume neutron spectrum immediately behind the named TIARA iron or concrete shield; not a general transport flux validation"
+    }
+  },
+  "detectors": [
+    {
+      "id": "n-6",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 6.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 6.0,
+        "unit": "MeV"
+      },
+      "reference_missing_why": "the upstream table contains no value and uncertainty for this energy row",
+      "reference_missing_next_step": "retain the row as NOT_EVALUATED unless the primary experimental report supplies a value and uncertainty",
+      "blocked": {
+        "why": "the first response interval begins at zero energy, so its lethargy width is undefined",
+        "next_step": "leave this bin NOT_EVALUATED; do not extrapolate a lower edge"
+      }
+    },
+    {
+      "id": "n-7",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 7.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 7.0,
+        "unit": "MeV"
+      },
+      "reference_missing_why": "the upstream table contains no value and uncertainty for this energy row",
+      "reference_missing_next_step": "retain the row as NOT_EVALUATED unless the primary experimental report supplies a value and uncertainty"
+    },
+    {
+      "id": "n-8",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 8.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 8.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 69.86,
+        "u": 2.8642599999999927
+      },
+      "reported_relative_error": 0.0409999999999999
+    },
+    {
+      "id": "n-9",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 9.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 9.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 65.19,
+        "u": 3.9113999999999995
+      },
+      "reported_relative_error": 0.06
+    },
+    {
+      "id": "n-10",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 10.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 10.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 59.88,
+        "u": 5.56884
+      },
+      "reported_relative_error": 0.093
+    },
+    {
+      "id": "n-11",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 11.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 11.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 56.43,
+        "u": 7.3359000000000005
+      },
+      "reported_relative_error": 0.13
+    },
+    {
+      "id": "n-12",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 12.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 12.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 54.43,
+        "u": 8.65437
+      },
+      "reported_relative_error": 0.159
+    },
+    {
+      "id": "n-13",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 13.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 13.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 53.55,
+        "u": 7.1757
+      },
+      "reported_relative_error": 0.134
+    },
+    {
+      "id": "n-14",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 14.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 14.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 53.64,
+        "u": 4.45212
+      },
+      "reported_relative_error": 0.083
+    },
+    {
+      "id": "n-15",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 15.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 15.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 54.9,
+        "u": 9.3879
+      },
+      "reported_relative_error": 0.171
+    },
+    {
+      "id": "n-16",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 16.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 16.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 56.36,
+        "u": 9.243039999999993
+      },
+      "reported_relative_error": 0.1639999999999999
+    },
+    {
+      "id": "n-17",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 17.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 17.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 57.11,
+        "u": 14.62016
+      },
+      "reported_relative_error": 0.256
+    },
+    {
+      "id": "n-18",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 18.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 18.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 61.01,
+        "u": 19.64522
+      },
+      "reported_relative_error": 0.322
+    },
+    {
+      "id": "n-19",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 19.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 19.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 72.98,
+        "u": 18.02606
+      },
+      "reported_relative_error": 0.247
+    },
+    {
+      "id": "n-20",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 20.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 20.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 89.95,
+        "u": 11.60355
+      },
+      "reported_relative_error": 0.129
+    },
+    {
+      "id": "n-21",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 21.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 21.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 103.0,
+        "u": 6.798
+      },
+      "reported_relative_error": 0.066
+    },
+    {
+      "id": "n-22",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 22.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 22.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 108.1,
+        "u": 12.4315
+      },
+      "reported_relative_error": 0.115
+    },
+    {
+      "id": "n-23",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 23.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 23.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 110.8,
+        "u": 18.503599999999988
+      },
+      "reported_relative_error": 0.1669999999999999
+    },
+    {
+      "id": "n-24",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 24.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 24.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 119.2,
+        "u": 23.840000000000003
+      },
+      "reported_relative_error": 0.2
+    },
+    {
+      "id": "n-25",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 25.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 25.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 134.8,
+        "u": 25.477199999999986
+      },
+      "reported_relative_error": 0.1889999999999999
+    },
+    {
+      "id": "n-26",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 26.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 26.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 151.8,
+        "u": 22.1628
+      },
+      "reported_relative_error": 0.146
+    },
+    {
+      "id": "n-27",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 27.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 27.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 162.8,
+        "u": 16.9312
+      },
+      "reported_relative_error": 0.104
+    },
+    {
+      "id": "n-28",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 28.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 28.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 165.1,
+        "u": 13.538199999999984
+      },
+      "reported_relative_error": 0.0819999999999999
+    },
+    {
+      "id": "n-29",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 29.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 29.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 162.1,
+        "u": 13.940599999999998
+      },
+      "reported_relative_error": 0.086
+    },
+    {
+      "id": "n-30",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 30.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 30.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 160.7,
+        "u": 18.1591
+      },
+      "reported_relative_error": 0.113
+    },
+    {
+      "id": "n-31",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 31.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 31.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 166.3,
+        "u": 20.9538
+      },
+      "reported_relative_error": 0.126
+    },
+    {
+      "id": "n-32",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 32.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 32.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 179.2,
+        "u": 19.891199999999998
+      },
+      "reported_relative_error": 0.111
+    },
+    {
+      "id": "n-33",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 33.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 33.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 194.7,
+        "u": 17.717699999999997
+      },
+      "reported_relative_error": 0.091
+    },
+    {
+      "id": "n-34",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 34.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 34.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 206.3,
+        "u": 17.329200000000004
+      },
+      "reported_relative_error": 0.084
+    },
+    {
+      "id": "n-35",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 35.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 35.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 210.3,
+        "u": 18.927
+      },
+      "reported_relative_error": 0.09
+    },
+    {
+      "id": "n-36",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 36.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 36.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 207.8,
+        "u": 22.0268
+      },
+      "reported_relative_error": 0.106
+    },
+    {
+      "id": "n-37",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 37.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 37.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 204.2,
+        "u": 24.912399999999998
+      },
+      "reported_relative_error": 0.122
+    },
+    {
+      "id": "n-38",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 38.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 38.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 204.7,
+        "u": 26.406299999999998
+      },
+      "reported_relative_error": 0.129
+    },
+    {
+      "id": "n-39",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 39.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 39.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 211.1,
+        "u": 25.9653
+      },
+      "reported_relative_error": 0.123
+    },
+    {
+      "id": "n-40",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 40.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 40.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 221.3,
+        "u": 24.1217
+      },
+      "reported_relative_error": 0.109
+    },
+    {
+      "id": "n-41",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 41.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 41.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 232.3,
+        "u": 22.0685
+      },
+      "reported_relative_error": 0.095
+    },
+    {
+      "id": "n-42",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 42.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 42.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 242.9,
+        "u": 20.8894
+      },
+      "reported_relative_error": 0.086
+    },
+    {
+      "id": "n-43",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 43.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 43.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 254.7,
+        "u": 21.3948
+      },
+      "reported_relative_error": 0.084
+    },
+    {
+      "id": "n-44",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 44.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 44.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 269.6,
+        "u": 21.568
+      },
+      "reported_relative_error": 0.08
+    },
+    {
+      "id": "n-46",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 46.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 46.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 295.9,
+        "u": 21.896599999999996
+      },
+      "reported_relative_error": 0.074
+    },
+    {
+      "id": "n-48",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 48.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 48.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 321.9,
+        "u": 22.533
+      },
+      "reported_relative_error": 0.07
+    },
+    {
+      "id": "n-50",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 50.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 50.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 323.0,
+        "u": 19.38
+      },
+      "reported_relative_error": 0.06
+    },
+    {
+      "id": "n-52",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 52.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 52.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 306.7,
+        "u": 17.17519999999997
+      },
+      "reported_relative_error": 0.0559999999999999
+    },
+    {
+      "id": "n-54",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 54.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 54.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 277.9,
+        "u": 21.120399999999997
+      },
+      "reported_relative_error": 0.076
+    },
+    {
+      "id": "n-56",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 56.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 56.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 223.4,
+        "u": 36.63759999999998
+      },
+      "reported_relative_error": 0.1639999999999999
+    },
+    {
+      "id": "n-58",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 58.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 58.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 153.3,
+        "u": 44.9169
+      },
+      "reported_relative_error": 0.293
+    },
+    {
+      "id": "n-60",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 60.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 60.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 262.4,
+        "u": 78.98239999999998
+      },
+      "reported_relative_error": 0.301
+    },
+    {
+      "id": "n-62",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 62.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 62.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 1069.0,
+        "u": 160.35
+      },
+      "reported_relative_error": 0.15
+    },
+    {
+      "id": "n-64",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 64.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 64.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 2691.0,
+        "u": 180.297
+      },
+      "reported_relative_error": 0.067
+    },
+    {
+      "id": "n-66",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 66.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 66.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 3213.0,
+        "u": 157.437
+      },
+      "reported_relative_error": 0.049
+    },
+    {
+      "id": "n-68",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 68.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 68.0,
+        "unit": "MeV"
+      },
+      "reference": {
+        "value": 1317.0,
+        "u": 113.26199999999999
+      },
+      "reported_relative_error": 0.086
+    },
+    {
+      "id": "n-70",
+      "response_class": "neutron_spectrum_in_detector",
+      "bin": {
+        "upper_mev": 70.0,
+        "edge_convention": "the CSV Energy value matches an upper energy boundary in the MCNP E14 card; the corresponding tally bin ends at this energy"
+      },
+      "controlling_variable": {
+        "name": "energy-bin upper boundary",
+        "value": 70.0,
+        "unit": "MeV"
+      },
+      "reference_missing_why": "the upstream table uses 0 value and 0 uncertainty as a placeholder, not a quantified measurement",
+      "reference_missing_next_step": "retain the row as NOT_EVALUATED unless the primary experimental report supplies a value and uncertainty"
+    }
+  ],
+  "not_covered": [
+    "6 MeV first bin is blocked because its lower energy bound is zero",
+    "rows without reported values and the 70 MeV zero/zero placeholder remain NOT_EVALUATED",
+    "source and measurement uncertainty covariance is unknown",
+    "BC501A unfolding response and detector model systematic uncertainty are outside this transport-only comparison",
+    "no FARIS OpenMC run record exists yet"
+  ],
+  "qualified_range": {
+    "materials": [
+      "7.87 g/cm3 natural iron",
+      "iron collimator, iron/polyethylene shutter, concrete building, aluminium support and BC501A scintillator as defined in the pinned input"
+    ],
+    "geometry_class": "full TIARA beamline, collimator, shield and BC501A detector CSG from JADE MCNP input translated to OpenMC; on-axis detector",
+    "spectrum_class": "68 MeV proton on 99.9% Li-7 target; measured quasi-monoenergetic source spectrum prescribed as MCNP SI1 H/SP1 histogram; physical angular distribution from SP2; MCNP SB2 bias omitted",
+    "parameters": [
+      {
+        "name": "shield thickness",
+        "min": 40.0,
+        "max": 40.0,
+        "unit": "cm"
+      },
+      {
+        "name": "source peak flux",
+        "min": 4000000000.0,
+        "max": 4000000000.0,
+        "unit": "neutrons sr-1 microC-1"
+      }
+    ],
+    "cooling_time": "not applicable (prompt neutron transport)"
+  },
+  "literature_context": [],
+  "translation": {
+    "status": "implemented; API-tested, no transport run",
+    "geometry": "directly translated from the pinned MCNP cell/surface cards; see run_case.py strict supported-card set",
+    "source": "SI1 H/SP1 normalized histogram; SP2 checked against isotropic cosine probability; SB2 is omitted as a sampling bias",
+    "scoring": "Cell 109 flux energy tally with FM14 scale and lethargy normalization",
+    "nuclear_data_preflight": "all required nuclide tables must cover the 72.5 MeV maximum source energy; incomplete upper-energy evaluations block scoring and no extrapolation is applied"
+  }
+}

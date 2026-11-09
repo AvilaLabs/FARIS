@@ -7,7 +7,9 @@
     {"id": "flux", "label": "neutron flux", "kind": "calculated", "benchmarks": [
       {"case_id": "oktavian-al", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere, not an interior flux"},
       {"case_id": "oktavian-al-cad", "response_class": "neutron_leakage_spectrum", "scope": "neutron leakage current spectrum of a sphere built from a STEP file through the CAD-to-DAGMC path, not an interior flux"},
-      {"case_id": "iter-1d", "response_class": "neutron_flux", "scope": "track-length flux per material cell in a one-dimensional ITER model"}
+      {"case_id": "iter-1d", "response_class": "neutron_flux", "scope": "track-length flux per material cell in a one-dimensional ITER model"},
+      {"case_id": "tiara-bc-fe-68-40", "response_class": "neutron_spectrum_in_detector", "scope": "on-axis BC501A volume flux spectrum after the 40 cm iron TIARA shield for the 68 MeV p-Li source"},
+      {"case_id": "tiara-bc-cc-68-100", "response_class": "neutron_spectrum_in_detector", "scope": "on-axis BC501A volume flux spectrum after the 100 cm concrete TIARA shield for the 68 MeV p-Li source"}
     ]},
     {"id": "fluence", "label": "fluence", "kind": "calculated", "benchmarks": []},
     {"id": "dpa", "label": "displacements per atom", "kind": "calculated", "benchmarks": []},
