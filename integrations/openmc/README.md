@@ -19,7 +19,7 @@ FARIS input/output contract, unit conversions, work limits, and job state. Keep
 both the display cutaway and material-label placeholders out of solver inputs.
 Do not reuse results after geometry, source, material, or library inputs change.
 
-The two FNS N/O neutron benchmark cases also require MCNP `imp:n=0` cell
-kill-on-entry semantics. Stock OpenMC does not implement per-cell importance;
-the optional, benchmark-only 0.15.3 patch and its controls are documented in
+The current 14 FNS benchmark decks have retained MCNP `imp:n=0` cell
+regions whose kill-on-entry semantics stock OpenMC does not implement. The
+optional, benchmark-only 0.15.3 patch and its controls are documented in
 [the MCNP importance-zero patch guide](patches/faris-openmc-0.15.3-mcnp-imp0.md).
