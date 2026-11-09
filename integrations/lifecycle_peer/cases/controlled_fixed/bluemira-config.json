@@ -11,13 +11,13 @@
   "lifecycle_config": {
     "A_global": 0.9390429734643561,
     "I_p": 19.2,
-    "blk_1_dpa": 12.671611862296697,
-    "blk_2_dpa": 12.671611862296697,
+    "blk_1_dpa": 6.652596227705765,
+    "blk_2_dpa": 6.652596227705765,
     "bmd": 60.0,
     "div_dpa": 1000000.0,
     "dmd": 0.0,
     "n_DD_reactions": 0.0,
-    "n_DT_reactions": 3.547e+20,
+    "n_DT_reactions": 1.8618137864158527e+20,
     "s_ramp_down": 1000000000000000.0,
     "s_ramp_up": 1000000000000000.0,
     "t_cs_recharge": 0.0,
@@ -39,12 +39,12 @@
     },
     "blk_1_dpa": {
       "kind": "authored",
-      "reference": "Authored verification threshold = 5.00736377025037 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the 10.2 dpa/FPY, 2037 MW EU-DEMO example value linearly to 1000 MW fusion power; this does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the documented EU-DEMO example value 10.2 dpa/FPY at 2037 MW to the shared 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or physical validation.",
       "unit": "dpa"
     },
     "blk_2_dpa": {
       "kind": "authored",
-      "reference": "Authored verification threshold = 5.00736377025037 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the 10.2 dpa/FPY, 2037 MW EU-DEMO example value linearly to 1000 MW fusion power; this does not establish FARIS fluence-to-DPA equivalence or physical validation.",
+      "reference": "Authored verification threshold = 2.62886597938144 dpa/FPY \u00d7 2.53059542779396 FPY. The rate scales the documented EU-DEMO example value 10.2 dpa/FPY at 2037 MW to the shared 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or physical validation.",
       "unit": "dpa"
     },
     "bmd": {
@@ -69,7 +69,7 @@
     },
     "n_DT_reactions": {
       "kind": "authored",
-      "reference": "Authored verification reaction rate corresponding approximately to 1 GW fusion power divided by 17.6 MeV per D-T reaction; not measured and not an experimentally validated FARIS mapping.",
+      "reference": "Authored verification reaction rate for 525 MW fusion (17.6 MeV per D-T reaction); same nominal fusion power as the controlled FARIS scenario; not a measured plasma.",
       "unit": "reactions/s"
     },
     "s_ramp_down": {

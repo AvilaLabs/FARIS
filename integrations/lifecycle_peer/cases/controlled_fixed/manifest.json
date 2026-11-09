@@ -3,10 +3,11 @@
     "archived_faris_blanket_campaign_interval_seconds": 79859518.2721506,
     "blanket_cycle_count": 2,
     "blanket_lifetime_full_power_years": 2.530595427793958,
-    "blue_blanket_damage_mapping": "Authored verification mapping: 10.2 dpa/FPY from bluemira's documented EU-DEMO example, linearly scaled from 2037 MW to 1000 MW fusion, multiplied by the authored blanket lifetime. This is only a deterministic trigger mapping for the peer test. It does not establish FARIS fluence-to-DPA correspondence or experimental validation.",
+    "blue_blanket_damage_mapping": "Authored verification mapping based on the documented EU-DEMO example 10.2 dpa/FPY scaled to the shared 525 MW fusion boundary, then multiplied by the authored blanket lifetime. It does not establish FARIS fluence-to-DPA equivalence or physical validation.",
     "blue_out_of_scope_sentinels": "Authored high damage/fluence thresholds for divertor, vessel, and TF to keep this restricted case focused on blanket maintenance; these are not material limits.",
     "calendar_horizon_years": 5.3897329500437685,
     "fixed_blanket_replacement_days": 60.0,
+    "fusion_power_mw": 525.0,
     "net_electric_normalization_mw": 500.0,
     "parallel_remote_handling_systems": 1,
     "provenance": {
@@ -14,6 +15,7 @@
       "blanket_lifetime_full_power_years": "Authored by dividing the archived campaign interval by a 365.25-day year. This is a verification schedule interval, not inferred material service life.",
       "calendar_horizon_years": "Authored as two (blanket lifetime + fixed replacement duration) cycles.",
       "fixed_blanket_replacement_days": "Authored 60-day work duration from the archived FARIS fixed blanket histories; not measured maintenance time.",
+      "fusion_power_mw": "525 MW from the authored FARIS cold-reference scenario, used as a shared nominal fusion-power boundary.",
       "net_electric_normalization_mw": "Authored shared reporting normalization only; neither availability submodel calculates net electric power.",
       "parallel_remote_handling_systems": "Authored single-system boundary; bluemira LifeCycle has no corresponding native remote-handling count input, so no throughput inference is made.",
       "unplanned_unavailability": "Authored deterministic zero-unplanned verification assumption, not an empirical reliability estimate. PROCESS uses explicit zero fractions; bluemira uses its documented strategy extension point with a zero distribution and fails if it is asked to represent positive unplanned downtime."
@@ -42,7 +44,7 @@
       "api": "bluemira.fuel_cycle.lifecycle.LifeCycle.make_timeline() using native damage-governed maintenance and the documented OperationalAvailabilityStrategy.generate_distribution extension point.",
       "config": {
         "path": "bluemira-config.json",
-        "sha256": "58e08503e1312953ba682aed4e9dfd4aa508afee89f5cdfea3dc023ef3581775"
+        "sha256": "234d506adb2ee25f960bad63c3e14ced61400bd014349a0489958dfdcde7851c"
       },
       "python": "Set by the coordinator at run time",
       "rng_seed": 20261109,

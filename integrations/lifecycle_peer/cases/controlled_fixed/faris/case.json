@@ -1,0 +1,65 @@
+{
+  "authoring_rule": {
+    "computed_duration": "30-day authored work + ACTINV cooling duration; q* is calibrated on this design at 30 days of cooldown for the first fixed-history replacement",
+    "fixed_duration": "60 days (authored from FARIS archived fixed-history event durations)",
+    "service_limit_formula": "native_rates.component_average_flux_n_m2_s[\"blanket\"].mean \u00d7 79859518.2721506 s",
+    "service_limit_metric": "energy_integrated_component_average_neutron_flux",
+    "service_limit_unit": "neutrons/m\u00b2",
+    "zero_unplanned": "The operating-history schema has no unplanned outage/reliability model; only planned replacements are present."
+  },
+  "case_id": "no-port-breeder-two-blanket-cycles",
+  "external_inputs": {
+    "actinv_data_dir": "Coordinator supplies ACTINV data directory.",
+    "actinv_executable": "Coordinator supplies pinned ACTINV executable.",
+    "audit": "Coordinator supplies the current read-only material/data audit compatible with physics.json.",
+    "cross_sections": "Coordinator supplies a cross_sections.xml matching the physics data identity."
+  },
+  "files": {
+    "history_template": {
+      "path": "history-template.json",
+      "sha256": "8de577e91a6075f21dfe5042741fcb5d68a4f66390a0099ad1b3c1bb279609ba"
+    },
+    "maintenance_assumptions": {
+      "path": "maintenance-assumptions.json",
+      "sha256": "9fdb3c5a151019c4e01a35b2c4d5af9dbeb54730f17601a9a0b3b02a04a1fecc"
+    },
+    "physics": {
+      "path": "physics.json",
+      "sha256": "d34a2310cc0c05dd5f66e5062ff6735f3c4cb546d781b973cd9ed2d3890b4666"
+    },
+    "scenario": {
+      "path": "scenario.json",
+      "sha256": "e3ef2707ff9f7cbbf9d5ef38e096d11949fdba57670a84c6cefe3da59eed4857"
+    }
+  },
+  "limits": {
+    "history_timeout_s": 300,
+    "maintenance_timeout_s": 86400,
+    "reactor_timeout_s": 3600,
+    "stdout_stderr_limit_bytes": 4000000
+  },
+  "matched_case": {
+    "blanket_lifetime_full_power_seconds": 79859518.2721506,
+    "blanket_lifetime_full_power_years": 2.530595427793958,
+    "expected_fixed_blanket_replacement_count": 2,
+    "fixed_blanket_replacement_days": 60.0,
+    "fixed_blanket_replacement_seconds": 5184000.0,
+    "fusion_power_mw": 525.0,
+    "horizon_s": 170087036.5443012,
+    "horizon_years": 5.389732950043768,
+    "net_electric_power_mw_e_shared_normalization": 500.0,
+    "provenance": "The lifetime interval and work duration are authored verification assumptions from the archived FARIS no-port__breeder fixed blanket history. The flux limit is generated as native blanket flux rate \u00d7 authored interval. This creates a controlled event interval, not a measured or qualified component lifetime.",
+    "unplanned_outages": 0
+  },
+  "native_path": [
+    "faris reactor run --activation-spectra fispact-709 produces a revalidated run.json and transport-spectra.json from the exact case scenario and physics files.",
+    "faris history from-run writes a native TransportDrivingRates record; the runner derives an authored integrated-flux limit from its blanket rate and the specified operating interval.",
+    "faris maintenance run invokes the native fixed-duration history and ACTINV decay-heat coupled history. Same scenario, physics, transport record, horizon, service limit, and energy assumptions are used for both; only maintenance duration coupling changes."
+  ],
+  "outputs": {
+    "energy": "The FARIS result lifetime_net_electricity_mwh is retained as native output; shared 500 MW(e) peer normalization is separate and must not overwrite it.",
+    "fixed_and_computed": "FARIS native faris-maintenance-result/v0.1 JSON and faris maintenance report."
+  },
+  "schema": "faris-native-maintenance-control/0.1.0",
+  "scope": "Authored cold-data, two-cycle maintenance code-verification case. FARIS runs the native history and ACTINV-coupled maintenance engines. The materials and source are cold-data numerical surrogates and not experimentally validated."
+}

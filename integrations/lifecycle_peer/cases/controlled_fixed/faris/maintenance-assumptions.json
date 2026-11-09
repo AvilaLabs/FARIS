@@ -1,0 +1,26 @@
+{
+  "classes": {
+    "blanket": {
+      "component_id": "blanket",
+      "governing": [
+        "first-wall",
+        "blanket"
+      ],
+      "threshold": {
+        "design": "faris-two-cycle-control",
+        "kind": "calibrate",
+        "target_cooldown_s": 2592000.0
+      },
+      "work_s": 2592000.0
+    }
+  },
+  "convergence_s": 86400.0,
+  "cooling": {
+    "max_s": 31536000.0,
+    "min_s": 3600.0,
+    "points": 40
+  },
+  "governing_quantity": "heat",
+  "max_iterations": 10,
+  "schema_version": "faris-maintenance-assumptions/v0.1"
+}

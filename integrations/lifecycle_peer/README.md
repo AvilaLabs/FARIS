@@ -20,9 +20,27 @@ For `no-port__breeder`, the archive records 11 fixed blanket events at 60 days e
 
 ## Authored controlled verification case
 
-`cases/controlled_fixed/manifest.json` now defines a two-cycle blanket-only control case. It uses the FARIS archived fixed blanket inter-event operating interval (79,859,518.2721506 seconds), an authored 60-day fixed blanket maintenance duration, and an explicit two-cycle horizon. PROCESS receives the explicit blanket life, pulse boundary, replacement durations, and zero-unplanned assumption. bluemira receives the fixed duration and an authored DPA threshold that encodes the same interval for its native damage-governed maintenance. That DPA mapping uses the documented EU-DEMO example's 10.2 dpa/FPY, scaled to an authored 1000 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or represent a measurement. Divertor/vessel/TF sentinel limits keep this case scoped to blanket replacement. One remote-handling system and 500 MW(e) are authored shared boundaries; bluemira has no matching native remote-handling count or electric-power calculation, so those values do not imply peer throughput or native MWh output.
+`cases/controlled_fixed/manifest.json` now defines a two-cycle blanket-only control case. It uses the FARIS archived fixed blanket inter-event operating interval (79,859,518.2721506 seconds), an authored 60-day fixed blanket maintenance duration, and an explicit two-cycle horizon. PROCESS receives the explicit blanket life, pulse boundary, replacement durations, and zero-unplanned assumption. bluemira receives the fixed duration and an authored DPA threshold that encodes the same interval for its native damage-governed maintenance. That DPA mapping uses the documented EU-DEMO example's 10.2 dpa/FPY, scaled to the shared authored 525 MW fusion input; it does not establish FARIS fluence-to-DPA equivalence or represent a measurement. Divertor/vessel/TF sentinel limits keep this case scoped to blanket replacement. One remote-handling system and 500 MW(e) are authored shared boundaries; bluemira has no matching native remote-handling count or electric-power calculation, so those values do not imply peer throughput or native MWh output.
 
 This case invokes the actual PROCESS `Availability.run(WARD_TAYLOR)` API with physics lifetime calculation bypassed and explicit lives. It invokes the actual bluemira `LifeCycle.make_timeline()` loop. For the deterministic control, a small subclass of bluemira's documented `LogNormalAvailabilityStrategy` overrides only its documented `generate_distribution(n, integral)` extension point to return zero unplanned downtime; it raises if the API asks it to represent positive unplanned downtime. Blanket damage limits still govern the native maintenance timeline. This is a scoped verification harness, not a whole PROCESS system-code run or physical validation.
+
+The matched FARIS control inputs and native runner are in `cases/controlled_fixed/faris/` and `run_faris_native_case.py`. The FARIS runner first executes the native 709-group transport and `history from-run`, then derives an authored integrated-flux threshold from the actual native blanket flux rate multiplied by the authored 79,859,518.2721506-second interval. That threshold is explicitly a software control trigger, not a measured or qualified lifetime. The native maintenance command evaluates fixed and ACTINV-coupled histories with identical scenario, transport, horizon, threshold, and energy assumptions. Only the maintenance-duration coupling changes. The 30-day work duration and calibrated 30-day cooldown target produce a 60-day first computed duration under the authored control. The native energy record remains separate from peer-normalized energy.
+
+After the coordinator supplies the compiled FARIS CLI, matching OpenMC Python/executable, compatible audit and cross sections, and pinned ACTINV executable/data, run:
+
+```sh
+python3 integrations/lifecycle_peer/run_faris_native_case.py \
+  --faris /path/to/faris \
+  --openmc-python /path/to/openmc-env/bin/python \
+  --openmc /path/to/openmc \
+  --cross-sections /path/to/cross_sections.xml \
+  --audit /path/to/read-only-audit.json \
+  --actinv /path/to/actinv \
+  --data-dir /path/to/actinv-data \
+  --out runs/peer-lifecycle/no-port-breeder-two-blanket-cycles/faris
+```
+
+This native case is authored cold-data code verification, not experimental validation. It must complete successfully before the peer control can be described as a FARIS-matched comparison.
 
 After the coordinator creates the separately pinned PROCESS 3.4.2 and bluemira 2.14.0 environments, run the concrete case with:
 

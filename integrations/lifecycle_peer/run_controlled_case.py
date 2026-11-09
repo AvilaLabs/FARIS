@@ -51,7 +51,7 @@ def load_case() -> tuple[dict, dict[str, Path]]:
         raise ValueError("PROCESS unplanned fractions do not match the zero-unplanned case")
     blue_config = json.loads(inputs["bluemira"].read_text(encoding="utf-8"))
     blue_life = blue_config["lifecycle_config"]
-    expected_dpa = 10.2 * 1000.0 / 2037.0 * authored["blanket_lifetime_full_power_years"]
+    expected_dpa = 10.2 * authored["fusion_power_mw"] / 2037.0 * authored["blanket_lifetime_full_power_years"]
     if (not near(blue_life.get("bmd"), authored["fixed_blanket_replacement_days"], tol=1e-12)
             or not near(blue_life.get("blk_1_dpa"), expected_dpa, tol=1e-12)
             or not near(blue_life.get("blk_2_dpa"), expected_dpa, tol=1e-12)
