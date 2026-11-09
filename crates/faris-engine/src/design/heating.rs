@@ -1112,7 +1112,8 @@ fn closure_within_3se(score: &WorkerScore, scale: f64) -> bool {
     if !expected_tolerance.is_finite() || !gate.is_finite() {
         return false;
     }
-    score.within_3se == Some(score.mean_ev_per_source.abs() <= gate)
+    score.mean_ev_per_source.abs() <= gate
+        && score.within_3se == Some(true)
         && score.roundoff_tolerance_ev_per_source.is_some_and(|value| {
             (value - expected_tolerance).abs() <= expected_tolerance.max(1.0e-300) * 1.0e-8
         })

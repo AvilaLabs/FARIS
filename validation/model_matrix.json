@@ -1574,7 +1574,7 @@
         }
       ],
       "source_sha256": {
-        "crates/faris-engine/src/design/heating.rs": "7deab0bd14e78113842b5d4f49c039d9e96ce9f5789609ada25f8bc0cb093db3",
+        "crates/faris-engine/src/design/heating.rs": "be3f69fd900a9142e914d65959fbedcfaee1fb70c1c2d900fc94d51f867e191a",
         "integrations/openmc/design_transport.py": "5e26bf036f2fee761bec555faac9e3d63833f796409044f064a52934a486038a"
       },
       "status": "not validated",
