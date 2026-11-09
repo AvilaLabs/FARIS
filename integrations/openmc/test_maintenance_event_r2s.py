@@ -6,10 +6,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import maintenance_event_r2s as worker
 
@@ -125,14 +128,153 @@ class RequestBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cover every nonvoid"):
             worker.prepare_checked_cad_model(request, self.root / "prepared")
 
-    def test_activation_chain_missing_neutron_data_fails_closed(self):
+    def test_activation_chain_coverage_tracks_reachable_products_only(self):
         xs = self.root / "coverage.xml"
-        xs.write_text('<cross_sections><library type="neutron" materials="Fe56 U235" /></cross_sections>')
-        chain = SimpleNamespace(nuclides=[SimpleNamespace(name="Fe56", reactions=[1]),
-                                          SimpleNamespace(name="U235", reactions=[1]),
-                                          SimpleNamespace(name="Co60", reactions=[1])])
-        with self.assertRaisesRegex(RuntimeError, "silently zero-fill"):
-            worker.chain_cross_section_coverage(chain, xs)
+        xs.write_text('<cross_sections><library type="neutron" materials="Fe56 Fe57 Co58" /></cross_sections>')
+        reaction = lambda target: SimpleNamespace(target=target)
+        decay = lambda target: SimpleNamespace(target=target)
+        chain = SimpleNamespace(
+            nuclides=[SimpleNamespace(name="Fe56", reactions=[reaction("Fe57")], decay_modes=[]),
+                      SimpleNamespace(name="Fe57", reactions=[reaction("Co58")], decay_modes=[]),
+                      SimpleNamespace(name="Co58", reactions=[], decay_modes=[decay("Ni58")]),
+                      SimpleNamespace(name="Ni58", reactions=[], decay_modes=[]),
+                      SimpleNamespace(name="Unrelated", reactions=[reaction("Missing")], decay_modes=[])],
+            get_default_fission_yields=lambda: {})
+        coverage = worker.chain_cross_section_coverage(chain, xs, {"Fe56"})
+        self.assertEqual(coverage["reachable_chain_nuclides"], 4)
+        self.assertEqual(coverage["reachable_reaction_nuclides"], 2)
+        self.assertEqual(coverage["unreachable_reaction_nuclides_excluded"], 1)
+        self.assertIn("all listed decay targets", coverage["reachability_basis"])
+
+    def test_activation_chain_reachable_reaction_missing_neutron_data_fails_closed(self):
+        xs = self.root / "coverage-missing.xml"
+        xs.write_text('<cross_sections><library type="neutron" materials="Fe56" /></cross_sections>')
+        reaction = lambda target: SimpleNamespace(target=target)
+        chain = SimpleNamespace(
+            nuclides=[SimpleNamespace(name="Fe56", reactions=[reaction("Co60")], decay_modes=[]),
+                      SimpleNamespace(name="Co60", reactions=[reaction("Ni60")], decay_modes=[]),
+                      SimpleNamespace(name="Ni60", reactions=[], decay_modes=[])],
+            get_default_fission_yields=lambda: {})
+        with self.assertRaisesRegex(RuntimeError, "reachable activation-chain nuclides"):
+            worker.chain_cross_section_coverage(chain, xs, {"Fe56"})
+
+    def test_main_builds_chain_coverage_record_before_mocked_neutron_run(self):
+        xs = Path(self.request["cross_sections"]["path"])
+        xs.write_text('<cross_sections><library type="neutron" materials="Fe56" /></cross_sections>')
+        self.request["cross_sections"]["sha256"] = digest(xs)
+        chain_path = Path(self.request["chain"]["path"])
+        chain_path.write_text("mock chain")
+        self.request["chain"]["sha256"] = digest(chain_path)
+        request_path = self.root / "request.json"
+        request_path.write_text(json.dumps(self.request))
+        out = self.root / "worker-out"
+        library_path = self.root / "libopenmc.so"
+        library_path.write_bytes(b"fake library identity")
+
+        class Chain:
+            @classmethod
+            def from_xml(cls, _path):
+                return SimpleNamespace(
+                    nuclides=[SimpleNamespace(name="Fe56", reactions=[], decay_modes=[])],
+                    get_default_fission_yields=lambda: {})
+
+        class FakeTally:
+            id = 7
+
+            def __init__(self, name):
+                self.name = name
+                self.filters = []
+                self.scores = []
+
+        class FakeModel:
+            def __init__(self):
+                self.settings = SimpleNamespace()
+                self.materials = [SimpleNamespace(get_nuclides=lambda: ["Fe56"])]
+
+        class FakeManager:
+            def __init__(self, *_args):
+                self.results = {}
+
+            def step1_neutron_transport(self, *_args, **_kwargs):
+                raise RuntimeError("mock solver stop after method record assembly")
+
+        lib = SimpleNamespace(core=SimpleNamespace(_dll=SimpleNamespace(_name=str(library_path))),
+                              init=lambda *a, **k: None, run=lambda *a, **k: None)
+        fake_openmc = SimpleNamespace(
+            __version__="0.15.3", __file__=str(self.root / "openmc.py"), config={}, lib=lib,
+            Model=SimpleNamespace(from_model_xml=lambda _p: FakeModel()),
+            RegularMesh=lambda **_kw: SimpleNamespace(),
+            data=SimpleNamespace(dose_coefficients=lambda *_a: ([0.0, 1.0], [0.0, 1.0])),
+            Tally=FakeTally, Tallies=lambda values: list(values),
+            MeshFilter=lambda mesh: ("mesh", mesh), ParticleFilter=lambda values: ("particle", values),
+            EnergyFunctionFilter=lambda *a, **k: ("energy", a, k))
+        fake_openmc.__path__ = []
+        fake_deplete = SimpleNamespace(R2SManager=FakeManager, Chain=Chain)
+        with patch.dict(sys.modules, {"openmc": fake_openmc, "openmc.deplete": fake_deplete}), \
+             patch("sys.argv", ["maintenance_event_r2s.py", "--request", str(request_path), "--out", str(out)]):
+            code = worker.main()
+        self.assertEqual(code, 1)
+        receipt = json.loads((out / "r2s_event_receipt.json").read_text())
+        self.assertEqual(receipt["method"]["activation_chain_coverage"]["material_root_nuclides"], ["Fe56"])
+        self.assertIn("mock solver stop", receipt["error"])
+
+    def _microxs_evidence_fixture(self, root: Path, init_kwargs=None, mutate_during_init=False,
+                                  mutate_during_run=False):
+        runtime_dir = root / "runtime"
+        runtime_dir.mkdir()
+        runtime_model = runtime_dir / "model.xml"
+        runtime_model.write_text('<model><tally name="MicroXS flux"/></model>')
+        persisted_model = root / "neutron_transport" / "model.xml"
+        persisted_model.parent.mkdir()
+        persisted_model.write_bytes(runtime_model.read_bytes())
+        library_path = root / "libopenmc.so"
+        library_path.write_bytes(b"fake openmc library")
+
+        def original_init(*_args, **_kwargs):
+            if mutate_during_init:
+                runtime_model.write_text('<model><tally name="changed"/></model>')
+
+        def original_run(*_args, **_kwargs):
+            if mutate_during_run:
+                runtime_model.write_text('<model><tally name="changed during run"/></model>')
+
+        lib = SimpleNamespace(
+            init=original_init, run=original_run,
+            settings=SimpleNamespace(batches=2, particles=10),
+            _dll=object(),
+            core=SimpleNamespace(_dll=SimpleNamespace(_name=str(library_path))))
+        fake_openmc = SimpleNamespace(lib=lib)
+        evidence = worker.MicroXsRunEvidence(fake_openmc, persisted_model)
+        old_cwd = Path.cwd()
+        with patch.object(worker.ctypes.c_int, "in_dll", lambda *_a, **_k: SimpleNamespace(value=0)):
+            with evidence:
+                os.chdir(runtime_dir)
+                try:
+                    lib.init(**(init_kwargs or {"intracomm": object()}))
+                    lib.run()
+                finally:
+                    os.chdir(old_cwd)
+                return evidence.result()
+
+    def test_microxs_evidence_binds_temp_init_model_to_persisted_model_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result = self._microxs_evidence_fixture(Path(temp))
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(Path(result["model_xml"]["path"]).name, "model.xml")
+        self.assertEqual(Path(result["observed_c_api_init_model_path"]).name, "model.xml")
+        self.assertEqual(result["histories"], 20)
+
+    def test_microxs_evidence_rejects_explicit_alternate_init_arguments(self):
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(RuntimeError, "alternate arguments"):
+            self._microxs_evidence_fixture(Path(temp), init_kwargs={"args": ["alternate.xml"]})
+
+    def test_microxs_evidence_rejects_model_changed_during_capi_init(self):
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(RuntimeError, "changed during initialization"):
+            self._microxs_evidence_fixture(Path(temp), mutate_during_init=True)
+
+    def test_microxs_evidence_rejects_model_changed_during_capi_run(self):
+        with tempfile.TemporaryDirectory() as temp, self.assertRaisesRegex(RuntimeError, "changed during C API run"):
+            self._microxs_evidence_fixture(Path(temp), mutate_during_run=True)
 
 
 if __name__ == "__main__":

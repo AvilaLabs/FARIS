@@ -148,8 +148,14 @@ def dose_tally(openmc, mesh, name):
     return tally
 
 
-def chain_cross_section_coverage(chain, cross_sections_xml: Path) -> dict:
-    """Fail closed where OpenMC MicroXS would otherwise silently zero-fill a missing nuclide."""
+def chain_cross_section_coverage(chain, cross_sections_xml: Path, material_nuclides) -> dict:
+    """Check neutron data for chain nuclides reachable from the model's actual materials.
+
+    The chain can contain nuclides and reaction paths unrelated to the supplied model. They are
+    excluded from this coverage check, while decay, transmutation, and fission-yield descendants
+    of the starting material nuclides are included. Library presence does not establish reaction
+    channel completeness or evaluation quality.
+    """
     root = ET.parse(cross_sections_xml).getroot()
     available = set()
     for node in root.findall("library"):
@@ -157,13 +163,40 @@ def chain_cross_section_coverage(chain, cross_sections_xml: Path) -> dict:
             continue
         names = node.attrib.get("materials", node.attrib.get("name", "")).split()
         available.update(name.strip(",") for name in names if name.strip(","))
-    required = sorted(n.name for n in chain.nuclides if getattr(n, "reactions", None))
+    nuclides = {n.name: n for n in chain.nuclides}
+    roots = set(material_nuclides)
+    missing_roots = sorted(roots - set(nuclides))
+    if missing_roots:
+        raise RuntimeError("starting model material nuclides are absent from the depletion chain: " +
+                           ", ".join(missing_roots[:40]))
+    fission_products = chain.get_default_fission_yields()
+    reachable = set(roots)
+    pending = list(roots)
+    while pending:
+        name = pending.pop()
+        nuc = nuclides[name]
+        products = {path.target for path in nuc.reactions + nuc.decay_modes if path.target is not None}
+        products.update(fission_products.get(name, {}).keys())
+        for product in products - reachable:
+            if product not in nuclides:
+                raise RuntimeError(f"reachable chain product {product} from {name} has no chain nuclide entry")
+            reachable.add(product)
+            pending.append(product)
+    reachable_reaction_nuclides = {name for name in reachable if getattr(nuclides[name], "reactions", None)}
+    required_material_nuclides = roots
+    required = sorted(required_material_nuclides | reachable_reaction_nuclides)
     missing = sorted(set(required) - available)
     if missing:
-        raise RuntimeError("activation chain has reaction-bearing nuclides absent from the neutron data index; "
-                           "OpenMC MicroXS would silently zero-fill them: " + ", ".join(missing[:40]))
-    return {"chain_reaction_nuclides": len(required), "neutron_library_nuclides": len(available),
-            "coverage": "all chain nuclides with listed depletion reactions appear in cross_sections.xml",
+        raise RuntimeError("starting model material nuclides or reachable activation-chain nuclides with neutron "
+                           "reactions are absent from the cross-section index; transport or MicroXS rates would "
+                           "be unavailable: " + ", ".join(missing[:40]))
+    chain_reaction_nuclides = sum(bool(getattr(n, "reactions", None)) for n in chain.nuclides)
+    return {"material_root_nuclides": sorted(roots), "reachable_chain_nuclides": len(reachable),
+            "required_material_nuclides": sorted(required_material_nuclides),
+            "reachable_reaction_nuclides": len(reachable_reaction_nuclides), "unreachable_reaction_nuclides_excluded":
+                chain_reaction_nuclides - len(required), "neutron_library_nuclides": len(available),
+            "reachability_basis": "all listed decay targets, transmutation targets, and default fission-yield products from model material nuclides",
+            "coverage": "all reachable chain nuclides with listed neutron reactions appear in cross_sections.xml",
             "important_limit": "Presence in the index does not establish channel completeness, evaluation quality, or chain adequacy; those remain nuclear-data/model uncertainty."}
 
 
@@ -241,6 +274,8 @@ class MicroXsRunEvidence:
             if _sha256_file(active["path"]) != active["sha256"]:
                 self.error = "MicroXS model changed after C API initialization"
             result = self.original_run(*args, **kwargs)
+            if _sha256_file(active["path"]) != active["sha256"]:
+                self.error = "MicroXS model changed during C API run"
             histories = int(self.lib.settings.batches) * int(self.lib.settings.particles)
             try:
                 lost = int(ctypes.c_int.in_dll(getattr(self.lib, "_dll", None), "n_lost_particles").value)
@@ -263,14 +298,18 @@ class MicroXsRunEvidence:
         if self.active is not None or len(self.events) != 1:
             raise RuntimeError(f"expected exactly one R2S neutron MicroXS C API run, observed {len(self.events)}")
         event = self.events[0]
-        if Path(event["model_path"]) != self.expected_model_path or _sha256_file(self.expected_model_path) != event["model_sha256"]:
-            raise RuntimeError("persisted R2S MicroXS model differs from exact observed C API input")
+        if not self.expected_model_path.is_file() or _sha256_file(self.expected_model_path) != event["model_sha256"]:
+            raise RuntimeError("persisted R2S MicroXS model bytes differ from the exact observed C API init input")
+        if _library_identity(self.openmc) != event["library"]:
+            raise RuntimeError("OpenMC C API library changed during the R2S MicroXS response")
         lost, histories = event["lost_particles"], event["histories"]
         if lost is None:
             raise RuntimeError("OpenMC C API lost-particle counter is unavailable for R2S neutron response")
-        if histories < 1 or lost > 1e-6 * histories:
+        if histories < 1 or lost < 0 or lost > 1e-6 * histories:
             raise RuntimeError(f"R2S neutron lost-particle limit exceeded ({lost}/{histories})")
-        return {"status": "PASS", "model_xml": {"path": event["model_path"], "sha256": event["model_sha256"]},
+        return {"status": "PASS", "model_xml": {"path": str(self.expected_model_path),
+                                                    "sha256": event["model_sha256"]},
+                "observed_c_api_init_model_path": event["model_path"],
                 "c_api_library": event["library"], "histories": histories, "lost_particles": lost,
                 "lost_particle_limit": 1e-6, "scope": "R2S neutron MicroXS response"}
 
@@ -672,6 +711,9 @@ def main() -> int:
         model.settings.seed = s["seed"]
         model.settings.output = {"summary": False, "tallies": False}
         model.settings.statepoint = {"batches": [s["neutron_batches"]]}
+        chain = Chain.from_xml(str(chain_path))
+        initial_nuclides = {name for material in model.materials for name in material.get_nuclides()}
+        chain_coverage = chain_cross_section_coverage(chain, xs_path, initial_nuclides)
 
         activation = request["activation_mesh"]
         mesh = openmc.RegularMesh(name="faris-component-activation")
@@ -721,8 +763,6 @@ def main() -> int:
         full_fluxes, full_micros = mgr.results["fluxes"], mgr.results["micros"]
         event = request["event"]
         cooling_s = event["cooling_s"]
-        chain = Chain.from_xml(str(chain_path))
-        chain_coverage = chain_cross_section_coverage(chain, xs_path)
         source_meshes_by_cooling = [[] for _ in cooling_s]
         conservation = []
         activation_regions = 0
