@@ -278,6 +278,136 @@
       "fixed_in": "7fa96f9",
       "disposition": "The native heating parser checked agreement between the closure flag and inequality but returned that agreement as success even when both indicated failure. It now requires the actual correlated closure inequality to pass and the recorded flag to be true. The controlled failed-closure worker fixture failed before the correction and passes after it by preserving INCONCLUSIVE rather than accepting the result.",
       "regression_test": "crates/faris-engine/src/design/heating.rs::worker_parser_preserves_failed_correlated_closure_and_terminal_controls"
+    },
+    {
+      "id": "FARIS-022",
+      "title": "DAGMC conversion wrote faceting tolerance under an unread tag and root handle",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "0c74c05",
+      "disposition": "The converter emitted a bounding-box heuristic as FACETING_TOLERANCE instead of the declared mesher input. The first correction also attached the tag to null handle zero, so the selected DagMC reader still reported an invalid tiny value. The corrected copy now records sparse FACETING_TOL on the actual serialized geometry root set; the producer remains unchanged and all other dataset identities are checked. A live torus control reproduces the bad value before correction and prints exactly 0.05 afterwards, with the geometry-only stochastic-volume control completing. This records the requested tolerance, not a certified maximum deviation.",
+      "regression_test": "integrations/cad/test_dagmc_faceting_tolerance.py::test_copy_writes_exact_sparse_double_root_tag_and_preserves_other_datasets"
+    },
+    {
+      "id": "FARIS-023",
+      "title": "Event-specific dose worker failed before neutron transport",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "17609c8",
+      "disposition": "The normal request path used chain_coverage before assigning it. The same checked-request fixture fails on the original code with UnboundLocalError and reaches the mocked neutron stage after correction. Coverage is now computed before expensive transport from actual model roots and their reachable products; unavailable data remain NOT_EVALUATED. This fixes execution order, not dose validation.",
+      "regression_test": "integrations/openmc/test_maintenance_event_r2s.py::test_main_builds_chain_coverage_record_before_mocked_neutron_run"
+    },
+    {
+      "id": "FARIS-024",
+      "title": "Heating batch storage grew with the number of batches",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "4003339",
+      "disposition": "The coupled-heating collector retained every per-voxel batch array, so large requested runs could exhaust the bounded worker memory. Fixed-size online moments now preserve mean, standard error and same-batch correlated closure residuals. A 20000-batch regression verifies fixed state shape and independent sequence controls verify its numerical moments; preflight bounds reject oversized meshes before volume sampling.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_streaming_state_size_is_independent_of_batch_count"
+    },
+    {
+      "id": "FARIS-025",
+      "title": "Heating volume samples were not bound to the sampled H5M bytes",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "4003339",
+      "disposition": "A geometry change during the separate volume phase followed by restoration could pair volumes from one geometry with transport on another without an identity warning. Heating now takes a verified immutable snapshot for volume sampling and transport preparation, checks its bytes before and after use, and binds the volume receipt to READY preflight. A transient mutation/restoration fixture is refused.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_checked_h5m_snapshot_rejects_transient_mutation_even_when_source_is_restored"
+    },
+    {
+      "id": "FARIS-026",
+      "title": "R3 R2S silently omitted neutron reactions on activated daughters",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "4bbfdef",
+      "disposition": "R3 requested MicroXS for initial material nuclides only; missing daughter cross sections were silently treated as zero even over the one-FPY irradiation. The runner now derives reachable nuclides and required channels, refuses incomplete coverage before transport, requests the full required set, and records actual MicroXS membership. Export independently checks the bound data and membership. An in-band legacy record without that evidence is refused. Current installed inputs remain NOT_EVALUATED with 2168 missing nuclides and 12 missing indexed MT groups; historical results are diagnostic and require requalification.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_shutdown_dose_export.py::test_old_in_band_r2s_record_without_activation_coverage_is_refused"
+    },
+    {
+      "id": "FARIS-027",
+      "title": "Convex-face bound used a length tolerance on an area-valued cross product",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "ed1fc21",
+      "disposition": "The planar fast path could classify points far outside a very short polygon edge as inside, understating the whole-triangle deviation. Signed half-plane distances and convexity checks are now normalized by edge length, with separate outward kernel and arithmetic allowances. The short-edge outside-point and shallow-concavity regressions pass; unsupported trims still fall back to bounded subdivision.",
+      "regression_test": "integrations/cad/test_faris_deviation.py::test_short_polygon_edge_does_not_hide_outside_point"
+    },
+    {
+      "id": "FARIS-028",
+      "title": "Restarted study transport read batch counters before restart restoration",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "8a0d4dc",
+      "disposition": "Reading current_batch immediately after openmc_init returned zero for a restarted pass, so the new loss-accounting receipt did not match the actual restart. The selected executable-linked C API now initializes the simulation, captures restored counters, advances batches explicitly, and records per-pass loss deltas before finalization. A live control verifies clean zero-loss passes and intentional all-loss passes of 1000 and 2000 histories across the restart using the selected library, not the different Python-packaged library.",
+      "regression_test": "integrations/openmc/test_reactor_loss_accounting.py::test_capi_restart_receipt_reads_counters_after_lifecycle_restores_restart"
+    },
+    {
+      "id": "FARIS-029",
+      "title": "Solver capture receipts retained private byte buffers and could not serialize",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "e5f9597",
+      "disposition": "Completed solver captures exposed an internal pending bytes buffer in the JSON receipt, causing final run-record serialization to fail after transport. The buffer is removed after final stream flushing; bounded logs, warning counts and hashes remain. A real subprocess regression checks trailing fragments and JSON serialization, and the selected-library restart/loss control now writes its complete report successfully.",
+      "regression_test": "integrations/openmc/test_reactor_loss_accounting.py::test_stream_capture_is_json_serializable_after_final_partial_line_flush"
+    },
+    {
+      "id": "FARIS-030",
+      "title": "Transport enclosing sphere clipped mixed-sign model extents",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "d048bdd",
+      "disposition": "The generic model builder sized its bounding sphere from only the lower and upper diagonal corners. With mixed-sign extents another corner can be farther from the origin, leaving part of the requested geometry outside the vacuum boundary. The sphere now uses every coordinate extremum. The mixed-sign regression checks that all eight corners remain inside. This corrects the geometry domain for flux, heating and dose preparation; affected physical results require fresh qualification.",
+      "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_build_model_sphere_contains_mixed_sign_extents"
+    },
+    {
+      "id": "FARIS-031",
+      "title": "Thin material photon-source regions hit the default OpenMC rejection cutoff",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "4d48429",
+      "disposition": "Exact material-constrained box resampling can occupy less than the OpenMC default accepted-to-rejected proposal threshold. A live one-percent-cell control aborts with the default and samples all 1000 sites inside the same cell with the configured 1e-6 threshold. The photon worker records that execution setting and retains the exact conditional distribution and absolute ACTINV source strengths. Very thin regions can still sample slowly or fail closed; this is execution evidence, not physical dose validation.",
+      "regression_test": "integrations/openmc/test_maintenance_709_response.py::test_exact_openmc0153_filter_sources_and_model_export_without_solver"
     }
   ]
 }

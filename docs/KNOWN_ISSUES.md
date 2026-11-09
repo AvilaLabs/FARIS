@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 19 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 29 fixed before they reached a release.
 
 ## Open
 
@@ -38,6 +38,10 @@ These were found in development and never shipped.
 | FARIS-016 | S1 | Short target-error CAD runs bypassed the final lost-particle fraction guard | 0b93a45 |
 | FARIS-018 | S1 | R3 aggregate dose errors discarded covariance between spatial and parent bins | cf675a7 |
 | FARIS-021 | S1 | Heating closure parser accepted an explicitly failed three-standard-error gate | 7fa96f9 |
+| FARIS-025 | S1 | Heating volume samples were not bound to the sampled H5M bytes | 4003339 |
+| FARIS-026 | S1 | R3 R2S silently omitted neutron reactions on activated daughters | 4bbfdef |
+| FARIS-027 | S1 | Convex-face bound used a length tolerance on an area-valued cross product | ed1fc21 |
+| FARIS-030 | S1 | Transport enclosing sphere clipped mixed-sign model extents | d048bdd |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -50,4 +54,10 @@ These were found in development and never shipped.
 | FARIS-017 | S3 | Lost-particle diagnostics described birth positions as escape locations | 0b93a45 |
 | FARIS-019 | S3 | Legacy R3 reference methods were described as selecting equivalent decay-emitter domains | cf675a7 |
 | FARIS-020 | S3 | H5M material metadata lookup ignored direct material-group contents | 8802861 |
+| FARIS-022 | S3 | DAGMC conversion wrote faceting tolerance under an unread tag and root handle | 0c74c05 |
+| FARIS-023 | S3 | Event-specific dose worker failed before neutron transport | 17609c8 |
+| FARIS-024 | S3 | Heating batch storage grew with the number of batches | 4003339 |
+| FARIS-028 | S3 | Restarted study transport read batch counters before restart restoration | 8a0d4dc |
+| FARIS-029 | S3 | Solver capture receipts retained private byte buffers and could not serialize | e5f9597 |
+| FARIS-031 | S3 | Thin material photon-source regions hit the default OpenMC rejection cutoff | 4d48429 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |
