@@ -9,13 +9,11 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-1 open, 0 will not be fixed, 2 fixed that affected a released version, 16 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 19 fixed before they reached a release.
 
 ## Open
 
-| Id | Severity | Title | Found | Affected | What happened |
-| --- | --- | --- | --- | --- | --- |
-| FARIS-014 | S3 | Cold ACTINV prepared-cache creation exceeds the external-job file limit | 2026-11-09 | unreleased | Cold-cache ACTINV execution prepares a 275493400-byte library.actp, larger than the ordinary 256 MiB per-file job cap, and fails. Live activation reproducibility and impurity tests pass with a hash-verified already prepared cache; those results do not qualify cold startup. A bounded cache-specific allowance that preserves ordinary output limits is under implementation. The current workaround is to prepare the ACTINV cache separately using ACTINV and point ACTINV_CACHE_DIR at that verified cache. |
+None.
 
 ## Will not be fixed
 
@@ -39,6 +37,7 @@ These were found in development and never shipped.
 | FARIS-011 | S1 | Malformed Monte Carlo uncertainty bypassed the validation precision check | 9a071f1 |
 | FARIS-016 | S1 | Short target-error CAD runs bypassed the final lost-particle fraction guard | 0b93a45 |
 | FARIS-018 | S1 | R3 aggregate dose errors discarded covariance between spatial and parent bins | cf675a7 |
+| FARIS-021 | S1 | Heating closure parser accepted an explicitly failed three-standard-error gate | 7fa96f9 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |
@@ -46,7 +45,9 @@ These were found in development and never shipped.
 | FARIS-007 | S3 | Large models' weight windows written into model.xml exceeded the 256 MiB file limit | 9a93ef6 |
 | FARIS-009 | S3 | Aiming visibility runs left their statepoints in the run folder and tripped its 512 MB limit | 5e4b666 |
 | FARIS-012 | S3 | Release gate ignored the approved validation-access outcome | 1a6d6d2 |
+| FARIS-014 | S3 | Cold ACTINV prepared-cache creation exceeds the external-job file limit | 4b85a7b |
 | FARIS-015 | S3 | ACTINV jobs ignored documented cache-root overrides | c2620a7 |
 | FARIS-017 | S3 | Lost-particle diagnostics described birth positions as escape locations | 0b93a45 |
 | FARIS-019 | S3 | Legacy R3 reference methods were described as selecting equivalent decay-emitter domains | cf675a7 |
+| FARIS-020 | S3 | H5M material metadata lookup ignored direct material-group contents | 8802861 |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

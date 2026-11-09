@@ -56,6 +56,14 @@
       "rule_sha256": "4e80675356892544476af6b091a6f3144ac9ade243fdb30d7634607a9b9957d1",
       "manifest_last_commit": "13f63125f859d16375f1c2693b080a4e04b913e2",
       "recorded": "2026-10-14"
+    },
+    {
+      "case_id": "fns-decayheat-fe-1996-5min",
+      "version": 1,
+      "declared": "2026-11-09",
+      "rule_sha256": "bd14dd75ba4a54228f9667ec69a5c0514610053c3bb7773d2542701686ccf80e",
+      "manifest_last_commit": "dc7a296a8856f3a51ff97207346356e1d989e843",
+      "recorded": "2026-11-09"
     }
   ]
 }

@@ -179,14 +179,14 @@
       "id": "FARIS-014",
       "title": "Cold ACTINV prepared-cache creation exceeds the external-job file limit",
       "severity": "S3",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-11-09",
       "affected_versions": [
         "unreleased"
       ],
-      "fixed_in": null,
-      "disposition": "Cold-cache ACTINV execution prepares a 275493400-byte library.actp, larger than the ordinary 256 MiB per-file job cap, and fails. Live activation reproducibility and impurity tests pass with a hash-verified already prepared cache; those results do not qualify cold startup. A bounded cache-specific allowance that preserves ordinary output limits is under implementation. The current workaround is to prepare the ACTINV cache separately using ACTINV and point ACTINV_CACHE_DIR at that verified cache.",
-      "regression_test": null
+      "fixed_in": "4b85a7b",
+      "disposition": "Cold ACTINV preparation creates a 275493400-byte library.actp, larger than the ordinary 256 MiB file cap. ACTINV now has a separate checked prepared-cache root with a 320 MiB per-file, 1 GiB aggregate and 256-file cap; ordinary artifacts retain their original limits. Symlinks and special files are refused, cancellation remains bounded, and atomic cache publication is handled. The initial cold execution failed at the ordinary cap. A fresh empty-cache live ACTINV reproducibility regression now passes, creating the verified prepared library and spectrum cache; this establishes cold execution, not experimental activation validation.",
+      "regression_test": "crates/faris-engine/src/jobs.rs::prepared_cache_file_gets_only_its_scoped_file_allowance"
     },
     {
       "id": "FARIS-015",
@@ -252,6 +252,32 @@
       "fixed_in": "cf675a7",
       "disposition": "D1S MeshBornFilter follows each current particle birth, including secondary interaction sites, while the legacy R2S source activated only the response box. The old equivalence claim is retracted and those outputs are retained only as diagnostics. The prospective full-emission protocol removes the D1S birth filter and separately spans verified H5M geometry with the R2S activation mesh; the exporter refuses legacy or hidden birth-filter inputs. This corrects input qualification and interpretation, not physical dose validation: matched solver runs and source-resolution convergence remain pending under VAL-043.",
       "regression_test": "integrations/openmc/risk_tests/test_r3_shutdown_dose_export.py::test_full_emission_protocol_rejects_a_meshborn_filter_in_d1s_xml"
+    },
+    {
+      "id": "FARIS-020",
+      "title": "H5M material metadata lookup ignored direct material-group contents",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "8802861",
+      "disposition": "The H5M reader looked for physical volumes among a material group's children although MOAB stores them in the group's direct contents, so real torus volumes had no material tag. It now reads direct membership and excludes implicit complement groups. The reference builder also checks expected tags when matching CAD roles. The actual old-reader regression failed with a missing steel tag and the corrected reader passed; the exact-mesh retag control preserved all geometry datasets.",
+      "regression_test": "integrations/openmc/risk_tests/test_retag_dagmc_materials.py::test_facet_material_lookup_uses_direct_contents_and_ignores_complement"
+    },
+    {
+      "id": "FARIS-021",
+      "title": "Heating closure parser accepted an explicitly failed three-standard-error gate",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "7fa96f9",
+      "disposition": "The native heating parser checked agreement between the closure flag and inequality but returned that agreement as success even when both indicated failure. It now requires the actual correlated closure inequality to pass and the recorded flag to be true. The controlled failed-closure worker fixture failed before the correction and passes after it by preserving INCONCLUSIVE rather than accepting the result.",
+      "regression_test": "crates/faris-engine/src/design/heating.rs::worker_parser_preserves_failed_correlated_closure_and_terminal_controls"
     }
   ]
 }
