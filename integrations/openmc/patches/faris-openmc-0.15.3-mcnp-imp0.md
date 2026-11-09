@@ -1,11 +1,14 @@
 # Optional MCNP neutron importance-zero support for OpenMC 0.15.3
 
-This optional patch implements the narrow MCNP `imp:n=0` behavior required by
-FNS neutron benchmarks whose zero-importance CSG cells contain other geometry
-regions as well. OpenMC 0.15.3 and 0.16.0 do not provide a per-cell neutron
-importance or kill-on-entry control. A vacuum boundary on one enclosing sphere
-is not equivalent when the MCNP zero-importance cell is a union that also
-covers interior regions.
+This optional patch implements MCNP `imp:n=0` termination for the FNS decks
+whose verified zero-importance CSG cells remain in the converted OpenMC model.
+The current 14-deck map includes retained zero-importance regions in all 14
+decks. The converter sidecar must identify each source deck hash, MCNP cell ID,
+OpenMC cell ID, particle type, importance, and source region; no region or cell
+is inferred from the surrounding sphere. OpenMC 0.15.3 and 0.16.0 do not
+provide a per-cell neutron importance or kill-on-entry control. A vacuum
+boundary on one enclosing sphere is not equivalent when an importance-zero
+cell is a disjoint union that includes interior regions.
 
 The patch is specific to the FARIS OpenMC 0.15.3 AIM-patched source. From the
 OpenMC source root, apply the AIM patch first, then apply this patch with its
@@ -17,84 +20,103 @@ git apply --unidiff-zero /path/to/project-faris/integrations/openmc/patches/fari
 ```
 
 The patch was checked for clean application against the local 0.15.3 AIM-patched
-source snapshot used by FARIS;
-this check is not a compile or runtime validation. Current hashes:
+source snapshot used by FARIS. No C++ build or solver run was performed for this
+patch handoff. The compiled patch and control script are still pending the
+coordinator-owned build and live control. Current hashes:
 
 - AIM patch: `8a72af3a15891f5b1972b26427ad4fd414cd6e491fc42db8a0e9262ecbc89dcc`
-- MCNP importance-zero patch: `c0f6bffede6d25ccfee8251404a22e50c01228c5346683ea3884cf0b10f8da37`
+- MCNP importance-zero patch: `477bd0b0cb9e1c801c9895da44cbe0a4075426a7ea19eb48232c61e71aea7156`
 
-Do not use this patch for ordinary reactor or maintenance runs. Those models
-must not contain the opt-in attribute and remain supported by stock OpenMC.
-For the two FNS N/O benchmark cases, the runner must require the exported C API
-symbol `faris_openmc_mcnp_imp0_patch_version` to equal `1` before launch. A
-stock executable ignores unknown XML attributes, so a missing capability must
-stop the run before transport. The runner must also record the final geometry
-XML hash after attribute injection and retain the separate kill count in the
-run receipt.
-
-## Input contract
-
-After exporting the final OpenMC `geometry.xml`, the benchmark runner checks the
-source-deck hash and the reviewed MCNP-to-OpenMC sidecar mapping. For each
-verified neutron cell with MCNP importance zero, it sets exactly:
+Ordinary reactor and maintenance runs must not contain the opt-in attribute;
+they remain supported by stock OpenMC. For each benchmark whose reviewed
+sidecar maps a retained `imp:n=0` neutron cell (the current gate maps all 14
+decks), the runner injects the attribute
+after OpenMC serializes `geometry.xml`:
 
 ```xml
-<cell id="1" name="..." material="void" region="..."
+<cell id="VERIFIED_OPENMC_CELL_ID" name="..." material="void" region="..."
       faris_neutron_importance="0" />
 ```
 
-The illustrative ID must be replaced by the sidecar's verified OpenMC cell ID.
-The attribute is injected after standard OpenMC serialization; stock OpenMC
-Python classes are unchanged. It may only have the exact value `0`. Other
-values fail during geometry loading. The benchmark's ordinary OpenMC cell name
-remains provenance text and does not control physics.
+The attribute is allowed only with the exact value `0`. The C++ parser rejects
+other values. The cell name is provenance text and does not control physics.
+The adapter must bind the final post-injection geometry XML hash to the
+benchmark run record. Before launching transport it must require the exact
+selected CLI-linked `libopenmc.so` to export
+`faris_openmc_mcnp_imp0_patch_version == 1`. Stock OpenMC ignores unknown XML
+attributes, so a missing capability must fail closed before the solver runs.
+The run record must keep the selected CLI path/hash and the actual linked
+library path/hash separate.
 
-The marker means: terminate a neutron when a surface crossing moves it into
-that CSG cell. A neutron born there is not killed by this feature; the control
-must start source neutrons in a separate live cell. The particle carries its
-incoming weight to the boundary tally, then its weight is set to zero before it
-can score track length in the zero-importance cell. The surface weight-window
-operation is skipped on this entry, so roulette cannot replace the explicit
-MCNP kill. This does not model absorption and does not increment OpenMC's lost
-particle counter. The patch exposes the independent cumulative counter
-`faris_openmc_mcnp_imp0_kill_events`; it is an intentional variance-reduction
-termination count, not a physical reaction count. The patch does not change
-particle normalization or any non-marked cell's behavior. Its counter is
-thread-safe for OpenMP and the control below uses one MPI process, matching the
-standard FARIS worker's single-process launch.
+A neutron born in a marked cell or entering one through a surface crossing is
+terminated with weight zero. Birth and entry events are counted separately.
+For a surface entry, the incoming particle weight is used for the surface
+current tally first; then the particle is killed before scoring track length
+inside the marked cell. Surface weight-window roulette is skipped for that
+entry. A birth kill happens when OpenMC locates the particle's initial cell,
+before its first track segment. The patch does not change photon transport,
+cell names, source normalization, or unmarked cells. Intentional kills do not
+increment OpenMC's physical geometry-loss counter and are not absorptions or
+reaction counts.
+
+Each statepoint written by the patched solver child contains these top-level
+HDF5 datasets:
+
+- `faris_mcnp_imp0_patch_version` (32-bit integer, currently `1`)
+- `faris_mcnp_imp0_kill_events` (64-bit integer, total)
+- `faris_mcnp_imp0_birth_kill_events` (64-bit integer)
+- `faris_mcnp_imp0_entry_kill_events` (64-bit integer)
+- `faris_openmc_n_lost_particles` (32-bit integer, OpenMC's ordinary loss count)
+
+The total is the sum of birth and entry kills. These values are written by the
+same CLI process that transported the histories and are restored on a patched
+statepoint restart. If a marked model tries to restart from a statepoint without
+the FARIS accounting datasets, the patch stops with an error. The release
+runner must read and hash-bind these datasets from the actual statepoint; it
+must not read a counter from a separately loaded parent-process library and
+claim it describes the CLI child.
+
+The kill counters use OpenMP atomics. The live control below is a single MPI
+process; this patch handoff makes no multi-rank count claim.
 
 ## Required small runtime control
 
-Run this control using the exact selected patched OpenMC CLI and its linked
-`libopenmc.so`. Use one fixed-source batch of 1,000 histories, seed 271828,
-unit source strength, no weight windows, no variance reduction, and no MPI
-launcher. It can be built through OpenMC 0.15.3's Python API and then injected
-with the XML attribute above.
+Once the patched binary is built, run the ready-to-use control (do not use a
+stock binary):
 
-Geometry is three concentric void cells in the root universe:
+```bash
+python integrations/openmc/risk_tests/imp0_entry_control.py \
+  --openmc-executable /path/to/patched/openmc \
+  --output-dir runs/continuation/mcnp-imp0-control-20261109-v1
+```
+
+The script refuses a reused output directory, checks the exact CLI-linked
+library capability, and records CLI, linked library, Python, final geometry,
+and statepoint identities. It runs four fixed-source cases with one batch of
+1,000 histories, seed 271828, unit source strength, no weight windows, and one
+MPI process. Each case uses three concentric void cells in the root universe:
 
 - cell 1: sphere `r < 1 cm`, live source cell;
 - cell 2: shell `1 < r < 1.5 cm`, live cell;
-- cell 3: shell `1.5 < r < 2 cm`, marked with `faris_neutron_importance="0"`;
-- the radius-2 sphere is a vacuum boundary.
+- cell 3: shell `1.5 < r < 2 cm`, with a vacuum boundary at `r = 2 cm`;
+- the opt-in marker is placed on cell 3 for marked cases.
 
-Place an isotropic 14.1 MeV neutron point source at the origin. Add track-length
-tallies for cells 1, 2, and 3. Check the capability symbol before `openmc_init`,
-then read the normal lost counter and the FARIS kill counter before simulation
-finalization.
+The cell flux tallies use OpenMC's Monte Carlo track-length convention (cm per
+source history), so their expected means are the path lengths: 1 cm in cell 1,
+0.5 cm in cell 2, and zero or 0.5 cm in cell 3. A surface-current tally on
+`r = 1.5 cm` checks that the incoming weight is scored before the cell-3 kill.
 
-Expected for neutrons: 1,000 intentional kill events, zero lost particles,
-about 1 cm mean track length in cell 1, 0.5 cm in live cell 2, and zero in cell
-3. Tolerances should be tight enough to catch a premature kill at the first
-live-cell crossing; the exact track-length means are deterministic in this
-void geometry. Re-run with a photon source and photon transport enabled: the
-neutron-only marker must produce zero FARIS kills; photons traverse the marked
-cell and leak at the vacuum boundary without a geometry-loss count. As a
-negative control, remove the attribute and rerun neutrons: the FARIS kill
-counter must be zero and neutrons traverse cell 3 to the vacuum boundary.
+Expected checks are:
 
-These controls establish only the patch's entry-kill semantics, counter
-separation, and lack of interference with live-cell and photon transport. They
-do not validate the FNS benchmark or reactor physics. The full N/O benchmark
-run still needs its recorded source, geometry, code, tally, and uncertainty
-evidence.
+| Case | Total kills | Birth kills | Entry kills | Lost particles | Cell flux means (1, 2, 3) | Mid-surface current |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| Marked neutron, source at origin | 1,000 | 0 | 1,000 | 0 | `1`, `0.5`, `0` | 1 |
+| Marked neutron, source in cell 3 | 1,000 | 1,000 | 0 | 0 | `0`, `0`, `0` | 0 |
+| Marked photon, source at origin | 0 | 0 | 0 | 0 | `1`, `0.5`, `0.5` | 1 |
+| Unmarked neutron, source at origin | 0 | 0 | 0 | 0 | `1`, `0.5`, `0.5` | 1 |
+
+These controls check initial-source and cell-entry semantics, separate event
+and loss counts, the live-cell crossing, surface-current scoring, photon
+behavior, and explicit-marker scope. They do not qualify any FNS benchmark or
+reactor physics. Each benchmark run still needs its source, geometry, code,
+tally, and uncertainty evidence.

@@ -1,11 +1,13 @@
 diff --git a/include/openmc/capi.h b/include/openmc/capi.h
-index d8041ef..73cfee4 100644
+index d8041ef..82032e5 100644
 --- a/include/openmc/capi.h
 +++ b/include/openmc/capi.h
-@@ -11,0 +12,4 @@ extern "C" {
+@@ -11,0 +12,6 @@ extern "C" {
 +// FARIS optional MCNP imp:n=0 compatibility capability and event counter.
 +extern int faris_openmc_mcnp_imp0_patch_version;
-+extern int faris_openmc_mcnp_imp0_kill_events;
++extern int64_t faris_openmc_mcnp_imp0_kill_events;
++extern int64_t faris_openmc_mcnp_imp0_birth_kill_events;
++extern int64_t faris_openmc_mcnp_imp0_entry_kill_events;
 +
 diff --git a/include/openmc/cell.h b/include/openmc/cell.h
 index 9dfe233..5332f04 100644
@@ -32,16 +34,34 @@ index e247999..cfb997a 100644
 +  }
 +
 diff --git a/src/finalize.cpp b/src/finalize.cpp
-index 9ee9434..12eaf81 100644
+index 9ee9434..c549260 100644
 --- a/src/finalize.cpp
 +++ b/src/finalize.cpp
-@@ -213,0 +214 @@ int openmc_reset()
+@@ -213,0 +214,3 @@ int openmc_reset()
 +  faris_openmc_mcnp_imp0_kill_events = 0;
++  faris_openmc_mcnp_imp0_birth_kill_events = 0;
++  faris_openmc_mcnp_imp0_entry_kill_events = 0;
 diff --git a/src/particle.cpp b/src/particle.cpp
-index 2d70d71..c18e20a 100644
+index 2d70d71..5050791 100644
 --- a/src/particle.cpp
 +++ b/src/particle.cpp
-@@ -299,0 +300,22 @@ void Particle::event_cross_surface()
+@@ -195,0 +196,15 @@ void Particle::event_calculate_xs()
++
++    // MCNP terminates a neutron born in an importance-zero cell. Count this
++    // separately from a surface-entry kill, and from physical absorption or
++    // geometry loss. Photons are not affected by imp:n.
++    const int32_t cell_index = lowest_coord().cell();
++    if (type() == ParticleType::neutron && cell_index >= 0 &&
++        cell_index < static_cast<int32_t>(model::cells.size()) &&
++        model::cells[cell_index]->faris_neutron_importance_zero_on_entry_) {
++      wgt() = 0.0;
++#pragma omp atomic
++      faris_openmc_mcnp_imp0_kill_events += 1;
++#pragma omp atomic
++      faris_openmc_mcnp_imp0_birth_kill_events += 1;
++      return;
++    }
+@@ -299,0 +315,22 @@ void Particle::event_cross_surface()
 +  // Check after geometry has located the destination cell, but delay killing
 +  // until after surface-current scoring below. This keeps the incoming weight
 +  // on the face tally while preventing a zero-importance cell from receiving
@@ -64,14 +84,14 @@ index 2d70d71..c18e20a 100644
 +  };
 +  bool faris_imp0_entry = false;
 +
-@@ -306,0 +329 @@ void Particle::event_cross_surface()
+@@ -306,0 +344 @@ void Particle::event_cross_surface()
 +    faris_imp0_entry = enters_faris_imp0_cell();
-@@ -315,0 +339 @@ void Particle::event_cross_surface()
+@@ -315,0 +354 @@ void Particle::event_cross_surface()
 +    faris_imp0_entry = enters_faris_imp0_cell();
-@@ -320 +344 @@ void Particle::event_cross_surface()
+@@ -320 +359 @@ void Particle::event_cross_surface()
 -    if (settings::weight_window_checkpoint_surface) {
 +    if (settings::weight_window_checkpoint_surface && !faris_imp0_entry) {
-@@ -328,0 +353,8 @@ void Particle::event_cross_surface()
+@@ -328,0 +368,10 @@ void Particle::event_cross_surface()
 +
 +  if (faris_imp0_entry) {
 +    // This intentional variance-reduction termination is not a geometry loss
@@ -79,14 +99,90 @@ index 2d70d71..c18e20a 100644
 +    wgt() = 0.0;
 +#pragma omp atomic
 +    faris_openmc_mcnp_imp0_kill_events += 1;
++#pragma omp atomic
++    faris_openmc_mcnp_imp0_entry_kill_events += 1;
 +  }
 diff --git a/src/simulation.cpp b/src/simulation.cpp
-index 60c600f..d9f9ec3 100644
+index 60c600f..344516d 100644
 --- a/src/simulation.cpp
 +++ b/src/simulation.cpp
-@@ -46,0 +47,5 @@
+@@ -46,0 +47,7 @@
 +extern "C" {
 +int faris_openmc_mcnp_imp0_patch_version {1};
-+int faris_openmc_mcnp_imp0_kill_events {0};
++int64_t faris_openmc_mcnp_imp0_kill_events {0};
++int64_t faris_openmc_mcnp_imp0_birth_kill_events {0};
++int64_t faris_openmc_mcnp_imp0_entry_kill_events {0};
 +}
++
+diff --git a/src/state_point.cpp b/src/state_point.cpp
+index 47296da..b58a122 100644
+--- a/src/state_point.cpp
++++ b/src/state_point.cpp
+@@ -4,0 +5 @@
++#include <limits>
+@@ -115,0 +117,13 @@ extern "C" int openmc_statepoint_write(const char* filename, bool* write_source)
++    // Record the FARIS benchmark-only MCNP imp:n=0 diagnostics in the solver
++    // child that produced this statepoint, not in its parent process.
++    write_dataset(file_id, "faris_mcnp_imp0_patch_version",
++      faris_openmc_mcnp_imp0_patch_version);
++    write_dataset(file_id, "faris_mcnp_imp0_kill_events",
++      faris_openmc_mcnp_imp0_kill_events);
++    write_dataset(file_id, "faris_mcnp_imp0_birth_kill_events",
++      faris_openmc_mcnp_imp0_birth_kill_events);
++    write_dataset(file_id, "faris_mcnp_imp0_entry_kill_events",
++      faris_openmc_mcnp_imp0_entry_kill_events);
++    write_dataset(file_id, "faris_openmc_n_lost_particles",
++      simulation::n_lost_particles);
++
+@@ -446,0 +461,51 @@ extern "C" int openmc_statepoint_load(const char* filename)
++  // Preserve the child process's intentional-kill and geometry-loss counts
++  // across patch-aware restarts. A model with an opt-in marker must not
++  // restart from a statepoint that predates this accounting.
++  const bool has_faris_marker = std::any_of(
++    model::cells.begin(), model::cells.end(), [](const auto& cell) {
++      return cell->faris_neutron_importance_zero_on_entry_;
++    });
++  const htri_t has_patch_dataset =
++    H5Lexists(file_id, "faris_mcnp_imp0_patch_version", H5P_DEFAULT);
++  const htri_t has_kill_dataset =
++    H5Lexists(file_id, "faris_mcnp_imp0_kill_events", H5P_DEFAULT);
++  if (has_patch_dataset < 0 || has_kill_dataset < 0) {
++    fatal_error("Could not inspect FARIS statepoint kill-accounting datasets.");
++  }
++  if (has_patch_dataset > 0 && has_kill_dataset > 0) {
++    int patch_version;
++    read_dataset(file_id, "faris_mcnp_imp0_patch_version", patch_version);
++    if (patch_version != faris_openmc_mcnp_imp0_patch_version) {
++      fatal_error("Statepoint uses an unsupported FARIS imp:n=0 patch version.");
++    }
++    read_dataset(file_id, "faris_mcnp_imp0_kill_events",
++      faris_openmc_mcnp_imp0_kill_events);
++    read_dataset(file_id, "faris_mcnp_imp0_birth_kill_events",
++      faris_openmc_mcnp_imp0_birth_kill_events);
++    read_dataset(file_id, "faris_mcnp_imp0_entry_kill_events",
++      faris_openmc_mcnp_imp0_entry_kill_events);
++    read_dataset(file_id, "faris_openmc_n_lost_particles",
++      simulation::n_lost_particles);
++    const bool kill_count_overflow =
++      faris_openmc_mcnp_imp0_entry_kill_events > 0 &&
++      faris_openmc_mcnp_imp0_birth_kill_events >
++        std::numeric_limits<int64_t>::max() -
++          faris_openmc_mcnp_imp0_entry_kill_events;
++    if (faris_openmc_mcnp_imp0_kill_events < 0 ||
++        faris_openmc_mcnp_imp0_birth_kill_events < 0 ||
++        faris_openmc_mcnp_imp0_entry_kill_events < 0 ||
++        kill_count_overflow ||
++        (!kill_count_overflow && faris_openmc_mcnp_imp0_kill_events !=
++          faris_openmc_mcnp_imp0_birth_kill_events +
++            faris_openmc_mcnp_imp0_entry_kill_events) ||
++        simulation::n_lost_particles < 0) {
++      fatal_error("Statepoint contains invalid FARIS particle event counts.");
++    }
++  } else if (has_faris_marker) {
++    fatal_error(
++      "A FARIS imp:n=0 model must restart from a statepoint with the "
++      "FARIS kill-accounting datasets.");
++  } else if (has_patch_dataset > 0 || has_kill_dataset > 0) {
++    fatal_error("Statepoint has incomplete FARIS kill-accounting datasets.");
++  }
 +
