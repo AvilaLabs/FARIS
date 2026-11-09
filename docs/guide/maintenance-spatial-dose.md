@@ -56,4 +56,13 @@ faris maintenance dose-run \
   --output dose-maintenance-result.json
 ```
 
+When the native dose workflow launches the OpenMC event worker, it uses the selected Python
+interpreter and the shared bounded-job runner. The worker receives an allowlisted environment:
+`PATH` starts with that interpreter's directory, `PYTHONPATH` is taken only from the documented
+`FARIS_PLASMA_SOURCE_PATH` setting (the directory containing `openmc_plasma_source`), and
+`PYTHONDONTWRITEBYTECODE=1`; unrelated parent-process variables are cleared. Install the Python
+dependencies in the selected interpreter. Cancellation and the run budget stop the whole worker
+process tree, while memory, captured logs, and generated artifacts are bounded. Each event's
+work directory retains `worker.log` and `worker-job.json` with captured output and runner limits.
+
 This workflow consumes imported estimates or the bounded R2S worker output; FARIS does not produce D1S estimates or model evolving geometry. The result is therefore an authored scenario computation with explicit input provenance, not validated facility dose or an operational release.

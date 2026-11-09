@@ -13,16 +13,16 @@ use super::spatial_dose::{
 };
 use super::{DoseEventCurveProvider, ReplacementEvent, irradiation};
 use crate::history::HistoryResult;
-use crate::jobs::Cancellation;
+use crate::jobs::{Cancellation, ExecutionStatus, JobResult, JobSpec, ResourceLimits, run_job};
 use faris_model::maintenance::{DoseMethod, PHOTON_EFFECTIVE_DOSE_RATE_QUANTITY};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub const DOSE_PHYSICS_SCHEMA: &str = "faris-maintenance-dose-physics/v0.1";
 pub const COMPONENT_MAP_SCHEMA: &str = "faris-cad-component-material-map/v0.1";
@@ -31,7 +31,7 @@ pub const RECEIPT_SCHEMA: &str = "faris-maintenance-r2s-event-receipt/v0.1";
 pub const PREP_RECEIPT_SCHEMA: &str = "faris-maintenance-dose-cad-preparation-receipt/v0.1";
 const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 const MAX_WORKER_REQUEST_BYTES: usize = 4 * 1024 * 1024;
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
+const WORKER_LOG_LIMIT_BYTES: usize = 1 << 20;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -161,20 +161,31 @@ pub fn prepare_dose_cad(
     )?;
     let out = work_dir.join("prepared");
     let log = work_dir.join("preparation.log");
-    let status = launch_bounded(
+    let result = launch_bounded(
         python,
         &worker_script,
         &request_path,
         &out,
+        &config.work_dir,
         &log,
         config.sampling.run_budget_s,
         cancel,
     )?;
-    if !status.success() {
-        let details = std::fs::read_to_string(&log).unwrap_or_default();
+    if result.execution_status != ExecutionStatus::Succeeded {
+        if result.execution_status == ExecutionStatus::Cancelled {
+            return Err("cancelled".into());
+        }
+        if result.execution_status == ExecutionStatus::TimedOut {
+            return Err(format!(
+                "OpenMC worker exceeded its {:.0} second run budget",
+                config.sampling.run_budget_s
+            ));
+        }
         return Err(format!(
-            "dose CAD preparation failed ({status}): {}",
-            details.chars().take(3000).collect::<String>()
+            "dose CAD preparation failed ({:?}, exit {:?}): {}",
+            result.execution_status,
+            result.exit_code,
+            tail_job_output(&result)
         ));
     }
     let receipt_path = out.join("dose-cad-preparation-receipt.json");
@@ -656,21 +667,32 @@ impl DoseEventCurveProvider for OpenMcDoseProvider {
         write_exact(&request_path, &request_bytes)?;
         let request_ref = make_ref(&request_path)?;
         let log_path = run_dir.join("worker.log");
-        let status = launch_bounded(
+        let result = launch_bounded(
             &self.python,
             &self.worker_script,
             &request_path,
+            &run_dir,
             &run_dir,
             &log_path,
             context.manifest.sampling.run_budget_s,
             cancel,
         )?;
-        if !status.success() {
-            let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+        if result.execution_status != ExecutionStatus::Succeeded {
+            if result.execution_status == ExecutionStatus::Cancelled {
+                return Err("cancelled".into());
+            }
+            if result.execution_status == ExecutionStatus::TimedOut {
+                return Err(format!(
+                    "OpenMC worker exceeded its {:.0} second run budget",
+                    context.manifest.sampling.run_budget_s
+                ));
+            }
             return Err(format!(
-                "OpenMC event R2S worker failed ({status}); see {}: {}",
+                "OpenMC event R2S worker failed ({:?}, exit {:?}); see {}: {}",
+                result.execution_status,
+                result.exit_code,
                 log_path.display(),
-                log.chars().take(4000).collect::<String>()
+                tail_job_output(&result)
             ));
         }
         let receipt_path = run_dir.join("r2s_event_receipt.json");
@@ -1129,52 +1151,230 @@ fn launch_bounded(
     worker: &Path,
     request: &Path,
     out: &Path,
+    working_directory: &Path,
     log: &Path,
     budget_s: f64,
     cancel: &Cancellation,
-) -> Result<std::process::ExitStatus, String> {
-    let log_file = std::fs::File::create(log).map_err(|e| e.to_string())?;
-    let stderr = log_file.try_clone().map_err(|e| e.to_string())?;
-    let python_bin = python.parent();
-    let mut command = Command::new(python);
-    command
-        .arg(worker)
-        .arg("--request")
-        .arg(request)
-        .arg("--out")
-        .arg(out)
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(log_file))
-        .stderr(Stdio::from(stderr));
-    if let Some(bin) = python_bin {
-        let mut paths = vec![bin.to_path_buf()];
-        if let Some(current) = std::env::var_os("PATH") {
-            paths.extend(std::env::split_paths(&current));
-        }
-        let joined = std::env::join_paths(paths).map_err(|e| e.to_string())?;
-        command.env("PATH", joined);
+) -> Result<JobResult, String> {
+    let python = resolve_python(python)?;
+    let worker = worker.canonicalize().map_err(|e| e.to_string())?;
+    let request = request.canonicalize().map_err(|e| e.to_string())?;
+    let working_directory = working_directory
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if !working_directory.is_dir() {
+        return Err(format!(
+            "worker directory is missing: {}",
+            working_directory.display()
+        ));
     }
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("could not start OpenMC worker {}: {e}", python.display()))?;
-    let started = Instant::now();
-    loop {
-        if cancel.is_cancelled() {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("cancelled".into());
+    let out = if out.exists() {
+        out.canonicalize().map_err(|e| e.to_string())?
+    } else {
+        let parent = out
+            .parent()
+            .ok_or("worker output has no parent directory")?;
+        let name = out.file_name().ok_or("worker output has no file name")?;
+        parent.canonicalize().map_err(|e| e.to_string())?.join(name)
+    };
+    if !out.starts_with(&working_directory) {
+        return Err("worker output must stay inside its bounded working directory".into());
+    }
+    let log_name = log.file_name().ok_or("worker log has no file name")?;
+    let log = log
+        .parent()
+        .ok_or("worker log has no parent directory")?
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .join(log_name);
+    if !log.starts_with(&working_directory) {
+        return Err("worker log must stay inside its bounded working directory".into());
+    }
+    // FARIS_PLASMA_SOURCE_PATH is the documented, explicit directory containing
+    // openmc_plasma_source. No other inherited variables reach the scientific process.
+    let plasma_path = std::env::var_os("FARIS_PLASMA_SOURCE_PATH")
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty());
+    let environment =
+        worker_environment(&python, plasma_path.as_deref(), std::env::var_os("PATH"))?;
+    let path = environment
+        .iter()
+        .find(|(name, _)| name == "PATH")
+        .unwrap()
+        .1
+        .clone();
+    let python_path = environment
+        .iter()
+        .find(|(name, _)| name == "PYTHONPATH")
+        .unwrap()
+        .1
+        .clone();
+    let spec = JobSpec {
+        program: python.clone(),
+        arguments: vec![
+            worker.clone().into_os_string(),
+            "--request".into(),
+            request.clone().into_os_string(),
+            "--out".into(),
+            out.clone().into_os_string(),
+        ],
+        working_directory: working_directory.clone(),
+        environment,
+        timeout: Duration::from_secs_f64(budget_s),
+        capture_limit_bytes: WORKER_LOG_LIMIT_BYTES,
+        artifact_roots: Vec::new(),
+        resource_limits: ResourceLimits::DEFAULT,
+    };
+    let result = run_job(&spec, cancel).map_err(|error| {
+        format!(
+            "could not run OpenMC worker {}: {error}",
+            spec.program.display()
+        )
+    })?;
+    let mut log_bytes = result.stdout.as_bytes().to_vec();
+    if !log_bytes.is_empty() && !result.stderr.is_empty() {
+        log_bytes.extend_from_slice(b"\n--- stderr ---\n");
+    }
+    log_bytes.extend_from_slice(result.stderr.as_bytes());
+    write_exact(log, &log_bytes)?;
+    let metadata = serde_json::to_vec_pretty(&json!({
+        "schema": "faris-maintenance-dose-worker-job/v1",
+        "python": &python,
+        "worker": &worker,
+        "request": &request,
+        "output_directory": &out,
+        "working_directory": &working_directory,
+        "environment": {
+            "PATH": &path,
+            "PYTHONPATH": &python_path,
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        "job": &result,
+    }))
+    .map_err(|e| e.to_string())?;
+    write_exact(&log.with_file_name("worker-job.json"), &metadata)?;
+    Ok(result)
+}
+
+fn resolve_python(selected: &Path) -> Result<PathBuf, String> {
+    let has_directory = selected.components().count() > 1 || selected.is_absolute();
+    let candidates = if has_directory {
+        vec![std::path::absolute(selected).map_err(|e| e.to_string())?]
+    } else {
+        std::env::var_os("PATH")
+            .map(|path| {
+                std::env::split_paths(&path)
+                    .map(|directory| directory.join(selected))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    for candidate in candidates {
+        let candidate = std::path::absolute(candidate).map_err(|e| e.to_string())?;
+        if candidate.is_file() {
+            return Ok(candidate);
         }
-        if started.elapsed().as_secs_f64() > budget_s {
-            let _ = child.kill();
-            let _ = child.wait();
+    }
+    Err(format!(
+        "selected Python {} is not a file on PATH",
+        selected.display()
+    ))
+}
+
+fn worker_environment(
+    python: &Path,
+    plasma_source_path: Option<&Path>,
+    inherited_path: Option<OsString>,
+) -> Result<Vec<(OsString, OsString)>, String> {
+    if let Some(path) = plasma_source_path {
+        if !path.is_absolute() || !path.join("openmc_plasma_source").is_dir() {
             return Err(format!(
-                "OpenMC worker exceeded its {:.0} second run budget",
-                budget_s
+                "FARIS_PLASMA_SOURCE_PATH must be an absolute directory holding openmc_plasma_source: {}",
+                path.display()
             ));
         }
-        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-            return Ok(status);
-        }
-        std::thread::sleep(POLL_INTERVAL);
+    }
+    let mut path_entries = Vec::new();
+    if let Some(parent) = python.parent() {
+        path_entries.push(parent.to_path_buf());
+    }
+    if let Some(inherited_path) = inherited_path {
+        path_entries.extend(std::env::split_paths(&inherited_path));
+    }
+    let path = std::env::join_paths(path_entries).map_err(|e| e.to_string())?;
+    let python_path =
+        plasma_source_path.map_or_else(OsString::new, |path| path.as_os_str().to_owned());
+    Ok(vec![
+        ("PATH".into(), path),
+        ("PYTHONPATH".into(), python_path),
+        ("PYTHONDONTWRITEBYTECODE".into(), "1".into()),
+    ])
+}
+
+fn tail_job_output(result: &JobResult) -> String {
+    let mut text = format!("{}\n{}", result.stdout, result.stderr);
+    if result.stdout_truncated || result.stderr_truncated {
+        text.push_str("\n[captured output reached its configured size limit]");
+    }
+    text.chars().take(4000).collect()
+}
+
+#[cfg(test)]
+mod bounded_worker_tests {
+    use super::worker_environment;
+    use std::{
+        collections::BTreeMap,
+        ffi::{OsStr, OsString},
+        path::Path,
+    };
+
+    #[test]
+    fn worker_environment_is_an_explicit_allowlist_with_selected_python_and_helper_paths() {
+        let helper_root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(helper_root.path().join("openmc_plasma_source")).unwrap();
+        let selected_python = Path::new("/selected/env/bin/python");
+        let env = worker_environment(
+            selected_python,
+            Some(helper_root.path()),
+            Some(OsString::from("/usr/bin:/bin")),
+        )
+        .unwrap();
+        let values: BTreeMap<_, _> = env.into_iter().collect();
+        assert_eq!(values.len(), 3);
+        assert_eq!(
+            values.get(OsStr::new("PYTHONPATH")).unwrap().as_os_str(),
+            helper_root.path().as_os_str()
+        );
+        assert_eq!(
+            values
+                .get(OsStr::new("PYTHONDONTWRITEBYTECODE"))
+                .unwrap()
+                .as_os_str(),
+            OsStr::new("1")
+        );
+        let paths =
+            std::env::split_paths(values.get(OsStr::new("PATH")).unwrap()).collect::<Vec<_>>();
+        assert_eq!(paths[0], Path::new("/selected/env/bin").to_path_buf());
+        assert_eq!(
+            paths[1..],
+            [
+                Path::new("/usr/bin").to_path_buf(),
+                Path::new("/bin").to_path_buf()
+            ]
+        );
+        assert!(!values.contains_key(OsStr::new("HOME")));
+        assert!(!values.contains_key(OsStr::new("OPENMC_CROSS_SECTIONS")));
+    }
+
+    #[test]
+    fn worker_environment_rejects_an_unconfigured_or_wrong_plasma_package_root() {
+        let helper_root = tempfile::tempdir().unwrap();
+        let error = worker_environment(
+            Path::new("/selected/env/bin/python"),
+            Some(helper_root.path()),
+            None,
+        )
+        .unwrap_err();
+        assert!(error.contains("holding openmc_plasma_source"));
     }
 }
