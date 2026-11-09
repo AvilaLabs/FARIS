@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 30 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 31 fixed before they reached a release.
 
 ## Open
 
@@ -42,6 +42,7 @@ These were found in development and never shipped.
 | FARIS-026 | S1 | R3 R2S silently omitted neutron reactions on activated daughters | 4bbfdef |
 | FARIS-027 | S1 | Convex-face bound used a length tolerance on an area-valued cross product | ed1fc21 |
 | FARIS-030 | S1 | Transport enclosing sphere clipped mixed-sign model extents | d048bdd |
+| FARIS-033 | S1 | ITER reference intake accepted changed benchmark inputs without checking registered identities | 59806a0 |
 | FARIS-010 | S2 | Transport stop rule could accept a run while one heavy history dominated the sum | 7d61adb |
 | FARIS-002 | S3 | Verifier refused every recorded package that carried a sweep | 706a801 |
 | FARIS-004 | S3 | The reported highest piece was the noisiest, not the one the run tracked | 67340b7 |

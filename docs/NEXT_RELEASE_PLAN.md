@@ -23,9 +23,9 @@ and its checks exist.
 | Stage | Current boundary | Remaining exit work |
 | --- | --- | --- |
 | S0 | Feasibility and streaming controls recorded; inboard transport gain has only a pilot | Replicate the inboard fast-flux performance measurement, retain uncertainty and bias checks, and settle version/data prerequisites |
-| S1 | CAD import, sidecar, defect corpus and blocking checks implemented; serial torus faceting and stochastic-volume controls pass | Integrate and qualify the remaining volume and whole-facet deviation gates; retain actual converter and lost-particle evidence |
+| S1 | CAD import, sidecar, defect corpus and blocking checks implemented; serial torus faceting and stochastic-volume controls pass | Qualify the integrated volume, bounded default-tolerance refinement and whole-facet deviation gates; retain actual converter and lost-particle evidence |
 | S2 | Sources, target-error runs, windows and peak-flux paths implemented in part; coupled winding-pack heating is integrated for native checks | Qualify heating, complete product integration and seed/void controls, and obtain replicated RM-M performance evidence |
-| S3 | Heat-governed maintenance, replacement groups, literature presets and app duration sensitivity implemented; event-specific spatial-dose path integrated for checks | Qualify the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison; complete native interaction checks |
+| S3 | Heat-governed maintenance, replacement groups, literature presets and app duration sensitivity implemented; event-specific spatial-dose path integrated for checks | Complete the CAD transport-to-history connection; qualify the event-dose worker and its data, source-resolution convergence and D1S/R2S comparison; complete native interaction checks |
 | S4 | Validation registry, scoring and report generation implemented; pinned FNS iron decay-heat adapter added | Produce the required sealed case runs and peer comparisons; complete validation-state presentation and remaining benchmark translations |
 | S5 | Quality checks and packaging tools implemented in part | Complete the outstanding product requirements and run the final tests, performance, accessibility, fuzz, reproducibility, documentation and release gates on the candidate |
 

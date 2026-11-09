@@ -421,6 +421,19 @@
       "fixed_in": "5559beb",
       "disposition": "The FARIS manifest and builder copied an incorrect original PDF hash even though the pinned upstream processing note contained the correct value. The earlier preflight checked the note identity without checking its member table and accepted that mismatch. The corrected preflight derives all four member identities from the verified upstream note and refuses inconsistent metadata. A retained old-manifest control is refused and the corrected pinned-source plan passes; measured values, spectrum and scoring criteria are unchanged. No solver run used the incorrect provenance.",
       "regression_test": "validation/test_fns_decayheat.py::test_archive_member_identities_are_checked_against_pinned_source_note"
+    },
+    {
+      "id": "FARIS-033",
+      "title": "ITER reference intake accepted changed benchmark inputs without checking registered identities",
+      "severity": "S1",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "59806a0",
+      "disposition": "The reference runner accepted files by name and recorded their observed hashes without requiring the registered upstream identities. Changed same-shaped source or geometry files could therefore be run under the ITER_1D reference label. Intake now checks all four translated files and benchmark metadata against the reference registration and case manifest, then rechecks the staged copies before transport. Same-size input and copied-file mutations are refused. Both 97-cell flux and absorption responses are required; no reference values or scientific results were added.",
+      "regression_test": "integrations/openmc/risk_tests/test_iter_1d_reference.py::test_preflight_requires_registered_upstream_bytes_and_rejects_modified_translation"
     }
   ]
 }

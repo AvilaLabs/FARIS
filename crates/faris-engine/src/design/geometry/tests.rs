@@ -509,6 +509,7 @@ fn the_default_tolerance_is_gated_at_a_tenth_of_a_percent_and_recorded() {
             index + 1
         );
     }
+    drop(observed_chords);
     assert_eq!(
         report
             .geometry
