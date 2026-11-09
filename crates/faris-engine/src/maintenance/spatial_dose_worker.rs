@@ -937,6 +937,50 @@ fn run_staged_actinv_dose(
         &neutron_dir,
         "709 neutron response NPZ",
     )?;
+    let response_record = worker_artifact(
+        &neutron_receipt,
+        "neutron_response_record",
+        &neutron_dir,
+        "709 neutron response execution record",
+    )?;
+    let response_record_value: Value =
+        serde_json::from_slice(&read_bounded(&response_record.path, MAX_MANIFEST_BYTES)?)
+            .map_err(|e| format!("709 neutron response execution record: {e}"))?;
+    if response_record_value.get("schema").and_then(Value::as_str)
+        != Some("faris-maintenance-709-neutron-response/v0.1")
+        || response_record_value.get("status").and_then(Value::as_str) != Some("PASS")
+        || response_record_value
+            .get("request_sha256")
+            .and_then(Value::as_str)
+            != Some(neutron_request_ref.sha256.as_str())
+    {
+        return Err(
+            "709 neutron internal response record is not a PASS record for this request".into(),
+        );
+    }
+    for (key, expected) in [
+        ("response_npz_sha256", response_npz.sha256.as_str()),
+        ("model_sha256", manifest.model_xml.sha256.as_str()),
+        ("geometry_sha256", manifest.geometry_h5m.sha256.as_str()),
+        (
+            "cross_sections_sha256",
+            manifest.cross_sections_xml.sha256.as_str(),
+        ),
+        ("group_boundary_sha256", expected_group_hash),
+    ] {
+        if response_record_value.get(key).and_then(Value::as_str) != Some(expected) {
+            return Err(format!(
+                "internal neutron response record {key} differs from checked inputs"
+            ));
+        }
+    }
+    if response_record_value.get("activation_mesh") != neutron_receipt.get("activation_mesh")
+        || response_record_value.get("source") != neutron_receipt.get("source")
+        || response_record_value.get("solver") != neutron_receipt.get("solver")
+        || response_record_value.get("runtime") != neutron_receipt.get("runtime")
+    {
+        return Err("internal and external neutron response execution records disagree".into());
+    }
     let activation_batches = worker_artifact(
         &neutron_receipt,
         "activation_batches",
@@ -1288,6 +1332,7 @@ fn run_staged_actinv_dose(
     }
     artifacts.insert("709_neutron_request".into(), neutron_request_ref);
     artifacts.insert("709_neutron_response".into(), response_npz);
+    artifacts.insert("709_neutron_response_record".into(), response_record);
     artifacts.insert("709_neutron_receipt".into(), neutron_receipt_ref);
     artifacts.insert("actinv_batches".into(), activation_batches);
     artifacts.insert("actinv_receipt".into(), activation.receipt_ref);
