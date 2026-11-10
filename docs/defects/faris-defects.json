@@ -434,6 +434,19 @@
       "fixed_in": "59806a0",
       "disposition": "The reference runner accepted files by name and recorded their observed hashes without requiring the registered upstream identities. Changed same-shaped source or geometry files could therefore be run under the ITER_1D reference label. Intake now checks all four translated files and benchmark metadata against the reference registration and case manifest, then rechecks the staged copies before transport. Same-size input and copied-file mutations are refused. Both 97-cell flux and absorption responses are required; no reference values or scientific results were added.",
       "regression_test": "integrations/openmc/risk_tests/test_iter_1d_reference.py::test_preflight_requires_registered_upstream_bytes_and_rejects_modified_translation"
+    },
+    {
+      "id": "FARIS-034",
+      "title": "Bounded activation cleanup discarded material identities before writing receipts",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "80f8f6c",
+      "disposition": "The new bounded R3 activation stage deleted its material list before recording activation material IDs and tried to delete an undefined local. Its first chunk would fail before a usable activation record was written. Cleanup now follows receipt construction and preserves all material IDs. An end-to-end mocked execution runs two chunks through receipt writing and checks final-step and source-state behavior. No physical campaign consumed the broken path.",
+      "regression_test": "integrations/openmc/risk_tests/test_r3_bounded_microxs.py::test_chunk_activation_executes_receipt_path_with_mock_openmc_api"
     }
   ]
 }
