@@ -4,7 +4,11 @@
 """Pure tests for the scoped default-tolerance corpus qualifier."""
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import faris_corpus
 import faris_facets
@@ -54,6 +58,39 @@ class FacetedVolumeTests(unittest.TestCase):
                 {"index": 1, "material_tag": "mat:core"},
                 {"index": 2, "material_tag": "mat:core"},
             ]})
+
+
+class DeviationReporterContractTests(unittest.TestCase):
+    def test_helper_sample_diagnostics_and_global_certifications_are_preserved(self):
+        parts = [("core", object()), ("blanket", object())]
+
+        def write_helper_report(args):
+            args.report.write_text(json.dumps({"solids": [
+                {"step_index": 0, "sampled_max_distance_m": 0.12, "points": 10,
+                 "points_available": 10, "global_bound_status": "certified",
+                 "global_upper_bound_m": 0.09},
+                {"step_index": 1, "sampled_max_distance_m": 0.21, "points": 8,
+                 "points_available": 10, "global_bound_status": "unresolved",
+                 "global_upper_bound_m": 0.18},
+            ]}))
+
+        with TemporaryDirectory() as temp:
+            out_dir = Path(temp)
+            with patch("faris_cad.deviation", side_effect=write_helper_report):
+                result = faris_corpus.run_deviation(
+                    out_dir / "model.step", out_dir / "model.facets.bin", parts, out_dir,
+                    tolerance_m=0.1,
+                )
+
+        self.assertNotIn("error", result)
+        self.assertEqual(result["solids"], [
+            {"solid_id": "core", "sampled_max_distance_m": 0.12,
+             "global_bound_status": "certified", "global_upper_bound_m": 0.09,
+             "complete": True},
+            {"solid_id": "blanket", "sampled_max_distance_m": 0.21,
+             "global_bound_status": "unresolved", "global_upper_bound_m": 0.18,
+             "complete": False},
+        ])
         with self.assertRaisesRegex(ValueError, "matching STEP"):
             faris_corpus.deviation_volume_bindings(parts, {"volumes": [
                 {"index": 1, "material_tag": "mat:core"},

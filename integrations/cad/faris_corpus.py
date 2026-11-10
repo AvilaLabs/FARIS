@@ -406,7 +406,13 @@ def run_deviation(step: Path, facets: Path, parts, out_dir: Path, *,
         faris_cad.deviation(args)
         rows = json.loads(report.read_text())["solids"]
         return {"solids": [
-            {"solid_id": parts[r["step_index"]][0], "max_distance_m": r["max_distance_m"], "complete": r["points"] >= r["points_available"]}
+            {
+                "solid_id": parts[r["step_index"]][0],
+                "sampled_max_distance_m": r["sampled_max_distance_m"],
+                "global_bound_status": r["global_bound_status"],
+                "global_upper_bound_m": r["global_upper_bound_m"],
+                "complete": r["points"] >= r["points_available"],
+            }
             for r in rows
         ]}
     except BaseException as error:
