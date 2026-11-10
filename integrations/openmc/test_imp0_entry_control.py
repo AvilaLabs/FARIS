@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
-import sys
 import subprocess
+import sys
+import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
@@ -69,12 +71,14 @@ class ExplicitCliLibraryBinding(unittest.TestCase):
     def test_requires_exact_ldd_binding(self) -> None:
         executable = Path(sys.executable).resolve(strict=True)
         library = Path(__file__).resolve(strict=True)
-        row = f"\tlibopenmc.so => {library} (0x1234)"
-        completed = subprocess.CompletedProcess(["ldd"], 0, row + "\n", "")
-        with patch.object(CONTROL.subprocess, "run", return_value=completed) as mocked:
-            binding = CONTROL.verify_cli_library_binding(executable, library, {})
-        self.assertEqual(binding, row.strip())
-        self.assertEqual(mocked.call_args.args[0], ["ldd", str(executable)])
+        bindings = []
+        for address in ("0x1234", "0xabcd"):
+            row = f"\tlibopenmc.so => {library} ({address})"
+            completed = subprocess.CompletedProcess(["ldd"], 0, row + "\n", "")
+            with patch.object(CONTROL.subprocess, "run", return_value=completed) as mocked:
+                bindings.append(CONTROL.verify_cli_library_binding(executable, library, {}))
+            self.assertEqual(mocked.call_args.args[0], ["ldd", str(executable)])
+        self.assertEqual(bindings, [f"libopenmc.so => {library}"] * 2)
 
     def test_refuses_other_or_unresolved_cli_library(self) -> None:
         executable = Path(sys.executable).resolve(strict=True)
@@ -88,6 +92,48 @@ class ExplicitCliLibraryBinding(unittest.TestCase):
             with patch.object(CONTROL.subprocess, "run", return_value=completed):
                 with self.subTest(output=output), self.assertRaises(RuntimeError):
                     CONTROL.verify_cli_library_binding(executable, library, {})
+
+
+class ActualOpenMCApiModelExport(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        try:
+            import openmc
+        except ImportError as error:
+            raise unittest.SkipTest(f"OpenMC is unavailable: {error}")
+        if openmc.__version__ != "0.15.3":
+            raise unittest.SkipTest(f"requires OpenMC 0.15.3, found {openmc.__version__}")
+        cls.openmc = openmc
+
+    def test_all_four_control_models_export_through_openmc_0153_api(self) -> None:
+        cases = (
+            ("entry_neutron", "neutron", False, True),
+            ("source_birth_neutron", "neutron", True, True),
+            ("marked_photon", "photon", False, True),
+            ("unmarked_neutron", "neutron", False, False),
+        )
+        with tempfile.TemporaryDirectory(prefix="faris-imp0-model-export-") as temporary:
+            root = Path(temporary)
+            for name, particle, source_in_zero_cell, marked in cases:
+                with self.subTest(case=name):
+                    self.openmc.reset_auto_ids()
+                    directory = root / name
+                    directory.mkdir()
+                    geometry_xml = CONTROL.make_model(
+                        self.openmc,
+                        directory,
+                        particle=particle,
+                        source_in_zero_cell=source_in_zero_cell,
+                        marked=marked,
+                    )
+                    cells = ET.parse(geometry_xml).getroot().findall("cell")
+                    marked_ids = [
+                        cell.get("id") for cell in cells
+                        if cell.get("faris_neutron_importance") == "0"
+                    ]
+                    self.assertEqual(marked_ids, ["3"] if marked else [])
+                    settings = ET.parse(directory / "settings.xml").getroot()
+                    self.assertEqual(settings.findtext("max_write_lost_particles"), "1")
 
 
 if __name__ == "__main__":
