@@ -659,6 +659,58 @@
       "fixed_in": "957cf4e",
       "disposition": "The heating preflight used OpenMC library state without importing openmc.lib in the fresh worker interpreter. An actual native heating attempt stopped during preflight with NOT_EVALUATED before solver execution. The worker now imports openmc.lib explicitly, and a fresh-interpreter regression covers the import path. This was a preflight failure; no invalid physical PASS was produced.",
       "regression_test": "integrations/openmc/risk_tests/test_design_transport.py::test_heating_preflight_imports_openmc_lib_in_fresh_interpreter"
+    },
+    {
+      "id": "FARIS-051",
+      "title": "Heating history wrapper serialized responses differently from the native contract",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "12bfa40",
+      "disposition": "A native heating run completed 50,000 histories, but the response wrapper rejected the result because covariance was nested instead of flat row-major and closure residual used the field name closure_residual_ev_per_source instead of closure_residual. Serialization now follows the native response contract. A shared real-response fixture parses successfully while retaining INCONCLUSIVE and target_reached false; no heating target pass or physical qualification is claimed.",
+      "regression_test": "crates/faris-engine/src/design/heating.rs::heating_worker_accepts_flat_row_major_four_response_covariance"
+    },
+    {
+      "id": "FARIS-052",
+      "title": "CAD corpus helper read an obsolete deviation field and rejected current reports",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "34252ae",
+      "disposition": "The corpus helper read max_distance_m, while current deviation reports provide sampled_max_distance_m together with global_bound_status and global_upper_bound_m. The adapter now preserves the sampled diagnostic and global certification fields. The original corpus attempt stopped at 15 of 24 complete cases with wrapper failures; those failures remain recorded, and the adapter regression verifies both certified and unresolved rows. No whole-corpus qualification is claimed.",
+      "regression_test": "integrations/cad/test_faris_corpus_qualification.py::test_helper_sample_diagnostics_and_global_certifications_are_preserved"
+    },
+    {
+      "id": "FARIS-053",
+      "title": "OpenMC 0.15.3 model export paths did not match the single-file XML API",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "15a3549",
+      "disposition": "The 709 CAD preparation path used export_to_xml while expecting one model.xml, and neutron and photon paths passed a directory to OpenMC 0.15.3 export_to_model_xml, which expects a filename. These API mismatches prevented native dose model preparation or stage export. The worker now uses an explicit single-file export helper and checks that the requested model.xml was created. Native preparation subsequently succeeded; the dose diagnostic is still live, and no physical PASS is claimed.",
+      "regression_test": "integrations/openmc/test_maintenance_event_r2s.py::test_prepared_model_export_uses_openmc_0153_single_file_api"
+    },
+    {
+      "id": "FARIS-054",
+      "title": "The 709 validator rejected OpenMC 0.15.3 DAGMC universe references",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-10",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "15a3549",
+      "disposition": "The validator recognized only the legacy nested DAGMC filename element, so it rejected genuine OpenMC 0.15.3 models using a dagmc_universe filename attribute even when the geometry was hash-verified. Validation now accepts exactly one modern or legacy DAGMC reference and checks that it resolves to the verified geometry; missing, multiple and mismatched references remain rejected. Regressions cover the modern reference identity and legacy compatibility. This enabled native preparation but does not establish a physical dose PASS.",
+      "regression_test": "integrations/openmc/test_maintenance_709_response.py::test_model_geometry_binding_accepts_openmc_0153_dagmc_universe_and_checks_identity"
     }
   ]
 }
