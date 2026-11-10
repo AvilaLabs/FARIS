@@ -339,7 +339,7 @@ Usage: faris maintenance [OPTIONS] <COMMAND>
 
 Commands:
   run           Compute replacement outages from the decay heat of the components around the replaced part, for every design, and compare them with the fixed durations. Runs ACTINV
-  dose-run      Compute replacement outages from event-specific spatial photon dose-rate curves. Curves must contain matched D1S and R2S estimates for every history iteration
+  dose-run      Compute replacement outages from event-specific spatial photon dose-rate curves. D1S/R2S comparison is available when both methods can share the event's history basis; otherwise the result keeps D1S explicitly NOT_EVALUATED
   dose-prepare  Clone checked CAD materials per solid and build the event-dose physics adapter
   report        Print a maintenance result: downtime, availability and electricity under both models, every replacement with its governing component, and the differences between designs
   help          Print this message or the help of the given subcommand(s)
@@ -381,13 +381,13 @@ Example: `faris maintenance run`
 ## faris maintenance dose-run
 
 ```text
-Compute replacement outages from event-specific spatial photon dose-rate curves. Curves must contain matched D1S and R2S estimates for every history iteration
+Compute replacement outages from event-specific spatial photon dose-rate curves. D1S/R2S comparison is available when both methods can share the event's history basis; otherwise the result keeps D1S explicitly NOT_EVALUATED
 
 Usage: faris maintenance dose-run [OPTIONS] --designs <DESIGNS> --assumptions <ASSUMPTIONS> --output <OUTPUT>
 
 Options:
       --designs <DESIGNS>
-          faris-maintenance-designs/v0.1 inputs, or faris-maintenance-cad-dose-designs/v0.1 with scenario, CAD history-rate record, history assumptions and dose_physics (paths relative to the file)
+          faris-maintenance-designs/v0.1 inputs or faris-maintenance-cad-dose-designs/v0.2 with the checked CAD design, CAD history-rate record, optional history-assumptions override, and dose_physics manifest. The scenario-bound CAD v0.1 format is also supported
       --assumptions <ASSUMPTIONS>
           faris-maintenance-assumptions/v0.2 with dose-rate thresholds and location hashes
       --spatial-dose-curves <SPATIAL_DOSE_CURVES>
@@ -1020,7 +1020,7 @@ Commands:
   init       Read a STEP file and write a draft design file with every solid listed and every material and role left null for you to fill in
   check      Run import checks 1 to 9 on a design file and print what passed and what did not. Exit 0: no check failed. Exit 1: a check failed. Exit 2: usage or I/O error
   transport  Compute the neutron flux in the solids a fluence limit of the design applies to (the TF magnets, above 0.1 MeV, when it has none), for a design that passed `design check`, running until the mean over those solids reaches the target error. Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error
-  heating    Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel
+  heating    Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel. With --history-rates, also score unfiltered whole-model heating for the exact CAD history component partition
   help       Print this message or the help of the given subcommand(s)
 
 Options:
@@ -1127,29 +1127,58 @@ Arguments:
   <DESIGN>
 
 Options:
-      --check-report <JSON>            The report `design check --report` wrote for this design; its work directory must still hold the conversion
-      --out <DIR>                      A new directory for the run. Never overwrites
-      --report <REPORT>                Also write the result as JSON to this new file
-      --target-error <TARGET_ERROR>    Relative standard error of the mean flux at which the run stops [default: 0.05]
-      --max-histories <MAX_HISTORIES>  Stop after this many histories even when the target is not reached [default: 50000000]
-      --max-seconds <MAX_SECONDS>      Stop after this many seconds of sampling even when the target is not reached [default: 3600]
-      --particles <PARTICLES>          Histories per batch; the error is checked after every batch [default: 20000]
-      --seed <SEED>                    [default: 1]
-      --threads <THREADS>              [default: 4]
-      --window-python <PYTHON>         A Python with OpenMC 0.16 or later. With it, weight windows are made for the magnets before the run, which then needs far fewer histories
-      --openmc-package-path <DIR>      A directory holding an `openmc` package to use in place of --openmc-python's own, such as a build with the aiming patch
-      --group <ID>                     The replacement group whose fluence limit names the solids and the energy threshold to score [default: the only group with a fluence limit]
-      --cache-dir <DIR>                Where weight windows and the channel search are kept, so that a later run on the same model starts sampling at once [default: `faris-transport-cache` beside the design file]
-      --no-cache                       Keep nothing between runs and reuse nothing
-      --cad-python <PYTHON>            Python with cadquery, used to read the STEP file [env: FARIS_CAD_PYTHON]
-      --openmc-python <PYTHON>         Python with openmc and h5py, used for the nuclear-data audit [env: FARIS_OPENMC_PYTHON]
-      --cross-sections <XML>           cross_sections.xml of the audited library [env: FARIS_CROSS_SECTIONS]
-      --plasma-source-path <DIR>       Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
-      --cad-reader <READER>            Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
-      --occt-worker <WORKER>           The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
-      --setting <KEY=VALUE>            Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
-      --units <SYSTEM>                 Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
-  -h, --help                           Print help
+      --check-report <JSON>
+          The report `design check --report` wrote for this design; its work directory must still hold the conversion
+      --out <DIR>
+          A new directory for the run. Never overwrites
+      --report <REPORT>
+          Also write the result as JSON to this new file
+      --target-error <TARGET_ERROR>
+          Relative standard error of the mean flux at which the run stops [default: 0.05]
+      --max-histories <MAX_HISTORIES>
+          Stop after this many histories even when the target is not reached [default: 50000000]
+      --max-seconds <MAX_SECONDS>
+          Stop after this many seconds of sampling even when the target is not reached [default: 3600]
+      --particles <PARTICLES>
+          Histories per batch; the error is checked after every batch [default: 20000]
+      --seed <SEED>
+          [default: 1]
+      --threads <THREADS>
+          [default: 4]
+      --window-python <PYTHON>
+          A Python with OpenMC 0.16 or later. With it, weight windows are made for the magnets before the run, which then needs far fewer histories
+      --openmc-package-path <DIR>
+          A directory holding an `openmc` package to use in place of --openmc-python's own, such as a build with the aiming patch
+      --group <ID>
+          The replacement group whose fluence limit names the solids and the energy threshold to score [default: the only group with a fluence limit]
+      --history-component <COMPONENT=SOLID[,SOLID]>
+          Add all-energy component flux and breeder H3 responses for operating history. Repeat as `--history-component component_id=solid_id[,solid_id]` for every active solid
+      --history-scenario <SCENARIO.json>
+          Legacy explicit scenario source binding. Omit for native CAD source identity/power
+      --h3-component <ID>
+          Component receiving the H3-production tally; requires an explicit Li6-bearing CAD domain
+      --cache-dir <DIR>
+          Where weight windows and the channel search are kept, so that a later run on the same model starts sampling at once [default: `faris-transport-cache` beside the design file]
+      --no-cache
+          Keep nothing between runs and reuse nothing
+      --cad-python <PYTHON>
+          Python with cadquery, used to read the STEP file [env: FARIS_CAD_PYTHON]
+      --openmc-python <PYTHON>
+          Python with openmc and h5py, used for the nuclear-data audit [env: FARIS_OPENMC_PYTHON]
+      --cross-sections <XML>
+          cross_sections.xml of the audited library [env: FARIS_CROSS_SECTIONS]
+      --plasma-source-path <DIR>
+          Directory holding the openmc_plasma_source package, for the source sites of check 9 [env: FARIS_PLASMA_SOURCE_PATH]
+      --cad-reader <READER>
+          Which reader runs the STEP inspect and the per-solid tessellation: `native` (the OpenCASCADE worker), `python` (the helper), or `auto`, the worker when one is found and answers and the helper otherwise [default: auto; env: FARIS_CAD_READER] [possible values: auto, native, python]
+      --setting <KEY=VALUE>
+          Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --occt-worker <WORKER>
+          The native CAD worker, faris-occt-worker [default: the one next to the faris program; env: FARIS_OCCT_WORKER]
+      --units <SYSTEM>
+          Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help
+          Print help
 ```
 
 Example: `faris design transport`
@@ -1157,7 +1186,7 @@ Example: `faris design transport`
 ## faris design heating
 
 ```text
-Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel
+Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel. With --history-rates, also score unfiltered whole-model heating for the exact CAD history component partition
 
 Usage: faris design heating [OPTIONS] --check-report <JSON> --out <DIR> <DESIGN>
 
@@ -1171,6 +1200,8 @@ Options:
 
       --report <REPORT>
 
+      --history-rates <CAD_HISTORY_RATES.json>
+          Bind a previously validated CAD history-rate artifact and emit `history-energy-rates.json` in the new run directory on success
       --peak-voxel-m <PEAK_VOXEL_M> <PEAK_VOXEL_M>
           Radial and vertical peak voxel widths, in metres: --peak-voxel-m 0.05,0.05 [default: 0.05 0.05]
       --max-histories <MAX_HISTORIES>
@@ -1205,7 +1236,7 @@ Options:
           Print help
 ```
 
-Example: `faris design heating DESIGN --check-report JSON --out DIR`
+Example: `faris design heating DESIGN --check-report JSON --out DIR [--history-rates JSON]`
 
 ## faris diff
 

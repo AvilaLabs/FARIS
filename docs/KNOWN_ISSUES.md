@@ -9,7 +9,7 @@ problems in other programs FARIS drives are in [upstream defect drafts](defects/
 
 Severity: **S1** a wrong physics answer without a warning; **S2** a wrong answer with a warning, or loss of user work or data; **S3** a function fails or misleads, but the user is told or a workaround exists; **S4** cosmetic.
 
-0 open, 0 will not be fixed, 2 fixed that affected a released version, 36 fixed before they reached a release.
+0 open, 0 will not be fixed, 2 fixed that affected a released version, 37 fixed before they reached a release.
 
 ## Open
 
@@ -67,4 +67,5 @@ These were found in development and never shipped.
 | FARIS-034 | S3 | Bounded activation cleanup discarded material identities before writing receipts | 80f8f6c |
 | FARIS-035 | S3 | Rank-deficient heating covariance was refused after floating-point cancellation | 9264e17 |
 | FARIS-038 | S3 | AIM vacuum control and production preflight disagreed with the documented CLI and runtime identity | a43aefa |
+| FARIS-039 | S3 | Expanded CAD history inputs hid the transport Run controls below the window | 778678e |
 | FARIS-005 | S4 | The aiming reason claimed a straight channel from the plasma to the magnets | c3251c6 |

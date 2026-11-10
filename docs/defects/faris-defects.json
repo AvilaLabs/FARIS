@@ -500,6 +500,20 @@
       "fixed_in": "a43aefa",
       "disposition": "The new optional control referenced a case argument absent from its real parser, and its runtime identity contained Python fields missing from production preflight. The documented command failed before transport, while production would refuse a valid control on the same runtime. Scope now comes from the verified manifest and both paths share the complete runtime preflight. Parser-backed and identity regressions pass; the actual twelve-response vacuum control and its raw-statepoint consumer revalidation pass. The material benchmark remains unqualified.",
       "regression_test": "validation/test_fns_tof_jade.py::test_control_and_production_cli_use_same_complete_runtime_preflight"
+    },
+    {
+      "id": "FARIS-039",
+      "title": "Expanded CAD history inputs hid the transport Run controls below the window",
+      "severity": "S3",
+      "status": "fixed",
+      "found": "2026-11-09",
+      "affected_versions": [
+        "unreleased"
+      ],
+      "fixed_in": "778678e",
+      "retrospective_test": "e220f54",
+      "disposition": "Opening the whole-life mapping lengthened the form beyond the floating window, leaving Run below its visible edge. The form now scrolls with visible scrollbars while Run and Cancel stay in a footer. A settled-frame clipping regression and actual 980 by 640 native captures show Run remains visible with the mapping expanded. CAD calculation identity is also distinguished from the background study scene. OS-level input routing and full accessibility compliance are not established by these app-owned captures.",
+      "regression_test": "crates/faris-app/src/design_transport_panel.rs::expanded_cad_mapping_keeps_run_visible_in_a_small_window"
     }
   ]
 }
