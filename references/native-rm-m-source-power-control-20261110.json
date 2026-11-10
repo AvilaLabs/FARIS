@@ -1,0 +1,46 @@
+{
+  "schema": "faris-native-source-power-control/v1",
+  "scope": "Native Rust SRC-010 source arithmetic and explicitly authored density normalization only. Geometry and transport NOT_EVALUATED; no plasma/plant qualification.",
+  "original": {
+    "declared_fusion_power_mw": 525.0,
+    "implied_fusion_power_mw": 190.54650789161758,
+    "implied_reaction_rate_per_s": 6.757373625638298e+19,
+    "ratio": 0.3629457293173668,
+    "relative_difference": 0.6370542706826332,
+    "tolerance": 0.001,
+    "closes": false
+  },
+  "authored_normalized": {
+    "declared_fusion_power_mw": 525.0,
+    "implied_fusion_power_mw": 524.9999999999999,
+    "implied_reaction_rate_per_s": 1.8618137864158524e+20,
+    "ratio": 0.9999999999999998,
+    "relative_difference": 2.1654635756498291e-16,
+    "tolerance": 0.001,
+    "closes": true
+  },
+  "normalization": "Uniform scale sqrt(P_declared/P_native) on all three ion-density anchors; original input retained. Source shape, temperature, fuel and geometry unchanged.",
+  "artifacts": {
+    "runs/continuation/native-rm-m-v3-prep-v1/rm-m-v3-native.faris-design.json": {
+      "sha256": "22b1a0934bb416327e8a2b820cfc56213593227be3d22fe6615a12b91038280c",
+      "bytes": 21211
+    },
+    "runs/continuation/native-rm-m-v3-prep-v1/native-source-power.report.json": {
+      "sha256": "2b081279a08f68bfdc432bdac0591edc8604e5be4535142d9c3e95d3eab2c862",
+      "bytes": 828
+    },
+    "runs/continuation/native-rm-m-v3-prep-v1/rm-m-v3-native-derived-normalized.faris-design.json": {
+      "sha256": "602f96527d7e23635b2289c0e3824ba6aa4b1854b14871ffacdf4eb64d624735",
+      "bytes": 21815
+    },
+    "runs/continuation/native-rm-m-v3-prep-v1/rm-m-v3-native-derived-normalization.receipt.json": {
+      "sha256": "e3f7114dbaee8a7638ce0e13be510e471ce528b5900ce9091f5d0e8bc705e8dd",
+      "bytes": 8927
+    },
+    "runs/continuation/native-rm-m-v3-prep-v1/derived-source-power.report.json": {
+      "sha256": "022cfbeb9266af7a12ceac53f8d4d9f1994dd8afd9f8d51b98cd73ef435ecbc5",
+      "bytes": 850
+    }
+  },
+  "remaining": "Full native geometry/source-site checks on the derived sidecar are still required."
+}

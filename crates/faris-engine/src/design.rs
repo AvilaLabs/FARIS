@@ -75,7 +75,7 @@ pub use life::{
     FluenceAssessment, LimitStatus, PowerHistory, SECONDS_PER_YEAR, assess_fluence, power_history,
 };
 pub use reader::{ActiveReader, CadReader, NativeReader, ReaderStamp};
-pub use source::{CLOSURE_TOLERANCE, SourceClosure};
+pub use source::{CLOSURE_TOLERANCE, SourceClosure, closure as source_closure};
 pub use transport::{
     CadOperatingContext, DESIGN_HISTORY_RATES_CAD_VERSION, DESIGN_HISTORY_RATES_OUTPUTS,
     DESIGN_HISTORY_RATES_VERSION, DesignHistoryRatesArtifact, DesignTransportOptions,
@@ -485,6 +485,7 @@ fn launch_python_with_lines(
         capture_limit_bytes: 1 << 20,
         artifact_roots: Vec::new(),
         resource_limits: limits,
+        memory_workload: None,
     };
     let result = run_job_with_lines(&spec, cancellation, on_line)
         .map_err(|e| DesignError::Tool(format!("{what}: {e}")))?;

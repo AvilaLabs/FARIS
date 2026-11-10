@@ -6,7 +6,7 @@
 Every `faris` command with its help text, which lists every option. The examples are command lines from the
 rest of this handbook; [Command line](cli.md) explains how the commands fit together.
 
-85 of 90 commands have an example in the handbook; these have none yet: `faris maintenance dose-prepare`, `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
+86 of 91 commands have an example in the handbook; these have none yet: `faris maintenance dose-prepare`, `faris materials show`, `faris evidence run`, `faris evidence stage`, `faris cache unpin`.
 
 ## faris
 
@@ -1020,11 +1020,12 @@ Write and check the design file that says what a STEP model's solids are
 Usage: faris design [OPTIONS] <COMMAND>
 
 Commands:
-  init       Read a STEP file and write a draft design file with every solid listed and every material and role left null for you to fill in
-  check      Run import checks 1 to 9 on a design file and print what passed and what did not. Exit 0: no check failed. Exit 1: a check failed. Exit 2: usage or I/O error
-  transport  Compute the neutron flux in the solids a fluence limit of the design applies to (the TF magnets, above 0.1 MeV, when it has none), for a design that passed `design check`, running until the mean over those solids reaches the target error. Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error
-  heating    Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel. With --history-rates, also score unfiltered whole-model heating for the exact CAD history component partition
-  help       Print this message or the help of the given subcommand(s)
+  source-power  Integrate plasma profiles against the declared D-T fusion power without inspecting CAD. Exit 0: source closes. Exit 1: source does not close. Exit 2: invalid input or I/O error
+  init          Read a STEP file and write a draft design file with every solid listed and every material and role left null for you to fill in
+  check         Run import checks 1 to 9 on a design file and print what passed and what did not. Exit 0: no check failed. Exit 1: a check failed. Exit 2: usage or I/O error
+  transport     Compute the neutron flux in the solids a fluence limit of the design applies to (the TF magnets, above 0.1 MeV, when it has none), for a design that passed `design check`, running until the mean over those solids reaches the target error. Exit 0: target reached. Exit 1: a limit stopped the run first. Exit 2: usage or I/O error
+  heating       Run separate all-energy coupled neutron/photon/electron heating in explicitly authored winding-pack solids, then score the highest sampled ring voxel. With --history-rates, also score unfiltered whole-model heating for the exact CAD history component partition
+  help          Print this message or the help of the given subcommand(s)
 
 Options:
       --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
@@ -1033,6 +1034,25 @@ Options:
 ```
 
 Example: `faris design init STEP`
+
+## faris design source-power
+
+```text
+Integrate plasma profiles against the declared D-T fusion power without inspecting CAD. Exit 0: source closes. Exit 1: source does not close. Exit 2: invalid input or I/O error
+
+Usage: faris design source-power [OPTIONS] --report <REPORT> <DESIGN>
+
+Arguments:
+  <DESIGN>
+
+Options:
+      --report <REPORT>      Also write the identity-bound result as JSON to this new file
+      --setting <KEY=VALUE>  Set one setting for this run, over the environment and your settings file. Repeatable. `faris config list` shows the keys
+      --units <SYSTEM>       Unit system for printed quantities: si (the default) or fusion (MW, keV, cm, GWd, dpa). The same as `--setting units.system=...`; stored files are never changed by it
+  -h, --help                 Print help
+```
+
+Example: `faris design source-power DESIGN --report JSON`
 
 ## faris design init
 

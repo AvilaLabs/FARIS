@@ -79,6 +79,7 @@ fn probe(program: &Path) -> (Option<String>, &'static str, Option<String>) {
         capture_limit_bytes: 64 * 1024,
         artifact_roots: Vec::new(),
         resource_limits: ResourceLimits::default(),
+        memory_workload: None,
     };
     match run_job(&spec, &Cancellation::default()) {
         Ok(result) if result.execution_status == ExecutionStatus::Succeeded => {

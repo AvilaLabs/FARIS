@@ -1,0 +1,47 @@
+{
+  "schema": "faris.iter-1d-normal-source-control-receipt/1.0.0",
+  "status": "CONDITIONAL_CODE_TO_CODE_DIAGNOSTIC_ONLY; NOT PHYSICALLY VALIDATED",
+  "purpose": "Record one bounded 97-cell OpenMC-to-JADE flux control using the supplied ITER_1D OpenMC normal source. This receipt does not qualify the response source law, establish physical validation, or update the registered VAL-044 case status.",
+  "case": "iter-1d-flux-jade-v1",
+  "source_law": {
+    "openmc": "Pinned IAEA source: normal(14.055843863040961 MeV, 0.23863574091114037 MeV), isotropic direction, source points uniformly sampled in cell 51.",
+    "jade_reference": "Published JADE MCNP 6.2 deck uses SP1 -6 default DT Muir law.",
+    "qualification": "These are different probability laws. The response comparison is conditional and cannot establish source-qualified agreement."
+  },
+  "execution": {
+    "status": "COMPLETE",
+    "seed": 440046,
+    "histories": 1000000,
+    "batches": 100,
+    "threads": 2,
+    "time_limit_seconds": 600,
+    "openmc_version": "0.15.3",
+    "run_record": "/tmp/faris-iter-1d-jade-normal-control-seed440046-1m-v4/reference-result.json",
+    "run_record_sha256": "ff614acd00262a36d016e5fb5cf04af1c36891712e25eb370d20d90bd89047c5",
+    "conditional_comparison": "/tmp/faris-iter-1d-jade-normal-control-seed440046-1m-v4/conditional-jade-flux-comparison.json",
+    "conditional_comparison_sha256": "e3a6306b307f964b89002f86f2370992cf957f46eba8df54aaf16fc054de7b7a",
+    "jade_manifest_sha256": "f16449685de4d9f1eb15cdbcc1e8862bba178677c0ffaf27d225049e14c2ea95"
+  },
+  "coverage_and_normalization": {
+    "flux_rows": 97,
+    "unique_cell_ids": 97,
+    "cell_id_range": [2, 105],
+    "jade_normalization": "Reference values and uncertainties retain the JADE manifest builder's FM204=1.222e21 normalization.",
+    "openmc_response": "Whole-cell volume-average tracklength flux per source neutron; adapter keeps all 97 material response bins.",
+    "absorption": {
+      "status": "NoRef",
+      "comparison": "NOT_EVALUATED",
+      "reason": "No published absorption reference response; none inferred."
+    }
+  },
+  "conditional_summary": {
+    "C_over_E_min": 0.0,
+    "C_over_E_median": 0.9863755876920636,
+    "C_over_E_max": 13.126196923208443,
+    "cells_with_zero_sampled_openmc_flux": 30,
+    "cells_with_abs_z0_at_least_2": 48,
+    "cells_with_abs_z0_at_least_3": 43,
+    "z0_definition": "(C-E)/sqrt(uC^2+uE^2), shown under a zero-cross-code-covariance assumption only; covariance is unknown. It is a diagnostic, not a pass/fail statistic."
+  },
+  "interpretation_limit": "The source-law mismatch and conditional covariance assumption remain unresolved. Do not use this run as acceptance evidence, a tolerance adjustment, or a physical-response claim. Keep all 97 flux bins and absorption NoRef."
+}

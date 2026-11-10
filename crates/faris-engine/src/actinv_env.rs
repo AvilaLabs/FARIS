@@ -211,6 +211,7 @@ mod tests {
             capture_limit_bytes: 1024,
             artifact_roots: Vec::new(),
             resource_limits: ResourceLimits::default(),
+            memory_workload: None,
         };
         let got: BTreeMap<_, _> = spec
             .environment

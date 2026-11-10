@@ -878,6 +878,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
         shape_cache,
     };
     let mut pre_unavailable: Option<(String, String)> = None;
+    // The CAD reader runs as a separate process. It has no measured work counter; report the
+    // operation explicitly so the UI acknowledges activity without implying a percentage.
+    progress_fn("reading STEP and tessellating solids", 0, 0);
     match backends.tessellate(&tess_request)? {
         ToolResult::Done(tess) => {
             for problem in &tess.problems {
@@ -1056,6 +1059,10 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 reuse,
                 shape_cache,
             };
+            // Conversion is a separate CAD/OpenMC tool invocation and exposes no stable
+            // substep count. The attempt number is known, but attempts have very different
+            // costs, so do not turn it into a progress fraction or ETA.
+            progress_fn("converting geometry to DAGMC", 0, 0);
             match backends.convert_with_timeout(&request, remaining)? {
                 ToolResult::Done(out) => {
                     let actual_chord_m = out.report.tolerances.chord_cm / 100.0;
@@ -1614,6 +1621,9 @@ pub(super) fn run(inputs: &Inputs, report: &mut ImportReport) -> Result<(), Desi
                 mesh::to_metres(model.mesh.lo),
                 mesh::to_metres(model.mesh.hi),
             ];
+            // OpenMC reports its audit result only on completion. Surface the busy stage while
+            // it runs, but do not treat the requested sample count as completed progress.
+            progress_fn("auditing DAGMC volumes with OpenMC", 0, 0);
             match backends.stochastic_volumes(&StochasticVolumeRequest {
                 h5m: &h5m,
                 h5m_sha256: &converted.report.h5m.sha256,

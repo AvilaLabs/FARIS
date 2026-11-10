@@ -154,6 +154,20 @@ and tells you the next step. Nothing is repaired for you.
 The JSON report also records the hash of the design file and of the STEP file, the versions of the helpers and
 the interpreter that ran them, and every void solid.
 
+### Fast source-power preflight
+
+To check whether the plasma profiles imply the declared D-T fusion power without running CAD inspection, use:
+
+```bash
+faris design source-power machine.faris-design.json --report source-power.json
+```
+
+This reads and validates the design JSON, then calls FARIS's Rust SRC-010 profile integral. The report binds the
+result to the design file hash and declared STEP filename and hash. It explicitly marks geometry and transport
+as `NOT_EVALUATED`; this command does not inspect the STEP file or qualify a transport result. Exit status is 0
+when the source closes, 1 when it does not (the report is still written), and 2 for invalid input or an I/O error.
+Reports are created as new files and are never overwritten.
+
 ## What each check means
 
 1. **The file parses.** The JSON is valid and matches the format. A misspelt or unknown key stops the import, so a

@@ -780,6 +780,7 @@ pub fn run_case(
         capture_limit_bytes: 4 * 1024 * 1024,
         artifact_roots: vec![workspace.clone()],
         resource_limits: crate::jobs::ResourceLimits::default(),
+        memory_workload: None,
     };
     let execution = run_job(&job, cancellation)?;
     let report = if hash_file(&core).ok().as_ref() != Some(&core_sha256)

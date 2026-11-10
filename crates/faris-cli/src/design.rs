@@ -8,9 +8,10 @@ use faris_engine::design::{
     GeometryOptions, ImportReport, ToolPaths, check_design_with_tools,
     combine_cad_history_energy_rates, combine_history_energy_rates, design_heating,
     design_heating_with_history_rates, design_init_with_tools, design_transport,
-    render_design_heating_text, render_text, render_transport_text,
+    render_design_heating_text, render_text, render_transport_text, source_closure,
 };
 use faris_model::design::LengthUnit;
+use serde::Serialize;
 use std::{
     collections::BTreeMap,
     fmt,
@@ -59,6 +60,14 @@ impl ToolArguments {
 
 #[derive(Subcommand)]
 pub enum DesignCommand {
+    /// Integrate plasma profiles against the declared D-T fusion power without inspecting CAD.
+    /// Exit 0: source closes. Exit 1: source does not close. Exit 2: invalid input or I/O error.
+    SourcePower {
+        design: PathBuf,
+        /// Also write the identity-bound result as JSON to this new file.
+        #[arg(long, required = true)]
+        report: PathBuf,
+    },
     /// Read a STEP file and write a draft design file with every solid listed and every
     /// material and role left null for you to fill in.
     Init {
@@ -275,6 +284,22 @@ fn parse_history_components(values: &[String]) -> Result<BTreeMap<String, Vec<St
 
 pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        DesignCommand::SourcePower { design, report } => {
+            let bytes = crate::transport::read_bounded(&design)?;
+            let result = source_power_report(&design, &bytes)?;
+            crate::transport::write_new_json(&report, &result)?;
+            println!(
+                "{}\nGeometry: NOT_EVALUATED; transport: NOT_EVALUATED\nReport written to {}",
+                result.source_closure.summary(),
+                report.display()
+            );
+            let closure = &result.source_closure;
+            if closure.closes {
+                Ok(())
+            } else {
+                Err(Box::new(DesignCheckFailed(closure.disagreement())))
+            }
+        }
         DesignCommand::Init {
             step,
             out,
@@ -552,6 +577,74 @@ pub fn run(command: DesignCommand) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+#[derive(Debug, Serialize)]
+struct SourcePowerReport {
+    schema_version: &'static str,
+    design_input: SourcePowerInput,
+    declared_step: SourcePowerStep,
+    source_closure: faris_engine::design::SourceClosure,
+    geometry: &'static str,
+    transport: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct SourcePowerInput {
+    path: String,
+    sha256: String,
+}
+
+#[derive(Debug, Serialize)]
+struct SourcePowerStep {
+    file: String,
+    sha256: String,
+}
+
+fn source_power_report(
+    design_path: &Path,
+    bytes: &[u8],
+) -> Result<SourcePowerReport, Box<dyn std::error::Error>> {
+    let parsed = faris_model::design::parse_design(bytes);
+    let design = parsed.design.ok_or_else(|| {
+        format!(
+            "invalid design file: {}",
+            parsed
+                .findings
+                .iter()
+                .map(|f| f.why.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    })?;
+    if !parsed.findings.is_empty() {
+        return Err(format!(
+            "invalid design file: {}",
+            parsed
+                .findings
+                .iter()
+                .map(|f| f.why.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+        .into());
+    }
+    let closure =
+        source_closure(&design.plasma).map_err(|e| format!("invalid plasma source inputs: {e}"))?;
+    Ok(SourcePowerReport {
+        schema_version: "faris-source-power-preflight/v1",
+        design_input: SourcePowerInput {
+            path: design_path.display().to_string(),
+            sha256: crate::transport::sha256(bytes),
+        },
+        declared_step: SourcePowerStep {
+            file: design.cad.step_file,
+            sha256: design.cad.step_sha256,
+        },
+        source_closure: closure,
+        geometry: "NOT_EVALUATED",
+        transport: "NOT_EVALUATED",
+    })
+}
+
 /// Progress lines on standard error, at most one every two seconds per stage and one at the end.
 fn progress_printer() -> faris_engine::design::ProgressFn {
     use std::sync::Mutex;
@@ -594,6 +687,25 @@ fn write_json<T: serde::Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_power_report_binds_the_pure_closure_to_design_and_step_identity() {
+        let bytes =
+            include_bytes!("../../faris-model/tests/fixtures/design/pass.faris-design.json");
+        let report = source_power_report(Path::new("fixture.faris-design.json"), bytes).unwrap();
+        let parsed = faris_model::design::parse_design(bytes);
+        let design = parsed.design.unwrap();
+        assert_eq!(report.schema_version, "faris-source-power-preflight/v1");
+        assert_eq!(report.design_input.sha256, crate::transport::sha256(bytes));
+        assert_eq!(report.declared_step.file, design.cad.step_file);
+        assert_eq!(report.declared_step.sha256, design.cad.step_sha256);
+        assert_eq!(
+            report.source_closure,
+            source_closure(&design.plasma).unwrap()
+        );
+        assert_eq!(report.geometry, "NOT_EVALUATED");
+        assert_eq!(report.transport, "NOT_EVALUATED");
+    }
 
     #[test]
     fn history_component_cli_values_make_an_explicit_stable_map() {

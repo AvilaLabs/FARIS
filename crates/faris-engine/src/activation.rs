@@ -1448,6 +1448,7 @@ fn run_actinv(
         capture_limit_bytes: 1 << 20,
         artifact_roots: Vec::new(),
         resource_limits: config.resource_limits,
+        memory_workload: None,
     };
     let outcome = crate::jobs::run_job_with_prepared_cache(&spec, cancel, &cache_policy)
         .map_err(|e| format!("actinv run: {e}"))?;

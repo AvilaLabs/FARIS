@@ -2031,6 +2031,19 @@ fn execute_pass(
         capture_limit_bytes: 4 * 1024 * 1024,
         artifact_roots: vec![],
         resource_limits: ResourceLimits::default(),
+        memory_workload: Some(crate::memory_projection::WorkloadFeatures {
+            mesh_bins: mesh.bins() as u64,
+            responses: request
+                .responses
+                .iter()
+                .filter(|response| !matches!(response.domain, ResponseDomain::Mesh { .. }))
+                .count() as u64,
+            histories: u64::from(sampling.batches)
+                .saturating_mul(u64::from(sampling.particles_per_batch)),
+            batches: u64::from(sampling.batches),
+            triangles: 0,
+            known_input_bytes: input_bytes.len() as u64,
+        }),
     };
     let mut record=ReactorRun{schema_version:"faris-reactor-run/v0.1".into(),scenario_sha256:job.scenario.source_sha256.clone(),variant_id:physics.variant_id.clone(),physics_sha256:digest(&serde_json::to_vec(&physics)?),input_sha256:digest(&input_bytes),adapter_sha256:digest(job.adapter),python_sha256,openmc_sha256,cross_sections_sha256,audit_sha256:digest(&audit_bytes),scientific_scope:physics.scientific_scope.clone(),sampling:sampling.clone(),mesh:mesh.clone(),mesh_preflight:Some(mesh_preflight.clone()),execution:None,import_error:None,raw_artifact_sha256:None,normalized:None,lost_particle_accounting:None,transport_spectra_sha256:None,worker_result_sha256:None,normalized_spectra:None,sampling_precision_summary:None,sampling_outcome:None,variance_reduction,windowed_pass:None,windowed_run:None,scientific_qualification:"NOT_EVALUATED".into(),notice:"Coupled cold-data numerical surrogate with unqualified material/data/source applicability. Monte Carlo standard errors describe sampling only. Heating is transport energy deposition under OpenMC's local electron treatment; it is not a component thermal model, actual coil lifetime or operating-reactor prediction.".into()};
     match run_job(&spec, cancellation) {
@@ -3624,9 +3637,18 @@ mod tests {
     /// A job whose "Python" is a shell script, so the run, its exit code and its files can be faked.
     #[cfg(unix)]
     fn run_with_fake_worker(script: &str) -> (ReactorRun, tempfile::TempDir) {
-        use std::os::unix::fs::PermissionsExt;
         let (scenario, physics) = reference_case();
-        let library = SyntheticLibrary::new(&physics);
+        run_with_fake_worker_for(script, &scenario, &physics)
+    }
+
+    #[cfg(unix)]
+    fn run_with_fake_worker_for(
+        script: &str,
+        scenario: &LoadedScenario,
+        physics: &PhysicsCase,
+    ) -> (ReactorRun, tempfile::TempDir) {
+        use std::os::unix::fs::PermissionsExt;
+        let library = SyntheticLibrary::new(physics);
         let audit = library.dir.path().join("audit.json");
         std::fs::write(&audit, library.audit.to_string()).unwrap();
         let python = library.dir.path().join("python");
@@ -3637,8 +3659,8 @@ mod tests {
         let output = library.dir.path().join("run");
         let cross_sections = library.cross_sections();
         let job = ReactorJob {
-            scenario: &scenario,
-            physics: &physics,
+            scenario,
+            physics,
             audit: &audit,
             cross_sections: &cross_sections,
             python: &python,
@@ -3655,6 +3677,96 @@ mod tests {
         (record, library.dir)
     }
 
+    /// The synthetic raw artifact must use the same scenario-derived volumes
+    /// that the current replay validator checks. These are fixture geometry
+    /// values only; every tally below remains an explicit synthetic zero.
+    #[cfg(unix)]
+    fn synthetic_domain_volume(
+        scenario: &LoadedScenario,
+        variant_id: &str,
+        domain: &ResponseDomain,
+        mesh: &FieldMesh,
+    ) -> f64 {
+        let manifest = build_manifest(scenario).unwrap();
+        let variant = manifest
+            .variants
+            .iter()
+            .find(|variant| variant.id == variant_id)
+            .unwrap();
+        let penetration = scenario.scenario.penetration.as_ref();
+        match domain {
+            ResponseDomain::WholeModel => {
+                let outer = variant.components.last().unwrap().outer_minor_radius_m;
+                2.0 * math::powi(std::f64::consts::PI, 2)
+                    * manifest.major_radius_m
+                    * math::powi(outer, 2)
+            }
+            ResponseDomain::Component { component_id } => {
+                let component = variant
+                    .components
+                    .iter()
+                    .find(|component| &component.id == component_id)
+                    .unwrap();
+                match penetration {
+                    Some(faris_model::Penetration::OutboardRectangularPrism {
+                        bounds_m, ..
+                    }) => {
+                        let removed = crate::geometry::estimate_torus_shell_box_intersection(
+                            manifest.major_radius_m,
+                            component.inner_minor_radius_m,
+                            component.outer_minor_radius_m,
+                            &bounds_m.minimum_xyz_m,
+                            &bounds_m.maximum_xyz_m,
+                        );
+                        component.full_torus_volume_m3 - removed.volume_m3
+                    }
+                    None => component.full_torus_volume_m3,
+                }
+            }
+            ResponseDomain::ComponentRegion {
+                component_id,
+                region,
+            } => {
+                let component = variant
+                    .components
+                    .iter()
+                    .find(|component| &component.id == component_id)
+                    .unwrap();
+                let full = crate::geometry::torus_shell_region_volume_m3(
+                    manifest.major_radius_m,
+                    component.inner_minor_radius_m,
+                    component.outer_minor_radius_m,
+                    region,
+                );
+                match penetration {
+                    Some(faris_model::Penetration::OutboardRectangularPrism {
+                        bounds_m,
+                        affected_component_ids,
+                        ..
+                    }) if affected_component_ids.contains(component_id) => {
+                        let removed =
+                            crate::geometry::estimate_torus_shell_box_region_intersection(
+                                manifest.major_radius_m,
+                                component.inner_minor_radius_m,
+                                component.outer_minor_radius_m,
+                                region,
+                                &bounds_m.minimum_xyz_m,
+                                &bounds_m.maximum_xyz_m,
+                            )
+                            .expect("the synthetic outboard port region lies at positive x");
+                        full - removed.volume_m3
+                    }
+                    _ => full,
+                }
+            }
+            ResponseDomain::Mesh { mesh_id, bin } => {
+                assert_eq!(mesh_id, &mesh.id);
+                assert!(*bin < mesh.bins() as u64);
+                mesh.bin_volume_m3()
+            }
+        }
+    }
+
     /// A recorded, legacy-schema run assembled from typed synthetic transport
     /// data. It enters the public replay loader without launching OpenMC.
     #[cfg(unix)]
@@ -3664,7 +3776,24 @@ mod tests {
         import_error: Option<&str>,
     ) -> (LoadedScenario, PathBuf, tempfile::TempDir) {
         let (scenario, physics) = reference_case();
-        let (mut record, dir) = run_with_fake_worker("exit 3");
+        recorded_run_fixture_for(
+            scenario,
+            physics,
+            store_normalized,
+            include_loss_receipt,
+            import_error,
+        )
+    }
+
+    #[cfg(unix)]
+    fn recorded_run_fixture_for(
+        scenario: LoadedScenario,
+        physics: PhysicsCase,
+        store_normalized: bool,
+        include_loss_receipt: bool,
+        import_error: Option<&str>,
+    ) -> (LoadedScenario, PathBuf, tempfile::TempDir) {
+        let (mut record, dir) = run_with_fake_worker_for("exit 3", &scenario, &physics);
         let run_directory = dir.path().join("run");
         let run_json = run_directory.join("run.json");
         let input_path = run_directory.join("input.json");
@@ -3675,13 +3804,6 @@ mod tests {
         let input_bytes = serde_json::to_vec_pretty(&input).unwrap();
         std::fs::write(&input_path, &input_bytes).unwrap();
 
-        let manifest = build_manifest(&scenario).unwrap();
-        let variant = manifest
-            .variants
-            .iter()
-            .find(|variant| variant.id == physics.variant_id)
-            .unwrap();
-        let outer_minor_radius = variant.components.last().unwrap().outer_minor_radius_m;
         let mut volumes = Vec::new();
         let mut tallies = Vec::with_capacity(request.responses.len());
         for response in &request.responses {
@@ -3689,25 +3811,12 @@ mod tests {
                 .iter()
                 .any(|volume: &DomainVolume| volume.domain == response.domain)
             {
-                let value = match &response.domain {
-                    ResponseDomain::WholeModel => {
-                        2.0 * math::powi(std::f64::consts::PI, 2)
-                            * manifest.major_radius_m
-                            * math::powi(outer_minor_radius, 2)
-                    }
-                    ResponseDomain::Component { component_id } => {
-                        variant
-                            .components
-                            .iter()
-                            .find(|component| &component.id == component_id)
-                            .unwrap()
-                            .full_torus_volume_m3
-                    }
-                    ResponseDomain::Mesh { .. } => mesh.bin_volume_m3(),
-                    ResponseDomain::ComponentRegion { .. } => {
-                        panic!("legacy fixture unexpectedly includes a component region")
-                    }
-                };
+                let value = synthetic_domain_volume(
+                    &scenario,
+                    &physics.variant_id,
+                    &response.domain,
+                    &mesh,
+                );
                 volumes.push(DomainVolume {
                     domain: response.domain.clone(),
                     value,
@@ -3945,6 +4054,92 @@ mod tests {
         .unwrap();
         record.worker_result_sha256 = Some(digest(&worker_bytes));
         std::fs::write(run_json, serde_json::to_vec_pretty(&record).unwrap()).unwrap();
+    }
+
+    /// Emit complete, explicitly synthetic demo bytes for browser CI. This ignored test is
+    /// invoked by the web workflow with FARIS_WEB_SMOKE_FIXTURE_OUT; it never runs OpenMC.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "CI-only generator for isolated browser rendering coverage"]
+    fn write_synthetic_web_smoke_fixture() {
+        use serde_json::json;
+
+        let output = PathBuf::from(
+            std::env::var_os("FARIS_WEB_SMOKE_FIXTURE_OUT")
+                .expect("FARIS_WEB_SMOKE_FIXTURE_OUT is required"),
+        );
+        assert!(
+            !output.exists(),
+            "refusing to replace existing synthetic fixture output: {}",
+            output.display()
+        );
+        std::fs::create_dir(&output).unwrap_or_else(|error| {
+            panic!(
+                "could not exclusively create synthetic fixture output {}: {error}",
+                output.display()
+            )
+        });
+        let scenario_root =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../scenarios/arc-inspired");
+        let assumptions = scenario_root.join("demo-operating-assumptions.json");
+        let mut core = Vec::new();
+        let pairs = [
+            ("port", "cold-reference-port"),
+            ("control", "cold-coupled-control"),
+        ];
+        for (pair, stem) in pairs {
+            let scenario_bytes =
+                std::fs::read(scenario_root.join(format!("{stem}.scenario.json"))).unwrap();
+            let scenario = LoadedScenario::from_bytes(&scenario_bytes).unwrap();
+            let scenario_rel = format!("{pair}/scenario.json");
+            let scenario_path = output.join(&scenario_rel);
+            std::fs::create_dir_all(scenario_path.parent().unwrap()).unwrap();
+            std::fs::write(&scenario_path, &scenario_bytes).unwrap();
+            core.push(json!({"path": scenario_rel, "bytes": scenario_bytes.len(), "sha256": format!("sha256:{}", digest(&scenario_bytes))}));
+            for variant in ["reference", "breeder-emphasis"] {
+                let physics_path = scenario_root.join(format!("{stem}.{variant}.physics.json"));
+                let physics = load_physics_case(&physics_path, &scenario).unwrap();
+                let (_, run_json, _temporary) =
+                    recorded_run_fixture_for(scenario.clone(), physics, true, true, None);
+                attach_bound_worker_receipt(&run_json);
+                let bundle = crate::core_evidence::pack_transport(&run_json).unwrap();
+                let (verified_scenario, verified) = bundle.verify().unwrap();
+                assert_eq!(verified_scenario.source_sha256, scenario.source_sha256);
+                assert!(verified.normalized.is_some());
+                let bundle_bytes = serde_json::to_vec(&bundle).unwrap();
+                let bundle_rel = format!("{pair}/bundles/{variant}.transport-bundle.json");
+                let bundle_path = output.join(&bundle_rel);
+                std::fs::create_dir_all(bundle_path.parent().unwrap()).unwrap();
+                std::fs::write(&bundle_path, &bundle_bytes).unwrap();
+                core.push(json!({"path": bundle_rel, "bytes": bundle_bytes.len(), "sha256": format!("sha256:{}", digest(&bundle_bytes))}));
+            }
+        }
+        let assumptions_bytes = std::fs::read(assumptions).unwrap();
+        std::fs::write(
+            output.join("operating-assumptions.json"),
+            &assumptions_bytes,
+        )
+        .unwrap();
+        core.push(json!({"path": "operating-assumptions.json", "bytes": assumptions_bytes.len(), "sha256": format!("sha256:{}", digest(&assumptions_bytes))}));
+        let manifest = json!({
+            "schema": "faris-web-demo/v1",
+            "package_schema": "synthetic-ci-smoke-fixture/v1",
+            "package_status": "SYNTHETIC_TEST_DATA_NOT_SCIENTIFIC_RESULTS",
+            "fixture_kind": "synthetic-ci-smoke",
+            "core": core,
+            "sweep": [],
+            "maintenance": null,
+            "ensembles": null,
+        });
+        std::fs::write(
+            output.join("manifest.json"),
+            [
+                serde_json::to_vec_pretty(&manifest).unwrap(),
+                b"\n".to_vec(),
+            ]
+            .concat(),
+        )
+        .unwrap();
     }
 
     #[cfg(unix)]

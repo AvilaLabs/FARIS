@@ -368,6 +368,7 @@ fn compile_study_inner(
         capture_limit_bytes: 4 * 1024 * 1024,
         artifact_roots: vec![],
         resource_limits: crate::jobs::ResourceLimits::default(),
+        memory_workload: None,
     };
     let pre_execution_sha256 = executable_digest(&executable)?;
     if pre_execution_sha256 != executable_sha256 {

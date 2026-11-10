@@ -432,6 +432,7 @@ fn generate(
         capture_limit_bytes: 4 * 1024 * 1024,
         artifact_roots: vec![],
         resource_limits: ResourceLimits::with_address_space(WINDOWS_ADDRESS_SPACE),
+        memory_workload: None,
     };
     let result = match run_job(&spec, cancellation) {
         Ok(result) => result,

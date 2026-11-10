@@ -393,6 +393,7 @@ fn decay_from_file(
             capture_limit_bytes: 1 << 20,
             artifact_roots: Vec::new(),
             resource_limits: config.resource_limits,
+            memory_workload: None,
         };
         let outcome = run_job(&spec, cancel).map_err(|e| format!("actinv inspect decay: {e}"))?;
         if outcome.execution_status != ExecutionStatus::Succeeded {

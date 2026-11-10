@@ -117,7 +117,7 @@ pub fn decide(
         };
     }
     Admission::Refused(format!(
-        "not started: this job may use up to {} (its memory cap; FARIS has no estimate for it), \
+        "not started: this job may use up to {} (its projected memory reservation), \
          but only {} of memory is free and {} is kept in reserve. Close other programs and run it \
          again, or, if the job is known to be small, lower the cap with FARIS_MEMORY_CAP_MB.",
         gib(projected_bytes),
@@ -135,7 +135,7 @@ impl Admission {
                 free_bytes,
                 margin_bytes,
             } => format!(
-                "PASS: projected {} (the cap), free {}, reserve {}",
+                "PASS: projected reservation {}, free {}, reserve {}",
                 gib(*projected_bytes),
                 gib(*free_bytes),
                 gib(*margin_bytes)

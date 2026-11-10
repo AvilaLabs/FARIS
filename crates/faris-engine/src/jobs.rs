@@ -18,8 +18,8 @@
 //!   There is no kernel single-file limit, so the artifact scan alone enforces it. The safe
 //!   job-object wrapper cannot set or read a job-wide memory limit, so the runner samples the
 //!   committed memory of the program it started (not its descendants) and stops it with
-//!   [`ExecutionStatus::MemoryLimit`] past the cap. The program runs briefly before it is
-//!   assigned to the job; a process it starts in that moment is outside the job.
+//!   [`ExecutionStatus::MemoryLimit`] past the cap. The program is created suspended, assigned
+//!   to the job, and then resumed.
 //!
 //! This is a resource-bounded execution wrapper, not a sandbox for hostile programs.
 
@@ -151,6 +151,9 @@ pub struct JobSpec {
     pub artifact_roots: Vec<PathBuf>,
     /// Requested ceilings, bounded above by the implementation defaults.
     pub resource_limits: ResourceLimits,
+    /// Optional explicit workload dimensions for PERF-041 admission. Unknown jobs continue
+    /// to use the full hard cap as their conservative projection.
+    pub memory_workload: Option<crate::memory_projection::WorkloadFeatures>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -567,11 +570,28 @@ fn run_job_internal(
     let mut limits = spec.resource_limits;
     limits.address_space_bytes =
         crate::memory::effective_address_space(limits.address_space_bytes, &memory_policy);
-    let admission = crate::memory::admit(limits.address_space_bytes, &memory_policy);
-    if let crate::memory::Admission::Refused(why) = admission {
-        return Err(JobError::MemoryRefused(why));
+    let (projection, admission) = match spec.memory_workload {
+        Some(features) => crate::memory_projection::admit_workload(
+            features,
+            limits.address_space_bytes,
+            &memory_policy,
+        ),
+        None => (
+            crate::memory_projection::unknown_workload(limits.address_space_bytes),
+            crate::memory::admit(limits.address_space_bytes, &memory_policy),
+        ),
+    };
+    if let crate::memory::Admission::Refused(why) = &admission {
+        return Err(JobError::MemoryRefused(format!(
+            "{why}; {}",
+            projection.explanation,
+        )));
     }
-    let memory_check = Some(admission.record());
+    let memory_check = Some(format!(
+        "{}; {}",
+        admission.record(),
+        projection.explanation
+    ));
     let mut artifact_roots = vec![spec.working_directory.clone()];
     for root in &spec.artifact_roots {
         if !root.is_absolute() {
@@ -949,21 +969,31 @@ mod platform {
 
     #[cfg(windows)]
     impl Running {
-        /// Starts the program, then puts it in a job object that kills everything in it when
-        /// the job is closed. The program runs for a moment before it is assigned, so a
-        /// grandchild it creates in that moment is outside the job and escapes termination.
+        /// Starts the program suspended, puts it in a job object that kills everything in it
+        /// when the job is closed, and only then lets its primary thread run.
         pub fn start(spec: &JobSpec, _limits: &ResourceLimits) -> Result<Self, JobError> {
             use std::os::windows::io::AsRawHandle;
+            use std::os::windows::process::CommandExt;
             let mut limit_info = win32job::ExtendedLimitInfo::new();
             limit_info.limit_kill_on_job_close();
             let job = win32job::Job::create_with_limit_info(&limit_info).map_err(job_error)?;
             let mut command = Command::new(&spec.program);
             command.args(&spec.arguments);
-            let mut child = configure(&mut command, spec).spawn()?;
+            let mut child = configure(&mut command, spec)
+                .creation_flags(CREATE_SUSPENDED)
+                .spawn()?;
             if let Err(error) = job.assign_process(child.as_raw_handle() as isize) {
                 let _ = child.kill();
                 let _ = child.wait();
                 return Err(job_error(error));
+            }
+            if let Err(error) = resume_primary_thread(child.id()) {
+                // Closing the job also terminates the suspended child. Reap its process
+                // handle before returning the launch failure to the caller.
+                drop(job);
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(JobError::Io(error));
             }
             Ok(Self {
                 child,
@@ -990,6 +1020,98 @@ mod platform {
             let _ = self.child.kill();
             Ok(())
         }
+    }
+
+    /// `CREATE_SUSPENDED`, from WinBase.h. `CommandExt::creation_flags` passes this flag to
+    /// CreateProcessW while retaining std's argument encoding, environment, and pipe setup.
+    #[cfg(windows)]
+    const CREATE_SUSPENDED: u32 = 0x0000_0004;
+
+    /// Finds and resumes the only thread in a newly-created suspended process. No user code can
+    /// run before this call, so the process cannot create another thread before the snapshot.
+    #[cfg(windows)]
+    fn resume_primary_thread(process_id: u32) -> IoResult<()> {
+        use std::{ffi::c_void, mem::size_of};
+
+        type Handle = *mut c_void;
+        const TH32CS_SNAPTHREAD: u32 = 0x0000_0004;
+        const THREAD_SUSPEND_RESUME: u32 = 0x0002;
+        const INVALID_HANDLE_VALUE: Handle = -1isize as Handle;
+        const RESUME_FAILED: u32 = u32::MAX;
+
+        #[repr(C)]
+        struct ThreadEntry32 {
+            size: u32,
+            _usage: u32,
+            thread_id: u32,
+            owner_process_id: u32,
+            _base_priority: i32,
+            _delta_priority: i32,
+            _flags: u32,
+        }
+
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn CreateToolhelp32Snapshot(flags: u32, process_id: u32) -> Handle;
+            fn Thread32First(snapshot: Handle, entry: *mut ThreadEntry32) -> i32;
+            fn Thread32Next(snapshot: Handle, entry: *mut ThreadEntry32) -> i32;
+            fn OpenThread(access: u32, inherit: i32, thread_id: u32) -> Handle;
+            fn ResumeThread(thread: Handle) -> u32;
+            fn CloseHandle(handle: Handle) -> i32;
+        }
+
+        struct OwnedHandle(Handle);
+        impl Drop for OwnedHandle {
+            fn drop(&mut self) {
+                // SAFETY: this owns a valid handle returned by one of the APIs above.
+                unsafe { CloseHandle(self.0) };
+            }
+        }
+
+        // SAFETY: Tool Help APIs are called with the documented flags and initialized entry.
+        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Err(std::io::Error::last_os_error());
+        }
+        let snapshot = OwnedHandle(snapshot);
+        let mut entry = ThreadEntry32 {
+            size: size_of::<ThreadEntry32>() as u32,
+            _usage: 0,
+            thread_id: 0,
+            owner_process_id: 0,
+            _base_priority: 0,
+            _delta_priority: 0,
+            _flags: 0,
+        };
+        // SAFETY: entry is a valid writable THREADENTRY32 structure.
+        let mut found = unsafe { Thread32First(snapshot.0, &mut entry) } != 0;
+        while found {
+            if entry.owner_process_id == process_id {
+                // SAFETY: the thread ID came from this system thread snapshot.
+                let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.thread_id) };
+                if thread.is_null() {
+                    return Err(std::io::Error::last_os_error());
+                }
+                let thread = OwnedHandle(thread);
+                // SAFETY: this is the newly-created suspended primary thread.
+                let previous_suspend_count = unsafe { ResumeThread(thread.0) };
+                if previous_suspend_count == RESUME_FAILED {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if previous_suspend_count != 1 {
+                    return Err(std::io::Error::other(format!(
+                        "new child primary thread had unexpected suspend count {previous_suspend_count}"
+                    )));
+                }
+                return Ok(());
+            }
+            // SAFETY: entry remains a valid writable THREADENTRY32 structure.
+            found = unsafe { Thread32Next(snapshot.0, &mut entry) } != 0;
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "could not find suspended child primary thread",
+        ))
     }
 
     #[cfg(windows)]
@@ -1066,6 +1188,7 @@ mod tests {
             capture_limit_bytes: 1024,
             artifact_roots: vec![],
             resource_limits: ResourceLimits::default(),
+            memory_workload: None,
         };
         (dir, spec)
     }
@@ -1095,6 +1218,7 @@ mod tests {
                 single_file_bytes: 1024,
                 ..ResourceLimits::default()
             },
+            memory_workload: None,
         };
         let policy = PreparedCachePolicy {
             root: cache,
@@ -1316,6 +1440,83 @@ mod tests {
                 "grandchild {pid} remains in /proc after cancellation"
             );
             thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    // Verifies: PERF-024, AUTO-040, REL-006
+    #[cfg(windows)]
+    #[test]
+    fn cancellation_kills_a_windows_grandchild_started_immediately() {
+        use std::process::Command;
+
+        let dir = tempfile::tempdir().unwrap();
+        let pid_file = dir.path().join("grandchild.pid");
+        let powershell =
+            PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe");
+        let pid_file_literal = pid_file.to_string_lossy().replace('\'', "''");
+        let script = format!(
+            "$child = Start-Process -FilePath \"$env:SystemRoot\\System32\\ping.exe\" -ArgumentList @('-n','30','127.0.0.1') -PassThru; Set-Content -LiteralPath '{}' -Value $child.Id; Wait-Process -Id $child.Id",
+            pid_file_literal
+        );
+        let spec = JobSpec {
+            program: powershell.clone(),
+            arguments: vec!["-NoProfile".into(), "-Command".into(), script.into()],
+            working_directory: dir.path().to_owned(),
+            environment: vec![(
+                OsString::from("SystemRoot"),
+                std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into()),
+            )],
+            timeout: Duration::from_secs(10),
+            capture_limit_bytes: 1024,
+            artifact_roots: vec![],
+            resource_limits: ResourceLimits::default(),
+            memory_workload: None,
+        };
+        let cancellation = Cancellation::default();
+        let remote = cancellation.clone();
+        let worker = thread::spawn(move || run_job(&spec, &remote).unwrap());
+
+        let start_deadline = Instant::now() + Duration::from_secs(5);
+        let pid: u32 = loop {
+            if let Ok(contents) = std::fs::read_to_string(&pid_file)
+                && let Ok(pid) = contents.trim().parse()
+            {
+                break pid;
+            }
+            assert!(Instant::now() < start_deadline, "grandchild did not start");
+            thread::sleep(Duration::from_millis(10));
+        };
+        let cancelled_at = Instant::now();
+        cancellation.cancel();
+        let result = worker.join().unwrap();
+        assert!(
+            cancelled_at.elapsed() <= Duration::from_secs(2),
+            "job cancellation exceeded two seconds"
+        );
+        assert_eq!(result.execution_status, ExecutionStatus::Cancelled);
+
+        // Query after the job has closed. PowerShell exits successfully with no output when
+        // the process has been terminated and returns the process otherwise.
+        let cleanup_deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let output = Command::new(&powershell)
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    &format!(
+                        "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ exit 1 }}"
+                    ),
+                ])
+                .output()
+                .unwrap();
+            if output.status.success() {
+                break;
+            }
+            assert!(
+                Instant::now() < cleanup_deadline,
+                "grandchild {pid} remains after cancellation"
+            );
+            thread::sleep(Duration::from_millis(20));
         }
     }
 

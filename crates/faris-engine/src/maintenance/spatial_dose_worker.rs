@@ -2981,6 +2981,7 @@ fn launch_bounded(
         capture_limit_bytes: WORKER_LOG_LIMIT_BYTES,
         artifact_roots: Vec::new(),
         resource_limits: ResourceLimits::DEFAULT,
+        memory_workload: None,
     };
     let result = run_job(&spec, cancel).map_err(|error| {
         format!(

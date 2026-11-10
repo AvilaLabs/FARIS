@@ -29,6 +29,7 @@ pub mod impurity_sensitivity;
 pub mod jobs;
 pub mod maintenance;
 pub mod memory;
+pub mod memory_projection;
 pub mod mesh;
 pub mod output_uncertainty;
 pub mod presets;

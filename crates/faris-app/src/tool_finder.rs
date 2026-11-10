@@ -481,6 +481,7 @@ pub fn probe(python: &Path, scratch: &Path, cancel: &Cancellation) -> Probed {
         capture_limit_bytes: 64 * 1024,
         artifact_roots: Vec::new(),
         resource_limits: ResourceLimits::DEFAULT,
+        memory_workload: None,
     };
     match run_job(&spec, cancel) {
         Err(e) => Probed::Broken(e.to_string()),

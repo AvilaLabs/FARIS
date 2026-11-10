@@ -174,6 +174,7 @@ pub fn run(command: ControlCommand) -> Result<(), Box<dyn std::error::Error>> {
         capture_limit_bytes: 1024 * 1024,
         artifact_roots: vec![output.clone()],
         resource_limits: faris_engine::jobs::ResourceLimits::default(),
+        memory_workload: None,
     };
     let started_unix_seconds = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let interrupts = interrupt_cancellation()?;

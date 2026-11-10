@@ -711,6 +711,7 @@ impl ActinvDecaySource {
             capture_limit_bytes: 1 << 20,
             artifact_roots: Vec::new(),
             resource_limits: self.config.resource_limits,
+            memory_workload: None,
         };
         let result = match cache_policy.as_ref() {
             Some(policy) => run_job_with_prepared_cache(&spec, cancel, policy),
